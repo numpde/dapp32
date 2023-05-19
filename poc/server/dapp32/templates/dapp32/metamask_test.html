@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MetaMask test</title>
+    <style>
+        .connected {
+            background-color: green;
+        }
+    </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js/dist/web3.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/babel-standalone@6/babel.min.js" crossorigin="anonymous"></script>
+
+<script type="text/babel">
+    const NETWORKS = {
+        'mainnet': 1,
+        'polygon': 137,
+    };
+
+    class MyApp extends React.Component {
+        constructor(props) {
+            super(props);
+            this.state = {
+                selectedNetwork: this.getCurrentNetwork(),
+                isConnected: this.isMetamaskConnected(),
+            };
+        }
+
+        componentDidMount() {
+            ethereum.on('disconnect', this.handleDisconnect);
+            ethereum.on('accountsChanged', this.handleAccountsChanged);
+            ethereum.on('chainChanged', this.userChangedChain);
+        }
+
+        componentWillUnmount() {
+            ethereum.removeListener('disconnect', this.handleDisconnect);
+            ethereum.removeListener('accountsChanged', this.handleAccountsChanged);
+            ethereum.removeListener('chainChanged', this.userChangedChain);
+        }
+
+        userChangedChain = (_chainId) => {
+            this.getCurrentNetwork();
+        };s
+
+        handleAccountsChanged = (accounts) => {
+            if (accounts) {
+                console.log('Please connect to MetaMask.');
+                this.setState({isConnected: false});
+            } else if (accounts[0] !== this.state.currentAccount) {
+                // TODO: currentAccount is not defined
+                console.log("Account changed:", accounts[0]);
+                this.setState({isConnected: true});
+            }
+        };
+
+        handleDisconnect = (error) => {
+            console.log(error);
+            this.setState({isConnected: false});
+        };
+
+        isMetamaskConnected = () => {
+            return !!ethereum.selectedAddress;
+        };
+
+        connectToMetamask = async () => {
+            try {
+                const accounts = await ethereum.request({method: 'eth_requestAccounts'});
+
+                this.setState({isConnected: !!accounts});
+
+                await this.getCurrentNetwork();
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
+        getCurrentNetwork = async () => {
+            const networkId = parseInt(await ethereum.request({method: 'net_version'}));
+            const [network, _] = Object.entries(NETWORKS).find(([network, id]) => (networkId === id));
+            this.setState({selectedNetwork: network});
+        };
+
+        onNetworkSelection = (event) => {
+            const selectedNetwork = event.target.value;
+            this.setState({selectedNetwork: selectedNetwork});
+
+            ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{chainId: "0x" + NETWORKS[selectedNetwork].toString(16)}],
+            }).then(() => {
+                console.log(`Switched to network ${selectedNetwork}`);
+            }).catch(e => {
+                this.getCurrentNetwork();
+            });
+        };
+
+        render() {
+            const {selectedNetwork, isConnected} = this.state;
+
+            return (
+                <div>
+                    <select value={selectedNetwork} onChange={this.onNetworkSelection}>
+                        {
+                            Object.keys(NETWORKS).map((network) => (
+                                <option key={network} value={network}>{network}</option>
+                            ))
+                        }
+                    </select>
+                    <button onClick={this.connectToMetamask} className={isConnected ? 'connected' : ''}>
+                        {isConnected ? 'Connected!' : 'Connect'}
+                    </button>
+                </div>
+            );
+        }
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<MyApp/>);
+</script>
+
+</body>
+</html>
