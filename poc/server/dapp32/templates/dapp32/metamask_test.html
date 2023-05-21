@@ -2,10 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MetaMask test</title>
+    <title>Wallet connection test</title>
     <style>
-        .connected {
-            background-color: green;
+        .fade-in {
+            opacity: 0;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .fade-in.show {
+            opacity: 1;
         }
     </style>
 </head>
@@ -18,103 +23,96 @@
 <script src="https://unpkg.com/babel-standalone@6/babel.min.js" crossorigin="anonymous"></script>
 
 <script type="text/babel">
-    const NETWORKS = {
-        'mainnet': 1,
-        'polygon': 137,
-    };
+    const DEFAULT_NETWORK = '0x89';
 
-    class MyApp extends React.Component {
+    class ConnectWallet extends React.Component {
         constructor(props) {
             super(props);
             this.state = {
-                selectedNetwork: this.getCurrentNetwork(),
-                isConnected: this.isMetamaskConnected(),
+                account: '',
+                network: '',
+                isConnected: undefined,
             };
         }
 
-        componentDidMount() {
-            ethereum.on('disconnect', this.handleDisconnect);
+        componentDidMount = async () => {
+            const network = await this.getCurrentNetwork();
+            const account = await this.getCurrentAccount();
+
+            this.setState({
+                network,
+                account,
+                isConnected: !!account,
+            });
+
             ethereum.on('accountsChanged', this.handleAccountsChanged);
-            ethereum.on('chainChanged', this.userChangedChain);
+            ethereum.on('chainChanged', this.handleChainChanged);
         }
 
         componentWillUnmount() {
-            ethereum.removeListener('disconnect', this.handleDisconnect);
-            ethereum.removeListener('accountsChanged', this.handleAccountsChanged);
-            ethereum.removeListener('chainChanged', this.userChangedChain);
+            ethereum.off('accountsChanged', this.handleAccountsChanged);
+            ethereum.off('chainChanged', this.handleChainChanged);
         }
 
-        userChangedChain = (_chainId) => {
-            this.getCurrentNetwork();
-        };s
-
-        handleAccountsChanged = (accounts) => {
+        handleAccountsChanged = async (accounts) => {
             if (accounts) {
-                console.log('Please connect to MetaMask.');
-                this.setState({isConnected: false});
-            } else if (accounts[0] !== this.state.currentAccount) {
-                // TODO: currentAccount is not defined
-                console.log("Account changed:", accounts[0]);
-                this.setState({isConnected: true});
+                this.setState({
+                    account: accounts[0],
+                    isConnected: true,
+                });
+            } else {
+                this.setState({
+                    account: '',
+                    isConnected: false,
+                });
             }
-        };
+        }
 
-        handleDisconnect = (error) => {
-            console.log(error);
-            this.setState({isConnected: false});
-        };
-
-        isMetamaskConnected = () => {
-            return !!ethereum.selectedAddress;
-        };
-
-        connectToMetamask = async () => {
-            try {
-                const accounts = await ethereum.request({method: 'eth_requestAccounts'});
-
-                this.setState({isConnected: !!accounts});
-
-                await this.getCurrentNetwork();
-            } catch (error) {
-                console.error(error);
-            }
-        };
+        handleChainChanged = async (chainId) => {
+            this.setState({
+                network: chainId,
+            });
+        }
 
         getCurrentNetwork = async () => {
-            const networkId = parseInt(await ethereum.request({method: 'net_version'}));
-            const [network, _] = Object.entries(NETWORKS).find(([network, id]) => (networkId === id));
-            this.setState({selectedNetwork: network});
-        };
+            return await ethereum.request({method: 'eth_chainId'});
+        }
 
-        onNetworkSelection = (event) => {
-            const selectedNetwork = event.target.value;
-            this.setState({selectedNetwork: selectedNetwork});
+        getCurrentAccount = async () => {
+            const accounts = await ethereum.request({method: 'eth_accounts'});
+            return accounts[0];
+        }
 
-            ethereum.request({
+        connect = async () => {
+            const accounts = await ethereum.request({method: 'eth_requestAccounts'});
+            await this.handleAccountsChanged(accounts);
+        }
+
+        switchToDefaultNetwork = async () => {
+            await ethereum.request({
                 method: 'wallet_switchEthereumChain',
-                params: [{chainId: "0x" + NETWORKS[selectedNetwork].toString(16)}],
-            }).then(() => {
-                console.log(`Switched to network ${selectedNetwork}`);
-            }).catch(e => {
-                this.getCurrentNetwork();
+                params: [{chainId: DEFAULT_NETWORK}],
             });
-        };
+        }
 
         render() {
-            const {selectedNetwork, isConnected} = this.state;
+            const {isConnected, account, network} = this.state;
 
             return (
-                <div>
-                    <select value={selectedNetwork} onChange={this.onNetworkSelection}>
-                        {
-                            Object.keys(NETWORKS).map((network) => (
-                                <option key={network} value={network}>{network}</option>
-                            ))
-                        }
-                    </select>
-                    <button onClick={this.connectToMetamask} className={isConnected ? 'connected' : ''}>
-                        {isConnected ? 'Connected!' : 'Connect'}
+                <div className={`fade-in ${(isConnected !== undefined) ? 'show' : ''}`}>
+                    <button onClick={this.connect} disabled={isConnected}>
+                        {isConnected ? 'Connected to wallet' : 'Connect to wallet...'}
                     </button>
+                    <div>Account: {account || 'Not connected'}</div>
+                    <div>Network: {network || 'Unknown'}</div>
+                    {
+                        network && (network !== DEFAULT_NETWORK) && (
+                            <div>
+                                <p>Not on the default network.</p>
+                                <button onClick={this.switchToDefaultNetwork}>Switch to default</button>
+                            </div>
+                        )
+                    }
                 </div>
             );
         }
