@@ -1,0 +1,34 @@
+{
+    "elements": [
+        {
+            "type": "input",
+            "label": "Enter your name",
+            "id": "nameInput",
+            "placeholder": "Your name here"
+        },
+        {
+            "type": "select",
+            "label": "Choose your favorite color",
+            "id": "colorSelect",
+            "options": [
+                "Red",
+                "Blue",
+                "Green"
+            ]
+        },
+        {
+            "type": "button",
+            "label": "Submit",
+            "id": "submitButton",
+            "onClick": {
+                "contractFunction": "submitForm",
+                "arguments": {
+                    "name": "#nameInput",
+                    "favoriteColor": "#colorSelect"
+                },
+                "isViewFunction": false,
+                "requiresSignature": true
+            }
+        }
+    ]
+}

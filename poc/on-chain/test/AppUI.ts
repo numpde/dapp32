@@ -27,7 +27,7 @@ describe("AppUI", function () {
             const viewURI = await appUI.connect(deployer).getInitialView();
 
             await expect(viewURI).to.match(/^http/);
-            console.log(viewURI);
+            // console.log(viewURI);
         });
 
     });

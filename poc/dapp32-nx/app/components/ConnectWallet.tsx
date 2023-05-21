@@ -1,5 +1,6 @@
 import React from "react";
 
+import './styles.css';
 
 export interface WalletState {
     network: string | undefined;
@@ -132,8 +133,8 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
                 {
                     network && this.props.defaultNetwork && (network !== this.props.defaultNetwork) && (
                         <div>
-                            <p>Not on the default network {this.props.defaultNetwork}.</p>
-                            <button onClick={this.switchToDefaultNetwork}>Switch to default</button>
+                            <div><button onClick={this.switchToDefaultNetwork}>Switch to default network</button></div>
+                            <div>Not on the default network {this.props.defaultNetwork}.</div>
                         </div>
                     )
                 }
