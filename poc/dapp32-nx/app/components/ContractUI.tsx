@@ -3,30 +3,37 @@ import objectHash from 'object-hash';
 import PropTypes from 'prop-types';
 
 import {COMPONENT_MAP} from "./ComponentMap";
+import {WalletState} from "./ConnectWallet";
 
 interface ContractUIProps {
     contractNetwork: string;
     contractAddress: string;
+
+    walletState: WalletState;
+
+    onVariableUpdate: (name: string, value: any) => void;
 }
 
 interface ContractUIState {
     contractNetwork: string;
     contractAddress: string;
-
-    userNetwork: string | undefined;
-    userAddress: string | undefined;
-
     ui: any;
+    variables: {
+        userNetwork: string | undefined;
+        userAddress: string | undefined;
+
+        [key: string]: any;
+    };
 }
 
 
-const DynamicUI = ({ui, onEvent}) => {
+const DynamicUI = ({ui, onEvent, variables, onVariableUpdate}) => {
     useEffect(() => {
         console.log("DynamicUI: onEvent changed");
     }, [onEvent]);
 
-    const createEventHandler = useCallback((eventDefinition, element) => {
-        return () => (eventDefinition && onEvent(eventDefinition, element));
+    const createEventHandler = useCallback((name, eventDefinition, element) => {
+        return () => (eventDefinition && onEvent(name, eventDefinition, element));
     }, [onEvent]);
 
     const elements = useMemo(() => {
@@ -46,7 +53,9 @@ const DynamicUI = ({ui, onEvent}) => {
                 <div key={key}>
                     <ElementComponent
                         {...elementProps}
-                        onClick={createEventHandler(onClickDefinition, element)}
+                        onClick={createEventHandler('onClick', onClickDefinition, element)}
+                        value={variables[element.id]}
+                        onVariableUpdate={onVariableUpdate}
                     />
                 </div>
             );
@@ -64,19 +73,38 @@ DynamicUI.propTypes = {
 };
 
 
+const VariableList = ({variables}) => (
+    <div>
+        {
+            Object.entries(variables).map(([name, value]) => (
+                <div key={name}>{name}: {value}</div>
+            ))
+        }
+    </div>
+);
+
 export class ContractUI extends React.Component<ContractUIProps, ContractUIState> {
     constructor(props: ContractUIProps) {
         super(props)
 
         this.state = {
-            ...props,
-
-            userNetwork: undefined,
-            userAddress: undefined,
+            contractNetwork: props.contractNetwork,
+            contractAddress: props.contractAddress,
 
             ui: undefined,
+
+            variables: {
+                userNetwork: props.walletState.network,
+                userAddress: props.walletState.account,
+            },
         }
     }
+
+    INITIAL_VIEW_FUNCTION = {
+        name: "getInitialView",
+        inputs: [],
+        outputs: [{name: "uiSpec", type: "string"}],
+    };
 
     isReady = () => {
         return this.state.contractNetwork && this.state.contractAddress;
@@ -86,7 +114,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     //     return this.state.contractABI.find((abi) => abi.name === method);
     // }
 
-    uiLoader = (method) => {
+    uiSpecLoader = (contractFunction) => {
         return async () => {
             const response = await fetch("/api/ui",
                 {
@@ -98,28 +126,47 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                         contractNetwork: this.state.contractNetwork,
                         contractAddress: this.state.contractAddress,
 
-                        userNetwork: this.state.userNetwork,
-                        userAddress: this.state.userAddress,
-
-                        method: method,
+                        function: contractFunction,
+                        variables: this.state.variables,
                     }),
                 },
             ).then(
-                response => response.json()
+                r => r.json()
             ).catch(
                 console.error
             )
 
-            console.log("Response:", response);
-
             if (response) {
-                this.setState({...this.state, ui: response?.viewSpec})
+                console.log("Response:", response);
+                this.setState({...this.state, ui: response?.uiSpec})
             }
         };
     };
 
-    onEvent = async (eventDefinition, element) => {
-        console.log("onEvent", eventDefinition, "from", element);
+    // Notably, this handles the Submit button
+    onEvent = async (name, eventDefinition, element) => {
+        console.log(name, eventDefinition, "from", element);
+
+        if (name !== "onClick") {
+            console.warn("Unknown event", name);
+            return;
+        }
+
+        const contractFunction = eventDefinition.function;
+
+        if (!contractFunction) {
+            console.error("Contract function not found for event", name, eventDefinition);
+            return;
+        }
+
+        const uiSpecLoader = this.uiSpecLoader(contractFunction);
+
+        await uiSpecLoader();
+    };
+
+    onVariableUpdate = (name, value) => {
+        console.log("onVariableUpdate:", name, "=", value);
+        this.setState((state) => ({...state, variables: {...state.variables, [name]: (value || '') as string}}));
     }
 
     render() {
@@ -129,10 +176,12 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                 <div>Contract address: {this.state.contractAddress}</div>
                 {
                     !this.state.ui ?
-                        <button onClick={this.uiLoader('getInitialView')}>Load UI</button>
+                        <button onClick={this.uiSpecLoader(this.INITIAL_VIEW_FUNCTION)}>Load UI</button>
                         :
-                        <DynamicUI ui={this.state.ui} onEvent={this.onEvent}/>
+                        <DynamicUI ui={this.state.ui} onEvent={this.onEvent} variables={this.state.variables}
+                                   onVariableUpdate={this.onVariableUpdate}/>
                 }
+                <VariableList variables={this.state.variables}/>
             </div>
         )
     }

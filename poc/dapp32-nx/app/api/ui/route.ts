@@ -1,68 +1,103 @@
+import {ethers, getAddress, ZeroAddress} from 'ethers';
 import Web3 from 'web3';
 
-
 export async function POST(request: Request) {
-
     const data = await request.json();
-
 
     const contractNetwork = data.contractNetwork;
     const contractAddress = data.contractAddress;
-    const method = data.method;
+    const contractFunction = data.function;  // Contract function ABI
 
-    const contractABI = require('../../../../on-chain/artifacts/contracts/AppUI.sol/AppUI.json').abi;
+    const variables = data.variables;
+
+    // Development on Ganache only
+    if (contractNetwork !== '0x539') {
+        return new Response(
+            JSON.stringify({
+                ok: false,
+                message: `Contract network ${contractNetwork} is not supported.`
+            }),
+        )
+    }
 
     const ganacheProviderUrl = 'http://localhost:8545';
-    const web3 = new Web3(ganacheProviderUrl);
 
-    const contract = new web3.eth.Contract(contractABI, contractAddress);
+    const contractABI: ethers.InterfaceAbi = require('../../../../on-chain/artifacts/contracts/AppUI.sol/AppUI.json').abi;
+    const provider = new ethers.JsonRpcProvider(ganacheProviderUrl);
 
-    const getViewSpec = async (contractAddress: string, method: string) => {
-        console.log(`Getting ${method} from contract ${contractAddress}`);
+    const contract: ethers.Contract = new ethers.Contract(contractAddress, contractABI, provider);
 
-        const viewSpecURI = await contract.methods[method]().call(
-            (error, result) => {
-                if (error) {
-                    console.error(error);
-                    return undefined;
-                } else {
-                    return result;
+    const getUISpec = async (contractAddress: string, contractFunction: object) => {
+        console.log(`Getting ${JSON.stringify(contractFunction)} from contract ${contractAddress}`);
+
+        const functionName = contractFunction.name;
+
+        const functionArgs = contractFunction.inputs.map(
+            (input: any) => {
+                if (input.type === 'address') {
+                    const addressString = variables[input.name];
+                    return getAddress(addressString);
                 }
+
+                return variables[input.name];
             }
         );
 
-        if (!viewSpecURI) {
-            return new Response(
-                JSON.stringify({
-                    ok: false,
-                    message: `Could not get viewSpecURI from contract ${contractAddress}`
-                }),
-            )
+        console.log(`Calling ${functionName} with args ${JSON.stringify(functionArgs)}`);
+
+        let uiSpecURI;
+
+        try {
+            if (functionArgs.length) {
+                console.log(`Calling ${functionName} with 3 args`);
+                uiSpecURI = await contract[functionName](...functionArgs);
+            } else {
+                console.log(`Calling ${functionName} with 0 args`);
+                uiSpecURI = await contract[functionName]();
+            }
+        } catch (error) {
+            console.error(error);
+            throw new Error(`Could not get UI URI from contract ${contractAddress}, calling ${functionName} with args ${JSON.stringify(functionArgs)} failed.`);
         }
 
-        if (viewSpecURI.startsWith('http')) {
-            return await (await fetch(viewSpecURI)).text();
+        if (!uiSpecURI) {
+            throw new Error(`Could not get UI URI from contract ${contractAddress}`);s
         }
 
-        return viewSpecURI;
+        if (uiSpecURI.startsWith('http')) {
+            return await (await fetch(uiSpecURI)).text();
+        }
+
+        return uiSpecURI;
     };
 
-    const parseIfData = (viewSpec: string) => {
-        if (viewSpec.startsWith("data:")) {
+    const parseIfData = (uiSpec: string) => {
+        if (uiSpec?.startsWith("data:")) {
             throw new Error("'data:' URI is not supported yet");
         }
 
-        return viewSpec;
+        return uiSpec;
     };
 
-    const viewSpec = JSON.parse(parseIfData(await getViewSpec(contractAddress, method)));
+    try {
+        const uiSpec = JSON.parse(parseIfData(await getUISpec(contractAddress, contractFunction)));
 
-    return new Response(
-        JSON.stringify({ok: true, viewSpec: viewSpec}),
-        {
-            headers: {"content-type": "application/json"},
-        }
-    );
+        return new Response(
+            JSON.stringify({ok: true, uiSpec: uiSpec}),
+            {
+                headers: {"content-type": "application/json"},
+            }
+        );
+    } catch (error) {
+        console.error(error);
+
+        return new Response(
+            JSON.stringify({ok: false, message: `${error}`}),
+            {
+                headers: {"content-type": "application/json"},
+            }
+        );
+    }
 }
 
 export async function GET(request: Request) {

@@ -10,11 +10,11 @@ contract AppUI {
         return string(abi.encodePacked(_baseURI(), "../../../artifacts/contracts/AppUI.sol/AppUI", ".json"));
     }
 
-    function getInitialView() public pure returns (string memory nextView) {
+    function getInitialView() public pure returns (string memory) {
         return string(abi.encodePacked(_baseURI(), "getInitialView", ".json"));
     }
 
-    function getSecondView(address user) public pure returns (string memory nextView) {
+    function getSecondView(address userAddress, string memory userName, string memory favoriteColor) public pure returns (string memory) {
         return string(abi.encodePacked(_baseURI(), "getSecondView", ".json"));
     }
 }

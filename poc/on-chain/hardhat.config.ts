@@ -32,7 +32,7 @@ const config: HardhatUserConfig = {
 
     networks: {
         ganache: {
-            url: "HTTP://127.0.0.1:8545",
+            url: "http://127.0.0.1:8545",
             accounts: [getEnvVariable("GANACHE_DAPP32_PRIVATE_KEY")],
         },
 
@@ -59,7 +59,7 @@ const deployed = {
     mumbai: {
     },
     ganache: {
-        AppUI: "0x7ecAa862A9D5f4e4Fb0dEF38B176CB15aab9349a",
+        AppUI: "0xC1555C081cC851cF3687F5e6fCE823C47b6ef5b1",
     },
 };
 

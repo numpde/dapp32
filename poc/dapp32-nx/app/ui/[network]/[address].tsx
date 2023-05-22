@@ -51,9 +51,6 @@ export const Dapp32 = () => {
 
     return (
         <div className="container">
-            <div className="item">
-                <button onClick={checkBalance} className="button">Check Balance</button>
-            </div>
             {!contractNetwork ?
                 <div className="item">Loading wallet info...</div>
                 :
@@ -64,13 +61,14 @@ export const Dapp32 = () => {
                     />
                 </div>
             }
-            {!(contractNetwork && contractAddress) ?
+            {!(contractNetwork && contractAddress && walletState) ?
                 <div className="item">Loading contract info...</div>
                 :
                 <div className="item">
                     <ContractUI
                         contractNetwork={contractNetwork}
                         contractAddress={contractAddress}
+                        walletState={walletState}
                     />
                 </div>
             }

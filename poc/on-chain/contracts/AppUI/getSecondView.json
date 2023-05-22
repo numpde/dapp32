@@ -1,0 +1,29 @@
+{
+  "elements": [
+    {
+      "type": "input",
+      "label": "Enter your second name: ",
+      "id": "userSecondName",
+      "placeholder": "Your second name"
+    },
+    {
+      "type": "button",
+      "label": "Submit",
+      "id": "submitButton",
+      "onClick": {
+        "function": {
+          "name": "getInitialView",
+          "inputs": [
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "pure"
+        }
+      }
+    }
+  ]
+}
