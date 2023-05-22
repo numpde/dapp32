@@ -1,7 +1,8 @@
-import React from "react";
+import React, {useCallback, useEffect, useMemo} from 'react';
+import objectHash from 'object-hash';
+import PropTypes from 'prop-types';
+
 import {COMPONENT_MAP} from "./ComponentMap";
-import {toKeyAlias} from "@babel/types";
-import uid = toKeyAlias.uid;
 
 interface ContractUIProps {
     contractNetwork: string;
@@ -19,14 +20,48 @@ interface ContractUIState {
 }
 
 
-const DynamicUI = ({ui}) => (
-    <div>
-        {ui.elements.map((element, i) => {
-            const Element = COMPONENT_MAP[element.type];
-            return Element ? <div><Element {...element} key={i}/></div> : null;
-        })}
-    </div>
-);
+const DynamicUI = ({ui, onEvent}) => {
+    useEffect(() => {
+        console.log("DynamicUI: onEvent changed");
+    }, [onEvent]);
+
+    const createEventHandler = useCallback((eventDefinition, element) => {
+        return () => (eventDefinition && onEvent(eventDefinition, element));
+    }, [onEvent]);
+
+    const elements = useMemo(() => {
+        return ui.elements.map((element) => {
+            const ElementComponent = COMPONENT_MAP[element.type];
+
+            if (!ElementComponent) {
+                console.error(`Unknown component type: ${element.type}`);
+                return null;
+            }
+
+            const key = element.id || objectHash(element);
+
+            const {onClick: onClickDefinition, ...elementProps} = element;
+
+            return (
+                <div key={key}>
+                    <ElementComponent
+                        {...elementProps}
+                        onClick={createEventHandler(onClickDefinition, element)}
+                    />
+                </div>
+            );
+        });
+    }, [ui.elements, createEventHandler]);
+
+    return <div key={objectHash(ui)}>{elements}</div>;
+};
+
+DynamicUI.propTypes = {
+    ui: PropTypes.shape({
+        elements: PropTypes.arrayOf(PropTypes.object).isRequired,
+    }).isRequired,
+    onEvent: PropTypes.func.isRequired,
+};
 
 
 export class ContractUI extends React.Component<ContractUIProps, ContractUIState> {
@@ -47,35 +82,45 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         return this.state.contractNetwork && this.state.contractAddress;
     }
 
-    loadUI = async () => {
-        const response = await fetch("/api/ui",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
+    // getContractFunctionABI = (method) => {
+    //     return this.state.contractABI.find((abi) => abi.name === method);
+    // }
+
+    uiLoader = (method) => {
+        return async () => {
+            const response = await fetch("/api/ui",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        contractNetwork: this.state.contractNetwork,
+                        contractAddress: this.state.contractAddress,
+
+                        userNetwork: this.state.userNetwork,
+                        userAddress: this.state.userAddress,
+
+                        method: method,
+                    }),
                 },
-                body: JSON.stringify({
-                    contractNetwork: this.state.contractNetwork,
-                    contractAddress: this.state.contractAddress,
+            ).then(
+                response => response.json()
+            ).catch(
+                console.error
+            )
 
-                    userNetwork: this.state.userNetwork,
-                    userAddress: this.state.userAddress,
+            console.log("Response:", response);
 
-                    method: 'getInitialView',
-                }),
-            },
-        ).then(
-            response => response.json()
-        ).catch(
-            console.error
-        )
-
-        console.log("Response:", response);
-
-        if (response) {
-            this.setState({...this.state, ui: response?.viewSpec})
-        }
+            if (response) {
+                this.setState({...this.state, ui: response?.viewSpec})
+            }
+        };
     };
+
+    onEvent = async (eventDefinition, element) => {
+        console.log("onEvent", eventDefinition, "from", element);
+    }
 
     render() {
         return !this.isReady() ? (<div></div>) : (
@@ -84,9 +129,9 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                 <div>Contract address: {this.state.contractAddress}</div>
                 {
                     !this.state.ui ?
-                        <button onClick={this.loadUI}>Load UI</button>
+                        <button onClick={this.uiLoader('getInitialView')}>Load UI</button>
                         :
-                        <DynamicUI ui={this.state.ui}/>
+                        <DynamicUI ui={this.state.ui} onEvent={this.onEvent}/>
                 }
             </div>
         )

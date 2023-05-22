@@ -20,6 +20,7 @@ const Button = ({id, label, onClick}) => (
     <button id={id} onClick={onClick}>{label}</button>
 );
 
+
 export const COMPONENT_MAP = {
     input: InputField,
     select: SelectDropdown,

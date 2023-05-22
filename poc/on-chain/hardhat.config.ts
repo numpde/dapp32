@@ -59,7 +59,7 @@ const deployed = {
     mumbai: {
     },
     ganache: {
-        AppUI: "0x0EbFaB7714f06cF914836cb11DF00b7231752182",
+        AppUI: "0x7ecAa862A9D5f4e4Fb0dEF38B176CB15aab9349a",
     },
 };
 
