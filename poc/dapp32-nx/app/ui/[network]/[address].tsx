@@ -22,33 +22,6 @@ export const Dapp32 = () => {
         setWalletState(newWalletState);
     }
 
-    async function checkBalance() {
-        console.log("Wallet state:", walletState);
-
-        const {network, account} = walletState;
-
-        const responseJSON = await fetch('/api/balanceOf', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({network, account}),
-        }).then(
-            response => response.json()
-        )
-
-        console.log(responseJSON);
-
-        // if (!response.ok) {
-        //     throw new Error(`HTTP error! status: ${response.status}`);
-        // }
-        //
-        // const balance = await response.json();
-        //
-        // this.setState({balance});
-
-    }
-
     return (
         <div className="container">
             {!contractNetwork ?

@@ -1,12 +1,12 @@
-import {ethers, getAddress, ZeroAddress} from 'ethers';
-import Web3 from 'web3';
+import {ethers, getAddress} from 'ethers';
+import {FunctionABI} from "../../components/ContractUI";
 
 export async function POST(request: Request) {
     const data = await request.json();
 
     const contractNetwork = data.contractNetwork;
     const contractAddress = data.contractAddress;
-    const contractFunction = data.function;  // Contract function ABI
+    const contractFunctionABI: FunctionABI = data.functionABI;  // Contract function ABI
 
     const variables = data.variables;
 
@@ -22,10 +22,10 @@ export async function POST(request: Request) {
 
     const ganacheProviderUrl = 'http://localhost:8545';
 
-    const contractABI: ethers.InterfaceAbi = require('../../../../on-chain/artifacts/contracts/AppUI.sol/AppUI.json').abi;
+    // const contractABI: ethers.InterfaceAbi = require('../../../../on-chain/artifacts/contracts/AppUI.sol/AppUI.json').abi;
     const provider = new ethers.JsonRpcProvider(ganacheProviderUrl);
 
-    const contract: ethers.Contract = new ethers.Contract(contractAddress, contractABI, provider);
+    const contract: ethers.Contract = new ethers.Contract(contractAddress, [contractFunctionABI], provider);
 
     const getUISpec = async (contractAddress: string, contractFunction: object) => {
         console.log(`Getting ${JSON.stringify(contractFunction)} from contract ${contractAddress}`);
@@ -61,7 +61,8 @@ export async function POST(request: Request) {
         }
 
         if (!uiSpecURI) {
-            throw new Error(`Could not get UI URI from contract ${contractAddress}`);s
+            throw new Error(`Could not get UI URI from contract ${contractAddress}`);
+            s
         }
 
         if (uiSpecURI.startsWith('http')) {
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
     };
 
     try {
-        const uiSpec = JSON.parse(parseIfData(await getUISpec(contractAddress, contractFunction)));
+        const uiSpec = JSON.parse(parseIfData(await getUISpec(contractAddress, contractFunctionABI)));
 
         return new Response(
             JSON.stringify({ok: true, uiSpec: uiSpec}),

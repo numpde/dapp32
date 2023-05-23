@@ -21,7 +21,7 @@
       "label": "Submit",
       "id": "submitButton",
       "onClick": {
-        "function": {
+        "functionABI": {
           "name": "getSecondView",
           "inputs": [
             {
@@ -43,7 +43,8 @@
               "type": "string"
             }
           ],
-          "stateMutability": "pure"
+          "stateMutability": "pure",
+          "type": "function"
         }
       }
     }

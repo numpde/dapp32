@@ -26,6 +26,14 @@ interface ContractUIState {
     };
 }
 
+export interface FunctionABI {
+    name: string;
+    inputs: Array<{ name: string, type: string }>;
+    outputs: Array<{ name: string, type: string }>;
+    stateMutability: string;
+    type: string;
+}
+
 
 const DynamicUI = ({ui, onEvent, variables, onVariableUpdate}) => {
     useEffect(() => {
@@ -100,10 +108,12 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
     }
 
-    INITIAL_VIEW_FUNCTION = {
+    INITIAL_VIEW_FUNCTION_ABI: FunctionABI = {
         name: "getInitialView",
         inputs: [],
         outputs: [{name: "uiSpec", type: "string"}],
+        stateMutability: "view",
+        type: "function",
     };
 
     isReady = () => {
@@ -114,7 +124,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     //     return this.state.contractABI.find((abi) => abi.name === method);
     // }
 
-    uiSpecLoader = (contractFunction) => {
+    uiSpecLoader = (contractFunctionABI) => {
         return async () => {
             const response = await fetch("/api/ui",
                 {
@@ -126,7 +136,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                         contractNetwork: this.state.contractNetwork,
                         contractAddress: this.state.contractAddress,
 
-                        function: contractFunction,
+                        functionABI: contractFunctionABI,
                         variables: this.state.variables,
                     }),
                 },
@@ -152,14 +162,14 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             return;
         }
 
-        const contractFunction = eventDefinition.function;
+        const contractFunctionABI = eventDefinition.functionABI;
 
-        if (!contractFunction) {
+        if (!contractFunctionABI) {
             console.error("Contract function not found for event", name, eventDefinition);
             return;
         }
 
-        const uiSpecLoader = this.uiSpecLoader(contractFunction);
+        const uiSpecLoader = this.uiSpecLoader(contractFunctionABI);
 
         await uiSpecLoader();
     };
@@ -176,10 +186,14 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                 <div>Contract address: {this.state.contractAddress}</div>
                 {
                     !this.state.ui ?
-                        <button onClick={this.uiSpecLoader(this.INITIAL_VIEW_FUNCTION)}>Load UI</button>
+                        <button onClick={this.uiSpecLoader(this.INITIAL_VIEW_FUNCTION_ABI)}>Load UI</button>
                         :
-                        <DynamicUI ui={this.state.ui} onEvent={this.onEvent} variables={this.state.variables}
-                                   onVariableUpdate={this.onVariableUpdate}/>
+                        <DynamicUI
+                            ui={this.state.ui}
+                            onEvent={this.onEvent}
+                            variables={this.state.variables}
+                            onVariableUpdate={this.onVariableUpdate}
+                        />
                 }
                 <VariableList variables={this.state.variables}/>
             </div>
