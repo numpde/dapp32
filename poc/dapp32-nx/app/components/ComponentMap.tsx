@@ -1,5 +1,4 @@
-import React, {useState, useEffect, ChangeEvent, FormEventHandler} from 'react';
-
+import React, {useState, useEffect} from 'react';
 
 type ComponentProps = {
     id: string,
@@ -37,7 +36,9 @@ const SelectDropdown: React.FC<ComponentProps> = ({id, label, options, value: in
                     options && !options.includes(value) &&
                     <option value={value} key={value}>{value}</option>
                 }
-                {options?.map((option, i) => <option value={option} key={i}>{option}</option>)}
+                {
+                    options?.map((option, i) => <option value={option} key={i}>{option}</option>)
+                }
             </select>
         </label>
     )
