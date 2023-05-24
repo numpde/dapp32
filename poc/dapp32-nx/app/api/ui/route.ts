@@ -1,5 +1,5 @@
 import {ethers, getAddress} from 'ethers';
-import {FunctionABI} from "../../components/ContractUI";
+import {FunctionABI} from "../../components/types";
 
 export async function POST(request: Request) {
     const data = await request.json();
@@ -27,10 +27,12 @@ export async function POST(request: Request) {
 
     const contract: ethers.Contract = new ethers.Contract(contractAddress, [contractFunctionABI], provider);
 
-    const getUISpec = async (contractAddress: string, contractFunction: object) => {
+    const getUISpec = async (contractAddress: string, contractFunction: FunctionABI) => {
         console.log(`Getting ${JSON.stringify(contractFunction)} from contract ${contractAddress}`);
 
         const functionName = contractFunction.name;
+
+        console.debug(`Populating ${contractFunction.inputs} with ${JSON.stringify(variables)}`);
 
         const functionArgs = contractFunction.inputs.map(
             (input: any) => {
@@ -62,7 +64,6 @@ export async function POST(request: Request) {
 
         if (!uiSpecURI) {
             throw new Error(`Could not get UI URI from contract ${contractAddress}`);
-            s
         }
 
         if (uiSpecURI.startsWith('http')) {

@@ -1,17 +1,11 @@
 import React from "react";
 
+// @ts-ignore
+import { isEqual } from 'lodash';
+
 import './styles.css';
+import {ConnectWalletData, WalletState} from "./types";
 
-export interface WalletState {
-    network: string | undefined;
-    account: string | undefined;
-    isConnected: boolean | undefined;
-}
-
-interface ConnectWalletData {
-    defaultNetwork: string | undefined;
-    onWalletInfoUpdate: (walletState: WalletState) => void;
-}
 
 interface Ethereum {
     selectedAddress: string | null;
@@ -39,7 +33,10 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
     }
 
     componentDidUpdate(prevProps: ConnectWalletData, prevState: WalletState) {
-        this.props?.onWalletInfoUpdate(this.state);
+        if (!isEqual(prevState, this.state)) {
+            console.debug("ConnectWallet.componentDidUpdate", prevProps, "prevState:", prevState, "currState:", this.state);
+            this.props?.onWalletInfoUpdate(this.state);
+        }
     }
 
     componentDidMount = async () => {
@@ -67,12 +64,12 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
         }
     }
 
-    handleAccountsChanged = async (accounts) => {
+    handleAccountsChanged = async (accounts: any) => {
         const account = accounts && accounts[0];
         this.setState({...this.state, account, isConnected: !!account});
     }
 
-    handleChainChanged = async (chainId) => {
+    handleChainChanged = async (chainId: any) => {
         this.setState({...this.state, network: chainId});
     }
 
@@ -133,7 +130,9 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
                 {
                     network && this.props.defaultNetwork && (network !== this.props.defaultNetwork) && (
                         <div>
-                            <div><button onClick={this.switchToDefaultNetwork}>Switch to default network</button></div>
+                            <div>
+                                <button onClick={this.switchToDefaultNetwork}>Switch to default network</button>
+                            </div>
                             <div>Not on the default network {this.props.defaultNetwork}.</div>
                         </div>
                     )

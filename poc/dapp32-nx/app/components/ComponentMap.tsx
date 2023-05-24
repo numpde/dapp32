@@ -2,10 +2,10 @@ import React, {useState, useEffect} from 'react';
 
 const etv = ((handler) => ((event) => handler(event.target.value)));
 
-const InputField = ({id, label, placeholder, value: initialValue, onVariableUpdate}) => {
+const InputField = ({id, label, placeholder, value: initialValue, onVariablesUpdate}) => {
     const [value, setValue] = useState((initialValue || '') as string);
 
-    useEffect(() => onVariableUpdate(id, value), [value, id, onVariableUpdate]);
+    useEffect(() => onVariablesUpdate({[id]: value}), [value, id, onVariablesUpdate]);
 
     return (
         <label>
@@ -15,10 +15,10 @@ const InputField = ({id, label, placeholder, value: initialValue, onVariableUpda
     );
 };
 
-const SelectDropdown = ({id, label, options, value: initialValue, onVariableUpdate}) => {
+const SelectDropdown = ({id, label, options, value: initialValue, onVariablesUpdate}) => {
     const [value, setValue] = useState((initialValue || '') as string);
 
-    useEffect(() => onVariableUpdate(id, value), [value, id, onVariableUpdate]);
+    useEffect(() => onVariablesUpdate({[id]: value}), [value, id, onVariablesUpdate]);
 
     return (
         <label>
@@ -40,7 +40,9 @@ const Button = ({id, label, onClick}) => (
 );
 
 
-export const COMPONENT_MAP = {
+export const COMPONENT_MAP: {
+    [key: string]: React.ComponentType<any>,
+} = {
     input: InputField,
     select: SelectDropdown,
     button: Button,
