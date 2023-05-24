@@ -3,8 +3,8 @@ import {ethers} from "hardhat";
 async function main() {
     const [deployer] = await ethers.getSigners();
 
-    // check that we are on the ganache network using chainid
     const chainId = (await ethers.provider.getNetwork()).chainId;
+
     if (chainId !== 1337) {
         throw new Error("This deployment script should only be used on ganache!");
     }

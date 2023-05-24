@@ -6,14 +6,14 @@ const config: HardhatUserConfig = {
 
     networks: {
         ganache: {
-            url: "http://127.0.0.1:8545",
+            url: "http://127.0.0.1:8546",
         },
     }
 };
 
 const deployed = {
     ganache: {
-        CaptureThatFlag: "0xB68eF8E67791196089911031bf9efB7ee0487106",
+        CaptureThatFlag: "0xb09bCc172050fBd4562da8b229Cf3E45Dc3045A6",
     },
 }
 
