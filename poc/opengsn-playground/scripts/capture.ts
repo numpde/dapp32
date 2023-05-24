@@ -3,7 +3,7 @@ import {deployed} from "../hardhat.config";
 // import {StaticJsonRpcProvider as StaticJsonRpcProviderV5} from '@ethersproject/providers';
 // import {Contract as ContractV5, Wallet as WalletV5} from 'ethers';
 import {JsonRpcProvider as JsonRpcProviderV6, Contract as ContractV6, Wallet as WalletV6} from 'ethers-v6';
-import { type Eip1193Provider, type BrowserProvider, type Signer as SignerV6 } from 'ethers-v6/providers';
+import { BrowserProvider, Signer as SignerV6 } from 'ethers-v6';
 
 const {RelayProvider} = require('@opengsn/provider')
 import {Web3Provider} from '@ethersproject/providers';
@@ -17,7 +17,7 @@ const main = async () => {
     const chainId = (await ethers.provider.getNetwork()).chainId;
 
     if (chainId !== 1337) {
-        throw new Error("This deployment script should only be used on ganache!");
+        throw new Error("This script should only be used on ganache!");
     }
 
     const contractAddress = deployed.ganache.CaptureThatFlag;
@@ -88,7 +88,7 @@ const main = async () => {
     // get the balance of wallet using ethersV5Provider
     console.info("Balance of new wallet before capture:", await ethersV6Provider.getBalance(await newWallet.getAddress()));
 
-    const tx3 = await contract.connect(newGsnSigner).captureTheFlag();
+    const tx3 = await (contract.connect(newGsnSigner) as ContractV6).captureTheFlag();
     await tx3.wait();
 
     console.info("Balance of new wallet after capture: ", await ethersV6Provider.getBalance(await newWallet.getAddress()));
