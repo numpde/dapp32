@@ -27,31 +27,36 @@ export const DynamicUI = (
         );
     }, [onEvent]);
 
-    const elements = useMemo(() => {
-        return ui.elements.map((element: any) => {
-            const ElementComponent = COMPONENT_MAP[element.type];
+    const elements = useMemo(
+        () => {
+            return ui.elements.map(
+                (element: any) => {
+                    const ElementComponent = COMPONENT_MAP[element.type];
 
-            if (!ElementComponent) {
-                console.error(`Unknown component type: ${element.type}`);
-                return null;
-            }
+                    if (!ElementComponent) {
+                        console.error(`Unknown component type: ${element.type}`);
+                        return null;
+                    }
 
-            const key = element.id || objectHash(element);
+                    const key = element.id || objectHash(element);
 
-            const {onClick: onClickDefinition, ...elementProps} = element;
+                    const {onClick: onClickDefinition, ...elementProps} = element;
 
-            return (
-                <div key={key}>
-                    <ElementComponent
-                        {...elementProps}
-                        onClick={createEventHandler('onClick', onClickDefinition, element)}
-                        value={variables[element.id]}
-                        onVariablesUpdate={onVariablesUpdate}
-                    />
-                </div>
+                    return (
+                        <div key={key}>
+                            <ElementComponent
+                                {...elementProps}
+                                onClick={createEventHandler('onClick', onClickDefinition, element)}
+                                value={variables[element.id]}
+                                onVariablesUpdate={onVariablesUpdate}
+                            />
+                        </div>
+                    );
+                }
             );
-        });
-    }, [ui.elements, createEventHandler]);
+        },
+        [ui.elements, createEventHandler]
+    );
 
     return <div key={objectHash(ui)}>{elements}</div>;
 };

@@ -40,7 +40,7 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
     }
 
     handleWalletStateUpdate = (newWalletState: WalletState) => {
-        console.debug("handleWalletStateUpdate:", newWalletState);
+        console.debug(`${typeof this}.handleWalletStateUpdate:`, newWalletState);
         this.setState(state => ({
             ...state,
             walletState: newWalletState,
@@ -53,7 +53,7 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
     }
 
     onVariablesUpdate = (newVariables: VariablesOfUI) => {
-        console.debug("onVariablesUpdate:", newVariables);
+        console.debug("Dapp32.onVariablesUpdate:", newVariables);
         this.setState((state) => ({...state, variables: {...state.variables, ...newVariables}}));
     }
 
@@ -63,24 +63,27 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
 
         return (
             <div className="container">
-                <div className="item">
-                    <ConnectWallet
-                        defaultNetwork={this.state.contract.network}
-                        onWalletInfoUpdate={this.handleWalletStateUpdate}
-                    />
-                </div>
                 {
-                    !(this.state.walletState && this.state.contract.address && this.state.contract.network) ?
-                        <div className="item">Loading wallet state and contract info...</div>
-                        :
-                        <div className="item">
-                            <ContractUI
-                                contract={this.state.contract}
-                                walletState={this.state.walletState}
-                                variables={this.state.variables}
-                                onVariablesUpdate={this.onVariablesUpdate}
-                            />
-                        </div>
+                    <div className="item">
+                        <ConnectWallet
+                            defaultNetwork={this.state.contract.network}
+                            onWalletInfoUpdate={this.handleWalletStateUpdate}
+                        />
+                    </div>
+                }
+                {
+                    (this.state.walletState && this.state.contract.address && this.state.contract.network)
+                    &&
+                    <div className="item">
+                        <ContractUI
+                            contract={this.state.contract}
+                            walletState={this.state.walletState}
+                            variables={this.state.variables}
+                            onVariablesUpdate={this.onVariablesUpdate}
+                        />
+                    </div>
+                    ||
+                    <div className="item">Loading contract info...</div>
                 }
                 <VariableList variables={this.state.variables}/>
             </div>

@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
         const functionName = contractFunction.name;
 
-        console.debug(`Populating ${contractFunction.inputs} with ${JSON.stringify(variables)}`);
+        console.debug(`Populating ${JSON.stringify(contractFunction.inputs)} with ${JSON.stringify(variables)}`);
 
         const functionArgs = contractFunction.inputs.map(
             (input: any) => {
