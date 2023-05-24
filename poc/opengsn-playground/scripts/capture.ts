@@ -1,8 +1,9 @@
 import {ethers} from "hardhat";
 import {deployed} from "../hardhat.config";
-import {StaticJsonRpcProvider as StaticJsonRpcProviderV5} from '@ethersproject/providers';
-import {JsonRpcProvider as JsonRpcProviderV6, Wallet as WalletV6} from 'ethers-v6';
-import {Contract as ContractV5, Wallet as WalletV5} from 'ethers';
+// import {StaticJsonRpcProvider as StaticJsonRpcProviderV5} from '@ethersproject/providers';
+// import {Contract as ContractV5, Wallet as WalletV5} from 'ethers';
+import {JsonRpcProvider as JsonRpcProviderV6, Contract as ContractV6, Wallet as WalletV6} from 'ethers-v6';
+import { type Eip1193Provider, type BrowserProvider, type Signer as SignerV6 } from 'ethers-v6/providers';
 
 const {RelayProvider} = require('@opengsn/provider')
 import {Web3Provider} from '@ethersproject/providers';
@@ -44,15 +45,15 @@ const main = async () => {
     //     config: config,
     // })
 
-    const ethersV5Provider = new StaticJsonRpcProviderV5(rpcURL);
-    const walletV5 = new WalletV5(GANACHE_PK, ethersV5Provider);
-    const {gsnProvider, gsnSigner} = await RelayProvider.newEthersV5Provider({provider: walletV5, config});
+    const ethersV6Provider = new JsonRpcProviderV6(rpcURL);
+    const walletV6 = new WalletV6(GANACHE_PK, ethersV6Provider);
+    const {gsnProvider, gsnSigner} = await RelayProvider.newEthersV6Provider({provider: walletV6, config});
 
 
     // const baseProvider = new Web3('http://localhost:8545');
     // const { gsnSigner } = await RelayProvider.newEthersV5Provider({provider: baseProvider.currentProvider, config});
 
-    const contract = new ethers.Contract(contractAddress, contractABI, gsnSigner);
+    const contract = new ContractV6(contractAddress, contractABI, gsnSigner);
 
     console.info("CAPTURED BY (0):", await contract.capturedBy());
 
@@ -62,19 +63,19 @@ const main = async () => {
     console.info("CAPTURED BY (1):", await contract.capturedBy());
 
     // get balance of gsnSigner
-    const balanceBeforeCapture = await gsnSigner.getBalance();
+    const balanceBeforeCapture = await ethersV6Provider.getBalance(await gsnSigner.getAddress());
 
     const tx2 = await contract.captureTheFlag();
     await tx2.wait();
 
-    const balanceAfterCapture = await gsnSigner.getBalance();
+    const balanceAfterCapture = await ethersV6Provider.getBalance(await gsnSigner.getAddress());
 
     console.info("CAPTURED BY (2):", await contract.capturedBy());
     console.info("Balance before capture:", balanceBeforeCapture);
     console.info("Balance after capture: ", balanceAfterCapture);
 
-    let newWallet = new WalletV5(WalletV5.createRandom().privateKey, gsnProvider);
-    const {gsnSigner: newGsnSigner} = await RelayProvider.newEthersV5Provider({provider: newWallet, config});
+    let newWallet = new WalletV6(WalletV6.createRandom().privateKey, gsnProvider);
+    const {gsnSigner: newGsnSigner} = await RelayProvider.newEthersV6Provider({provider: newWallet, config});
 
     // const to = await newWallet.getAddress();
     // const value = ethers.utils.parseEther("1.0");
@@ -84,12 +85,13 @@ const main = async () => {
     // console.info("TX: ", tx_send);
     // console.info("Balance after send: ", await gsnSigner.getBalance());
 
-    console.info("Balance of new wallet before capture: ", await newWallet.getBalance());
+    // get the balance of wallet using ethersV5Provider
+    console.info("Balance of new wallet before capture:", await ethersV6Provider.getBalance(await newWallet.getAddress()));
 
     const tx3 = await contract.connect(newGsnSigner).captureTheFlag();
     await tx3.wait();
 
-    console.info("Balance of new wallet after capture: ", await newWallet.getBalance());
+    console.info("Balance of new wallet after capture: ", await ethersV6Provider.getBalance(await newWallet.getAddress()));
 
     console.info("CAPTURED BY (3):", await contract.capturedBy());
 };
