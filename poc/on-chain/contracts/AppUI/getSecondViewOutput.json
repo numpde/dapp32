@@ -1,0 +1,83 @@
+{
+  "elements": [
+    {
+      "type": "text",
+      "label": "One more question..."
+    },
+    {
+      "type": "input",
+      "label": "Enter your second name: ",
+      "id": "userSecondName",
+      "placeholder": "Your second name"
+    },
+    {
+      "type": "text",
+      "label": "Click submit and check your wallet!"
+    },
+    {
+      "type": "button",
+      "label": "Submit",
+      "id": "submitButton",
+      "onClick": {
+        "default": {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "userAddress",
+              "type": "address"
+            }
+          ],
+          "name": "submit",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        "success": {
+          "inputs": [],
+          "name": "onSuccess",
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        "failure": {
+          "inputs": [],
+          "name": "onFailure",
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      }
+    },
+    {
+      "type": "button",
+      "label": "Go back",
+      "id": "goBackButton",
+      "onClick": {
+        "default": {
+          "name": "getInitialView",
+          "inputs": [
+
+          ],
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "pure",
+          "type": "function"
+        }
+      }
+    }
+  ]
+}

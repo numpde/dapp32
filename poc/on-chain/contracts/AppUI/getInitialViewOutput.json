@@ -1,6 +1,10 @@
 {
   "elements": [
     {
+      "type": "text",
+      "label": "Welcome to our DApp!"
+    },
+    {
       "type": "input",
       "label": "Enter your name: ",
       "id": "userName",
@@ -21,7 +25,7 @@
       "label": "Submit",
       "id": "submitButton",
       "onClick": {
-        "functionABI": {
+        "default": {
           "name": "getSecondView",
           "inputs": [
             {

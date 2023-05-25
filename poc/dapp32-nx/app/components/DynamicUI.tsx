@@ -40,6 +40,11 @@ export const DynamicUI = (
 
                     const key = element.id || objectHash(element);
 
+                    // The element may come with a default value
+                    if (element.value !== undefined) {
+                        variables[element.id] = variables[element.id] || element.value;
+                    }
+
                     const {onClick: onClickDefinition, ...elementProps} = element;
 
                     return (

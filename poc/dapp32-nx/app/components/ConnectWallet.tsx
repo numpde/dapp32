@@ -125,8 +125,8 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
                 <button onClick={this.connect} disabled={!!isConnected}>
                     {isConnected ? 'Connected to wallet' : 'Connect to wallet...'}
                 </button>
-                <div>Account: {account || 'Not connected'}</div>
-                <div>Network: {network || 'Unknown'}</div>
+                <div><span>Network: {network || 'Unknown'}</span></div>
+                <div><span>Account: {account || 'Not connected'}</span></div>
                 {
                     network && this.props.defaultNetwork && (network !== this.props.defaultNetwork) && (
                         <div>

@@ -13,7 +13,7 @@ const config: HardhatUserConfig = {
 
 const deployed = {
     ganache: {
-        CaptureThatFlag: "0xb09bCc172050fBd4562da8b229Cf3E45Dc3045A6",
+        CaptureThatFlag: "0x06143d6bec9Fa1e90f18920d01f9085793F1729F",
     },
 }
 

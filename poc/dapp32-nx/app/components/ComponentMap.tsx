@@ -2,7 +2,7 @@ import React, {useState, useEffect} from 'react';
 
 type ComponentProps = {
     id: string,
-    label: string,
+    label?: string,
     onClick?: () => void,
     placeholder?: string,
     value?: string,
@@ -48,6 +48,10 @@ const Button: React.FC<ComponentProps> = ({id, label, onClick}) => (
     <button id={id} onClick={onClick}>{label}</button>
 );
 
+const Text: React.FC<ComponentProps> = ({id, label}) => (
+    <div id={id}><span>{label}</span></div>
+);
+
 
 export const COMPONENT_MAP: {
     [key: string]: React.ComponentType<any>,
@@ -55,4 +59,5 @@ export const COMPONENT_MAP: {
     input: InputField,
     select: SelectDropdown,
     button: Button,
+    text: Text,
 };

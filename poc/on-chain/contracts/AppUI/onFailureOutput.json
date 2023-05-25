@@ -1,19 +1,18 @@
 {
   "elements": [
     {
-      "type": "input",
-      "label": "Enter your second name: ",
-      "id": "userSecondName",
-      "placeholder": "Your second name"
+      "type": "text",
+      "label": "Sorry, we hit a snag..."
     },
     {
       "type": "button",
-      "label": "Submit",
-      "id": "submitButton",
+      "label": "Retry",
+      "id": "retryButton",
       "onClick": {
-        "functionABI": {
+        "default": {
           "name": "getInitialView",
           "inputs": [
+
           ],
           "outputs": [
             {

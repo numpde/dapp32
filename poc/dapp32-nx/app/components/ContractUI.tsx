@@ -2,6 +2,8 @@ import React from 'react';
 
 import {DynamicUI} from "./DynamicUI";
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
+import {ChronologicalMap, prepareVariables} from "./utils";
+import {ContractTransactionReceipt, ContractTransactionResponse, ethers} from "ethers";
 
 
 const INITIAL_VIEW_FUNCTION_ABI: FunctionABI = {
@@ -12,9 +14,16 @@ const INITIAL_VIEW_FUNCTION_ABI: FunctionABI = {
     type: "function",
 };
 
+const FUNCTION_SELECTOR_DEFAULT: string = "default";
+const FUNCTION_SELECTOR_SUCCESS: string = "success";
+const FUNCTION_SELECTOR_FAILURE: string = "failure";
+
+
 export class ContractUI extends React.Component<ContractUIProps, ContractUIState> {
     constructor(props: ContractUIProps) {
-        super(props)
+        super(props);
+
+        props.walletState;  // unused
 
         this.state = {
             contract: props.contract,
@@ -23,7 +32,11 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
             variables: props.variables,
             onVariablesUpdate: props.onVariablesUpdate,
-        }
+
+            executingCount: 0,
+
+            messages: new ChronologicalMap(),
+        };
     }
 
     isReady = () => {
@@ -46,14 +59,14 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             name: this.state.contract.view,
         };
 
-        this.retrieveNextUI(initialFunctionABI, this.state.variables).then(
+        this.queryNextView(initialFunctionABI, this.state.variables).then(
             //
         ).catch(
             console.error
         );
     }
 
-    retrieveNextUI = async (functionABI: FunctionABI, variables: VariablesOfUI) => {
+    queryNextView = async (functionABI: FunctionABI, variables: VariablesOfUI) => {
         if (!functionABI) {
             throw new Error("No functionABI available.");
         }
@@ -88,11 +101,115 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         console.debug("Got response from the backend:", response);
 
-        this.setState({...this.state, ui: response?.uiSpec})
+        this.setState(state => ({...state, ui: response.message}));
+    };
+
+    executeWithSignature = async (functionABI: FunctionABI, variables: VariablesOfUI): Promise<ContractTransactionReceipt> => {
+        const provider = new ethers.BrowserProvider(window.ethereum as any);
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract(this.state.contract.address, [functionABI], signer);
+
+        const functionArgs = prepareVariables(functionABI, variables);
+
+        // // Get the current nonce
+        // const nonce = await provider.getTransactionCount(signer.getAddress());
+
+        // // Set the gas limit
+        // const gasLimit = ethers.utils.hexlify(21000); // This is just an example value
+
+        // // Get the current gas prices and chain ID
+        // const gasPriceData = await provider.getFeeData();
+        // const maxFeePerGas = gasPriceData.maxFeePerGas;
+        // const maxPriorityFeePerGas = gasPriceData.maxPriorityFeePerGas;
+        // const chainId = /* this should be the target contract chain */;
+
+        // Value to be sent with the transaction
+        const value = ethers.parseEther("0.001");
+
+        // Transaction data
+        console.debug(`Sending transaction to ${this.state.contract.address} with data: ${functionABI.name}(*${functionArgs}).`);
+        // const data = contract.interface.encodeFunctionData(functionABI.name, functionArgs);
+        //
+        // // contract.populateTransaction[functionABI.name](...functionArgs).then(
+        //
+        // const transaction = {
+        //     // from: signer.getAddress(),
+        //     // chainId: parseInt(this.state.contract.network, 16),
+        //     to: this.state.contract.address,
+        //
+        //     // nonce,
+        //     value,
+        //     data,
+        //     // maxFeePerGas,
+        //     // maxPriorityFeePerGas,
+        //     // gasLimit
+        // };
+        //
+        // const txSigned = await signer.signTransaction(transaction);
+
+        const This = this.constructor.name;
+
+        // // add a message to
+        // this.setState()
+
+        const txReceipt =
+            await contract[functionABI.name](...functionArgs, {value: 0})
+                .then((transactionResponse: ContractTransactionResponse) => {
+                    console.debug(`${This} transaction sent: ${transactionResponse}. Waiting for receipt...`);
+                    return transactionResponse.wait();
+                })
+                .catch((error) => {
+                    throw new Error(`${This} error: ${error}`)
+                });
+
+        if (!txReceipt) {
+            throw new Error(`${This} error: no transaction receipt.`);
+        }
+
+        return txReceipt;
+    };
+
+    dispatchFunctionCall = async (eventDefinition: any, nameOfFunction: string) => {
+        const functionABI = eventDefinition?.[nameOfFunction];
+
+        if (!functionABI) {
+            throw new Error(`${typeof this}: Function ABI .${nameOfFunction} not found for event in ${JSON.stringify(eventDefinition)}`);
+        }
+
+        // Does it require no user signature to proceed?
+        if (["view", "pure"].includes(functionABI.stateMutability)) {
+            await this.queryNextView(functionABI, this.state.variables)
+                .then(console.debug)
+                .catch(console.error);
+
+            return;
+        }
+
+        if (!(["nonpayable", "payable"].includes(functionABI.stateMutability))) {
+            throw new Error(`${typeof this}: Contract function ABI has invalid state mutability '${functionABI.stateMutability}'`);
+        }
+
+        if (functionABI.stateMutability === "payable") {
+            throw new Error(`${typeof this}: Contract function ABI is 'payable', which is not implemented yet.`);
+        }
+
+        try {
+            const txReceipt = await this.executeWithSignature(functionABI, this.state.variables);
+
+            console.debug(`Transaction success: ${txReceipt}`);
+
+            // Proceed with the `success` branch
+            await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_SUCCESS);
+        } catch (error) {
+            console.error(`Transaction failure: ${error}`);
+
+            // Proceed with the `failure` branch
+            await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_FAILURE);
+        }
     };
 
     // Notably, this handles the Submit button
-    onEvent = (name: string, eventDefinition: any, element: any) => {
+    onEvent = async (name: string, eventDefinition: any, element: any) => {
         console.debug(name, eventDefinition, "from", element);
 
         if (name !== "onClick") {
@@ -100,16 +217,14 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             return;
         }
 
-        const contractFunctionABI = eventDefinition.functionABI;
+        this.setState(state => ({...state, executingCount: state.executingCount + 1}));
 
-        if (!contractFunctionABI) {
-            console.error(`Contract function ABI not found for event ${name} / ${JSON.stringify(eventDefinition)}`);
-            return;
-        }
+        await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_DEFAULT)
+            .catch(
+                console.error
+            );
 
-        this.retrieveNextUI(contractFunctionABI, this.state.variables)
-            .then()
-            .catch(console.error);
+        this.setState(state => ({...state, executingCount: state.executingCount - 1}));
     };
 
     render = () => {
@@ -118,9 +233,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
 
         return (
-            <div>
-                <div>Contract network: {this.state.contract.network}</div>
-                <div>Contract address: {this.state.contract.address}</div>
+            <div className={this.state.executingCount > 0 ? 'with-overlay' : 'no-overlay'}>
                 {
                     this.state.ui
                     &&

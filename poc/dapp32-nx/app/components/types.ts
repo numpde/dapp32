@@ -1,3 +1,4 @@
+import {ChronologicalMap} from "./utils";
 
 export type Dapp32Props = {
     contract: {
@@ -42,7 +43,7 @@ export type ContractUIProps = {
 
     variables: VariablesOfUI;
     onVariablesUpdate: (newVariables: VariablesOfUI) => void;
-}
+};
 
 export type ContractUIState = {
     contract: ContractUIProps['contract'];
@@ -51,7 +52,10 @@ export type ContractUIState = {
 
     variables: ContractUIProps['variables'];
     onVariablesUpdate: ContractUIProps['onVariablesUpdate'];
-}
+
+    executingCount: number;
+    messages: ChronologicalMap<string>;
+};
 
 export type FunctionABI = {
     name: string;

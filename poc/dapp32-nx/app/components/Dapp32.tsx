@@ -7,13 +7,14 @@ import React from "react";
 import {Dapp32Props, Dapp32State, VariablesOfUI, WalletState} from "./types";
 import {ConnectWallet} from "./ConnectWallet";
 import {ContractUI} from "./ContractUI";
+import {ReactComponentLike} from "prop-types";
 
 
 const VariableList = ({variables}: { variables: VariablesOfUI }) => (
     <div>
         {
             Object.entries(variables).map(([name, value]) => (
-                <div key={name}>{name}: {value}</div>
+                <div key={name}><span>{name}: {value}</span></div>
             ))
         }
     </div>
@@ -58,34 +59,66 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
     }
 
     render() {
-        // const router = useRouter();
-        // const {network: contractNetwork, address: contractAddress, view: entryFunction} = router.query;
+        const section = (header: string, contents: any) => {
+            return (
+                <div className={`section`}>
+                    <div className="section-header">{header}</div>
+                    <div className="section-contents">{contents}</div>
+                </div>
+            );
+        };
 
         return (
-            <div className="container">
+            <div className="main">
                 {
-                    <div className="item">
+                    section(
+                        "Wallet",
+
                         <ConnectWallet
                             defaultNetwork={this.state.contract.network}
                             onWalletInfoUpdate={this.handleWalletStateUpdate}
                         />
-                    </div>
+                    )
                 }
+
                 {
-                    (this.state.walletState && this.state.contract.address && this.state.contract.network)
-                    &&
-                    <div className="item">
+                    section(
+                        "Contract",
+
+                        <div>
+                            <div>
+                                <span>Contract network: {this.state.contract.network}</span>
+                            </div>
+                            <div>
+                                <span>Contract address: {this.state.contract.address}</span>
+                            </div>
+                        </div>
+                    )
+                }
+
+                {
+                    section(
+                        "Contract says:",
+
+                        (this.state.walletState && this.state.contract.address && this.state.contract.network)
+                        &&
                         <ContractUI
                             contract={this.state.contract}
                             walletState={this.state.walletState}
                             variables={this.state.variables}
                             onVariablesUpdate={this.onVariablesUpdate}
                         />
-                    </div>
-                    ||
-                    <div className="item">Loading contract info...</div>
+                        ||
+                        <div className="item">Loading contract info...</div>
+                    )
                 }
-                <VariableList variables={this.state.variables}/>
+
+                {
+                    section(
+                        "Variables",
+                        <VariableList variables={this.state.variables}/>
+                    )
+                }
             </div>
         );
     }
