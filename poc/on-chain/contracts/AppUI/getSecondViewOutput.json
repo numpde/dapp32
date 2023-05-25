@@ -60,6 +60,51 @@
     },
     {
       "type": "button",
+      "label": "Submit gasless",
+      "id": "submitButtonGasless",
+      "onClick": {
+        "gasless": true,
+        "default": {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "userAddress",
+              "type": "address"
+            }
+          ],
+          "name": "submit",
+          "outputs": [],
+          "stateMutability": "nonpayable",
+          "type": "function"
+        },
+        "success": {
+          "inputs": [],
+          "name": "onSuccess",
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        },
+        "failure": {
+          "inputs": [],
+          "name": "onFailure",
+          "outputs": [
+            {
+              "name": "",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      }
+    },
+    {
+      "type": "button",
       "label": "Go back",
       "id": "goBackButton",
       "onClick": {

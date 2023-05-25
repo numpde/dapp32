@@ -173,6 +173,16 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
     };
 
+    executeViaRelay = async (functionABI: FunctionABI, variables: VariablesOfUI): Promise<ContractTransactionReceipt> => {
+        const functionArgs = prepareVariables(functionABI, variables);
+
+        // 1. Request a transaction to sign from the backend
+        // 2. Sign it
+        // 3. Send it to the backend
+        // 4. Wait for the backend to send the transaction to the network
+        // 5. Wait for the backend to send the transaction receipt
+    }
+
     dispatchFunctionCall = async (eventDefinition: any, nameOfFunction: string) => {
         const functionABI = eventDefinition?.[nameOfFunction];
 
@@ -198,9 +208,13 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
 
         try {
-            const txReceipt = await this.executeWithSignature(functionABI, this.state.variables);
-
-            console.debug(`Transaction success: ${txReceipt}`);
+            if (eventDefinition?.gasless) {
+                const txReceipt = await this.executeViaRelay(functionABI, this.state.variables);
+                console.debug(`Transaction success: ${txReceipt}`);
+            } else {
+                const txReceipt = await this.executeWithSignature(functionABI, this.state.variables);
+                console.debug(`Transaction success: ${txReceipt}`);
+            }
 
             // Proceed with the `success` branch
             await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_SUCCESS);

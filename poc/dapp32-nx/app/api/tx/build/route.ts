@@ -1,9 +1,9 @@
 import {ethers} from 'ethers';
-import {FunctionABI} from "../../components/types";
-import {prepareVariables} from "../../components/utils";
+import {FunctionABI} from "../../../components/types";
+import {prepareVariables} from "../../../components/utils";
 
 
-const getUISpec = async (contractNetwork: string, contractAddress: string, functionABI: FunctionABI, functionArgs: Array<any>) => {
+const buildTransaction = async (contractNetwork: string, contractAddress: string, functionABI: FunctionABI, functionArgs: Array<any>) => {
     // Development on Ganache only
     if (contractNetwork !== '0x539') {
         throw new Error(`Contract network ${contractNetwork} is not supported.`);
@@ -11,10 +11,10 @@ const getUISpec = async (contractNetwork: string, contractAddress: string, funct
 
     const ganacheProviderUrl = 'http://localhost:8545';
 
-    // const contractABI: ethers.InterfaceAbi = require('../../../../on-chain/artifacts/contracts/AppUI.sol/AppUI.json').abi;
     const provider = new ethers.JsonRpcProvider(ganacheProviderUrl);
 
     const contract: ethers.Contract = new ethers.Contract(contractAddress, [functionABI], provider);
+
 
 
     console.debug(`Getting ${JSON.stringify(functionABI)} from contract ${contractAddress}`);
@@ -70,12 +70,16 @@ async function handlePostRequest(request: Request) {
     const contractNetwork = data.contractNetwork;
     const contractAddress = data.contractAddress;
     const functionABI: FunctionABI = data.functionABI;
+    const gasless: boolean = data.gasless || false;
+
+    if (!gasless) {
+        throw new Error(`Gasless transaction request expected.`);
+    }
 
     const functionArgs = prepareVariables(functionABI, data.variables);
 
-    const uiSpec = JSON.parse(parseIfData(await getUISpec(contractNetwork, contractAddress, functionABI, functionArgs)));
 
-    return uiSpec;
+
 }
 
 export async function POST(request: Request) {
@@ -94,19 +98,5 @@ export async function POST(request: Request) {
             }
         );
 
-    return new Response(
-        JSON.stringify(jsonResult),
-        {
-            headers: {"content-type": "application/json"},
-        }
-    );
-}
-
-export async function GET(request: Request) {
-    return new Response(
-        JSON.stringify({ok: true, method: "GET", message: await request.json()}),
-        {
-            headers: {"content-type": "application/json"},
-        }
-    );
+    return new Response(JSON.stringify(jsonResult), {headers: {"content-type": "application/json"}});
 }
