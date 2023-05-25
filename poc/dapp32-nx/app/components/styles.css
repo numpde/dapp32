@@ -108,7 +108,7 @@ button:active:not(:disabled) {
     bottom: 0;
     background: rgba(255, 255, 255, 0.7); /* semi-transparent white */
     z-index: 100; /* make sure this is above other elements inside the div */
-    pointer-events: none; /* disable clicking/interactions through the overlay */
+    pointer-events: none; /* disable clicking/interactions through the overlay // doesn't work */
     opacity: 0;
     transition: opacity 1s ease-out; /* transition effect on opacity */
 }
