@@ -1,5 +1,3 @@
-import {ChronologicalMap} from "./utils";
-
 export type Dapp32Props = {
     contract: {
         network: string,
@@ -54,7 +52,7 @@ export type ContractUIState = {
     onVariablesUpdate: ContractUIProps['onVariablesUpdate'];
 
     executingCount: number;
-    messages: ChronologicalMap<string>;
+    walletRequestsPending: number;
 };
 
 export type FunctionABI = {

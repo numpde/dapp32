@@ -35,7 +35,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
             executingCount: 0,
 
-            messages: new ChronologicalMap(),
+            walletRequestsPending: 0,
         };
     }
 
@@ -149,24 +149,28 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         const This = this.constructor.name;
 
-        // // add a message to
-        // this.setState()
 
-        const txReceipt =
-            await contract[functionABI.name](...functionArgs, {value: 0})
-                .then((transactionResponse: ContractTransactionResponse) => {
-                    console.debug(`${This} transaction sent: ${transactionResponse}. Waiting for receipt...`);
-                    return transactionResponse.wait();
-                })
-                .catch((error) => {
-                    throw new Error(`${This} error: ${error}`)
-                });
+        try {
+            this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending + 1}));
 
-        if (!txReceipt) {
-            throw new Error(`${This} error: no transaction receipt.`);
+            const txReceipt =
+                await contract[functionABI.name](...functionArgs, {value: 0})
+                    .then((transactionResponse: ContractTransactionResponse) => {
+                        console.debug(`${This} transaction sent: ${transactionResponse}. Waiting for receipt...`);
+                        return transactionResponse.wait();
+                    })
+                    .catch((error) => {
+                        throw new Error(`${This} error: ${error}`)
+                    });
+
+            if (!txReceipt) {
+                throw new Error(`${This} error: no transaction receipt.`);
+            }
+
+            return txReceipt;
+        } finally {
+            this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending - 1}));
         }
-
-        return txReceipt;
     };
 
     dispatchFunctionCall = async (eventDefinition: any, nameOfFunction: string) => {
@@ -233,19 +237,32 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
 
         return (
-            <div className={this.state.executingCount > 0 ? 'with-overlay' : 'no-overlay'}>
-                {
-                    this.state.ui
-                    &&
-                    <DynamicUI
-                        ui={this.state.ui}
-                        onEvent={this.onEvent}
-                        variables={this.state.variables}
-                        onVariablesUpdate={this.onVariablesUpdate}
-                    />
-                    ||
-                    <div>Loading the UI...</div>
-                }
+            <div>
+                <div className={this.state.executingCount > 0 ? 'with-overlay' : 'no-overlay'}>
+                    {
+                        this.state.ui
+                        &&
+                        <DynamicUI
+                            ui={this.state.ui}
+                            onEvent={this.onEvent}
+                            variables={this.state.variables}
+                            onVariablesUpdate={this.onVariablesUpdate}
+                        />
+                        ||
+                        <div>Loading the UI...</div>
+                    }
+                </div>
+                <div>
+                    {
+                        this.state.walletRequestsPending
+                            ?
+                            <div className="wallet-requests-pending">
+                                Wallet requests pending: {this.state.walletRequestsPending}
+                            </div>
+                            :
+                            <></>
+                    }
+                </div>
             </div>
         );
     }

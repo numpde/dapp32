@@ -107,7 +107,7 @@ button:active:not(:disabled) {
     right: 0;
     bottom: 0;
     background: rgba(255, 255, 255, 0.7); /* semi-transparent white */
-    z-index: 1; /* make sure this is above other elements inside the div */
+    z-index: 100; /* make sure this is above other elements inside the div */
     pointer-events: none; /* disable clicking/interactions through the overlay */
     opacity: 0;
     transition: opacity 1s ease-out; /* transition effect on opacity */
@@ -115,4 +115,14 @@ button:active:not(:disabled) {
 
 .with-overlay::after {
     opacity: 1;
+}
+
+@keyframes blink {
+  0% { color: inherit; }
+  50% { color: #ff9900; } /* soft orange in the middle */
+  100% { color: inherit; }
+}
+
+.wallet-requests-pending {
+  animation: blink 1s linear infinite;
 }
