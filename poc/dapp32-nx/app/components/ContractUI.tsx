@@ -1,9 +1,18 @@
 import React from 'react';
 
-import {DynamicUI} from "./DynamicUI";
+import {RelayProvider} from "@opengsn/provider";
+import {
+    BrowserProvider,
+    Contract as ContractV6,
+    ContractTransactionReceipt,
+    ContractTransactionResponse,
+    parseEther
+} from "ethers-v6";
+
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
-import {ChronologicalMap, prepareVariables} from "./utils";
-import {ContractTransactionReceipt, ContractTransactionResponse, ethers} from "ethers";
+import {prepareVariables} from "./utils";
+import {DynamicUI} from "./DynamicUI";
+import {ethers} from "ethers";
 
 
 const INITIAL_VIEW_FUNCTION_ABI: FunctionABI = {
@@ -105,11 +114,11 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     };
 
     executeWithSignature = async (functionABI: FunctionABI, variables: VariablesOfUI): Promise<ContractTransactionReceipt> => {
-        const provider = new ethers.BrowserProvider(window.ethereum as any);
-        const signer = await provider.getSigner();
-        const contract = new ethers.Contract(this.state.contract.address, [functionABI], signer);
-
         const functionArgs = prepareVariables(functionABI, variables);
+
+        const provider = new BrowserProvider(window.ethereum as any);
+        const signer = await provider.getSigner();
+        const contract = new ContractV6(this.state.contract.address, [functionABI], signer);
 
         // // Get the current nonce
         // const nonce = await provider.getTransactionCount(signer.getAddress());
@@ -124,7 +133,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         // const chainId = /* this should be the target contract chain */;
 
         // Value to be sent with the transaction
-        const value = ethers.parseEther("0.001");
+        const value = parseEther("0.001");
 
         // Transaction data
         console.debug(`Sending transaction to ${this.state.contract.address} with data: ${functionABI.name}(*${functionArgs}).`);
@@ -176,12 +185,59 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     executeViaRelay = async (functionABI: FunctionABI, variables: VariablesOfUI): Promise<ContractTransactionReceipt> => {
         const functionArgs = prepareVariables(functionABI, variables);
 
+        // Option I
         // 1. Request a transaction to sign from the backend
         // 2. Sign it
         // 3. Send it to the backend
         // 4. Wait for the backend to send the transaction to the network
         // 5. Wait for the backend to send the transaction receipt
-    }
+
+        // Option II: just use the wrapped window.ethereum
+
+        // readJsonFile("../../../opengsn-local/build/gsn/Paymaster.json").address;
+        const paymasterAddress = "0x2FE70142C2F757cc4AB910AA468CFD541399982f";
+
+        const gsnProvider =
+            await RelayProvider.newWeb3Provider(
+                {
+                    provider: window.ethereum as any,
+                    config: {
+                        paymasterAddress,
+                        performDryRunViewRelayCall: true,
+                        loggerConfiguration: {logLevel: 'debug'},
+                    }
+                }
+            );
+
+        const provider = new ethers.providers.Web3Provider(gsnProvider);
+
+        const contract = new ethers.Contract(this.state.contract.address, [functionABI], provider.getSigner());
+
+
+        const This = this.constructor.name;
+
+        try {
+            this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending + 1}));
+
+            const txReceipt =
+                await contract[functionABI.name](...functionArgs)
+                    .then((transactionResponse: ContractTransactionResponse) => {
+                        console.debug(`${This} transaction sent: ${transactionResponse}. Waiting for receipt...`);
+                        return transactionResponse.wait();
+                    })
+                    .catch((error) => {
+                        throw new Error(`${This} error: ${error}`)
+                    });
+
+            if (!txReceipt) {
+                throw new Error(`${This} error: no transaction receipt.`);
+            }
+
+            return txReceipt;
+        } finally {
+            this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending - 1}));
+        }
+    };
 
     dispatchFunctionCall = async (eventDefinition: any, nameOfFunction: string) => {
         const functionABI = eventDefinition?.[nameOfFunction];

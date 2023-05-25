@@ -53,15 +53,4 @@ const config: HardhatUserConfig = {
     },
 };
 
-const deployed = {
-    polygon: {
-    },
-    mumbai: {
-    },
-    ganache: {
-        // AppUI: "0xE417A610c3fCe785aa65447F9DfdbBA669Fe57Db",
-    },
-};
-
 export default config;
-export {deployed};

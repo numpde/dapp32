@@ -1,6 +1,7 @@
 import {ethers} from "hardhat";
-import {deployed} from "../hardhat.config";
+
 import {JsonRpcProvider as JsonRpcProviderV6, Contract as ContractV6, Wallet as WalletV6, BrowserProvider, Signer as SignerV6} from 'ethers-v6';
+import {deployed} from "../deployed";
 
 const {RelayProvider} = require('@opengsn/provider')
 
@@ -34,7 +35,18 @@ const main = async () => {
         loggerConfiguration: {logLevel: 'error'},
     };
 
-    const rpcURL = 'http://localhost:8546';  // (!)
+    // const abi = {
+    //     "name": "getRelayHub",
+    //     "inputs": [],
+    //     "outputs": [{"internalType": "address", "name": "", "type": "address"}],
+    //     "stateMutability": "view",
+    //     "type": "function"
+    // };
+    // const paymasterContract = new ContractV6(paymasterAddress, [abi], deployer);
+    // console.log("Paymaster relay hub:", await paymasterContract.getRelayHub());
+    // return;
+
+    const rpcURL: string = 'http://localhost:8545';  // (!)
 
     const ethersV6Provider = new JsonRpcProviderV6(rpcURL);
     const walletV6 = new WalletV6(GANACHE_PK, ethersV6Provider);

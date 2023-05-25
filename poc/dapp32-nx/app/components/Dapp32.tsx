@@ -7,7 +7,6 @@ import React from "react";
 import {Dapp32Props, Dapp32State, VariablesOfUI, WalletState} from "./types";
 import {ConnectWallet} from "./ConnectWallet";
 import {ContractUI} from "./ContractUI";
-import {ReactComponentLike} from "prop-types";
 
 
 const VariableList = ({variables}: { variables: VariablesOfUI }) => (

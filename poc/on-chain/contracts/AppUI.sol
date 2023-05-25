@@ -11,6 +11,10 @@ contract AppUI is ERC2771Recipient {
         return "http://0.0.0.0:8540/poc/on-chain/contracts/AppUI/";
     }
 
+    function setTrustedForwarder(address forwarder) public {
+        _setTrustedForwarder(forwarder);
+    }
+
     function abiURI() public pure returns (string memory) {
         return string(abi.encodePacked(_baseURI(), "../../../artifacts/contracts/AppUI.sol/AppUI", ".json"));
     }

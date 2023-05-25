@@ -1,4 +1,5 @@
-import {ethers} from 'ethers';
+import {Contract, JsonRpcProvider} from "ethers-v6";
+
 import {FunctionABI} from "../../components/types";
 import {prepareVariables} from "../../components/utils";
 
@@ -12,9 +13,9 @@ const getUISpec = async (contractNetwork: string, contractAddress: string, funct
     const ganacheProviderUrl = 'http://localhost:8545';
 
     // const contractABI: ethers.InterfaceAbi = require('../../../../on-chain/artifacts/contracts/AppUI.sol/AppUI.json').abi;
-    const provider = new ethers.JsonRpcProvider(ganacheProviderUrl);
+    const provider = new JsonRpcProvider(ganacheProviderUrl);
 
-    const contract: ethers.Contract = new ethers.Contract(contractAddress, [functionABI], provider);
+    const contract: Contract = new Contract(contractAddress, [functionABI], provider);
 
 
     console.debug(`Getting ${JSON.stringify(functionABI)} from contract ${contractAddress}`);
