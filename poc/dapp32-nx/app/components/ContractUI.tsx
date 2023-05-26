@@ -188,10 +188,10 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         // readJsonFile("../../../opengsn-local/build/gsn/Paymaster.json").address;
         const paymasterAddress = "0x2FE70142C2F757cc4AB910AA468CFD541399982f";
 
-        const gsnProvider =
-            await RelayProvider.newWeb3Provider(
+        const {gsnProvider, gsnSigner} =
+            await RelayProvider.newEthersV6Provider(
                 {
-                    provider: window.ethereum as any,
+                    provider: new BrowserProvider(window.ethereum as any),
                     config: {
                         paymasterAddress,
                         performDryRunViewRelayCall: true,
@@ -200,11 +200,9 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                 }
             );
 
-        const provider = new ethers.providers.Web3Provider(gsnProvider);
+        const contract = new ContractV6(this.state.contract.address, [functionABI], gsnSigner);
 
-        const contract = new ethers.Contract(this.state.contract.address, [functionABI], provider.getSigner());
-
-        const balanceBefore = await provider.getSigner().getBalance();
+        // const balanceBefore = await gsnSigner.getBalance();
 
         const This = this.constructor.name;
 
@@ -227,8 +225,8 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
             return txReceipt;
         } finally {
-            console.log("Balance before:", balanceBefore);
-            console.log("Balance after:", await provider.getSigner().getBalance());
+            // console.log("Balance before:", balanceBefore);
+            // console.log("Balance after:", await gsnSigner.getBalance());
 
             this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending - 1}));
         }
