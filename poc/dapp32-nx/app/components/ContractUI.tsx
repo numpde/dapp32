@@ -75,6 +75,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         );
     }
 
+    // Queries the backend, hence does not require MetaMask
     queryNextView = async (functionABI: FunctionABI, variables: VariablesOfUI) => {
         if (!functionABI) {
             throw new Error("No functionABI available.");
@@ -113,85 +114,22 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         this.setState(state => ({...state, ui: response.message}));
     };
 
-    executeWithSignature = async (functionABI: FunctionABI, variables: VariablesOfUI): Promise<ContractTransactionReceipt> => {
-        const functionArgs = prepareVariables(functionABI, variables);
-
+    prepareExecutionWithSignature = async (functionABI: FunctionABI) => {
         const provider = new BrowserProvider(window.ethereum as any);
         const signer = await provider.getSigner();
         const contract = new ContractV6(this.state.contract.address, [functionABI], signer);
 
-        // // Get the current nonce
-        // const nonce = await provider.getTransactionCount(signer.getAddress());
-
-        // // Set the gas limit
-        // const gasLimit = ethers.utils.hexlify(21000); // This is just an example value
-
-        // // Get the current gas prices and chain ID
-        // const gasPriceData = await provider.getFeeData();
-        // const maxFeePerGas = gasPriceData.maxFeePerGas;
-        // const maxPriorityFeePerGas = gasPriceData.maxPriorityFeePerGas;
-        // const chainId = /* this should be the target contract chain */;
-
-        // Value to be sent with the transaction
-        const value = parseEther("0.001");
-
-        // Transaction data
-        console.debug(`Sending transaction to ${this.state.contract.address} with data: ${functionABI.name}(*${functionArgs}).`);
-        // const data = contract.interface.encodeFunctionData(functionABI.name, functionArgs);
-        //
-        // // contract.populateTransaction[functionABI.name](...functionArgs).then(
-        //
-        // const transaction = {
-        //     // from: signer.getAddress(),
-        //     // chainId: parseInt(this.state.contract.network, 16),
-        //     to: this.state.contract.address,
-        //
-        //     // nonce,
-        //     value,
-        //     data,
-        //     // maxFeePerGas,
-        //     // maxPriorityFeePerGas,
-        //     // gasLimit
-        // };
-        //
-        // const txSigned = await signer.signTransaction(transaction);
-
-        const This = this.constructor.name;
-
-
-        try {
-            this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending + 1}));
-
-            const txReceipt =
-                await contract[functionABI.name](...functionArgs, {value: 0})
-                    .then((transactionResponse: ContractTransactionResponse) => {
-                        console.debug(`${This} transaction sent: ${transactionResponse}. Waiting for receipt...`);
-                        return transactionResponse.wait();
-                    })
-                    .catch((error) => {
-                        throw new Error(`${This} error: ${error}`)
-                    });
-
-            if (!txReceipt) {
-                throw new Error(`${This} error: no transaction receipt.`);
-            }
-
-            return txReceipt;
-        } finally {
-            this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending - 1}));
-        }
+        return {contract: contract, signer: signer, provider: provider};
     };
 
-    executeViaRelay = async (functionABI: FunctionABI, variables: VariablesOfUI): Promise<ContractTransactionReceipt> => {
-        const functionArgs = prepareVariables(functionABI, variables);
-
+    prepareExecutionViaRelay = async (functionABI: FunctionABI) => {
         // readJsonFile("../../../opengsn-local/build/gsn/Paymaster.json").address;
         const paymasterAddress = "0x2FE70142C2F757cc4AB910AA468CFD541399982f";
 
         const {gsnProvider, gsnSigner} =
             await RelayProvider.newEthersV6Provider(
                 {
-                    provider: new BrowserProvider(window.ethereum as any),
+                    provider: (new BrowserProvider(window.ethereum as any)) as any,
                     config: {
                         paymasterAddress,
                         performDryRunViewRelayCall: true,
@@ -202,15 +140,18 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         const contract = new ContractV6(this.state.contract.address, [functionABI], gsnSigner);
 
-        // const balanceBefore = await gsnSigner.getBalance();
+        return {contract: contract, signer: gsnSigner, provider: gsnProvider};
+    };
 
+
+    executeOnChain = async (contract: ContractV6, functionName: string, functionArgs: any[]): Promise<ContractTransactionReceipt> => {
         const This = this.constructor.name;
 
         try {
             this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending + 1}));
 
             const txReceipt =
-                await contract[functionABI.name](...functionArgs)
+                await contract[functionName](...functionArgs)
                     .then((transactionResponse: ContractTransactionResponse) => {
                         console.debug(`${This} transaction sent: ${transactionResponse}. Waiting for receipt...`);
                         return transactionResponse.wait();
@@ -225,13 +166,13 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
             return txReceipt;
         } finally {
-            // console.log("Balance before:", balanceBefore);
-            // console.log("Balance after:", await gsnSigner.getBalance());
-
             this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending - 1}));
         }
-    };
+    }
 
+    //
+    // THIS FUNCTION IS TOO COMPLICATED. REFACTOR IT.
+    //
     dispatchFunctionCall = async (eventDefinition: any, nameOfFunction: string) => {
         const functionABI = eventDefinition?.[nameOfFunction];
 
@@ -256,22 +197,32 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             throw new Error(`${typeof this}: Contract function ABI is 'payable', which is not implemented yet.`);
         }
 
-        try {
-            if (eventDefinition?.gasless) {
-                const txReceipt = await this.executeViaRelay(functionABI, this.state.variables);
+        const functionArgs = prepareVariables(functionABI, this.state.variables);
+
+        const {contract, signer, provider} =
+            eventDefinition?.gasless ?
+                await this.prepareExecutionViaRelay(functionABI) :
+                await this.prepareExecutionWithSignature(functionABI);
+
+        // This block involves signing and sending transactions.
+        {
+            try {
+                // const balanceBefore = await provider.getBalance(signer.getAddress());
+
+                const txReceipt = await this.executeOnChain(contract, functionABI.name, functionArgs);
                 console.debug(`Transaction success: ${txReceipt}`);
-            } else {
-                const txReceipt = await this.executeWithSignature(functionABI, this.state.variables);
-                console.debug(`Transaction success: ${txReceipt}`);
+
+                // console.debug("Balance before:", balanceBefore);
+                // console.debug("Balance after:", await provider.getBalance(signer.getAddress()));
+
+                // Proceed with the `success` branch
+                await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_SUCCESS);
+            } catch (error) {
+                console.error(`Transaction failed or rejected: ${error}`);
+
+                // Proceed with the `failure` branch
+                await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_FAILURE);
             }
-
-            // Proceed with the `success` branch
-            await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_SUCCESS);
-        } catch (error) {
-            console.error(`Transaction failure: ${error}`);
-
-            // Proceed with the `failure` branch
-            await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_FAILURE);
         }
     };
 
