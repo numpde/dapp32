@@ -185,15 +185,6 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     executeViaRelay = async (functionABI: FunctionABI, variables: VariablesOfUI): Promise<ContractTransactionReceipt> => {
         const functionArgs = prepareVariables(functionABI, variables);
 
-        // Option I
-        // 1. Request a transaction to sign from the backend
-        // 2. Sign it
-        // 3. Send it to the backend
-        // 4. Wait for the backend to send the transaction to the network
-        // 5. Wait for the backend to send the transaction receipt
-
-        // Option II: just use the wrapped window.ethereum
-
         // readJsonFile("../../../opengsn-local/build/gsn/Paymaster.json").address;
         const paymasterAddress = "0x2FE70142C2F757cc4AB910AA468CFD541399982f";
 
@@ -213,6 +204,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         const contract = new ethers.Contract(this.state.contract.address, [functionABI], provider.getSigner());
 
+        const balanceBefore = await provider.getSigner().getBalance();
 
         const This = this.constructor.name;
 
@@ -225,7 +217,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                         console.debug(`${This} transaction sent: ${transactionResponse}. Waiting for receipt...`);
                         return transactionResponse.wait();
                     })
-                    .catch((error) => {
+                    .catch((error: any) => {
                         throw new Error(`${This} error: ${error}`)
                     });
 
@@ -235,6 +227,9 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
             return txReceipt;
         } finally {
+            console.log("Balance before:", balanceBefore);
+            console.log("Balance after:", await provider.getSigner().getBalance());
+
             this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending - 1}));
         }
     };
