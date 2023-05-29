@@ -4,7 +4,7 @@ import {FunctionABI} from "../../components/types";
 import {prepareVariables} from "../../components/utils";
 
 
-const getUISpec = async (contractNetwork: string, contractAddress: string, functionABI: FunctionABI, functionArgs: Array<any>) => {
+const getNextView = async (contractNetwork: string, contractAddress: string, functionABI: FunctionABI, functionArgs: Array<any>) => {
     // Development on Ganache only
     if (contractNetwork !== '0x539') {
         throw new Error(`Contract network ${contractNetwork} is not supported.`);
@@ -17,18 +17,14 @@ const getUISpec = async (contractNetwork: string, contractAddress: string, funct
 
     const contract: Contract = new Contract(contractAddress, [functionABI], provider);
 
-
     console.debug(`Getting ${JSON.stringify(functionABI)} from contract ${contractAddress}`);
 
     const functionName = functionABI.name;
 
-    console.debug(`Populating ${JSON.stringify(functionABI.inputs)} with ${JSON.stringify(functionArgs)}`);
-
-
-    console.debug(`Calling ${functionName} with args ${JSON.stringify(functionArgs)}`);
+    console.debug(`Populating arguments ${JSON.stringify(functionABI.inputs)} of ${functionName} with:`, functionArgs);
 
     // Ask the blockchain
-    const uiSpecURI =
+    const contractResponse =
         await contract[functionName](...functionArgs)
             .then(
                 x => {
@@ -38,30 +34,30 @@ const getUISpec = async (contractNetwork: string, contractAddress: string, funct
             )
             .catch(
                 e => {
-                    throw new Error(`Could not get UI URI from contract ${contractAddress}, calling ${functionName} with args ${JSON.stringify(functionArgs)} failed due to: ${e}.`);
+                    throw new Error(`Could not get UI URI from contract ${contractAddress}, calling ${functionName} with args ${functionArgs}; failed due to: ${e}.`);
                 }
             );
 
-    if (typeof uiSpecURI === 'string') {
-        if (uiSpecURI.startsWith('http')) {
-            console.debug(`Getting UI spec from "${uiSpecURI}".`);
-            return await (await fetch(uiSpecURI)).text();
-        }
-    }
-
-    return uiSpecURI;
+    return contractResponse;
 };
 
-const parseIfData = (uiSpec: string) => {
-    if (typeof uiSpec === 'string') {
-        if (uiSpec.startsWith("data:")) {
-            throw new Error(`URI is not supported yet: ${uiSpec}`);
+const parseIfData = async (ui: any) => {
+    if (typeof ui === 'string') {
+        if (ui.startsWith('http')) {
+            console.debug(`Getting UI spec from "${ui}".`);
+            ui = await (await fetch(ui)).text();
         }
-    } else {
-        throw new Error(`UI spec received from contract is not a string (${uiSpec}).`);
     }
 
-    return uiSpec;
+    if (typeof ui === 'string') {
+        if (ui.startsWith("data:")) {
+            throw new Error(`URI is not supported yet: ${ui}`);
+        }
+    } else {
+        throw new Error(`UI spec received from contract is not a string.`);
+    }
+
+    return ui;
 };
 
 
@@ -74,9 +70,39 @@ async function handlePostRequest(request: Request) {
 
     const functionArgs = prepareVariables(functionABI, data.variables);
 
-    const uiSpec = JSON.parse(parseIfData(await getUISpec(contractNetwork, contractAddress, functionABI, functionArgs)));
+    console.debug("functionArgs", functionArgs);
 
-    return uiSpec;
+    const result = await getNextView(contractNetwork, contractAddress, functionABI, functionArgs);
+
+    const outputs = functionABI.outputs;
+
+    if (!outputs || !Array.isArray(outputs) || !outputs.length) {
+        throw new Error(`Function ${functionABI.name} does not have any outputs.`);
+    }
+
+    if (outputs.length > 1) {
+        if (!Array.isArray(result) || (result.length !== outputs.length)) {
+            throw new Error(`Expected ${outputs.length} outputs based on the ABI.`);
+        }
+
+        const variables: { [key: string]: any } = outputs.reduce(
+            (acc, output, index) => {
+                (acc as any)[output.name] = result[index];
+                return acc;
+            },
+            {}
+        );
+
+        return {
+            ui: JSON.parse(await parseIfData(variables[""] || variables["ui"])),
+            variables: {...variables, "": undefined, "ui": undefined},
+        }
+    } else {
+        return {
+            ui: JSON.parse(await parseIfData(result)),
+            variables: {},
+        }
+    }
 }
 
 export async function POST(request: Request) {

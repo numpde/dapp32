@@ -12,15 +12,32 @@ import {
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
 import {prepareVariables} from "./utils";
 import {DynamicUI} from "./DynamicUI";
-import {ethers} from "ethers";
 
 
 const INITIAL_VIEW_FUNCTION_ABI: FunctionABI = {
-    name: "getInitialView",
-    inputs: [],
-    outputs: [{name: "uiSpec", type: "string"}],
-    stateMutability: "view",
-    type: "function",
+    "inputs": [
+        {
+            "name": "userAddress",
+            "type": "address"
+        }
+    ],
+    "name": "viewEntryD",
+    "outputs": [
+        {
+            "name": "ui",
+            "type": "string"
+        },
+        {
+            "name": "blankTokenId",
+            "type": "uint256"
+        },
+        {
+            "name": "tokenCount",
+            "type": "uint256"
+        }
+    ],
+    "stateMutability": "view",
+    "type": "function"
 };
 
 const FUNCTION_SELECTOR_DEFAULT: string = "default";
@@ -111,7 +128,13 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         console.debug("Got response from the backend:", response);
 
-        this.setState(state => ({...state, ui: response.message}));
+        this.setState(
+            state => ({
+                    ...state,
+                    ui: response.message.ui,
+                    variables: {...state.variables, ...response.message.variables}
+            })
+        );
     };
 
     prepareExecutionWithSignature = async (functionABI: FunctionABI) => {
@@ -203,6 +226,19 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             eventDefinition?.gasless ?
                 await this.prepareExecutionViaRelay(functionABI) :
                 await this.prepareExecutionWithSignature(functionABI);
+
+        // Check sanity
+        {
+            // Chain ID
+            {
+                const contractChainId = BigInt(parseInt(this.state.contract.network, 16));
+                const userChainId = BigInt((await provider.getNetwork()).chainId);
+
+                if (contractChainId !== userChainId) {
+                    throw new Error(`Contract chain ID (${contractChainId}) does not match user chain ID (${userChainId}).`);
+                }
+            }
+        }
 
         // This block involves signing and sending transactions.
         {

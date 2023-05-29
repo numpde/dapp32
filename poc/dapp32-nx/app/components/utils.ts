@@ -7,8 +7,11 @@ export const prepareVariables = (functionABI: FunctionABI, variables: VariablesO
     const functionArgs = functionABI.inputs.map(
         input => {
             if (input.type === 'address') {
-                const addressString = variables[input.name];
-                return getAddress(addressString);
+                return getAddress(variables[input.name]);
+            }
+
+            if (input.type === 'uint256') {
+                return BigInt(variables[input.name]);
             }
 
             return variables[input.name];
