@@ -173,6 +173,12 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         try {
             this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending + 1}));
 
+            console.log(
+                "Call function:", functionName,
+                "with arguments", functionArgs,
+                "on contract at", await contract.getAddress(),
+            );
+
             const txReceipt =
                 await contract[functionName](...functionArgs)
                     .then((transactionResponse: ContractTransactionResponse) => {
