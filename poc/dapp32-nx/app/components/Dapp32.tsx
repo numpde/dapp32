@@ -7,6 +7,7 @@ import React, {RefObject} from "react";
 import {Dapp32Props, Dapp32State, VariablesOfUI, WalletState} from "./types";
 import {ConnectWallet} from "./ConnectWallet";
 import {ContractUI} from "./ContractUI";
+import {ErrorBoundaryUI} from "./ErrorBoundaryUI";
 
 
 const VariableList = ({variables}: { variables: VariablesOfUI }) => (
@@ -111,13 +112,15 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                         (
                             (this.state.walletState && this.state.contract.address && this.state.contract.network)
                             &&
-                            <ContractUI
-                                contract={this.state.contract}
-                                walletState={this.state.walletState}
-                                variables={this.state.variables}
-                                onVariablesUpdate={this.onVariablesUpdate}
-                                scrollIntoViewRequest={this.scrollIntoViewRequest}
-                            />
+                            <ErrorBoundaryUI>
+                                <ContractUI
+                                    contract={this.state.contract}
+                                    walletState={this.state.walletState}
+                                    variables={this.state.variables}
+                                    onVariablesUpdate={this.onVariablesUpdate}
+                                    scrollIntoViewRequest={this.scrollIntoViewRequest}
+                                />
+                            </ErrorBoundaryUI>
                             ||
                             <div className="item">Loading contract info...</div>
                         ),

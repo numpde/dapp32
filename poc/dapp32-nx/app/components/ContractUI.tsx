@@ -10,9 +10,10 @@ import {
 } from "ethers-v6";
 
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
-import {fetchJSON, prepareVariables} from "./utils";
+import {fetchJSON, isSameChain, prepareVariables} from "./utils";
 import {DynamicUI} from "./DynamicUI";
 import values from "ajv/lib/vocabularies/jtd/values";
+import {setState} from "jest-circus";
 
 
 const FUNCTION_SELECTOR_DEFAULT: string = "default";
@@ -31,6 +32,7 @@ const ABIURI_FUNCTION_ABI: FunctionABI = {
     stateMutability: "pure",
     type: "function",
 };
+
 
 export class ContractUI extends React.Component<ContractUIProps, ContractUIState> {
     mainDiv = React.createRef<HTMLDivElement>();
@@ -54,7 +56,20 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             executingCount: 0,
 
             walletRequestsPending: 0,
+
+            error: undefined,
         };
+    }
+
+    // componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    //     console.error(error, errorInfo);
+    // }
+
+    componentDidUpdate() {
+        if (this.state.error) {
+            this.setState(state => ({...state, error: undefined}));
+            throw this.state.error;
+        }
     }
 
     isReady = () => {
@@ -75,7 +90,13 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     }
 
     componentDidMount() {
-        this.fetchInitialUI().then();
+        this.fetchInitialUI()
+            .then()
+            .catch(
+                (error) => {
+                    this.setState(state => ({...state, error}))
+                }
+            );
     }
 
     fetchInitialUI = async () => {
@@ -99,6 +120,10 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         const signer = await provider.getSigner();
         const contract = new ContractV6(this.state.contract.address, [functionABI], signer);
 
+        if (!isSameChain((await provider.getNetwork()).chainId, this.state.contract.network)) {
+            throw new Error(`Network mismatch...`);
+        }
+
         return {contract, signer, provider};
     };
 
@@ -119,6 +144,10 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             );
 
         const contract = new ContractV6(this.state.contract.address, [functionABI], gsnSigner);
+
+        if (!isSameChain((await gsnProvider.getNetwork()).chainId, this.state.contract.network)) {
+            throw new Error(`Network mismatch...`);
+        }
 
         return {contract: contract, signer: gsnSigner, provider: gsnProvider};
     };

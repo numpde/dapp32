@@ -58,6 +58,8 @@ export type ContractUIState = {
 
     executingCount: number;
     walletRequestsPending: number;
+
+    error: Error | undefined;
 };
 
 export type FunctionABI = {

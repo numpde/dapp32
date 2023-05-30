@@ -1,6 +1,7 @@
 import {getAddress} from "ethers-v6";
 
 import {FunctionABI, VariablesOfUI} from "./types";
+import {BigNumber} from "ethers";
 
 
 export const prepareVariables = (functionABI: FunctionABI, variables: VariablesOfUI) => {
@@ -61,3 +62,10 @@ export const fetchJSON = async (ui: any) => {
 
     throw new Error(`URI received is not a string: ${ui}.`);
 };
+
+export function isSameChain(chainId1: number | string | bigint, chainId2: number | string | bigint): boolean {
+    const bigChainId1 = BigInt(chainId1);
+    const bigChainId2 = BigInt(chainId2);
+
+    return bigChainId1 == bigChainId2;
+}
