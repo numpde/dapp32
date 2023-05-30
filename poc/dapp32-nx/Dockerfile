@@ -4,7 +4,7 @@
 FROM node:lts
 
 # Create a directory for the application
-WORKDIR /usr/src/app
+WORKDIR /usr/src/app/
 
 # Copy package.json, package-lock.json (if you use it) to the root directory of the app
 COPY package*.json ./
@@ -16,10 +16,10 @@ RUN npm install
 COPY . .
 
 # Build the application
-RUN npm run build
+RUN npx nx build dapp32-nx
 
 # Port
 EXPOSE 4001
 
 # The default command to run
-CMD [ "nx", "serve", "dapp32-nx", "--port", "4001" ]
+CMD [ "npx", "nx", "serve", "dapp32-nx", "--prod", "--port", "4001", "--hostname", "0.0.0.0" ]

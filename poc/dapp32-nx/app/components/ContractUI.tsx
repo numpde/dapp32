@@ -12,8 +12,6 @@ import {
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
 import {fetchJSON, isSameChain, prepareVariables} from "./utils";
 import {DynamicUI} from "./DynamicUI";
-import values from "ajv/lib/vocabularies/jtd/values";
-import {setState} from "jest-circus";
 
 
 const FUNCTION_SELECTOR_DEFAULT: string = "default";

@@ -1,7 +1,6 @@
 import {getAddress} from "ethers-v6";
 
 import {FunctionABI, VariablesOfUI} from "./types";
-import {BigNumber} from "ethers";
 
 
 export const prepareVariables = (functionABI: FunctionABI, variables: VariablesOfUI) => {
