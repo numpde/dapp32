@@ -1,4 +1,4 @@
-import {getAddress} from "ethers-v6";
+import {getAddress} from "ethers";
 
 import {FunctionABI, VariablesOfUI} from "./types";
 

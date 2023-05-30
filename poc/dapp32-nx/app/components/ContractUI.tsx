@@ -5,9 +5,8 @@ import {
     BrowserProvider,
     Contract as ContractV6,
     ContractTransactionReceipt,
-    ContractTransactionResponse,
-    parseEther
-} from "ethers-v6";
+    ContractTransactionResponse
+} from "ethers";
 
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
 import {fetchJSON, isSameChain, prepareVariables} from "./utils";

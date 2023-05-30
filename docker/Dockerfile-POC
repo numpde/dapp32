@@ -1,0 +1,34 @@
+# Dockerfile
+
+# Base image: Node.js LTS (Long Term Support)
+FROM node:lts
+
+# Create a directory for the application
+WORKDIR /usr/src/app/
+
+# Environment variables for Git
+ARG GITHUB_ACCESS_TOKEN
+ARG GITHUB_REPO
+ARG PORT=4001
+
+# Copy to environment variable
+ENV PORT ${PORT}
+
+# Clone the git repo
+RUN git clone https://${GITHUB_ACCESS_TOKEN}@github.com/${GITHUB_REPO} .
+
+# Switch to the directory
+WORKDIR /usr/src/app/poc/dapp32-nx
+
+# Install dependencies
+RUN npm install
+RUN npm prune --production
+
+# Build the application
+RUN npx nx build dapp32-nx
+
+# Port
+EXPOSE ${PORT}
+
+# Start the server
+CMD ["sh", "-c", "npx nx serve dapp32-nx --prod --port ${PORT} --hostname 0.0.0.0" ]
