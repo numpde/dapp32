@@ -1,4 +1,4 @@
-version: '3.8'
+version: '2'
 
 services:
   nx-server-poc:
@@ -9,7 +9,24 @@ services:
         - GITHUB_ACCESS_TOKEN=${GITHUB_ACCESS_TOKEN}
         - GITHUB_REPO=${GITHUB_REPO}
         - PORT=4001
-    ports:
-      - "4001:4001"
+    restart: unless-stopped
     environment:
       - NODE_ENV=production
+      - LETSENCRYPT_HOST=$PUBLIC_HOST
+      - VIRTUAL_HOST=$PUBLIC_HOST
+      - VIRTUAL_PORT=4001
+      - VIRTUAL_PATH=/
+      - VIRTUAL_DEST=/
+    networks:
+      - nginxproxy_network
+    mem_limit: 100M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 10m
+        max-file: "10"
+
+
+networks:
+  nginxproxy_network:
+    external: true
