@@ -41,25 +41,6 @@ const getNextView = async (contractNetwork: string, contractAddress: string, fun
     return contractResponse;
 };
 
-const parseIfData = async (ui: any) => {
-    if (typeof ui === 'string') {
-        if (ui.startsWith('http')) {
-            console.debug(`Getting UI spec from "${ui}".`);
-            ui = await (await fetch(ui)).text();
-        }
-    }
-
-    if (typeof ui === 'string') {
-        if (ui.startsWith("data:")) {
-            throw new Error(`URI is not supported yet: ${ui}`);
-        }
-    } else {
-        throw new Error(`UI spec received from contract is not a string.`);
-    }
-
-    return ui;
-};
-
 
 async function handlePostRequest(request: Request) {
     const data = await request.json();
@@ -94,12 +75,12 @@ async function handlePostRequest(request: Request) {
         );
 
         return {
-            ui: JSON.parse(await parseIfData(variables[""] || variables["ui"])),
+            ui: JSON.parse(await fetchURI(variables[""] || variables["ui"])),
             variables: {...variables, "": undefined, "ui": undefined},
         }
     } else {
         return {
-            ui: JSON.parse(await parseIfData(result)),
+            ui: JSON.parse(await fetchURI(result)),
             variables: {},
         }
     }

@@ -22,25 +22,42 @@ export const prepareVariables = (functionABI: FunctionABI, variables: VariablesO
 }
 
 export class ChronologicalMap<T> {
-  private map: Map<number, T>;
-  private counter: number;
+    private map: Map<number, T>;
+    private counter: number;
 
-  constructor() {
-    this.map = new Map<number, T>();
-    this.counter = 0;
-  }
+    constructor() {
+        this.map = new Map<number, T>();
+        this.counter = 0;
+    }
 
-  add(object: T): number {
-    const key = this.counter++;
-    this.map.set(key, object);
-    return key;
-  }
+    add(object: T): number {
+        const key = this.counter++;
+        this.map.set(key, object);
+        return key;
+    }
 
-  get(key: number): T | undefined {
-    return this.map.get(key);
-  }
+    get(key: number): T | undefined {
+        return this.map.get(key);
+    }
 
-  delete(key: number): boolean {
-    return this.map.delete(key);
-  }
+    delete(key: number): boolean {
+        return this.map.delete(key);
+    }
 }
+
+export const fetchJSON = async (ui: any) => {
+    if (typeof ui === 'string') {
+        if (ui.startsWith('http')) {
+            return await
+                fetch(ui, {
+                    method: 'GET', // or 'POST'
+                    cache: 'no-store', // *default, no-store, reload, no-cache, force-cache, only-if-cached
+                })
+                    .then(x => x.json());
+        } else {
+            return JSON.parse(ui);
+        }
+    }
+
+    throw new Error(`URI received is not a string: ${ui}.`);
+};

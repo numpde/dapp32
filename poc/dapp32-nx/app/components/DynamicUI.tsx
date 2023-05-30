@@ -52,7 +52,7 @@ export const DynamicUI = (
                             <ElementComponent
                                 {...elementProps}
                                 onClick={createEventHandler('onClick', onClickDefinition, element)}
-                                value={variables[element.id]}
+                                value={`${variables[element.id]}`}
                                 onVariablesUpdate={onVariablesUpdate}
                             />
                         </div>

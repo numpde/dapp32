@@ -41,15 +41,20 @@ export type ContractUIProps = {
 
     variables: VariablesOfUI;
     onVariablesUpdate: (newVariables: VariablesOfUI) => void;
+
+    scrollIntoViewRequest: () => void;
 };
 
 export type ContractUIState = {
     contract: ContractUIProps['contract'];
+    contractABI: any;
 
     ui: any;
 
     variables: ContractUIProps['variables'];
     onVariablesUpdate: ContractUIProps['onVariablesUpdate'];
+
+    scrollIntoViewRequest: () => void;
 
     executingCount: number;
     walletRequestsPending: number;

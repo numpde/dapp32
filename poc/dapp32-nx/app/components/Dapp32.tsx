@@ -2,7 +2,7 @@
 
 import './styles.css';
 
-import React from "react";
+import React, {RefObject} from "react";
 
 import {Dapp32Props, Dapp32State, VariablesOfUI, WalletState} from "./types";
 import {ConnectWallet} from "./ConnectWallet";
@@ -21,6 +21,8 @@ const VariableList = ({variables}: { variables: VariablesOfUI }) => (
 
 
 export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
+    contractDiv: RefObject<HTMLDivElement> = React.createRef();
+
     constructor(props: Dapp32Props) {
         super(props);
 
@@ -57,10 +59,14 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
         this.setState((state) => ({...state, variables: {...state.variables, ...newVariables}}));
     }
 
+    scrollIntoViewRequest = () => {
+        this.contractDiv.current?.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
+    }
+
     render() {
-        const section = (header: string, contents: any) => {
+        const section = (header: string, contents: any, ref: React.RefObject<HTMLDivElement> | undefined) => {
             return (
-                <div className={`section`}>
+                <div className={`section`} ref={ref}>
                     <div className="section-header">{header}</div>
                     <div className="section-contents">{contents}</div>
                 </div>
@@ -76,7 +82,9 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                         <ConnectWallet
                             defaultNetwork={this.state.contract.network}
                             onWalletInfoUpdate={this.handleWalletStateUpdate}
-                        />
+                        />,
+
+                        undefined
                     )
                 }
 
@@ -91,31 +99,37 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                             <div>
                                 <span>Contract address: {this.state.contract.address}</span>
                             </div>
-                        </div>
+                        </div>,
+
+                        undefined
                     )
                 }
 
                 {
                     section(
                         "Contract says:",
-
-                        (this.state.walletState && this.state.contract.address && this.state.contract.network)
-                        &&
-                        <ContractUI
-                            contract={this.state.contract}
-                            walletState={this.state.walletState}
-                            variables={this.state.variables}
-                            onVariablesUpdate={this.onVariablesUpdate}
-                        />
-                        ||
-                        <div className="item">Loading contract info...</div>
+                        (
+                            (this.state.walletState && this.state.contract.address && this.state.contract.network)
+                            &&
+                            <ContractUI
+                                contract={this.state.contract}
+                                walletState={this.state.walletState}
+                                variables={this.state.variables}
+                                onVariablesUpdate={this.onVariablesUpdate}
+                                scrollIntoViewRequest={this.scrollIntoViewRequest}
+                            />
+                            ||
+                            <div className="item">Loading contract info...</div>
+                        ),
+                        this.contractDiv
                     )
                 }
 
                 {
                     section(
                         "Variables",
-                        <VariableList variables={this.state.variables}/>
+                        <VariableList variables={this.state.variables}/>,
+                        undefined
                     )
                 }
             </div>

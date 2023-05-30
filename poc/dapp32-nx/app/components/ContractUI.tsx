@@ -10,42 +10,31 @@ import {
 } from "ethers-v6";
 
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
-import {prepareVariables} from "./utils";
+import {fetchJSON, prepareVariables} from "./utils";
 import {DynamicUI} from "./DynamicUI";
+import values from "ajv/lib/vocabularies/jtd/values";
 
-
-const INITIAL_VIEW_FUNCTION_ABI: FunctionABI = {
-    "inputs": [
-        {
-            "name": "userAddress",
-            "type": "address"
-        }
-    ],
-    "name": "viewEntryD",
-    "outputs": [
-        {
-            "name": "ui",
-            "type": "string"
-        },
-        {
-            "name": "blankTokenId",
-            "type": "uint256"
-        },
-        {
-            "name": "tokenCount",
-            "type": "uint256"
-        }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-};
 
 const FUNCTION_SELECTOR_DEFAULT: string = "default";
 const FUNCTION_SELECTOR_SUCCESS: string = "success";
 const FUNCTION_SELECTOR_FAILURE: string = "failure";
 
+const ABIURI_FUNCTION_ABI: FunctionABI = {
+    name: "abiURI",
+    inputs: [],
+    outputs: [
+        {
+            name: "abi",
+            type: "string",
+        }
+    ],
+    stateMutability: "pure",
+    type: "function",
+};
 
 export class ContractUI extends React.Component<ContractUIProps, ContractUIState> {
+    mainDiv = React.createRef<HTMLDivElement>();
+
     constructor(props: ContractUIProps) {
         super(props);
 
@@ -53,11 +42,14 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         this.state = {
             contract: props.contract,
+            contractABI: undefined,
 
             ui: undefined,
 
             variables: props.variables,
             onVariablesUpdate: props.onVariablesUpdate,
+
+            scrollIntoViewRequest: props.scrollIntoViewRequest,
 
             executingCount: 0,
 
@@ -75,74 +67,39 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
     onVariablesUpdate = (newVariables: VariablesOfUI) => {
         console.debug("ContractUI.onVariablesUpdate:", newVariables);
-        this.setState((state) => ({...state, variables: {...state.variables, ...newVariables}}));
-        this.state.onVariablesUpdate(newVariables);
+        this.setState((state) => {
+            const newState = {...state, variables: {...state.variables, ...newVariables}};
+            state.onVariablesUpdate(newState.variables);
+            return newState;
+        });
     }
 
     componentDidMount() {
-        const initialFunctionABI = {
-            ...INITIAL_VIEW_FUNCTION_ABI,
-            name: this.state.contract.view,
-        };
-
-        this.queryNextView(initialFunctionABI, this.state.variables).then(
-            //
-        ).catch(
-            console.error
-        );
+        this.fetchInitialUI().then();
     }
 
-    // Queries the backend, hence does not require MetaMask
-    queryNextView = async (functionABI: FunctionABI, variables: VariablesOfUI) => {
-        if (!functionABI) {
-            throw new Error("No functionABI available.");
-        }
+    fetchInitialUI = async () => {
+        const contractABI = await this.getContractABI();
+        this.setState(state => ({...state, contractABI}));
 
-        console.debug("Retrieving UI spec for", functionABI, variables);
+        // const initialABI = contractABI.find((abi: any) => (abi.name === this.state.contract.view));
 
-        const response = await fetch("/api/ui",
-            {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    contractNetwork: this.state.contract.network,
-                    contractAddress: this.state.contract.address,
-
-                    functionABI,
-                    variables,
-                }),
-            },
-        ).then(
-            r => r.json()
-        ).catch(
-            (e) => {
-                throw new Error(`Error while fetching the UI spec (${e}).`)
-            }
-        )
-
-        if (!response?.ok) {
-            throw new Error(`Couldn't parse the response from the backend: ${JSON.stringify(response)}`);
-        }
-
-        console.debug("Got response from the backend:", response);
-
-        this.setState(
-            state => ({
-                    ...state,
-                    ui: response.message.ui,
-                    variables: {...state.variables, ...response.message.variables}
-            })
-        );
+        await this.dispatchFunctionCall({[FUNCTION_SELECTOR_DEFAULT]: this.state.contract.view}, FUNCTION_SELECTOR_DEFAULT, contractABI);
     };
+
+
+    getContractABI = async () => {
+        const {contract} = await this.prepareExecutionWithSignature(ABIURI_FUNCTION_ABI);
+        const contractABI = await contract[ABIURI_FUNCTION_ABI.name]();
+        return await fetchJSON(contractABI);
+    }
 
     prepareExecutionWithSignature = async (functionABI: FunctionABI) => {
         const provider = new BrowserProvider(window.ethereum as any);
         const signer = await provider.getSigner();
         const contract = new ContractV6(this.state.contract.address, [functionABI], signer);
 
-        return {contract: contract, signer: signer, provider: provider};
+        return {contract, signer, provider};
     };
 
     prepareExecutionViaRelay = async (functionABI: FunctionABI) => {
@@ -165,7 +122,6 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         return {contract: contract, signer: gsnSigner, provider: gsnProvider};
     };
-
 
     executeOnChain = async (contract: ContractV6, functionName: string, functionArgs: any[]): Promise<ContractTransactionReceipt> => {
         const This = this.constructor.name;
@@ -197,37 +153,102 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         } finally {
             this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending - 1}));
         }
-    }
+    };
+
+    executeOffChain = async (contract: ContractV6, functionABI: FunctionABI, functionArgs: any[]) => {
+        const This = this.constructor.name;
+
+        const contractResponse =
+            await contract[functionABI.name](...functionArgs)
+                .then(
+                    x => {
+                        console.debug(`Got UI spec URI: ${x} of type ${typeof x}`);
+                        return x;
+                    }
+                )
+                .catch(
+                    e => {
+                        throw new Error(`Could not get UI URI from contract, calling ${functionABI.name} with args ${functionArgs} due to: ${e}.`);
+                    }
+                );
+
+        const outputs = functionABI.outputs;
+
+        if (!outputs?.length) {
+            throw new Error(`No 'outputs' in the ABI for function '${functionABI.name}'.`);
+        }
+
+        if (outputs.length == 1) {
+            return {
+                ui: await fetchJSON(contractResponse),
+                variables: {} as VariablesOfUI,
+            }
+        }
+
+        if (!Array.isArray(contractResponse) || (contractResponse.length !== outputs.length)) {
+            throw new Error(`Expected ${outputs.length} outputs based on the ABI.`);
+        }
+
+        const variables: { [key: string]: any; } = outputs.reduce(
+            (acc: object, output: any, index: number) => {
+                (acc as any)[output.name || ""] = contractResponse[index];
+                return acc;
+            },
+            {}
+        );
+
+        console.log("ContractUI.executeOffChain: variables:", variables);
+
+        return {
+            ui: await fetchJSON(variables[""] || variables["ui"]),
+            variables: Object.entries({...variables}).reduce((object: any, [key, value]) => {
+                if (key) {
+                    object[key] = value;
+                }
+                return object;
+            }, {}) as VariablesOfUI,
+        };
+    };
 
     //
     // THIS FUNCTION IS TOO COMPLICATED. REFACTOR IT.
     //
-    dispatchFunctionCall = async (eventDefinition: any, nameOfFunction: string) => {
-        const functionABI = eventDefinition?.[nameOfFunction];
+    dispatchFunctionCall = async (eventDefinition: any, functionSelector: string, contractABI: any) => {
+        console.debug("ContractUI.dispatchFunctionCall:", functionSelector, "of", eventDefinition);
+
+        contractABI = contractABI || this.state.contractABI;
+
+        const nameOfFunction = eventDefinition[functionSelector];
+
+        const functionABI = contractABI.find((abi: any) => (abi.name === nameOfFunction));
 
         if (!functionABI) {
-            throw new Error(`${typeof this}: Function ABI .${nameOfFunction} not found for event in ${JSON.stringify(eventDefinition)}`);
+            throw new Error(`${typeof this}: Function ABI ${nameOfFunction} not found for event in ${JSON.stringify(contractABI)}`);
         }
+
+        if (!(["nonpayable", "payable", "view", "pure"].includes(functionABI.stateMutability))) {
+            throw new Error(`${typeof this}: Contract function ABI has invalid state mutability '${functionABI.stateMutability}'`);
+        }
+
+        const functionArgs = prepareVariables(functionABI, this.state.variables);
 
         // Does it require no user signature to proceed?
         if (["view", "pure"].includes(functionABI.stateMutability)) {
-            await this.queryNextView(functionABI, this.state.variables)
-                .then(console.debug)
-                .catch(console.error);
+            const {contract, signer, provider} = await this.prepareExecutionWithSignature(functionABI);
+
+            const response = await this.executeOffChain(contract, functionABI, functionArgs);
+
+            console.debug("ContractUI.dispatchFunctionCall: response:", response);
+
+            this.setState(state => ({...state, ui: response.ui}));
+            this.onVariablesUpdate(response.variables);
 
             return;
-        }
-
-        if (!(["nonpayable", "payable"].includes(functionABI.stateMutability))) {
-            throw new Error(`${typeof this}: Contract function ABI has invalid state mutability '${functionABI.stateMutability}'`);
         }
 
         if (functionABI.stateMutability === "payable") {
             throw new Error(`${typeof this}: Contract function ABI is 'payable', which is not implemented yet.`);
         }
-
-        const functionArgs = prepareVariables(functionABI, this.state.variables);
-
         const {contract, signer, provider} =
             eventDefinition?.gasless ?
                 await this.prepareExecutionViaRelay(functionABI) :
@@ -258,12 +279,12 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                 // console.debug("Balance after:", await provider.getBalance(signer.getAddress()));
 
                 // Proceed with the `success` branch
-                await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_SUCCESS);
+                await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_SUCCESS, contractABI);
             } catch (error) {
                 console.error(`Transaction failed or rejected: ${error}`);
 
                 // Proceed with the `failure` branch
-                await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_FAILURE);
+                await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_FAILURE, contractABI);
             }
         }
     };
@@ -279,10 +300,13 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         this.setState(state => ({...state, executingCount: state.executingCount + 1}));
 
-        await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_DEFAULT)
-            .catch(
-                console.error
-            );
+        await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_DEFAULT, this.state.contractABI)
+            .then(
+                () => {
+                    this.props.scrollIntoViewRequest();
+                }
+            )
+            .catch(console.error);
 
         this.setState(state => ({...state, executingCount: state.executingCount - 1}));
     };
@@ -293,7 +317,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
 
         return (
-            <div>
+            <div ref={this.mainDiv}>
                 <div className={this.state.executingCount > 0 ? 'with-overlay' : 'no-overlay'}>
                     {
                         this.state.ui
@@ -322,4 +346,4 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             </div>
         );
     }
-}
+};
