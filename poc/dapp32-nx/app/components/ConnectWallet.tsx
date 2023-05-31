@@ -5,6 +5,7 @@ import { isEqual } from 'lodash';
 
 import './styles.css';
 import {ConnectWalletData, WalletState} from "./types";
+import {humanizeChain} from "./utils";
 
 
 interface Ethereum {
@@ -125,7 +126,7 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
                 <button onClick={this.connect} disabled={!!isConnected}>
                     {isConnected ? 'Connected to wallet' : 'Connect to wallet...'}
                 </button>
-                <div><span>Network: {network || 'Unknown'}</span></div>
+                <div><span>Network: {humanizeChain(network)}</span></div>
                 <div><span>Account: {account || 'Not connected'}</span></div>
                 {
                     network && this.props.defaultNetwork && (network !== this.props.defaultNetwork) && (

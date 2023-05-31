@@ -8,6 +8,8 @@ import {Dapp32Props, Dapp32State, VariablesOfUI, WalletState} from "./types";
 import {ConnectWallet} from "./ConnectWallet";
 import {ContractUI} from "./ContractUI";
 import {ErrorBoundaryUI} from "./ErrorBoundaryUI";
+import AppContainer from "./AppContainer";
+import {humanizeChain} from "./utils";
 
 
 const VariableList = ({variables}: { variables: VariablesOfUI }) => (
@@ -97,66 +99,68 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
         };
 
         return (
-            <div className="main">
-                {
-                    section(
-                        "Contract info",
+            <AppContainer>
+                <div className="main">
+                    {
+                        section(
+                            "Contract info",
 
-                        <div>
                             <div>
-                                <span>Contract network: {this.state.contract.network}</span>
-                            </div>
-                            <div>
-                                <span>Contract address: {this.state.contract.address}</span>
-                            </div>
-                        </div>,
+                                <div>
+                                    <span>Contract network: {humanizeChain(this.state.contract.network)}</span>
+                                </div>
+                                <div>
+                                    <span>Contract address: {this.state.contract.address}</span>
+                                </div>
+                            </div>,
 
-                        undefined
-                    )
-                }
+                            undefined
+                        )
+                    }
 
-                {
-                    section(
-                        "Wallet",
+                    {
+                        section(
+                            "Wallet",
 
-                        <ConnectWallet
-                            defaultNetwork={this.state.contract.network}
-                            onWalletInfoUpdate={this.handleWalletStateUpdate}
-                        />,
+                            <ConnectWallet
+                                defaultNetwork={this.state.contract.network}
+                                onWalletInfoUpdate={this.handleWalletStateUpdate}
+                            />,
 
-                        undefined
-                    )
-                }
+                            undefined
+                        )
+                    }
 
-                {
-                    section(
-                        "Contract UI",
+                    {
+                        section(
+                            "Contract UI",
 
-                        this.uiNotReadyMessageOrThis(
-                            this.state.walletState &&
-                            <ErrorBoundaryUI>
-                                <ContractUI
-                                    contract={this.state.contract}
-                                    walletState={this.state.walletState}
-                                    getVariables={() => this.state.variables}
-                                    onVariablesUpdate={this.onVariablesUpdate}
-                                    scrollIntoViewRequest={this.scrollIntoViewRequest}
-                                />
-                            </ErrorBoundaryUI>
-                        ),
+                            this.uiNotReadyMessageOrThis(
+                                this.state.walletState &&
+                                <ErrorBoundaryUI>
+                                    <ContractUI
+                                        contract={this.state.contract}
+                                        walletState={this.state.walletState}
+                                        getVariables={() => this.state.variables}
+                                        onVariablesUpdate={this.onVariablesUpdate}
+                                        scrollIntoViewRequest={this.scrollIntoViewRequest}
+                                    />
+                                </ErrorBoundaryUI>
+                            ),
 
-                        this.contractDiv  // ref to section
-                    )
-                }
+                            this.contractDiv  // ref to section
+                        )
+                    }
 
-                {
-                    section(
-                        "Local variables",
-                        <VariableList variables={this.state.variables}/>,
-                        undefined
-                    )
-                }
-            </div>
+                    {
+                        section(
+                            "Local variables",
+                            <VariableList variables={this.state.variables}/>,
+                            undefined
+                        )
+                    }
+                </div>
+            </AppContainer>
         );
     }
 }

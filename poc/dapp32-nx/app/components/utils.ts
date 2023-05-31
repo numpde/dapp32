@@ -68,3 +68,19 @@ export function isSameChain(chainId1: number | string | bigint, chainId2: number
 
     return bigChainId1 == bigChainId2;
 }
+
+export function humanizeChain(chainId: number | string | bigint | undefined): string {
+    if (!chainId) {
+        return 'Unknown';
+    }
+
+    const chain = require("../../chainlist/chainid.network.json").find(
+        (chain: any) => (BigInt(chain.chainId) == BigInt(chainId))
+    );
+
+    if (chain) {
+        return `${chain.name} (${chainId}) `
+    } else {
+        return `Chain ID ${chainId}`;
+    }
+}
