@@ -8,6 +8,7 @@ import {Dapp32Props, Dapp32State, VariablesOfUI, WalletState} from "./types";
 import {ConnectWallet} from "./ConnectWallet";
 import {ContractUI} from "./ContractUI";
 import {ErrorBoundaryUI} from "./ErrorBoundaryUI";
+import {getNetwork} from "@ethersproject/networks";
 
 
 const VariableList = ({variables}: { variables: VariablesOfUI }) => (
@@ -64,6 +65,28 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
         this.contractDiv.current?.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
     }
 
+    uiNotReadyMessageOrThis = (child: any) => {
+        return (
+            (!this.state.contract.address || !this.state.contract.network) ?
+                <div>
+                    Contract address/network not understood.
+                </div>
+                :
+                (!this.state.walletState || !this.state.walletState.account) ?
+                    <div>
+                        Wallet state not understood.
+                    </div>
+                    :
+                    (this.state.contract.network != this.state.walletState.network) ?
+                        <div>
+                            Wallet network {this.state.walletState.network} does not match
+                            contract network {this.state.contract.network}.
+                        </div>
+                        :
+                        child
+        );
+    };
+
     render() {
         const section = (header: string, contents: any, ref: React.RefObject<HTMLDivElement> | undefined) => {
             return (
@@ -78,20 +101,7 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
             <div className="main">
                 {
                     section(
-                        "Wallet",
-
-                        <ConnectWallet
-                            defaultNetwork={this.state.contract.network}
-                            onWalletInfoUpdate={this.handleWalletStateUpdate}
-                        />,
-
-                        undefined
-                    )
-                }
-
-                {
-                    section(
-                        "Contract",
+                        "Contract info",
 
                         <div>
                             <div>
@@ -108,10 +118,23 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
 
                 {
                     section(
-                        "Contract says:",
-                        (
-                            (this.state.walletState && this.state.contract.address && this.state.contract.network)
-                            &&
+                        "Wallet",
+
+                        <ConnectWallet
+                            defaultNetwork={this.state.contract.network}
+                            onWalletInfoUpdate={this.handleWalletStateUpdate}
+                        />,
+
+                        undefined
+                    )
+                }
+
+                {
+                    section(
+                        "Contract UI",
+
+                        this.uiNotReadyMessageOrThis(
+                            this.state.walletState &&
                             <ErrorBoundaryUI>
                                 <ContractUI
                                     contract={this.state.contract}
@@ -121,16 +144,15 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                                     scrollIntoViewRequest={this.scrollIntoViewRequest}
                                 />
                             </ErrorBoundaryUI>
-                            ||
-                            <div className="item">Loading contract info...</div>
                         ),
-                        this.contractDiv
+
+                        this.contractDiv  // ref to section
                     )
                 }
 
                 {
                     section(
-                        "Variables",
+                        "Local variables",
                         <VariableList variables={this.state.variables}/>,
                         undefined
                     )
