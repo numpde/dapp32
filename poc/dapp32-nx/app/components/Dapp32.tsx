@@ -8,7 +8,6 @@ import {Dapp32Props, Dapp32State, VariablesOfUI, WalletState} from "./types";
 import {ConnectWallet} from "./ConnectWallet";
 import {ContractUI} from "./ContractUI";
 import {ErrorBoundaryUI} from "./ErrorBoundaryUI";
-import {getNetwork} from "@ethersproject/networks";
 
 
 const VariableList = ({variables}: { variables: VariablesOfUI }) => (
