@@ -45,7 +45,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
             ui: undefined,
 
-            variables: props.variables,
+            getVariables: props.getVariables,
             onVariablesUpdate: props.onVariablesUpdate,
 
             scrollIntoViewRequest: props.scrollIntoViewRequest,
@@ -79,11 +79,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
     onVariablesUpdate = (newVariables: VariablesOfUI) => {
         console.debug("ContractUI.onVariablesUpdate:", newVariables);
-        this.setState((state) => {
-            const newState = {...state, variables: {...state.variables, ...newVariables}};
-            state.onVariablesUpdate(newState.variables);
-            return newState;
-        });
+        this.state.onVariablesUpdate(newVariables);
     }
 
     componentDidMount() {
@@ -215,9 +211,14 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             throw new Error(`Expected ${outputs.length} outputs based on the ABI.`);
         }
 
+        // We receive typed values from the contract and convert them to strings for display.
+        const parseType = (x: any, type: string): string => {
+            return `${x}`;
+        }
+
         const variables: { [key: string]: any; } = outputs.reduce(
             (acc: object, output: any, index: number) => {
-                (acc as any)[output.name || ""] = contractResponse[index];
+                (acc as any)[output.name || ""] = parseType(contractResponse[index], output.type);
                 return acc;
             },
             {}
@@ -225,14 +226,18 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         console.log("ContractUI.executeOffChain: variables:", variables);
 
-        return {
-            ui: await fetchJSON(variables[""] || variables["ui"]),
-            variables: Object.entries({...variables}).reduce((object: any, [key, value]) => {
+        const dropEmptyKeys = (object: any) => {
+            return Object.entries({...object}).reduce((object: any, [key, value]) => {
                 if (key) {
                     object[key] = value;
                 }
                 return object;
-            }, {}) as VariablesOfUI,
+            }, {});
+        }
+
+        return {
+            ui: await fetchJSON(variables[""] || variables["ui"]),
+            variables: dropEmptyKeys(variables) as VariablesOfUI,
         };
     };
 
@@ -256,7 +261,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             throw new Error(`${typeof this}: Contract function ABI has invalid state mutability '${functionABI.stateMutability}'`);
         }
 
-        const functionArgs = prepareVariables(functionABI, this.state.variables);
+        const functionArgs = prepareVariables(functionABI, this.state.getVariables());
 
         // Does it require no user signature to proceed?
         if (["view", "pure"].includes(functionABI.stateMutability)) {
@@ -351,7 +356,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                         <DynamicUI
                             ui={this.state.ui}
                             onEvent={this.onEvent}
-                            variables={this.state.variables}
+                            getVariables={this.state.getVariables}
                             onVariablesUpdate={this.onVariablesUpdate}
                         />
                         ||

@@ -7,11 +7,11 @@ import {VariablesOfUI} from "./types";
 
 export const DynamicUI = (
     {
-        ui, onEvent, variables, onVariablesUpdate
+        ui, onEvent, getVariables, onVariablesUpdate
     }: {
         ui: any,
         onEvent: (name: string, eventDefinition: any, element: any) => void,
-        variables: VariablesOfUI,
+        getVariables: () => VariablesOfUI,
         onVariablesUpdate: (newVariables: VariablesOfUI) => void
     }
 ) => {
@@ -40,6 +40,8 @@ export const DynamicUI = (
 
                     const key = element.id || objectHash(element);
 
+                    const variables = getVariables();
+
                     // The element may come with a default value
                     if (element.value !== undefined) {
                         variables[element.id] = variables[element.id] || element.value;
@@ -52,7 +54,7 @@ export const DynamicUI = (
                             <ElementComponent
                                 {...elementProps}
                                 onClick={createEventHandler('onClick', onClickDefinition, element)}
-                                value={`${variables[element.id]}`}
+                                value={variables[element.id]}
                                 onVariablesUpdate={onVariablesUpdate}
                             />
                         </div>

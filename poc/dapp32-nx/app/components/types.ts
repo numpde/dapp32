@@ -39,7 +39,7 @@ export type ContractUIProps = {
 
     walletState: WalletState;
 
-    variables: VariablesOfUI;
+    getVariables: () => VariablesOfUI;
     onVariablesUpdate: (newVariables: VariablesOfUI) => void;
 
     scrollIntoViewRequest: () => void;
@@ -51,7 +51,7 @@ export type ContractUIState = {
 
     ui: any;
 
-    variables: ContractUIProps['variables'];
+    getVariables: ContractUIProps['getVariables'];
     onVariablesUpdate: ContractUIProps['onVariablesUpdate'];
 
     scrollIntoViewRequest: () => void;

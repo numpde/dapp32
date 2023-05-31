@@ -46,18 +46,18 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
         console.debug(`${typeof this}.handleWalletStateUpdate:`, newWalletState);
         this.setState(state => ({
             ...state,
-            walletState: newWalletState,
-            variables: {
-                ...state.variables,
-                userNetwork: newWalletState.network,
-                userAddress: newWalletState.account,
-            }
+            walletState: {...state.walletState, ...newWalletState},
         }));
-    }
 
-    onVariablesUpdate = (newVariables: VariablesOfUI) => {
+        this.onVariablesUpdate({userNetwork: newWalletState.network, userAddress: newWalletState.account});
+    };
+
+    onVariablesUpdate = (newVariables: Partial<VariablesOfUI>) => {
         console.debug("Dapp32.onVariablesUpdate:", newVariables);
-        this.setState((state) => ({...state, variables: {...state.variables, ...newVariables}}));
+        this.setState((state) => ({
+            ...state,
+            variables: {...state.variables, ...newVariables},
+        }));
     }
 
     scrollIntoViewRequest = () => {
@@ -138,7 +138,7 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                                 <ContractUI
                                     contract={this.state.contract}
                                     walletState={this.state.walletState}
-                                    variables={this.state.variables}
+                                    getVariables={() => this.state.variables}
                                     onVariablesUpdate={this.onVariablesUpdate}
                                     scrollIntoViewRequest={this.scrollIntoViewRequest}
                                 />

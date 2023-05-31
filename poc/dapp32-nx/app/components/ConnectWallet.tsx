@@ -66,11 +66,11 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
 
     handleAccountsChanged = async (accounts: any) => {
         const account = accounts && accounts[0];
-        this.setState({...this.state, account, isConnected: !!account});
+        this.setState(state => ({...state, account, isConnected: !!account}));
     }
 
     handleChainChanged = async (chainId: any) => {
-        this.setState({...this.state, network: chainId});
+        this.setState(state => ({...state, network: chainId}));
     }
 
     getCurrentNetwork = async () => {
