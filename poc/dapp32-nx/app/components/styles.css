@@ -113,6 +113,15 @@ input, select {
     font-size: 16px;
 }
 
+input.address {
+    font-family: 'Courier New', monospace;
+}
+
+input.address.invalid {
+    border-color: red;
+    box-shadow: 0 0 5px red;
+}
+
 input:read-only, select:read-only {
     background-color: #f3f3f3; /* Light grey background */
     /*cursor: not-allowed; !* Cursor indicating the input cannot be interacted with *!*/
@@ -221,4 +230,26 @@ button:active:not(:disabled) {
 
 .qrcode-container > .qrcode-url > * {
     text-align: center;
+}
+
+.addresses{
+    font-size: x-small;
+    display: flex;  /* lay out list items in a row */
+    flex-wrap: wrap; /* allow list items to wrap onto the next line */
+    padding: 0;  /* remove default padding */
+    margin: 0;  /* remove default margin */
+    justify-content: center; /* align items to the right */
+}
+
+.addresses > span, a {
+    margin-left: 10px;  /* add some space to the right of each list item */
+}
+
+.addresses > a {
+    color: #007bff;  /* make the links blue, for example */
+    text-decoration: none;  /* remove the underline */
+}
+
+.addresses > a:hover {
+    color: #0056b3;  /* make the links darker blue when hovered over */
 }

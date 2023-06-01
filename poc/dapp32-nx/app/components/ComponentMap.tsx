@@ -1,8 +1,13 @@
 import React, {useState, useEffect} from 'react';
 import {QRCodeCanvas} from 'qrcode.react';
 
+import {VariablesOfUI} from "./types";
+import {isSameAddress} from "@opengsn/common";
+
+
 type ComponentProps = {
     id: string,
+    variables: VariablesOfUI,
     label?: string,
     onClick?: () => void,
     placeholder?: string,
@@ -40,6 +45,66 @@ const InputField: React.FC<ComponentProps> = (
         </label>
     );
 };
+
+const AddressField: React.FC<ComponentProps> = (
+    {
+        id,
+        label,
+        placeholder,
+        value: initialValue,
+        onVariablesUpdate,
+        readOnly,
+        variables
+    }
+) => {
+    const ethAddressPattern = /^0x[a-fA-F0-9]{40}$/;
+
+    const [valid, setValid] = useState<boolean>(true);
+    const [value, setValue] = useState<string>(initialValue || '');
+
+    useEffect(() => onVariablesUpdate?.({[id]: value}), [value, id, onVariablesUpdate]);
+
+    useEffect(() => {
+        onVariablesUpdate?.({[id]: value});
+        setValid(ethAddressPattern.test(value));
+    }, [value, id, onVariablesUpdate]);
+
+    const setAddress = (address: string) => {
+        if (ethAddressPattern.test(address)) {
+            setValue(address);
+        }
+    };
+
+    return (
+        <label>
+            {label}
+            <input
+                className={`address ${valid ? "" : "invalid"}`}
+                id={id}
+                placeholder={placeholder}
+                value={value}
+                onInput={e => setValue(e.currentTarget.value)}
+                readOnly={readOnly}
+            />
+
+            {
+                !readOnly &&
+                <div className={"addresses"}>
+                    <span>Suggestions:</span>
+                    {Object.entries(variables).map(([k, v]) =>
+                            ethAddressPattern.test(v) && (
+                                isSameAddress(v, value) ?
+                                    <span key={k}>{k}</span> :
+                                    <a key={k} onClick={() => setAddress(variables[k])} style={{cursor: 'pointer'}}>{k}</a>
+                            )
+                    )}
+                </div>
+            }
+
+        </label>
+    );
+}
+
 
 const SelectDropdown: React.FC<ComponentProps> = ({id, label, options, value: initialValue, onVariablesUpdate}) => {
     const [value, setValue] = useState<string>(initialValue || '');
@@ -114,6 +179,7 @@ export const COMPONENT_MAP: {
     [key: string]: React.ComponentType<any>,
 } = {
     input: InputField,
+    address: AddressField,
     select: SelectDropdown,
     button: Button,
     text: Text,

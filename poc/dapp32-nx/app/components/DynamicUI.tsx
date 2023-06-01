@@ -66,6 +66,7 @@ export const DynamicUI = (
                                 value={variables[element.id]}
                                 onVariablesUpdate={onVariablesUpdate}
                                 params={paramsWithSubs}
+                                variables={variables}
                             />
                         </div>
                     );
