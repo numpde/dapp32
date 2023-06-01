@@ -11,6 +11,7 @@ import {ErrorBoundaryUI} from "./ErrorBoundaryUI";
 import AppContainer from "./AppContainer";
 import {humanizeChain} from "./utils";
 import {debounce} from "lodash";
+import {consumeMessagesFromSocket} from "nx/src/utils/consume-messages-from-socket";
 
 
 const VariableList = ({variables}: { variables: VariablesOfUI }) => (
@@ -31,15 +32,13 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
     constructor(props: Dapp32Props) {
         super(props);
 
-        // if (Object.values(props.contract).some((v) => (typeof v !== 'string'))) {
-        //     throw new Error(`Invalid contract info ${JSON.stringify(props.contract)}, expected {network: string, address: string, view: string}`);
-        // }
-
         this.state = {
             contract: props.contract,
             walletState: undefined,
             variables: {
                 ...props.params,  // this goes first
+
+                basePath: props.params.basePath,
 
                 userNetwork: undefined,
                 userAddress: undefined,
@@ -47,13 +46,17 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
             },
         };
 
-        console.debug(`${typeof this}.constructor:`, this.state);
-
         this.updateSpacerHeight = debounce(this.updateSpacerHeight.bind(this), 200);
     }
 
     componentDidMount() {
         window.addEventListener('scroll', this.updateSpacerHeight);
+
+        const basePath = (typeof window !== 'undefined') && (window.location.origin + window.location.pathname) || undefined;
+
+        if (basePath) {
+            this.setState(state => ({...state, variables: {...state.variables, basePath}}));
+        }
     }
 
     componentWillUnmount() {

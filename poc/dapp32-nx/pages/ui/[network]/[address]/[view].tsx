@@ -2,9 +2,9 @@ import {Dapp32} from "../../../../app/components/Dapp32"
 import {GetServerSideProps, GetServerSidePropsContext} from "next";
 
 type Route = {
-    contractNetwork: string | undefined,
-    contractAddress: string | undefined,
-    initialView: string | undefined,
+    contractNetwork: string,
+    contractAddress: string,
+    initialView: string,
     basePath: string | undefined,
     params: { [key: string]: string | string[] | undefined },
 };
