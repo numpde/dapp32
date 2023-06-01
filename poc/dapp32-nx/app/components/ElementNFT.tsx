@@ -78,7 +78,7 @@ export const ElementNFT: React.FC<NFTComponentProps> = ({label, value, params}) 
 
                 let tokenURI: string;
                 {
-                    const provider = new ethers.BrowserProvider(window.ethereum);
+                    const provider = new ethers.BrowserProvider(window.ethereum as any);
 
                     try {
                         const contract = new ethers.Contract(params.contractAddress, functionAbi721, provider);
