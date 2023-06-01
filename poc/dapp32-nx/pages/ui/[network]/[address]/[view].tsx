@@ -18,7 +18,11 @@ const getRoute = (context: GetServerSidePropsContext): Route => {
     } = context.query;
 
     if (Array.isArray(contractNetwork) || Array.isArray(contractAddress) || Array.isArray(initialView)) {
-        throw new Error("Could not parse contract network/address/view");
+        throw new Error("Could not parse contract network/address/view.");
+    }
+
+    if (!contractNetwork || !contractAddress || !initialView) {
+        throw new Error("Could not get contract network/address/view.");
     }
 
     const basePath = context.req.headers.referer ?
