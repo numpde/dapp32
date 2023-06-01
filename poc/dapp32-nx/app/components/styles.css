@@ -48,6 +48,11 @@ body {
     margin: auto;
     max-width: 800px;
     flex-grow: 1; /* Allow the main area to take up remaining space */
+    width: 100%;
+}
+
+.spacer {
+    height: 80vh;
 }
 
 .section {
@@ -62,6 +67,14 @@ body {
     margin-bottom: 20px; /* Space out sections */
 }
 
+/* Media query for screens smaller than 800px */
+@media screen and (max-width: 800px) {
+    .main {
+        width: 100%;
+        max-width: none; /* Override max-width */
+    }
+}
+
 .section-header {
     font-size: 22px;
     font-weight: bold;
@@ -74,6 +87,11 @@ body {
 .section-contents {
     display: flex;
     flex-wrap: wrap;
+    width: 100%;
+}
+
+.ContractUI {
+    width: 100%;
 }
 
 .main > * {
@@ -81,8 +99,8 @@ body {
     margin-bottom: 20px;
 }
 
-span {
-    word-break: break-all;
+a, span {
+    word-break: break-word;
 }
 
 input, select {
@@ -93,6 +111,11 @@ input, select {
     max-width: 100%;
     margin: 5px 0;
     font-size: 16px;
+}
+
+input:read-only, select:read-only {
+    background-color: #f3f3f3; /* Light grey background */
+    /*cursor: not-allowed; !* Cursor indicating the input cannot be interacted with *!*/
 }
 
 button {
@@ -161,4 +184,41 @@ button:active:not(:disabled) {
 
 .wallet-requests-pending {
     animation: blink 1s linear infinite;
+}
+
+.qrcode-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
+}
+
+.qrcode-container > .qrcode-aspect-helper {
+    position: relative;
+    max-width: 256px;
+    width: 90%;
+    aspect-ratio: 1 / 1;
+    margin: 10px;
+}
+
+.qrcode-container > .qrcode-aspect-helper > canvas.qrcode {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.qrcode-container > .qrcode-url {
+    display: flex;
+    justify-content: center;
+    width: 90%;
+    margin: 10px auto;
+}
+
+.qrcode-container > .qrcode-url > * {
+    text-align: center;
 }

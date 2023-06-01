@@ -348,7 +348,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
 
         return (
-            <div ref={this.mainDiv}>
+            <div ref={this.mainDiv} className="ContractUI">
                 <div className={this.state.executingCount > 0 ? 'with-overlay' : 'no-overlay'}>
                     {
                         this.state.ui

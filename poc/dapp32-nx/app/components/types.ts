@@ -4,6 +4,10 @@ export type Dapp32Props = {
         address: string,
         view: string,
     },
+
+    params: {
+        [key: string]: string | string[] | undefined,
+    }
 }
 
 export type Dapp32State = {

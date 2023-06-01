@@ -10,6 +10,7 @@ import {ContractUI} from "./ContractUI";
 import {ErrorBoundaryUI} from "./ErrorBoundaryUI";
 import AppContainer from "./AppContainer";
 import {humanizeChain} from "./utils";
+import {debounce} from "lodash";
 
 
 const VariableList = ({variables}: { variables: VariablesOfUI }) => (
@@ -24,7 +25,8 @@ const VariableList = ({variables}: { variables: VariablesOfUI }) => (
 
 
 export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
-    contractDiv: RefObject<HTMLDivElement> = React.createRef();
+    contractDivRef: RefObject<HTMLDivElement> = React.createRef();
+    variablesDivRef: RefObject<HTMLDivElement> = React.createRef();
 
     constructor(props: Dapp32Props) {
         super(props);
@@ -33,16 +35,44 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
         //     throw new Error(`Invalid contract info ${JSON.stringify(props.contract)}, expected {network: string, address: string, view: string}`);
         // }
 
+
         this.state = {
             contract: props.contract,
             walletState: undefined,
             variables: {
+                ...props.params,  // this goes first
+
                 userNetwork: undefined,
                 userAddress: undefined,
                 sessionID: undefined,
             },
         };
+
+        this.updateSpacerHeight = debounce(this.updateSpacerHeight.bind(this), 200);
     }
+
+    componentDidMount() {
+        window.addEventListener('scroll', this.updateSpacerHeight);
+    }
+
+    componentWillUnmount() {
+        (this.updateSpacerHeight as any).cancel();
+        window.removeEventListener('scroll', this.updateSpacerHeight);
+    }
+
+    updateSpacerHeight() {
+        // const viewportHeight = window.innerHeight;
+        // const div1top = this.contractDivRef.current?.getBoundingClientRect().top ?? 0;
+        // const div2end = this.variablesDivRef.current?.getBoundingClientRect().bottom ?? 0;
+        //
+        // if ((0 <= div1top) && (div2end < viewportHeight)) {
+        //     const newSpacerHeight = 100; //viewportHeight - (div2end - div1top);
+        //     this.spacerDivRef.current?.style.setProperty('min-height', `${newSpacerHeight}px`);
+        // } else {
+        //     this.spacerDivRef.current?.style.setProperty('min-height', '0px');  // Reset the spacer height when not needed
+        // }
+    }
+
 
     handleWalletStateUpdate = (newWalletState: WalletState) => {
         console.debug(`${typeof this}.handleWalletStateUpdate:`, newWalletState);
@@ -63,7 +93,7 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
     }
 
     scrollIntoViewRequest = () => {
-        this.contractDiv.current?.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
+        this.contractDivRef.current?.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
     }
 
     uiNotReadyMessageOrThis = (child: any) => {
@@ -91,7 +121,7 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
     render() {
         const section = (header: string, contents: any, ref: React.RefObject<HTMLDivElement> | undefined) => {
             return (
-                <div className={`section`} ref={ref}>
+                <div className={(header == "Contract UI") ? "section sticky" : "section"} ref={ref}>
                     <div className="section-header">{header}</div>
                     <div className="section-contents">{contents}</div>
                 </div>
@@ -148,7 +178,7 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                                 </ErrorBoundaryUI>
                             ),
 
-                            this.contractDiv  // ref to section
+                            this.contractDivRef  // ref to section
                         )
                     }
 
@@ -156,7 +186,7 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                         section(
                             "Local variables",
                             <VariableList variables={this.state.variables}/>,
-                            undefined
+                            this.variablesDivRef
                         )
                     }
                 </div>

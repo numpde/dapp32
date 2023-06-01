@@ -1,4 +1,5 @@
 import React, {useState, useEffect} from 'react';
+import {QRCodeCanvas} from 'qrcode.react';
 
 type ComponentProps = {
     id: string,
@@ -7,10 +8,21 @@ type ComponentProps = {
     placeholder?: string,
     value?: string,
     options?: string[],
-    onVariablesUpdate?: (value: Record<string, unknown>) => void
+    onVariablesUpdate?: (value: Record<string, unknown>) => void,
+    readOnly?: boolean,
+    params?: any,
 }
 
-const InputField: React.FC<ComponentProps> = ({id, label, placeholder, value: initialValue, onVariablesUpdate}) => {
+const InputField: React.FC<ComponentProps> = (
+    {
+        id,
+        label,
+        placeholder,
+        value: initialValue,
+        onVariablesUpdate,
+        readOnly
+    }
+) => {
     const [value, setValue] = useState<string>(initialValue || '');
 
     useEffect(() => onVariablesUpdate?.({[id]: value}), [value, id, onVariablesUpdate]);
@@ -18,7 +30,13 @@ const InputField: React.FC<ComponentProps> = ({id, label, placeholder, value: in
     return (
         <label>
             {label}
-            <input id={id} placeholder={placeholder} value={value} onInput={e => setValue(e.currentTarget.value)}/>
+            <input
+                id={id}
+                placeholder={placeholder}
+                value={value}
+                onInput={e => setValue(e.currentTarget.value)}
+                readOnly={readOnly}
+            />
         </label>
     );
 };
@@ -53,6 +71,45 @@ const Text: React.FC<ComponentProps> = ({id, label}) => (
 );
 
 
+const QR: React.FC<ComponentProps> = ({id, label, value, params}) => {
+    const constructURL = (!value && params);
+
+    if (value && params) {
+        console.warn(`QR component has both 'value' and 'params'. Value will be used.`);
+    }
+
+    if (constructURL) {
+        const {basePath, ...urlParams} = params;
+        const url = new URL(basePath);
+        Object.entries(urlParams).forEach(([k, v]) => url.searchParams.append(k, `${v}`));
+        value = url.toString();
+    }
+
+    return (
+        <div id={id}>
+            <div>
+                <span>{label}</span>
+            </div>
+            <div className="qrcode-container">
+                <div className="qrcode-aspect-helper">
+                    {
+                        value ?
+                            // Levels: L (7%), M (15%), Q (25%), H (30%)
+                            <QRCodeCanvas level="M" value={value} className="qrcode" size={256}/> :
+                            <span>(no data)</span>
+                    }
+                </div>
+                <div className="qrcode-url">
+                    {
+                        constructURL &&
+                        <a href={value} target="_blank" rel="noreferrer">link</a>
+                    }
+                </div>
+            </div>
+        </div>
+    )
+};
+
 export const COMPONENT_MAP: {
     [key: string]: React.ComponentType<any>,
 } = {
@@ -60,4 +117,6 @@ export const COMPONENT_MAP: {
     select: SelectDropdown,
     button: Button,
     text: Text,
+    qr: QR,
+    qrcode: QR,
 };

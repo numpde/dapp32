@@ -47,7 +47,16 @@ export const DynamicUI = (
                         variables[element.id] = variables[element.id] || element.value;
                     }
 
-                    const {onClick: onClickDefinition, ...elementProps} = element;
+                    const {onClick: onClickDefinition, params: params, ...elementProps} = element;
+
+                    // Replace the params {key: name} with the variable values
+                    const paramsWithSubs = params && Object.entries(params).reduce((acc: any, [key, name]) => {
+                        acc[key] = variables[name as string];
+                        return acc;
+                    }, {});
+
+                    // console.debug("Params initially: ", params);
+                    // console.debug("Params with subs: ", paramsWithSubs);
 
                     return (
                         <div key={key}>
@@ -56,6 +65,7 @@ export const DynamicUI = (
                                 onClick={createEventHandler('onClick', onClickDefinition, element)}
                                 value={variables[element.id]}
                                 onVariablesUpdate={onVariablesUpdate}
+                                params={paramsWithSubs}
                             />
                         </div>
                     );

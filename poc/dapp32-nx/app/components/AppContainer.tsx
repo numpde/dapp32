@@ -10,6 +10,9 @@ const AppContainer: React.FC<{ children: ReactNode }> = ({children}) => {
 
             {children}
 
+
+            <div className="spacer"></div>
+
             <footer className="app-footer">
                 <p>© 2023 Dapp32. All rights reserved.</p>
             </footer>
