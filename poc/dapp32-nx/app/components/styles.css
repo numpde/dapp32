@@ -195,7 +195,7 @@ button:active:not(:disabled) {
     animation: blink 1s linear infinite;
 }
 
-.qrcode-container {
+.image-container {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -203,7 +203,7 @@ button:active:not(:disabled) {
 
 }
 
-.qrcode-container > .qrcode-aspect-helper {
+.image-container > .image-aspect-helper {
     position: relative;
     max-width: 256px;
     width: 90%;
@@ -211,7 +211,7 @@ button:active:not(:disabled) {
     margin: 10px;
 }
 
-.qrcode-container > .qrcode-aspect-helper > canvas.qrcode {
+.image-container > .image-aspect-helper > * {
     position: absolute;
     top: 0;
     right: 0;
@@ -221,35 +221,83 @@ button:active:not(:disabled) {
     height: 100% !important;
 }
 
-.qrcode-container > .qrcode-url {
+.image-container > .image-aspect-helper > img {
+    background-color: #c8d6e5;
+    border-radius: 10px;
+    padding: 10px;
+}
+
+.image-container > .image-url {
     display: flex;
     justify-content: center;
     width: 90%;
     margin: 10px auto;
 }
 
-.qrcode-container > .qrcode-url > * {
+.image-container > .image-url > * {
     text-align: center;
 }
 
-.addresses{
+.addresses {
     font-size: x-small;
-    display: flex;  /* lay out list items in a row */
+    display: flex; /* lay out list items in a row */
     flex-wrap: wrap; /* allow list items to wrap onto the next line */
-    padding: 0;  /* remove default padding */
-    margin: 0;  /* remove default margin */
+    padding: 0; /* remove default padding */
+    margin: 0; /* remove default margin */
     justify-content: center; /* align items to the right */
 }
 
-.addresses > span, a {
-    margin-left: 10px;  /* add some space to the right of each list item */
+.addresses > span, .addresses > a {
+    margin-left: 10px; /* add some space to the right of each list item */
 }
 
 .addresses > a {
-    color: #007bff;  /* make the links blue, for example */
-    text-decoration: none;  /* remove the underline */
+    color: #007bff; /* make the links blue, for example */
+    text-decoration: none; /* remove the underline */
 }
 
 .addresses > a:hover {
-    color: #0056b3;  /* make the links darker blue when hovered over */
+    color: #0056b3; /* make the links darker blue when hovered over */
+}
+
+.nft-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin: 20px;
+    border-radius: 10px;
+    width: auto;
+    background-color: #f9f9f9;
+}
+
+.nft-container > .image-container {
+    width: 100%;
+}
+
+.nft-name {
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.nft-description {
+    font-size: 16px;
+    margin-bottom: 20px;
+    text-align: justify;
+    padding: 0 10px;
+}
+
+.nft-attributes {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.nft-attributes > div {
+    font-size: 14px;
+    margin-bottom: 10px;
 }

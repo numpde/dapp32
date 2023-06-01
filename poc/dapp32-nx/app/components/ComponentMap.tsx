@@ -1,22 +1,10 @@
 import React, {useState, useEffect} from 'react';
 import {QRCodeCanvas} from 'qrcode.react';
-
-import {VariablesOfUI} from "./types";
 import {isSameAddress} from "@opengsn/common";
 
+import {ComponentProps, VariablesOfUI} from "./types";
+import {ElementNFT} from "./ElementNFT";
 
-type ComponentProps = {
-    id: string,
-    variables: VariablesOfUI,
-    label?: string,
-    onClick?: () => void,
-    placeholder?: string,
-    value?: string,
-    options?: string[],
-    onVariablesUpdate?: (value: Record<string, unknown>) => void,
-    readOnly?: boolean,
-    params?: any,
-}
 
 const InputField: React.FC<ComponentProps> = (
     {
@@ -135,7 +123,6 @@ const Text: React.FC<ComponentProps> = ({id, label}) => (
     <div id={id}><span>{label}</span></div>
 );
 
-
 const QR: React.FC<ComponentProps> = ({id, label, value, params}) => {
     const constructURL = (!value && params);
 
@@ -155,8 +142,8 @@ const QR: React.FC<ComponentProps> = ({id, label, value, params}) => {
             <div>
                 <span>{label}</span>
             </div>
-            <div className="qrcode-container">
-                <div className="qrcode-aspect-helper">
+            <div className="image-container">
+                <div className="image-aspect-helper">
                     {
                         value ?
                             // Levels: L (7%), M (15%), Q (25%), H (30%)
@@ -164,7 +151,7 @@ const QR: React.FC<ComponentProps> = ({id, label, value, params}) => {
                             <span>(no data)</span>
                     }
                 </div>
-                <div className="qrcode-url">
+                <div className="image-url">
                     {
                         constructURL &&
                         <a href={value} target="_blank" rel="noreferrer">link</a>
@@ -174,6 +161,7 @@ const QR: React.FC<ComponentProps> = ({id, label, value, params}) => {
         </div>
     )
 };
+
 
 export const COMPONENT_MAP: {
     [key: string]: React.ComponentType<any>,
@@ -185,4 +173,5 @@ export const COMPONENT_MAP: {
     text: Text,
     qr: QR,
     qrcode: QR,
+    nft: ElementNFT,
 };

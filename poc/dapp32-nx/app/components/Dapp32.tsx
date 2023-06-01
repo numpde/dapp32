@@ -35,7 +35,6 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
         //     throw new Error(`Invalid contract info ${JSON.stringify(props.contract)}, expected {network: string, address: string, view: string}`);
         // }
 
-
         this.state = {
             contract: props.contract,
             walletState: undefined,
@@ -47,6 +46,8 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                 sessionID: undefined,
             },
         };
+
+        console.debug(`${typeof this}.constructor:`, this.state);
 
         this.updateSpacerHeight = debounce(this.updateSpacerHeight.bind(this), 200);
     }

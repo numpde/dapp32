@@ -1,7 +1,5 @@
 import {Dapp32} from "../../../../app/components/Dapp32"
-
-
-import {useRouter} from 'next/router';
+import {GetServerSideProps, GetServerSidePropsContext} from "next";
 
 type Route = {
     contractNetwork: string | undefined,
@@ -9,25 +7,27 @@ type Route = {
     initialView: string | undefined,
     basePath: string | undefined,
     params: { [key: string]: string | string[] | undefined },
-}
+};
 
-export const getRoute = (): Route => {
-    const router = useRouter();
-
-    console.log("router.query:", router.query);
-
+const getRoute = (context: GetServerSidePropsContext): Route => {
     const {
         network: contractNetwork,
         address: contractAddress,
         view: initialView,
         ...params
-    } = router.query;
+    } = context.query;
 
     if (Array.isArray(contractNetwork) || Array.isArray(contractAddress) || Array.isArray(initialView)) {
         throw new Error("Could not parse contract network/address/view");
     }
 
-    const basePath = (typeof window !== 'undefined') && (window.location.origin + router.asPath.split('?')[0]) || undefined;
+    const basePath = context.req.headers.referer ?
+        context.req.headers.referer.split('?')[0] :
+        (
+            "https://" + context.req.headers.host + (
+                context.req.url ? context.req.url.split('?')[0] : ""
+            )
+        );
 
     const route: Route = {
         contractNetwork,
@@ -40,24 +40,38 @@ export const getRoute = (): Route => {
     return route;
 };
 
-const Page = () => {
-    const route = getRoute();
 
+export const getServerSideProps: GetServerSideProps = async (context) => {
+    const route = getRoute(context);
+
+    if (!route.contractNetwork || !route.contractAddress || !route.initialView) {
+        return {
+            notFound: true,
+        }
+    }
+
+    // Pass data to the page via props
+    return {props: {route}}
+}
+
+
+const Page: React.FC<{ route: Route }> = ({route}) => {
     return (
-        !(route.contractNetwork && route.contractAddress && route.initialView)
-            ?
-            <div>[loading route...]</div>
-            :
-            <Dapp32
-                contract={
-                    {
-                        network: route.contractNetwork,
-                        address: route.contractAddress,
-                        view: route.initialView,
-                    }
+        <Dapp32
+            contract={
+                {
+                    network: route.contractNetwork,
+                    address: route.contractAddress,
+                    view: route.initialView,
                 }
-                params={{...route.params, basePath: route.basePath}}
-            />
+            }
+            params={
+                {
+                    ...route.params,
+                    basePath: route.basePath
+                }
+            }
+        />
     );
 };
 

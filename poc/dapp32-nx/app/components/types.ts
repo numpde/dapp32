@@ -73,3 +73,17 @@ export type FunctionABI = {
     stateMutability: string;
     type: string;
 }
+
+
+export type ComponentProps = {
+    id: string,
+    variables: VariablesOfUI,
+    label?: string,
+    onClick?: () => void,
+    placeholder?: string,
+    value?: string,
+    options?: string[],
+    onVariablesUpdate?: (value: Record<string, unknown>) => void,
+    readOnly?: boolean,
+    params?: any,
+}
