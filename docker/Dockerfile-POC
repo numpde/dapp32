@@ -19,8 +19,8 @@ WORKDIR /usr/src/app/poc/dapp32-nx
 # Install dependencies
 RUN npm install && npx nx build dapp32-nx && npm cache clean --force
 
-# Remove dev dependencies
-RUN npm prune --omit=dev
+# Remove unused dependencies
+RUN npm prune
 
 # Final stage
 FROM node:lts
