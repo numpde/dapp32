@@ -1,6 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import {QRCodeCanvas} from 'qrcode.react';
 import {isSameAddress} from "@opengsn/common";
+import {urlJoin} from "url-join-ts";
 
 import {ComponentProps, VariablesOfUI} from "./types";
 import {ElementNFT} from "./ElementNFT";
@@ -123,7 +124,7 @@ const Text: React.FC<ComponentProps> = ({id, label}) => (
     <div id={id}><span>{label}</span></div>
 );
 
-const QR: React.FC<ComponentProps> = ({id, label, value, params}) => {
+const ElementQR: React.FC<ComponentProps> = ({id, label, value, params}) => {
     const constructURL = (!value && params);
 
     if (value && params) {
@@ -131,8 +132,8 @@ const QR: React.FC<ComponentProps> = ({id, label, value, params}) => {
     }
 
     if (constructURL) {
-        const {basePath, ...urlParams} = params;
-        const url = new URL(basePath);
+        const {basePath, relPath, ...urlParams} = params;
+        const url = new URL(urlJoin(basePath, relPath));
         Object.entries(urlParams).forEach(([k, v]) => url.searchParams.append(k, `${v}`));
         value = url.toString();
     }
@@ -171,7 +172,7 @@ export const COMPONENT_MAP: {
     select: SelectDropdown,
     button: Button,
     text: Text,
-    qr: QR,
-    qrcode: QR,
+    qr: ElementQR,
+    qrcode: ElementQR,
     nft: ElementNFT,
 };

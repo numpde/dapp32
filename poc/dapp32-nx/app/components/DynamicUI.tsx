@@ -51,7 +51,12 @@ export const DynamicUI = (
 
                     // Replace the params {key: name} with the variable values
                     const paramsWithSubs = params && Object.entries(params).reduce((acc: any, [key, name]) => {
-                        acc[key] = variables[name as string];
+                        // Try to parse the value as a variable name.
+                        // Todo: smarter variable parsing?
+                        acc[key] = ((typeof name === 'string') && (name in variables)) ?
+                            variables[name] :
+                            name;
+
                         return acc;
                     }, {});
 
