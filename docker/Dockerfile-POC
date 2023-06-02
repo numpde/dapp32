@@ -6,7 +6,7 @@ FROM node:lts as dapp32_poc_build
 # Create a directory for the application
 WORKDIR /usr/src/app/
 
-# Environment variables for Git
+# Arguments for Git
 ARG GITHUB_ACCESS_TOKEN
 ARG GITHUB_REPO
 
