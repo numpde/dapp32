@@ -2,6 +2,7 @@ import React, {useState, useEffect} from 'react';
 import {QRCodeCanvas} from 'qrcode.react';
 import {isSameAddress} from "@opengsn/common";
 import {urlJoin} from "url-join-ts";
+import {CopyToClipboard} from "react-copy-to-clipboard";
 
 import {ComponentProps, VariablesOfUI} from "./types";
 import {ElementNFT} from "./ElementNFT";
@@ -25,9 +26,10 @@ const InputField: React.FC<ComponentProps> = (
         <label>
             {label}
             <input
+                className={(!value && readOnly) ? "empty" : undefined}
                 id={id}
                 placeholder={placeholder}
-                value={value}
+                value={(!value && readOnly) ? "[empty]" : value}
                 onInput={e => setValue(e.currentTarget.value)}
                 readOnly={readOnly}
             />
@@ -50,6 +52,7 @@ const AddressField: React.FC<ComponentProps> = (
 
     const [valid, setValid] = useState<boolean>(true);
     const [value, setValue] = useState<string>(initialValue || '');
+    const [mouseDown, setMouseDown] = useState<boolean>(false);
 
     useEffect(() => onVariablesUpdate?.({[id]: value}), [value, id, onVariablesUpdate]);
 
@@ -64,17 +67,28 @@ const AddressField: React.FC<ComponentProps> = (
         }
     };
 
+    const displayValue = (readOnly && !mouseDown) ? (value.slice(0,6) + ".".repeat(32) + value.slice(-4)) : value;
+
     return (
         <label>
             {label}
-            <input
-                className={`address ${valid ? "" : "invalid"}`}
-                id={id}
-                placeholder={placeholder}
-                value={value}
-                onInput={e => setValue(e.currentTarget.value)}
-                readOnly={readOnly}
-            />
+            <div className="address-input-container">
+                <input
+                    className={`address ${valid ? "" : "invalid"}`}
+                    id={id}
+                    placeholder={placeholder}
+                    value={displayValue}
+                    onInput={e => setValue(e.currentTarget.value)}
+                    readOnly={readOnly}
+                    onMouseDown={() => setMouseDown(true)}
+                    onMouseUp={() => setMouseDown(false)}
+                />
+                {readOnly && (
+                    <CopyToClipboard text={value}>
+                        <button className="copy-button">Copy</button>
+                    </CopyToClipboard>
+                )}
+            </div>
 
             {
                 !readOnly &&
@@ -92,7 +106,7 @@ const AddressField: React.FC<ComponentProps> = (
 
         </label>
     );
-}
+};
 
 
 const SelectDropdown: React.FC<ComponentProps> = ({id, label, options, value: initialValue, onVariablesUpdate}) => {

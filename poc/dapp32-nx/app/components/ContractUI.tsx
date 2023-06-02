@@ -247,6 +247,8 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     dispatchFunctionCall = async (eventDefinition: any, functionSelector: string, contractABI: any) => {
         console.debug("ContractUI.dispatchFunctionCall:", functionSelector, "of", eventDefinition);
 
+        // Todo: allow a relative path to JSON instead of a function call to the contract
+
         contractABI = contractABI || this.state.contractABI;
 
         const nameOfFunction = eventDefinition[functionSelector];

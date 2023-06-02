@@ -122,9 +122,18 @@ input.address.invalid {
     box-shadow: 0 0 5px red;
 }
 
+input.address:read-only {
+    cursor: pointer;
+}
+
 input:read-only, select:read-only {
     background-color: #f3f3f3; /* Light grey background */
     /*cursor: not-allowed; !* Cursor indicating the input cannot be interacted with *!*/
+}
+
+input.empty {
+    text-align: center;
+    color: #999;
 }
 
 button {
@@ -300,4 +309,25 @@ button:active:not(:disabled) {
 .nft-attributes > div {
     font-size: 14px;
     margin-bottom: 10px;
+}
+
+
+.address-input-container {
+    position: relative;
+    /*display: inline-block;*/
+}
+
+.address-input-container > input {
+    padding-right: 70px;
+}
+
+.copy-button {
+    position: absolute;
+    right: 5px;
+    top: 0;
+    bottom: 0;
+    padding: 0 10px;
+    border: none;
+    background-color: #f0f0f0;
+    cursor: pointer;
 }

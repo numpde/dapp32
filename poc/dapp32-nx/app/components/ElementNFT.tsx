@@ -66,6 +66,7 @@ const functionAbi1155 = [
     }
 ];
 
+const IMG_ERROR_PREFIX = "Image not found: ";
 
 export const ElementNFT: React.FC<NFTComponentProps> = ({label, value, params}) => {
     const [metadata, setMetadata] = useState<Metadata>({});
@@ -119,13 +120,16 @@ export const ElementNFT: React.FC<NFTComponentProps> = ({label, value, params}) 
                 <div className={"image-container"}>
                     <div className={"image-aspect-helper"}>
                         {
-                            metadata.image ?
+                            ((typeof metadata.image === 'string') && metadata.image.startsWith(IMG_ERROR_PREFIX)) ?
+                                <span>{metadata.image}</span> :
                                 <img
                                     className={"image"}
                                     src={metadata.image} alt={metadata.name || 'NFT image'}
-                                    onError={() => setMetadata({...metadata, image: undefined})}
-                                /> :
-                                <span>No image available...</span>
+                                    onError={() => setMetadata({
+                                        ...metadata,
+                                        image: `${IMG_ERROR_PREFIX}"${metadata.image}"`
+                                    })}
+                                />
                         }
                     </div>
                     <div className={"image-url"}>
