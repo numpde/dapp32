@@ -1,11 +1,10 @@
 import React, {useState, useEffect} from 'react';
-import {QRCodeCanvas} from 'qrcode.react';
 import {isSameAddress} from "@opengsn/common";
-import {urlJoin} from "url-join-ts";
 import {CopyToClipboard} from "react-copy-to-clipboard";
 
-import {ComponentProps, VariablesOfUI} from "./types";
-import {ElementNFT} from "./ElementNFT";
+import {ComponentProps} from "./types";
+import {NFT} from "./elements/NFT";
+import {QR} from "./elements/QR";
 
 
 const InputField: React.FC<ComponentProps> = (
@@ -67,7 +66,7 @@ const AddressField: React.FC<ComponentProps> = (
         }
     };
 
-    const displayValue = (readOnly && !mouseDown) ? (value.slice(0,6) + ".".repeat(32) + value.slice(-4)) : value;
+    const displayValue = (readOnly && !mouseDown) ? (value.slice(0, 6) + ".".repeat(32) + value.slice(-4)) : value;
 
     return (
         <label>
@@ -138,45 +137,6 @@ const Text: React.FC<ComponentProps> = ({id, label}) => (
     <div id={id}><span>{label}</span></div>
 );
 
-const ElementQR: React.FC<ComponentProps> = ({id, label, value, params}) => {
-    const constructURL = (!value && params);
-
-    if (value && params) {
-        console.warn(`QR component has both 'value' and 'params'. Value will be used.`);
-    }
-
-    if (constructURL) {
-        const {basePath, relPath, ...urlParams} = params;
-        const url = new URL(urlJoin(basePath, relPath));
-        Object.entries(urlParams).forEach(([k, v]) => url.searchParams.append(k, `${v}`));
-        value = url.toString();
-    }
-
-    return (
-        <div id={id}>
-            <div>
-                <span>{label}</span>
-            </div>
-            <div className="image-container">
-                <div className="image-aspect-helper">
-                    {
-                        value ?
-                            // Levels: L (7%), M (15%), Q (25%), H (30%)
-                            <QRCodeCanvas level="M" value={value} className="qrcode" size={256}/> :
-                            <span>(no data)</span>
-                    }
-                </div>
-                <div className="image-url">
-                    {
-                        constructURL &&
-                        <a href={value} target="_blank" rel="noreferrer">link</a>
-                    }
-                </div>
-            </div>
-        </div>
-    )
-};
-
 
 export const COMPONENT_MAP: {
     [key: string]: React.ComponentType<any>,
@@ -186,7 +146,7 @@ export const COMPONENT_MAP: {
     select: SelectDropdown,
     button: Button,
     text: Text,
-    qr: ElementQR,
-    qrcode: ElementQR,
-    nft: ElementNFT,
+    qr: QR,
+    qrcode: QR,
+    nft: NFT,
 };

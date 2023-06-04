@@ -103,6 +103,21 @@ a, span {
     word-break: break-word;
 }
 
+a {
+    color: #007BFF; /* moderate blue */
+    text-decoration: none; /* remove the underline */
+    transition-duration: 0.4s; /* animate color changes */
+}
+
+a:hover, a:focus {
+    color: #0056b3; /* dark blue on hover or focus */
+}
+
+a:active:not(:disabled) {
+    color: #003d66; /* even darker blue when actively clicking the link */
+    transform: translateY(1px); /* simulates being pressed down */
+}
+
 input, select {
     padding: 10px;
     border-radius: 5px;

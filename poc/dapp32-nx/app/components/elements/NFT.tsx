@@ -1,8 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import {ethers} from 'ethers';
 
-import {ComponentProps} from "./types";
-import Web3ProviderContext from "./Web3ProviderContext";
+import {ComponentProps} from "../types";
+import Web3ProviderContext from "../Web3ProviderContext";
 
 
 interface NFTComponentProps extends ComponentProps {
@@ -70,7 +70,7 @@ const functionAbi1155 = [
 
 const IMG_ERROR_PREFIX = "Image not found: ";
 
-export const ElementNFT: React.FC<NFTComponentProps> = ({label, value, params}) => {
+export const NFT: React.FC<NFTComponentProps> = ({label, value, params}) => {
     const [metadata, setMetadata] = useState<Metadata>({});
 
     const web3provider = React.useContext(Web3ProviderContext);

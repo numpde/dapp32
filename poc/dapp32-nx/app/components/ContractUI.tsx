@@ -6,7 +6,7 @@ import {
     BrowserProvider,
     Contract as ContractV6,
     ContractTransactionReceipt,
-    ContractTransactionResponse, JsonRpcApiProvider
+    ContractTransactionResponse, JsonRpcApiProvider, Provider
 } from "ethers";
 
 import {toast} from 'react-hot-toast';
@@ -138,10 +138,6 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         // const signer = await provider.getSigner();
         const contract = new ContractV6(this.state.contract.address, [functionABI], provider);
 
-        if (!isSameChain((await provider.getNetwork()).chainId, this.state.contract.network)) {
-            throw new Error(`Network mismatch...`);
-        }
-
         return {contract, provider};
     }
 
@@ -149,10 +145,6 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         const provider = this.getBrowserProvider(false);
         const signer = await provider.getSigner();
         const contract = new ContractV6(this.state.contract.address, [functionABI], signer);
-
-        if (!isSameChain((await provider.getNetwork()).chainId, this.state.contract.network)) {
-            throw new Error(`Network mismatch...`);
-        }
 
         return {contract, signer, provider};
     };
@@ -174,10 +166,6 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             );
 
         const contract = new ContractV6(this.state.contract.address, [functionABI], gsnSigner);
-
-        if (!isSameChain((await gsnProvider.getNetwork()).chainId, this.state.contract.network)) {
-            throw new Error(`Network mismatch...`);
-        }
 
         return {contract: contract, signer: gsnSigner, provider: gsnProvider};
     };
@@ -274,6 +262,18 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         };
     };
 
+    validateProvider = async (provider: Provider) => {
+        // Chain ID
+        {
+            const contractChainId = BigInt(this.state.contract.network);
+            const providerChainId = BigInt((await provider.getNetwork()).chainId);
+
+            if (!isSameChain(contractChainId, providerChainId)) {
+                throw new Error(`Contract chain ID (${contractChainId}) does not match user chain ID (${providerChainId}).`);
+            }
+        }
+    }
+
     //
     // THIS FUNCTION IS TOO COMPLICATED. REFACTOR IT.
     //
@@ -285,6 +285,16 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         contractABI = contractABI || this.state.contractABI;
 
         const nameOfFunction = eventDefinition[functionSelector];
+
+        if (!nameOfFunction) {
+            if ((functionSelector === FUNCTION_SELECTOR_FAILURE) || (functionSelector === FUNCTION_SELECTOR_SUCCESS)) {
+                // If no failure/success function name is specified in the JSON,
+                // we rely on the toasts to display the appropriate message.
+                return;
+            } else {
+                throw new Error(`No function name found for selector '${functionSelector}' in the event definition.`);
+            }
+        }
 
         const functionABI = contractABI.find((abi: FunctionABI) => (abi.name === nameOfFunction));
 
@@ -301,7 +311,8 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         // Does it require no user signature to proceed?
         if (["view", "pure"].includes(functionABI.stateMutability)) {
-            const {contract} = await this.prepareExecutionReadOnly(functionABI);
+            const {contract, provider} = await this.prepareExecutionReadOnly(functionABI);
+            await this.validateProvider(provider);
 
             const response = await this.executeOffChain(contract, functionABI, functionArgs);
 
@@ -322,18 +333,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                 await this.prepareExecutionViaRelay(functionABI) :
                 await this.prepareExecutionWithUserSignature(functionABI);
 
-        // Check sanity
-        {
-            // Chain ID
-            {
-                const contractChainId = BigInt(parseInt(this.state.contract.network, 16));
-                const userChainId = BigInt((await provider.getNetwork()).chainId);
-
-                if (contractChainId !== userChainId) {
-                    throw new Error(`Contract chain ID (${contractChainId}) does not match user chain ID (${userChainId}).`);
-                }
-            }
-        }
+        await this.validateProvider(provider);
 
         // This block involves signing and sending transactions.
         {
@@ -439,4 +439,4 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             </div>
         );
     }
-}
+};
