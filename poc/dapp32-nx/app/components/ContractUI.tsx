@@ -289,8 +289,8 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         const functionABI = contractABI.find((abi: FunctionABI) => (abi.name === nameOfFunction));
 
         if (!functionABI) {
-            console.error(`Function ABI ${nameOfFunction} not found for event in the contract ABI.`, contractABI);
-            throw new Error(`Function ABI for '${nameOfFunction}' not found for event in the contract ABI.`);
+            console.error(`Function ABI ${nameOfFunction} not found in the contract ABI:`, contractABI);
+            throw new Error(`Function ABI for '${nameOfFunction}' not found in the contract ABI.`);
         }
 
         if (!(["nonpayable", "payable", "view", "pure"].includes(functionABI.stateMutability))) {
@@ -340,8 +340,14 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             try {
                 // const balanceBefore = await provider.getBalance(signer.getAddress());
 
-                const txReceipt = await this.executeOnChain(contract, functionABI.name, functionArgs);
-                console.debug(`Transaction success: ${txReceipt}`);
+                const txReceipt = await toast.promise(
+                    this.executeOnChain(contract, functionABI.name, functionArgs),
+                    {
+                        loading: "Waiting for signature...",
+                        success: <b>Success!</b>,
+                        error: (error) => <span>{`Transaction failed or rejected.`}</span>,
+                    }
+                );
 
                 // console.debug("Balance before:", balanceBefore);
                 // console.debug("Balance after:", await provider.getBalance(signer.getAddress()));
@@ -419,17 +425,17 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                         <div>Loading the UI...</div>
                     }
                 </div>
-                <div>
-                    {
-                        this.state.walletRequestsPending
-                            ?
-                            <div className="wallet-requests-pending">
-                                Wallet requests pending: {this.state.walletRequestsPending}
-                            </div>
-                            :
-                            <></>
-                    }
-                </div>
+                {/*<div>*/}
+                {/*    {*/}
+                {/*        this.state.walletRequestsPending*/}
+                {/*            ?*/}
+                {/*            <div className="wallet-requests-pending">*/}
+                {/*                Wallet requests pending: {this.state.walletRequestsPending}*/}
+                {/*            </div>*/}
+                {/*            :*/}
+                {/*            <></>*/}
+                {/*    }*/}
+                {/*</div>*/}
             </div>
         );
     }

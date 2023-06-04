@@ -9,7 +9,7 @@ import {ConnectWallet} from "./ConnectWallet";
 import {ContractUI} from "./ContractUI";
 import {ErrorBoundaryUI} from "./ErrorBoundaryUI";
 import AppContainer from "./AppContainer";
-import {humanizeChain} from "./utils";
+import {humanizeChain, isSameChain} from "./utils";
 import {debounce} from "lodash";
 
 
@@ -117,10 +117,10 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                     }
 
                     {
-                        (this.state.walletState?.network) && (this.state.walletState?.network != this.state.contract.network) && (
+                        (this.state.walletState?.network) && !isSameChain(this.state.walletState?.network, this.state.contract.network) && (
                             <div>
-                                Wallet network '{this.state.walletState?.network}' does not match
-                                contract network '{this.state.contract.network}'.
+                                The wallet network '{this.state.walletState?.network}' does not match
+                                the contract network '{this.state.contract.network}'.
                             </div>
                         )
                     }
