@@ -1,7 +1,9 @@
 import React from "react";
 
 // @ts-ignore
-import { isEqual } from 'lodash';
+import {isEqual} from 'lodash';
+
+import {toast} from "react-hot-toast";
 
 import './styles.css';
 import {ConnectWalletData, WalletState} from "./types";
@@ -52,14 +54,14 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
 
         this.setState(state);
 
-        if (window.ethereum?.on) {
+        if (window?.ethereum?.on) {
             window.ethereum.on('accountsChanged', this.handleAccountsChanged);
             window.ethereum.on('chainChanged', this.handleChainChanged);
         }
     }
 
     componentWillUnmount() {
-        if (window.ethereum?.off) {
+        if (window?.ethereum?.off) {
             window.ethereum.off('accountsChanged', this.handleAccountsChanged);
             window.ethereum.off('chainChanged', this.handleChainChanged);
         }
@@ -87,14 +89,19 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
     };
 
     connect = async () => {
+        if (!window.ethereum) {
+            toast.error("Please install a wallet browser extension such as Metamask.");
+            return;
+        }
+
         window.ethereum?.request({method: 'eth_requestAccounts'}).then(
             // `handleAccountsChanged` will be invoked
         ).catch(
-            console.info
+            toast.error
         )
     }
 
-    switchToDefaultNetwork = async () => {
+    requestSwitchToDefaultNetwork = async () => {
         window.ethereum?.request(
             {
                 method: 'wallet_switchEthereumChain',
@@ -104,7 +111,10 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
             //
         ).catch(
             console.info
-        )
+        );
+
+        const currentNetwork = await this.getCurrentNetwork();
+        this.setState(state => ({...state, network: currentNetwork}));
     }
 
     // signMessage = async () => {
@@ -123,16 +133,24 @@ export class ConnectWallet extends React.Component<ConnectWalletData, WalletStat
 
         return (
             <div className={`fade-in ${(isConnected !== undefined) ? 'show' : ''}`}>
-                <button onClick={this.connect} disabled={!!isConnected}>
-                    {isConnected ? 'Connected to wallet' : 'Connect to wallet...'}
-                </button>
-                <div><span>Network: {humanizeChain(network)}</span></div>
-                <div><span>Account: {account || 'Not connected'}</span></div>
+                {
+                    isConnected
+                        ?
+                        <>
+                            <div><span>Network: {humanizeChain(network)}</span></div>
+                            <div><span>Account: {account || 'Not connected'}</span></div>
+                        </>
+                        :
+                        <button onClick={this.connect} disabled={!!isConnected}>
+                            {isConnected ? 'Connected to wallet' : 'Connect to wallet...'}
+                        </button>
+                }
+
                 {
                     network && this.props.defaultNetwork && (network !== this.props.defaultNetwork) && (
                         <div>
                             <div>
-                                <button onClick={this.switchToDefaultNetwork}>Switch to default network</button>
+                                <button onClick={this.requestSwitchToDefaultNetwork}>Switch to default network</button>
                             </div>
                             <div>Not on the default network {this.props.defaultNetwork}.</div>
                         </div>

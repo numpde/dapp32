@@ -11,7 +11,6 @@ import {ErrorBoundaryUI} from "./ErrorBoundaryUI";
 import AppContainer from "./AppContainer";
 import {humanizeChain} from "./utils";
 import {debounce} from "lodash";
-import {consumeMessagesFromSocket} from "nx/src/utils/consume-messages-from-socket";
 
 
 const VariableList = ({variables}: { variables: VariablesOfUI }) => (
@@ -34,6 +33,7 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
 
         this.state = {
             contract: props.contract,
+            web3provider: props.web3provider,
             walletState: undefined,
             variables: {
                 ...props.params,  // this goes first
@@ -107,18 +107,26 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                     Contract address/network not understood.
                 </div>
                 :
-                (!this.state.walletState || !this.state.walletState.account) ?
-                    <div>
-                        Wallet state not understood.
-                    </div>
-                    :
-                    (this.state.contract.network != this.state.walletState.network) ?
-                        <div>
-                            Wallet network {this.state.walletState.network} does not match
-                            contract network {this.state.contract.network}.
-                        </div>
-                        :
-                        child
+                <>
+                    {
+                        (!this.state.walletState || !this.state.walletState.account) && (
+                            <div>
+                                Wallet state not understood, the functionality of this page may be limited.
+                            </div>
+                        )
+                    }
+
+                    {
+                        (this.state.walletState?.network) && (this.state.walletState?.network != this.state.contract.network) && (
+                            <div>
+                                Wallet network '{this.state.walletState?.network}' does not match
+                                contract network '{this.state.contract.network}'.
+                            </div>
+                        )
+                    }
+
+                    {child}
+                </>
         );
     };
 
@@ -170,10 +178,11 @@ export class Dapp32 extends React.Component<Dapp32Props, Dapp32State> {
                             "Contract UI",
 
                             this.uiNotReadyMessageOrThis(
-                                this.state.walletState &&
+                            this.state.walletState &&
                                 <ErrorBoundaryUI>
                                     <ContractUI
                                         contract={this.state.contract}
+                                        web3provider={this.state.web3provider}
                                         walletState={this.state.walletState}
                                         getVariables={() => this.state.variables}
                                         onVariablesUpdate={this.onVariablesUpdate}

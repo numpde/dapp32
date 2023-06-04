@@ -1,4 +1,5 @@
 import React, {ReactNode} from 'react';
+import {toast} from "react-hot-toast";
 
 type ErrorBoundaryProps = {
     children: ReactNode;
@@ -29,8 +30,7 @@ export class ErrorBoundaryUI extends React.Component<ErrorBoundaryProps, ErrorSt
 
     render() {
         if (this.state.hasError) {
-            // You can render any custom fallback UI
-            return <div>Something went wrong. {this.state.error?.message}</div>;
+            toast.error(this.state.error?.message as any);
         } else {
             return this.props.children;
         }

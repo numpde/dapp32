@@ -1,6 +1,8 @@
 import React, {useEffect, useState} from 'react';
 import {ethers} from 'ethers';
+
 import {ComponentProps} from "./types";
+import Web3ProviderContext from "./Web3ProviderContext";
 
 
 interface NFTComponentProps extends ComponentProps {
@@ -71,6 +73,8 @@ const IMG_ERROR_PREFIX = "Image not found: ";
 export const ElementNFT: React.FC<NFTComponentProps> = ({label, value, params}) => {
     const [metadata, setMetadata] = useState<Metadata>({});
 
+    const web3provider = React.useContext(Web3ProviderContext);
+
     useEffect(() => {
         const fetchMetadata = async () => {
             try {
@@ -79,7 +83,7 @@ export const ElementNFT: React.FC<NFTComponentProps> = ({label, value, params}) 
 
                 let tokenURI: string;
                 {
-                    const provider = new ethers.BrowserProvider(window.ethereum as any);
+                    const provider = web3provider || (new ethers.BrowserProvider(window.ethereum as any));
 
                     try {
                         const contract = new ethers.Contract(params.contractAddress, functionAbi721, provider);

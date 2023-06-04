@@ -1,9 +1,13 @@
+import {ethers} from "ethers";
+
 export type Dapp32Props = {
     contract: {
         network: string,
         address: string,
         view: string,
     },
+
+    web3provider: ethers.JsonRpcProvider | null,
 
     params: {
         [key: string]: string | string[] | undefined,
@@ -12,6 +16,7 @@ export type Dapp32Props = {
 
 export type Dapp32State = {
     contract: Dapp32Props['contract'],
+    web3provider: Dapp32Props['web3provider'],
     walletState: WalletState | undefined,
     variables: VariablesOfUI,
 }
@@ -41,6 +46,8 @@ export type VariablesOfUI = {
 export type ContractUIProps = {
     contract: Dapp32Props['contract'];
 
+    web3provider: Dapp32Props['web3provider'];
+
     walletState: WalletState;
 
     getVariables: () => VariablesOfUI;
@@ -52,6 +59,8 @@ export type ContractUIProps = {
 export type ContractUIState = {
     contract: ContractUIProps['contract'];
     contractABI: any;
+
+    web3provider: Dapp32Props['web3provider'];
 
     ui: any;
 

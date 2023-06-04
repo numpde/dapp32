@@ -1,16 +1,20 @@
 import React from 'react';
 
 import {RelayProvider} from "@opengsn/provider";
+
 import {
     BrowserProvider,
     Contract as ContractV6,
     ContractTransactionReceipt,
-    ContractTransactionResponse
+    ContractTransactionResponse, JsonRpcApiProvider
 } from "ethers";
 
+import {toast} from 'react-hot-toast';
+
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
-import {fetchJSON, isSameChain, prepareVariables} from "./utils";
+import {fetchJSON, isSameChain, MissingVariableError, prepareVariables} from "./utils";
 import {DynamicUI} from "./DynamicUI";
+import Web3ProviderContext from "./Web3ProviderContext";
 
 
 const FUNCTION_SELECTOR_DEFAULT: string = "default";
@@ -43,6 +47,8 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             contract: props.contract,
             contractABI: undefined,
 
+            web3provider: props.web3provider,
+
             ui: undefined,
 
             getVariables: props.getVariables,
@@ -56,6 +62,8 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
             error: undefined,
         };
+
+        this.dispatchFunctionCall = this.dispatchFunctionCall.bind(this);
     }
 
     // componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
@@ -87,6 +95,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             .then()
             .catch(
                 (error) => {
+                    toast.error(`Could not fetch initial view due to: ${error}`);
                     this.setState(state => ({...state, error}))
                 }
             );
@@ -103,13 +112,41 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
 
     getContractABI = async () => {
-        const {contract} = await this.prepareExecutionWithSignature(ABIURI_FUNCTION_ABI);
+        const {contract} = await this.prepareExecutionReadOnly(ABIURI_FUNCTION_ABI);
         const contractABI = await contract[ABIURI_FUNCTION_ABI.name]();
         return await fetchJSON(contractABI);
     }
 
-    prepareExecutionWithSignature = async (functionABI: FunctionABI) => {
-        const provider = new BrowserProvider(window.ethereum as any);
+    getBrowserProvider(readOnly: boolean): JsonRpcApiProvider {
+        if (readOnly) {
+            if (!this.state.web3provider && !window.ethereum) {
+                throw new Error("Could not connect to the default read-only network provider or to the wallet browser extension. Check the internet connection and that you have a wallet browser extension installed and activated.");
+            }
+
+            return this.state.web3provider || (new BrowserProvider(window.ethereum as any));
+        }
+
+        if (!window.ethereum) {
+            throw new Error("Could not connect to the wallet browser extension. Is it installed and activated?");
+        }
+
+        return new BrowserProvider(window.ethereum as any);
+    }
+
+    prepareExecutionReadOnly = async (functionABI: FunctionABI) => {
+        const provider = this.getBrowserProvider(true);
+        // const signer = await provider.getSigner();
+        const contract = new ContractV6(this.state.contract.address, [functionABI], provider);
+
+        if (!isSameChain((await provider.getNetwork()).chainId, this.state.contract.network)) {
+            throw new Error(`Network mismatch...`);
+        }
+
+        return {contract, provider};
+    }
+
+    prepareExecutionWithUserSignature = async (functionABI: FunctionABI) => {
+        const provider = this.getBrowserProvider(false);
         const signer = await provider.getSigner();
         const contract = new ContractV6(this.state.contract.address, [functionABI], signer);
 
@@ -127,7 +164,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         const {gsnProvider, gsnSigner} =
             await RelayProvider.newEthersV6Provider(
                 {
-                    provider: (new BrowserProvider(window.ethereum as any)) as any,
+                    provider: this.getBrowserProvider(false) as any,
                     config: {
                         paymasterAddress,
                         performDryRunViewRelayCall: true,
@@ -146,8 +183,6 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     };
 
     executeOnChain = async (contract: ContractV6, functionName: string, functionArgs: any[]): Promise<ContractTransactionReceipt> => {
-        const This = this.constructor.name;
-
         try {
             this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending + 1}));
 
@@ -160,15 +195,15 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             const txReceipt =
                 await contract[functionName](...functionArgs)
                     .then((transactionResponse: ContractTransactionResponse) => {
-                        console.debug(`${This} transaction sent: ${transactionResponse}. Waiting for receipt...`);
+                        console.debug(`Transaction sent: ${transactionResponse}. Waiting for receipt...`);
                         return transactionResponse.wait();
                     })
                     .catch((error: any) => {
-                        throw new Error(`${This} error: ${error}`)
+                        throw error;
                     });
 
             if (!txReceipt) {
-                throw new Error(`${This} error: no transaction receipt.`);
+                throw new Error("No transaction receipt received.");
             }
 
             return txReceipt;
@@ -178,8 +213,6 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     };
 
     executeOffChain = async (contract: ContractV6, functionABI: FunctionABI, functionArgs: any[]) => {
-        const This = this.constructor.name;
-
         const contractResponse =
             await contract[functionABI.name](...functionArgs)
                 .then(
@@ -247,27 +280,28 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     dispatchFunctionCall = async (eventDefinition: any, functionSelector: string, contractABI: any) => {
         console.debug("ContractUI.dispatchFunctionCall:", functionSelector, "of", eventDefinition);
 
-        // Todo: allow a relative path to JSON instead of a function call to the contract
+        // Todo: allow a relative path to the new JSON instead of a function call to the contract
 
         contractABI = contractABI || this.state.contractABI;
 
         const nameOfFunction = eventDefinition[functionSelector];
 
-        const functionABI = contractABI.find((abi: any) => (abi.name === nameOfFunction));
+        const functionABI = contractABI.find((abi: FunctionABI) => (abi.name === nameOfFunction));
 
         if (!functionABI) {
-            throw new Error(`${typeof this}: Function ABI ${nameOfFunction} not found for event in ${JSON.stringify(contractABI)}`);
+            console.error(`Function ABI ${nameOfFunction} not found for event in the contract ABI.`, contractABI);
+            throw new Error(`Function ABI for '${nameOfFunction}' not found for event in the contract ABI.`);
         }
 
         if (!(["nonpayable", "payable", "view", "pure"].includes(functionABI.stateMutability))) {
-            throw new Error(`${typeof this}: Contract function ABI has invalid state mutability '${functionABI.stateMutability}'`);
+            throw new Error(`Contract function ABI has invalid state mutability '${functionABI.stateMutability}'`);
         }
 
         const functionArgs = prepareVariables(functionABI, this.state.getVariables());
 
         // Does it require no user signature to proceed?
         if (["view", "pure"].includes(functionABI.stateMutability)) {
-            const {contract, signer, provider} = await this.prepareExecutionWithSignature(functionABI);
+            const {contract} = await this.prepareExecutionReadOnly(functionABI);
 
             const response = await this.executeOffChain(contract, functionABI, functionArgs);
 
@@ -280,12 +314,13 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
 
         if (functionABI.stateMutability === "payable") {
-            throw new Error(`${typeof this}: Contract function ABI is 'payable', which is not implemented yet.`);
+            throw new Error(`Contract function ABI is 'payable', which is not implemented yet.`);
         }
-        const {contract, signer, provider} =
+
+        const {contract, provider} =
             eventDefinition?.gasless ?
                 await this.prepareExecutionViaRelay(functionABI) :
-                await this.prepareExecutionWithSignature(functionABI);
+                await this.prepareExecutionWithUserSignature(functionABI);
 
         // Check sanity
         {
@@ -333,13 +368,30 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
         this.setState(state => ({...state, executingCount: state.executingCount + 1}));
 
-        await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_DEFAULT, this.state.contractABI)
-            .then(
-                () => {
-                    this.props.scrollIntoViewRequest();
+
+        try {
+            await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_DEFAULT, this.state.contractABI)
+                .then(this.props.scrollIntoViewRequest)
+        } catch (error) {
+            if (error instanceof MissingVariableError) {
+                if (error.variableName == "userAddress") {
+                    toast.error(
+                        `Missing variable '${error.variableName}'. ` +
+                        `This indicates that you should connect to a wallet browser extension.`,
+                    );
+                } else {
+                    toast.error(
+                        `Missing variable '${error.variableName}'. ` +
+                        `This indicates a bug in the contract.`,
+                    );
                 }
-            )
-            .catch(console.error);
+            } else if (error instanceof Error) {
+                toast.error(error.message);
+            } else {
+                toast.error(`Unknown error: ${error}`);
+            }
+
+        }
 
         this.setState(state => ({...state, executingCount: state.executingCount - 1}));
     };
@@ -355,12 +407,14 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                     {
                         this.state.ui
                         &&
-                        <DynamicUI
-                            ui={this.state.ui}
-                            onEvent={this.onEvent}
-                            getVariables={this.state.getVariables}
-                            onVariablesUpdate={this.onVariablesUpdate}
-                        />
+                        <Web3ProviderContext.Provider value={this.state.web3provider}>
+                            <DynamicUI
+                                ui={this.state.ui}
+                                onEvent={this.onEvent}
+                                getVariables={this.state.getVariables}
+                                onVariablesUpdate={this.onVariablesUpdate}
+                            />
+                        </Web3ProviderContext.Provider>
                         ||
                         <div>Loading the UI...</div>
                     }
@@ -379,4 +433,4 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             </div>
         );
     }
-};
+}

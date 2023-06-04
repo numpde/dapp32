@@ -2,16 +2,32 @@ import {getAddress} from "ethers";
 
 import {FunctionABI, VariablesOfUI} from "./types";
 
+export class MissingVariableError extends Error {
+    public variableName: string;
+
+    constructor(variableName: string, message?: string) {
+        super(message);
+
+        this.name = "MissingVariableError";
+        this.variableName = variableName;
+    }
+}
 
 export const prepareVariables = (functionABI: FunctionABI, variables: VariablesOfUI) => {
     const functionArgs = functionABI.inputs.map(
         input => {
+            const value = variables[input.name];
+
+            if (value == undefined) {
+                throw new MissingVariableError(input.name, `Missing value for input '${input.name}'.`);
+            }
+
             if (input.type === 'address') {
-                return getAddress(variables[input.name]);
+                return getAddress(value);
             }
 
             if (input.type === 'uint256') {
-                return BigInt(variables[input.name]);
+                return BigInt(value);
             }
 
             return variables[input.name];
