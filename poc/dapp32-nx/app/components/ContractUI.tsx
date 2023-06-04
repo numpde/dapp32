@@ -6,7 +6,7 @@ import {
     BrowserProvider,
     Contract as ContractV6,
     ContractTransactionReceipt,
-    ContractTransactionResponse, JsonRpcApiProvider, Provider
+    ContractTransactionResponse, getAddress, JsonRpcApiProvider, Provider
 } from "ethers";
 
 import {toast} from 'react-hot-toast';
@@ -72,8 +72,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
     componentDidUpdate() {
         if (this.state.error) {
-            this.setState(state => ({...state, error: undefined}));
-            throw this.state.error;
+            toast.error(this.state.error?.message);
         }
     }
 
@@ -95,8 +94,8 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             .then()
             .catch(
                 (error) => {
-                    toast.error(`Could not fetch initial view due to: ${error}`);
-                    this.setState(state => ({...state, error}))
+                    // const msg = `Could not fetch initial view due to: ${error}`;
+                    this.setState(state => ({...state, error}));
                 }
             );
     }
@@ -104,8 +103,6 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     fetchInitialUI = async () => {
         const contractABI = await this.getContractABI();
         this.setState(state => ({...state, contractABI}));
-
-        // const initialABI = contractABI.find((abi: any) => (abi.name === this.state.contract.view));
 
         await this.dispatchFunctionCall({[FUNCTION_SELECTOR_DEFAULT]: this.state.contract.view}, FUNCTION_SELECTOR_DEFAULT, contractABI);
     };
@@ -135,7 +132,6 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
     prepareExecutionReadOnly = async (functionABI: FunctionABI) => {
         const provider = this.getBrowserProvider(true);
-        // const signer = await provider.getSigner();
         const contract = new ContractV6(this.state.contract.address, [functionABI], provider);
 
         return {contract, provider};
@@ -151,7 +147,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
 
     prepareExecutionViaRelay = async (functionABI: FunctionABI) => {
         // readJsonFile("../../../opengsn-local/build/gsn/Paymaster.json").address;
-        const paymasterAddress = "0x2FE70142C2F757cc4AB910AA468CFD541399982f";
+        const paymasterAddress = getAddress(this.state.getVariables().paymasterAddress);
 
         const {gsnProvider, gsnSigner} =
             await RelayProvider.newEthersV6Provider(
@@ -304,7 +300,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
 
         if (!(["nonpayable", "payable", "view", "pure"].includes(functionABI.stateMutability))) {
-            throw new Error(`Contract function ABI has invalid state mutability '${functionABI.stateMutability}'`);
+            throw new Error(`Contract function ABI has invalid state mutability '${functionABI.stateMutability}'.`);
         }
 
         const functionArgs = prepareVariables(functionABI, this.state.getVariables());
@@ -411,31 +407,26 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             <div ref={this.mainDiv} className="ContractUI">
                 <div className={this.state.executingCount > 0 ? 'with-overlay' : 'no-overlay'}>
                     {
-                        this.state.ui
-                        &&
-                        <Web3ProviderContext.Provider value={this.state.web3provider}>
-                            <DynamicUI
-                                ui={this.state.ui}
-                                onEvent={this.onEvent}
-                                getVariables={this.state.getVariables}
-                                onVariablesUpdate={this.onVariablesUpdate}
-                            />
-                        </Web3ProviderContext.Provider>
-                        ||
-                        <div>Loading the UI...</div>
+                        this.state.error ? (
+                            <div className="error">
+                                {this.state.error.message}
+                            </div>
+                        ) : (
+                            this.state.ui ? (
+                                <Web3ProviderContext.Provider value={this.state.web3provider}>
+                                    <DynamicUI
+                                        ui={this.state.ui}
+                                        onEvent={this.onEvent}
+                                        getVariables={this.state.getVariables}
+                                        onVariablesUpdate={this.onVariablesUpdate}
+                                    />
+                                </Web3ProviderContext.Provider>
+                            ) : (
+                                <div>Loading the UI...</div>
+                            )
+                        )
                     }
                 </div>
-                {/*<div>*/}
-                {/*    {*/}
-                {/*        this.state.walletRequestsPending*/}
-                {/*            ?*/}
-                {/*            <div className="wallet-requests-pending">*/}
-                {/*                Wallet requests pending: {this.state.walletRequestsPending}*/}
-                {/*            </div>*/}
-                {/*            :*/}
-                {/*            <></>*/}
-                {/*    }*/}
-                {/*</div>*/}
             </div>
         );
     }
