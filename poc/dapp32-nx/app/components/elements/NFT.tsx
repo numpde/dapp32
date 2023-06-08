@@ -86,10 +86,10 @@ export const NFT: React.FC<NFTComponentProps> = ({label, value, params}) => {
                     const provider = web3provider || (new ethers.BrowserProvider(window.ethereum as any));
 
                     try {
-                        const contract = new ethers.Contract(params.contractAddress, functionAbi721, provider);
+                        const contract = new ethers.Contract(params.contractAddress, functionAbi721, provider as any);
                         tokenURI = await contract.tokenURI(params.tokenId);
                     } catch (error) {
-                        const contract = new ethers.Contract(params.contractAddress, functionAbi1155, provider);
+                        const contract = new ethers.Contract(params.contractAddress, functionAbi1155, provider as any);
                         tokenURI = await contract.uri(params.tokenId);
                     }
                 }
