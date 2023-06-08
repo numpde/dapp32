@@ -84,7 +84,7 @@ async function getWorkingProvider(chainId: string): Promise<ProviderType | null>
             'http://localhost:8545',
             'http://localhost:7545',
         ] :
-        (require('../../../../chainlist/my.chainid.network.json') as NetworkEntry[])
+        (require('../../../../chainlist/networks.json') as NetworkEntry[])
             .find((network: NetworkEntry) => isSameChain(chainId, network.chainId))
             ?.rpc || [];
 

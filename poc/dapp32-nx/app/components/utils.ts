@@ -1,6 +1,6 @@
 import {getAddress} from "ethers";
 
-import {FunctionABI, VariablesOfUI} from "./types";
+import {FunctionABI, NetworkInfo, VariablesOfUI} from "./types";
 
 export class MissingVariableError extends Error {
     public variableName: string;
@@ -85,18 +85,34 @@ export function isSameChain(chainId1: number | string | bigint, chainId2: number
     return bigChainId1 == bigChainId2;
 }
 
+export function getNetworkInfo(chainId: number | string | bigint): (NetworkInfo | undefined) {
+    return require("../../chainlist/networks.json").find(
+        (networkInfo: any) => (BigInt(networkInfo.chainId) == BigInt(chainId))
+    );
+}
+
 export function humanizeChain(chainId: number | string | bigint | undefined): string {
     if (!chainId) {
         return 'Unknown';
     }
 
-    const chain = require("../../chainlist/my.chainid.network.json").find(
-        (chain: any) => (BigInt(chain.chainId) == BigInt(chainId))
-    );
+    const networkInfo = getNetworkInfo(chainId);
 
-    if (chain) {
-        return `${chain.name} (${chainId}) `
+    if (networkInfo) {
+        return `${networkInfo.name} (${chainId})`;
     } else {
         return `Chain ID ${chainId}`;
+    }
+}
+
+export function safeRequire(path: string): any | undefined {
+    try {
+        return require(path);
+    } catch (err: any) {
+        if (err.code === 'MODULE_NOT_FOUND') {
+            console.debug(`safeRequire: No file found at ${path}`);
+            return undefined;
+        }
+        throw err; // Re-throw if it's another error
     }
 }

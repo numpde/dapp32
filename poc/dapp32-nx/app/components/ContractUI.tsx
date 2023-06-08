@@ -12,7 +12,7 @@ import {
 import {toast} from 'react-hot-toast';
 
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
-import {fetchJSON, isSameChain, MissingVariableError, prepareVariables} from "./utils";
+import {fetchJSON, getNetworkInfo, isSameChain, MissingVariableError, prepareVariables, safeRequire} from "./utils";
 import {DynamicUI} from "./DynamicUI";
 import Web3ProviderContext from "./Web3ProviderContext";
 
@@ -149,10 +149,24 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     };
 
     prepareExecutionViaRelay = async (functionABI: FunctionABI) => {
-        const paymasterAddress = getAddress(this.state.getVariables().paymasterAddress);
+        function getPaymasterAddress(variables: VariablesOfUI): string {
+            try {
+                return getAddress(variables?.paymasterAddress || variables?.paymaster);
+            } catch (error) {
+                throw new Error(`No paymaster address provided for relay execution (${error})`);
+            }
+        }
 
-        if (!paymasterAddress) {
-            throw new Error("No paymaster address provided for relay execution");
+        function getPreferredRelays(chainId: string): string[] {
+            const preferredRelays = getNetworkInfo(chainId)?.gsnPreferredRelays;
+
+            if (!preferredRelays) {
+                console.warn(`No preferred relays found for this network (${chainId}).`);
+                return [];
+            } else {
+                console.debug(`Using preferred relays for this network (${chainId}):`, preferredRelays);
+                return preferredRelays;
+            }
         }
 
         const {gsnProvider, gsnSigner} =
@@ -160,9 +174,10 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                 {
                     provider: this.getBrowserProvider(false) as any,
                     config: {
-                        paymasterAddress,
-                        performDryRunViewRelayCall: true,
+                        paymasterAddress: getPaymasterAddress(this.state.getVariables()),
+                        performDryRunViewRelayCall: false,
                         loggerConfiguration: {logLevel: 'debug'},
+                        preferredRelays: getPreferredRelays(this.state.contract.network),
                     }
                 }
             );
@@ -335,7 +350,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         const {contract, provider} =
             (
                 eventDefinition?.gasless &&
-                window.confirm("The contract offers to pay for the transaction.")
+                window.confirm("The contract offers to pay for the transaction. \n'OK' to accept. \n'Cancel' to pay yourself.")
             ) ?
                 await this.prepareExecutionViaRelay(functionABI) :
                 await this.prepareExecutionWithUserSignature(functionABI);

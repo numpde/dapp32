@@ -1,5 +1,36 @@
 [
   {
+    "name": "localhost",
+    "chainId": 31337,
+    "nativeCurrency": {
+      "name": "GO",
+      "symbol": "GO",
+      "decimals": 18
+    },
+    "rpc": [
+      "http://localhost:8484"
+    ],
+    "gsnPreferredRelays": [
+      "http://localhost:12345"
+    ]
+  },
+  {
+    "name": "Ganache",
+    "chainId": 5777,
+    "shortName": "ggui",
+    "networkId": 5777,
+    "nativeCurrency": {
+      "name": "Ganache Test Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    },
+    "rpc": [
+      "https://127.0.0.1:8545"
+    ],
+    "faucets": [],
+    "infoURL": "https://trufflesuite.com/ganache/"
+  },
+  {
     "name": "Polygon Mainnet",
     "chainId": 137,
     "shortName": "matic",
@@ -19,7 +50,10 @@
       "https://polygon-bor.publicnode.com"
     ],
     "faucets": [],
-    "infoURL": "https://polygon.technology/"
+    "infoURL": "https://polygon.technology/",
+    "gsnPreferredRelays": [
+      "https://gsn-polygon.dapp32.com/"
+    ]
   },
   {
     "name": "Mumbai",
@@ -41,6 +75,9 @@
     "faucets": [
       "https://faucet.polygon.technology/"
     ],
-    "infoURL": "https://polygon.technology/"
+    "infoURL": "https://polygon.technology/",
+    "gsnPreferredRelays": [
+      "https://gsn-mumbai.dapp32.com/"
+    ]
   }
 ]
