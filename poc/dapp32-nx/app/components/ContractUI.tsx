@@ -120,7 +120,10 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                 throw new Error("Could not connect to the default read-only network provider or to the wallet browser extension. Check the internet connection and that you have a wallet browser extension installed and activated.");
             }
 
-            return this.state.web3provider || (new BrowserProvider(window.ethereum as any));
+            return (
+                this.state.web3provider ||
+                (new BrowserProvider(window.ethereum as any)) as any  // this could be problematic
+            );
         }
 
         if (!window.ethereum) {
@@ -146,8 +149,11 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
     };
 
     prepareExecutionViaRelay = async (functionABI: FunctionABI) => {
-        // readJsonFile("../../../opengsn-local/build/gsn/Paymaster.json").address;
         const paymasterAddress = getAddress(this.state.getVariables().paymasterAddress);
+
+        if (!paymasterAddress) {
+            throw new Error("No paymaster address provided for relay execution");
+        }
 
         const {gsnProvider, gsnSigner} =
             await RelayProvider.newEthersV6Provider(
@@ -327,7 +333,10 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
 
         const {contract, provider} =
-            eventDefinition?.gasless ?
+            (
+                eventDefinition?.gasless &&
+                window.confirm("The contract offers to pay for the transaction.")
+            ) ?
                 await this.prepareExecutionViaRelay(functionABI) :
                 await this.prepareExecutionWithUserSignature(functionABI);
 
@@ -361,21 +370,13 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
     };
 
-    // Notably, this handles the Submit button
-    onEvent = async (name: string, eventDefinition: any, element: any) => {
-        console.debug(name, eventDefinition, "from", element);
-
-        if (name !== "onClick") {
-            console.warn("Unhandled event:", name);
-            return;
-        }
-
+    handleExecutionOnClick = async (eventDefinition: any) => {
         this.setState(state => ({...state, executingCount: state.executingCount + 1}));
 
-
         try {
-            await this.dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_DEFAULT, this.state.contractABI)
-                .then(this.props.scrollIntoViewRequest)
+            await this
+                .dispatchFunctionCall(eventDefinition, FUNCTION_SELECTOR_DEFAULT, this.state.contractABI)
+                .then(this.props.scrollIntoViewRequest);
         } catch (error) {
             if (error instanceof MissingVariableError) {
                 if (error.variableName == "userAddress") {
@@ -394,10 +395,21 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             } else {
                 toast.error(`Unknown error: ${error}`);
             }
-
         }
 
         this.setState(state => ({...state, executingCount: state.executingCount - 1}));
+    };
+
+    // Notably, this handles the "Submit" button
+    onEvent = async (name: string, eventDefinition: any, element: any) => {
+        console.debug(name, eventDefinition, "from", element);
+
+        if (name !== "onClick") {
+            console.warn("Unhandled event:", name);
+            return;
+        }
+
+        await this.handleExecutionOnClick(eventDefinition);
     };
 
     render = () => {

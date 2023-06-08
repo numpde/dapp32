@@ -1,11 +1,13 @@
 import {GetServerSideProps, GetServerSidePropsContext} from "next";
-
-import {Dapp32} from "../../../../app/components/Dapp32"
 import {useMemo, useState} from "react";
 import {Toaster} from "react-hot-toast";
+
+// questionable choice
+import {StaticJsonRpcProvider} from "@ethersproject/providers";
+
+import {Dapp32} from "../../../../app/components/Dapp32"
 import {isSameChain} from "../../../../app/components/utils";
 import {Dapp32Props} from "../../../../app/components/types";
-import {StaticJsonRpcProvider} from "@ethersproject/providers";
 
 type ProviderType = Dapp32Props['web3provider'];
 

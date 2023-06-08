@@ -1,7 +1,7 @@
 import React from 'react';
-import {JsonRpcApiProvider} from "ethers";
+import {Dapp32Props} from "./types";
 
-const Web3ProviderContext = React.createContext<JsonRpcApiProvider | null>(
+const Web3ProviderContext = React.createContext<Dapp32Props['web3provider'] | null>(
     null
 );
 
