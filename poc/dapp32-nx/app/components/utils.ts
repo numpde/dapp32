@@ -90,7 +90,7 @@ export function humanizeChain(chainId: number | string | bigint | undefined): st
         return 'Unknown';
     }
 
-    const chain = require("../../chainlist/chainid.network.json").find(
+    const chain = require("../../chainlist/my.chainid.network.json").find(
         (chain: any) => (BigInt(chain.chainId) == BigInt(chainId))
     );
 

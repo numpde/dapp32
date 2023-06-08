@@ -297,6 +297,8 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         if (!functionABI) {
             console.error(`Function ABI ${nameOfFunction} not found in the contract ABI:`, contractABI);
             throw new Error(`Function ABI for '${nameOfFunction}' not found in the contract ABI.`);
+        } else {
+            console.log("Got function ABI:", functionABI);
         }
 
         if (!(["nonpayable", "payable", "view", "pure"].includes(functionABI.stateMutability))) {

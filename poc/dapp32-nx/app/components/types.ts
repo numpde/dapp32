@@ -1,4 +1,4 @@
-import {ethers} from "ethers";
+import {StaticJsonRpcProvider} from "@ethersproject/providers";
 
 export type Dapp32Props = {
     contract: {
@@ -7,7 +7,7 @@ export type Dapp32Props = {
         view: string,
     },
 
-    web3provider: ethers.JsonRpcProvider | null,
+    web3provider: StaticJsonRpcProvider | null,
 
     params: {
         [key: string]: string | string[] | undefined,

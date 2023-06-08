@@ -7,6 +7,7 @@ import {useEffect, useMemo, useState} from "react";
 import {Toaster} from "react-hot-toast";
 import {requirePage} from "next/dist/server/require";
 import {isSameChain} from "../../../../app/components/utils";
+import {StaticJsonRpcProvider} from "@ethersproject/providers";
 
 
 type Route = {
@@ -71,34 +72,51 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 }
 
 
-async function getWorkingProvider(chainId: string): Promise<JsonRpcProvider | null> {
-    const providerUrls = isSameChain(chainId, 5777) ?
+async function getWorkingProvider(chainId: string): Promise<StaticJsonRpcProvider | null> {
+    interface NetworkEntry {
+        chainId: string;
+        rpc: string[];
+    }
+
+    const providerUrls = isSameChain(chainId, "5777") ?
         [
             'http://localhost:8545',
             'http://localhost:7545',
         ] :
-        require(
-            '../../../../chainlist/chainid.network.json'
-        ).find(
-            (network: any) => isSameChain(chainId, network.chainId)
-        ).rpc;
+        (require('../../../../chainlist/my.chainid.network.json') as NetworkEntry[])
+            .find((network: NetworkEntry) => isSameChain(chainId, network.chainId))
+            ?.rpc || [];
 
-    for (const url of providerUrls) {
-        try {
-            const provider = new JsonRpcProvider(url);
-            await provider.getNetwork();
-            return provider;
-        } catch (error) {
-            console.info(`Failed to get network for provider at ${url}:`, error);
-        }
+    const TIMEOUT_MS = 3000;
+
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Provider request timed out.')), TIMEOUT_MS);
+    });
+
+    const providerPromises: Array<Promise<StaticJsonRpcProvider>> = providerUrls.map((url) =>
+        new Promise<StaticJsonRpcProvider>(async (resolve, reject) => {
+            try {
+                const provider = new StaticJsonRpcProvider(url);
+                await provider.getNetwork();
+                resolve(provider);
+            } catch (error) {
+                console.log(`Failed to get network for provider at ${url}: ${error}`);
+            }
+        }));
+
+    try {
+        const fastestProvider = await Promise.race([...providerPromises, timeoutPromise]);
+        console.debug("Chosen provider:", fastestProvider);
+        return fastestProvider;
+    } catch (error) {
+        console.info(error);
+        return null;
     }
-
-    return null;
 }
 
 
 const Page: React.FC<PageProps> = ({route}) => {
-    const [web3provider, setWeb3provider] = useState<JsonRpcProvider | null | undefined>(undefined);
+    const [web3provider, setWeb3provider] = useState<StaticJsonRpcProvider | null | undefined>(undefined);
 
     useMemo(() => {
         getWorkingProvider(route.contractNetwork).then(setWeb3provider)
