@@ -8,6 +8,7 @@ import {StaticJsonRpcProvider} from "@ethersproject/providers";
 import {Dapp32} from "../../../../app/components/Dapp32"
 import {isSameChain} from "../../../../app/components/utils";
 import {Dapp32Props} from "../../../../app/components/types";
+import networkInfos from "../../../../chainlist/networks.json";
 
 type ProviderType = Dapp32Props['web3provider'];
 
@@ -84,7 +85,7 @@ async function getWorkingProvider(chainId: string): Promise<ProviderType | null>
             'http://localhost:8545',
             'http://localhost:7545',
         ] :
-        (require('../../../../chainlist/networks.json') as NetworkEntry[])
+        (networkInfos as unknown as NetworkEntry[])
             .find((network: NetworkEntry) => isSameChain(chainId, network.chainId))
             ?.rpc || [];
 

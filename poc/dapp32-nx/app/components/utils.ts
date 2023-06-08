@@ -1,7 +1,9 @@
 import {getAddress, JsonRpcApiProvider} from "ethers";
+import {Contract as ContractV6} from "ethers-v6";
 
 import {FunctionABI, NetworkInfo, VariablesOfUI} from "./types";
-import {Contract as ContractV6} from "ethers-v6";
+import networkInfos from "../../chainlist/networks.json";
+
 
 export class MissingVariableError extends Error {
     public variableName: string;
@@ -87,7 +89,7 @@ export function isSameChain(chainId1: number | string | bigint, chainId2: number
 }
 
 export function getNetworkInfo(chainId: number | string | bigint): (NetworkInfo | undefined) {
-    return require("../../chainlist/networks.json").find(
+    return networkInfos.find(
         (networkInfo: any) => (BigInt(networkInfo.chainId) == BigInt(chainId))
     );
 }
