@@ -6,13 +6,21 @@ import {
     BrowserProvider,
     Contract as ContractV6,
     ContractTransactionReceipt,
-    ContractTransactionResponse, getAddress, JsonRpcApiProvider, Provider
+    ContractTransactionResponse, ethers, getAddress, JsonRpcApiProvider, Provider
 } from "ethers";
 
 import {toast} from 'react-hot-toast';
 
 import {ContractUIProps, ContractUIState, FunctionABI, VariablesOfUI} from "./types";
-import {fetchJSON, getNetworkInfo, isSameChain, MissingVariableError, prepareVariables, safeRequire} from "./utils";
+import {
+    fetchJSON,
+    getNetworkInfo,
+    getPaymastersBalance,
+    isSameChain,
+    MissingVariableError,
+    prepareVariables,
+    safeRequire
+} from "./utils";
 import {DynamicUI} from "./DynamicUI";
 import Web3ProviderContext from "./Web3ProviderContext";
 
@@ -148,15 +156,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         return {contract, signer, provider};
     };
 
-    prepareExecutionViaRelay = async (functionABI: FunctionABI) => {
-        function getPaymasterAddress(variables: VariablesOfUI): string {
-            try {
-                return getAddress(variables?.paymasterAddress || variables?.paymaster);
-            } catch (error) {
-                throw new Error(`No paymaster address provided for relay execution (${error})`);
-            }
-        }
-
+    prepareExecutionViaRelay = async (functionABI: FunctionABI, paymasterAddress: string) => {
         function getPreferredRelays(chainId: string): string[] {
             const preferredRelays = getNetworkInfo(chainId)?.gsnPreferredRelays;
 
@@ -169,12 +169,13 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             }
         }
 
+
         const {gsnProvider, gsnSigner} =
             await RelayProvider.newEthersV6Provider(
                 {
                     provider: this.getBrowserProvider(false) as any,
                     config: {
-                        paymasterAddress: getPaymasterAddress(this.state.getVariables()),
+                        paymasterAddress,
                         performDryRunViewRelayCall: false,
                         loggerConfiguration: {logLevel: 'debug'},
                         preferredRelays: getPreferredRelays(this.state.contract.network),
@@ -347,12 +348,31 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             throw new Error(`Contract function ABI is 'payable', which is not implemented yet.`);
         }
 
+        let paymasterAddress;
+        let paymasterBalance;
+
+        if (eventDefinition?.gasless) {
+            try {
+                paymasterAddress = getAddress(this.state.getVariables()?.paymasterAddress);
+            } catch (error) {
+                console.warn(`No paymaster address provided for relay execution (${error})`);
+            }
+
+            if (paymasterAddress) try {
+                paymasterBalance = ethers.formatEther(await getPaymastersBalance(this.getBrowserProvider(true), paymasterAddress));
+            } catch {
+                console.warn(`Could not get paymaster balance for ${paymasterAddress}`);
+            }
+
+            console.log("Paymaster balance:", paymasterBalance);
+        }
+
         const {contract, provider} =
             (
-                eventDefinition?.gasless &&
+                paymasterAddress && paymasterBalance &&
                 window.confirm("The contract offers to pay for the transaction. \n'OK' to accept. \n'Cancel' to pay yourself.")
             ) ?
-                await this.prepareExecutionViaRelay(functionABI) :
+                await this.prepareExecutionViaRelay(functionABI, paymasterAddress) :
                 await this.prepareExecutionWithUserSignature(functionABI);
 
         await this.validateProvider(provider);

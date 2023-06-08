@@ -1,6 +1,7 @@
-import {getAddress} from "ethers";
+import {getAddress, JsonRpcApiProvider} from "ethers";
 
 import {FunctionABI, NetworkInfo, VariablesOfUI} from "./types";
+import {Contract as ContractV6} from "ethers-v6";
 
 export class MissingVariableError extends Error {
     public variableName: string;
@@ -115,4 +116,52 @@ export function safeRequire(path: string): any | undefined {
         }
         throw err; // Re-throw if it's another error
     }
+}
+
+
+export async function getPaymastersBalance(provider: JsonRpcApiProvider, paymasterAddress: string) {
+    const pmAbi = [
+        {
+            "inputs": [],
+            "name": "getRelayHub",
+            "outputs": [
+                {
+                    "name": "",
+                    "type": "address"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ];
+
+    const paymasterContract = new ContractV6(paymasterAddress, pmAbi, provider as any);
+
+    const relayHubAddress = await paymasterContract.getRelayHub();
+
+    const rhAbi = [
+        {
+            "inputs": [
+                {
+                    "name": "target",
+                    "type": "address"
+                }
+            ],
+            "name": "balanceOf",
+            "outputs": [
+                {
+                    "name": "",
+                    "type": "uint256"
+                }
+            ],
+            "stateMutability": "view",
+            "type": "function"
+        }
+    ];
+
+    const relayHubContract = new ContractV6(relayHubAddress, rhAbi, provider as any);
+
+    const paymasterBalance = await relayHubContract.balanceOf(paymasterAddress);
+
+    return paymasterBalance;
 }
