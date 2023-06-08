@@ -1,14 +1,13 @@
 import {GetServerSideProps, GetServerSidePropsContext} from "next";
 
-import {JsonRpcProvider, Network} from 'ethers';
-
 import {Dapp32} from "../../../../app/components/Dapp32"
-import {useEffect, useMemo, useState} from "react";
+import {useMemo, useState} from "react";
 import {Toaster} from "react-hot-toast";
-import {requirePage} from "next/dist/server/require";
 import {isSameChain} from "../../../../app/components/utils";
+import {Dapp32Props} from "../../../../app/components/types";
 import {StaticJsonRpcProvider} from "@ethersproject/providers";
 
+type ProviderType = Dapp32Props['web3provider'];
 
 type Route = {
     contractNetwork: string,
@@ -20,7 +19,7 @@ type Route = {
 
 type PageProps = {
     route: Route,
-    web3provider: JsonRpcProvider,
+    web3provider: ProviderType,
 }
 
 const getRoute = (context: GetServerSidePropsContext): Route => {
@@ -72,7 +71,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
 }
 
 
-async function getWorkingProvider(chainId: string): Promise<StaticJsonRpcProvider | null> {
+async function getWorkingProvider(chainId: string): Promise<ProviderType | null> {
     interface NetworkEntry {
         chainId: string;
         rpc: string[];
@@ -93,8 +92,8 @@ async function getWorkingProvider(chainId: string): Promise<StaticJsonRpcProvide
         setTimeout(() => reject(new Error('Provider request timed out.')), TIMEOUT_MS);
     });
 
-    const providerPromises: Array<Promise<StaticJsonRpcProvider>> = providerUrls.map((url) =>
-        new Promise<StaticJsonRpcProvider>(async (resolve, reject) => {
+    const providerPromises: Array<Promise<ProviderType>> = providerUrls.map((url) =>
+        new Promise<ProviderType>(async (resolve, reject) => {
             try {
                 const provider = new StaticJsonRpcProvider(url);
                 await provider.getNetwork();
@@ -116,7 +115,7 @@ async function getWorkingProvider(chainId: string): Promise<StaticJsonRpcProvide
 
 
 const Page: React.FC<PageProps> = ({route}) => {
-    const [web3provider, setWeb3provider] = useState<StaticJsonRpcProvider | null | undefined>(undefined);
+    const [web3provider, setWeb3provider] = useState<ProviderType | null | undefined>(undefined);
 
     useMemo(() => {
         getWorkingProvider(route.contractNetwork).then(setWeb3provider)

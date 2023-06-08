@@ -1,7 +1,7 @@
 import React from 'react';
-import {JsonRpcProvider} from "ethers";
+import {JsonRpcApiProvider} from "ethers";
 
-const Web3ProviderContext = React.createContext<JsonRpcProvider | null>(
+const Web3ProviderContext = React.createContext<JsonRpcApiProvider | null>(
     null
 );
 
