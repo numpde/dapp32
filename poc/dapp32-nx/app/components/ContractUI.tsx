@@ -201,7 +201,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             await contract[functionABI.name](...functionArgs)
                 .then(
                     x => {
-                        console.debug(`Got UI spec URI: ${x} of type ${typeof x}`);
+                        console.debug(`Got UI spec URI from ${functionABI.name}(${functionArgs}): ${x} of type ${typeof x}`);
                         return x;
                     }
                 )
