@@ -4,7 +4,7 @@ services:
   nx-server-poc:
     build:
       context: .
-      dockerfile: ./Dockerfile-POC
+      dockerfile: ../../poc/Dockerfile
       args:
         - GITHUB_ACCESS_TOKEN=${GITHUB_ACCESS_TOKEN}
         - GITHUB_REPO=${GITHUB_REPO}
