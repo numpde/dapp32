@@ -1,5 +1,7 @@
 import {getAddress, JsonRpcApiProvider} from "ethers";
 import {Contract as ContractV6} from "ethers-v6";
+import {promisify} from 'util';
+// import fs from 'fs';
 
 import {FunctionABI, NetworkInfo, VariablesOfUI} from "./types";
 import networkInfos from "../../chainlist/networks.json";
@@ -108,20 +110,26 @@ export function humanizeChain(chainId: number | string | bigint | undefined): st
     }
 }
 
-export function safeRequire(path: string): any | undefined {
-    try {
-        return require(path);
-    } catch (err: any) {
-        if (err.code === 'MODULE_NOT_FOUND') {
-            console.debug(`safeRequire: No file found at ${path}`);
-            return undefined;
-        }
-        throw err; // Re-throw if it's another error
+// export async function safeLoadJson(path: string): Promise<any | undefined> {
+//     try {
+//         const readFileAsync = promisify(fs.readFile);
+//         const data = await readFileAsync(path, 'utf8');
+//         return JSON.parse(data);
+//     } catch (err: any) {
+//         if (err.code === 'ENOENT') {
+//             console.debug(`safeLoadJson: No file found at ${path}`);
+//             return undefined;
+//         }
+//         throw err;
+//     }
+// }
+
+
+export async function getPaymastersBalance(provider: JsonRpcApiProvider, paymasterChainId: string, paymasterAddress: string) {
+    if (!isSameChain((await provider.getNetwork()).chainId, paymasterChainId)) {
+        throw new Error(`Provider chain ID and paymaster chain ID mismatch.`);
     }
-}
 
-
-export async function getPaymastersBalance(provider: JsonRpcApiProvider, paymasterAddress: string) {
     const pmAbi = [
         {
             "inputs": [],
@@ -163,7 +171,5 @@ export async function getPaymastersBalance(provider: JsonRpcApiProvider, paymast
 
     const relayHubContract = new ContractV6(relayHubAddress, rhAbi, provider as any);
 
-    const paymasterBalance = await relayHubContract.balanceOf(paymasterAddress);
-
-    return paymasterBalance;
+    return await relayHubContract.balanceOf(paymasterAddress);
 }

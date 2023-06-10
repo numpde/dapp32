@@ -108,7 +108,7 @@ async function getWorkingProvider(chainId: string): Promise<ProviderType | null>
 
     try {
         const fastestProvider = await Promise.race([...providerPromises, timeoutPromise]);
-        console.debug("Chosen provider:", fastestProvider);
+        console.debug("Chosen RPC provider:", fastestProvider?.connection?.url);
         return fastestProvider;
     } catch (error) {
         console.info(error);

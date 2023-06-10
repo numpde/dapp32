@@ -19,7 +19,6 @@ import {
     isSameChain,
     MissingVariableError,
     prepareVariables,
-    safeRequire
 } from "./utils";
 import {DynamicUI} from "./DynamicUI";
 import Web3ProviderContext from "./Web3ProviderContext";
@@ -169,14 +168,16 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             }
         }
 
+        const provider = this.getBrowserProvider(false);
+        await this.validateProvider(provider);
 
         const {gsnProvider, gsnSigner} =
             await RelayProvider.newEthersV6Provider(
                 {
-                    provider: this.getBrowserProvider(false) as any,
+                    provider: provider as any,
                     config: {
                         paymasterAddress,
-                        performDryRunViewRelayCall: false,
+                        performDryRunViewRelayCall: true,
                         loggerConfiguration: {logLevel: 'debug'},
                         preferredRelays: getPreferredRelays(this.state.contract.network),
                     }
@@ -188,7 +189,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         return {contract: contract, signer: gsnSigner, provider: gsnProvider};
     };
 
-    executeOnChain = async (contract: ContractV6, functionName: string, functionArgs: any[]): Promise<ContractTransactionReceipt> => {
+    executeWithSignature = async (contract: ContractV6, functionName: string, functionArgs: any[]): Promise<ContractTransactionReceipt> => {
         try {
             this.setState(state => ({...state, walletRequestsPending: state.walletRequestsPending + 1}));
 
@@ -198,15 +199,25 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
                 "on contract at", await contract.getAddress(),
             );
 
-            const txReceipt =
-                await contract[functionName](...functionArgs)
-                    .then((transactionResponse: ContractTransactionResponse) => {
-                        console.debug(`Transaction sent: ${transactionResponse}. Waiting for receipt...`);
-                        return transactionResponse.wait();
-                    })
-                    .catch((error: any) => {
-                        throw error;
-                    });
+            const contractCall = contract[functionName](...functionArgs);
+
+            const tx = await toast.promise(
+                contractCall,
+                {
+                    loading: "Waiting for signature...",
+                    success: "Signature received.",
+                    error: "Signature rejected.",
+                }
+            );
+
+            const txReceipt: ContractTransactionReceipt = await toast.promise(
+                tx.wait(),
+                {
+                    loading: "Waiting for the transaction...",
+                    success: "Transaction confirmed.",
+                    error: "Transaction failed...",
+                }
+            );
 
             if (!txReceipt) {
                 throw new Error("No transaction receipt received.");
@@ -218,18 +229,19 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
     };
 
-    executeOffChain = async (contract: ContractV6, functionABI: FunctionABI, functionArgs: any[]) => {
+    executeGetUiResponse = async (contract: ContractV6, functionABI: FunctionABI, functionArgs: any[]) => {
         const contractResponse =
             await contract[functionABI.name](...functionArgs)
                 .then(
                     x => {
-                        console.debug(`Got UI spec URI from ${functionABI.name}(${functionArgs}): ${x} of type ${typeof x}`);
+                        console.debug(`Got response from ${functionABI.name}(${functionArgs}): ${x} of type ${typeof x}`);
                         return x;
                     }
                 )
                 .catch(
                     e => {
-                        throw new Error(`Could not get UI URI from contract, calling ${functionABI.name} with args ${functionArgs} due to: ${e}.`);
+                        console.error(`Error calling ${functionABI.name}(${functionArgs}): ${e}`);
+                        throw new Error(`Error calling contract function "${functionABI.name}"`);
                     }
                 );
 
@@ -334,7 +346,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             const {contract, provider} = await this.prepareExecutionReadOnly(functionABI);
             await this.validateProvider(provider);
 
-            const response = await this.executeOffChain(contract, functionABI, functionArgs);
+            const response = await this.executeGetUiResponse(contract, functionABI, functionArgs);
 
             console.debug("ContractUI.dispatchFunctionCall: response:", response);
 
@@ -349,7 +361,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
         }
 
         let paymasterAddress;
-        let paymasterBalance;
+        let paymasterBalanceEth;
 
         if (eventDefinition?.gasless) {
             try {
@@ -359,18 +371,39 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             }
 
             if (paymasterAddress) try {
-                paymasterBalance = ethers.formatEther(await getPaymastersBalance(this.getBrowserProvider(true), paymasterAddress));
+                paymasterBalanceEth = ethers.formatEther(
+                    await getPaymastersBalance(
+                        this.getBrowserProvider(true),
+                        this.state.contract.network,
+                        paymasterAddress
+                    )
+                );
             } catch {
                 console.warn(`Could not get paymaster balance for ${paymasterAddress}`);
             }
 
-            console.log("Paymaster balance:", paymasterBalance);
+            if (!paymasterAddress) {
+                toast.error("No paymaster address provided for relay execution. This is a developer issue.");
+            } else if (paymasterBalanceEth === undefined) {
+                toast.error("Could not get the paymaster balance. This is a developer issue.");
+            } else if (!paymasterBalanceEth) {
+                toast.error("Paymaster balance on the relay is zero...");
+            }
+
+            console.log("Paymaster balance:", paymasterBalanceEth);
         }
 
         const {contract, provider} =
             (
-                paymasterAddress && paymasterBalance &&
-                window.confirm("The contract offers to pay for the transaction. \n'OK' to accept. \n'Cancel' to pay yourself.")
+                paymasterAddress && paymasterBalanceEth &&
+                window.confirm(
+                    "The contract offers to pay for the transaction. \n" +
+                    "\n" +
+                    "[Cancel] to pay yourself. [ OK ] to accept. \n" +
+                    "\n" +
+                    "Paymaster balance: " +
+                    `${paymasterBalanceEth} (${getNetworkInfo(this.state.contract.network)?.nativeCurrency?.symbol || "native tokens"})`
+                )
             ) ?
                 await this.prepareExecutionViaRelay(functionABI, paymasterAddress) :
                 await this.prepareExecutionWithUserSignature(functionABI);
@@ -382,14 +415,7 @@ export class ContractUI extends React.Component<ContractUIProps, ContractUIState
             try {
                 // const balanceBefore = await provider.getBalance(signer.getAddress());
 
-                const txReceipt = await toast.promise(
-                    this.executeOnChain(contract, functionABI.name, functionArgs),
-                    {
-                        loading: "Waiting for signature...",
-                        success: <b>Success!</b>,
-                        error: (error) => <span>{`Transaction failed or rejected.`}</span>,
-                    }
-                );
+                const txReceipt = await this.executeWithSignature(contract, functionABI.name, functionArgs);
 
                 // console.debug("Balance before:", balanceBefore);
                 // console.debug("Balance after:", await provider.getBalance(signer.getAddress()));
