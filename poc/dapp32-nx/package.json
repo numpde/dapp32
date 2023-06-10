@@ -5,7 +5,8 @@
   "scripts": {
     "start": "nx serve",
     "build": "nx build",
-    "test": "nx test"
+    "test": "nx test",
+    "postinstall": "patch-package"
   },
   "private": true,
   "dependencies": {
@@ -46,6 +47,7 @@
     "eslint-plugin-react-hooks": "4.6.0",
     "npm-check": "^6.0.1",
     "nx": "16.2.2",
+    "patch-package": "^7.0.0",
     "typescript": "~5.0.4"
   }
 }

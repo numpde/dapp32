@@ -16,8 +16,13 @@ RUN git clone https://${GITHUB_ACCESS_TOKEN}@github.com/${GITHUB_REPO} .
 # Switch to the directory
 WORKDIR /usr/src/app/poc/dapp32-nx
 
-# Install dependencies
-RUN npm install && npx nx build dapp32-nx && npm cache clean --force && npm prune
+# Install dependencies, apply patches, build the project and clean up
+RUN npm install -g patch-package && \
+    npm install && \
+    npx patch-package && \
+    npx nx build dapp32-nx && \
+    npm cache clean --force && \
+    npm prune
 
 # Final stage
 FROM node:lts

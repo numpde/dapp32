@@ -1,0 +1,20 @@
+diff --git a/node_modules/@opengsn/common/dist/LightTruffleContract.js b/node_modules/@opengsn/common/dist/LightTruffleContract.js
+index ab787d1..3a1cdbd 100644
+--- a/node_modules/@opengsn/common/dist/LightTruffleContract.js
++++ b/node_modules/@opengsn/common/dist/LightTruffleContract.js
+@@ -20,14 +20,7 @@ function retypeItem(abiOutput, ret) {
+     }
+     else if (abiOutput.type === 'tuple[]') {
+         if (typeof ret.toArray === 'function') { // ethers.js v6 Contract treats all arrays as 'proxy' breaking our 'retype'
+-            ret = ret.toArray().map((it) => {
+-                var _a, _b;
+-                if (((_b = Object.keys((_a = it.toObject()) !== null && _a !== void 0 ? _a : {})) === null || _b === void 0 ? void 0 : _b[0]) === '_') {
+-                    // this appears to be a bug in the Ethers.js - to be investigated
+-                    return it[0];
+-                }
+-                return it;
+-            });
++            return retypeItem(abiOutput, [...ret]);
+         }
+         return ret.map((item) => retypeItem(Object.assign(Object.assign({}, abiOutput), { type: 'tuple' }), item));
+     }
