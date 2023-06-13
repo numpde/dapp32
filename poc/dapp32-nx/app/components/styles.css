@@ -233,24 +233,20 @@ button:active:not(:disabled) {
     width: 90%;
     aspect-ratio: 1 / 1;
     margin: 10px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .image-container > .image-aspect-helper > * {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    width: 100% !important;
-    height: 100% !important;
+    object-fit: contain;
 }
 
 .image-container > .image-aspect-helper > img {
     background-color: #c8d6e5;
     border-radius: 10px;
-    padding: 10px;
-
-    width: 100%;
+    padding: 8px;
 }
 
 .image-container > .image-url {

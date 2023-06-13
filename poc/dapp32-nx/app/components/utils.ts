@@ -6,6 +6,9 @@ import {promisify} from 'util';
 import {FunctionABI, NetworkInfo, VariablesOfUI} from "./types";
 import networkInfos from "../../chainlist/networks.json";
 
+// https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.Identifier
+export const solidityFunctionNameRegex = /^[a-zA-Z$_][a-zA-Z0-9$_]*$/;
+
 
 export class MissingVariableError extends Error {
     public variableName: string;
