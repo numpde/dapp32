@@ -1,7 +1,5 @@
 import {getAddress, JsonRpcApiProvider} from "ethers";
 import {Contract as ContractV6} from "ethers-v6";
-import {promisify} from 'util';
-// import fs from 'fs';
 
 import {FunctionABI, NetworkInfo, VariablesOfUI} from "./types";
 import networkInfos from "../../chainlist/networks.json";
