@@ -225,7 +225,7 @@
     <div class="shell">
       <h1>dapp32</h1>
       <p class="lede">
-        A proof of concept for rendering small web app flows from on-chain contracts, including wallet-signed and gasless transactions.
+        A proof of concept for making a smart contract carry its own app experience.
       </p>
       <div class="actions">
         <a class="button primary" href="https://github.com/numpde/dapp32">View source</a>
@@ -236,12 +236,22 @@
 
   <main class="shell">
     <section>
-      <h2>What it is</h2>
+      <h2>Purpose</h2>
       <p>
-        dapp32 is a generic viewer for decentralized app interfaces. Instead of shipping a separate backend and frontend for each contract, a contract exposes view functions that return JSON interface descriptions. The browser reads those descriptions, renders controls, collects values, and calls the next contract function.
+        A normal decentralized app usually has a smart contract, a custom frontend website, and sometimes a backend. The contract has the real logic, but users still need a website that understands the intended workflow: labels, form fields, buttons, success screens, and payment options.
       </p>
       <p>
-        The target route has the shape <code>/ui/[network]/[address]/[view]</code>. That gives the viewer enough information to find a chain, connect to the contract, and ask for the first screen.
+        dapp32 makes the frontend generic. A contract can say: here is my ABI, here is the first screen, here are the fields to show, here is what a button should call, and here is what to show after success or failure. The viewer reads that description and renders the app.
+      </p>
+      <p>
+        The goal is portability: the app experience follows the contract instead of living only on one hosted website.
+      </p>
+    </section>
+
+    <section>
+      <h2>How to open one</h2>
+      <p>
+        A dapp32 route has the shape <code>/ui/[network]/[address]/[view]</code>. That gives the viewer enough information to find a chain, connect to the contract, and ask for the first screen.
       </p>
     </section>
 
@@ -297,7 +307,7 @@
     <section>
       <h2>Current status</h2>
       <p class="note">
-        This repository is an early proof of concept. The active path is the Next.js viewer under <code>poc/dapp32-nx</code> and the sample Hardhat contract under <code>poc/on-chain</code>.
+        This repository is an early proof of concept. Some UI JSON is still served from HTTP files, and the Next.js viewer is not static-export-ready yet. The active path is the viewer under <code>poc/dapp32-nx</code> and the sample Hardhat contract under <code>poc/on-chain</code>.
       </p>
     </section>
   </main>
