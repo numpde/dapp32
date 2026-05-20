@@ -133,6 +133,22 @@
       font-size: 0.96rem;
     }
 
+    .facts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .fact {
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
     .flow {
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -199,13 +215,49 @@
       color: #55342d;
     }
 
+    .landscape {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .approach {
+      display: grid;
+      grid-template-columns: minmax(180px, 0.7fr) 1fr;
+      gap: 16px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .approach h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .approach p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .status {
+      display: inline-block;
+      margin-top: 8px;
+      color: var(--accent);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
     @media (max-width: 820px) {
       header {
         padding-top: 38px;
       }
 
       .grid,
-      .flow {
+      .flow,
+      .approach {
         grid-template-columns: 1fr;
       }
 
@@ -246,6 +298,11 @@
       <p>
         The goal is portability: the app experience follows the contract instead of living only on one hosted website.
       </p>
+      <div class="facts" aria-label="Project dates">
+        <span class="fact">PoC first working commit: May 26, 2023 (<code>1aad7a9</code>)</span>
+        <span class="fact">Initial repository commit: May 19, 2023</span>
+        <span class="fact">Research snapshot: May 20, 2026</span>
+      </div>
     </section>
 
     <section>
@@ -307,7 +364,73 @@
     <section>
       <h2>Current status</h2>
       <p class="note">
-        This repository is an early proof of concept. Some UI JSON is still served from HTTP files, and the Next.js viewer is not static-export-ready yet. The active path is the viewer under <code>poc/dapp32-nx</code> and the sample Hardhat contract under <code>poc/on-chain</code>.
+        This repository is an early proof of concept. Some UI JSON is still served from HTTP files, and the Next.js viewer is not static-export-ready yet. The active path is the viewer under <code>poc/dapp32-nx</code> and the sample Hardhat contract under <code>poc/on-chain</code>. The first end-to-end working PoC appears in the commit history on May 26, 2023, at <code>1aad7a9</code>.
+      </p>
+    </section>
+
+    <section>
+      <h2>Related approaches</h2>
+      <p>
+        There are several nearby standards and systems, but no dominant Ethereum standard for a generic renderer of multi-screen, contract-defined app workflows.
+      </p>
+      <div class="landscape">
+        <div class="approach">
+          <div>
+            <h3><a href="https://eips.ethereum.org/EIPS/eip-5169">TokenScript and ERC-5169</a></h3>
+            <span class="status">Closest match, ERC Final</span>
+          </div>
+          <p>
+            ERC-5169 lets a token contract expose <code>scriptURI()</code>, pointing clients to official executable scripts. TokenScript uses this kind of idea to let wallets render token-specific cards, actions, and mini-apps. It is powerful, but broader and more script-driven than dapp32's declarative UI experiment.
+          </p>
+        </div>
+        <div class="approach">
+          <div>
+            <h3><a href="https://eips.ethereum.org/EIPS/eip-4804">ERC-4804 web3://</a></h3>
+            <span class="status">ERC Final, experimental adoption</span>
+          </div>
+          <p>
+            ERC-4804 maps human-readable <code>web3://</code> URLs to read-only EVM calls, so contracts can serve web content such as HTML, SVG, and data. It overlaps with dapp32's contract-carried presentation goal, but it focuses on URL-to-call translation rather than guided app workflows.
+          </p>
+        </div>
+        <div class="approach">
+          <div>
+            <h3><a href="https://eips.ethereum.org/EIPS/eip-3668">CCIP Read / ERC-3668</a></h3>
+            <span class="status">ERC Final, used in production</span>
+          </div>
+          <p>
+            CCIP Read lets contracts request offchain data during reads while retaining contract-side validation. It is relevant to dapp32 because UI JSON could be fetched through a standard offchain lookup path instead of arbitrary HTTP URLs.
+          </p>
+        </div>
+        <div class="approach">
+          <div>
+            <h3><a href="https://docs.ens.domains/dweb/intro">ENS contenthash and dweb hosting</a></h3>
+            <span class="status">Practical, gateway-dependent</span>
+          </div>
+          <p>
+            ENS contenthash plus IPFS, Arweave, or Swarm can decentralize the frontend itself. This solves hosting and naming, but not the deeper question of how a contract describes its own workflow to any compatible viewer.
+          </p>
+        </div>
+        <div class="approach">
+          <div>
+            <h3><a href="https://eips.ethereum.org/EIPS/eip-5792">EIP-5792</a> and <a href="https://docs.erc4337.io/core-standards/erc-4337">ERC-4337</a></h3>
+            <span class="status">Modern wallet execution path</span>
+          </div>
+          <p>
+            EIP-5792 standardizes wallet capabilities, batched calls, status checks, and paymaster-style capability discovery. ERC-4337 is the mainstream account-abstraction and paymaster direction. Together they are a better long-term execution target than a custom transaction path.
+          </p>
+        </div>
+        <div class="approach">
+          <div>
+            <h3><a href="https://solana.com/developers/guides/advanced/actions/">Solana Actions/Blinks</a> and <a href="https://docs.farcaster.xyz/">Farcaster Mini Apps</a></h3>
+            <span class="status">Active adjacent ecosystems</span>
+          </div>
+          <p>
+            These systems show the same product pressure: make onchain actions available where users already are. They are generally API, social, or platform driven rather than contract-native, but they validate the demand for lightweight transaction-oriented app surfaces.
+          </p>
+        </div>
+      </div>
+      <p class="note">
+        The open niche for dapp32 is a versioned, declarative, contract-discoverable UI schema. A practical next version should reuse existing standards for discovery, storage, wallet execution, and gas sponsorship, while avoiding arbitrary JavaScript by default.
       </p>
     </section>
   </main>
