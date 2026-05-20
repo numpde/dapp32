@@ -1,5 +1,7 @@
 # dapp32
 
+[Project page](https://numpde.github.io/dapp32/)
+
 Dapp32 is a web app for displaying custom user interfaces similar to a blockchain explorer 
 and for facilitating user-initiated, gasless blockchain transactions.
 
