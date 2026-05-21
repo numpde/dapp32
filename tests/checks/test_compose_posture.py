@@ -33,16 +33,3 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("deps_internal:", text)
         self.assertIn("deps_egress:", text)
         self.assertIn("internal: true", text)
-
-    def test_anvil_host_access_is_explicit_and_loopback_only(self) -> None:
-        makefile = read_text(repo_path("Makefile"))
-        compose = read_text(repo_path("compose/anvil.yml"))
-
-        self.assertIn("COMPOSE_PROFILES=internal", makefile)
-        self.assertIn("COMPOSE_PROFILES=host", makefile)
-        self.assertIn("profiles:\n      - internal", compose)
-        self.assertIn("profiles:\n      - host", compose)
-        self.assertIn("anvil_internal:\n    internal: true", compose)
-        self.assertIn("anvil_host: {}", compose)
-        self.assertIn('"127.0.0.1:${ANVIL_HOST_PORT:-8545}:8545"', compose)
-        self.assertNotIn("0.0.0.0:${ANVIL_HOST_PORT", compose)

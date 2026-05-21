@@ -18,6 +18,7 @@ RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT
 ANVIL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
 ANVIL_INTERNAL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
 ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host
+ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host
 NON_ROOT_GUARD := if [[ "$(ACTUAL_UID)" == "0" || "$(LOCAL_UID)" == "0" ]]; then printf '%s\n' 'Refusing to run Docker lanes as root or with LOCAL_UID=0. Run make as a non-root user.' >&2; exit 2; fi
 
 define compose_run
@@ -25,7 +26,7 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify checks fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
+.PHONY: help deps deps-verify checks check-anvil-compose fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
 
 help:
 	@printf '%s\n' \
@@ -83,8 +84,44 @@ deps:
 deps-verify:
 	$(call compose_run,deps.yml,soldeer-verify)
 
-checks:
+checks: check-anvil-compose
 	$(call compose_run,checks.yml,checks)
+
+check-anvil-compose:
+	@$(NON_ROOT_GUARD); \
+	no_profile_services="$$($(ANVIL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config --services)"; \
+	internal_services="$$($(ANVIL_INTERNAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config --services)"; \
+	host_services="$$($(ANVIL_HOST_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config --services)"; \
+	all_services="$$($(ANVIL_ALL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config --services)"; \
+	host_config="$$($(ANVIL_HOST_COMPOSE_ENV) ANVIL_HOST_PORT=18545 $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config)"; \
+	if [[ -n "$$no_profile_services" ]]; then \
+	  printf 'compose/anvil.yml exposes services without an explicit profile:\n%s\n' "$$no_profile_services" >&2; \
+	  exit 2; \
+	fi; \
+	if [[ "$$internal_services" != "anvil-internal" ]]; then \
+	  printf 'compose/anvil.yml internal profile rendered unexpected services:\n%s\n' "$$internal_services" >&2; \
+	  exit 2; \
+	fi; \
+	if [[ "$$host_services" != "anvil-host" ]]; then \
+	  printf 'compose/anvil.yml host profile rendered unexpected services:\n%s\n' "$$host_services" >&2; \
+	  exit 2; \
+	fi; \
+	if [[ "$$all_services" != $$'anvil-internal\nanvil-host' && "$$all_services" != $$'anvil-host\nanvil-internal' ]]; then \
+	  printf 'compose/anvil.yml all-profile cleanup set rendered unexpected services:\n%s\n' "$$all_services" >&2; \
+	  exit 2; \
+	fi; \
+	if ! grep -Eq 'host_ip: "?127\.0\.0\.1"?' <<<"$$host_config"; then \
+	  printf '%s\n' 'compose/anvil.yml host profile must publish only on 127.0.0.1.' >&2; \
+	  exit 2; \
+	fi; \
+	if grep -Eq 'host_ip: "?0\.0\.0\.0"?' <<<"$$host_config"; then \
+	  printf '%s\n' 'compose/anvil.yml host profile must not publish on 0.0.0.0.' >&2; \
+	  exit 2; \
+	fi; \
+	if ! grep -Eq 'published: "?18545"?' <<<"$$host_config"; then \
+	  printf '%s\n' 'compose/anvil.yml host profile did not render the expected test port.' >&2; \
+	  exit 2; \
+	fi
 
 fmt:
 	$(call compose_run,forge.yml,forge-fmt)
@@ -150,7 +187,7 @@ anvil-host:
 
 anvil-down:
 	@$(NON_ROOT_GUARD); \
-	$(ANVIL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml down --volumes --remove-orphans
+	$(ANVIL_ALL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml down --volumes --remove-orphans
 
 anvil:
 	@printf '%s\n' 'Choose an explicit Anvil access boundary: make anvil-internal or make anvil-host.' >&2

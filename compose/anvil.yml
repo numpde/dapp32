@@ -66,7 +66,8 @@ services:
   # Cast. Bind only to localhost on the host. Inside the container Anvil listens
   # on 0.0.0.0 so Docker can forward the loopback-bound host port correctly.
   # This service uses a normal bridge network because Docker does not reliably
-  # publish host ports from internal-only networks.
+  # publish host ports from internal-only networks. That intentionally allows
+  # container egress; keep this service free of repo mounts and secrets.
   anvil-host:
     <<: *anvil_base
     profiles:
