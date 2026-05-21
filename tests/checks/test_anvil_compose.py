@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
 import unittest
 from typing import Any
 
-from .common import ROOT
+from .common import ROOT, read_text, repo_path
 
 
 def setUpModule() -> None:
@@ -66,6 +67,24 @@ class AnvilComposePostureTest(unittest.TestCase):
             sorted(self.all_profiles["services"].keys()),
             ["anvil-host", "anvil-internal"],
         )
+
+    def test_makefile_anvil_down_uses_all_profiles(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+
+        self.assertIsNotNone(
+            re.search(
+                r"^ANVIL_ALL_COMPOSE_ENV := \$\(ANVIL_COMPOSE_ENV\) COMPOSE_PROFILES=internal,host$",
+                makefile,
+                re.MULTILINE,
+            )
+        )
+
+        target = re.search(r"^anvil-down:\n(?P<body>(?:\t.*\n)+)", makefile, re.MULTILINE)
+        self.assertIsNotNone(target)
+        body = target.group("body") if target else ""
+
+        self.assertIn("$(ANVIL_ALL_COMPOSE_ENV)", body)
+        self.assertIn(" down --volumes --remove-orphans", body)
 
     def test_internal_network_boundary(self) -> None:
         service = self.internal["services"]["anvil-internal"]

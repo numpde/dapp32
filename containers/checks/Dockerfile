@@ -13,7 +13,9 @@
 # the Docker socket into this container.
 FROM docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
 
-RUN apk add --no-cache docker-cli docker-cli-compose \
+RUN apk add --no-cache \
+    docker-cli=29.5.1-r0 \
+    docker-cli-compose=2.40.3-r6 \
   && addgroup -S repochecks \
   && adduser -S -D -H -u 65532 -G repochecks repochecks
 
