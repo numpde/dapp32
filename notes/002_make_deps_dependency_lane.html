@@ -236,12 +236,12 @@
         <div class="card">
           <strong>3. Apply</strong>
           <h3><code>soldeer-apply-locked</code></h3>
-          <p>Image: <code>containers/foundry</code>. No network. Copies patched dependency output from <code>soldeer-out</code> into repo <code>dependencies/</code>. Fails if committed metadata would change.</p>
+          <p>Image: <code>containers/foundry</code>. No network. Copies patched dependency output from <code>soldeer-out</code> into repo <code>dependencies/</code>. Fails if the staged <code>soldeer.lock</code>, remappings, or checksums differ from the committed files.</p>
         </div>
         <div class="card">
           <strong>4. Update</strong>
           <h3><code>soldeer-apply-update</code></h3>
-          <p>Image: <code>containers/foundry</code>. No network. Used only by <code>make deps ALLOW_UPDATE=1</code>. May also write <code>soldeer.lock</code>, <code>remappings.txt</code>, and <code>dependency-checksums.txt</code>.</p>
+          <p>Image: <code>containers/foundry</code>. No network. Used only by <code>make deps ALLOW_UPDATE=1</code>. This is the only dependency-lane service allowed to copy a staged <code>soldeer.lock</code> back into the repo.</p>
         </div>
         <div class="card">
           <strong>5. Verify</strong>
@@ -306,6 +306,19 @@ make test
     </section>
 
     <section>
+      <h2>When soldeer.lock changes</h2>
+      <p>
+        <code>forge soldeer install</code> runs in the networked staging container against a temporary working tree. It may produce or refresh a staged <code>soldeer.lock</code> there, but that file lives in the Docker volume until the offline apply step decides what to do with it.
+      </p>
+      <p>
+        Plain <code>make deps</code> is locked mode. It compares the staged <code>soldeer.lock</code> with the committed <code>soldeer.lock</code> and fails if they differ. It does not update the repository lockfile.
+      </p>
+      <p>
+        <code>make deps ALLOW_UPDATE=1</code> is update mode. After staging, the offline <code>soldeer-apply-update</code> service may copy the staged <code>soldeer.lock</code>, <code>remappings.txt</code>, and <code>dependency-checksums.txt</code> back into the repo. That is the deliberate path for adding, removing, or changing Soldeer dependencies.
+      </p>
+    </section>
+
+    <section>
       <h2>Declared patches</h2>
       <p>
         Soldeer has package-level integrity, not a first-class local patch model. For short-lived local fixes, this repo keeps upstream package provenance in <code>soldeer.lock</code> and records the local change separately in <code>dependency-patches.txt</code>.
@@ -361,7 +374,7 @@ make test
       <pre><code># Install the locked Soldeer set, apply declared patches, and verify the result.
 make deps
 
-# Explicitly allow lock, remapping, and checksum updates.
+# Explicitly allow soldeer.lock, remapping, and checksum updates.
 make deps ALLOW_UPDATE=1
 
 # Check the installed patched dependency tree without network.
