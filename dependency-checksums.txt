@@ -1,3 +1,3 @@
 # Deterministic SHA-256 of installed dependency file manifests.
 # Format: <sha256>  <dependency-name-version>
-4d18b4b48f4c866e9d2b9cfd741d24ee6f6697c62fd60d1288e2f2f9ec116781  @openzeppelin-contracts-5.6.1
+d839c51ac2a35cb06dcd8798403c54ea2ea2e0bdb05ffc66fc9b946068d7c5e7  @openzeppelin-contracts-5.6.1
