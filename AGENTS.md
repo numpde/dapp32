@@ -39,6 +39,13 @@ Keep the project small, explicit, and protocol-first.
 - Do not run Docker containers, pull images, or start services until the command
   is properly secured and scoped. Use pinned images, least privilege, explicit
   mounts, bounded resources, and no unnecessary network access.
+- Dependency installation lanes must separate network access from repository
+  writes. Use a stage/apply shape: the networked stage reads only the minimum
+  dependency input files and writes to a staging volume; the offline apply step
+  writes only the expected dependency outputs.
+- Do not give networked dependency tools repo-root read/write mounts. In this
+  repo, the expected dependency outputs are `dependencies/`, `soldeer.lock`, and
+  `remappings.txt`.
 
 ## Implementation Discipline
 
