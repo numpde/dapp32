@@ -41,12 +41,7 @@ contract SolidityVersionTest {
             if (!stringEq(actual, expected)) {
                 revert(
                     string.concat(
-                        entries[i].path,
-                        ": expected pragma solidity ",
-                        expected,
-                        "; got pragma solidity ",
-                        actual,
-                        ";"
+                        entries[i].path, ": expected pragma solidity ", expected, "; got pragma solidity ", actual, ";"
                     )
                 );
             }
