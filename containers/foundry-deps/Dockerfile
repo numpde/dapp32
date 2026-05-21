@@ -11,7 +11,11 @@ USER root
 
 RUN set -eux; \
   apt-get update; \
-  apt-get install -y --no-install-recommends ca-certificates curl unzip; \
+  apt-get install -y --no-install-recommends \
+    ca-certificates=20240203~22.04.1 \
+    curl=7.81.0-1ubuntu1.24 \
+    python3=3.10.6-1~22.04.1 \
+    unzip=6.0-26ubuntu3.2; \
   rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work
