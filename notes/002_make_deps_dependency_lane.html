@@ -258,6 +258,7 @@
   dependency-egress-proxy
   soldeer-stage
     forge soldeer install --config-location foundry
+      Soldeer installs and checks package integrity at package level.
     test_dependency_integrity.py --verify-upstream /tmp/soldeer-work
     apply_dependency_patches
     test_dependency_integrity.py --write-checksums /tmp/soldeer-work
@@ -342,6 +343,16 @@ make test
     </section>
 
     <section>
+      <h2>Where Soldeer checks</h2>
+      <p>
+        Soldeer checks dependency integrity when <code>forge soldeer install</code> runs in <code>soldeer-stage</code>. That check is package-level: it can confirm the installed package matches Soldeer’s package identity, but it does not know about this repo’s declared local patches.
+      </p>
+      <p>
+        After a patch is applied, normal Forge commands may still print Soldeer’s generic <code>FailedIntegrity</code> warning because the installed package no longer matches the pristine package. That warning is expected for a declared patch. The repository verifier is the patch-aware check: it verifies the pristine target hash, the patch-file hash, the patched target hash, and the final dependency-tree checksum before build or test lanes run.
+      </p>
+    </section>
+
+    <section>
       <h2>Routine commands</h2>
       <pre><code># Install the locked Soldeer set, apply declared patches, and verify the result.
 make deps
@@ -361,11 +372,11 @@ make ci</code></pre>
     <section>
       <h2>Reading warnings</h2>
       <p>
-        A patched Soldeer dependency can trigger Forge’s package-level warning:
+        A patched Soldeer dependency can trigger Forge’s package-level warning during normal compile or test commands:
       </p>
       <pre><code>Warning: Dependency '@openzeppelin-contracts' integrity check failed: FailedIntegrity</code></pre>
       <p>
-        That warning is generic. It means the installed package no longer matches Soldeer’s pristine package identity. The repository-level verifier prints the more precise explanation before Forge runs:
+        That warning is generic. It means the installed package no longer matches Soldeer’s pristine package identity. It does not say whether the difference is intended. The repository verifier prints the precise patch explanation before Forge runs:
       </p>
       <pre><code>deps-verify: @openzeppelin-contracts-5.6.1 declared patch ok
 deps-verify:   target: utils/cryptography/ECDSA.sol
