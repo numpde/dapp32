@@ -2,7 +2,8 @@
 #
 # This file stays separate from routine checks because it starts a long-lived
 # service. It is for local development and manual/integration work, not for the
-# default test path.
+# default test path. The Makefile also gives this stack its own Compose project
+# so it does not collide with short-lived check/build/test containers.
 #
 # The services are split by access boundary:
 # - anvil-internal is Docker-only and publishes no host port.
@@ -38,6 +39,17 @@ x-anvil-base: &anvil_base
     - "0.0.0.0"
     - "--port"
     - "8545"
+  healthcheck:
+    test:
+      - "CMD"
+      - "cast"
+      - "block-number"
+      - "--rpc-url"
+      - "http://127.0.0.1:8545"
+    interval: 5s
+    timeout: 3s
+    retries: 12
+    start_period: 2s
 
 services:
   # Docker-only local chain for future container-to-container integration work.
