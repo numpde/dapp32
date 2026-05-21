@@ -2,16 +2,16 @@
 #
 # This file is intentionally separate from compose/forge.yml. Installing
 # dependencies needs network access, but networked dependency tools should not
-# receive write access to the repository. The lane is split in two:
-# - soldeer-stage has network, reads only dependency input files, and writes only
-#   to a Docker volume.
+# receive write access to the repository. The lane is split into stages:
+# - soldeer-stage has network, reads only dependency input files, verifies
+#   upstream archives against soldeer.lock, and writes only to a Docker volume.
 # - soldeer-apply has no network and can write only the dependency outputs.
 # - soldeer-verify has no network and verifies installed dependency contents.
 # Routine build/test lanes must stay offline and read-only.
 services:
   soldeer-stage:
     build:
-      context: ../containers/foundry
+      context: ../containers/foundry-deps
       dockerfile: Dockerfile
     working_dir: /tmp
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
@@ -40,7 +40,7 @@ services:
       - "-lc"
       - |
         set -euo pipefail
-        rm -rf /tmp/soldeer-work /out/dependencies /out/soldeer.lock /out/remappings.txt
+        rm -rf /tmp/soldeer-work /out/dependencies /out/soldeer.lock /out/remappings.txt /out/dependency-checksums.txt
         mkdir -p /tmp/soldeer-work
         cp /input/foundry.toml /tmp/soldeer-work/foundry.toml
         cp /input/soldeer.lock /tmp/soldeer-work/soldeer.lock
@@ -50,6 +50,7 @@ services:
         test -d dependencies
         test -f soldeer.lock
         test -f remappings.txt
+        bash /input/verify-dependencies.sh --verify-upstream /tmp/soldeer-work
         bash /input/verify-dependencies.sh --write /tmp/soldeer-work
         test -f dependency-checksums.txt
         cp -a dependencies /out/dependencies

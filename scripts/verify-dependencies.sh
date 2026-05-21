@@ -7,6 +7,12 @@ root="/work"
 if [[ "${1:-}" == "--write" ]]; then
   mode="write"
   shift
+elif [[ "${1:-}" == "--verify-upstream" ]]; then
+  mode="verify_upstream"
+  shift
+elif [[ "${1:-}" == --* ]]; then
+  printf 'deps-verify: unknown option: %s\n' "$1" >&2
+  exit 2
 fi
 
 if [[ $# -gt 0 ]]; then
@@ -31,7 +37,11 @@ require_dir() {
   [[ -d "$1" ]] || die "missing required directory: $1"
 }
 
-dependency_list() {
+require_tool() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required tool: $1"
+}
+
+dependency_records() {
   awk '
     function value(line) {
       sub(/^[^"]*"/, "", line)
@@ -39,15 +49,29 @@ dependency_list() {
       return line
     }
 
-    /^\[\[dependencies\]\]/ {
-      if (name != "" || version != "") {
-        if (name == "" || version == "") {
+    function emit() {
+      if (name != "" || version != "" || url != "" || checksum != "") {
+        if (name == "" || version == "" || url == "" || checksum == "") {
           exit 2
         }
-        print name "\t" version
+        print name "\t" version "\t" url "\t" checksum
       }
+    }
+
+    function reset() {
       name = ""
       version = ""
+      url = ""
+      checksum = ""
+    }
+
+    BEGIN {
+      reset()
+    }
+
+    /^\[\[dependencies\]\]/ {
+      emit()
+      reset()
       next
     }
 
@@ -61,19 +85,28 @@ dependency_list() {
       next
     }
 
+    /^url = / {
+      url = value($0)
+      next
+    }
+
+    /^checksum = / {
+      checksum = value($0)
+      next
+    }
+
     END {
-      if (name != "" || version != "") {
-        if (name == "" || version == "") {
-          exit 2
-        }
-        print name "\t" version
-      }
+      emit()
     }
   ' "$lock_file"
 }
 
 tree_hash() {
   local dir="$1"
+  local unsupported
+
+  unsupported="$(find "$dir" ! -type d ! -type f | LC_ALL=C sort)"
+  [[ -z "$unsupported" ]] || die "unsupported dependency entries under $dir: $unsupported"
 
   (
     cd "$dir"
@@ -85,12 +118,16 @@ tree_hash() {
   ) | sha256sum | awk '{ print $1 }'
 }
 
-load_dependency_list() {
-  local dependencies
+load_dependency_records() {
+  local records
 
-  dependencies="$(dependency_list)" || die "could not parse $lock_file"
-  [[ -n "$dependencies" ]] || die "no dependencies found in $lock_file"
-  printf '%s\n' "$dependencies"
+  records="$(dependency_records)" || die "could not parse $lock_file"
+  [[ -n "$records" ]] || die "no dependencies found in $lock_file"
+  printf '%s\n' "$records"
+}
+
+records_to_dependencies() {
+  awk -F '\t' '{ print $1 "\t" $2 }'
 }
 
 dependency_keys() {
@@ -159,6 +196,14 @@ verify_checksum_set() {
   [[ -z "$unexpected" ]] || die "unexpected checksums in $checksums_file: $unexpected"
 }
 
+validate_archive_checksum() {
+  local key="$1"
+  local checksum="$2"
+
+  [[ "${#checksum}" == "64" && "$checksum" =~ ^[0-9a-f]+$ ]] \
+    || die "$key has invalid upstream checksum in $lock_file"
+}
+
 expected_hash() {
   local key="$1"
 
@@ -204,6 +249,108 @@ verify_one() {
   printf 'deps-verify: %s ok\n' "$key"
 }
 
+archive_payload_dir() {
+  local extract_dir="$1"
+  local first
+  local count
+
+  count="$(find "$extract_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d '[:space:]')"
+  if [[ "$count" == "1" ]]; then
+    first="$(find "$extract_dir" -mindepth 1 -maxdepth 1 -print -quit)"
+    if [[ -d "$first" ]]; then
+      printf '%s\n' "$first"
+      return
+    fi
+  fi
+
+  printf '%s\n' "$extract_dir"
+}
+
+verify_zip_paths() {
+  local key="$1"
+  local archive="$2"
+
+  zipinfo -1 "$archive" | awk '
+    $0 == "" || /^\// || /(^|\/)\.\.(\/|$)/ {
+      exit 1
+    }
+  ' || die "$key archive contains an unsafe path"
+}
+
+verify_upstream_one() {
+  local tmp_dir="$1"
+  local name="$2"
+  local version="$3"
+  local url="$4"
+  local checksum="$5"
+  local key="$name-$version"
+  local archive="$tmp_dir/$key.zip"
+  local extract_dir="$tmp_dir/extract/$key"
+  local payload_dir
+  local actual_archive_checksum
+  local expected_tree_hash
+  local actual_tree_hash
+
+  validate_archive_checksum "$key" "$checksum"
+  [[ "$url" == https://* ]] || die "$key upstream URL must use https: $url"
+  require_dir "$dependencies_dir/$key"
+
+  curl \
+    --fail \
+    --location \
+    --silent \
+    --show-error \
+    --proto '=https' \
+    --proto-redir '=https' \
+    --retry 3 \
+    --retry-delay 2 \
+    --connect-timeout 15 \
+    --max-time 300 \
+    --output "$archive" \
+    "$url"
+
+  actual_archive_checksum="$(sha256sum "$archive" | awk '{ print $1 }')"
+  if [[ "$actual_archive_checksum" != "$checksum" ]]; then
+    die "$key upstream archive checksum mismatch: expected $checksum, got $actual_archive_checksum"
+  fi
+
+  mkdir -p "$extract_dir"
+  verify_zip_paths "$key" "$archive"
+  unzip -qq "$archive" -d "$extract_dir"
+  payload_dir="$(archive_payload_dir "$extract_dir")"
+
+  expected_tree_hash="$(tree_hash "$payload_dir")"
+  actual_tree_hash="$(tree_hash "$dependencies_dir/$key")"
+  if [[ "$actual_tree_hash" != "$expected_tree_hash" ]]; then
+    die "$key installed tree does not match verified upstream archive"
+  fi
+
+  printf 'deps-verify: %s upstream archive ok\n' "$key"
+}
+
+verify_upstream() {
+  local records="$1"
+  local tmp_dir
+  local name
+  local version
+  local url
+  local checksum
+
+  require_tool curl
+  require_tool unzip
+  require_tool zipinfo
+
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "$tmp_dir"' EXIT
+
+  while IFS=$'\t' read -r name version url checksum; do
+    verify_upstream_one "$tmp_dir" "$name" "$version" "$url" "$checksum"
+  done <<< "$records"
+
+  rm -rf "$tmp_dir"
+  trap - EXIT
+}
+
 write_checksums() {
   local dependencies="$1"
   local tmp
@@ -235,8 +382,14 @@ require_file "$lock_file"
 require_file "$remappings_file"
 require_dir "$dependencies_dir"
 
-dependencies="$(load_dependency_list)"
+records="$(load_dependency_records)"
+dependencies="$(records_to_dependencies <<< "$records")"
 verify_dependency_set "$dependencies"
+
+if [[ "$mode" == "verify_upstream" ]]; then
+  verify_upstream "$records"
+  exit 0
+fi
 
 if [[ "$mode" == "write" ]]; then
   write_checksums "$dependencies"

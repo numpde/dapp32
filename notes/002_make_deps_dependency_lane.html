@@ -193,11 +193,12 @@
     <div class="shell">
       <h1>How make deps works</h1>
       <p class="lede">
-        <code>make deps</code> is the controlled dependency update lane. It lets the networked dependency tool fetch packages without giving that tool write access to the repository.
+        <code>make deps</code> is the controlled dependency update lane. It verifies upstream package archives, then updates the local installed dependency tree without giving the networked dependency tool write access to the repository.
       </p>
       <div class="meta">
         <span class="pill">Current source: Soldeer</span>
         <span class="pill">Network: stage only</span>
+        <span class="pill">Upstream check: soldeer.lock</span>
         <span class="pill">Repo writes: offline apply only</span>
         <span class="pill">Build checks: offline verify first</span>
       </div>
@@ -208,7 +209,7 @@
     <section>
       <h2>The rule</h2>
       <p>
-        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container may download dependencies, but it writes only to a temporary Docker volume. The offline container copies the staged outputs into the working tree. A separate offline verifier checks the result before normal compile and test lanes run.
+        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container may download dependencies, verifies each upstream archive against <code>soldeer.lock</code>, and writes only to a temporary Docker volume. The offline container copies the staged outputs into the working tree. A separate offline verifier checks the result before normal compile and test lanes run.
       </p>
       <p class="note">
         The important invariant is simple: no networked dependency process gets repo-root read/write access.
@@ -221,7 +222,7 @@
         <div class="card">
           <strong>1. Stage</strong>
           <h3><code>soldeer-stage</code></h3>
-          <p>Runs <code>forge soldeer install</code> with network access. It can read only dependency input files and writes generated output into a Docker volume.</p>
+          <p>Runs <code>forge soldeer install</code> with network access. It can read only dependency input files, verifies downloaded archives against <code>soldeer.lock</code>, and writes generated output into a Docker volume.</p>
         </div>
         <div class="card">
           <strong>2. Apply</strong>
@@ -264,10 +265,13 @@
     <section>
       <h2>What verification proves</h2>
       <p>
-        <code>scripts/verify-dependencies.sh</code> reads <code>soldeer.lock</code>, derives the expected directory name for each dependency, and checks that <code>dependencies/</code> contains exactly those directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, and checksum mismatches.
+        In upstream mode, <code>scripts/verify-dependencies.sh</code> reads <code>soldeer.lock</code>, downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, and confirms the installed dependency tree matches the verified archive payload.
       </p>
       <p>
-        The checksum for each dependency is a deterministic SHA-256 over a sorted manifest of every file path and file hash inside that dependency directory. This is intentionally independent of Soldeer internals. It verifies the installed tree that Foundry will actually read.
+        In offline mode, it derives the expected directory name for each dependency and checks that <code>dependencies/</code> contains exactly those directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, and checksum mismatches.
+      </p>
+      <p>
+        The local checksum for each dependency is a deterministic SHA-256 over a sorted manifest of every file path and file hash inside that dependency directory. This is intentionally independent of Soldeer internals. It verifies the installed tree that Foundry will actually read.
       </p>
     </section>
 
@@ -323,7 +327,7 @@ git diff -- soldeer.lock remappings.txt dependency-checksums.txt</code></pre>
     <section>
       <h2>What this does not prove</h2>
       <p class="note">
-        This lane proves that the installed dependency tree matches the committed local manifest. It does not prove that an upstream package is correct, audited, or safe to use. Reviewing dependency changes is still a human responsibility.
+        This lane proves that the fetched archive matches the committed lockfile checksum and that the installed dependency tree matches the committed local manifest. It does not prove that an upstream package is correct, audited, or safe to use. Reviewing dependency changes is still a human responsibility.
       </p>
     </section>
   </main>

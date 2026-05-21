@@ -41,8 +41,9 @@ Keep the project small, explicit, and protocol-first.
   mounts, bounded resources, and no unnecessary network access.
 - Dependency installation lanes must separate network access from repository
   writes. Use a stage/apply shape: the networked stage reads only the minimum
-  dependency input files and writes to a staging volume; the offline apply step
-  writes only the expected dependency outputs.
+  dependency input files, verifies upstream artifacts against committed lockfile
+  checksums, and writes to a staging volume; the offline apply step writes only
+  the expected dependency outputs.
 - Do not give networked dependency tools repo-root read/write mounts. In this
   repo, the expected dependency outputs are `dependencies/`, `soldeer.lock`,
   `remappings.txt`, and `dependency-checksums.txt`.
