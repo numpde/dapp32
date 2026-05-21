@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.19
 
 # Image definition for the Compose lanes in compose/forge.yml, compose/cast.yml,
 # and compose/anvil.yml.
@@ -13,9 +13,9 @@
 # runtime restrictions such as read-only mounts, no network, dropped
 # capabilities, tmpfs caches, and loopback ports belong in the Compose files.
 #
-# Official Foundry image, pinned to the inspected multi-arch stable digest.
+# Official Foundry image, pinned to the inspected multi-arch v1.7.1 digest.
 # Provides forge, cast, anvil, and chisel.
-FROM ghcr.io/foundry-rs/foundry:stable@sha256:043752653d5be351c71709091b3db97c4421c907eb40ea294195e7f532aadf46
+FROM ghcr.io/foundry-rs/foundry:v1.7.1@sha256:8347b728d5d393dac1c018691b36f506d23b9dcd78341d40ea0fcb11c3a19cdd
 
 USER root
 

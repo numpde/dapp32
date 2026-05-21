@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.19
 
 # Minimal HTTPS CONNECT proxy for dependency installation lanes.
 #

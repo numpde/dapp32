@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.7
+# syntax=docker/dockerfile:1.19
 
 # Minimal JSON-RPC reverse proxy for the networked Cast lane.
 #
