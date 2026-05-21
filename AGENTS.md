@@ -52,6 +52,24 @@ Keep the project small, explicit, and protocol-first.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
   dependency contents before compiling.
 
+## Checks Lane
+
+- Repository/source hygiene checks live in `tests/checks/` as Python
+  `unittest` tests using only the standard library.
+- Run them with `make checks`. The lane uses `compose/checks.yml` and
+  `containers/checks/`: no network, read-only repo mount, read-only root
+  filesystem, non-root user, no capabilities, bounded memory/PIDs, and no
+  Python bytecode writes.
+- `make test` must include `make checks` before Forge unit tests, so routine
+  hygiene cannot be skipped accidentally.
+- Put text/repo-shape checks here, not in Solidity tests. Examples: compiler
+  pragma consistency, forbidden names, secret patterns, Compose posture, and
+  dependency metadata consistency.
+- Keep Solidity tests focused on contract behavior.
+- Do not add Python package dependencies to the checks lane unless there is a
+  clear, reviewed need. Prefer standard-library parsing for small repository
+  invariants.
+
 ## Implementation Discipline
 
 - Before coding, stop and identify the actual invariant or requirement.
