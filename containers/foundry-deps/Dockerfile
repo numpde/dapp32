@@ -13,6 +13,7 @@ RUN set -eux; \
   apt-get update; \
   apt-get install -y --no-install-recommends \
     libssl3=3.0.2-0ubuntu1.23 \
+    patch=2.7.6-7build2 \
     python3=3.10.6-1~22.04.1 \
     python3.10=3.10.12-1~22.04.15; \
   rm -rf /var/lib/apt/lists/*

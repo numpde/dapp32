@@ -6,8 +6,8 @@
 # - dependency-egress-proxy is the only service with external egress. It allows
 #   HTTPS CONNECT only to global IP addresses on port 443.
 # - soldeer-stage is on an internal network, reads only dependency input files,
-#   verifies upstream archives against soldeer.lock, and writes only to a Docker
-#   volume.
+#   verifies upstream archives against soldeer.lock, applies declared local
+#   patches with pre/patch/post checksums, and writes only to a Docker volume.
 # - soldeer-apply-locked has no network, can write only dependencies/, and
 #   fails if locked metadata would change.
 # - soldeer-apply-update has no network and can write dependency metadata only
@@ -80,6 +80,8 @@ services:
       - ../foundry.toml:/input/foundry.toml:ro
       - ../soldeer.lock:/input/soldeer.lock:ro
       - ../remappings.txt:/input/remappings.txt:ro
+      - ../dependency-patches.txt:/input/dependency-patches.txt:ro
+      - ../patches:/input/patches:ro
       - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
       - soldeer-out:/out:rw
     networks:
@@ -89,6 +91,40 @@ services:
       - "-lc"
       - |
         set -euo pipefail
+        apply_dependency_patches() {
+          while read -r dependency target patch_file pre_hash patch_hash post_hash extra; do
+            case "$${dependency:-}" in
+              ""|\#*) continue ;;
+            esac
+            if [ -n "$${extra:-}" ]; then
+              printf 'dependency-patches: malformed line for %s\n' "$$dependency" >&2
+              exit 2
+            fi
+            case "$$dependency" in
+              */*) printf 'dependency-patches: dependency key must be a single directory name: %s\n' "$$dependency" >&2; exit 2 ;;
+            esac
+            case "$$target" in
+              ""|/*|../*|*/../*|*/..)
+                printf 'dependency-patches: unsafe target path: %s\n' "$$target" >&2
+                exit 2 ;;
+            esac
+            case "$$patch_file" in
+              ""|/*|../*|*/../*|*/..)
+                printf 'dependency-patches: unsafe patch path: %s\n' "$$patch_file" >&2
+                exit 2 ;;
+            esac
+
+            target_path="dependencies/$$dependency/$$target"
+            patch_path="/input/$$patch_file"
+            test -f "$$target_path"
+            test -f "$$patch_path"
+            printf '%s  %s\n' "$$pre_hash" "$$target_path" | sha256sum -c -
+            printf '%s  %s\n' "$$patch_hash" "$$patch_path" | sha256sum -c -
+            patch --directory="dependencies/$$dependency" --strip=1 --forward --batch --fuzz=0 --input="$$patch_path"
+            printf '%s  %s\n' "$$post_hash" "$$target_path" | sha256sum -c -
+          done < /input/dependency-patches.txt
+        }
+
         rm -rf /tmp/soldeer-work /out/dependencies /out/soldeer.lock /out/remappings.txt /out/dependency-checksums.txt
         mkdir -p /tmp/soldeer-work
         cp /input/foundry.toml /tmp/soldeer-work/foundry.toml
@@ -99,7 +135,9 @@ services:
         test -d dependencies
         test -f soldeer.lock
         test -f remappings.txt
-        python3 -I -B /input/test_dependency_integrity.py --stage /tmp/soldeer-work
+        python3 -I -B /input/test_dependency_integrity.py --verify-upstream /tmp/soldeer-work
+        apply_dependency_patches
+        python3 -I -B /input/test_dependency_integrity.py --write-checksums /tmp/soldeer-work
         test -f dependency-checksums.txt
         cp -a dependencies /out/dependencies
         cp soldeer.lock /out/soldeer.lock

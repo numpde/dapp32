@@ -8,7 +8,6 @@
 # - no Linux capabilities
 # - bounded memory/PID usage
 # - temporary cache/artifact paths
-# - dependency patches applied only to a tmpfs workspace for compile/test lanes
 #
 # Keep ordinary source checks here. Split a service into another compose file
 # only when it needs a different trust boundary, such as RPC, browser access,
@@ -48,18 +47,17 @@ services:
     command: ["forge", "fmt", "--check"]
 
   # Compilation should not write artifacts into the working tree; outputs go
-  # to tmpfs through FOUNDRY_OUT and FOUNDRY_CACHE_PATH. Dependency patches are
-  # applied to a copied tmpfs workspace so dependencies/ stays Soldeer-pristine.
+  # to tmpfs through FOUNDRY_OUT and FOUNDRY_CACHE_PATH.
   forge-build:
     <<: *forge_base
-    command: ["forge-with-patches", "build", "--offline"]
+    command: ["forge", "build", "--offline"]
 
   # Routine unit tests. Repository/source hygiene checks live in tests/checks
   # and are wired through `make test` before this Forge lane runs.
   forge-test:
     <<: *forge_base
     command:
-      - "forge-with-patches"
+      - "forge"
       - "test"
       - "--offline"
       - "--match-path"
@@ -71,7 +69,7 @@ services:
   forge-fuzz:
     <<: *forge_base
     command:
-      - "forge-with-patches"
+      - "forge"
       - "test"
       - "--offline"
       - "--match-path"
@@ -83,7 +81,7 @@ services:
   forge-invariant:
     <<: *forge_base
     command:
-      - "forge-with-patches"
+      - "forge"
       - "test"
       - "--offline"
       - "--match-path"
@@ -93,4 +91,4 @@ services:
   # Coverage is a reporting lane over the same checked-in sources.
   forge-coverage:
     <<: *forge_base
-    command: ["forge-with-patches", "coverage", "--offline"]
+    command: ["forge", "coverage", "--offline"]

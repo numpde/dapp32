@@ -34,9 +34,10 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("deps_egress:", text)
         self.assertIn("internal: true", text)
 
-    def test_forge_compile_lanes_apply_dependency_patches_in_tmpfs(self) -> None:
-        text = read_text(repo_path("compose/forge.yml"))
+    def test_dependency_stage_applies_declared_patches(self) -> None:
+        text = read_text(repo_path("compose/deps.yml"))
 
-        self.assertIn("forge-with-patches", text)
-        self.assertIn("tmpfs workspace", text)
-        self.assertIn("..:/work:ro", text)
+        self.assertIn("../dependency-patches.txt:/input/dependency-patches.txt:ro", text)
+        self.assertIn("../patches:/input/patches:ro", text)
+        self.assertIn("apply_dependency_patches", text)
+        self.assertIn("--fuzz=0", text)
