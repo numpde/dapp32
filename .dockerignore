@@ -1,6 +1,18 @@
+# Version-control and local agent state should never enter a root build context.
 .git
+.codex
+.agents
+
+# Operator secrets and local environment files.
 .env
 .env.*
+*.key
+*.pem
+*.p12
+*.secret
+*.secrets
+
+# Generated artifacts and dependency caches.
 contracts/cache
 contracts/out
 contracts/broadcast
@@ -9,3 +21,5 @@ out
 broadcast
 reports
 node_modules
+.cache
+.venv

@@ -16,8 +16,8 @@ x-forge-base: &forge_base
   # All Forge check services use the repo-owned Foundry image definition in
   # containers/foundry/Dockerfile. Compose owns runtime confinement below.
   build:
-    context: ..
-    dockerfile: containers/foundry/Dockerfile
+    context: ../containers/foundry
+    dockerfile: Dockerfile
   working_dir: /work
   user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
   read_only: true
@@ -30,6 +30,7 @@ x-forge-base: &forge_base
   mem_limit: 1g
   environment:
     HOME: /tmp/home
+    XDG_DATA_HOME: /usr/local/share
     FOUNDRY_CACHE_PATH: /tmp/foundry-cache
     FOUNDRY_CONFIG: /work/foundry.toml
     FOUNDRY_OUT: /tmp/foundry-out
@@ -49,7 +50,7 @@ services:
   # to tmpfs through FOUNDRY_OUT and FOUNDRY_CACHE_PATH.
   forge-build:
     <<: *forge_base
-    command: ["forge", "build"]
+    command: ["forge", "build", "--offline"]
 
   # Routine unit tests. Repo hygiene tests that should run on every normal
   # test pass belong in contracts/test/unit, not in a separate shell lane.
@@ -58,6 +59,7 @@ services:
     command:
       - "forge"
       - "test"
+      - "--offline"
       - "--match-path"
       - "contracts/test/unit/**/*.sol"
       - "-vvv"
@@ -69,6 +71,7 @@ services:
     command:
       - "forge"
       - "test"
+      - "--offline"
       - "--match-path"
       - "contracts/test/fuzz/**/*.sol"
       - "-vvv"
@@ -80,6 +83,7 @@ services:
     command:
       - "forge"
       - "test"
+      - "--offline"
       - "--match-path"
       - "contracts/test/invariant/**/*.sol"
       - "-vvv"
@@ -87,4 +91,4 @@ services:
   # Coverage is a reporting lane over the same checked-in sources.
   forge-coverage:
     <<: *forge_base
-    command: ["forge", "coverage"]
+    command: ["forge", "coverage", "--offline"]
