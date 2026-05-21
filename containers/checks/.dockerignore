@@ -1,0 +1,4 @@
+# The checks image should not receive repository content at build time.
+# Compose mounts the repository read-only at runtime instead.
+*
+!Dockerfile

@@ -1,0 +1,44 @@
+# Offline repository/source checks.
+#
+# This lane is for checks that inspect checked-in text and repository shape:
+# pragma consistency, forbidden names, secret patterns, generated artifact
+# tracking, and similar hygiene rules.
+#
+# Security posture:
+# - no network access
+# - read-only repository mount
+# - read-only container filesystem
+# - no Linux capabilities
+# - no privilege escalation
+# - bounded memory/PID usage
+# - no Python bytecode writes
+#
+# Do not add dependency installation, RPC access, browser work, or generated
+# artifact writes here. Those require separate runtime postures.
+services:
+  repo-checks:
+    build:
+      context: ../containers/checks
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "65532:65532"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 256m
+    environment:
+      HOME: /tmp/home
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONHASHSEED: "0"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    volumes:
+      - ..:/work:ro
+    command:
+      - "-I"
+      - "-B"
+      - "scripts/repo_checks.py"
