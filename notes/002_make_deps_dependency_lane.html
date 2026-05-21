@@ -209,7 +209,7 @@
     <section>
       <h2>The rule</h2>
       <p>
-        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, writes the local checksum manifest, and writes only to a temporary Docker volume. The offline apply container either accepts the staged metadata as matching the committed metadata, or fails unless <code>ALLOW_UPDATE=1</code> was set. A separate offline verifier checks the result before normal compile and test lanes run.
+        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, writes derived installed-tree checksums, and writes only to a temporary Docker volume. The offline apply container either accepts the staged metadata as matching the committed metadata, or fails unless <code>ALLOW_UPDATE=1</code> was set. A separate offline verifier checks the result before normal compile and test lanes run.
       </p>
       <p class="note">
         The important invariant is simple: no networked dependency process gets repo-root read/write access.
@@ -262,7 +262,7 @@
         </div>
         <div class="item">
           <strong><code>dependency-checksums.txt</code></strong>
-          <p>The committed local checksum manifest for the installed dependency contents.</p>
+          <p>The committed installed-tree checksums derived from lockfile-verified upstream archives.</p>
         </div>
       </div>
     </section>
@@ -327,7 +327,7 @@ git diff -- foundry.toml soldeer.lock remappings.txt dependency-checksums.txt</c
         </div>
         <div class="item">
           <strong>Wire it into <code>make deps</code> and <code>make deps-verify</code>.</strong>
-          <p>The public interface can stay simple while the trust boundaries remain explicit.</p>
+          <p>The public interface can stay simple while the trust boundaries remain explicit. Default installation must stay locked; metadata updates need an explicit opt-in such as <code>ALLOW_UPDATE=1</code>.</p>
         </div>
       </div>
     </section>
@@ -335,7 +335,7 @@ git diff -- foundry.toml soldeer.lock remappings.txt dependency-checksums.txt</c
     <section>
       <h2>What this does not prove</h2>
       <p class="note">
-        This lane proves that the fetched archive matches the committed lockfile checksum and that the installed dependency tree matches the committed local manifest. It does not prove that an upstream package is correct, audited, or safe to use. Reviewing dependency changes is still a human responsibility.
+        This lane proves that the fetched archive matches the committed lockfile checksum and that the installed dependency tree matches the committed <code>dependency-checksums.txt</code> entries generated from that verified archive. It does not prove that an upstream package is correct, audited, or safe to use. Reviewing dependency changes is still a human responsibility.
       </p>
     </section>
   </main>

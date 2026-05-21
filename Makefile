@@ -25,7 +25,7 @@ help:
 	  'Supported lanes:' \
 	  '  make deps         Install only the currently locked Soldeer dependencies' \
 	  '  make deps ALLOW_UPDATE=1  Allow dependency lock/remapping/checksum updates' \
-	  '  make deps-verify  Verify installed dependencies against the local checksum manifest' \
+	  '  make deps-verify  Verify installed dependencies against committed checksums' \
 	  '  make fmt          Check Solidity formatting' \
 	  '  make build        Compile contracts' \
 	  '  make test         Run unit tests' \
