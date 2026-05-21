@@ -22,8 +22,8 @@ endef
 help:
 	@printf '%s\n' \
 	  'Supported lanes:' \
-	  '  make deps         Install Soldeer dependencies and update lock/remappings' \
-	  '  make deps-verify  Verify installed dependencies against committed checksums' \
+	  '  make deps         Verify upstream archives and refresh Soldeer dependencies' \
+	  '  make deps-verify  Verify installed dependencies against the local checksum manifest' \
 	  '  make fmt          Check Solidity formatting' \
 	  '  make build        Compile contracts' \
 	  '  make test         Run unit tests' \

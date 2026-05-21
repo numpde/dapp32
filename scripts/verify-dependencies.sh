@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mode="verify"
+mode="verify_local"
 root="/work"
 
-if [[ "${1:-}" == "--write" ]]; then
-  mode="write"
-  shift
-elif [[ "${1:-}" == "--verify-upstream" ]]; then
-  mode="verify_upstream"
+if [[ "${1:-}" == "--stage" ]]; then
+  mode="stage"
   shift
 elif [[ "${1:-}" == --* ]]; then
   printf 'deps-verify: unknown option: %s\n' "$1" >&2
@@ -386,12 +383,8 @@ records="$(load_dependency_records)"
 dependencies="$(records_to_dependencies <<< "$records")"
 verify_dependency_set "$dependencies"
 
-if [[ "$mode" == "verify_upstream" ]]; then
+if [[ "$mode" == "stage" ]]; then
   verify_upstream "$records"
-  exit 0
-fi
-
-if [[ "$mode" == "write" ]]; then
   write_checksums "$dependencies"
   exit 0
 fi

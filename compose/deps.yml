@@ -50,8 +50,7 @@ services:
         test -d dependencies
         test -f soldeer.lock
         test -f remappings.txt
-        bash /input/verify-dependencies.sh --verify-upstream /tmp/soldeer-work
-        bash /input/verify-dependencies.sh --write /tmp/soldeer-work
+        bash /input/verify-dependencies.sh --stage /tmp/soldeer-work
         test -f dependency-checksums.txt
         cp -a dependencies /out/dependencies
         cp soldeer.lock /out/soldeer.lock

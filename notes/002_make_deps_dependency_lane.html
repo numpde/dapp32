@@ -209,7 +209,7 @@
     <section>
       <h2>The rule</h2>
       <p>
-        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container may download dependencies, verifies each upstream archive against <code>soldeer.lock</code>, and writes only to a temporary Docker volume. The offline container copies the staged outputs into the working tree. A separate offline verifier checks the result before normal compile and test lanes run.
+        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, writes the local checksum manifest, and writes only to a temporary Docker volume. The offline container copies the staged outputs into the working tree. A separate offline verifier checks the result before normal compile and test lanes run.
       </p>
       <p class="note">
         The important invariant is simple: no networked dependency process gets repo-root read/write access.
@@ -265,7 +265,7 @@
     <section>
       <h2>What verification proves</h2>
       <p>
-        In upstream mode, <code>scripts/verify-dependencies.sh</code> reads <code>soldeer.lock</code>, downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, and confirms the installed dependency tree matches the verified archive payload.
+        In stage mode, <code>scripts/verify-dependencies.sh</code> reads <code>soldeer.lock</code>, downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, confirms the installed dependency tree matches the verified archive payload, and then writes <code>dependency-checksums.txt</code>.
       </p>
       <p>
         In offline mode, it derives the expected directory name for each dependency and checks that <code>dependencies/</code> contains exactly those directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, and checksum mismatches.
@@ -277,7 +277,7 @@
 
     <section>
       <h2>Routine commands</h2>
-      <pre><code># Refresh Soldeer-managed dependencies.
+      <pre><code># Refresh Soldeer-managed dependencies after upstream checksum verification.
 make deps
 
 # Check the installed dependency tree without network.
@@ -296,7 +296,7 @@ make ci</code></pre>
       </p>
       <pre><code>make deps
 make ci
-git diff -- soldeer.lock remappings.txt dependency-checksums.txt</code></pre>
+git diff -- foundry.toml soldeer.lock remappings.txt dependency-checksums.txt</code></pre>
     </section>
 
     <section>
