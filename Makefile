@@ -21,7 +21,7 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify checks fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil
+.PHONY: help deps deps-verify checks fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
 
 help:
 	@printf '%s\n' \
@@ -40,7 +40,9 @@ help:
 	  '  make cast-offline Run offline cast smoke lane' \
 	  '  make cast-rpc RPC_URL_FILE=/path  Read a block number through the RPC egress proxy' \
 	  '  RPC_URL=https://... make cast-rpc  Same, using a temporary secret file' \
-	  '  make anvil        Start local Anvil on 127.0.0.1:$${ANVIL_HOST_PORT:-8545}' \
+	  '  make anvil-internal  Start Docker-only Anvil with no host port' \
+	  '  make anvil-host      Start Anvil on 127.0.0.1:$${ANVIL_HOST_PORT:-8545}' \
+	  '  make anvil-down      Stop Anvil services and remove their network' \
 	  '' \
 	  'All lanes are Docker-backed. Default check lanes are offline, read-only,' \
 	  'non-root, capability-free, and avoid writing build artifacts into the repo.'
@@ -134,6 +136,18 @@ cast-rpc:
 	chmod 0444 "$$rpc_url_file"; \
 	$(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml up --build --abort-on-container-exit --exit-code-from cast-rpc cast-rpc
 
-anvil:
+anvil-internal:
 	@$(NON_ROOT_GUARD); \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml up --build anvil
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml up --build anvil-internal
+
+anvil-host:
+	@$(NON_ROOT_GUARD); \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml up --build anvil-host
+
+anvil-down:
+	@$(NON_ROOT_GUARD); \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml down --volumes --remove-orphans
+
+anvil:
+	@printf '%s\n' 'Choose an explicit Anvil access boundary: make anvil-internal or make anvil-host.' >&2
+	@exit 2

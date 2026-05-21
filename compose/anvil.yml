@@ -1,48 +1,59 @@
-# Local ephemeral EVM chain.
+# Local ephemeral EVM chains.
 #
 # This file stays separate from routine checks because it starts a long-lived
-# service and publishes a loopback port. It is for local development and manual
-# integration work, not for the default test path.
+# service. It is for local development and manual/integration work, not for the
+# default test path.
+#
+# The services are split by access boundary:
+# - anvil-internal is Docker-only and publishes no host port.
+# - anvil-host publishes a host loopback port for manual local tools.
+#
+# Keep external RPC access separate in compose/cast.yml behind rpc-proxy. Do
+# not weaken that proxy for local networks.
+x-anvil-base: &anvil_base
+  # Anvil uses the shared Foundry image defined in
+  # containers/foundry/Dockerfile. Runtime confinement lives here.
+  build:
+    context: ../containers/foundry
+    dockerfile: Dockerfile
+  working_dir: /work
+  init: true
+  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  pids_limit: 256
+  mem_limit: 1g
+  environment:
+    HOME: /tmp/home
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,noexec,size=256m
+  networks:
+    - anvil_internal
+  command:
+    - "anvil"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8545"
+
 services:
-  anvil:
-    # Anvil uses the shared Foundry image defined in
-    # containers/foundry/Dockerfile. This file adds the local-chain runtime
-    # posture: long-lived process plus loopback-only port publishing.
-    build:
-      context: ../containers/foundry
-      dockerfile: Dockerfile
-    working_dir: /work
-    init: true
-    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 256
-    mem_limit: 1g
-    environment:
-      HOME: /tmp/home
-      XDG_DATA_HOME: /usr/local/share
-      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
-      FOUNDRY_CONFIG: /work/foundry.toml
-    tmpfs:
-      - /tmp:rw,nosuid,nodev,noexec,size=256m
-    volumes:
-      - ..:/work:ro
-    # Bind only to localhost on the host. Inside the container Anvil listens on
-    # 0.0.0.0 so Docker can forward the loopback-bound host port correctly.
+  # Docker-only local chain for future container-to-container integration work.
+  # No host process can reach this RPC unless another container on this Compose
+  # network exposes it.
+  anvil-internal:
+    <<: *anvil_base
+
+  # Manual local chain for host tools such as browser wallets, curl, or host
+  # Cast. Bind only to localhost on the host. Inside the container Anvil listens
+  # on 0.0.0.0 so Docker can forward the loopback-bound host port correctly.
+  anvil-host:
+    <<: *anvil_base
     ports:
       - "127.0.0.1:${ANVIL_HOST_PORT:-8545}:8545"
-    networks:
-      - anvil_loopback
-    command:
-      - "anvil"
-      - "--host"
-      - "0.0.0.0"
-      - "--port"
-      - "8545"
 
 networks:
-  anvil_loopback:
+  anvil_internal:
     internal: true
