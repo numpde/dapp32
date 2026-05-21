@@ -249,6 +249,8 @@ services:
       - ../soldeer.lock:/work/soldeer.lock:ro
       - ../remappings.txt:/work/remappings.txt:ro
       - ../dependency-checksums.txt:/work/dependency-checksums.txt:ro
+      - ../dependency-patches.txt:/work/dependency-patches.txt:ro
+      - ../patches:/work/patches:ro
     command:
       - "-I"
       - "-B"

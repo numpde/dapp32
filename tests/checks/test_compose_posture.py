@@ -38,6 +38,8 @@ class ComposePostureTest(unittest.TestCase):
         text = read_text(repo_path("compose/deps.yml"))
 
         self.assertIn("../dependency-patches.txt:/input/dependency-patches.txt:ro", text)
+        self.assertIn("../dependency-patches.txt:/work/dependency-patches.txt:ro", text)
         self.assertIn("../patches:/input/patches:ro", text)
+        self.assertIn("../patches:/work/patches:ro", text)
         self.assertIn("apply_dependency_patches", text)
         self.assertIn("--fuzz=0", text)

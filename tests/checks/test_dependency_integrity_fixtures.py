@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import tempfile
 import unittest
 import zipfile
 from collections.abc import Iterator
 from contextlib import contextmanager
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -42,6 +44,37 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
 
             with self.assertRaisesRegex(DependencyVerificationError, "missing remapping"):
                 DependencyVerifier(root).verify_local()
+
+    def test_rejects_declared_patch_file_checksum_mismatch(self) -> None:
+        with self.fixture() as root:
+            self.write_minimal_dependency(root)
+            self.write_patch_manifest(root, patch_hash="0" * 64)
+
+            with self.assertRaisesRegex(DependencyVerificationError, "patches/pkg.patch checksum mismatch"):
+                with redirect_stdout(io.StringIO()):
+                    DependencyVerifier(root).verify_local()
+
+    def test_rejects_declared_patch_target_checksum_mismatch(self) -> None:
+        with self.fixture() as root:
+            self.write_minimal_dependency(root)
+            self.write_patch_manifest(root, post_hash="0" * 64)
+
+            with self.assertRaisesRegex(DependencyVerificationError, "patched checksum mismatch"):
+                with redirect_stdout(io.StringIO()):
+                    DependencyVerifier(root).verify_local()
+
+    def test_reports_declared_patches(self) -> None:
+        with self.fixture() as root:
+            self.write_minimal_dependency(root)
+            self.write_patch_manifest(root)
+
+            output = io.StringIO()
+            with redirect_stdout(output):
+                DependencyVerifier(root).verify_local()
+
+            self.assertIn("deps-verify: pkg-1.0.0 declared patch ok", output.getvalue())
+            self.assertIn("deps-verify:   target: Package.sol", output.getvalue())
+            self.assertIn("Forge may also warn FailedIntegrity", output.getvalue())
 
     def test_rejects_unsafe_zip_paths(self) -> None:
         with self.fixture() as root:
@@ -125,6 +158,26 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             encoding="utf-8",
         )
         return root
+
+    def write_patch_manifest(
+        self,
+        root: Path,
+        *,
+        patch_hash: str | None = None,
+        post_hash: str | None = None,
+    ) -> None:
+        patch = root / "patches" / "pkg.patch"
+        patch.parent.mkdir(parents=True)
+        patch.write_text("--- a/Package.sol\n+++ b/Package.sol\n", encoding="utf-8")
+
+        target = root / "dependencies" / "pkg-1.0.0" / "Package.sol"
+        (root / "dependency-patches.txt").write_text(
+            "pkg-1.0.0  Package.sol  patches/pkg.patch  "
+            f"{self.file_hash(target)}  "
+            f"{patch_hash or self.file_hash(patch)}  "
+            f"{post_hash or self.file_hash(target)}\n",
+            encoding="utf-8",
+        )
 
     def write_lock(self, root: Path, records: list[DependencyRecord]) -> None:
         lines: list[str] = []

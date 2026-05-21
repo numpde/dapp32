@@ -40,12 +40,23 @@ class DependencyRecord:
         return f"{self.name}-{self.version}"
 
 
+@dataclass(frozen=True)
+class DependencyPatch:
+    dependency: str
+    target: str
+    patch_file: str
+    pre_hash: str
+    patch_hash: str
+    post_hash: str
+
+
 class DependencyVerifier:
     def __init__(self, root: Path) -> None:
         self.root = root
         self.lock_file = root / "soldeer.lock"
         self.remappings_file = root / "remappings.txt"
         self.checksums_file = root / "dependency-checksums.txt"
+        self.patches_file = root / "dependency-patches.txt"
         self.dependencies_dir = root / "dependencies"
 
     def verify_local(self) -> None:
@@ -62,6 +73,8 @@ class DependencyVerifier:
                 )
             self.require_remapping(record.key)
             print(f"deps-verify: {record.key} ok")
+
+        self.verify_declared_patches({record.key for record in records})
 
     def verify_upstream(self, records: list[DependencyRecord] | None = None) -> None:
         if records is None:
@@ -195,6 +208,65 @@ class DependencyVerifier:
 
         return hashes
 
+    def load_dependency_patches(self) -> list[DependencyPatch]:
+        if not self.patches_file.exists():
+            return []
+
+        records: list[DependencyPatch] = []
+
+        for line_number, raw_line in enumerate(self.patches_file.read_text(encoding="utf-8").splitlines(), start=1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            parts = line.split()
+            if len(parts) != 6:
+                raise DependencyVerificationError(f"{self.patches_file}:{line_number}: malformed dependency patch line")
+
+            records.append(DependencyPatch(*parts))
+
+        return records
+
+    def verify_declared_patches(self, expected_dependencies: set[str]) -> None:
+        for record in self.load_dependency_patches():
+            self.verify_declared_patch(record, expected_dependencies)
+
+    def verify_declared_patch(self, record: DependencyPatch, expected_dependencies: set[str]) -> None:
+        if record.dependency not in expected_dependencies:
+            raise DependencyVerificationError(f"patch references unknown dependency: {record.dependency}")
+
+        self.require_safe_dependency_patch_path(record.dependency, "dependency key")
+        self.require_safe_dependency_patch_path(record.target, "patch target")
+        self.require_safe_dependency_patch_path(record.patch_file, "patch file")
+
+        if "/" in record.dependency:
+            raise DependencyVerificationError(f"patch dependency must be a single directory name: {record.dependency}")
+
+        target_path = self.dependencies_dir / record.dependency / record.target
+        patch_path = self.root / record.patch_file
+        self.require_file(target_path)
+        self.require_file(patch_path)
+
+        actual_patch_hash = self.file_hash(patch_path)
+        if actual_patch_hash != record.patch_hash:
+            raise DependencyVerificationError(
+                f"{record.patch_file} checksum mismatch: expected {record.patch_hash}, got {actual_patch_hash}"
+            )
+
+        actual_target_hash = self.file_hash(target_path)
+        if actual_target_hash != record.post_hash:
+            raise DependencyVerificationError(
+                f"{record.dependency}/{record.target} patched checksum mismatch: "
+                f"expected {record.post_hash}, got {actual_target_hash}"
+            )
+
+        print(f"deps-verify: {record.dependency} declared patch ok")
+        print(f"deps-verify:   target: {record.target}")
+        print(f"deps-verify:   patch: {record.patch_file}")
+        print(f"deps-verify:   pristine: {record.pre_hash}")
+        print(f"deps-verify:   patched:  {record.post_hash}")
+        print("deps-verify:   Forge may also warn FailedIntegrity for this declared patch.")
+
     def verify_upstream_archive(self, tmp_path: Path, record: DependencyRecord) -> None:
         self.validate_archive_checksum(record)
         self.require_dir(self.dependencies_dir / record.key)
@@ -327,6 +399,11 @@ class DependencyVerifier:
         lines = self.remappings_file.read_text(encoding="utf-8").splitlines()
         if expected not in lines:
             raise DependencyVerificationError(f"missing remapping for {key} in {self.remappings_file}")
+
+    def require_safe_dependency_patch_path(self, value: str, label: str) -> None:
+        path = Path(value)
+        if value == "" or path.is_absolute() or ".." in path.parts:
+            raise DependencyVerificationError(f"unsafe dependency patch {label}: {value}")
 
     def validate_archive_checksum(self, record: DependencyRecord) -> None:
         if CHECKSUM_RE.match(f"{record.checksum}  {record.key}") is None:
