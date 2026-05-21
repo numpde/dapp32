@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>How make deps works</title>
+  <title>How the dependency lane works</title>
   <style>
     :root {
       color-scheme: light;
@@ -191,7 +191,7 @@
 <body>
   <header>
     <div class="shell">
-      <h1>How make deps works</h1>
+      <h1>How the dependency lane works</h1>
       <p class="lede">
         <code>make deps</code> is the controlled dependency lane. By default it installs only the currently locked dependency set, applies declared local patches, and fails if lock, remapping, or checksum metadata would change.
       </p>
@@ -210,7 +210,7 @@
     <section>
       <h2>The rule</h2>
       <p>
-        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, applies declared local patches, writes derived installed-tree checksums for the final patched tree, and writes only to a temporary Docker volume. The offline apply container either accepts the staged metadata as matching the committed metadata, or fails unless <code>ALLOW_UPDATE=1</code> was set. A separate offline verifier checks the result before normal compile and test lanes run.
+        Dependency installation is split into stages because downloading code, changing installed dependency bytes, and writing repository files have different trust boundaries. The networked stage downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, applies declared local patches, writes checksums for the final patched tree, and writes only to a temporary Docker volume. Offline apply and verify containers handle repository writes and checks.
       </p>
       <p class="note">
         The important invariant is simple: no networked dependency process gets repo-root read/write access.
@@ -218,34 +218,60 @@
     </section>
 
     <section>
-      <h2>The current flow</h2>
+      <h2>What runs where</h2>
+      <p>
+        The public entrypoint is <code>make</code>. Make invokes Compose services; the services run the actual tools inside constrained containers.
+      </p>
       <div class="grid">
         <div class="card">
-          <strong>1. Stage</strong>
-          <h3><code>soldeer-stage</code></h3>
-          <p>Runs <code>forge soldeer install</code> with network access. It can read only dependency input files, verifies downloaded archives against <code>soldeer.lock</code>, and writes generated output into a Docker volume.</p>
+          <strong>1. Egress</strong>
+          <h3><code>dependency-egress-proxy</code></h3>
+          <p>Image: <code>containers/https-egress-proxy</code>. This is the only service with external network egress. It allows HTTPS CONNECT traffic to public port 443.</p>
         </div>
         <div class="card">
-          <strong>2. Patch</strong>
-          <h3><code>dependency-patches.txt</code></h3>
-          <p>Still inside <code>soldeer-stage</code>, applies declared patches after upstream archive verification. Each patch checks the pristine target hash, patch-file hash, and patched target hash.</p>
+          <strong>2. Stage</strong>
+          <h3><code>soldeer-stage</code></h3>
+          <p>Image: <code>containers/foundry-deps</code>. Runs <code>forge soldeer install</code>, verifies the pristine upstream archive, applies declared patches, then writes patched checksums. Writes only to <code>soldeer-out</code>.</p>
         </div>
         <div class="card">
           <strong>3. Apply</strong>
           <h3><code>soldeer-apply-locked</code></h3>
-          <p>Runs with no network by default. It can write <code>dependencies/</code>, but mounts lock, remapping, and checksum metadata read-only and fails if they would change.</p>
+          <p>Image: <code>containers/foundry</code>. No network. Copies patched dependency output from <code>soldeer-out</code> into repo <code>dependencies/</code>. Fails if committed metadata would change.</p>
         </div>
         <div class="card">
           <strong>4. Update</strong>
           <h3><code>soldeer-apply-update</code></h3>
-          <p>Runs only when <code>make deps ALLOW_UPDATE=1</code> is used. It can copy staged lock, remapping, and checksum updates into the repository.</p>
+          <p>Image: <code>containers/foundry</code>. No network. Used only by <code>make deps ALLOW_UPDATE=1</code>. May also write <code>soldeer.lock</code>, <code>remappings.txt</code>, and <code>dependency-checksums.txt</code>.</p>
         </div>
         <div class="card">
           <strong>5. Verify</strong>
           <h3><code>soldeer-verify</code></h3>
-          <p>Runs with no network and read-only mounts. It checks installed dependency directories, remappings, committed file-manifest checksums, and declared patch hashes.</p>
+          <p>Image: <code>containers/checks</code>. No network, read-only mounts. Runs <code>test_dependency_integrity.py /work</code> against the final installed dependency tree.</p>
+        </div>
+        <div class="card">
+          <strong>6. Build/Test</strong>
+          <h3><code>forge-build</code> / <code>forge-test</code></h3>
+          <p>Image: <code>containers/foundry</code>. No network, repo read-only. Runs normal <code>forge build --offline</code> or <code>forge test --offline</code> after the dependency verifier has accepted the installed tree.</p>
         </div>
       </div>
+      <pre><code>make deps
+  dependency-egress-proxy
+  soldeer-stage
+    forge soldeer install --config-location foundry
+    test_dependency_integrity.py --verify-upstream /tmp/soldeer-work
+    apply_dependency_patches
+    test_dependency_integrity.py --write-checksums /tmp/soldeer-work
+  soldeer-apply-locked OR soldeer-apply-update
+  soldeer-verify
+
+make build
+  soldeer-verify
+  forge build --offline
+
+make test
+  soldeer-verify
+  checks
+  forge test --offline --match-path contracts/test/unit/**/*.sol -vvv</code></pre>
     </section>
 
     <section>
@@ -280,7 +306,7 @@
     <section>
       <h2>Declared patches</h2>
       <p>
-        Soldeer has package-level integrity, not a first-class local patch model. For short-lived local fixes, this repo keeps the Soldeer source of truth intact and records the local change separately in <code>dependency-patches.txt</code>.
+        Soldeer has package-level integrity, not a first-class local patch model. For short-lived local fixes, this repo keeps upstream package provenance in <code>soldeer.lock</code> and records the local change separately in <code>dependency-patches.txt</code>.
       </p>
       <pre><code>&lt;dependency-key&gt;  &lt;target-path&gt;  &lt;patch-path&gt;  &lt;pre-sha256&gt;  &lt;patch-sha256&gt;  &lt;post-sha256&gt;</code></pre>
       <div class="list">
@@ -317,67 +343,19 @@
 
     <section>
       <h2>Routine commands</h2>
-      <pre><code># Install only the currently locked Soldeer dependencies.
+      <pre><code># Install the locked Soldeer set, apply declared patches, and verify the result.
 make deps
 
 # Explicitly allow lock, remapping, and checksum updates.
 make deps ALLOW_UPDATE=1
 
-# Check the installed dependency tree without network.
+# Check the installed patched dependency tree without network.
 make deps-verify
 
 # Compile or test. These run deps-verify first.
 make build
 make test
 make ci</code></pre>
-    </section>
-
-    <section>
-      <h2>What runs where</h2>
-      <p>
-        The public entrypoint is <code>make</code>. Make invokes Docker Compose services; the services run the actual tools inside constrained containers.
-      </p>
-      <div class="list">
-        <div class="item">
-          <strong><code>make deps</code></strong>
-          <p>Uses <code>compose/deps.yml</code>. Starts <code>dependency-egress-proxy</code>, then <code>soldeer-stage</code>, then either <code>soldeer-apply-locked</code> or <code>soldeer-apply-update</code>, then <code>soldeer-verify</code>.</p>
-        </div>
-        <div class="item">
-          <strong><code>dependency-egress-proxy</code></strong>
-          <p>Runs from <code>containers/https-egress-proxy</code>. It is the only service in the dependency lane with external egress, and it allows only HTTPS CONNECT traffic to public port 443.</p>
-        </div>
-        <div class="item">
-          <strong><code>soldeer-stage</code></strong>
-          <p>Runs from <code>containers/foundry-deps</code>. It has network only through the egress proxy. It runs <code>forge soldeer install --config-location foundry</code>, then <code>test_dependency_integrity.py --verify-upstream /tmp/soldeer-work</code>, then the inline <code>apply_dependency_patches</code> shell function, then <code>test_dependency_integrity.py --write-checksums /tmp/soldeer-work</code>. It writes to the Docker volume <code>soldeer-out</code>, not directly to the repo.</p>
-        </div>
-        <div class="item">
-          <strong><code>soldeer-apply-locked</code> / <code>soldeer-apply-update</code></strong>
-          <p>Runs from <code>containers/foundry</code> with no network. It reads <code>soldeer-out</code> and copies the staged patched dependency tree into repo <code>dependencies/</code>. Update mode can also write <code>soldeer.lock</code>, <code>remappings.txt</code>, and <code>dependency-checksums.txt</code>.</p>
-        </div>
-        <div class="item">
-          <strong><code>soldeer-verify</code></strong>
-          <p>Runs from <code>containers/checks</code> with no network. It mounts repo dependency metadata, <code>dependencies/</code>, <code>dependency-patches.txt</code>, and <code>patches/</code> read-only, then runs <code>test_dependency_integrity.py /work</code>.</p>
-        </div>
-        <div class="item">
-          <strong><code>make deps-verify</code></strong>
-          <p>Runs only <code>soldeer-verify</code>. It does not download, install, patch, or write dependency files.</p>
-        </div>
-        <div class="item">
-          <strong><code>make build</code></strong>
-          <p>Runs <code>make deps-verify</code>, then uses <code>compose/forge.yml</code> service <code>forge-build</code>. That service runs from <code>containers/foundry</code>, has no network, mounts the repo read-only, and runs <code>forge build --offline</code>.</p>
-        </div>
-        <div class="item">
-          <strong><code>make test</code></strong>
-          <p>Runs <code>make deps-verify</code>, then <code>make checks</code>, then uses <code>compose/forge.yml</code> service <code>forge-test</code>. That service runs <code>forge test --offline --match-path contracts/test/unit/**/*.sol -vvv</code>.</p>
-        </div>
-      </div>
-      <pre><code>Soldeer installs pristine deps
-our verifier checks pristine upstream
-Compose applies declared patches
-our verifier writes checksum for patched deps
-offline apply copies patched deps into repo
-our verifier confirms patched deps
-Forge compiles/tests normally</code></pre>
     </section>
 
     <section>
