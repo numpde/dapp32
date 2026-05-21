@@ -23,6 +23,9 @@ ARG SOLC_VERSION=0.8.35
 
 WORKDIR /work
 
+RUN mkdir -p /input /out /work \
+  && chmod 1777 /out
+
 # Foundry installs missing Solidity compilers under the svm data directory.
 # Provision the repo-pinned compiler while the image build has network, then
 # verify the compiler is usable with Foundry's offline mode.

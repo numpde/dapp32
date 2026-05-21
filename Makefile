@@ -45,7 +45,11 @@ deps:
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-install
+	mkdir -p dependencies; \
+	touch soldeer.lock remappings.txt; \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-apply
 
 fmt:
 	$(call compose_run,forge.yml,forge-fmt)
