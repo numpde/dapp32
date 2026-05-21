@@ -270,7 +270,7 @@
     <section>
       <h2>What verification proves</h2>
       <p>
-        In stage mode, <code>scripts/verify-dependencies.sh</code> reads <code>soldeer.lock</code>, downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, confirms the installed dependency tree matches the verified archive payload, and then writes <code>dependency-checksums.txt</code>.
+        In stage mode, <code>tests/checks/test_dependency_integrity.py</code> reads <code>soldeer.lock</code>, downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, confirms the installed dependency tree matches the verified archive payload, and then writes <code>dependency-checksums.txt</code>.
       </p>
       <p>
         In offline mode, it derives the expected directory name for each dependency and checks that <code>dependencies/</code> contains exactly those directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, and checksum mismatches.

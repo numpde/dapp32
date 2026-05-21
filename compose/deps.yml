@@ -80,7 +80,7 @@ services:
       - ../foundry.toml:/input/foundry.toml:ro
       - ../soldeer.lock:/input/soldeer.lock:ro
       - ../remappings.txt:/input/remappings.txt:ro
-      - ../scripts/verify-dependencies.sh:/input/verify-dependencies.sh:ro
+      - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
       - soldeer-out:/out:rw
     networks:
       - deps_internal
@@ -99,7 +99,7 @@ services:
         test -d dependencies
         test -f soldeer.lock
         test -f remappings.txt
-        bash /input/verify-dependencies.sh --stage /tmp/soldeer-work
+        python3 -I -B /input/test_dependency_integrity.py --stage /tmp/soldeer-work
         test -f dependency-checksums.txt
         cp -a dependencies /out/dependencies
         cp soldeer.lock /out/soldeer.lock
@@ -189,7 +189,7 @@ services:
 
   soldeer-verify:
     build:
-      context: ../containers/foundry
+      context: ../containers/checks
       dockerfile: Dockerfile
     working_dir: /work
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
@@ -206,14 +206,15 @@ services:
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
-      - ../scripts/verify-dependencies.sh:/input/verify-dependencies.sh:ro
+      - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
       - ../dependencies:/work/dependencies:ro
       - ../soldeer.lock:/work/soldeer.lock:ro
       - ../remappings.txt:/work/remappings.txt:ro
       - ../dependency-checksums.txt:/work/dependency-checksums.txt:ro
     command:
-      - "bash"
-      - "/input/verify-dependencies.sh"
+      - "-I"
+      - "-B"
+      - "/input/test_dependency_integrity.py"
       - "/work"
 
 volumes:
