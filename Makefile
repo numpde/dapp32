@@ -35,6 +35,7 @@ help:
 	  '  make deps ALLOW_UPDATE=1  Allow dependency lock/remapping/checksum updates' \
 	  '  make deps-verify  Verify installed dependencies against committed checksums' \
 	  '  make checks       Run offline repository/source checks' \
+	  '  make check-anvil-compose  Run only the rendered Anvil Compose posture checks' \
 	  '  make fmt          Check Solidity formatting' \
 	  '  make build        Compile contracts' \
 	  '  make test         Run unit tests' \
@@ -84,17 +85,12 @@ deps:
 deps-verify:
 	$(call compose_run,deps.yml,soldeer-verify)
 
-checks: check-anvil-compose
+checks:
 	$(call compose_run,checks.yml,checks)
 
 check-anvil-compose:
 	@$(NON_ROOT_GUARD); \
-	LOCAL_UID=$(LOCAL_UID) \
-	LOCAL_GID=$(LOCAL_GID) \
-	COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME) \
-	DOCKER_COMPOSE='$(DOCKER_COMPOSE)' \
-	COMPOSE_DIR='$(COMPOSE_DIR)' \
-	bash scripts/check-anvil-compose.sh
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/checks.yml run --build --rm checks -I -B -m unittest discover -s tests/checks -t . -p test_anvil_compose.py
 
 fmt:
 	$(call compose_run,forge.yml,forge-fmt)

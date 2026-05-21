@@ -1,9 +1,9 @@
 # Offline checks.
 #
 # This lane runs the Python unittest suite under tests/checks. It is for checks
-# that inspect checked-in text and repository shape: pragma consistency,
-# forbidden names, secret patterns, generated artifact tracking, and similar
-# hygiene rules.
+# that inspect checked-in text, rendered Compose config, and repository shape:
+# pragma consistency, forbidden names, secret patterns, generated artifact
+# tracking, and similar hygiene rules.
 #
 # Security posture:
 # - no network access
@@ -13,6 +13,7 @@
 # - no privilege escalation
 # - bounded memory/PID usage
 # - no Python bytecode writes
+# - no Docker socket mount; Compose rendering is offline config evaluation only
 #
 # Do not add dependency installation, RPC access, browser work, or generated
 # artifact writes here. Those require separate runtime postures.
@@ -33,6 +34,7 @@ services:
     mem_limit: 256m
     environment:
       HOME: /tmp/home
+      DOCKER_CONFIG: /tmp/docker
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONHASHSEED: "0"
     tmpfs:
