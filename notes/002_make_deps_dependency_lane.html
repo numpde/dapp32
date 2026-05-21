@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How make deps works</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212f;
+      --muted: #607086;
+      --line: #d8e0ea;
+      --panel: #ffffff;
+      --wash: #f5f7fa;
+      --accent: #176b5f;
+      --accent-2: #9a4d2e;
+      --code: #edf2f6;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--wash);
+      line-height: 1.55;
+    }
+
+    .shell {
+      width: min(1040px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 50px 0 34px;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(120deg, rgba(23, 107, 95, 0.11), transparent 42%),
+        linear-gradient(270deg, rgba(154, 77, 46, 0.10), transparent 48%),
+        #fbfcfe;
+    }
+
+    h1 {
+      max-width: 780px;
+      margin: 0;
+      font-size: clamp(2.1rem, 6vw, 4.2rem);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      max-width: 760px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: clamp(1.04rem, 2vw, 1.22rem);
+    }
+
+    main {
+      padding: 34px 0 58px;
+    }
+
+    section {
+      margin-top: 34px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.42rem;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    pre {
+      overflow-x: auto;
+      margin: 0;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #121820;
+      color: #eef4f8;
+      line-height: 1.45;
+    }
+
+    pre code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+      font-size: 0.9rem;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .pill {
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .card {
+      min-height: 160px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .card strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--accent);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+    }
+
+    .card p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .list {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    .item {
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .item strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .item p {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .note {
+      padding: 16px 18px;
+      border-left: 4px solid var(--accent-2);
+      background: #fffaf7;
+      color: #55342d;
+    }
+
+    @media (max-width: 880px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <h1>How make deps works</h1>
+      <p class="lede">
+        <code>make deps</code> is the controlled dependency update lane. It lets the networked dependency tool fetch packages without giving that tool write access to the repository.
+      </p>
+      <div class="meta">
+        <span class="pill">Current source: Soldeer</span>
+        <span class="pill">Network: stage only</span>
+        <span class="pill">Repo writes: offline apply only</span>
+        <span class="pill">Build checks: offline verify first</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section>
+      <h2>The rule</h2>
+      <p>
+        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container may download dependencies, but it writes only to a temporary Docker volume. The offline container copies the staged outputs into the working tree. A separate offline verifier checks the result before normal compile and test lanes run.
+      </p>
+      <p class="note">
+        The important invariant is simple: no networked dependency process gets repo-root read/write access.
+      </p>
+    </section>
+
+    <section>
+      <h2>The current flow</h2>
+      <div class="grid">
+        <div class="card">
+          <strong>1. Stage</strong>
+          <h3><code>soldeer-stage</code></h3>
+          <p>Runs <code>forge soldeer install</code> with network access. It can read only dependency input files and writes generated output into a Docker volume.</p>
+        </div>
+        <div class="card">
+          <strong>2. Apply</strong>
+          <h3><code>soldeer-apply</code></h3>
+          <p>Runs with no network. It copies only expected dependency outputs from the Docker volume into the repository.</p>
+        </div>
+        <div class="card">
+          <strong>3. Verify</strong>
+          <h3><code>soldeer-verify</code></h3>
+          <p>Runs with no network and read-only mounts. It checks installed dependency directories, remappings, and committed file-manifest checksums.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>What gets updated</h2>
+      <p>
+        The Soldeer lane is allowed to update exactly these repository outputs:
+      </p>
+      <div class="list">
+        <div class="item">
+          <strong><code>dependencies/</code></strong>
+          <p>The ignored installed dependency tree used by Foundry.</p>
+        </div>
+        <div class="item">
+          <strong><code>soldeer.lock</code></strong>
+          <p>The Soldeer lockfile. It records package names, versions, source URLs, and upstream package checksums.</p>
+        </div>
+        <div class="item">
+          <strong><code>remappings.txt</code></strong>
+          <p>The import remappings generated for Foundry.</p>
+        </div>
+        <div class="item">
+          <strong><code>dependency-checksums.txt</code></strong>
+          <p>The committed local checksum manifest for the installed dependency contents.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>What verification proves</h2>
+      <p>
+        <code>scripts/verify-dependencies.sh</code> reads <code>soldeer.lock</code>, derives the expected directory name for each dependency, and checks that <code>dependencies/</code> contains exactly those directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, and checksum mismatches.
+      </p>
+      <p>
+        The checksum for each dependency is a deterministic SHA-256 over a sorted manifest of every file path and file hash inside that dependency directory. This is intentionally independent of Soldeer internals. It verifies the installed tree that Foundry will actually read.
+      </p>
+    </section>
+
+    <section>
+      <h2>Routine commands</h2>
+      <pre><code># Refresh Soldeer-managed dependencies.
+make deps
+
+# Check the installed dependency tree without network.
+make deps-verify
+
+# Compile or test. These run deps-verify first.
+make build
+make test
+make ci</code></pre>
+    </section>
+
+    <section>
+      <h2>Adding more Soldeer dependencies</h2>
+      <p>
+        For another Soldeer dependency, add it through the normal Soldeer configuration path, then run <code>make deps</code>. The command should regenerate <code>soldeer.lock</code>, <code>remappings.txt</code>, <code>dependencies/</code>, and <code>dependency-checksums.txt</code>. Review all committed outputs before committing.
+      </p>
+      <pre><code>make deps
+make ci
+git diff -- soldeer.lock remappings.txt dependency-checksums.txt</code></pre>
+    </section>
+
+    <section>
+      <h2>Adding a different dependency source</h2>
+      <p>
+        <code>make deps</code> is allowed to be the umbrella command, but each dependency system should have its own contained lane. Do not put npm, git submodules, code generation, ABI downloads, or other package managers inside the Soldeer lane.
+      </p>
+      <div class="list">
+        <div class="item">
+          <strong>Add a separate stage service.</strong>
+          <p>The networked service reads only its input files and writes only to its own Docker volume.</p>
+        </div>
+        <div class="item">
+          <strong>Add a separate apply service.</strong>
+          <p>The offline apply service writes only the exact repository outputs owned by that dependency source.</p>
+        </div>
+        <div class="item">
+          <strong>Add a separate verify service.</strong>
+          <p>The offline verifier checks the generated state before any build or test consumes it.</p>
+        </div>
+        <div class="item">
+          <strong>Wire it into <code>make deps</code> and <code>make deps-verify</code>.</strong>
+          <p>The public interface can stay simple while the trust boundaries remain explicit.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>What this does not prove</h2>
+      <p class="note">
+        This lane proves that the installed dependency tree matches the committed local manifest. It does not prove that an upstream package is correct, audited, or safe to use. Reviewing dependency changes is still a human responsibility.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
