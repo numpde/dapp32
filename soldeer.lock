@@ -1,6 +1,6 @@
 [[dependencies]]
 name = "@openzeppelin-contracts"
-version = "5.4.0"
-url = "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_4_0_19-07-2025_08:59:41_contracts.zip"
-checksum = "3dd38f17610dba4602bd008ee2cb551e51e97d7b4ce04e1ffdf853da832942fa"
-integrity = "4eb0ef219d10ab5a5708adaae1132dc0a93ab6a193378486e842d606c989ff3e"
+version = "5.6.1"
+url = "https://codeload.github.com/OpenZeppelin/openzeppelin-contracts/zip/refs/tags/v5.6.1"
+checksum = "fc61c54ba5fb643f9e314ddfbd819b3f5dff4fa0091ec77f8d4fdeb5d92fc169"
+integrity = "150b7d8f3be061f9ddfc807a616fa60f4a47eb59777de72e84dd401a3eca0ad9"

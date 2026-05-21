@@ -1,6 +1,6 @@
 pragma solidity 0.8.35;
 
-import {Ownable} from "@openzeppelin-contracts-5.4.0/access/Ownable.sol";
+import {Ownable} from "@openzeppelin-contracts-5.6.1/contracts/access/Ownable.sol";
 
 /// @dev Minimal example contract that uses OpenZeppelin for ownership instead
 /// of hand-rolling access control. The owner may update the message, but this
