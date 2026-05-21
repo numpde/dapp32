@@ -198,7 +198,7 @@
       <div class="meta">
         <span class="pill">Current source: Soldeer</span>
         <span class="pill">Network: stage only</span>
-        <span class="pill">Upstream check: soldeer.lock</span>
+        <span class="pill">Explicit archive check: soldeer.lock</span>
         <span class="pill">Patch check: pre / patch / post SHA-256</span>
         <span class="pill">Updates: ALLOW_UPDATE=1</span>
         <span class="pill">Build checks: offline verify first</span>
@@ -231,7 +231,7 @@
         <div class="card">
           <strong>2. Stage</strong>
           <h3><code>soldeer-stage</code></h3>
-          <p>Image: <code>containers/foundry-deps</code>. Runs <code>forge soldeer install</code>, verifies the pristine upstream archive, applies declared patches, then writes patched checksums. Writes only to <code>soldeer-out</code>.</p>
+          <p>Image: <code>containers/foundry-deps</code>. Runs <code>forge soldeer install</code>, explicitly verifies the upstream ZIP against <code>soldeer.lock</code>, applies declared patches, then writes patched checksums. Writes only to <code>soldeer-out</code>.</p>
         </div>
         <div class="card">
           <strong>3. Apply</strong>
@@ -258,8 +258,9 @@
   dependency-egress-proxy
   soldeer-stage
     forge soldeer install --config-location foundry
-      Soldeer installs and checks package integrity at package level.
+      Soldeer installs from its package metadata and lockfile.
     test_dependency_integrity.py --verify-upstream /tmp/soldeer-work
+      This is the explicit local-hash check for the downloaded ZIP.
     apply_dependency_patches
     test_dependency_integrity.py --write-checksums /tmp/soldeer-work
   soldeer-apply-locked OR soldeer-apply-update
@@ -343,9 +344,12 @@ make test
     </section>
 
     <section>
-      <h2>Where Soldeer checks</h2>
+      <h2>Where hash checks happen</h2>
       <p>
-        Soldeer checks dependency integrity when <code>forge soldeer install</code> runs in <code>soldeer-stage</code>. That check is package-level: it can confirm the installed package matches Soldeer’s package identity, but it does not know about this repo’s declared local patches.
+        Soldeer records local package hashes in <code>soldeer.lock</code>. The lock entry includes the package URL, a SHA-256 checksum for the downloaded ZIP, and an integrity hash for the unpacked dependency folder. Soldeer uses that package metadata for installation and can later warn when the installed package no longer matches its pristine package identity.
+      </p>
+      <p>
+        The explicit first-download check in this lane is <code>test_dependency_integrity.py --verify-upstream</code>, which runs immediately after <code>forge soldeer install</code> and before any patches. It reads the committed <code>soldeer.lock</code>, downloads the locked HTTPS URL, checks the downloaded ZIP against the lockfile <code>checksum</code>, extracts it, and confirms the installed dependency tree matches that verified archive payload.
       </p>
       <p>
         After a patch is applied, normal Forge commands may still print Soldeer’s generic <code>FailedIntegrity</code> warning because the installed package no longer matches the pristine package. That warning is expected for a declared patch. The repository verifier is the patch-aware check: it verifies the pristine target hash, the patch-file hash, the patched target hash, and the final dependency-tree checksum before build or test lanes run.
