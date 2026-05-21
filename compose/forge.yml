@@ -52,8 +52,8 @@ services:
     <<: *forge_base
     command: ["forge", "build", "--offline"]
 
-  # Routine unit tests. Repo hygiene tests that should run on every normal
-  # test pass belong in contracts/test/unit, not in a separate shell lane.
+  # Routine unit tests. Repository/source hygiene checks live in tests/checks
+  # and are wired through `make test` before this Forge lane runs.
   forge-test:
     <<: *forge_base
     command:
