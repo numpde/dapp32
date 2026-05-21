@@ -5,7 +5,10 @@
 # receive write access to the repository. The lane is split into stages:
 # - soldeer-stage has network, reads only dependency input files, verifies
 #   upstream archives against soldeer.lock, and writes only to a Docker volume.
-# - soldeer-apply has no network and can write only the dependency outputs.
+# - soldeer-apply-locked has no network, can write only dependencies/, and
+#   fails if locked metadata would change.
+# - soldeer-apply-update has no network and can write dependency metadata only
+#   when make deps is run with ALLOW_UPDATE=1.
 # - soldeer-verify has no network and verifies installed dependency contents.
 # Routine build/test lanes must stay offline and read-only.
 services:
@@ -57,7 +60,49 @@ services:
         cp remappings.txt /out/remappings.txt
         cp dependency-checksums.txt /out/dependency-checksums.txt
 
-  soldeer-apply:
+  soldeer-apply-locked:
+    build:
+      context: ../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    environment:
+      HOME: /tmp/home
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    volumes:
+      - soldeer-out:/out:ro
+      - ../dependencies:/work/dependencies:rw
+      - ../soldeer.lock:/work/soldeer.lock:ro
+      - ../remappings.txt:/work/remappings.txt:ro
+      - ../dependency-checksums.txt:/work/dependency-checksums.txt:ro
+    command:
+      - "bash"
+      - "-lc"
+      - |
+        set -euo pipefail
+        test -d /out/dependencies
+        test -f /out/soldeer.lock
+        test -f /out/remappings.txt
+        test -f /out/dependency-checksums.txt
+        for file in soldeer.lock remappings.txt dependency-checksums.txt; do
+          if ! cmp -s "/out/$$file" "/work/$$file"; then
+            printf 'soldeer-apply-locked: %s would change; rerun make deps ALLOW_UPDATE=1 only if this dependency update is intended.\n' "$$file" >&2
+            exit 2
+          fi
+        done
+        find /work/dependencies -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+        cp -a /out/dependencies/. /work/dependencies/
+
+  soldeer-apply-update:
     build:
       context: ../containers/foundry
       dockerfile: Dockerfile

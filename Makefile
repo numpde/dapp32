@@ -7,6 +7,7 @@ DOCKER_COMPOSE ?= docker compose
 COMPOSE_PROJECT_NAME ?= contracts
 LOCAL_UID ?= $(shell id -u)
 LOCAL_GID ?= $(shell id -g)
+ALLOW_UPDATE ?= 0
 
 RPC_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-cast-rpc
 
@@ -22,7 +23,8 @@ endef
 help:
 	@printf '%s\n' \
 	  'Supported lanes:' \
-	  '  make deps         Verify upstream archives and refresh Soldeer dependencies' \
+	  '  make deps         Install only the currently locked Soldeer dependencies' \
+	  '  make deps ALLOW_UPDATE=1  Allow dependency lock/remapping/checksum updates' \
 	  '  make deps-verify  Verify installed dependencies against the local checksum manifest' \
 	  '  make fmt          Check Solidity formatting' \
 	  '  make build        Compile contracts' \
@@ -46,11 +48,25 @@ deps:
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
+	case "$(ALLOW_UPDATE)" in \
+	  0) \
+	    apply_service="soldeer-apply-locked"; \
+	    for file in soldeer.lock remappings.txt dependency-checksums.txt; do \
+	      if [[ ! -f "$$file" ]]; then \
+	        printf 'Missing locked dependency metadata: %s\n' "$$file" >&2; \
+	        printf '%s\n' 'Run make deps ALLOW_UPDATE=1 only if creating or updating dependency metadata is intended.' >&2; \
+	        exit 2; \
+	      fi; \
+	    done ;; \
+	  1) \
+	    apply_service="soldeer-apply-update"; \
+	    touch soldeer.lock remappings.txt dependency-checksums.txt ;; \
+	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
+	esac; \
 	mkdir -p dependencies; \
-	touch soldeer.lock remappings.txt dependency-checksums.txt; \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-apply; \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm "$$apply_service"; \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify
 
 deps-verify:

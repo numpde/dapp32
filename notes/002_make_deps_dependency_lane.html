@@ -193,13 +193,13 @@
     <div class="shell">
       <h1>How make deps works</h1>
       <p class="lede">
-        <code>make deps</code> is the controlled dependency update lane. It verifies upstream package archives, then updates the local installed dependency tree without giving the networked dependency tool write access to the repository.
+        <code>make deps</code> is the controlled dependency lane. By default it installs only the currently locked dependency set and fails if lock, remapping, or checksum metadata would change.
       </p>
       <div class="meta">
         <span class="pill">Current source: Soldeer</span>
         <span class="pill">Network: stage only</span>
         <span class="pill">Upstream check: soldeer.lock</span>
-        <span class="pill">Repo writes: offline apply only</span>
+        <span class="pill">Updates: ALLOW_UPDATE=1</span>
         <span class="pill">Build checks: offline verify first</span>
       </div>
     </div>
@@ -209,7 +209,7 @@
     <section>
       <h2>The rule</h2>
       <p>
-        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, writes the local checksum manifest, and writes only to a temporary Docker volume. The offline container copies the staged outputs into the working tree. A separate offline verifier checks the result before normal compile and test lanes run.
+        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, writes the local checksum manifest, and writes only to a temporary Docker volume. The offline apply container either accepts the staged metadata as matching the committed metadata, or fails unless <code>ALLOW_UPDATE=1</code> was set. A separate offline verifier checks the result before normal compile and test lanes run.
       </p>
       <p class="note">
         The important invariant is simple: no networked dependency process gets repo-root read/write access.
@@ -226,11 +226,16 @@
         </div>
         <div class="card">
           <strong>2. Apply</strong>
-          <h3><code>soldeer-apply</code></h3>
-          <p>Runs with no network. It copies only expected dependency outputs from the Docker volume into the repository.</p>
+          <h3><code>soldeer-apply-locked</code></h3>
+          <p>Runs with no network by default. It can write <code>dependencies/</code>, but mounts lock, remapping, and checksum metadata read-only and fails if they would change.</p>
         </div>
         <div class="card">
-          <strong>3. Verify</strong>
+          <strong>3. Update</strong>
+          <h3><code>soldeer-apply-update</code></h3>
+          <p>Runs only when <code>make deps ALLOW_UPDATE=1</code> is used. It can copy staged lock, remapping, and checksum updates into the repository.</p>
+        </div>
+        <div class="card">
+          <strong>4. Verify</strong>
           <h3><code>soldeer-verify</code></h3>
           <p>Runs with no network and read-only mounts. It checks installed dependency directories, remappings, and committed file-manifest checksums.</p>
         </div>
@@ -240,7 +245,7 @@
     <section>
       <h2>What gets updated</h2>
       <p>
-        The Soldeer lane is allowed to update exactly these repository outputs:
+        In locked mode, the Soldeer lane may rewrite only <code>dependencies/</code> to match the committed metadata. With <code>ALLOW_UPDATE=1</code>, it may update exactly these repository outputs:
       </p>
       <div class="list">
         <div class="item">
@@ -277,8 +282,11 @@
 
     <section>
       <h2>Routine commands</h2>
-      <pre><code># Refresh Soldeer-managed dependencies after upstream checksum verification.
+      <pre><code># Install only the currently locked Soldeer dependencies.
 make deps
+
+# Explicitly allow lock, remapping, and checksum updates.
+make deps ALLOW_UPDATE=1
 
 # Check the installed dependency tree without network.
 make deps-verify
@@ -292,9 +300,9 @@ make ci</code></pre>
     <section>
       <h2>Adding more Soldeer dependencies</h2>
       <p>
-        For another Soldeer dependency, add it through the normal Soldeer configuration path, then run <code>make deps</code>. The command should regenerate <code>soldeer.lock</code>, <code>remappings.txt</code>, <code>dependencies/</code>, and <code>dependency-checksums.txt</code>. Review all committed outputs before committing.
+        For another Soldeer dependency, add it through the normal Soldeer configuration path, then run <code>make deps ALLOW_UPDATE=1</code>. The command should regenerate <code>soldeer.lock</code>, <code>remappings.txt</code>, <code>dependencies/</code>, and <code>dependency-checksums.txt</code>. Review all committed outputs before committing.
       </p>
-      <pre><code>make deps
+      <pre><code>make deps ALLOW_UPDATE=1
 make ci
 git diff -- foundry.toml soldeer.lock remappings.txt dependency-checksums.txt</code></pre>
     </section>

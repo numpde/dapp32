@@ -44,6 +44,8 @@ Keep the project small, explicit, and protocol-first.
   dependency input files, verifies upstream artifacts against committed lockfile
   checksums, and writes to a staging volume; the offline apply step writes only
   the expected dependency outputs.
+- Default dependency installation must not change committed dependency metadata.
+  In this repo, lock/remapping/checksum updates require `make deps ALLOW_UPDATE=1`.
 - Do not give networked dependency tools repo-root read/write mounts. In this
   repo, the expected dependency outputs are `dependencies/`, `soldeer.lock`,
   `remappings.txt`, and `dependency-checksums.txt`.
