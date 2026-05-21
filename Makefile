@@ -89,39 +89,12 @@ checks: check-anvil-compose
 
 check-anvil-compose:
 	@$(NON_ROOT_GUARD); \
-	no_profile_services="$$($(ANVIL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config --services)"; \
-	internal_services="$$($(ANVIL_INTERNAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config --services)"; \
-	host_services="$$($(ANVIL_HOST_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config --services)"; \
-	all_services="$$($(ANVIL_ALL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config --services)"; \
-	host_config="$$($(ANVIL_HOST_COMPOSE_ENV) ANVIL_HOST_PORT=18545 $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml config)"; \
-	if [[ -n "$$no_profile_services" ]]; then \
-	  printf 'compose/anvil.yml exposes services without an explicit profile:\n%s\n' "$$no_profile_services" >&2; \
-	  exit 2; \
-	fi; \
-	if [[ "$$internal_services" != "anvil-internal" ]]; then \
-	  printf 'compose/anvil.yml internal profile rendered unexpected services:\n%s\n' "$$internal_services" >&2; \
-	  exit 2; \
-	fi; \
-	if [[ "$$host_services" != "anvil-host" ]]; then \
-	  printf 'compose/anvil.yml host profile rendered unexpected services:\n%s\n' "$$host_services" >&2; \
-	  exit 2; \
-	fi; \
-	if [[ "$$all_services" != $$'anvil-internal\nanvil-host' && "$$all_services" != $$'anvil-host\nanvil-internal' ]]; then \
-	  printf 'compose/anvil.yml all-profile cleanup set rendered unexpected services:\n%s\n' "$$all_services" >&2; \
-	  exit 2; \
-	fi; \
-	if ! grep -Eq 'host_ip: "?127\.0\.0\.1"?' <<<"$$host_config"; then \
-	  printf '%s\n' 'compose/anvil.yml host profile must publish only on 127.0.0.1.' >&2; \
-	  exit 2; \
-	fi; \
-	if grep -Eq 'host_ip: "?0\.0\.0\.0"?' <<<"$$host_config"; then \
-	  printf '%s\n' 'compose/anvil.yml host profile must not publish on 0.0.0.0.' >&2; \
-	  exit 2; \
-	fi; \
-	if ! grep -Eq 'published: "?18545"?' <<<"$$host_config"; then \
-	  printf '%s\n' 'compose/anvil.yml host profile did not render the expected test port.' >&2; \
-	  exit 2; \
-	fi
+	LOCAL_UID=$(LOCAL_UID) \
+	LOCAL_GID=$(LOCAL_GID) \
+	COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME) \
+	DOCKER_COMPOSE='$(DOCKER_COMPOSE)' \
+	COMPOSE_DIR='$(COMPOSE_DIR)' \
+	bash scripts/check-anvil-compose.sh
 
 fmt:
 	$(call compose_run,forge.yml,forge-fmt)
