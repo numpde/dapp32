@@ -1,8 +1,9 @@
-# Offline repository/source checks.
+# Offline checks.
 #
-# This lane is for checks that inspect checked-in text and repository shape:
-# pragma consistency, forbidden names, secret patterns, generated artifact
-# tracking, and similar hygiene rules.
+# This lane runs the Python unittest suite under tests/checks. It is for checks
+# that inspect checked-in text and repository shape: pragma consistency,
+# forbidden names, secret patterns, generated artifact tracking, and similar
+# hygiene rules.
 #
 # Security posture:
 # - no network access
@@ -16,7 +17,7 @@
 # Do not add dependency installation, RPC access, browser work, or generated
 # artifact writes here. Those require separate runtime postures.
 services:
-  repo-checks:
+  checks:
     build:
       context: ../containers/checks
       dockerfile: Dockerfile
@@ -41,4 +42,10 @@ services:
     command:
       - "-I"
       - "-B"
-      - "scripts/repo_checks.py"
+      - "-m"
+      - "unittest"
+      - "discover"
+      - "-s"
+      - "tests/checks"
+      - "-p"
+      - "test_*.py"

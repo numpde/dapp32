@@ -18,7 +18,7 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil
+.PHONY: help deps deps-verify checks fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil
 
 help:
 	@printf '%s\n' \
@@ -26,6 +26,7 @@ help:
 	  '  make deps         Install only the currently locked Soldeer dependencies' \
 	  '  make deps ALLOW_UPDATE=1  Allow dependency lock/remapping/checksum updates' \
 	  '  make deps-verify  Verify installed dependencies against committed checksums' \
+	  '  make checks       Run offline repository/source checks' \
 	  '  make fmt          Check Solidity formatting' \
 	  '  make build        Compile contracts' \
 	  '  make test         Run unit tests' \
@@ -71,6 +72,9 @@ deps:
 
 deps-verify:
 	$(call compose_run,deps.yml,soldeer-verify)
+
+checks:
+	$(call compose_run,checks.yml,checks)
 
 fmt:
 	$(call compose_run,forge.yml,forge-fmt)
