@@ -26,6 +26,7 @@ TEXT_SUFFIXES = {
     ".js",
     ".json",
     ".md",
+    ".patch",
     ".py",
     ".sh",
     ".sol",

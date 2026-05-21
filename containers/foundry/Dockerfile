@@ -26,6 +26,14 @@ WORKDIR /work
 RUN mkdir -p /input /out /work \
   && chmod 1777 /out
 
+COPY --chmod=0555 forge-with-patches /usr/local/bin/forge-with-patches
+
+# Forge compile/test lanes apply declared dependency patches inside a tmpfs
+# workspace. The official Foundry image is digest-pinned; fail the image build
+# if that base ever stops carrying the expected patch tool.
+RUN command -v patch >/dev/null \
+  && patch --version | grep -F "GNU patch 2.7.6"
+
 # Foundry installs missing Solidity compilers under the svm data directory.
 # Provision the repo-pinned compiler while the image build has network, then
 # verify the compiler is usable with Foundry's offline mode.

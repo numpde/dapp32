@@ -21,4 +21,4 @@ reports/
 # Package manager installs and local Solidity dependency materialization are
 # reproducible from committed manifests/locks, not source of truth themselves.
 node_modules/
-dependencies/
+/dependencies/
