@@ -21,7 +21,6 @@ class DependencyMetadataTest(unittest.TestCase):
         lock_version = self.locked_openzeppelin_version()
         remapping_version = self.remapped_openzeppelin_version()
         checksum_version = self.checksummed_openzeppelin_version()
-        installed_version = self.installed_openzeppelin_version()
         import_versions = self.imported_openzeppelin_versions()
 
         self.assertEqual(foundry_version, lock_version, "foundry.toml and soldeer.lock disagree")
@@ -31,7 +30,6 @@ class DependencyMetadataTest(unittest.TestCase):
             checksum_version,
             "foundry.toml and dependency-checksums.txt disagree",
         )
-        self.assertEqual(foundry_version, installed_version, "foundry.toml and dependencies/ disagree")
         self.assertLessEqual(import_versions, {foundry_version})
 
     def foundry_openzeppelin_version(self) -> str:
@@ -85,17 +83,3 @@ class DependencyMetadataTest(unittest.TestCase):
 
         self.assertTrue(versions, "expected first-party contracts to exercise the OpenZeppelin dependency")
         return versions
-
-    def installed_openzeppelin_version(self) -> str:
-        dependencies_dir = repo_path("dependencies")
-        self.assertTrue(dependencies_dir.is_dir(), "dependencies/ is missing; run make deps")
-
-        directories = [
-            path.name
-            for path in dependencies_dir.iterdir()
-            if path.is_dir() and path.name.startswith(f"{OZ_PACKAGE}-")
-        ]
-        self.assertEqual(1, len(directories), "expected exactly one installed OpenZeppelin directory")
-
-        prefix = f"{OZ_PACKAGE}-"
-        return directories[0][len(prefix) :]

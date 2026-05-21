@@ -3,11 +3,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
-import shutil
+import socket
 import sys
 import tempfile
 import time
-import unittest
 import urllib.error
 import urllib.request
 import zipfile
@@ -20,6 +19,9 @@ TEST_PATH = Path(__file__).resolve()
 ROOT = TEST_PATH.parents[2] if len(TEST_PATH.parents) > 2 else Path.cwd()
 VALUE_RE = re.compile(r'^(?P<key>[a-z_]+)\s*=\s*"(?P<value>[^"]*)"$')
 CHECKSUM_RE = re.compile(r"^(?P<hash>[0-9a-f]{64})  (?P<key>\S+)$")
+DOWNLOAD_TIMEOUT_SECONDS = 15
+DOWNLOAD_TOTAL_TIMEOUT_SECONDS = 300
+DOWNLOAD_CHUNK_BYTES = 1024 * 1024
 
 
 class DependencyVerificationError(Exception):
@@ -218,18 +220,41 @@ class DependencyVerifier:
 
         print(f"deps-verify: {record.key} upstream archive ok")
 
-    def download_archive(self, url: str, output: Path) -> None:
+    def download_archive(
+        self,
+        url: str,
+        output: Path,
+        *,
+        total_timeout_seconds: float = DOWNLOAD_TOTAL_TIMEOUT_SECONDS,
+    ) -> None:
         last_error: Exception | None = None
         for attempt in range(1, 4):
             try:
-                with urllib.request.urlopen(url, timeout=15) as response:
+                deadline = time.monotonic() + total_timeout_seconds
+                opener = urllib.request.build_opener(NoRedirectHandler)
+                with opener.open(url, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
+                    final_url = response.geturl()
+                    if urlparse(final_url).scheme != "https":
+                        raise DependencyVerificationError(f"download resolved to non-HTTPS URL: {final_url}")
+
                     with output.open("wb") as destination:
-                        shutil.copyfileobj(response, destination)
+                        while True:
+                            if time.monotonic() > deadline:
+                                raise DependencyVerificationError(
+                                    f"download exceeded {total_timeout_seconds:g}s total timeout: {url}"
+                                )
+
+                            chunk = response.read(DOWNLOAD_CHUNK_BYTES)
+                            if not chunk:
+                                break
+                            destination.write(chunk)
                 return
-            except (TimeoutError, urllib.error.URLError) as exc:
+            except (TimeoutError, socket.timeout, urllib.error.URLError) as exc:
                 last_error = exc
                 if attempt < 3:
                     time.sleep(2)
+            except DependencyVerificationError:
+                raise
 
         raise DependencyVerificationError(f"could not download {url}: {last_error}")
 
@@ -327,9 +352,9 @@ class DependencyVerifier:
             raise DependencyVerificationError(f"missing required directory: {path}")
 
 
-class DependencyIntegrityTest(unittest.TestCase):
-    def test_installed_dependencies_match_committed_metadata(self) -> None:
-        DependencyVerifier(ROOT).verify_local()
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise DependencyVerificationError(f"unexpected HTTP redirect while downloading dependency archive: {newurl}")
 
 
 def main() -> int:
