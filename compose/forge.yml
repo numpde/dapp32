@@ -1,0 +1,90 @@
+# Routine Solidity/Foundry check lanes.
+#
+# These services share one deliberately constrained posture:
+# - no network access
+# - read-only repository mount
+# - read-only container filesystem
+# - non-root host UID/GID
+# - no Linux capabilities
+# - bounded memory/PID usage
+# - temporary cache/artifact paths
+#
+# Keep ordinary source checks here. Split a service into another compose file
+# only when it needs a different trust boundary, such as RPC, browser access,
+# a writable mount, or a published port.
+x-forge-base: &forge_base
+  # All Forge check services use the repo-owned Foundry image definition in
+  # containers/foundry/Dockerfile. Compose owns runtime confinement below.
+  build:
+    context: ..
+    dockerfile: containers/foundry/Dockerfile
+  working_dir: /work
+  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+  read_only: true
+  network_mode: "none"
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  pids_limit: 256
+  mem_limit: 1g
+  environment:
+    HOME: /tmp/home
+    FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+    FOUNDRY_CONFIG: /work/foundry.toml
+    FOUNDRY_OUT: /tmp/foundry-out
+    FOUNDRY_BROADCAST: /tmp/foundry-broadcast
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,noexec,size=512m
+  volumes:
+    - ..:/work:ro
+
+services:
+  # Formatting is a read-only source check.
+  forge-fmt:
+    <<: *forge_base
+    command: ["forge", "fmt", "--check"]
+
+  # Compilation should not write artifacts into the working tree; outputs go
+  # to tmpfs through FOUNDRY_OUT and FOUNDRY_CACHE_PATH.
+  forge-build:
+    <<: *forge_base
+    command: ["forge", "build"]
+
+  # Routine unit tests. Repo hygiene tests that should run on every normal
+  # test pass belong in contracts/test/unit, not in a separate shell lane.
+  forge-test:
+    <<: *forge_base
+    command:
+      - "forge"
+      - "test"
+      - "--match-path"
+      - "contracts/test/unit/**/*.sol"
+      - "-vvv"
+
+  # Fuzz tests are separated as a Make target because they are usually heavier
+  # than unit tests, but they keep the same offline container posture.
+  forge-fuzz:
+    <<: *forge_base
+    command:
+      - "forge"
+      - "test"
+      - "--match-path"
+      - "contracts/test/fuzz/**/*.sol"
+      - "-vvv"
+
+  # Invariant tests are also heavier and often state-machine oriented. They
+  # still run offline and read-only by default.
+  forge-invariant:
+    <<: *forge_base
+    command:
+      - "forge"
+      - "test"
+      - "--match-path"
+      - "contracts/test/invariant/**/*.sol"
+      - "-vvv"
+
+  # Coverage is a reporting lane over the same checked-in sources.
+  forge-coverage:
+    <<: *forge_base
+    command: ["forge", "coverage"]

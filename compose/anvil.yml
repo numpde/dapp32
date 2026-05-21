@@ -1,0 +1,40 @@
+# Local ephemeral EVM chain.
+#
+# This file stays separate from routine checks because it starts a long-lived
+# service and publishes a loopback port. It is for local development and manual
+# integration work, not for the default test path.
+services:
+  anvil:
+    # Anvil uses the shared Foundry image defined in
+    # containers/foundry/Dockerfile. This file adds the local-chain runtime
+    # posture: long-lived process plus loopback-only port publishing.
+    build:
+      context: ..
+      dockerfile: containers/foundry/Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+      FOUNDRY_CONFIG: /work/foundry.toml
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+    volumes:
+      - ..:/work:ro
+    # Bind only to localhost on the host. Inside the container Anvil listens on
+    # 0.0.0.0 so Docker can forward the loopback-bound host port correctly.
+    ports:
+      - "127.0.0.1:${ANVIL_HOST_PORT:-8545}:8545"
+    command:
+      - "anvil"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8545"

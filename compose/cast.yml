@@ -1,0 +1,46 @@
+# Cast command lanes.
+#
+# Cast can be either purely local/offline, or networked against an RPC
+# endpoint. Keep both in this file because they share the same tool image, but
+# make the network boundary explicit per service.
+x-cast-base: &cast_base
+  # Cast uses the same repo-owned Foundry image as the Forge and Anvil lanes.
+  # This keeps the tool version policy in one Dockerfile.
+  build:
+    context: ..
+    dockerfile: containers/foundry/Dockerfile
+  working_dir: /work
+  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  pids_limit: 128
+  mem_limit: 512m
+  environment:
+    HOME: /tmp/home
+    FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+    FOUNDRY_CONFIG: /work/foundry.toml
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,noexec,size=128m
+  volumes:
+    - ..:/work:ro
+
+services:
+  # Offline ABI/calldata/help operations. No RPC, no network.
+  cast-offline:
+    <<: *cast_base
+    network_mode: "none"
+    command: ["cast", "--help"]
+
+  # Explicit read-only RPC inspection. This lane has network access by design.
+  # It must not be used for signing or sending transactions.
+  cast-rpc:
+    <<: *cast_base
+    environment:
+      HOME: /tmp/home
+      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+      FOUNDRY_CONFIG: /work/foundry.toml
+      RPC_URL: "${RPC_URL:?missing_RPC_URL}"
+    command: ["cast", "block-number", "--rpc-url", "${RPC_URL:?missing_RPC_URL}"]

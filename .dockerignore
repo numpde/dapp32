@@ -1,0 +1,11 @@
+.git
+.env
+.env.*
+contracts/cache
+contracts/out
+contracts/broadcast
+cache
+out
+broadcast
+reports
+node_modules

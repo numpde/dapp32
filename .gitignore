@@ -1,1 +1,15 @@
-dockers/compose/**/.env
+.env
+.env.*
+!.env.example
+
+compose/**/.env
+
+contracts/cache/
+contracts/out/
+contracts/broadcast/
+
+cache/
+out/
+broadcast/
+reports/
+node_modules/
