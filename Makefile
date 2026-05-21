@@ -82,7 +82,7 @@ fmt:
 build: deps-verify
 	$(call compose_run,forge.yml,forge-build)
 
-test: deps-verify
+test: deps-verify checks
 	$(call compose_run,forge.yml,forge-test)
 
 fuzz: deps-verify

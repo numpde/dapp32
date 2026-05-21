@@ -9,11 +9,6 @@ libs = ["dependencies"]
 optimizer = true
 optimizer_runs = 200
 via_ir = false
-fs_permissions = [
-  { access = "read", path = "./foundry.toml" },
-  { access = "read", path = "./contracts/src" },
-  { access = "read", path = "./contracts/test" },
-]
 
 [profile.ci]
 verbosity = 3

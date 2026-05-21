@@ -47,5 +47,7 @@ services:
       - "discover"
       - "-s"
       - "tests/checks"
+      - "-t"
+      - "."
       - "-p"
       - "test_*.py"
