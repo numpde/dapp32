@@ -14,7 +14,7 @@ interface Vm {
 }
 
 contract SolidityVersionTest {
-    Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+    Vm private constant VM = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     function testSolidityPragmasMatchFoundryCompiler() external view {
         string memory expected = foundrySolcVersion();
@@ -24,14 +24,16 @@ contract SolidityVersionTest {
     }
 
     function assertPragmasMatch(string memory path, string memory expected) internal view {
-        Vm.DirEntry[] memory entries = vm.readDir(path, 10);
+        Vm.DirEntry[] memory entries = VM.readDir(path, 10);
 
         for (uint256 i = 0; i < entries.length; i++) {
             if (entries[i].isDir || !hasSuffix(entries[i].path, ".sol")) {
                 continue;
             }
 
-            string memory source = vm.readFile(entries[i].path);
+            // This hygiene test intentionally reads checked-in source files.
+            /// forge-lint: disable-next-line(unsafe-cheatcode)
+            string memory source = VM.readFile(entries[i].path);
             string memory actual = solidityPragma(source);
 
             if (bytes(actual).length == 0) {
@@ -49,7 +51,9 @@ contract SolidityVersionTest {
     }
 
     function foundrySolcVersion() internal view returns (string memory) {
-        string memory toml = vm.readFile("foundry.toml");
+        // This hygiene test intentionally reads the compiler SSOT.
+        /// forge-lint: disable-next-line(unsafe-cheatcode)
+        string memory toml = VM.readFile("foundry.toml");
         bytes memory data = bytes(toml);
         bytes memory needle = bytes('solc = "');
 

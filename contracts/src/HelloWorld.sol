@@ -6,7 +6,7 @@ contract HelloWorld {
 
     event MessageChanged(address indexed caller, string oldMessage, string newMessage);
 
-    address public immutable owner;
+    address private immutable OWNER;
     string private currentMessage;
 
     constructor(string memory initialMessage) {
@@ -14,8 +14,12 @@ contract HelloWorld {
             revert EmptyMessage();
         }
 
-        owner = msg.sender;
+        OWNER = msg.sender;
         currentMessage = initialMessage;
+    }
+
+    function owner() external view returns (address) {
+        return OWNER;
     }
 
     function message() external view returns (string memory) {
@@ -23,7 +27,7 @@ contract HelloWorld {
     }
 
     function setMessage(string calldata newMessage) external {
-        if (msg.sender != owner) {
+        if (msg.sender != OWNER) {
             revert Unauthorized(msg.sender);
         }
 
