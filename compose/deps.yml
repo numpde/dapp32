@@ -3,8 +3,11 @@
 # This file is intentionally separate from compose/forge.yml. Installing
 # dependencies needs network access, but networked dependency tools should not
 # receive write access to the repository. The lane is split into stages:
-# - soldeer-stage has network, reads only dependency input files, verifies
-#   upstream archives against soldeer.lock, and writes only to a Docker volume.
+# - dependency-egress-proxy is the only service with external egress. It allows
+#   HTTPS CONNECT only to global IP addresses on port 443.
+# - soldeer-stage is on an internal network, reads only dependency input files,
+#   verifies upstream archives against soldeer.lock, and writes only to a Docker
+#   volume.
 # - soldeer-apply-locked has no network, can write only dependencies/, and
 #   fails if locked metadata would change.
 # - soldeer-apply-update has no network and can write dependency metadata only
@@ -12,11 +15,44 @@
 # - soldeer-verify has no network and verifies installed dependency contents.
 # Routine build/test lanes must stay offline and read-only.
 services:
+  dependency-egress-proxy:
+    build:
+      context: ../containers/https-egress-proxy
+      dockerfile: Dockerfile
+    init: true
+    user: "65532:65532"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    networks:
+      deps_internal:
+        aliases:
+          - dependency-egress-proxy
+      deps_egress: {}
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).close()"
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
   soldeer-stage:
     build:
       context: ../containers/foundry-deps
       dockerfile: Dockerfile
     working_dir: /tmp
+    depends_on:
+      dependency-egress-proxy:
+        condition: service_healthy
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
     read_only: true
     security_opt:
@@ -27,6 +63,14 @@ services:
     mem_limit: 1g
     environment:
       HOME: /tmp/home
+      HTTP_PROXY: http://dependency-egress-proxy:8080
+      HTTPS_PROXY: http://dependency-egress-proxy:8080
+      ALL_PROXY: http://dependency-egress-proxy:8080
+      http_proxy: http://dependency-egress-proxy:8080
+      https_proxy: http://dependency-egress-proxy:8080
+      all_proxy: http://dependency-egress-proxy:8080
+      NO_PROXY: localhost,127.0.0.1,::1,dependency-egress-proxy
+      no_proxy: localhost,127.0.0.1,::1,dependency-egress-proxy
       XDG_DATA_HOME: /usr/local/share
       FOUNDRY_CACHE_PATH: /tmp/foundry-cache
       FOUNDRY_CONFIG: /tmp/soldeer-work/foundry.toml
@@ -38,6 +82,8 @@ services:
       - ../remappings.txt:/input/remappings.txt:ro
       - ../scripts/verify-dependencies.sh:/input/verify-dependencies.sh:ro
       - soldeer-out:/out:rw
+    networks:
+      - deps_internal
     command:
       - "bash"
       - "-lc"
@@ -172,3 +218,8 @@ services:
 
 volumes:
   soldeer-out: {}
+
+networks:
+  deps_internal:
+    internal: true
+  deps_egress: {}

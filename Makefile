@@ -5,6 +5,7 @@ SHELL := bash
 COMPOSE_DIR ?= compose
 DOCKER_COMPOSE ?= docker compose
 COMPOSE_PROJECT_NAME ?= contracts
+ACTUAL_UID := $(shell id -u)
 LOCAL_UID ?= $(shell id -u)
 LOCAL_GID ?= $(shell id -g)
 ALLOW_UPDATE ?= 0
@@ -13,8 +14,10 @@ RPC_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-cast-rpc
 
 COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)
 RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_COMPOSE_PROJECT_NAME)
+NON_ROOT_GUARD := if [[ "$(ACTUAL_UID)" == "0" || "$(LOCAL_UID)" == "0" ]]; then printf '%s\n' 'Refusing to run Docker lanes as root or with LOCAL_UID=0. Run make as a non-root user.' >&2; exit 2; fi
 
 define compose_run
+@$(NON_ROOT_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
@@ -43,7 +46,8 @@ help:
 	  'non-root, capability-free, and avoid writing build artifacts into the repo.'
 
 deps:
-	@cleanup() { \
+	@$(NON_ROOT_GUARD); \
+	cleanup() { \
 	  status="$$?"; \
 	  $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
 	  exit "$$status"; \
@@ -100,7 +104,8 @@ cast-offline:
 	$(call compose_run,cast.yml,cast-offline)
 
 cast-rpc:
-	@if [[ -n "$${RPC_URL:-}" && -n "$${RPC_URL_FILE:-}" ]]; then \
+	@$(NON_ROOT_GUARD); \
+	if [[ -n "$${RPC_URL:-}" && -n "$${RPC_URL_FILE:-}" ]]; then \
 	  printf '%s\n' 'Set only one of RPC_URL or RPC_URL_FILE.' >&2; \
 	  exit 2; \
 	fi; \
@@ -130,4 +135,5 @@ cast-rpc:
 	$(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml up --build --abort-on-container-exit --exit-code-from cast-rpc cast-rpc
 
 anvil:
+	@$(NON_ROOT_GUARD); \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml up --build anvil
