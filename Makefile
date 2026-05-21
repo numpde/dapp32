@@ -17,11 +17,12 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil
+.PHONY: help deps fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil
 
 help:
 	@printf '%s\n' \
 	  'Supported lanes:' \
+	  '  make deps         Install Soldeer dependencies and update lock/remappings' \
 	  '  make fmt          Check Solidity formatting' \
 	  '  make build        Compile contracts' \
 	  '  make test         Run unit tests' \
@@ -36,6 +37,15 @@ help:
 	  '' \
 	  'All lanes are Docker-backed. Default check lanes are offline, read-only,' \
 	  'non-root, capability-free, and avoid writing build artifacts into the repo.'
+
+deps:
+	@cleanup() { \
+	  status="$$?"; \
+	  $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-install
 
 fmt:
 	$(call compose_run,forge.yml,forge-fmt)

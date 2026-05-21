@@ -1,0 +1,35 @@
+# Dependency installation lane.
+#
+# This file is intentionally separate from compose/forge.yml. Installing
+# dependencies needs network access and a writable repository mount so Soldeer
+# can update soldeer.lock, remappings.txt, and the local dependencies/ cache.
+# Routine build/test lanes must stay offline and read-only.
+services:
+  soldeer-install:
+    build:
+      context: ../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      XDG_DATA_HOME: /usr/local/share
+      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+      FOUNDRY_CONFIG: /work/foundry.toml
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    volumes:
+      - ..:/work:rw
+    command:
+      - "forge"
+      - "soldeer"
+      - "install"
+      - "--config-location"
+      - "foundry"

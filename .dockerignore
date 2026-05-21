@@ -21,5 +21,6 @@ out
 broadcast
 reports
 node_modules
+dependencies
 .cache
 .venv
