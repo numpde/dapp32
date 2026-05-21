@@ -193,12 +193,13 @@
     <div class="shell">
       <h1>How make deps works</h1>
       <p class="lede">
-        <code>make deps</code> is the controlled dependency lane. By default it installs only the currently locked dependency set and fails if lock, remapping, or checksum metadata would change.
+        <code>make deps</code> is the controlled dependency lane. By default it installs only the currently locked dependency set, applies declared local patches, and fails if lock, remapping, or checksum metadata would change.
       </p>
       <div class="meta">
         <span class="pill">Current source: Soldeer</span>
         <span class="pill">Network: stage only</span>
         <span class="pill">Upstream check: soldeer.lock</span>
+        <span class="pill">Patch check: pre / patch / post SHA-256</span>
         <span class="pill">Updates: ALLOW_UPDATE=1</span>
         <span class="pill">Build checks: offline verify first</span>
       </div>
@@ -209,7 +210,7 @@
     <section>
       <h2>The rule</h2>
       <p>
-        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, writes derived installed-tree checksums, and writes only to a temporary Docker volume. The offline apply container either accepts the staged metadata as matching the committed metadata, or fails unless <code>ALLOW_UPDATE=1</code> was set. A separate offline verifier checks the result before normal compile and test lanes run.
+        Dependency installation is split into stages because the risky part and the persistent-write part should not happen in the same container. The networked container downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, applies declared local patches, writes derived installed-tree checksums for the final patched tree, and writes only to a temporary Docker volume. The offline apply container either accepts the staged metadata as matching the committed metadata, or fails unless <code>ALLOW_UPDATE=1</code> was set. A separate offline verifier checks the result before normal compile and test lanes run.
       </p>
       <p class="note">
         The important invariant is simple: no networked dependency process gets repo-root read/write access.
@@ -225,19 +226,24 @@
           <p>Runs <code>forge soldeer install</code> with network access. It can read only dependency input files, verifies downloaded archives against <code>soldeer.lock</code>, and writes generated output into a Docker volume.</p>
         </div>
         <div class="card">
-          <strong>2. Apply</strong>
+          <strong>2. Patch</strong>
+          <h3><code>dependency-patches.txt</code></h3>
+          <p>Still inside <code>soldeer-stage</code>, applies declared patches after upstream archive verification. Each patch checks the pristine target hash, patch-file hash, and patched target hash.</p>
+        </div>
+        <div class="card">
+          <strong>3. Apply</strong>
           <h3><code>soldeer-apply-locked</code></h3>
           <p>Runs with no network by default. It can write <code>dependencies/</code>, but mounts lock, remapping, and checksum metadata read-only and fails if they would change.</p>
         </div>
         <div class="card">
-          <strong>3. Update</strong>
+          <strong>4. Update</strong>
           <h3><code>soldeer-apply-update</code></h3>
           <p>Runs only when <code>make deps ALLOW_UPDATE=1</code> is used. It can copy staged lock, remapping, and checksum updates into the repository.</p>
         </div>
         <div class="card">
-          <strong>4. Verify</strong>
+          <strong>5. Verify</strong>
           <h3><code>soldeer-verify</code></h3>
-          <p>Runs with no network and read-only mounts. It checks installed dependency directories, remappings, and committed file-manifest checksums.</p>
+          <p>Runs with no network and read-only mounts. It checks installed dependency directories, remappings, committed file-manifest checksums, and declared patch hashes.</p>
         </div>
       </div>
     </section>
@@ -262,18 +268,47 @@
         </div>
         <div class="item">
           <strong><code>dependency-checksums.txt</code></strong>
-          <p>The committed installed-tree checksums derived from lockfile-verified upstream archives.</p>
+          <p>The committed installed-tree checksums for the final dependency tree that Foundry reads. If declared patches exist, this checksum describes the patched tree.</p>
+        </div>
+        <div class="item">
+          <strong><code>dependency-patches.txt</code> and <code>patches/</code></strong>
+          <p>Reviewable patch metadata and patch files. They are committed source inputs, not generated outputs. Update them deliberately, then run <code>make deps ALLOW_UPDATE=1</code> to refresh the final dependency checksum.</p>
         </div>
       </div>
     </section>
 
     <section>
+      <h2>Declared patches</h2>
+      <p>
+        Soldeer has package-level integrity, not a first-class local patch model. For short-lived local fixes, this repo keeps the Soldeer source of truth intact and records the local change separately in <code>dependency-patches.txt</code>.
+      </p>
+      <pre><code>&lt;dependency-key&gt;  &lt;target-path&gt;  &lt;patch-path&gt;  &lt;pre-sha256&gt;  &lt;patch-sha256&gt;  &lt;post-sha256&gt;</code></pre>
+      <div class="list">
+        <div class="item">
+          <strong><code>pre-sha256</code></strong>
+          <p>The expected hash of the pristine file installed from the verified Soldeer package.</p>
+        </div>
+        <div class="item">
+          <strong><code>patch-sha256</code></strong>
+          <p>The expected hash of the committed patch file.</p>
+        </div>
+        <div class="item">
+          <strong><code>post-sha256</code></strong>
+          <p>The expected hash of the installed file after the patch is applied.</p>
+        </div>
+      </div>
+      <p class="note">
+        Patches are applied with zero fuzz. If upstream changes enough that a patch no longer applies exactly, dependency installation fails and the patch must be reviewed.
+      </p>
+    </section>
+
+    <section>
       <h2>What verification proves</h2>
       <p>
-        In stage mode, <code>tests/checks/test_dependency_integrity.py</code> reads <code>soldeer.lock</code>, downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, confirms the installed dependency tree matches the verified archive payload, and then writes <code>dependency-checksums.txt</code>.
+        During staging, <code>tests/checks/test_dependency_integrity.py</code> reads <code>soldeer.lock</code>, downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, and confirms the installed dependency tree matches the verified archive payload before patches are applied.
       </p>
       <p>
-        In offline mode, it derives the expected directory name for each dependency and checks that <code>dependencies/</code> contains exactly those directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, and checksum mismatches.
+        After declared patches are applied, the verifier writes <code>dependency-checksums.txt</code> from the final tree. In offline mode, it checks that <code>dependencies/</code> contains exactly the expected dependency directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, checksum mismatches, patch-file hash drift, and patched-target hash drift.
       </p>
       <p>
         The local checksum for each dependency is a deterministic SHA-256 over a sorted manifest of every file path and file hash inside that dependency directory. This is intentionally independent of Soldeer internals. It verifies the installed tree that Foundry will actually read.
@@ -298,6 +333,21 @@ make ci</code></pre>
     </section>
 
     <section>
+      <h2>Reading warnings</h2>
+      <p>
+        A patched Soldeer dependency can trigger Forge’s package-level warning:
+      </p>
+      <pre><code>Warning: Dependency '@openzeppelin-contracts' integrity check failed: FailedIntegrity</code></pre>
+      <p>
+        That warning is generic. It means the installed package no longer matches Soldeer’s pristine package identity. The repository-level verifier prints the more precise explanation before Forge runs:
+      </p>
+      <pre><code>deps-verify: @openzeppelin-contracts-5.6.1 declared patch ok
+deps-verify:   target: utils/cryptography/ECDSA.sol
+deps-verify:   patch: patches/dependencies/@openzeppelin-contracts-5.6.1/ECDSA.error-keyword.patch
+deps-verify:   Forge may also warn FailedIntegrity for this declared patch.</code></pre>
+    </section>
+
+    <section>
       <h2>Adding more Soldeer dependencies</h2>
       <p>
         For another Soldeer dependency, add it through the normal Soldeer configuration path, then run <code>make deps ALLOW_UPDATE=1</code>. The command should regenerate <code>soldeer.lock</code>, <code>remappings.txt</code>, <code>dependencies/</code>, and <code>dependency-checksums.txt</code>. Review all committed outputs before committing.
@@ -305,6 +355,27 @@ make ci</code></pre>
       <pre><code>make deps ALLOW_UPDATE=1
 make ci
 git diff -- foundry.toml soldeer.lock remappings.txt dependency-checksums.txt</code></pre>
+    </section>
+
+    <section>
+      <h2>Adding or removing a patch</h2>
+      <p>
+        Prefer an upstream release or a pinned fork for long-lived dependency changes. Use local patches only for narrow, temporary fixes where the changed file and hashes can be reviewed directly.
+      </p>
+      <div class="list">
+        <div class="item">
+          <strong>Add the patch file.</strong>
+          <p>Place a unified diff under <code>patches/dependencies/&lt;dependency-key&gt;/</code>. Keep it small and targeted.</p>
+        </div>
+        <div class="item">
+          <strong>Update <code>dependency-patches.txt</code>.</strong>
+          <p>Record the dependency key, target path, patch path, pristine target hash, patch-file hash, and patched target hash.</p>
+        </div>
+        <div class="item">
+          <strong>Refresh the final checksum.</strong>
+          <p>Run <code>make deps ALLOW_UPDATE=1</code>, then review <code>dependency-checksums.txt</code> and the patch files before committing.</p>
+        </div>
+      </div>
     </section>
 
     <section>
@@ -335,7 +406,7 @@ git diff -- foundry.toml soldeer.lock remappings.txt dependency-checksums.txt</c
     <section>
       <h2>What this does not prove</h2>
       <p class="note">
-        This lane proves that the fetched archive matches the committed lockfile checksum and that the installed dependency tree matches the committed <code>dependency-checksums.txt</code> entries generated from that verified archive. It does not prove that an upstream package is correct, audited, or safe to use. Reviewing dependency changes is still a human responsibility.
+        This lane proves that the fetched archive matches the committed lockfile checksum, that declared patches match their committed hashes, and that the final installed dependency tree matches <code>dependency-checksums.txt</code>. It does not prove that an upstream package or local patch is correct, audited, or safe to use. Reviewing dependency changes is still a human responsibility.
       </p>
     </section>
   </main>
