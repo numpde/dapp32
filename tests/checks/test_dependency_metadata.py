@@ -9,9 +9,7 @@ from .common import iter_files, read_text, repo_path
 
 
 OZ_PACKAGE = "@openzeppelin-contracts"
-OZ_SOLDEER_HOST = "soldeer-revisions.s3.amazonaws.com"
-LOCK_NAME_RE = re.compile(r'^name = "([^"]+)"$', re.MULTILINE)
-LOCK_VERSION_RE = re.compile(r'^version = "([^"]+)"$', re.MULTILINE)
+SOLDEER_REVISIONS_HOST = "soldeer-revisions.s3.amazonaws.com"
 REMAPPING_RE = re.compile(r"^@openzeppelin-contracts-([^/=]+)/=dependencies/@openzeppelin-contracts-\1/$")
 CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}  @openzeppelin-contracts-([^\s]+)$")
 IMPORT_RE = re.compile(r'from\s+"(@openzeppelin-contracts-([^/"]+)/[^"]+)"')
@@ -34,24 +32,35 @@ class DependencyMetadataTest(unittest.TestCase):
         )
         self.assertLessEqual(import_versions, {foundry_version})
 
-    def test_openzeppelin_uses_soldeer_registry_source(self) -> None:
-        foundry_dependency = self.foundry_openzeppelin_dependency()
-        self.assertEqual(
-            {"version"},
-            set(foundry_dependency),
-            "OpenZeppelin must be declared as a Soldeer registry version only, without custom url metadata",
-        )
+    def test_soldeer_dependencies_use_registry_sources(self) -> None:
+        foundry_dependencies = self.foundry_dependencies()
+        lock_records = self.locked_dependency_records()
 
-        version = foundry_dependency["version"]
-        self.assertIsInstance(version, str)
+        self.assertEqual(set(foundry_dependencies), set(lock_records), "foundry.toml and soldeer.lock disagree")
 
-        record = self.locked_openzeppelin_record()
-        self.assertEqual(version, record["version"], "foundry.toml and soldeer.lock disagree")
-        self.assert_allowed_openzeppelin_soldeer_url(record["url"], version)
+        for name, dependency in sorted(foundry_dependencies.items()):
+            with self.subTest(dependency=name):
+                version = self.assert_registry_version_only_dependency(name, dependency)
 
-    def test_openzeppelin_source_policy_self_check(self) -> None:
+                record = lock_records[name]
+                self.assertEqual(
+                    version,
+                    record["version"],
+                    f"{name} version differs between foundry.toml and soldeer.lock",
+                )
+                self.assert_allowed_soldeer_registry_url(name, record["url"], version)
+
+    def test_soldeer_source_policy_self_check(self) -> None:
         version = "5.6.1"
-        self.assert_allowed_openzeppelin_soldeer_url(
+        self.assertEqual(version, self.assert_registry_version_only_dependency(OZ_PACKAGE, {"version": version}))
+        with self.assertRaises(AssertionError):
+            self.assert_registry_version_only_dependency(
+                OZ_PACKAGE,
+                {"version": version, "url": "https://example.com/pkg.zip"},
+            )
+
+        self.assert_allowed_soldeer_registry_url(
+            OZ_PACKAGE,
             "https://soldeer-revisions.s3.amazonaws.com/"
             "@openzeppelin-contracts/5_6_1_15-03-2026_09:19:50_contracts.zip",
             version,
@@ -68,57 +77,74 @@ class DependencyMetadataTest(unittest.TestCase):
         for url in rejected:
             with self.subTest(url=url):
                 with self.assertRaises(AssertionError):
-                    self.assert_allowed_openzeppelin_soldeer_url(url, version)
+                    self.assert_allowed_soldeer_registry_url(OZ_PACKAGE, url, version)
 
     def foundry_openzeppelin_version(self) -> str:
-        dependency = self.foundry_openzeppelin_dependency()
+        dependency = self.foundry_dependencies()[OZ_PACKAGE]
         version = dependency["version"]
         self.assertIsInstance(version, str)
         return version
 
-    def foundry_openzeppelin_dependency(self) -> dict[str, object]:
+    def foundry_dependencies(self) -> dict[str, dict[str, object]]:
         config = tomllib.loads(read_text(repo_path("foundry.toml")))
         dependencies = config.get("dependencies", {})
-        self.assertEqual([OZ_PACKAGE], [name for name in dependencies if name == OZ_PACKAGE])
-        dependency = dependencies[OZ_PACKAGE]
-        self.assertIsInstance(dependency, dict)
-        return dependency
+        self.assertIsInstance(dependencies, dict)
+        self.assertIn(OZ_PACKAGE, dependencies, "expected OpenZeppelin dependency in foundry.toml")
+
+        parsed: dict[str, dict[str, object]] = {}
+        for name, dependency in dependencies.items():
+            self.assertIsInstance(name, str)
+            self.assertIsInstance(dependency, dict, f"{name} dependency must be a table")
+            parsed[name] = dependency
+
+        return parsed
 
     def locked_openzeppelin_version(self) -> str:
-        return self.locked_openzeppelin_record()["version"]
+        return self.locked_dependency_records()[OZ_PACKAGE]["version"]
 
-    def locked_openzeppelin_record(self) -> dict[str, str]:
-        text = read_text(repo_path("soldeer.lock"))
-        names = LOCK_NAME_RE.findall(text)
-        versions = LOCK_VERSION_RE.findall(text)
+    def locked_dependency_records(self) -> dict[str, dict[str, str]]:
+        lock = tomllib.loads(read_text(repo_path("soldeer.lock")))
+        raw_records = lock.get("dependencies", [])
+        self.assertIsInstance(raw_records, list)
 
-        self.assertEqual([OZ_PACKAGE], [name for name in names if name == OZ_PACKAGE])
-        self.assertEqual(len(names), len(versions), "soldeer.lock dependency records are malformed")
+        records: dict[str, dict[str, str]] = {}
+        for raw_record in raw_records:
+            self.assertIsInstance(raw_record, dict, "soldeer.lock dependency records must be tables")
+            name = raw_record.get("name")
+            self.assertIsInstance(name, str, "soldeer.lock dependency record missing name")
+            self.assertNotIn(name, records, f"duplicate dependency record in soldeer.lock: {name}")
 
-        lock = tomllib.loads(text)
-        records = [
-            record
-            for record in lock.get("dependencies", [])
-            if isinstance(record, dict) and record.get("name") == OZ_PACKAGE
-        ]
-        self.assertEqual(1, len(records), "expected exactly one OpenZeppelin lock record")
+            record: dict[str, str] = {}
+            for key in ("version", "url"):
+                value = raw_record.get(key)
+                self.assertIsInstance(value, str, f"{name} lock record missing {key}")
+                record[key] = value
 
-        record = records[0]
-        for key in ("version", "url"):
-            self.assertIsInstance(record.get(key), str, f"OpenZeppelin lock record missing {key}")
+            records[name] = record
 
-        return {"version": record["version"], "url": record["url"]}
+        self.assertIn(OZ_PACKAGE, records, "expected OpenZeppelin dependency in soldeer.lock")
+        return records
 
-    def assert_allowed_openzeppelin_soldeer_url(self, url: str, version: str) -> None:
+    def assert_registry_version_only_dependency(self, name: str, dependency: dict[str, object]) -> str:
+        self.assertEqual(
+            {"version"},
+            set(dependency),
+            f"{name} must be declared as a Soldeer registry version only, without custom url metadata",
+        )
+        version = dependency["version"]
+        self.assertIsInstance(version, str, f"{name} dependency version must be a string")
+        return version
+
+    def assert_allowed_soldeer_registry_url(self, name: str, url: str, version: str) -> None:
         parsed = urlparse(url)
         expected_version_prefix = version.replace(".", "_")
 
-        self.assertEqual("https", parsed.scheme, f"OpenZeppelin lock URL must use https: {url}")
-        self.assertEqual(OZ_SOLDEER_HOST, parsed.netloc, f"OpenZeppelin lock URL must use Soldeer revisions: {url}")
+        self.assertEqual("https", parsed.scheme, f"{name} lock URL must use https: {url}")
+        self.assertEqual(SOLDEER_REVISIONS_HOST, parsed.netloc, f"{name} lock URL must use Soldeer revisions: {url}")
         self.assertRegex(
             parsed.path,
-            rf"^/{re.escape(OZ_PACKAGE)}/{re.escape(expected_version_prefix)}_[^/]+_contracts\.zip$",
-            f"OpenZeppelin lock URL must point to the Soldeer contracts package: {url}",
+            rf"^/{re.escape(name)}/{re.escape(expected_version_prefix)}_[^/]+_contracts\.zip$",
+            f"{name} lock URL must point to the Soldeer contracts package: {url}",
         )
 
     def remapped_openzeppelin_version(self) -> str:
