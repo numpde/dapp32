@@ -2,6 +2,7 @@
 import http.client
 import http.server
 import ipaddress
+import json
 import os
 import socket
 import ssl
@@ -16,6 +17,11 @@ MAX_REQUEST_BYTES = int(os.environ.get("RPC_PROXY_MAX_REQUEST_BYTES", str(1024 *
 MAX_RESPONSE_BYTES = int(os.environ.get("RPC_PROXY_MAX_RESPONSE_BYTES", str(4 * 1024 * 1024)))
 MAX_UPSTREAM_URL_BYTES = int(os.environ.get("RPC_PROXY_MAX_UPSTREAM_URL_BYTES", "4096"))
 CONNECT_TIMEOUT_SECONDS = float(os.environ.get("RPC_PROXY_CONNECT_TIMEOUT_SECONDS", "10"))
+ALLOWED_METHODS = frozenset(
+    method
+    for method in os.environ.get("RPC_ALLOWED_METHODS", "eth_blockNumber").replace(",", " ").split()
+    if method
+)
 
 HOP_BY_HOP_HEADERS = {
     "connection",
@@ -30,6 +36,14 @@ HOP_BY_HOP_HEADERS = {
 
 
 class UpstreamRejected(Exception):
+    pass
+
+
+class RpcRequestMalformed(Exception):
+    pass
+
+
+class RpcMethodRejected(Exception):
     pass
 
 
@@ -103,6 +117,39 @@ def resolve_global_ip(host, port):
     return candidates[0]
 
 
+def request_items(payload):
+    if isinstance(payload, dict):
+        return [payload]
+    if isinstance(payload, list):
+        if not payload:
+            raise RpcRequestMalformed("JSON-RPC batch must not be empty")
+        return payload
+    raise RpcRequestMalformed("JSON-RPC request must be an object or batch array")
+
+
+def validate_rpc_request(raw_body, allowed_methods):
+    if not allowed_methods:
+        raise RpcMethodRejected("RPC method allowlist is empty")
+
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError as exc:
+        raise RpcRequestMalformed("invalid JSON-RPC request body") from exc
+    except UnicodeDecodeError as exc:
+        raise RpcRequestMalformed("JSON-RPC request body must be UTF-8") from exc
+
+    for item in request_items(payload):
+        if not isinstance(item, dict):
+            raise RpcRequestMalformed("JSON-RPC batch entries must be objects")
+
+        method = item.get("method")
+        if not isinstance(method, str) or not method:
+            raise RpcRequestMalformed("JSON-RPC request method must be a non-empty string")
+
+        if method not in allowed_methods:
+            raise RpcMethodRejected(f"JSON-RPC method is not allowed: {method}")
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "safe-rpc-proxy"
     sys_version = ""
@@ -135,6 +182,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         request_body = self.rfile.read(request_size)
 
         try:
+            validate_rpc_request(request_body, ALLOWED_METHODS)
             host, port, path = read_upstream()
             target_ip = resolve_global_ip(host, port)
             conn = FixedIpHttpsConnection(host, port, target_ip, CONNECT_TIMEOUT_SECONDS)
@@ -146,6 +194,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             conn.request("POST", path, body=request_body, headers=headers)
             response = conn.getresponse()
             response_body = response.read(MAX_RESPONSE_BYTES + 1)
+        except RpcRequestMalformed as exc:
+            self.send_error(400, str(exc))
+            return
+        except RpcMethodRejected as exc:
+            self.send_error(403, str(exc))
+            return
         except UpstreamRejected as exc:
             self.send_error(502, str(exc))
             return

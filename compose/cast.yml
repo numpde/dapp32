@@ -49,8 +49,8 @@ services:
 
   # The proxy is the only container in this compose file with egress. It reads
   # the upstream URL from a temporary Docker secret file created by the Makefile,
-  # validates that it resolves only to global IP addresses, and forwards JSON-RPC
-  # POSTs to that upstream.
+  # validates that it resolves only to global IP addresses, and forwards only
+  # explicitly allowed read-only JSON-RPC methods to that upstream.
   rpc-proxy:
     build:
       context: ../containers/rpc-proxy
@@ -66,6 +66,7 @@ services:
     mem_limit: 128m
     environment:
       RPC_UPSTREAM_FILE: /run/secrets/rpc_url
+      RPC_ALLOWED_METHODS: eth_blockNumber
     secrets:
       - source: rpc_url
         target: rpc_url
