@@ -63,11 +63,6 @@ class DependencyVerifier:
             self.require_remapping(record.key)
             print(f"deps-verify: {record.key} ok")
 
-    def verify_stage(self) -> None:
-        records = self.load_dependency_records()
-        self.verify_upstream(records)
-        self.write_checksums(records)
-
     def verify_upstream(self, records: list[DependencyRecord] | None = None) -> None:
         if records is None:
             records = self.load_dependency_records()
@@ -370,20 +365,17 @@ class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify installed Soldeer dependency integrity.")
     parser.add_argument("root", nargs="?", default="/work")
-    parser.add_argument("--stage", action="store_true", help="verify upstream archives and write checksums")
     parser.add_argument("--verify-upstream", action="store_true", help="verify upstream archives without writing checksums")
     parser.add_argument("--write-checksums", action="store_true", help="write checksums for the local dependency tree")
     args = parser.parse_args()
 
     verifier = DependencyVerifier(Path(args.root))
     try:
-        modes = [args.stage, args.verify_upstream, args.write_checksums]
+        modes = [args.verify_upstream, args.write_checksums]
         if sum(1 for enabled in modes if enabled) > 1:
             raise DependencyVerificationError("choose only one dependency verifier mode")
 
-        if args.stage:
-            verifier.verify_stage()
-        elif args.verify_upstream:
+        if args.verify_upstream:
             verifier.verify_upstream()
         elif args.write_checksums:
             verifier.write_local_checksums()
