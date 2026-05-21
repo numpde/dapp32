@@ -8,6 +8,8 @@
 # The services are split by access boundary:
 # - anvil-internal is Docker-only and publishes no host port.
 # - anvil-host publishes a host loopback port for manual local tools.
+# Both services use Compose profiles so a bare `docker compose up` does not
+# accidentally start a host-published RPC service.
 #
 # Keep external RPC access separate in compose/cast.yml behind rpc-proxy. Do
 # not weaken that proxy for local networks.
@@ -31,8 +33,6 @@ x-anvil-base: &anvil_base
     HOME: /tmp/home
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=256m
-  networks:
-    - anvil_internal
   command:
     - "anvil"
     - "--host"
@@ -57,15 +57,26 @@ services:
   # network exposes it.
   anvil-internal:
     <<: *anvil_base
+    profiles:
+      - internal
+    networks:
+      - anvil_internal
 
   # Manual local chain for host tools such as browser wallets, curl, or host
   # Cast. Bind only to localhost on the host. Inside the container Anvil listens
   # on 0.0.0.0 so Docker can forward the loopback-bound host port correctly.
+  # This service uses a normal bridge network because Docker does not reliably
+  # publish host ports from internal-only networks.
   anvil-host:
     <<: *anvil_base
+    profiles:
+      - host
+    networks:
+      - anvil_host
     ports:
       - "127.0.0.1:${ANVIL_HOST_PORT:-8545}:8545"
 
 networks:
   anvil_internal:
     internal: true
+  anvil_host: {}
