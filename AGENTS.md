@@ -40,6 +40,21 @@ Keep the project small, explicit, and protocol-first.
   is properly secured and scoped. Use pinned images, least privilege, explicit
   mounts, bounded resources, and no unnecessary network access.
 
+## Implementation Discipline
+
+- Before coding, stop and identify the actual invariant or requirement.
+- Explore the ordinary solution in the current stack before inventing a new
+  script, lane, abstraction, directory, or tool.
+- Prefer canonical, routine paths over bespoke machinery. For example, checks
+  that should always run with tests belong in the normal test path.
+- Add a new Make target, Compose service, script, or directory only when it has
+  a distinct runtime posture, trust boundary, dependency boundary, or operator
+  purpose.
+- If a change would expand the repo shape, first ask whether the same outcome
+  fits cleanly into an existing file, test suite, or workflow.
+- When history is still local and unpushed, prefer a clean rewritten commit
+  over follow-up commits that only undo mistakes.
+
 ## Change Discipline
 
 - Inspect the tree first with `git status -sb`.
