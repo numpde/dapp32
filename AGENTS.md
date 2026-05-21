@@ -44,8 +44,10 @@ Keep the project small, explicit, and protocol-first.
   dependency input files and writes to a staging volume; the offline apply step
   writes only the expected dependency outputs.
 - Do not give networked dependency tools repo-root read/write mounts. In this
-  repo, the expected dependency outputs are `dependencies/`, `soldeer.lock`, and
-  `remappings.txt`.
+  repo, the expected dependency outputs are `dependencies/`, `soldeer.lock`,
+  `remappings.txt`, and `dependency-checksums.txt`.
+- Offline build, test, fuzz, invariant, and coverage lanes must verify installed
+  dependency contents before compiling.
 
 ## Implementation Discipline
 

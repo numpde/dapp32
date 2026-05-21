@@ -17,12 +17,13 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil
+.PHONY: help deps deps-verify fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil
 
 help:
 	@printf '%s\n' \
 	  'Supported lanes:' \
 	  '  make deps         Install Soldeer dependencies and update lock/remappings' \
+	  '  make deps-verify  Verify installed dependencies against committed checksums' \
 	  '  make fmt          Check Solidity formatting' \
 	  '  make build        Compile contracts' \
 	  '  make test         Run unit tests' \
@@ -46,27 +47,31 @@ deps:
 	}; \
 	trap cleanup EXIT; \
 	mkdir -p dependencies; \
-	touch soldeer.lock remappings.txt; \
+	touch soldeer.lock remappings.txt dependency-checksums.txt; \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-apply
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-apply; \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify
+
+deps-verify:
+	$(call compose_run,deps.yml,soldeer-verify)
 
 fmt:
 	$(call compose_run,forge.yml,forge-fmt)
 
-build:
+build: deps-verify
 	$(call compose_run,forge.yml,forge-build)
 
-test:
+test: deps-verify
 	$(call compose_run,forge.yml,forge-test)
 
-fuzz:
+fuzz: deps-verify
 	$(call compose_run,forge.yml,forge-fuzz)
 
-invariant:
+invariant: deps-verify
 	$(call compose_run,forge.yml,forge-invariant)
 
-coverage:
+coverage: deps-verify
 	$(call compose_run,forge.yml,forge-coverage)
 
 ci: fmt build test fuzz invariant

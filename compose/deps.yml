@@ -6,6 +6,7 @@
 # - soldeer-stage has network, reads only dependency input files, and writes only
 #   to a Docker volume.
 # - soldeer-apply has no network and can write only the dependency outputs.
+# - soldeer-verify has no network and verifies installed dependency contents.
 # Routine build/test lanes must stay offline and read-only.
 services:
   soldeer-stage:
@@ -32,6 +33,7 @@ services:
       - ../foundry.toml:/input/foundry.toml:ro
       - ../soldeer.lock:/input/soldeer.lock:ro
       - ../remappings.txt:/input/remappings.txt:ro
+      - ../scripts/verify-dependencies.sh:/input/verify-dependencies.sh:ro
       - soldeer-out:/out:rw
     command:
       - "bash"
@@ -48,9 +50,12 @@ services:
         test -d dependencies
         test -f soldeer.lock
         test -f remappings.txt
+        bash /input/verify-dependencies.sh --write /tmp/soldeer-work
+        test -f dependency-checksums.txt
         cp -a dependencies /out/dependencies
         cp soldeer.lock /out/soldeer.lock
         cp remappings.txt /out/remappings.txt
+        cp dependency-checksums.txt /out/dependency-checksums.txt
 
   soldeer-apply:
     build:
@@ -75,6 +80,7 @@ services:
       - ../dependencies:/work/dependencies:rw
       - ../soldeer.lock:/work/soldeer.lock:rw
       - ../remappings.txt:/work/remappings.txt:rw
+      - ../dependency-checksums.txt:/work/dependency-checksums.txt:rw
     command:
       - "bash"
       - "-lc"
@@ -83,10 +89,41 @@ services:
         test -d /out/dependencies
         test -f /out/soldeer.lock
         test -f /out/remappings.txt
+        test -f /out/dependency-checksums.txt
         find /work/dependencies -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
         cp -a /out/dependencies/. /work/dependencies/
         cp /out/soldeer.lock /work/soldeer.lock
         cp /out/remappings.txt /work/remappings.txt
+        cp /out/dependency-checksums.txt /work/dependency-checksums.txt
+
+  soldeer-verify:
+    build:
+      context: ../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    environment:
+      HOME: /tmp/home
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    volumes:
+      - ../scripts/verify-dependencies.sh:/input/verify-dependencies.sh:ro
+      - ../dependencies:/work/dependencies:ro
+      - ../soldeer.lock:/work/soldeer.lock:ro
+      - ../remappings.txt:/work/remappings.txt:ro
+      - ../dependency-checksums.txt:/work/dependency-checksums.txt:ro
+    command:
+      - "bash"
+      - "/input/verify-dependencies.sh"
+      - "/work"
 
 volumes:
   soldeer-out: {}
