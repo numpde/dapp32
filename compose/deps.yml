@@ -4,7 +4,7 @@
 # dependencies needs network access, but networked dependency tools should not
 # receive write access to the repository. The lane is split into stages:
 # - dependency-egress-proxy is the only service with external egress. It allows
-#   HTTPS CONNECT only to global IP addresses on port 443.
+#   HTTPS CONNECT only to allowlisted global hosts on port 443.
 # - soldeer-stage is on an internal network, reads only dependency input files,
 #   verifies upstream archives against soldeer.lock, applies declared local
 #   patches with pre/patch/post checksums, and writes only to a Docker volume.
@@ -28,6 +28,8 @@ services:
       - ALL
     pids_limit: 64
     mem_limit: 128m
+    environment:
+      HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: soldeer-revisions.s3.amazonaws.com
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=16m
     networks:

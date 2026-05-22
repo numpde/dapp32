@@ -16,10 +16,34 @@ CONNECT_TIMEOUT_SECONDS = float(os.environ.get("HTTPS_EGRESS_PROXY_CONNECT_TIMEO
 TUNNEL_IDLE_TIMEOUT_SECONDS = float(os.environ.get("HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS", "300"))
 MAX_HOST_BYTES = int(os.environ.get("HTTPS_EGRESS_PROXY_MAX_HOST_BYTES", "255"))
 BUFFER_BYTES = int(os.environ.get("HTTPS_EGRESS_PROXY_BUFFER_BYTES", "65536"))
+ALLOWED_HOSTS = frozenset()
 
 
 class ProxyRejected(Exception):
     pass
+
+
+def normalize_host(host: str) -> str:
+    normalized = host.strip().lower().rstrip(".")
+    if not normalized:
+        raise ProxyRejected("host is empty")
+    return normalized
+
+
+def parse_allowed_hosts(raw: str) -> frozenset[str]:
+    hosts = [item for item in (part.strip() for part in raw.split(",")) if item]
+    return frozenset(normalize_host(host) for host in hosts)
+
+
+def require_allowed_host(host: str, allowed_hosts: frozenset[str] | None = None) -> None:
+    if allowed_hosts is None:
+        allowed_hosts = ALLOWED_HOSTS
+    if not allowed_hosts:
+        return
+
+    normalized = normalize_host(host)
+    if normalized not in allowed_hosts:
+        raise ProxyRejected(f"CONNECT target host is not allowlisted: {normalized}")
 
 
 def parse_connect_target(target: str) -> tuple[str, int]:
@@ -40,6 +64,8 @@ def parse_connect_target(target: str) -> tuple[str, int]:
 
     if not host:
         raise ProxyRejected("CONNECT target is missing a host")
+
+    host = normalize_host(host)
 
     try:
         port = int(port_text)
@@ -143,6 +169,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         upstream = None
         try:
             host, port = parse_connect_target(self.path)
+            require_allowed_host(host)
             upstream = connect_first(resolve_global_addresses(host, port), port)
         except ProxyRejected as exc:
             self.send_error(502, str(exc))
@@ -187,6 +214,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main() -> int:
+    global ALLOWED_HOSTS
+    ALLOWED_HOSTS = parse_allowed_hosts(os.environ.get("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS", ""))
+
     server = http.server.ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     server.daemon_threads = True
     server.serve_forever()
