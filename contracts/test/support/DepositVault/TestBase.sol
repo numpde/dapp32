@@ -6,8 +6,12 @@ interface DepositVaultTestVm {
     function addr(uint256 privateKey) external returns (address);
     function deal(address account, uint256 newBalance) external;
     function expectEmit(bool checkTopic1, bool checkTopic2, bool checkTopic3, bool checkData, address emitter) external;
+    function expectRevert() external;
+    function expectRevert(bytes4 revertData) external;
+    function expectRevert(bytes calldata revertData) external;
     function prank(address msgSender) external;
     function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
+    function warp(uint256 newTimestamp) external;
 }
 
 /// @notice Shared setup and helpers for DepositVault tests.
