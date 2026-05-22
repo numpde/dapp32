@@ -4,7 +4,7 @@ SHELL := bash
 
 COMPOSE_DIR ?= compose
 DOCKER_COMPOSE ?= docker compose
-COMPOSE_PROJECT_NAME ?= contracts
+COMPOSE_PROJECT_NAME ?= on-chain
 ACTUAL_UID := $(shell id -u)
 LOCAL_UID ?= $(shell id -u)
 LOCAL_GID ?= $(shell id -g)
@@ -44,7 +44,7 @@ help:
 	  '  make check-live-deps-egress  Prove dependency egress allow/deny behavior' \
 	  '  make check-anvil-compose  Run only the rendered Anvil Compose posture checks' \
 	  '  make fmt          Check Solidity formatting' \
-	  '  make build        Compile contracts' \
+	  '  make build        Compile on-chain package' \
 	  '  make test         Run unit tests' \
 	  '  make fuzz         Run fuzz tests' \
 	  '  make invariant    Run invariant tests' \
@@ -71,7 +71,7 @@ deps:
 	case "$(ALLOW_UPDATE)" in \
 	  0) \
 	    apply_service="soldeer-apply-locked"; \
-	    for file in soldeer.lock remappings.txt dependency-checksums.txt; do \
+	    for file in on-chain/soldeer.lock on-chain/remappings.txt on-chain/dependency-checksums.txt; do \
 	      if [[ ! -f "$$file" ]]; then \
 	        printf 'Missing locked dependency metadata: %s\n' "$$file" >&2; \
 	        printf '%s\n' 'Run make deps ALLOW_UPDATE=1 only if creating or updating dependency metadata is intended.' >&2; \
@@ -80,10 +80,10 @@ deps:
 	    done ;; \
 	  1) \
 	    apply_service="soldeer-apply-update"; \
-	    touch soldeer.lock remappings.txt dependency-checksums.txt ;; \
+	    touch on-chain/soldeer.lock on-chain/remappings.txt on-chain/dependency-checksums.txt ;; \
 	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
 	esac; \
-	mkdir -p dependencies; \
+	mkdir -p on-chain/dependencies; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm "$$apply_service"; \

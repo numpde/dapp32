@@ -97,7 +97,7 @@ class DependencyMetadataTest(unittest.TestCase):
         return version
 
     def foundry_dependencies(self) -> dict[str, dict[str, object]]:
-        config = tomllib.loads(read_text(repo_path("foundry.toml")))
+        config = tomllib.loads(read_text(repo_path("on-chain/foundry.toml")))
         dependencies = config.get("dependencies", {})
         self.assertIsInstance(dependencies, dict)
         self.assertIn(OZ_PACKAGE, dependencies, "expected OpenZeppelin dependency in foundry.toml")
@@ -114,7 +114,7 @@ class DependencyMetadataTest(unittest.TestCase):
         return self.locked_dependency_records()[OZ_PACKAGE]["version"]
 
     def locked_dependency_records(self) -> dict[str, dict[str, str]]:
-        lock = tomllib.loads(read_text(repo_path("soldeer.lock")))
+        lock = tomllib.loads(read_text(repo_path("on-chain/soldeer.lock")))
         raw_records = lock.get("dependencies", [])
         self.assertIsInstance(raw_records, list)
 
@@ -164,7 +164,7 @@ class DependencyMetadataTest(unittest.TestCase):
     def remapped_openzeppelin_version(self) -> str:
         versions = [
             match.group(1)
-            for line in read_text(repo_path("remappings.txt")).splitlines()
+            for line in read_text(repo_path("on-chain/remappings.txt")).splitlines()
             if (match := REMAPPING_RE.match(line))
         ]
         self.assertEqual(1, len(versions), "expected exactly one OpenZeppelin remapping")
@@ -173,7 +173,7 @@ class DependencyMetadataTest(unittest.TestCase):
     def checksummed_openzeppelin_version(self) -> str:
         versions = [
             match.group(1)
-            for line in read_text(repo_path("dependency-checksums.txt")).splitlines()
+            for line in read_text(repo_path("on-chain/dependency-checksums.txt")).splitlines()
             if (match := CHECKSUM_RE.match(line))
         ]
         self.assertEqual(1, len(versions), "expected exactly one OpenZeppelin checksum")
@@ -182,7 +182,7 @@ class DependencyMetadataTest(unittest.TestCase):
     def imported_openzeppelin_versions(self) -> set[str]:
         versions: set[str] = set()
 
-        for path in iter_files("contracts/src", "contracts/test"):
+        for path in iter_files("on-chain/src", "on-chain/test"):
             if path.suffix != ".sol":
                 continue
             for import_path, version in IMPORT_RE.findall(read_text(path)):

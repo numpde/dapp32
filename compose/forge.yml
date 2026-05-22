@@ -18,7 +18,7 @@ x-forge-base: &forge_base
   build:
     context: ../containers/foundry
     dockerfile: Dockerfile
-  working_dir: /work
+  working_dir: /work/on-chain
   user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
   read_only: true
   network_mode: "none"
@@ -32,7 +32,7 @@ x-forge-base: &forge_base
     HOME: /tmp/home
     XDG_DATA_HOME: /usr/local/share
     FOUNDRY_CACHE_PATH: /tmp/foundry-cache
-    FOUNDRY_CONFIG: /work/foundry.toml
+    FOUNDRY_CONFIG: /work/on-chain/foundry.toml
     FOUNDRY_OUT: /tmp/foundry-out
     FOUNDRY_BROADCAST: /tmp/foundry-broadcast
   tmpfs:
@@ -61,7 +61,7 @@ services:
       - "test"
       - "--offline"
       - "--match-path"
-      - "contracts/test/unit/**/*.sol"
+      - "test/unit/**/*.sol"
       - "-vvv"
 
   # Fuzz tests are separated as a Make target because they are usually heavier
@@ -73,7 +73,7 @@ services:
       - "test"
       - "--offline"
       - "--match-path"
-      - "contracts/test/fuzz/**/*.sol"
+      - "test/fuzz/**/*.sol"
       - "-vvv"
 
   # Invariant tests are also heavier and often state-machine oriented. They
@@ -85,7 +85,7 @@ services:
       - "test"
       - "--offline"
       - "--match-path"
-      - "contracts/test/invariant/**/*.sol"
+      - "test/invariant/**/*.sol"
       - "-vvv"
 
   # Coverage is a reporting lane over the same checked-in sources.

@@ -14,7 +14,7 @@ class SolidityPragmaTest(unittest.TestCase):
     def test_repo_solidity_pragmas_match_foundry_compiler(self) -> None:
         expected = self.foundry_solc_version()
 
-        for path in iter_files("contracts", "examples"):
+        for path in iter_files("on-chain", "examples"):
             if path.suffix != ".sol":
                 continue
 
@@ -30,7 +30,7 @@ class SolidityPragmaTest(unittest.TestCase):
                 )
 
     def foundry_solc_version(self) -> str:
-        config = tomllib.loads(read_text(repo_path("foundry.toml")))
+        config = tomllib.loads(read_text(repo_path("on-chain/foundry.toml")))
         solc = config["profile"]["default"]["solc"]
         self.assertIsInstance(solc, str)
         return solc

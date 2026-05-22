@@ -80,11 +80,11 @@ services:
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=512m
     volumes:
-      - ../foundry.toml:/input/foundry.toml:ro
-      - ../soldeer.lock:/input/soldeer.lock:ro
-      - ../remappings.txt:/input/remappings.txt:ro
-      - ../dependency-patches.txt:/input/dependency-patches.txt:ro
-      - ../patches:/input/patches:ro
+      - ../on-chain/foundry.toml:/input/foundry.toml:ro
+      - ../on-chain/soldeer.lock:/input/soldeer.lock:ro
+      - ../on-chain/remappings.txt:/input/remappings.txt:ro
+      - ../on-chain/dependency-patches.txt:/input/dependency-patches.txt:ro
+      - ../on-chain/patches:/input/patches:ro
       - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
       - soldeer-out:/out:rw
     networks:
@@ -171,10 +171,10 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
       - soldeer-out:/out:ro
-      - ../dependencies:/work/dependencies:rw
-      - ../soldeer.lock:/work/soldeer.lock:ro
-      - ../remappings.txt:/work/remappings.txt:ro
-      - ../dependency-checksums.txt:/work/dependency-checksums.txt:ro
+      - ../on-chain/dependencies:/work/dependencies:rw
+      - ../on-chain/soldeer.lock:/work/soldeer.lock:ro
+      - ../on-chain/remappings.txt:/work/remappings.txt:ro
+      - ../on-chain/dependency-checksums.txt:/work/dependency-checksums.txt:ro
     command:
       - "bash"
       - "-lc"
@@ -221,10 +221,10 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
       - soldeer-out:/out:ro
-      - ../dependencies:/work/dependencies:rw
-      - ../soldeer.lock:/work/soldeer.lock:rw
-      - ../remappings.txt:/work/remappings.txt:rw
-      - ../dependency-checksums.txt:/work/dependency-checksums.txt:rw
+      - ../on-chain/dependencies:/work/dependencies:rw
+      - ../on-chain/soldeer.lock:/work/soldeer.lock:rw
+      - ../on-chain/remappings.txt:/work/remappings.txt:rw
+      - ../on-chain/dependency-checksums.txt:/work/dependency-checksums.txt:rw
     command:
       - "bash"
       - "-lc"
@@ -268,13 +268,13 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
       - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
-      - ../foundry.toml:/work/foundry.toml:ro
-      - ../dependencies:/work/dependencies:ro
-      - ../soldeer.lock:/work/soldeer.lock:ro
-      - ../remappings.txt:/work/remappings.txt:ro
-      - ../dependency-checksums.txt:/work/dependency-checksums.txt:ro
-      - ../dependency-patches.txt:/work/dependency-patches.txt:ro
-      - ../patches:/work/patches:ro
+      - ../on-chain/foundry.toml:/work/foundry.toml:ro
+      - ../on-chain/dependencies:/work/dependencies:ro
+      - ../on-chain/soldeer.lock:/work/soldeer.lock:ro
+      - ../on-chain/remappings.txt:/work/remappings.txt:ro
+      - ../on-chain/dependency-checksums.txt:/work/dependency-checksums.txt:ro
+      - ../on-chain/dependency-patches.txt:/work/dependency-patches.txt:ro
+      - ../on-chain/patches:/work/patches:ro
     command:
       - "-I"
       - "-B"

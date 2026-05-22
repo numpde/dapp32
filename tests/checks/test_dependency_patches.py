@@ -10,6 +10,7 @@ from .common import read_text, repo_path
 
 
 CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}$")
+PACKAGE_ROOT = repo_path("on-chain")
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,7 @@ class DependencyPatchTest(unittest.TestCase):
                 self.assert_patch_targets_declared_file(record)
 
     def read_manifest(self) -> list[DependencyPatch]:
-        path = repo_path("dependency-patches.txt")
+        path = PACKAGE_ROOT / "dependency-patches.txt"
         records: list[DependencyPatch] = []
 
         for line_number, raw_line in enumerate(read_text(path).splitlines(), start=1):
@@ -66,12 +67,12 @@ class DependencyPatchTest(unittest.TestCase):
             self.assertRegex(value, CHECKSUM_RE)
 
     def assert_patch_hash_matches(self, record: DependencyPatch) -> None:
-        patch_path = repo_path(record.patch_file)
+        patch_path = PACKAGE_ROOT / record.patch_file
         self.assertTrue(patch_path.is_file(), f"missing dependency patch: {record.patch_file}")
         actual = hashlib.sha256(patch_path.read_bytes()).hexdigest()
         self.assertEqual(record.patch_hash, actual)
 
     def assert_patch_targets_declared_file(self, record: DependencyPatch) -> None:
-        patch_text = read_text(repo_path(record.patch_file))
+        patch_text = read_text(PACKAGE_ROOT / record.patch_file)
         self.assertIn(f"--- a/{record.target}", patch_text)
         self.assertIn(f"+++ b/{record.target}", patch_text)
