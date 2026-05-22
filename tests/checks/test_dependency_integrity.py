@@ -23,6 +23,11 @@ FOUNDRY_DEP_RE = re.compile(
     r'^(?P<name>"[^"]+"|[^\s=]+)\s*=\s*\{\s*version\s*=\s*"(?P<version>[^"]+)"\s*\}\s*(?:#.*)?$'
 )
 SOLDEER_REVISIONS_HOST = "soldeer-revisions.s3.amazonaws.com"
+SOLDEER_ARCHIVE_SUFFIX_RE = {
+    "@openzeppelin-contracts": r"contracts",
+    "forge-std": r"forge-std-[0-9]+(?:\.[0-9]+)*",
+}
+DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE = r"[A-Za-z0-9_.:-]+"
 DOWNLOAD_TIMEOUT_SECONDS = 15
 DOWNLOAD_TOTAL_TIMEOUT_SECONDS = 300
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
@@ -223,12 +228,10 @@ class DependencyVerifier:
             raise DependencyVerificationError(f"{record.key} lock URL must use Soldeer revisions: {record.url}")
         if parsed.params or parsed.query or parsed.fragment:
             raise DependencyVerificationError(f"{record.key} lock URL must not include params, query, or fragment: {record.url}")
-        if re.fullmatch(
-            rf"/{re.escape(record.name)}/{re.escape(expected_version_prefix)}_[^/]+_contracts\.zip",
-            parsed.path,
-        ) is None:
+        suffix_re = SOLDEER_ARCHIVE_SUFFIX_RE.get(record.name, DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE)
+        if re.fullmatch(rf"/{re.escape(record.name)}/{re.escape(expected_version_prefix)}_[^/]+_{suffix_re}\.zip", parsed.path) is None:
             raise DependencyVerificationError(
-                f"{record.key} lock URL must point to the Soldeer contracts package: {record.url}"
+                f"{record.key} lock URL must point to an allowed Soldeer archive: {record.url}"
             )
 
     def verify_dependency_set(self, records: list[DependencyRecord]) -> None:

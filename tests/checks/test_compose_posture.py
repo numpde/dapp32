@@ -28,7 +28,7 @@ class ComposePostureTest(unittest.TestCase):
 
         self.assertIn("dependency-egress-proxy:", text)
         self.assertIn("context: ../containers/https-egress-proxy", text)
-        self.assertIn("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: soldeer-revisions.s3.amazonaws.com", text)
+        self.assertIn("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: api.soldeer.xyz,soldeer-revisions.s3.amazonaws.com", text)
         self.assertIn("HTTPS_PROXY: http://dependency-egress-proxy:8080", text)
         self.assertIn("https_proxy: http://dependency-egress-proxy:8080", text)
         self.assertIn("deps_internal:", text)

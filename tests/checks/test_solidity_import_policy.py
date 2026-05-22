@@ -10,13 +10,15 @@ from .common import iter_files, read_text, repo_path
 
 OZ_PACKAGE = "@openzeppelin-contracts"
 OZ_ALLOWED_TOP_LEVEL = {"access", "utils"}
+FORGE_STD_PACKAGE = "forge-std"
+FORGE_STD_ALLOWED_TEST_IMPORTS = {"Test.sol"}
 IMPORT_STATEMENT_RE = re.compile(r"\bimport\b(?P<body>[^;]*);", re.MULTILINE | re.DOTALL)
 IMPORT_PATH_RE = re.compile(r'["\'](?P<path>[^"\']+)["\']')
 
 
 class SolidityImportPolicyTest(unittest.TestCase):
     def test_contract_imports_are_relative_or_explicitly_allowed_dependencies(self) -> None:
-        version = self.openzeppelin_version()
+        dependency_versions = self.dependency_versions()
         failures: list[str] = []
 
         for path in iter_files("contracts/src", "contracts/test"):
@@ -24,7 +26,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
                 continue
 
             for import_path in self.import_paths(path):
-                error = self.validate_import(path, import_path, version)
+                error = self.validate_import(path, import_path, dependency_versions)
                 if error is not None:
                     failures.append(error)
 
@@ -32,7 +34,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
             self.fail("\n".join(failures))
 
     def test_openzeppelin_allowlist_matches_current_import_surface(self) -> None:
-        version = self.openzeppelin_version()
+        version = self.dependency_versions()[OZ_PACKAGE]
         expected_prefix = f"{OZ_PACKAGE}-{version}/"
         imported_roots: set[str] = set()
 
@@ -53,36 +55,49 @@ class SolidityImportPolicyTest(unittest.TestCase):
         )
 
     def test_import_policy_classifier_self_check(self) -> None:
-        version = "5.6.1"
+        dependency_versions = {
+            OZ_PACKAGE: "5.6.1",
+            FORGE_STD_PACKAGE: "1.12.0",
+        }
         source = repo_path("contracts/test/unit/HelloWorld.t.sol")
 
         self.assertIsNone(
-            self.validate_import(source, f"{OZ_PACKAGE}-{version}/access/Ownable.sol", version)
+            self.validate_import(source, f"{OZ_PACKAGE}-5.6.1/access/Ownable.sol", dependency_versions)
         )
         self.assertIsNone(
-            self.validate_import(source, f"{OZ_PACKAGE}-{version}/utils/Pausable.sol", version)
+            self.validate_import(source, f"{OZ_PACKAGE}-5.6.1/utils/Pausable.sol", dependency_versions)
         )
-        self.assertIsNone(self.validate_import(source, "../../src/HelloWorld.sol", version))
+        self.assertIsNone(self.validate_import(source, "../../src/HelloWorld.sol", dependency_versions))
+        self.assertIsNone(self.validate_import(source, "forge-std-1.12.0/src/Test.sol", dependency_versions))
 
         rejected = [
-            f"{OZ_PACKAGE}-{version}/contracts/access/Ownable.sol",
-            f"{OZ_PACKAGE}-{version}/token/ERC20/IERC20.sol",
+            f"{OZ_PACKAGE}-5.6.1/contracts/access/Ownable.sol",
+            f"{OZ_PACKAGE}-5.6.1/token/ERC20/IERC20.sol",
             f"{OZ_PACKAGE}-5.4.0/access/Ownable.sol",
             "./Missing.sol",
             "forge-std/Test.sol",
+            "forge-std-1.11.1/src/Test.sol",
+            "forge-std-1.12.0/src/Script.sol",
             "https://example.test/Contract.sol",
         ]
         for import_path in rejected:
             with self.subTest(import_path=import_path):
-                self.assertIsNotNone(self.validate_import(source, import_path, version))
+                self.assertIsNotNone(self.validate_import(source, import_path, dependency_versions))
 
-    def openzeppelin_version(self) -> str:
+    def dependency_versions(self) -> dict[str, str]:
         config = tomllib.loads(read_text(repo_path("foundry.toml")))
-        dependency = config.get("dependencies", {}).get(OZ_PACKAGE)
-        self.assertIsInstance(dependency, dict)
-        version = dependency.get("version")
-        self.assertIsInstance(version, str)
-        return version
+        dependencies = config.get("dependencies", {})
+        self.assertIsInstance(dependencies, dict)
+
+        versions: dict[str, str] = {}
+        for package in (OZ_PACKAGE, FORGE_STD_PACKAGE):
+            dependency = dependencies.get(package)
+            self.assertIsInstance(dependency, dict)
+            version = dependency.get("version")
+            self.assertIsInstance(version, str)
+            versions[package] = version
+
+        return versions
 
     def import_paths(self, path: Path) -> list[str]:
         imports: list[str] = []
@@ -92,13 +107,16 @@ class SolidityImportPolicyTest(unittest.TestCase):
             imports.append(matches[0])
         return imports
 
-    def validate_import(self, source: Path, import_path: str, oz_version: str) -> str | None:
+    def validate_import(self, source: Path, import_path: str, dependency_versions: dict[str, str]) -> str | None:
         if import_path.startswith(("./", "../")):
             return self.validate_relative_import(source, import_path)
 
-        expected_prefix = f"{OZ_PACKAGE}-{oz_version}/"
+        expected_prefix = f"{OZ_PACKAGE}-{dependency_versions[OZ_PACKAGE]}/"
         if import_path.startswith(OZ_PACKAGE):
             return self.validate_openzeppelin_import(source, import_path, expected_prefix)
+
+        if import_path.startswith(FORGE_STD_PACKAGE):
+            return self.validate_forge_std_import(source, import_path, dependency_versions[FORGE_STD_PACKAGE])
 
         return f"{source}: disallowed package import {import_path}"
 
@@ -141,3 +159,22 @@ class SolidityImportPolicyTest(unittest.TestCase):
             return f"{source}: OpenZeppelin import must target a Solidity file: {import_path}"
 
         return None
+
+    def validate_forge_std_import(self, source: Path, import_path: str, version: str) -> str | None:
+        if not self.is_test_source(source):
+            return f"{source}: forge-std imports are allowed only in Solidity tests: {import_path}"
+
+        expected_prefix = f"{FORGE_STD_PACKAGE}-{version}/src/"
+        if not import_path.startswith(expected_prefix):
+            return f"{source}: forge-std import must use {expected_prefix}: {import_path}"
+
+        suffix = import_path.removeprefix(expected_prefix)
+        if suffix not in FORGE_STD_ALLOWED_TEST_IMPORTS:
+            allowed = ", ".join(sorted(FORGE_STD_ALLOWED_TEST_IMPORTS))
+            return f"{source}: forge-std import must be one of ({allowed}): {import_path}"
+
+        return None
+
+    def is_test_source(self, source: Path) -> bool:
+        relative = source.resolve().relative_to(repo_path("").resolve())
+        return "test" in relative.parts

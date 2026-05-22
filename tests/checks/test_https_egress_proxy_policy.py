@@ -24,15 +24,16 @@ class HttpsEgressProxyPolicyTest(unittest.TestCase):
     def test_proxy_host_allowlist_is_configured_for_dependency_lane(self) -> None:
         text = read_text(repo_path("compose/deps.yml"))
 
-        self.assertIn("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: soldeer-revisions.s3.amazonaws.com", text)
+        self.assertIn("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: api.soldeer.xyz,soldeer-revisions.s3.amazonaws.com", text)
 
     def test_accepts_allowlisted_host(self) -> None:
-        allowed = self.proxy.parse_allowed_hosts("soldeer-revisions.s3.amazonaws.com")
+        allowed = self.proxy.parse_allowed_hosts("api.soldeer.xyz,soldeer-revisions.s3.amazonaws.com")
 
         self.proxy.require_allowed_host("SOLDEER-REVISIONS.S3.AMAZONAWS.COM.", allowed)
+        self.proxy.require_allowed_host("API.SOLDEER.XYZ.", allowed)
 
     def test_rejects_unlisted_host(self) -> None:
-        allowed = self.proxy.parse_allowed_hosts("soldeer-revisions.s3.amazonaws.com")
+        allowed = self.proxy.parse_allowed_hosts("api.soldeer.xyz,soldeer-revisions.s3.amazonaws.com")
 
         with self.assertRaisesRegex(self.proxy.ProxyRejected, "not allowlisted"):
             self.proxy.require_allowed_host("example.com", allowed)

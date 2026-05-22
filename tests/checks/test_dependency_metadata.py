@@ -9,7 +9,13 @@ from .common import iter_files, read_text, repo_path
 
 
 OZ_PACKAGE = "@openzeppelin-contracts"
+FORGE_STD_PACKAGE = "forge-std"
 SOLDEER_REVISIONS_HOST = "soldeer-revisions.s3.amazonaws.com"
+SOLDEER_ARCHIVE_SUFFIX_RE = {
+    OZ_PACKAGE: r"contracts",
+    FORGE_STD_PACKAGE: r"forge-std-[0-9]+(?:\.[0-9]+)*",
+}
+DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE = r"[A-Za-z0-9_.:-]+"
 REMAPPING_RE = re.compile(r"^@openzeppelin-contracts-([^/=]+)/=dependencies/@openzeppelin-contracts-\1/$")
 CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}  @openzeppelin-contracts-([^\s]+)$")
 IMPORT_RE = re.compile(r'from\s+"(@openzeppelin-contracts-([^/"]+)/[^"]+)"')
@@ -64,6 +70,11 @@ class DependencyMetadataTest(unittest.TestCase):
             "https://soldeer-revisions.s3.amazonaws.com/"
             "@openzeppelin-contracts/5_6_1_15-03-2026_09:19:50_contracts.zip",
             version,
+        )
+        self.assert_allowed_soldeer_registry_url(
+            FORGE_STD_PACKAGE,
+            "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_12_0_28-11-2025_13:04:44_forge-std-1.12.zip",
+            "1.12.0",
         )
 
         rejected = [
@@ -143,9 +154,12 @@ class DependencyMetadataTest(unittest.TestCase):
         self.assertEqual(SOLDEER_REVISIONS_HOST, parsed.netloc, f"{name} lock URL must use Soldeer revisions: {url}")
         self.assertRegex(
             parsed.path,
-            rf"^/{re.escape(name)}/{re.escape(expected_version_prefix)}_[^/]+_contracts\.zip$",
-            f"{name} lock URL must point to the Soldeer contracts package: {url}",
+            rf"^/{re.escape(name)}/{re.escape(expected_version_prefix)}_[^/]+_{self.allowed_archive_suffix_re(name)}\.zip$",
+            f"{name} lock URL must point to an allowed Soldeer archive: {url}",
         )
+
+    def allowed_archive_suffix_re(self, name: str) -> str:
+        return SOLDEER_ARCHIVE_SUFFIX_RE.get(name, DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE)
 
     def remapped_openzeppelin_version(self) -> str:
         versions = [

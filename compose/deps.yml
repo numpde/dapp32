@@ -29,7 +29,7 @@ services:
     pids_limit: 64
     mem_limit: 128m
     environment:
-      HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: soldeer-revisions.s3.amazonaws.com
+      HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: api.soldeer.xyz,soldeer-revisions.s3.amazonaws.com
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=16m
     networks:
@@ -76,6 +76,7 @@ services:
       XDG_DATA_HOME: /usr/local/share
       FOUNDRY_CACHE_PATH: /tmp/foundry-cache
       FOUNDRY_CONFIG: /tmp/soldeer-work/foundry.toml
+      ALLOW_UPDATE: "${ALLOW_UPDATE:-0}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=512m
     volumes:
@@ -133,7 +134,11 @@ services:
         cp /input/soldeer.lock /tmp/soldeer-work/soldeer.lock
         cp /input/remappings.txt /tmp/soldeer-work/remappings.txt
         cd /tmp/soldeer-work
-        forge soldeer install --config-location foundry
+        if [ "$${ALLOW_UPDATE}" = "1" ]; then
+          forge soldeer update --config-location foundry --regenerate-remappings
+        else
+          forge soldeer install --config-location foundry
+        fi
         test -d dependencies
         test -f soldeer.lock
         test -f remappings.txt
