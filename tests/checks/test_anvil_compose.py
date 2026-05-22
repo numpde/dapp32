@@ -31,7 +31,7 @@ class AnvilComposePostureTest(unittest.TestCase):
             {
                 "LOCAL_UID": "1000",
                 "LOCAL_GID": "1000",
-                "COMPOSE_PROJECT_NAME": "contracts-anvil-check",
+                "COMPOSE_PROJECT_NAME": "dapps-anvil-check",
                 "COMPOSE_PROFILES": profiles,
                 "ANVIL_HOST_PORT": host_port,
             }
