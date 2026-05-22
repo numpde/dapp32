@@ -1,0 +1,45 @@
+# Live dependency-egress check overlay.
+#
+# Use with compose/deps.yml:
+#
+#   docker compose -f compose/deps.yml -f compose/check-live-deps-egress.yml up egress-proxy-check
+#
+# The proxy service and its allowlist stay single-sourced in compose/deps.yml.
+# This overlay adds only a checker on the internal dependency network, so the
+# checker can reach external hosts only through dependency-egress-proxy.
+services:
+  egress-proxy-check:
+    build:
+      context: ../containers/checks
+      dockerfile: Dockerfile
+    working_dir: /tmp
+    depends_on:
+      dependency-egress-proxy:
+        condition: service_healthy
+    user: "65532:65532"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    environment:
+      HOME: /tmp/home
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONHASHSEED: "0"
+      DEPENDENCY_EGRESS_PROXY_HOST: dependency-egress-proxy
+      DEPENDENCY_EGRESS_PROXY_PORT: "8080"
+      DEPENDENCY_EGRESS_LOCK_FILE: /input/soldeer.lock
+      DEPENDENCY_EGRESS_DENIED_HOST: example.com
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    volumes:
+      - ../tests/live/check_dependency_egress_proxy.py:/input/check_dependency_egress_proxy.py:ro
+      - ../soldeer.lock:/input/soldeer.lock:ro
+    networks:
+      - deps_internal
+    command:
+      - "-I"
+      - "-B"
+      - "/input/check_dependency_egress_proxy.py"

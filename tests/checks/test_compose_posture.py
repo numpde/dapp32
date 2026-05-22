@@ -28,11 +28,33 @@ class ComposePostureTest(unittest.TestCase):
 
         self.assertIn("dependency-egress-proxy:", text)
         self.assertIn("context: ../containers/https-egress-proxy", text)
+        self.assertIn("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: soldeer-revisions.s3.amazonaws.com", text)
         self.assertIn("HTTPS_PROXY: http://dependency-egress-proxy:8080", text)
         self.assertIn("https_proxy: http://dependency-egress-proxy:8080", text)
         self.assertIn("deps_internal:", text)
         self.assertIn("deps_egress:", text)
         self.assertIn("internal: true", text)
+
+    def test_live_dependency_egress_check_reuses_dependency_proxy_service(self) -> None:
+        text = read_text(repo_path("compose/check-live-deps-egress.yml"))
+
+        self.assertIn("egress-proxy-check:", text)
+        self.assertIn("dependency-egress-proxy:", text)
+        self.assertIn("condition: service_healthy", text)
+        self.assertIn("- deps_internal", text)
+        self.assertIn("../soldeer.lock:/input/soldeer.lock:ro", text)
+        self.assertNotIn("context: ../containers/https-egress-proxy", text)
+        self.assertNotIn("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS:", text)
+        self.assertNotIn("DEPENDENCY_EGRESS_ALLOWED_HOST:", text)
+
+    def test_check_target_names_are_layered_by_cost(self) -> None:
+        text = read_text(repo_path("Makefile"))
+
+        self.assertIn(".PHONY: help deps deps-verify checks check-runtime check-live check-live-deps-egress", text)
+        self.assertIn("check-runtime: check-anvil-compose", text)
+        self.assertIn("check-live: check-live-deps-egress", text)
+        self.assertIn("LIVE_DEPS_EGRESS_COMPOSE_FILES :=", text)
+        self.assertIn("-f $(COMPOSE_DIR)/deps.yml -f $(COMPOSE_DIR)/check-live-deps-egress.yml", text)
 
     def test_dependency_stage_applies_declared_patches(self) -> None:
         text = read_text(repo_path("compose/deps.yml"))

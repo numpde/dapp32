@@ -12,13 +12,16 @@ ALLOW_UPDATE ?= 0
 
 RPC_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-cast-rpc
 ANVIL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-anvil
+LIVE_CHECK_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-check-live
 
 COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)
 RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_COMPOSE_PROJECT_NAME)
 ANVIL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
+LIVE_CHECK_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(LIVE_CHECK_COMPOSE_PROJECT_NAME)
 ANVIL_INTERNAL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
 ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host
 ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host
+LIVE_DEPS_EGRESS_COMPOSE_FILES := -f $(COMPOSE_DIR)/deps.yml -f $(COMPOSE_DIR)/check-live-deps-egress.yml
 NON_ROOT_GUARD := if [[ "$(ACTUAL_UID)" == "0" || "$(LOCAL_UID)" == "0" ]]; then printf '%s\n' 'Refusing to run Docker lanes as root or with LOCAL_UID=0. Run make as a non-root user.' >&2; exit 2; fi
 
 define compose_run
@@ -26,7 +29,7 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify checks check-anvil-compose fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
+.PHONY: help deps deps-verify checks check-runtime check-live check-live-deps-egress check-anvil-compose fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
 
 help:
 	@printf '%s\n' \
@@ -35,6 +38,9 @@ help:
 	  '  make deps ALLOW_UPDATE=1  Allow dependency lock/remapping/checksum updates' \
 	  '  make deps-verify  Verify installed dependencies against committed checksums' \
 	  '  make checks       Run offline repository/source checks' \
+	  '  make check-runtime  Run local Docker-backed runtime checks' \
+	  '  make check-live    Run live checks that intentionally use external network' \
+	  '  make check-live-deps-egress  Prove dependency egress allow/deny behavior' \
 	  '  make check-anvil-compose  Run only the rendered Anvil Compose posture checks' \
 	  '  make fmt          Check Solidity formatting' \
 	  '  make build        Compile contracts' \
@@ -87,6 +93,20 @@ deps-verify:
 
 checks:
 	$(call compose_run,checks.yml,checks)
+
+check-runtime: check-anvil-compose
+
+check-live: check-live-deps-egress
+
+check-live-deps-egress:
+	@$(NON_ROOT_GUARD); \
+	cleanup() { \
+	  status="$$?"; \
+	  $(LIVE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(LIVE_DEPS_EGRESS_COMPOSE_FILES) down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(LIVE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(LIVE_DEPS_EGRESS_COMPOSE_FILES) up --build --abort-on-container-exit --exit-code-from egress-proxy-check egress-proxy-check
 
 check-anvil-compose:
 	@$(NON_ROOT_GUARD); \
