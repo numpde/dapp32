@@ -64,6 +64,28 @@
       font-size: clamp(1.05rem, 2vw, 1.28rem);
     }
 
+    .outage {
+      max-width: 780px;
+      margin-top: 24px;
+      padding: 16px 18px;
+      border: 1px solid rgba(184, 74, 53, 0.28);
+      border-left: 4px solid var(--accent-2);
+      border-radius: 8px;
+      background: #fffaf7;
+      color: #55342d;
+    }
+
+    .outage strong {
+      display: block;
+      margin-bottom: 5px;
+      color: #3d241e;
+    }
+
+    .outage p {
+      margin-bottom: 0;
+      font-size: 0.98rem;
+    }
+
     .actions {
       display: flex;
       flex-wrap: wrap;
@@ -279,6 +301,12 @@
       <p class="lede">
         A proof of concept for making a smart contract carry its own app experience.
       </p>
+      <div class="outage" role="status">
+        <strong>The live PoC is currently out of commission.</strong>
+        <p>
+          It was first working on May 26, 2023, on Polygon Mumbai (<code>0x13881</code>). Mumbai was later sunset on April 13, 2024, so the historical demo URL no longer represents a live working deployment. The source remains useful as an archived experiment until the contract and viewer are redeployed to a current testnet.
+        </p>
+      </div>
       <div class="actions">
         <a class="button primary" href="https://github.com/numpde/dapp32/tree/poc">View source</a>
         <a class="button" href="https://poc.dapp32.com/ui/0x13881/0x0EF3EdBc642281815931fc6AaEf9CBEd0eEDc640/viewEntry">Open PoC</a>
