@@ -13,14 +13,14 @@
 *.secrets
 
 # Generated artifacts and dependency caches.
-contracts/cache
-contracts/out
-contracts/broadcast
+dapps/cache
+dapps/out
+dapps/broadcast
 cache
 out
 broadcast
 reports
 node_modules
-dependencies
+dapps/dependencies
 .cache
 .venv

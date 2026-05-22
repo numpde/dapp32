@@ -45,30 +45,24 @@ services:
   forge-fmt:
     <<: *forge_base
     command:
-      - "forge"
-      - "fmt"
-      - "--check"
-      # Format every dapp package, not the tool-owned dependency tree.
-      - "bike-nft/src"
-      - "bike-nft/test"
-      - "deposit/src"
-      - "deposit/test"
-      - "minimal/src"
-      - "minimal/test"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        set -- */src */test
+        forge fmt --check "$@"
 
   # Compilation should not write artifacts into the working tree; outputs go
   # to tmpfs through FOUNDRY_OUT and FOUNDRY_CACHE_PATH.
   forge-build:
     <<: *forge_base
     command:
-      - "forge"
-      - "build"
-      - "--offline"
-      # Build every dapp source tree explicitly. Passing paths keeps build
-      # discovery away from tests and from Soldeer's dependencies/ directory.
-      - "bike-nft/src"
-      - "deposit/src"
-      - "minimal/src"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        set -- */src
+        forge build --offline "$@"
 
   # Routine unit tests for every dapp. Repository/source hygiene checks live in
   # tests/checks and are wired through `make test` before this Forge lane runs.

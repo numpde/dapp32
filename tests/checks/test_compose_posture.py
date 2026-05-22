@@ -78,3 +78,13 @@ class ComposePostureTest(unittest.TestCase):
             if line.strip() == "cp -a /out/dependencies/. /work/dependencies/"
         ]
         self.assertEqual([], direct_copy_lines)
+
+    def test_forge_lanes_discover_dapps_by_convention(self) -> None:
+        text = read_text(repo_path("compose/forge.yml"))
+
+        self.assertIn("set -- */src */test", text)
+        self.assertIn("set -- */src", text)
+        self.assertNotIn("deposit/src", text)
+        self.assertNotIn("deposit/test", text)
+        self.assertNotIn("bike-nft/src", text)
+        self.assertNotIn("minimal/src", text)

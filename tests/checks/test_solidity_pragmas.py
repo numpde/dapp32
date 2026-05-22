@@ -14,7 +14,7 @@ class SolidityPragmaTest(unittest.TestCase):
     def test_repo_solidity_pragmas_match_foundry_compiler(self) -> None:
         expected = self.foundry_solc_version()
 
-        for path in iter_files("dapps", "examples"):
+        for path in iter_files("dapps"):
             if path.suffix != ".sol":
                 continue
 
