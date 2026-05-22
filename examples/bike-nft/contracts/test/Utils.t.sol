@@ -1,8 +1,10 @@
 pragma solidity ^0.8.18;
 
+import {Test} from "forge-std-1.12.0/src/Test.sol";
+
 import "../src/Utils.sol";
 
-contract UtilsTest {
+contract UtilsTest is Test {
     function test_escapeJSONString_escapesJSONSyntaxCharacters() external pure {
         assertStringEq(
             Utils.escapeJSONString('bike "alpha" \\ beta'),
@@ -74,9 +76,7 @@ contract UtilsTest {
         assertStringEq(metadata, expected);
     }
 
-    function assertStringEq(string memory actual, string memory expected) internal pure {
-        if (keccak256(bytes(actual)) != keccak256(bytes(expected))) {
-            revert("string mismatch");
-        }
+    function assertStringEq(string memory actual, string memory expected) internal {
+        assertEq(actual, expected, "string mismatch");
     }
 }
