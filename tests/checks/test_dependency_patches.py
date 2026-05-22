@@ -10,7 +10,7 @@ from .common import read_text, repo_path
 
 
 CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}$")
-PACKAGE_ROOT = repo_path("on-chain")
+PACKAGE_ROOT = repo_path("dapps")
 
 
 @dataclass(frozen=True)

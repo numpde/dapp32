@@ -50,7 +50,7 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             self.write_minimal_dependency(root)
             self.write_patch_manifest(root, patch_hash="0" * 64)
 
-            with self.assertRaisesRegex(DependencyVerificationError, "patches/pkg.patch checksum mismatch"):
+            with self.assertRaisesRegex(DependencyVerificationError, "_patches/pkg.patch checksum mismatch"):
                 with redirect_stdout(io.StringIO()):
                     DependencyVerifier(root).verify_local()
 
@@ -194,13 +194,13 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
         patch_hash: str | None = None,
         post_hash: str | None = None,
     ) -> None:
-        patch = root / "patches" / "pkg.patch"
+        patch = root / "_patches" / "pkg.patch"
         patch.parent.mkdir(parents=True)
         patch.write_text("--- a/Package.sol\n+++ b/Package.sol\n", encoding="utf-8")
 
         target = root / "dependencies" / "pkg-1.0.0" / "Package.sol"
         (root / "dependency-patches.txt").write_text(
-            "pkg-1.0.0  Package.sol  patches/pkg.patch  "
+            "pkg-1.0.0  Package.sol  _patches/pkg.patch  "
             f"{self.file_hash(target)}  "
             f"{patch_hash or self.file_hash(patch)}  "
             f"{post_hash or self.file_hash(target)}\n",

@@ -42,7 +42,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("dependency-egress-proxy:", text)
         self.assertIn("condition: service_healthy", text)
         self.assertIn("- deps_internal", text)
-        self.assertIn("../on-chain/soldeer.lock:/input/soldeer.lock:ro", text)
+        self.assertIn("../dapps/soldeer.lock:/input/soldeer.lock:ro", text)
         self.assertNotIn("context: ../containers/https-egress-proxy", text)
         self.assertNotIn("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS:", text)
         self.assertNotIn("DEPENDENCY_EGRESS_ALLOWED_HOST:", text)
@@ -59,10 +59,10 @@ class ComposePostureTest(unittest.TestCase):
     def test_dependency_stage_applies_declared_patches(self) -> None:
         text = read_text(repo_path("compose/deps.yml"))
 
-        self.assertIn("../on-chain/dependency-patches.txt:/input/dependency-patches.txt:ro", text)
-        self.assertIn("../on-chain/dependency-patches.txt:/work/dependency-patches.txt:ro", text)
-        self.assertIn("../on-chain/patches:/input/patches:ro", text)
-        self.assertIn("../on-chain/patches:/work/patches:ro", text)
+        self.assertIn("../dapps/dependency-patches.txt:/input/dependency-patches.txt:ro", text)
+        self.assertIn("../dapps/dependency-patches.txt:/work/dependency-patches.txt:ro", text)
+        self.assertIn("../dapps/_patches:/input/_patches:ro", text)
+        self.assertIn("../dapps/_patches:/work/_patches:ro", text)
         self.assertIn("apply_dependency_patches", text)
         self.assertIn("--fuzz=0", text)
 

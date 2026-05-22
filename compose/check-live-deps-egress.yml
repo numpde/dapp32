@@ -36,7 +36,7 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=16m
     volumes:
       - ../tests/live/check_dependency_egress_proxy.py:/input/check_dependency_egress_proxy.py:ro
-      - ../on-chain/soldeer.lock:/input/soldeer.lock:ro
+      - ../dapps/soldeer.lock:/input/soldeer.lock:ro
     networks:
       - deps_internal
     command:

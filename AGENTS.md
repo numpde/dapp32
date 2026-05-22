@@ -47,9 +47,9 @@ Keep the project small, explicit, and protocol-first.
 - Default dependency installation must not change committed dependency metadata.
   In this repo, lock/remapping/checksum updates require `make deps ALLOW_UPDATE=1`.
 - Do not give networked dependency tools repo-root read/write mounts. In this
-  repo, the on-chain package owns the expected dependency outputs:
-  `on-chain/dependencies/`, `on-chain/soldeer.lock`,
-  `on-chain/remappings.txt`, and `on-chain/dependency-checksums.txt`.
+  repo, the dapps package owns the expected dependency outputs:
+  `dapps/dependencies/`, `dapps/soldeer.lock`,
+  `dapps/remappings.txt`, and `dapps/dependency-checksums.txt`.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
   dependency contents before compiling.
 

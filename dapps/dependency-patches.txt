@@ -1,0 +1,4 @@
+# Dependency patch manifest.
+# Format:
+# <dependency-key>  <target-path-inside-dependency>  <patch-path>  <pre-sha256>  <patch-sha256>  <post-sha256>
+@openzeppelin-contracts-5.6.1  utils/cryptography/ECDSA.sol  _patches/dependencies/@openzeppelin-contracts-5.6.1/ECDSA.error-keyword.patch  ba7c2d314fcd61c9783e0b3f0c664d004b76b408fda6a84edc8267d17c5012d6  56d441334466fe68ff57e4059d2e132cb210efeedab7ad7c8c5da2d2e14a306e  de3215de7429590b072ac4a6e481c76779bdebb34a332965504b2dd6d2903992

@@ -211,7 +211,7 @@
     <section>
       <h2>The rule</h2>
       <p>
-        Dependency installation is split into stages because downloading code, changing installed dependency bytes, and writing repository files have different trust boundaries. The networked stage reaches the internet only through a dependency egress proxy, verifies dependency source policy from <code>on-chain/foundry.toml</code> and <code>on-chain/soldeer.lock</code>, verifies each upstream archive against <code>on-chain/soldeer.lock</code>, applies declared local patches, writes checksums for the final patched tree, and writes only to a temporary Docker volume. Offline apply and verify containers handle repository writes and checks.
+        Dependency installation is split into stages because downloading code, changing installed dependency bytes, and writing repository files have different trust boundaries. The networked stage reaches the internet only through a dependency egress proxy, verifies dependency source policy from <code>dapps/foundry.toml</code> and <code>dapps/soldeer.lock</code>, verifies each upstream archive against <code>dapps/soldeer.lock</code>, applies declared local patches, writes checksums for the final patched tree, and writes only to a temporary Docker volume. Offline apply and verify containers handle repository writes and checks.
       </p>
       <p class="note">
         The important invariant is simple: no networked dependency process gets repo-root read/write access.
@@ -232,12 +232,12 @@
         <div class="card">
           <strong>2. Stage</strong>
           <h3><code>soldeer-stage</code></h3>
-          <p>Image: <code>containers/foundry-deps</code>. Runs <code>forge soldeer install</code> through the proxy, verifies the configured source policy and upstream ZIP against <code>on-chain/foundry.toml</code> and <code>on-chain/soldeer.lock</code>, applies declared patches, then writes patched checksums. Writes only to <code>soldeer-out</code>.</p>
+          <p>Image: <code>containers/foundry-deps</code>. Runs <code>forge soldeer install</code> through the proxy, verifies the configured source policy and upstream ZIP against <code>dapps/foundry.toml</code> and <code>dapps/soldeer.lock</code>, applies declared patches, then writes patched checksums. Writes only to <code>soldeer-out</code>.</p>
         </div>
         <div class="card">
           <strong>3. Apply</strong>
           <h3><code>soldeer-apply-locked</code></h3>
-          <p>Image: <code>containers/foundry</code>. No network. Stages patched dependency output under <code>on-chain/dependencies/.next</code>, then replaces the visible dependency children. Fails first if the staged <code>on-chain/soldeer.lock</code>, remappings, or checksums differ from the committed files.</p>
+          <p>Image: <code>containers/foundry</code>. No network. Stages patched dependency output under <code>dapps/dependencies/.next</code>, then replaces the visible dependency children. Fails first if the staged <code>dapps/soldeer.lock</code>, remappings, or checksums differ from the committed files.</p>
         </div>
         <div class="card">
           <strong>4. Update</strong>
@@ -247,7 +247,7 @@
         <div class="card">
           <strong>5. Verify</strong>
           <h3><code>soldeer-verify</code></h3>
-          <p>Image: <code>containers/checks</code>. No network, read-only mounts. Runs <code>test_dependency_integrity.py /work</code> against <code>on-chain/foundry.toml</code>, <code>on-chain/soldeer.lock</code>, and the final installed dependency tree.</p>
+          <p>Image: <code>containers/checks</code>. No network, read-only mounts. Runs <code>test_dependency_integrity.py /work</code> against <code>dapps/foundry.toml</code>, <code>dapps/soldeer.lock</code>, and the final installed dependency tree.</p>
         </div>
         <div class="card">
           <strong>6. Build/Test</strong>
@@ -282,27 +282,27 @@ make test
     <section>
       <h2>What gets updated</h2>
       <p>
-        In locked mode, the Soldeer lane may rewrite only <code>on-chain/dependencies/</code> to match the committed metadata. With <code>ALLOW_UPDATE=1</code>, it may update exactly these repository outputs:
+        In locked mode, the Soldeer lane may rewrite only <code>dapps/dependencies/</code> to match the committed metadata. With <code>ALLOW_UPDATE=1</code>, it may update exactly these repository outputs:
       </p>
       <div class="list">
         <div class="item">
-          <strong><code>on-chain/dependencies/</code></strong>
+          <strong><code>dapps/dependencies/</code></strong>
           <p>The ignored installed dependency tree used by Foundry.</p>
         </div>
         <div class="item">
-          <strong><code>on-chain/soldeer.lock</code></strong>
+          <strong><code>dapps/soldeer.lock</code></strong>
           <p>The Soldeer lockfile. It records package names, versions, source URLs, and upstream package checksums.</p>
         </div>
         <div class="item">
-          <strong><code>on-chain/remappings.txt</code></strong>
+          <strong><code>dapps/remappings.txt</code></strong>
           <p>The import remappings generated for Foundry.</p>
         </div>
         <div class="item">
-          <strong><code>on-chain/dependency-checksums.txt</code></strong>
+          <strong><code>dapps/dependency-checksums.txt</code></strong>
           <p>The committed installed-tree checksums for the final dependency tree that Foundry reads. If declared patches exist, this checksum describes the patched tree.</p>
         </div>
         <div class="item">
-          <strong><code>on-chain/dependency-patches.txt</code> and <code>on-chain/patches/</code></strong>
+          <strong><code>dapps/dependency-patches.txt</code> and <code>dapps/_patches/</code></strong>
           <p>Reviewable patch metadata and patch files. They are committed source inputs, not generated outputs. Update them deliberately, then run <code>make deps ALLOW_UPDATE=1</code> to refresh the final dependency checksum.</p>
         </div>
       </div>
@@ -311,23 +311,23 @@ make test
     <section>
       <h2>When soldeer.lock changes</h2>
       <p>
-        <code>forge soldeer install</code> runs in the networked staging container against a temporary working tree. It may produce or refresh a staged <code>on-chain/soldeer.lock</code> there, but that file lives in the Docker volume until the offline apply step decides what to do with it.
+        <code>forge soldeer install</code> runs in the networked staging container against a temporary working tree. It may produce or refresh a staged <code>dapps/soldeer.lock</code> there, but that file lives in the Docker volume until the offline apply step decides what to do with it.
       </p>
       <p>
-        Plain <code>make deps</code> is locked mode. It compares the staged <code>on-chain/soldeer.lock</code> with the committed <code>on-chain/soldeer.lock</code> and fails if they differ. It does not update the repository lockfile.
+        Plain <code>make deps</code> is locked mode. It compares the staged <code>dapps/soldeer.lock</code> with the committed <code>dapps/soldeer.lock</code> and fails if they differ. It does not update the repository lockfile.
       </p>
       <p>
-        <code>make deps ALLOW_UPDATE=1</code> is update mode. After staging, the offline <code>soldeer-apply-update</code> service may copy the staged <code>on-chain/soldeer.lock</code>, <code>on-chain/remappings.txt</code>, and <code>on-chain/dependency-checksums.txt</code> back into the repo. That is the deliberate path for adding, removing, or changing Soldeer dependencies.
+        <code>make deps ALLOW_UPDATE=1</code> is update mode. After staging, the offline <code>soldeer-apply-update</code> service may copy the staged <code>dapps/soldeer.lock</code>, <code>dapps/remappings.txt</code>, and <code>dapps/dependency-checksums.txt</code> back into the repo. That is the deliberate path for adding, removing, or changing Soldeer dependencies.
       </p>
       <p>
-        Both apply modes replace the installed dependency tree through a temporary <code>on-chain/dependencies/.next</code> directory. That keeps the generated tree separate from the visible tree until the metadata checks or update-mode decision have passed.
+        Both apply modes replace the installed dependency tree through a temporary <code>dapps/dependencies/.next</code> directory. That keeps the generated tree separate from the visible tree until the metadata checks or update-mode decision have passed.
       </p>
     </section>
 
     <section>
       <h2>Declared patches</h2>
       <p>
-        Soldeer has package-level integrity, not a first-class local patch model. For short-lived local fixes, this repo keeps upstream package provenance in <code>on-chain/soldeer.lock</code> and records the local change separately in <code>on-chain/dependency-patches.txt</code>.
+        Soldeer has package-level integrity, not a first-class local patch model. For short-lived local fixes, this repo keeps upstream package provenance in <code>dapps/soldeer.lock</code> and records the local change separately in <code>dapps/dependency-patches.txt</code>.
       </p>
       <pre><code>&lt;dependency-key&gt;  &lt;target-path&gt;  &lt;patch-path&gt;  &lt;pre-sha256&gt;  &lt;patch-sha256&gt;  &lt;post-sha256&gt;</code></pre>
       <div class="list">
@@ -352,10 +352,10 @@ make test
     <section>
       <h2>What verification proves</h2>
       <p>
-        During staging, <code>tests/checks/test_dependency_integrity.py</code> reads <code>on-chain/foundry.toml</code> and <code>on-chain/soldeer.lock</code>. It rejects dependency entries that are not version-only in <code>on-chain/foundry.toml</code>, rejects name or version drift between <code>on-chain/foundry.toml</code> and <code>on-chain/soldeer.lock</code>, and rejects locked URLs outside the approved Soldeer revisions archive shape. It then downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, and confirms the installed dependency tree matches the verified archive payload before patches are applied.
+        During staging, <code>tests/checks/test_dependency_integrity.py</code> reads <code>dapps/foundry.toml</code> and <code>dapps/soldeer.lock</code>. It rejects dependency entries that are not version-only in <code>dapps/foundry.toml</code>, rejects name or version drift between <code>dapps/foundry.toml</code> and <code>dapps/soldeer.lock</code>, and rejects locked URLs outside the approved Soldeer revisions archive shape. It then downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, and confirms the installed dependency tree matches the verified archive payload before patches are applied.
       </p>
       <p>
-        After declared patches are applied, the verifier writes <code>on-chain/dependency-checksums.txt</code> from the final tree. In offline mode, it checks that <code>on-chain/dependencies/</code> contains exactly the expected dependency directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, checksum mismatches, patch-file hash drift, patched-target hash drift, disallowed OpenZeppelin import paths, and source-repo-shaped OpenZeppelin payloads.
+        After declared patches are applied, the verifier writes <code>dapps/dependency-checksums.txt</code> from the final tree. In offline mode, it checks that <code>dapps/dependencies/</code> contains exactly the expected dependency directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, checksum mismatches, patch-file hash drift, patched-target hash drift, disallowed OpenZeppelin import paths, and source-repo-shaped OpenZeppelin payloads.
       </p>
       <p>
         The local checksum for each dependency is a deterministic SHA-256 over a sorted manifest of every file path and file hash inside that dependency directory. This is intentionally independent of Soldeer internals. It verifies the installed tree that Foundry will actually read.
@@ -365,7 +365,7 @@ make test
     <section>
       <h2>Where hash checks happen</h2>
       <p>
-        Soldeer records local package hashes in <code>on-chain/soldeer.lock</code>. The lock entry includes the package URL, a SHA-256 checksum for the downloaded ZIP, and an integrity hash for the unpacked dependency folder. Soldeer uses that package metadata for installation and can later warn when the installed package no longer matches its pristine package identity.
+        Soldeer records local package hashes in <code>dapps/soldeer.lock</code>. The lock entry includes the package URL, a SHA-256 checksum for the downloaded ZIP, and an integrity hash for the unpacked dependency folder. Soldeer uses that package metadata for installation and can later warn when the installed package no longer matches its pristine package identity.
       </p>
       <p>
         The explicit first-download check in this lane is <code>test_dependency_integrity.py --verify-upstream</code>, which runs immediately after <code>forge soldeer install</code> and before any patches. It first checks the committed dependency source policy, then downloads the locked HTTPS URL, checks the downloaded ZIP against the lockfile <code>checksum</code>, extracts it, and confirms the installed dependency tree matches that verified archive payload.
@@ -392,7 +392,7 @@ make test
         </div>
         <div class="item">
           <strong><code>make check-live-deps-egress</code></strong>
-          <p>Starts the real <code>dependency-egress-proxy</code> from <code>compose/deps.yml</code> plus the live-check overlay. The checker has no direct egress, derives allowed dependency hosts from <code>on-chain/soldeer.lock</code>, proves CONNECT to those hosts succeeds, and proves CONNECT to <code>example.com</code> is denied.</p>
+          <p>Starts the real <code>dependency-egress-proxy</code> from <code>compose/deps.yml</code> plus the live-check overlay. The checker has no direct egress, derives allowed dependency hosts from <code>dapps/soldeer.lock</code>, proves CONNECT to those hosts succeeds, and proves CONNECT to <code>example.com</code> is denied.</p>
         </div>
       </div>
     </section>
@@ -437,14 +437,14 @@ make ci</code></pre>
       </p>
       <pre><code>deps-verify: @openzeppelin-contracts-5.6.1 declared patch ok
 deps-verify:   target: utils/cryptography/ECDSA.sol
-deps-verify:   patch: on-chain/patches/dependencies/@openzeppelin-contracts-5.6.1/ECDSA.error-keyword.patch
+deps-verify:   patch: dapps/_patches/dependencies/@openzeppelin-contracts-5.6.1/ECDSA.error-keyword.patch
 deps-verify:   Forge may also warn FailedIntegrity for this declared patch.</code></pre>
     </section>
 
     <section>
       <h2>Adding more Soldeer dependencies</h2>
       <p>
-        For another Soldeer dependency, add it through the normal Soldeer configuration path, then run <code>make deps ALLOW_UPDATE=1</code>. The command should regenerate <code>on-chain/soldeer.lock</code>, <code>on-chain/remappings.txt</code>, <code>on-chain/dependencies/</code>, and <code>on-chain/dependency-checksums.txt</code>. Review all committed outputs before committing.
+        For another Soldeer dependency, add it through the normal Soldeer configuration path, then run <code>make deps ALLOW_UPDATE=1</code>. The command should regenerate <code>dapps/soldeer.lock</code>, <code>dapps/remappings.txt</code>, <code>dapps/dependencies/</code>, and <code>dapps/dependency-checksums.txt</code>. Review all committed outputs before committing.
       </p>
       <p>
         The source policy is intentionally narrow. A normal Soldeer dependency should lock to <code>soldeer-revisions.s3.amazonaws.com</code>. If a dependency introduces a different locked URL host or archive shape, the verifier and proxy allowlist should fail until that new source is reviewed and deliberately added.
@@ -452,7 +452,7 @@ deps-verify:   Forge may also warn FailedIntegrity for this declared patch.</cod
       <pre><code>make deps ALLOW_UPDATE=1
 make ci
 make check-live-deps-egress
-git diff -- on-chain/foundry.toml on-chain/soldeer.lock on-chain/remappings.txt on-chain/dependency-checksums.txt</code></pre>
+git diff -- dapps/foundry.toml dapps/soldeer.lock dapps/remappings.txt dapps/dependency-checksums.txt</code></pre>
     </section>
 
     <section>
@@ -463,15 +463,15 @@ git diff -- on-chain/foundry.toml on-chain/soldeer.lock on-chain/remappings.txt 
       <div class="list">
         <div class="item">
           <strong>Add the patch file.</strong>
-          <p>Place a unified diff under <code>on-chain/patches/dependencies/&lt;dependency-key&gt;/</code>. Keep it small and targeted.</p>
+          <p>Place a unified diff under <code>dapps/_patches/dependencies/&lt;dependency-key&gt;/</code>. Keep it small and targeted.</p>
         </div>
         <div class="item">
-          <strong>Update <code>on-chain/dependency-patches.txt</code>.</strong>
+          <strong>Update <code>dapps/dependency-patches.txt</code>.</strong>
           <p>Record the dependency key, target path, patch path, pristine target hash, patch-file hash, and patched target hash.</p>
         </div>
         <div class="item">
           <strong>Refresh the final checksum.</strong>
-          <p>Run <code>make deps ALLOW_UPDATE=1</code>, then review <code>on-chain/dependency-checksums.txt</code> and the patch files before committing.</p>
+          <p>Run <code>make deps ALLOW_UPDATE=1</code>, then review <code>dapps/dependency-checksums.txt</code> and the patch files before committing.</p>
         </div>
       </div>
     </section>
@@ -508,7 +508,7 @@ git diff -- on-chain/foundry.toml on-chain/soldeer.lock on-chain/remappings.txt 
     <section>
       <h2>What this does not prove</h2>
       <p class="note">
-        This lane proves that the fetched archive matches the committed lockfile checksum, that declared patches match their committed hashes, and that the final installed dependency tree matches <code>on-chain/dependency-checksums.txt</code>. The live egress check proves the configured proxy can reach the current locked dependency hosts and denies one non-allowlisted host. It does not prove that an upstream package or local patch is correct, audited, or safe to use, and it does not prove that future hosts will remain reachable. Reviewing dependency changes is still a human responsibility.
+        This lane proves that the fetched archive matches the committed lockfile checksum, that declared patches match their committed hashes, and that the final installed dependency tree matches <code>dapps/dependency-checksums.txt</code>. The live egress check proves the configured proxy can reach the current locked dependency hosts and denies one non-allowlisted host. It does not prove that an upstream package or local patch is correct, audited, or safe to use, and it does not prove that future hosts will remain reachable. Reviewing dependency changes is still a human responsibility.
       </p>
     </section>
   </main>

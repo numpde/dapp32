@@ -7,7 +7,7 @@ contract AppUI is ERC2771Recipient {
     event Submit(address indexed userAddress, address indexed sender, address indexed origin);
 
     function _baseURI() private pure returns (string memory) {
-        return "http://0.0.0.0:8540/poc/on-chain/contracts/AppUI/";
+        return "http://0.0.0.0:8540/poc/dapps/minimal/AppUI/";
     }
 
     function setTrustedForwarder(address forwarder) public {
@@ -15,7 +15,7 @@ contract AppUI is ERC2771Recipient {
     }
 
     function abiURI() public pure returns (string memory) {
-        return string(abi.encodePacked(_baseURI(), "../../../artifacts/contracts/AppUI.sol/AppUI", ".json"));
+        return string(abi.encodePacked(_baseURI(), "../../../artifacts/dapps/minimal/src/AppUI.sol/AppUI", ".json"));
     }
 
     function getInitialView() public pure returns (string memory) {

@@ -21,7 +21,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
         dependency_versions = self.dependency_versions()
         failures: list[str] = []
 
-        for path in iter_files("on-chain/src", "on-chain/test"):
+        for path in iter_files("dapps/deposit/src", "dapps/deposit/test"):
             if path.suffix != ".sol":
                 continue
 
@@ -38,7 +38,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
         expected_prefix = f"{OZ_PACKAGE}-{version}/"
         imported_roots: set[str] = set()
 
-        for path in iter_files("on-chain/src", "on-chain/test"):
+        for path in iter_files("dapps/deposit/src", "dapps/deposit/test"):
             if path.suffix != ".sol":
                 continue
 
@@ -59,7 +59,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
             OZ_PACKAGE: "5.6.1",
             FORGE_STD_PACKAGE: "1.12.0",
         }
-        source = repo_path("on-chain/test/unit/HelloWorld/HelloWorld.t.sol")
+        source = repo_path("dapps/deposit/test/unit/HelloWorld/HelloWorld.t.sol")
 
         self.assertIsNone(
             self.validate_import(source, f"{OZ_PACKAGE}-5.6.1/access/Ownable.sol", dependency_versions)
@@ -85,7 +85,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
                 self.assertIsNotNone(self.validate_import(source, import_path, dependency_versions))
 
     def dependency_versions(self) -> dict[str, str]:
-        config = tomllib.loads(read_text(repo_path("on-chain/foundry.toml")))
+        config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
         dependencies = config.get("dependencies", {})
         self.assertIsInstance(dependencies, dict)
 
@@ -125,9 +125,9 @@ class SolidityImportPolicyTest(unittest.TestCase):
             return f"{source}: relative import must target a Solidity file: {import_path}"
 
         resolved = (source.parent / import_path).resolve()
-        contracts_root = repo_path("on-chain").resolve()
+        contracts_root = repo_path("dapps/deposit").resolve()
         if resolved != contracts_root and contracts_root not in resolved.parents:
-            return f"{source}: relative import escapes on-chain/: {import_path}"
+            return f"{source}: relative import escapes dapps/deposit/: {import_path}"
 
         if not resolved.is_file():
             return f"{source}: relative import target does not exist: {import_path}"

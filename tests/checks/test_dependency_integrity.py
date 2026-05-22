@@ -28,6 +28,7 @@ SOLDEER_ARCHIVE_SUFFIX_RE = {
     "forge-std": r"forge-std-[0-9]+(?:\.[0-9]+)*",
 }
 DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE = r"[A-Za-z0-9_.:-]+"
+DEPENDENCIES_DIR_NAME = "dependencies"
 DOWNLOAD_TIMEOUT_SECONDS = 15
 DOWNLOAD_TOTAL_TIMEOUT_SECONDS = 300
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
@@ -67,7 +68,7 @@ class DependencyVerifier:
         self.remappings_file = root / "remappings.txt"
         self.checksums_file = root / "dependency-checksums.txt"
         self.patches_file = root / "dependency-patches.txt"
-        self.dependencies_dir = root / "dependencies"
+        self.dependencies_dir = root / DEPENDENCIES_DIR_NAME
 
     def verify_local(self) -> None:
         records = self.load_dependency_records()
@@ -489,7 +490,7 @@ class DependencyVerifier:
         return manifest.hexdigest()
 
     def require_remapping(self, key: str) -> None:
-        expected = f"{key}/=dependencies/{key}/"
+        expected = f"{key}/={DEPENDENCIES_DIR_NAME}/{key}/"
         lines = self.remappings_file.read_text(encoding="utf-8").splitlines()
         if expected not in lines:
             raise DependencyVerificationError(f"missing remapping for {key} in {self.remappings_file}")

@@ -8,7 +8,7 @@
 # - soldeer-stage is on an internal network, reads only dependency input files,
 #   verifies upstream archives against soldeer.lock, applies declared local
 #   patches with pre/patch/post checksums, and writes only to a Docker volume.
-# - soldeer-apply-locked has no network, can write only dependencies/, and
+# - soldeer-apply-locked has no network, can write only dapps/dependencies/, and
 #   fails if locked metadata would change.
 # - soldeer-apply-update has no network and can write dependency metadata only
 #   when make deps is run with ALLOW_UPDATE=1.
@@ -80,11 +80,11 @@ services:
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=512m
     volumes:
-      - ../on-chain/foundry.toml:/input/foundry.toml:ro
-      - ../on-chain/soldeer.lock:/input/soldeer.lock:ro
-      - ../on-chain/remappings.txt:/input/remappings.txt:ro
-      - ../on-chain/dependency-patches.txt:/input/dependency-patches.txt:ro
-      - ../on-chain/patches:/input/patches:ro
+      - ../dapps/foundry.toml:/input/foundry.toml:ro
+      - ../dapps/soldeer.lock:/input/soldeer.lock:ro
+      - ../dapps/remappings.txt:/input/remappings.txt:ro
+      - ../dapps/dependency-patches.txt:/input/dependency-patches.txt:ro
+      - ../dapps/_patches:/input/_patches:ro
       - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
       - soldeer-out:/out:rw
     networks:
@@ -171,10 +171,10 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
       - soldeer-out:/out:ro
-      - ../on-chain/dependencies:/work/dependencies:rw
-      - ../on-chain/soldeer.lock:/work/soldeer.lock:ro
-      - ../on-chain/remappings.txt:/work/remappings.txt:ro
-      - ../on-chain/dependency-checksums.txt:/work/dependency-checksums.txt:ro
+      - ../dapps/dependencies:/work/dependencies:rw
+      - ../dapps/soldeer.lock:/work/soldeer.lock:ro
+      - ../dapps/remappings.txt:/work/remappings.txt:ro
+      - ../dapps/dependency-checksums.txt:/work/dependency-checksums.txt:ro
     command:
       - "bash"
       - "-lc"
@@ -221,10 +221,10 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
       - soldeer-out:/out:ro
-      - ../on-chain/dependencies:/work/dependencies:rw
-      - ../on-chain/soldeer.lock:/work/soldeer.lock:rw
-      - ../on-chain/remappings.txt:/work/remappings.txt:rw
-      - ../on-chain/dependency-checksums.txt:/work/dependency-checksums.txt:rw
+      - ../dapps/dependencies:/work/dependencies:rw
+      - ../dapps/soldeer.lock:/work/soldeer.lock:rw
+      - ../dapps/remappings.txt:/work/remappings.txt:rw
+      - ../dapps/dependency-checksums.txt:/work/dependency-checksums.txt:rw
     command:
       - "bash"
       - "-lc"
@@ -268,13 +268,13 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
       - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
-      - ../on-chain/foundry.toml:/work/foundry.toml:ro
-      - ../on-chain/dependencies:/work/dependencies:ro
-      - ../on-chain/soldeer.lock:/work/soldeer.lock:ro
-      - ../on-chain/remappings.txt:/work/remappings.txt:ro
-      - ../on-chain/dependency-checksums.txt:/work/dependency-checksums.txt:ro
-      - ../on-chain/dependency-patches.txt:/work/dependency-patches.txt:ro
-      - ../on-chain/patches:/work/patches:ro
+      - ../dapps/foundry.toml:/work/foundry.toml:ro
+      - ../dapps/dependencies:/work/dependencies:ro
+      - ../dapps/soldeer.lock:/work/soldeer.lock:ro
+      - ../dapps/remappings.txt:/work/remappings.txt:ro
+      - ../dapps/dependency-checksums.txt:/work/dependency-checksums.txt:ro
+      - ../dapps/dependency-patches.txt:/work/dependency-patches.txt:ro
+      - ../dapps/_patches:/work/_patches:ro
     command:
       - "-I"
       - "-B"

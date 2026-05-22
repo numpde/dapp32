@@ -59,7 +59,7 @@ class ToolchainVersionTest(unittest.TestCase):
         expected = self.foundry_toml_solc_version()
         actual = self.dockerfile_solc_version(repo_path("containers/foundry/Dockerfile"))
 
-        self.assertEqual(expected, actual, "containers/foundry/Dockerfile SOLC_VERSION must match on-chain/foundry.toml")
+        self.assertEqual(expected, actual, "containers/foundry/Dockerfile SOLC_VERSION must match dapps/foundry.toml")
 
     def test_solc_arg_classifier_self_check(self) -> None:
         self.assertEqual("0.8.35", self.parse_solc_arg("ARG SOLC_VERSION=0.8.35", "pinned-fixture"))
@@ -100,7 +100,7 @@ class ToolchainVersionTest(unittest.TestCase):
         self.fail(f"{path_label}: missing Foundry image")
 
     def foundry_toml_solc_version(self) -> str:
-        config = tomllib.loads(read_text(repo_path("on-chain/foundry.toml")))
+        config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
         version = config["profile"]["default"]["solc"]
         self.assertIsInstance(version, str)
         return version
