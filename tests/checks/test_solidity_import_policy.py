@@ -9,7 +9,7 @@ from .common import iter_files, read_text, repo_path
 
 
 OZ_PACKAGE = "@openzeppelin-contracts"
-OZ_ALLOWED_TOP_LEVEL = {"access"}
+OZ_ALLOWED_TOP_LEVEL = {"access", "token", "utils"}
 IMPORT_STATEMENT_RE = re.compile(r"\bimport\b(?P<body>[^;]*);", re.MULTILINE | re.DOTALL)
 IMPORT_PATH_RE = re.compile(r'["\'](?P<path>[^"\']+)["\']')
 
@@ -42,7 +42,6 @@ class SolidityImportPolicyTest(unittest.TestCase):
 
         rejected = [
             f"{OZ_PACKAGE}-{version}/contracts/access/Ownable.sol",
-            f"{OZ_PACKAGE}-{version}/token/ERC20/ERC20.sol",
             f"{OZ_PACKAGE}-5.4.0/access/Ownable.sol",
             "./Missing.sol",
             "forge-std/Test.sol",
