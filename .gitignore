@@ -22,3 +22,6 @@ reports/
 # reproducible from committed manifests/locks, not source of truth themselves.
 node_modules/
 /dependencies/
+
+# JetBrains IDE project state is local editor configuration.
+.idea/
