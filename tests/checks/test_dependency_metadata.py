@@ -57,7 +57,7 @@ class DependencyMetadataTest(unittest.TestCase):
                 self.assert_allowed_soldeer_registry_url(name, record["url"], version)
 
     def test_soldeer_source_policy_self_check(self) -> None:
-        version = "5.6.1"
+        version = "1.2.3"
         self.assertEqual(version, self.assert_registry_version_only_dependency(OZ_PACKAGE, {"version": version}))
         with self.assertRaises(AssertionError):
             self.assert_registry_version_only_dependency(
@@ -68,22 +68,22 @@ class DependencyMetadataTest(unittest.TestCase):
         self.assert_allowed_soldeer_registry_url(
             OZ_PACKAGE,
             "https://soldeer-revisions.s3.amazonaws.com/"
-            "@openzeppelin-contracts/5_6_1_15-03-2026_09:19:50_contracts.zip",
+            "@openzeppelin-contracts/1_2_3_15-03-2026_09:19:50_contracts.zip",
             version,
         )
         self.assert_allowed_soldeer_registry_url(
             FORGE_STD_PACKAGE,
-            "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_12_0_28-11-2025_13:04:44_forge-std-1.12.zip",
-            "1.12.0",
+            "https://soldeer-revisions.s3.amazonaws.com/forge-std/4_5_6_28-11-2025_13:04:44_forge-std-4.5.zip",
+            "4.5.6",
         )
 
         rejected = [
-            "https://github.com/OpenZeppelin/openzeppelin-contracts/archive/refs/tags/v5.6.1.zip",
-            "https://codeload.github.com/OpenZeppelin/openzeppelin-contracts/zip/refs/tags/v5.6.1",
+            "https://github.com/OpenZeppelin/openzeppelin-contracts/archive/refs/tags/v1.2.3.zip",
+            "https://codeload.github.com/OpenZeppelin/openzeppelin-contracts/zip/refs/tags/v1.2.3",
             "git+https://github.com/OpenZeppelin/openzeppelin-contracts.git",
-            "https://example.com/@openzeppelin-contracts/5_6_1_contracts.zip",
-            "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_6_1_source.zip",
-            "http://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/5_6_1_contracts.zip",
+            "https://example.com/@openzeppelin-contracts/1_2_3_contracts.zip",
+            "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/1_2_3_source.zip",
+            "http://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/1_2_3_contracts.zip",
         ]
         for url in rejected:
             with self.subTest(url=url):

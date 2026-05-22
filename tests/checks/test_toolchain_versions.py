@@ -41,12 +41,12 @@ class ToolchainVersionTest(unittest.TestCase):
                 self.assertEqual(expected, ref.reference, f"{ref.path}: Foundry image pin drifted")
 
     def test_foundry_image_classifier_self_check(self) -> None:
-        pinned = f"FROM {FOUNDRY_IMAGE}:v1.7.1@sha256:{'a' * 64}"
-        self.assertEqual(("v1.7.1", "a" * 64), self.parse_foundry_from(pinned, "pinned-fixture"))
+        pinned = f"FROM {FOUNDRY_IMAGE}:v9.8.7@sha256:{'a' * 64}"
+        self.assertEqual(("v9.8.7", "a" * 64), self.parse_foundry_from(pinned, "pinned-fixture"))
 
         rejected = [
             f"FROM {FOUNDRY_IMAGE}:latest@sha256:{'a' * 64}",
-            f"FROM {FOUNDRY_IMAGE}:v1.7.1",
+            f"FROM {FOUNDRY_IMAGE}:v9.8.7",
             f"FROM {FOUNDRY_IMAGE}@sha256:{'a' * 64}",
         ]
         for dockerfile in rejected:
@@ -62,12 +62,12 @@ class ToolchainVersionTest(unittest.TestCase):
         self.assertEqual(expected, actual, "containers/foundry/Dockerfile SOLC_VERSION must match dapps/foundry.toml")
 
     def test_solc_arg_classifier_self_check(self) -> None:
-        self.assertEqual("0.8.35", self.parse_solc_arg("ARG SOLC_VERSION=0.8.35", "pinned-fixture"))
+        self.assertEqual("1.2.3", self.parse_solc_arg("ARG SOLC_VERSION=1.2.3", "pinned-fixture"))
 
         rejected = [
             "ARG SOLC_VERSION=latest",
             "ARG SOLC_VERSION=${SOLC_VERSION}",
-            "# ARG SOLC_VERSION=0.8.35",
+            "# ARG SOLC_VERSION=1.2.3",
         ]
         for dockerfile in rejected:
             with self.subTest(dockerfile=dockerfile):

@@ -55,29 +55,31 @@ class SolidityImportPolicyTest(unittest.TestCase):
         )
 
     def test_import_policy_classifier_self_check(self) -> None:
+        oz_version = "9.8.7"
+        forge_std_version = "6.5.4"
         dependency_versions = {
-            OZ_PACKAGE: "5.6.1",
-            FORGE_STD_PACKAGE: "1.12.0",
+            OZ_PACKAGE: oz_version,
+            FORGE_STD_PACKAGE: forge_std_version,
         }
         source = repo_path("dapps/deposit/test/unit/HelloWorld/HelloWorld.t.sol")
 
         self.assertIsNone(
-            self.validate_import(source, f"{OZ_PACKAGE}-5.6.1/access/Ownable.sol", dependency_versions)
+            self.validate_import(source, f"{OZ_PACKAGE}-{oz_version}/access/Ownable.sol", dependency_versions)
         )
         self.assertIsNone(
-            self.validate_import(source, f"{OZ_PACKAGE}-5.6.1/utils/Pausable.sol", dependency_versions)
+            self.validate_import(source, f"{OZ_PACKAGE}-{oz_version}/utils/Pausable.sol", dependency_versions)
         )
         self.assertIsNone(self.validate_import(source, "../../../src/HelloWorld.sol", dependency_versions))
-        self.assertIsNone(self.validate_import(source, "forge-std-1.12.0/src/Test.sol", dependency_versions))
+        self.assertIsNone(self.validate_import(source, f"forge-std-{forge_std_version}/src/Test.sol", dependency_versions))
 
         rejected = [
-            f"{OZ_PACKAGE}-5.6.1/contracts/access/Ownable.sol",
-            f"{OZ_PACKAGE}-5.6.1/token/ERC20/IERC20.sol",
+            f"{OZ_PACKAGE}-{oz_version}/contracts/access/Ownable.sol",
+            f"{OZ_PACKAGE}-{oz_version}/token/ERC20/IERC20.sol",
             f"{OZ_PACKAGE}-5.4.0/access/Ownable.sol",
             "./Missing.sol",
             "forge-std/Test.sol",
             "forge-std-1.11.1/src/Test.sol",
-            "forge-std-1.12.0/src/Script.sol",
+            f"forge-std-{forge_std_version}/src/Script.sol",
             "https://example.test/Contract.sol",
         ]
         for import_path in rejected:
