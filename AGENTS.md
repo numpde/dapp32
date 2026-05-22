@@ -53,6 +53,13 @@ Keep the project small, explicit, and protocol-first.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
   dependency contents before compiling.
 
+## Dapp Layout
+
+- First-level dapps live under `dapps/<name>/`.
+- Each dapp should use `src/` for Solidity sources and `test/` for Solidity
+  tests. Forge lanes discover those directories by convention.
+- Soldeer-managed dependency material belongs only under `dapps/dependencies/`.
+
 ## Checks Lane
 
 - Repository/source hygiene checks live in `tests/checks/` as Python

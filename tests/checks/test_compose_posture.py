@@ -82,9 +82,18 @@ class ComposePostureTest(unittest.TestCase):
     def test_forge_lanes_discover_dapps_by_convention(self) -> None:
         text = read_text(repo_path("compose/forge.yml"))
 
-        self.assertIn("set -- */src */test", text)
-        self.assertIn("set -- */src", text)
+        self.assertIn("for dir in */src */test", text)
+        self.assertIn("for dir in */src", text)
+        self.assertIn("no dapp src/test directories found", text)
+        self.assertIn("no dapp src directories found", text)
         self.assertNotIn("deposit/src", text)
         self.assertNotIn("deposit/test", text)
         self.assertNotIn("bike-nft/src", text)
         self.assertNotIn("minimal/src", text)
+
+    def test_coverage_uses_unit_test_convention(self) -> None:
+        text = read_text(repo_path("compose/forge.yml"))
+
+        self.assertIn("forge-coverage:", text)
+        self.assertIn("--match-path", text)
+        self.assertIn("*/test/unit/**/*.sol", text)

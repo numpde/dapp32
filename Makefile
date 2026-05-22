@@ -48,7 +48,7 @@ help:
 	  '  make test         Run unit tests for all dapps' \
 	  '  make fuzz         Run fuzz tests for all dapps' \
 	  '  make invariant    Run invariant tests for all dapps' \
-	  '  make coverage     Print coverage summary' \
+	  '  make coverage     Print coverage summary from all dapp unit tests' \
 	  '  make ci           Run fmt, build, unit, fuzz, and invariant lanes' \
 	  '  make cast-offline Run offline cast smoke lane' \
 	  '  make cast-rpc RPC_URL_FILE=/path  Read a block number through the RPC egress proxy' \

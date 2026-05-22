@@ -49,7 +49,16 @@ services:
       - "-eu"
       - "-c"
       - |
-        set -- */src */test
+        set --
+        for dir in */src */test; do
+          if [ -d "$$dir" ]; then
+            set -- "$$@" "$$dir"
+          fi
+        done
+        if [ "$$#" -eq 0 ]; then
+          printf '%s\n' 'forge-fmt: no dapp src/test directories found' >&2
+          exit 2
+        fi
         forge fmt --check "$@"
 
   # Compilation should not write artifacts into the working tree; outputs go
@@ -61,7 +70,16 @@ services:
       - "-eu"
       - "-c"
       - |
-        set -- */src
+        set --
+        for dir in */src; do
+          if [ -d "$$dir" ]; then
+            set -- "$$@" "$$dir"
+          fi
+        done
+        if [ "$$#" -eq 0 ]; then
+          printf '%s\n' 'forge-build: no dapp src directories found' >&2
+          exit 2
+        fi
         forge build --offline "$@"
 
   # Routine unit tests for every dapp. Repository/source hygiene checks live in
@@ -100,7 +118,13 @@ services:
       - "*/test/invariant/**/*.sol"
       - "-vvv"
 
-  # Coverage is a reporting lane over the same checked-in sources.
+  # Coverage is a reporting lane over the same unit-test convention as
+  # forge-test, keeping it out of Soldeer's dependencies/ tree.
   forge-coverage:
     <<: *forge_base
-    command: ["forge", "coverage", "--offline"]
+    command:
+      - "forge"
+      - "coverage"
+      - "--offline"
+      - "--match-path"
+      - "*/test/unit/**/*.sol"

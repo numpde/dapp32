@@ -252,7 +252,7 @@
         <div class="card">
           <strong>6. Build/Test</strong>
           <h3><code>forge-build</code> / <code>forge-test</code></h3>
-          <p>Image: <code>containers/foundry</code>. No network, repo read-only. Runs normal <code>forge build --offline</code> or <code>forge test --offline</code> after the dependency verifier has accepted the installed tree.</p>
+          <p>Image: <code>containers/foundry</code>. No network, repo read-only. Runs <code>forge build --offline</code> over every first-level <code>dapps/*/src</code> directory, or <code>forge test --offline</code> over the shared <code>*/test/unit/**/*.sol</code> convention, after the dependency verifier has accepted the installed tree.</p>
         </div>
       </div>
       <pre><code>make deps
@@ -271,12 +271,12 @@
 
 make build
   soldeer-verify
-  forge build --offline
+  forge build --offline */src
 
 make test
   soldeer-verify
   checks
-  forge test --offline --match-path test/unit/**/*.sol -vvv</code></pre>
+  forge test --offline --match-path '*/test/unit/**/*.sol' -vvv</code></pre>
     </section>
 
     <section>
