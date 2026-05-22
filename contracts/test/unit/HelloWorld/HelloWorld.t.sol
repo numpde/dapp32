@@ -1,6 +1,6 @@
 pragma solidity 0.8.35;
 
-import {HelloWorld} from "../../src/HelloWorld.sol";
+import {HelloWorld} from "../../../src/HelloWorld.sol";
 
 contract HelloWorldCaller {
     function setMessage(HelloWorld target, string calldata newMessage) external {

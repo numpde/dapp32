@@ -1,6 +1,6 @@
 pragma solidity 0.8.35;
 
-import {DepositVault} from "../../src/DepositVault.sol";
+import {DepositVault} from "../../../src/DepositVault.sol";
 
 interface Vm {
     function addr(uint256 privateKey) external returns (address);
