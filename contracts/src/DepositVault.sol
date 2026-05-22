@@ -16,22 +16,31 @@ import {ECDSA} from "@openzeppelin-contracts-5.6.1/utils/cryptography/ECDSA.sol"
 ///
 ///      EIP-712 binds signatures to this chain and this deployed contract.
 ///
+///      On-chain identity model:
+///      - `receiptId` is the canonical on-chain payment identity;
+///      - `receiptId = keccak256(abi.encode(chain_id, contract_address, payer, nonce))`;
+///      - `paymentRef` is a business/accounting reference and is not deduped on-chain.
+///
 ///      Backend requirements:
 ///      - store payment intents before returning signatures;
-///      - enforce `unique(chain_id, contract_address, payer, nonce)`;
-///      - enforce `unique(chain_id, contract_address, paymentRef)` if each payment
-///        reference is intended to settle at most once;
-///      - for the minimal product, allow at most one active unpaid intent per payer;
 ///      - read `nonces(payer)` on the target chain before signing;
+///      - enforce `unique(chain_id, contract_address, payer, nonce)`;
+///      - derive and store the matching `receiptId` for reconciliation;
+///      - enforce `unique(chain_id, contract_address, paymentRef)` off-chain if each
+///        business reference is intended to settle at most once;
+///      - for the minimal product, allow at most one active unpaid intent per payer;
 ///      - sign `amount` in wei and the intended treasury recipient;
 ///      - use short deadlines for quoted native-asset prices.
 ///
 ///      Indexer requirements:
 ///      - credit only confirmed `DepositReceived` events;
-///      - dedupe by `(chain_id, contract_address, tx_hash, log_index)`;
-///      - treat `paymentRef` as a business key, not an event ID;
+///      - dedupe raw logs by `(chain_id, contract_address, tx_hash, log_index)`;
+///      - enforce `unique(chain_id, contract_address, receiptId)` in the ledger;
+///      - treat `paymentRef` as a business key, not as the event identity;
+///      - treat duplicate `paymentRef` events as an off-chain exception unless the
+///        product intentionally allows repeated settlements under the same reference;
 ///      - handle reorgs before final ledger settlement;
-///      - never credit from `address(this).balance`.
+///      - never credit from `address(this).balance` or `ForcedNativeSwept`.
 contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces {
     /// @notice Backend-authorized native-asset deposit instruction.
     /// @dev `paymentRef` links the on-chain receipt to off-chain accounting.
@@ -41,7 +50,8 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
     ///      The nonce is strict and per payer. For a given payer, only the next
     ///      nonce can succeed. Multiple live intents with the same
     ///      `(chain_id, contract_address, payer, nonce)` create a race where only
-    ///      one can settle.
+    ///      one can settle. The successful settlement emits the corresponding
+    ///      deterministic `receiptId`.
     struct DepositIntent {
         bytes32 paymentRef;
         address payer;
@@ -66,18 +76,15 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
     ///      SignatureChecker and re-review revocation/call semantics.
     address public intentSigner;
 
-    /// @notice Tracks payment references that have already settled in this vault.
-    /// @dev Remove this mapping only if your business process intentionally allows
-    ///      multiple successful deposits with the same `paymentRef`.
-    mapping(bytes32 paymentRef => bool used) public usedPaymentRefs;
-
     /// @notice Emitted only after a valid intent is paid and treasury receives `amount`.
-    /// @dev The ledger should credit from this event only after the indexer's
-    ///      confirmation/finality policy is satisfied.
+    /// @dev `receiptId` is the canonical on-chain payment identity for ledger
+    ///      reconciliation. The ledger should credit from this event only after the
+    ///      indexer's confirmation/finality policy is satisfied.
     event DepositReceived(
+        bytes32 indexed receiptId,
         bytes32 indexed paymentRef,
         address indexed payer,
-        address indexed treasuryRecipient,
+        address treasuryRecipient,
         uint256 amount,
         uint256 nonce
     );
@@ -93,7 +100,6 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
     error ExpiredIntent(uint256 deadline);
     error WrongPayer(address caller, address payer);
     error UnexpectedNativeAmount(uint256 expected, uint256 received);
-    error PaymentRefAlreadyUsed(bytes32 paymentRef);
     error TreasuryMismatch(address signedTreasury, address currentTreasury);
     error InvalidIntentSignature(address expectedSigner, address recoveredSigner);
     error NativeTransferFailed(address recipient, uint256 amount);
@@ -119,8 +125,12 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
     ///      - nonce prevents replay;
     ///      - signed treasury must match the current treasury, so treasury rotations
     ///        invalidate stale intents instead of silently redirecting funds;
-    ///      - paymentRef uniqueness prevents duplicate settlement under the same business key;
+    ///      - `receiptId` is derived from chain ID, contract address, payer, and nonce;
     ///      - native value is forwarded to treasury before receipt emission.
+    ///
+    ///      Payment-reference gotcha:
+    ///      This contract does not store or dedupe `paymentRef` values. Duplicate
+    ///      `paymentRef` handling is an off-chain backend/indexer/ledger invariant.
     ///
     ///      Relayer gotcha:
     ///      This intentionally does not support third-party relayers. For relayed
@@ -156,10 +166,6 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
             revert ExpiredIntent(intent.deadline);
         }
 
-        if (usedPaymentRefs[intent.paymentRef]) {
-            revert PaymentRefAlreadyUsed(intent.paymentRef);
-        }
-
         address recipient = treasury;
         if (intent.treasury != recipient) {
             revert TreasuryMismatch(intent.treasury, recipient);
@@ -176,13 +182,17 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
         // value later reverts, the whole transaction reverts and the nonce is not consumed.
         _useCheckedNonce(intent.payer, intent.nonce);
 
-        // Mark the business key as settled before the external treasury call.
-        // If the treasury call fails, the whole transaction reverts and this write is undone.
-        usedPaymentRefs[intent.paymentRef] = true;
+        bytes32 receiptId = _receiptIdFor(intent.payer, intent.nonce);
 
         _sendNative(recipient, msg.value);
 
-        emit DepositReceived(intent.paymentRef, intent.payer, recipient, intent.amount, intent.nonce);
+        emit DepositReceived(receiptId, intent.paymentRef, intent.payer, recipient, intent.amount, intent.nonce);
+    }
+
+    /// @notice Returns the canonical receipt ID for a payer nonce in this vault.
+    /// @dev Matches the `receiptId` emitted by `DepositReceived`.
+    function receiptIdFor(address payer, uint256 nonce) external view returns (bytes32) {
+        return _receiptIdFor(payer, nonce);
     }
 
     /// @notice Returns the EIP-712 digest signed by the backend for an intent.
@@ -298,6 +308,10 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
         );
 
         return _hashTypedDataV4(structHash);
+    }
+
+    function _receiptIdFor(address payer, uint256 nonce) private view returns (bytes32) {
+        return keccak256(abi.encode(block.chainid, address(this), payer, nonce));
     }
 
     /// @notice Forwards native value and reverts if the recipient rejects it.

@@ -22,7 +22,7 @@ contract RejectNativeTreasury {
 
 /// @notice Unit tests for DepositVault, an EIP-712-authorized native-asset deposit gateway.
 /// @dev The SUT should forward exact native amounts to treasury only for current,
-///      backend-signed intents while preserving nonce, paymentRef, signer, owner,
+///      backend-signed intents while preserving nonce, receiptId, signer, owner,
 ///      pause, treasury, and forced-native recovery controls.
 contract DepositVaultTest {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -44,9 +44,10 @@ contract DepositVaultTest {
     DepositVault private vault;
 
     event DepositReceived(
+        bytes32 indexed receiptId,
         bytes32 indexed paymentRef,
         address indexed payer,
-        address indexed treasuryRecipient,
+        address treasuryRecipient,
         uint256 amount,
         uint256 nonce
     );
@@ -65,9 +66,10 @@ contract DepositVaultTest {
     function testDepositForwardsNativeValueAndConsumesNonce() external {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
         bytes memory signature = signIntent(SIGNER_KEY, intent);
+        bytes32 receiptId = receiptIdFor(payer, intent.nonce);
 
         vm.expectEmit(true, true, true, true, address(vault));
-        emit DepositReceived(intent.paymentRef, payer, treasury, intent.amount, intent.nonce);
+        emit DepositReceived(receiptId, intent.paymentRef, payer, treasury, intent.amount, intent.nonce);
 
         vm.prank(payer);
         vault.deposit{value: intent.amount}(intent, signature);
@@ -75,7 +77,6 @@ contract DepositVaultTest {
         assertEq(treasury.balance, intent.amount);
         assertEq(payer.balance, 900 ether);
         assertEq(vault.nonces(payer), 1);
-        assertTrue(vault.usedPaymentRefs(intent.paymentRef));
     }
 
     /// @notice The public hash helper returns the exact EIP-712 digest used for backend signatures.
@@ -84,6 +85,14 @@ contract DepositVaultTest {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
 
         assertEq(vault.hashDepositIntent(intent), digestForVault(intent, address(vault)));
+    }
+
+    /// @notice The public receipt helper returns the canonical on-chain receipt ID.
+    /// @dev Indexers and ledgers should reconcile deposits by receiptId, not by paymentRef or log position alone.
+    function testReceiptIdMatchesLocalDerivation() external view {
+        uint256 nonce = 3;
+
+        assertEq(vault.receiptIdFor(payer, nonce), receiptIdFor(payer, nonce));
     }
 
     /// @notice An intent remains valid when its deadline is exactly the current timestamp.
@@ -117,8 +126,6 @@ contract DepositVaultTest {
 
         assertEq(treasury.balance, 150 ether);
         assertEq(vault.nonces(payer), 2);
-        assertTrue(vault.usedPaymentRefs(firstIntent.paymentRef));
-        assertTrue(vault.usedPaymentRefs(secondIntent.paymentRef));
     }
 
     /// @notice A settled nonce cannot be submitted again.
@@ -145,25 +152,25 @@ contract DepositVaultTest {
         vault.deposit{value: intent.amount}(intent, signIntent(SIGNER_KEY, intent));
 
         assertEq(vault.nonces(payer), 0);
-        assertFalse(vault.usedPaymentRefs(intent.paymentRef));
         assertEq(treasury.balance, 0);
     }
 
-    /// @notice Reusing a settled paymentRef is rejected even with a fresh nonce.
-    /// @dev This lets the SUT enforce one settlement per business key in addition to nonce replay protection.
-    function testRejectsReusedPaymentRefWithFreshNonce() external {
+    /// @notice Reusing a paymentRef with a fresh nonce is allowed on-chain.
+    /// @dev The SUT treats paymentRef as a business key; duplicate handling belongs to backend/indexer/ledger policy.
+    function testAllowsReusedPaymentRefWithFreshNonce() external {
         DepositVault.DepositIntent memory firstIntent = defaultIntent(100 ether, 0);
         DepositVault.DepositIntent memory secondIntent = defaultIntent(50 ether, 1);
 
         vm.prank(payer);
         vault.deposit{value: firstIntent.amount}(firstIntent, signIntent(SIGNER_KEY, firstIntent));
 
-        vm.expectRevert(abi.encodeWithSelector(DepositVault.PaymentRefAlreadyUsed.selector, firstIntent.paymentRef));
         vm.prank(payer);
         vault.deposit{value: secondIntent.amount}(secondIntent, signIntent(SIGNER_KEY, secondIntent));
 
-        assertEq(vault.nonces(payer), 1);
-        assertEq(treasury.balance, firstIntent.amount);
+        assertEq(vault.nonces(payer), 2);
+        assertEq(treasury.balance, firstIntent.amount + secondIntent.amount);
+        assertEq(vault.receiptIdFor(payer, firstIntent.nonce), receiptIdFor(payer, firstIntent.nonce));
+        assertEq(vault.receiptIdFor(payer, secondIntent.nonce), receiptIdFor(payer, secondIntent.nonce));
     }
 
     /// @notice Only the payer named in the signed intent may submit the deposit.
@@ -303,7 +310,6 @@ contract DepositVaultTest {
         vault.deposit{value: intent.amount}(intent, signature);
 
         assertEq(vault.nonces(payer), 0);
-        assertFalse(vault.usedPaymentRefs(intent.paymentRef));
         assertEq(treasury.balance, 0);
         assertEq(newTreasury.balance, 0);
     }
@@ -323,9 +329,9 @@ contract DepositVaultTest {
         assertEq(newTreasury.balance, intent.amount);
     }
 
-    /// @notice If treasury rejects native value, the deposit reverts without consuming nonce or paymentRef.
-    /// @dev The SUT marks state before the external call, so this proves revert atomicity restores those writes.
-    function testRejectingTreasuryDoesNotConsumeNonceOrPaymentRef() external {
+    /// @notice If treasury rejects native value, the deposit reverts without consuming nonce.
+    /// @dev The SUT consumes nonce before the external call, so this proves revert atomicity restores that write.
+    function testRejectingTreasuryDoesNotConsumeNonce() external {
         RejectNativeTreasury rejectingTreasury = new RejectNativeTreasury();
         vault.setTreasury(address(rejectingTreasury));
 
@@ -340,7 +346,6 @@ contract DepositVaultTest {
         vault.deposit{value: intent.amount}(intent, signIntent(SIGNER_KEY, intent));
 
         assertEq(vault.nonces(payer), 0);
-        assertFalse(vault.usedPaymentRefs(intent.paymentRef));
         assertEq(address(rejectingTreasury).balance, 0);
     }
 
@@ -581,6 +586,10 @@ contract DepositVaultTest {
         );
 
         return keccak256(abi.encodePacked(hex"1901", domainSeparator, structHash));
+    }
+
+    function receiptIdFor(address receiptPayer, uint256 nonce) private view returns (bytes32) {
+        return keccak256(abi.encode(block.chainid, address(vault), receiptPayer, nonce));
     }
 
     function assertEq(uint256 actual, uint256 expected) private pure {
