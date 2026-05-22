@@ -19,6 +19,10 @@ TEST_PATH = Path(__file__).resolve()
 ROOT = TEST_PATH.parents[2] if len(TEST_PATH.parents) > 2 else Path.cwd()
 VALUE_RE = re.compile(r'^(?P<key>[a-z_]+)\s*=\s*"(?P<value>[^"]*)"$')
 CHECKSUM_RE = re.compile(r"^(?P<hash>[0-9a-f]{64})  (?P<key>\S+)$")
+FOUNDRY_DEP_RE = re.compile(
+    r'^(?P<name>"[^"]+"|[^\s=]+)\s*=\s*\{\s*version\s*=\s*"(?P<version>[^"]+)"\s*\}\s*(?:#.*)?$'
+)
+SOLDEER_REVISIONS_HOST = "soldeer-revisions.s3.amazonaws.com"
 DOWNLOAD_TIMEOUT_SECONDS = 15
 DOWNLOAD_TOTAL_TIMEOUT_SECONDS = 300
 DOWNLOAD_CHUNK_BYTES = 1024 * 1024
@@ -53,6 +57,7 @@ class DependencyPatch:
 class DependencyVerifier:
     def __init__(self, root: Path) -> None:
         self.root = root
+        self.foundry_file = root / "foundry.toml"
         self.lock_file = root / "soldeer.lock"
         self.remappings_file = root / "remappings.txt"
         self.checksums_file = root / "dependency-checksums.txt"
@@ -61,6 +66,7 @@ class DependencyVerifier:
 
     def verify_local(self) -> None:
         records = self.load_dependency_records()
+        self.verify_dependency_source_policy(records)
         self.verify_dependency_set(records)
         expected_hashes = self.load_expected_hashes(records)
 
@@ -80,6 +86,7 @@ class DependencyVerifier:
         if records is None:
             records = self.load_dependency_records()
 
+        self.verify_dependency_source_policy(records)
         self.verify_dependency_set(records)
 
         with tempfile.TemporaryDirectory(prefix="deps-verify-") as tmp:
@@ -89,6 +96,7 @@ class DependencyVerifier:
 
     def write_local_checksums(self) -> None:
         records = self.load_dependency_records()
+        self.verify_dependency_source_policy(records)
         self.verify_dependency_set(records)
         self.write_checksums(records)
 
@@ -139,6 +147,89 @@ class DependencyVerifier:
             raise DependencyVerificationError(f"no dependencies found in {self.lock_file}")
 
         return records
+
+    def load_foundry_dependencies(self) -> dict[str, str]:
+        self.require_file(self.foundry_file)
+
+        dependencies: dict[str, str] = {}
+        in_dependencies = False
+
+        for line_number, raw_line in enumerate(self.foundry_file.read_text(encoding="utf-8").splitlines(), start=1):
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            if line.startswith("[") and line.endswith("]"):
+                in_dependencies = line == "[dependencies]"
+                continue
+
+            if not in_dependencies:
+                continue
+
+            match = FOUNDRY_DEP_RE.match(line)
+            if match is None:
+                raise DependencyVerificationError(
+                    f"{self.foundry_file}:{line_number}: dependencies must use registry version-only form"
+                )
+
+            name = self.unquote_toml_key(match.group("name"))
+            if name in dependencies:
+                raise DependencyVerificationError(f"duplicate dependency in {self.foundry_file}: {name}")
+            dependencies[name] = match.group("version")
+
+        if not dependencies:
+            raise DependencyVerificationError(f"no dependencies found in {self.foundry_file}")
+
+        return dependencies
+
+    def verify_dependency_source_policy(self, records: list[DependencyRecord]) -> None:
+        foundry_dependencies = self.load_foundry_dependencies()
+        locked_dependencies: dict[str, DependencyRecord] = {}
+
+        for record in records:
+            if record.name in locked_dependencies:
+                raise DependencyVerificationError(f"duplicate dependency in {self.lock_file}: {record.name}")
+            locked_dependencies[record.name] = record
+
+        foundry_names = set(foundry_dependencies)
+        locked_names = set(locked_dependencies)
+        missing = sorted(foundry_names - locked_names)
+        unexpected = sorted(locked_names - foundry_names)
+
+        if missing:
+            raise DependencyVerificationError(f"dependencies missing from {self.lock_file}: {', '.join(missing)}")
+        if unexpected:
+            raise DependencyVerificationError(f"unexpected dependencies in {self.lock_file}: {', '.join(unexpected)}")
+
+        for name, version in sorted(foundry_dependencies.items()):
+            record = locked_dependencies[name]
+            if record.version != version:
+                raise DependencyVerificationError(
+                    f"{name} version differs between {self.foundry_file} and {self.lock_file}: "
+                    f"{version} != {record.version}"
+                )
+            self.validate_soldeer_registry_url(record)
+
+    def validate_soldeer_registry_url(self, record: DependencyRecord) -> None:
+        parsed = urlparse(record.url)
+        expected_version_prefix = record.version.replace(".", "_")
+        host = (parsed.hostname or "").lower().rstrip(".")
+
+        if parsed.scheme != "https":
+            raise DependencyVerificationError(f"{record.key} lock URL must use https: {record.url}")
+        if parsed.username or parsed.password or parsed.port is not None:
+            raise DependencyVerificationError(f"{record.key} lock URL must not include userinfo or port: {record.url}")
+        if host != SOLDEER_REVISIONS_HOST:
+            raise DependencyVerificationError(f"{record.key} lock URL must use Soldeer revisions: {record.url}")
+        if parsed.params or parsed.query or parsed.fragment:
+            raise DependencyVerificationError(f"{record.key} lock URL must not include params, query, or fragment: {record.url}")
+        if re.fullmatch(
+            rf"/{re.escape(record.name)}/{re.escape(expected_version_prefix)}_[^/]+_contracts\.zip",
+            parsed.path,
+        ) is None:
+            raise DependencyVerificationError(
+                f"{record.key} lock URL must point to the Soldeer contracts package: {record.url}"
+            )
 
     def verify_dependency_set(self, records: list[DependencyRecord]) -> None:
         self.require_file(self.remappings_file)
@@ -422,6 +513,12 @@ class DependencyVerifier:
         duplicates = sorted({value for value in values if values.count(value) > 1})
         if duplicates:
             raise DependencyVerificationError(f"{message}: {', '.join(duplicates)}")
+
+    @staticmethod
+    def unquote_toml_key(value: str) -> str:
+        if value.startswith('"') and value.endswith('"'):
+            return value[1:-1]
+        return value
 
     @staticmethod
     def require_file(path: Path) -> None:

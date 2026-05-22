@@ -245,6 +245,7 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
       - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
+      - ../foundry.toml:/work/foundry.toml:ro
       - ../dependencies:/work/dependencies:ro
       - ../soldeer.lock:/work/soldeer.lock:ro
       - ../remappings.txt:/work/remappings.txt:ro

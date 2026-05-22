@@ -76,6 +76,27 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             self.assertIn("deps-verify:   target: Package.sol", output.getvalue())
             self.assertIn("Forge may also warn FailedIntegrity", output.getvalue())
 
+    def test_rejects_foundry_dependency_custom_url(self) -> None:
+        with self.fixture() as root:
+            self.write_minimal_dependency(root)
+            (root / "foundry.toml").write_text(
+                '[dependencies]\npkg = { version = "1.0.0", url = "https://example.invalid/pkg.zip" }\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(DependencyVerificationError, "registry version-only form"):
+                verifier = DependencyVerifier(root)
+                verifier.verify_dependency_source_policy(verifier.load_dependency_records())
+
+    def test_rejects_lock_url_outside_soldeer_registry(self) -> None:
+        with self.fixture() as root:
+            self.write_minimal_dependency(root)
+            self.write_lock(root, [self.record(url="https://example.invalid/pkg/1_0_0_test_contracts.zip")])
+
+            with self.assertRaisesRegex(DependencyVerificationError, "must use Soldeer revisions"):
+                verifier = DependencyVerifier(root)
+                verifier.verify_dependency_source_policy(verifier.load_dependency_records())
+
     def test_rejects_unsafe_zip_paths(self) -> None:
         with self.fixture() as root:
             archive = root / "unsafe.zip"
@@ -148,6 +169,7 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
 
         record = self.record()
         self.write_lock(root, [record])
+        self.write_foundry(root, [record])
         (root / "remappings.txt").write_text("pkg-1.0.0/=dependencies/pkg-1.0.0/\n", encoding="utf-8")
 
         tree_hash = DependencyVerifier(root).tree_hash(dependency)
@@ -158,6 +180,12 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             encoding="utf-8",
         )
         return root
+
+    def write_foundry(self, root: Path, records: list[DependencyRecord]) -> None:
+        lines = ["[dependencies]"]
+        for record in records:
+            lines.append(f'{record.name} = {{ version = "{record.version}" }}')
+        (root / "foundry.toml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def write_patch_manifest(
         self,
@@ -197,7 +225,7 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
     def record(
         self,
         *,
-        url: str = "https://example.invalid/pkg.zip",
+        url: str = "https://soldeer-revisions.s3.amazonaws.com/pkg/1_0_0_test_contracts.zip",
         checksum: str = "1" * 64,
     ) -> DependencyRecord:
         return DependencyRecord(name="pkg", version="1.0.0", url=url, checksum=checksum)
