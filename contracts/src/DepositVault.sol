@@ -1,8 +1,5 @@
 pragma solidity 0.8.35;
 
-import {IERC20} from "@openzeppelin-contracts-5.6.1/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin-contracts-5.6.1/token/ERC20/utils/SafeERC20.sol";
-
 import {Ownable} from "@openzeppelin-contracts-5.6.1/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin-contracts-5.6.1/access/Ownable2Step.sol";
 
@@ -13,84 +10,94 @@ import {Nonces} from "@openzeppelin-contracts-5.6.1/utils/Nonces.sol";
 import {EIP712} from "@openzeppelin-contracts-5.6.1/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin-contracts-5.6.1/utils/cryptography/ECDSA.sol";
 
-/// @notice Minimal ERC-20 deposit gateway for off-chain credit accounting.
-/// @dev This contract is deliberately not a ledger. It verifies backend-signed
-///      intents, moves tokens to treasury, and emits events for an off-chain indexer.
+/// @notice Minimal native-asset deposit gateway for off-chain credit accounting.
+/// @dev This contract is not a ledger. It verifies backend-signed intents,
+///      forwards native value to treasury, and emits receipts for an off-chain indexer.
+///
+///      EIP-712 binds signatures to this chain and this deployed contract.
 ///
 ///      Backend requirements:
-///      - store payment intents durably before returning signatures to users;
-///      - enforce `unique(contract_address, payer, nonce)`;
+///      - store payment intents before returning signatures;
+///      - enforce `unique(chain_id, contract_address, payer, nonce)`;
+///      - enforce `unique(chain_id, contract_address, paymentRef)` if each payment
+///        reference is intended to settle at most once;
 ///      - for the minimal product, allow at most one active unpaid intent per payer;
-///      - read `nonces(payer)` before signing the next intent;
-///      - do not sign intents for fee-on-transfer, rebasing, or unreviewed tokens.
+///      - read `nonces(payer)` on the target chain before signing;
+///      - sign `amount` in wei and the intended treasury recipient;
+///      - use short deadlines for quoted native-asset prices.
 ///
 ///      Indexer requirements:
 ///      - credit only confirmed `DepositReceived` events;
-///      - dedupe by `(chainId, contract, txHash, logIndex)`;
-///      - treat `paymentRef` as a business/accounting key, not an event ID;
-///      - handle reorgs before final ledger settlement.
+///      - dedupe by `(chain_id, contract_address, tx_hash, log_index)`;
+///      - treat `paymentRef` as a business key, not an event ID;
+///      - handle reorgs before final ledger settlement;
+///      - never credit from `address(this).balance`.
 contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces {
-    using SafeERC20 for IERC20;
-
-    /// @notice Backend-authorized deposit instruction.
-    /// @dev `paymentRef` links the payment to off-chain accounting.
+    /// @notice Backend-authorized native-asset deposit instruction.
+    /// @dev `paymentRef` links the on-chain receipt to off-chain accounting.
+    ///      `amount` is denominated in wei.
     ///
     ///      Nonce gotcha:
-    ///      `nonce` is strict and per payer. For a given payer, only the next
-    ///      contract nonce can succeed. Multiple live intents with the same
-    ///      `(contract, payer, nonce)` create a race where only one can settle.
-    ///
-    ///      Domain gotcha:
-    ///      EIP-712 binds the signature to this chain and this deployed vault.
+    ///      The nonce is strict and per payer. For a given payer, only the next
+    ///      nonce can succeed. Multiple live intents with the same
+    ///      `(chain_id, contract_address, payer, nonce)` create a race where only
+    ///      one can settle.
     struct DepositIntent {
         bytes32 paymentRef;
         address payer;
-        address token;
+        address treasury;
         uint256 amount;
         uint256 nonce;
         uint256 deadline;
     }
 
     bytes32 private constant DEPOSIT_INTENT_TYPEHASH = keccak256(
-        "DepositIntent(bytes32 paymentRef,address payer,address token,uint256 amount,uint256 nonce,uint256 deadline)"
+        "DepositIntent(bytes32 paymentRef,address payer,address treasury,uint256 amount,uint256 nonce,uint256 deadline)"
     );
 
-    /// @notice Destination that receives all deposited tokens immediately.
-    /// @dev Use a multisig or hardened treasury wallet. This contract should not
-    ///      custody user balances.
+    /// @notice Destination that receives all deposited native value immediately.
+    /// @dev Use a multisig or hardened treasury address that can receive native value.
+    ///      If treasury rejects value, the deposit reverts and no receipt is emitted.
     address public treasury;
 
     /// @notice Backend-controlled ECDSA signer that authorizes deposit intents.
-    /// @dev This is intended to be an EOA/HSM-style signing key. If a Safe or
-    ///      ERC-1271 contract signer is required later, replace ECDSA recovery
-    ///      with OZ SignatureChecker and re-review the call/revocation semantics.
+    /// @dev Intended for an EOA/HSM/KMS-style signing key. If a Safe or ERC-1271
+    ///      contract signer is required later, replace ECDSA recovery with
+    ///      SignatureChecker and re-review revocation/call semantics.
     address public intentSigner;
 
-    /// @notice ERC-20 allowlist.
-    /// @dev Keep this narrow. The exact treasury balance-delta check intentionally
-    ///      rejects fee-on-transfer, rebasing, and other non-exact token behavior.
-    mapping(address token => bool allowed) public allowedToken;
+    /// @notice Tracks payment references that have already settled in this vault.
+    /// @dev Remove this mapping only if your business process intentionally allows
+    ///      multiple successful deposits with the same `paymentRef`.
+    mapping(bytes32 paymentRef => bool used) public usedPaymentRefs;
 
-    /// @notice Emitted after a valid intent is paid and treasury receives exactly `amount`.
-    /// @dev The off-chain ledger should credit from this event only after the
-    ///      indexer’s chosen confirmation/finality policy is satisfied.
+    /// @notice Emitted only after a valid intent is paid and treasury receives `amount`.
+    /// @dev The ledger should credit from this event only after the indexer's
+    ///      confirmation/finality policy is satisfied.
     event DepositReceived(
-        bytes32 indexed paymentRef, address indexed payer, address indexed token, uint256 amount, uint256 nonce
+        bytes32 indexed paymentRef,
+        address indexed payer,
+        address indexed treasuryRecipient,
+        uint256 amount,
+        uint256 nonce
     );
 
     event TreasurySet(address indexed oldTreasury, address indexed newTreasury);
     event IntentSignerSet(address indexed oldSigner, address indexed newSigner);
-    event TokenAllowedSet(address indexed token, bool allowed);
+    event ForcedNativeSwept(address indexed recipient, uint256 amount);
 
     error ZeroAddress();
     error ZeroAmount();
     error ZeroPaymentRef();
-    error TokenHasNoCode(address token);
-    error TokenNotAllowed(address token);
+    error InvalidTreasury(address treasuryAddress);
     error ExpiredIntent(uint256 deadline);
     error WrongPayer(address caller, address payer);
-    error InvalidIntentSigner(address recoveredSigner);
-    error UnexpectedReceivedAmount(address token, uint256 expected, uint256 received);
+    error UnexpectedNativeAmount(uint256 expected, uint256 received);
+    error PaymentRefAlreadyUsed(bytes32 paymentRef);
+    error TreasuryMismatch(address signedTreasury, address currentTreasury);
+    error InvalidIntentSignature(address expectedSigner, address recoveredSigner);
+    error NativeTransferFailed(address recipient, uint256 amount);
+    error DirectNativeTransferDisabled();
     error RenounceDisabled();
 
     /// @notice Initializes admin, treasury, and backend signer.
@@ -100,38 +107,35 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
         Ownable(initialOwner)
         EIP712("DepositVault", "1")
     {
-        if (initialTreasury == address(0)) {
-            revert ZeroAddress();
-        }
-
-        if (initialIntentSigner == address(0)) {
-            revert ZeroAddress();
-        }
-
-        treasury = initialTreasury;
-        intentSigner = initialIntentSigner;
-
-        emit TreasurySet(address(0), initialTreasury);
-        emit IntentSignerSet(address(0), initialIntentSigner);
+        _setTreasury(initialTreasury);
+        _setIntentSigner(initialIntentSigner);
     }
 
-    /// @notice Executes a backend-authorized ERC-20 deposit.
+    /// @notice Executes a backend-authorized native-asset deposit.
     /// @dev Security shape:
     ///      - caller must be payer, so leaked intents cannot be submitted by others;
+    ///      - `msg.value` must exactly equal the signed amount;
     ///      - signature must match the current backend signer;
     ///      - nonce prevents replay;
-    ///      - exact treasury balance delta prevents ledger over-crediting;
-    ///      - event is emitted only after funds arrive.
+    ///      - signed treasury must match the current treasury, so treasury rotations
+    ///        invalidate stale intents instead of silently redirecting funds;
+    ///      - paymentRef uniqueness prevents duplicate settlement under the same business key;
+    ///      - native value is forwarded to treasury before receipt emission.
     ///
     ///      Relayer gotcha:
     ///      This intentionally does not support third-party relayers. For relayed
     ///      deposits, remove the `msg.sender == intent.payer` check only after
-    ///      adding an explicit payer authorization model.
+    ///      adding explicit payer authorization.
     ///
-    ///      Approval gotcha:
-    ///      The payer must approve this contract for at least `intent.amount`
-    ///      before calling `deposit`.
-    function deposit(DepositIntent calldata intent, bytes calldata signature) external nonReentrant whenNotPaused {
+    ///      Overpayment gotcha:
+    ///      Overpayment reverts. Do not accept `msg.value >= amount` and refund
+    ///      excess; exact payment keeps receipt and ledger semantics simple.
+    function deposit(DepositIntent calldata intent, bytes calldata signature)
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+    {
         if (msg.sender != intent.payer) {
             revert WrongPayer(msg.sender, intent.payer);
         }
@@ -144,96 +148,93 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
             revert ZeroAmount();
         }
 
-        if (!allowedToken[intent.token]) {
-            revert TokenNotAllowed(intent.token);
+        if (msg.value != intent.amount) {
+            revert UnexpectedNativeAmount(intent.amount, msg.value);
         }
 
         if (block.timestamp > intent.deadline) {
             revert ExpiredIntent(intent.deadline);
         }
 
-        address recoveredSigner = _recoverSigner(intent, signature);
-
-        if (recoveredSigner != intentSigner) {
-            revert InvalidIntentSigner(recoveredSigner);
+        if (usedPaymentRefs[intent.paymentRef]) {
+            revert PaymentRefAlreadyUsed(intent.paymentRef);
         }
 
-        // Consumes exactly the expected per-payer nonce. If any later operation
-        // reverts, the whole transaction reverts and the nonce is not consumed.
+        address recipient = treasury;
+        if (intent.treasury != recipient) {
+            revert TreasuryMismatch(intent.treasury, recipient);
+        }
+
+        address recoveredSigner = _recoverSigner(intent, signature);
+        address expectedSigner = intentSigner;
+
+        if (recoveredSigner != expectedSigner) {
+            revert InvalidIntentSignature(expectedSigner, recoveredSigner);
+        }
+
+        // Consumes exactly the expected per-payer nonce. If forwarding native
+        // value later reverts, the whole transaction reverts and the nonce is not consumed.
         _useCheckedNonce(intent.payer, intent.nonce);
 
-        IERC20 token = IERC20(intent.token);
+        // Mark the business key as settled before the external treasury call.
+        // If the treasury call fails, the whole transaction reverts and this write is undone.
+        usedPaymentRefs[intent.paymentRef] = true;
 
-        // Balance-delta accounting is deliberate: the emitted amount must match
-        // what treasury actually received, or the off-chain ledger can over-credit.
-        // This assumes reviewed, plain ERC-20s with exact transfer semantics.
-        uint256 beforeBalance = token.balanceOf(treasury);
+        _sendNative(recipient, msg.value);
 
-        token.safeTransferFrom(intent.payer, treasury, intent.amount);
+        emit DepositReceived(intent.paymentRef, intent.payer, recipient, intent.amount, intent.nonce);
+    }
 
-        uint256 afterBalance = token.balanceOf(treasury);
+    /// @notice Returns the EIP-712 digest signed by the backend for an intent.
+    /// @dev Useful for backend integration tests and signature debugging.
+    function hashDepositIntent(DepositIntent calldata intent) external view returns (bytes32) {
+        return _hashDepositIntent(intent);
+    }
 
-        if (afterBalance < beforeBalance) {
-            revert UnexpectedReceivedAmount(intent.token, intent.amount, 0);
+    /// @notice Sweeps native value that was forcibly sent to this contract.
+    /// @dev This is not a deposit and must not be credited by the ledger. Native value
+    ///      can be force-sent by EVM mechanisms that bypass `receive` and `fallback`.
+    function sweepForcedNative() external onlyOwner nonReentrant {
+        uint256 amount = address(this).balance;
+        if (amount == 0) {
+            revert ZeroAmount();
         }
 
-        uint256 received = afterBalance - beforeBalance;
+        address recipient = treasury;
+        _sendNative(recipient, amount);
 
-        if (received != intent.amount) {
-            revert UnexpectedReceivedAmount(intent.token, intent.amount, received);
-        }
+        emit ForcedNativeSwept(recipient, amount);
+    }
 
-        emit DepositReceived(intent.paymentRef, intent.payer, intent.token, intent.amount, intent.nonce);
+    /// @notice Rejects direct native value transfers.
+    /// @dev All creditable payments must go through `deposit` so they have a
+    ///      signed intent, nonce, payment reference, and receipt event.
+    receive() external payable {
+        revert DirectNativeTransferDisabled();
+    }
+
+    /// @notice Rejects unknown calls, with or without native value.
+    fallback() external payable {
+        revert DirectNativeTransferDisabled();
     }
 
     /// @notice Changes where future deposits are sent.
-    /// @dev Needed for treasury migration or compromise response.
-    ///      Already emitted deposit events are unaffected.
+    /// @dev Needed for treasury migration or compromise response. Already emitted
+    ///      deposit receipts are unaffected.
     function setTreasury(address newTreasury) external onlyOwner {
-        if (newTreasury == address(0)) {
-            revert ZeroAddress();
-        }
-
-        address oldTreasury = treasury;
-        treasury = newTreasury;
-
-        emit TreasurySet(oldTreasury, newTreasury);
+        _setTreasury(newTreasury);
     }
 
     /// @notice Changes which backend key may authorize future intents.
     /// @dev Use for signer rotation or compromise response. Outstanding intents
     ///      from the old signer stop working immediately.
     function setIntentSigner(address newSigner) external onlyOwner {
-        if (newSigner == address(0)) {
-            revert ZeroAddress();
-        }
-
-        address oldSigner = intentSigner;
-        intentSigner = newSigner;
-
-        emit IntentSignerSet(oldSigner, newSigner);
-    }
-
-    /// @notice Enables or disables a token for future deposits.
-    /// @dev Code-size check catches accidental EOA allowlisting. It does not
-    ///      prove the token is safe; token behavior must be reviewed off-chain.
-    function setAllowedToken(address token, bool allowed) external onlyOwner {
-        if (token == address(0)) {
-            revert ZeroAddress();
-        }
-
-        if (allowed && token.code.length == 0) {
-            revert TokenHasNoCode(token);
-        }
-
-        allowedToken[token] = allowed;
-
-        emit TokenAllowedSet(token, allowed);
+        _setIntentSigner(newSigner);
     }
 
     /// @notice Stops new deposits.
-    /// @dev Emergency brake for signer compromise, token incident, indexer
-    ///      failure, or suspected mismatch between chain events and ledger state.
+    /// @dev Emergency brake for signer compromise, indexer failure, treasury
+    ///      incident, or suspected mismatch between chain events and ledger state.
     function pause() external onlyOwner {
         _pause();
     }
@@ -246,27 +247,66 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
 
     /// @notice Disabled intentionally.
     /// @dev Renouncing would permanently remove signer rotation, treasury
-    ///      rotation, token allowlist management, and emergency pause.
+    ///      rotation, and emergency pause authority.
     function renounceOwnership() public view override onlyOwner {
         revert RenounceDisabled();
     }
 
+    function _setTreasury(address newTreasury) private {
+        if (newTreasury == address(0)) {
+            revert ZeroAddress();
+        }
+
+        if (newTreasury == address(this)) {
+            revert InvalidTreasury(newTreasury);
+        }
+
+        address oldTreasury = treasury;
+        treasury = newTreasury;
+
+        emit TreasurySet(oldTreasury, newTreasury);
+    }
+
+    function _setIntentSigner(address newSigner) private {
+        if (newSigner == address(0)) {
+            revert ZeroAddress();
+        }
+
+        address oldSigner = intentSigner;
+        intentSigner = newSigner;
+
+        emit IntentSignerSet(oldSigner, newSigner);
+    }
+
     /// @notice Recovers the backend signer for a deposit intent.
-    /// @dev Isolated to keep the payment path readable. OZ ECDSA rejects
-    ///      malformed signatures and high-s malleable signatures.
+    /// @dev OZ ECDSA rejects malformed signatures and high-s malleable signatures.
     function _recoverSigner(DepositIntent calldata intent, bytes calldata signature) private view returns (address) {
+        return ECDSA.recoverCalldata(_hashDepositIntent(intent), signature);
+    }
+
+    function _hashDepositIntent(DepositIntent calldata intent) private view returns (bytes32) {
         bytes32 structHash = keccak256(
             abi.encode(
                 DEPOSIT_INTENT_TYPEHASH,
                 intent.paymentRef,
                 intent.payer,
-                intent.token,
+                intent.treasury,
                 intent.amount,
                 intent.nonce,
                 intent.deadline
             )
         );
 
-        return ECDSA.recover(_hashTypedDataV4(structHash), signature);
+        return _hashTypedDataV4(structHash);
+    }
+
+    /// @notice Forwards native value and reverts if the recipient rejects it.
+    /// @dev Uses `call` rather than `transfer` so treasury may be a multisig or contract wallet.
+    function _sendNative(address recipient, uint256 amount) private {
+        (bool ok,) = payable(recipient).call{value: amount}("");
+
+        if (!ok) {
+            revert NativeTransferFailed(recipient, amount);
+        }
     }
 }

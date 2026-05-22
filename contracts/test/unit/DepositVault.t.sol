@@ -4,6 +4,7 @@ import {DepositVault} from "../../src/DepositVault.sol";
 
 interface Vm {
     function addr(uint256 privateKey) external returns (address);
+    function deal(address account, uint256 newBalance) external;
     function expectEmit(bool checkTopic1, bool checkTopic2, bool checkTopic3, bool checkData, address emitter) external;
     function expectRevert() external;
     function expectRevert(bytes calldata revertData) external;
@@ -12,61 +13,17 @@ interface Vm {
     function warp(uint256 newTimestamp) external;
 }
 
-/// @dev Minimal ERC-20 test double for exercising DepositVault transfer paths.
-contract MockERC20 {
-    mapping(address account => uint256 balance) public balanceOf;
-    mapping(address owner => mapping(address spender => uint256 amount)) public allowance;
-
-    function mint(address account, uint256 amount) external {
-        balanceOf[account] += amount;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external virtual returns (bool) {
-        uint256 allowed = allowance[from][msg.sender];
-
-        if (allowed != type(uint256).max) {
-            allowance[from][msg.sender] = allowed - amount;
-        }
-
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-
-        return true;
+/// @dev Treasury double that rejects native value, used to prove deposit and sweep failure atomicity.
+contract RejectNativeTreasury {
+    receive() external payable {
+        revert("reject native");
     }
 }
 
-/// @dev Token double that models fee-on-transfer behavior rejected by the vault.
-contract FeeOnTransferERC20 is MockERC20 {
-    function transferFrom(address from, address to, uint256 amount) external override returns (bool) {
-        uint256 allowed = allowance[from][msg.sender];
-
-        if (allowed != type(uint256).max) {
-            allowance[from][msg.sender] = allowed - amount;
-        }
-
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount - 1;
-
-        return true;
-    }
-}
-
-/// @dev Token double that models an ERC-20 returning false from transferFrom.
-contract FalseReturnERC20 is MockERC20 {
-    function transferFrom(address, address, uint256) external pure override returns (bool) {
-        return false;
-    }
-}
-
-/// @notice Unit tests for DepositVault, an EIP-712-authorized ERC-20 deposit gateway.
-/// @dev The SUT should move exact token amounts to treasury only for current,
-///      backend-signed intents while preserving nonce, signer, owner, pause,
-///      token allowlist, and treasury controls.
+/// @notice Unit tests for DepositVault, an EIP-712-authorized native-asset deposit gateway.
+/// @dev The SUT should forward exact native amounts to treasury only for current,
+///      backend-signed intents while preserving nonce, paymentRef, signer, owner,
+///      pause, treasury, and forced-native recovery controls.
 contract DepositVaultTest {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
@@ -76,7 +33,7 @@ contract DepositVaultTest {
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
     bytes32 private constant DEPOSIT_INTENT_TYPEHASH = keccak256(
-        "DepositIntent(bytes32 paymentRef,address payer,address token,uint256 amount,uint256 nonce,uint256 deadline)"
+        "DepositIntent(bytes32 paymentRef,address payer,address treasury,uint256 amount,uint256 nonce,uint256 deadline)"
     );
 
     address private owner = address(this);
@@ -85,38 +42,48 @@ contract DepositVaultTest {
     address private intentSigner;
 
     DepositVault private vault;
-    MockERC20 private token;
 
     event DepositReceived(
-        bytes32 indexed paymentRef, address indexed payer, address indexed token, uint256 amount, uint256 nonce
+        bytes32 indexed paymentRef,
+        address indexed payer,
+        address indexed treasuryRecipient,
+        uint256 amount,
+        uint256 nonce
     );
+    event ForcedNativeSwept(address indexed recipient, uint256 amount);
 
     function setUp() public {
         intentSigner = vm.addr(SIGNER_KEY);
         vault = new DepositVault(owner, treasury, intentSigner);
-        token = new MockERC20();
 
-        vault.setAllowedToken(address(token), true);
-        token.mint(payer, 1_000 ether);
+        vm.deal(address(this), 1_000 ether);
+        vm.deal(payer, 1_000 ether);
     }
 
-    /// @notice A valid signed intent transfers the exact amount and advances the payer nonce.
-    /// @dev This is the core happy path for the SUT: funds move to treasury and the event carries the accounting key.
-    function testDepositTransfersTokensAndConsumesNonce() external {
+    /// @notice A valid signed intent forwards exact native value and advances the payer nonce.
+    /// @dev This is the core SUT path: treasury receives value and the receipt carries the accounting key.
+    function testDepositForwardsNativeValueAndConsumesNonce() external {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
         bytes memory signature = signIntent(SIGNER_KEY, intent);
 
-        approveFromPayer(address(token), address(vault), intent.amount);
-
         vm.expectEmit(true, true, true, true, address(vault));
-        emit DepositReceived(intent.paymentRef, payer, address(token), intent.amount, intent.nonce);
+        emit DepositReceived(intent.paymentRef, payer, treasury, intent.amount, intent.nonce);
 
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
 
-        assertEq(token.balanceOf(treasury), intent.amount);
-        assertEq(token.balanceOf(payer), 900 ether);
+        assertEq(treasury.balance, intent.amount);
+        assertEq(payer.balance, 900 ether);
         assertEq(vault.nonces(payer), 1);
+        assertTrue(vault.usedPaymentRefs(intent.paymentRef));
+    }
+
+    /// @notice The public hash helper returns the exact EIP-712 digest used for backend signatures.
+    /// @dev Backend tooling can use this SUT helper to debug signing mismatches without duplicating hashing logic.
+    function testHashDepositIntentMatchesLocalDigest() external view {
+        DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
+
+        assertEq(vault.hashDepositIntent(intent), digestForVault(intent, address(vault)));
     }
 
     /// @notice An intent remains valid when its deadline is exactly the current timestamp.
@@ -126,49 +93,46 @@ contract DepositVaultTest {
         intent.deadline = block.timestamp + 10;
         bytes memory signature = signIntent(SIGNER_KEY, intent);
 
-        approveFromPayer(address(token), address(vault), intent.amount);
         vm.warp(intent.deadline);
 
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
 
-        assertEq(token.balanceOf(treasury), intent.amount);
+        assertEq(treasury.balance, intent.amount);
         assertEq(vault.nonces(payer), 1);
     }
 
     /// @notice Consecutive signed intents for the same payer settle in nonce order.
-    /// @dev This proves the SUT supports normal repeated deposits while preventing gaps and replay.
+    /// @dev This proves the SUT supports repeated deposits while preventing nonce gaps and replay.
     function testAcceptsSequentialNonces() external {
         DepositVault.DepositIntent memory firstIntent = defaultIntent(100 ether, 0);
         DepositVault.DepositIntent memory secondIntent = defaultIntent(50 ether, 1);
         secondIntent.paymentRef = keccak256("payment:2");
 
-        approveFromPayer(address(token), address(vault), firstIntent.amount + secondIntent.amount);
+        vm.prank(payer);
+        vault.deposit{value: firstIntent.amount}(firstIntent, signIntent(SIGNER_KEY, firstIntent));
 
         vm.prank(payer);
-        vault.deposit(firstIntent, signIntent(SIGNER_KEY, firstIntent));
+        vault.deposit{value: secondIntent.amount}(secondIntent, signIntent(SIGNER_KEY, secondIntent));
 
-        vm.prank(payer);
-        vault.deposit(secondIntent, signIntent(SIGNER_KEY, secondIntent));
-
-        assertEq(token.balanceOf(treasury), 150 ether);
+        assertEq(treasury.balance, 150 ether);
         assertEq(vault.nonces(payer), 2);
+        assertTrue(vault.usedPaymentRefs(firstIntent.paymentRef));
+        assertTrue(vault.usedPaymentRefs(secondIntent.paymentRef));
     }
 
-    /// @notice A settled intent cannot be submitted again with the same nonce.
+    /// @notice A settled nonce cannot be submitted again.
     /// @dev The SUT's nonce consumption is the replay barrier for reused backend signatures.
     function testRejectsReplayWithSameNonce() external {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
         bytes memory signature = signIntent(SIGNER_KEY, intent);
 
-        approveFromPayer(address(token), address(vault), 200 ether);
-
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
 
         vm.expectRevert();
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
     }
 
     /// @notice A signed intent with a nonce ahead of the payer's current nonce is rejected.
@@ -176,23 +140,42 @@ contract DepositVaultTest {
     function testRejectsFutureNonce() external {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 1);
 
-        approveFromPayer(address(token), address(vault), intent.amount);
-
         vm.expectRevert();
         vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
+        vault.deposit{value: intent.amount}(intent, signIntent(SIGNER_KEY, intent));
 
         assertEq(vault.nonces(payer), 0);
+        assertFalse(vault.usedPaymentRefs(intent.paymentRef));
+        assertEq(treasury.balance, 0);
+    }
+
+    /// @notice Reusing a settled paymentRef is rejected even with a fresh nonce.
+    /// @dev This lets the SUT enforce one settlement per business key in addition to nonce replay protection.
+    function testRejectsReusedPaymentRefWithFreshNonce() external {
+        DepositVault.DepositIntent memory firstIntent = defaultIntent(100 ether, 0);
+        DepositVault.DepositIntent memory secondIntent = defaultIntent(50 ether, 1);
+
+        vm.prank(payer);
+        vault.deposit{value: firstIntent.amount}(firstIntent, signIntent(SIGNER_KEY, firstIntent));
+
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.PaymentRefAlreadyUsed.selector, firstIntent.paymentRef));
+        vm.prank(payer);
+        vault.deposit{value: secondIntent.amount}(secondIntent, signIntent(SIGNER_KEY, secondIntent));
+
+        assertEq(vault.nonces(payer), 1);
+        assertEq(treasury.balance, firstIntent.amount);
     }
 
     /// @notice Only the payer named in the signed intent may submit the deposit.
     /// @dev This preserves the SUT's no-relayer model and prevents leaked intents from being paid by another account.
     function testRejectsWrongPayer() external {
+        address attacker = address(0xBAD);
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
+        vm.deal(attacker, intent.amount);
 
-        vm.expectRevert(abi.encodeWithSelector(DepositVault.WrongPayer.selector, address(0xBAD), payer));
-        vm.prank(address(0xBAD));
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.WrongPayer.selector, attacker, payer));
+        vm.prank(attacker);
+        vault.deposit{value: intent.amount}(intent, signIntent(SIGNER_KEY, intent));
     }
 
     /// @notice A signature from any key other than the configured backend signer is rejected.
@@ -202,23 +185,22 @@ contract DepositVaultTest {
         bytes memory signature = signIntent(OTHER_SIGNER_KEY, intent);
         address recovered = vm.addr(OTHER_SIGNER_KEY);
 
-        approveFromPayer(address(token), address(vault), intent.amount);
-
-        vm.expectRevert(abi.encodeWithSelector(DepositVault.InvalidIntentSigner.selector, recovered));
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.InvalidIntentSignature.selector, intentSigner, recovered));
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
     }
 
     /// @notice Malformed signature bytes cannot authorize a deposit.
-    /// @dev The SUT delegates signature parsing to OZ ECDSA and must fail before token movement or nonce consumption.
+    /// @dev The SUT delegates signature parsing to OZ ECDSA and must fail before value forwarding or nonce consumption.
     function testRejectsMalformedSignature() external {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
 
-        approveFromPayer(address(token), address(vault), intent.amount);
-
         vm.expectRevert();
         vm.prank(payer);
-        vault.deposit(intent, hex"1234");
+        vault.deposit{value: intent.amount}(intent, hex"1234");
+
+        assertEq(vault.nonces(payer), 0);
+        assertEq(treasury.balance, 0);
     }
 
     /// @notice A signature produced for another vault cannot be replayed against this vault.
@@ -228,32 +210,28 @@ contract DepositVaultTest {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
         bytes memory signature = signIntentForVault(SIGNER_KEY, intent, address(otherVault));
 
-        approveFromPayer(address(token), address(vault), intent.amount);
-
         vm.expectRevert();
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
 
         assertEq(vault.nonces(payer), 0);
-        assertEq(token.balanceOf(treasury), 0);
+        assertEq(treasury.balance, 0);
     }
 
     /// @notice Changing signed intent fields after signing invalidates the signature.
-    /// @dev This protects the SUT from amount, token, payer, deadline, nonce, or paymentRef substitution.
+    /// @dev This protects the SUT from amount, treasury, payer, deadline, nonce, or paymentRef substitution.
     function testRejectsMutatedSignedIntent() external {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
         bytes memory signature = signIntent(SIGNER_KEY, intent);
         intent.amount = 101 ether;
 
-        approveFromPayer(address(token), address(vault), intent.amount);
-
         vm.expectRevert();
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
 
         assertEq(vault.nonces(payer), 0);
-        assertEq(token.balanceOf(treasury), 0);
-        assertEq(token.balanceOf(payer), 1_000 ether);
+        assertEq(treasury.balance, 0);
+        assertEq(payer.balance, 1_000 ether);
     }
 
     /// @notice A signed intent cannot be used after its deadline.
@@ -263,12 +241,11 @@ contract DepositVaultTest {
         intent.deadline = block.timestamp + 10;
         bytes memory signature = signIntent(SIGNER_KEY, intent);
 
-        approveFromPayer(address(token), address(vault), intent.amount);
         vm.warp(intent.deadline + 1);
 
         vm.expectRevert(abi.encodeWithSelector(DepositVault.ExpiredIntent.selector, intent.deadline));
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
     }
 
     /// @notice A deposit intent must carry a nonzero off-chain payment reference.
@@ -279,128 +256,92 @@ contract DepositVaultTest {
 
         vm.expectRevert(abi.encodeWithSelector(DepositVault.ZeroPaymentRef.selector));
         vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
+        vault.deposit{value: intent.amount}(intent, signIntent(SIGNER_KEY, intent));
     }
 
-    /// @notice A deposit intent must move a nonzero token amount.
+    /// @notice A deposit intent must move a nonzero native amount.
     /// @dev The SUT rejects zero-value events so the off-chain ledger only sees meaningful settlements.
     function testRejectsZeroAmount() external {
         DepositVault.DepositIntent memory intent = defaultIntent(0, 0);
 
         vm.expectRevert(abi.encodeWithSelector(DepositVault.ZeroAmount.selector));
         vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
+        vault.deposit{value: 0}(intent, signIntent(SIGNER_KEY, intent));
     }
 
-    /// @notice A token that has not been allowlisted cannot be deposited.
-    /// @dev The SUT relies on owner-reviewed token policy before accepting transfer semantics for accounting.
-    function testRejectsUnallowedToken() external {
-        MockERC20 otherToken = new MockERC20();
-        otherToken.mint(payer, 100 ether);
-
-        DepositVault.DepositIntent memory intent = defaultIntentForToken(address(otherToken), 100 ether, 0);
-
-        approveFromPayer(address(otherToken), address(vault), intent.amount);
-
-        vm.expectRevert(abi.encodeWithSelector(DepositVault.TokenNotAllowed.selector, address(otherToken)));
-        vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
-    }
-
-    /// @notice Removing a token from the allowlist blocks future deposits immediately.
-    /// @dev This gives the SUT an operational kill switch for token incidents without rotating the whole vault.
-    function testRejectsTokenAfterItIsDisabled() external {
+    /// @notice The submitted native value must equal the signed amount.
+    /// @dev Exact-value enforcement keeps receipt amount and ledger credit semantics aligned.
+    function testRejectsUnderpayment() external {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
 
-        vault.setAllowedToken(address(token), false);
-        approveFromPayer(address(token), address(vault), intent.amount);
-
-        vm.expectRevert(abi.encodeWithSelector(DepositVault.TokenNotAllowed.selector, address(token)));
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.UnexpectedNativeAmount.selector, intent.amount, 99 ether));
         vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
+        vault.deposit{value: 99 ether}(intent, signIntent(SIGNER_KEY, intent));
     }
 
-    /// @notice A transfer failure caused by insufficient allowance leaves nonce and balances unchanged.
-    /// @dev The SUT consumes the nonce before transfer, so this proves revert atomicity restores state.
-    function testTransferRevertFromAllowanceDoesNotConsumeNonce() external {
+    /// @notice Overpayment is rejected instead of accepted and refunded.
+    /// @dev The SUT deliberately avoids refund branches in the accounting-critical path.
+    function testRejectsOverpayment() external {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
 
-        approveFromPayer(address(token), address(vault), intent.amount - 1);
-
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.UnexpectedNativeAmount.selector, intent.amount, 101 ether));
         vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
+        vault.deposit{value: 101 ether}(intent, signIntent(SIGNER_KEY, intent));
+    }
+
+    /// @notice A signed stale treasury cannot be used after treasury rotation.
+    /// @dev The SUT rejects stale intents instead of silently redirecting native value to a new treasury.
+    function testRejectsTreasuryMismatchAfterRotation() external {
+        DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
+        bytes memory signature = signIntent(SIGNER_KEY, intent);
+        address newTreasury = address(0x7200);
+
+        vault.setTreasury(newTreasury);
+
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.TreasuryMismatch.selector, treasury, newTreasury));
+        vm.prank(payer);
+        vault.deposit{value: intent.amount}(intent, signature);
 
         assertEq(vault.nonces(payer), 0);
-        assertEq(token.balanceOf(treasury), 0);
-        assertEq(token.balanceOf(payer), 1_000 ether);
+        assertFalse(vault.usedPaymentRefs(intent.paymentRef));
+        assertEq(treasury.balance, 0);
+        assertEq(newTreasury.balance, 0);
     }
 
-    /// @notice A transfer failure caused by insufficient balance leaves nonce and balances unchanged.
-    /// @dev The SUT must not burn a valid backend intent when token movement reverts.
-    function testTransferRevertFromBalanceDoesNotConsumeNonce() external {
-        address poorPayer = address(0xF00D);
-        token.mint(poorPayer, 1 ether);
+    /// @notice Treasury migration works when the backend signs the new treasury.
+    /// @dev The SUT supports operational treasury migration while making the recipient explicit in the signature.
+    function testTreasuryMigrationRoutesFutureDeposits() external {
+        address newTreasury = address(0x7200);
+        vault.setTreasury(newTreasury);
 
-        DepositVault.DepositIntent memory intent = DepositVault.DepositIntent({
-            paymentRef: keccak256("payment:poor"),
-            payer: poorPayer,
-            token: address(token),
-            amount: 100 ether,
-            nonce: 0,
-            deadline: block.timestamp + 1 days
-        });
+        DepositVault.DepositIntent memory intent = defaultIntentForTreasury(newTreasury, 100 ether, 0);
 
-        vm.prank(poorPayer);
-        token.approve(address(vault), intent.amount);
+        vm.prank(payer);
+        vault.deposit{value: intent.amount}(intent, signIntent(SIGNER_KEY, intent));
 
-        vm.expectRevert();
-        vm.prank(poorPayer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
-
-        assertEq(vault.nonces(poorPayer), 0);
-        assertEq(token.balanceOf(treasury), 0);
-        assertEq(token.balanceOf(poorPayer), 1 ether);
+        assertEq(treasury.balance, 0);
+        assertEq(newTreasury.balance, intent.amount);
     }
 
-    /// @notice Fee-on-transfer behavior is rejected even when the token is allowlisted.
-    /// @dev The SUT's treasury balance-delta check prevents over-crediting the off-chain ledger.
-    function testRejectsFeeOnTransferToken() external {
-        FeeOnTransferERC20 feeToken = new FeeOnTransferERC20();
-        feeToken.mint(payer, 100 ether);
-        vault.setAllowedToken(address(feeToken), true);
+    /// @notice If treasury rejects native value, the deposit reverts without consuming nonce or paymentRef.
+    /// @dev The SUT marks state before the external call, so this proves revert atomicity restores those writes.
+    function testRejectingTreasuryDoesNotConsumeNonceOrPaymentRef() external {
+        RejectNativeTreasury rejectingTreasury = new RejectNativeTreasury();
+        vault.setTreasury(address(rejectingTreasury));
 
-        DepositVault.DepositIntent memory intent = defaultIntentForToken(address(feeToken), 100 ether, 0);
-
-        approveFromPayer(address(feeToken), address(vault), intent.amount);
+        DepositVault.DepositIntent memory intent = defaultIntentForTreasury(address(rejectingTreasury), 100 ether, 0);
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                DepositVault.UnexpectedReceivedAmount.selector, address(feeToken), intent.amount, intent.amount - 1
+                DepositVault.NativeTransferFailed.selector, address(rejectingTreasury), intent.amount
             )
         );
         vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
-    }
-
-    /// @notice A false-returning ERC-20 is rejected without consuming the payer nonce.
-    /// @dev The SUT uses SafeERC20, so non-reverting false results must still fail atomically.
-    function testRejectsFalseReturnTokenWithoutConsumingNonce() external {
-        FalseReturnERC20 falseToken = new FalseReturnERC20();
-        falseToken.mint(payer, 100 ether);
-        vault.setAllowedToken(address(falseToken), true);
-
-        DepositVault.DepositIntent memory intent = defaultIntentForToken(address(falseToken), 100 ether, 0);
-
-        approveFromPayer(address(falseToken), address(vault), intent.amount);
-
-        vm.expectRevert();
-        vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
+        vault.deposit{value: intent.amount}(intent, signIntent(SIGNER_KEY, intent));
 
         assertEq(vault.nonces(payer), 0);
-        assertEq(falseToken.balanceOf(treasury), 0);
-        assertEq(falseToken.balanceOf(payer), 100 ether);
+        assertFalse(vault.usedPaymentRefs(intent.paymentRef));
+        assertEq(address(rejectingTreasury).balance, 0);
     }
 
     /// @notice Pausing stops deposits and unpausing restores the same signed-intent path.
@@ -409,35 +350,18 @@ contract DepositVaultTest {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
         bytes memory signature = signIntent(SIGNER_KEY, intent);
 
-        approveFromPayer(address(token), address(vault), intent.amount);
         vault.pause();
 
         vm.expectRevert();
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
 
         vault.unpause();
 
         vm.prank(payer);
-        vault.deposit(intent, signature);
+        vault.deposit{value: intent.amount}(intent, signature);
 
-        assertEq(token.balanceOf(treasury), intent.amount);
-    }
-
-    /// @notice Treasury rotation sends later deposits to the new treasury address.
-    /// @dev The SUT should support operational treasury migration without affecting signer or payer semantics.
-    function testTreasuryMigrationRoutesFutureDeposits() external {
-        address newTreasury = address(0x7200);
-        DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
-
-        vault.setTreasury(newTreasury);
-        approveFromPayer(address(token), address(vault), intent.amount);
-
-        vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
-
-        assertEq(token.balanceOf(treasury), 0);
-        assertEq(token.balanceOf(newTreasury), intent.amount);
+        assertEq(treasury.balance, intent.amount);
     }
 
     /// @notice Signer rotation immediately invalidates outstanding signatures from the old signer.
@@ -448,19 +372,67 @@ contract DepositVaultTest {
 
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
 
-        approveFromPayer(address(token), address(vault), intent.amount);
-
-        vm.expectRevert(abi.encodeWithSelector(DepositVault.InvalidIntentSigner.selector, intentSigner));
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.InvalidIntentSignature.selector, newSigner, intentSigner));
         vm.prank(payer);
-        vault.deposit(intent, signIntent(SIGNER_KEY, intent));
+        vault.deposit{value: intent.amount}(intent, signIntent(SIGNER_KEY, intent));
 
         vm.prank(payer);
-        vault.deposit(intent, signIntent(OTHER_SIGNER_KEY, intent));
+        vault.deposit{value: intent.amount}(intent, signIntent(OTHER_SIGNER_KEY, intent));
 
-        assertEq(token.balanceOf(treasury), intent.amount);
+        assertEq(treasury.balance, intent.amount);
     }
 
-    /// @notice The owner can update treasury, signer, and token allowlist policy.
+    /// @notice Direct native transfers are rejected.
+    /// @dev All creditable value must pass through deposit so every payment has an intent, nonce, and receipt.
+    function testRejectsDirectNativeTransfer() external {
+        (bool ok,) = payable(address(vault)).call{value: 1 ether}("");
+
+        assertFalse(ok);
+    }
+
+    /// @notice Unknown calls are rejected, with or without native value.
+    /// @dev The SUT should not have payable side doors that bypass signed deposit validation.
+    function testRejectsFallbackCalls() external {
+        (bool ok,) = address(vault).call(abi.encodeWithSignature("missing()"));
+
+        assertFalse(ok);
+    }
+
+    /// @notice Forced native value can be swept to treasury without emitting a deposit receipt.
+    /// @dev The SUT cannot block selfdestruct value, so it exposes a separate owner-only recovery path.
+    function testOwnerCanSweepForcedNative() external {
+        vm.deal(address(vault), 3 ether);
+
+        vm.expectEmit(true, false, false, true, address(vault));
+        emit ForcedNativeSwept(treasury, 3 ether);
+
+        vault.sweepForcedNative();
+
+        assertEq(address(vault).balance, 0);
+        assertEq(treasury.balance, 3 ether);
+    }
+
+    /// @notice Sweeping with no forced value is rejected.
+    /// @dev The SUT should not emit operational sweep events for no-op calls.
+    function testRejectsEmptyForcedNativeSweep() external {
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.ZeroAmount.selector));
+        vault.sweepForcedNative();
+    }
+
+    /// @notice Non-owners cannot sweep forced native value.
+    /// @dev The SUT reserves recovery of accidental or forced balances for governance.
+    function testRejectsNonOwnerForcedNativeSweep() external {
+        vm.deal(address(vault), 3 ether);
+
+        vm.expectRevert();
+        vm.prank(address(0xBAD));
+        vault.sweepForcedNative();
+
+        assertEq(address(vault).balance, 3 ether);
+        assertEq(treasury.balance, 0);
+    }
+
+    /// @notice The owner can update treasury and signer policy.
     /// @dev This covers the SUT's administrative surface for routine operations.
     function testOwnerControlsPolicy() external {
         address newTreasury = address(0x7200);
@@ -468,11 +440,9 @@ contract DepositVaultTest {
 
         vault.setTreasury(newTreasury);
         vault.setIntentSigner(newSigner);
-        vault.setAllowedToken(address(token), false);
 
         assertEq(vault.treasury(), newTreasury);
         assertEq(vault.intentSigner(), newSigner);
-        assertFalse(vault.allowedToken(address(token)));
     }
 
     /// @notice Ownership transfer requires the pending owner to accept control.
@@ -494,7 +464,7 @@ contract DepositVaultTest {
         vault.pause();
     }
 
-    /// @notice Non-owners cannot change treasury, signer, allowlist, or pause state.
+    /// @notice Non-owners cannot change treasury, signer, pause state, or sweep forced value.
     /// @dev This verifies the SUT's policy controls are restricted to the current owner.
     function testRejectsNonOwnerPolicyChanges() external {
         address attacker = address(0xBAD);
@@ -509,10 +479,6 @@ contract DepositVaultTest {
 
         vm.expectRevert();
         vm.prank(attacker);
-        vault.setAllowedToken(address(token), false);
-
-        vm.expectRevert();
-        vm.prank(attacker);
         vault.pause();
 
         vault.pause();
@@ -522,20 +488,17 @@ contract DepositVaultTest {
         vault.unpause();
     }
 
-    /// @notice Owner policy updates reject zero addresses and EOA token allowlisting.
-    /// @dev The SUT guards against accidentally disabling core roles or approving non-contract tokens.
+    /// @notice Owner policy updates reject zero addresses and the vault itself as treasury.
+    /// @dev The SUT guards against accidentally disabling core roles or trapping native value in itself.
     function testRejectsUnsafePolicyValues() external {
         vm.expectRevert(abi.encodeWithSelector(DepositVault.ZeroAddress.selector));
         vault.setTreasury(address(0));
 
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.InvalidTreasury.selector, address(vault)));
+        vault.setTreasury(address(vault));
+
         vm.expectRevert(abi.encodeWithSelector(DepositVault.ZeroAddress.selector));
         vault.setIntentSigner(address(0));
-
-        vm.expectRevert(abi.encodeWithSelector(DepositVault.ZeroAddress.selector));
-        vault.setAllowedToken(address(0), true);
-
-        vm.expectRevert(abi.encodeWithSelector(DepositVault.TokenHasNoCode.selector, address(0x1234)));
-        vault.setAllowedToken(address(0x1234), true);
     }
 
     /// @notice Deployment rejects invalid owner, treasury, and signer configuration.
@@ -552,17 +515,17 @@ contract DepositVaultTest {
     }
 
     /// @notice Ownership renounce is disabled permanently.
-    /// @dev The SUT must retain an owner for signer rotation, treasury rotation, allowlist changes, and emergency pause.
+    /// @dev The SUT must retain an owner for signer rotation, treasury rotation, emergency pause, and forced sweep.
     function testRenounceOwnershipIsDisabled() external {
         vm.expectRevert(abi.encodeWithSelector(DepositVault.RenounceDisabled.selector));
         vault.renounceOwnership();
     }
 
     function defaultIntent(uint256 amount, uint256 nonce) private view returns (DepositVault.DepositIntent memory) {
-        return defaultIntentForToken(address(token), amount, nonce);
+        return defaultIntentForTreasury(treasury, amount, nonce);
     }
 
-    function defaultIntentForToken(address intentToken, uint256 amount, uint256 nonce)
+    function defaultIntentForTreasury(address intentTreasury, uint256 amount, uint256 nonce)
         private
         view
         returns (DepositVault.DepositIntent memory)
@@ -570,16 +533,11 @@ contract DepositVaultTest {
         return DepositVault.DepositIntent({
             paymentRef: keccak256("payment:1"),
             payer: payer,
-            token: intentToken,
+            treasury: intentTreasury,
             amount: amount,
             nonce: nonce,
             deadline: block.timestamp + 1 days
         });
-    }
-
-    function approveFromPayer(address approvedToken, address spender, uint256 amount) private {
-        vm.prank(payer);
-        MockERC20(approvedToken).approve(spender, amount);
     }
 
     function signIntent(uint256 privateKey, DepositVault.DepositIntent memory intent) private returns (bytes memory) {
@@ -590,12 +548,23 @@ contract DepositVaultTest {
         private
         returns (bytes memory)
     {
+        bytes32 digest = digestForVault(intent, verifyingVault);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
+
+        return abi.encodePacked(r, s, v);
+    }
+
+    function digestForVault(DepositVault.DepositIntent memory intent, address verifyingVault)
+        private
+        view
+        returns (bytes32)
+    {
         bytes32 structHash = keccak256(
             abi.encode(
                 DEPOSIT_INTENT_TYPEHASH,
                 intent.paymentRef,
                 intent.payer,
-                intent.token,
+                intent.treasury,
                 intent.amount,
                 intent.nonce,
                 intent.deadline
@@ -610,10 +579,8 @@ contract DepositVaultTest {
                 verifyingVault
             )
         );
-        bytes32 digest = keccak256(abi.encodePacked(hex"1901", domainSeparator, structHash));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(privateKey, digest);
 
-        return abi.encodePacked(r, s, v);
+        return keccak256(abi.encodePacked(hex"1901", domainSeparator, structHash));
     }
 
     function assertEq(uint256 actual, uint256 expected) private pure {
@@ -628,9 +595,21 @@ contract DepositVaultTest {
         }
     }
 
+    function assertEq(bytes32 actual, bytes32 expected) private pure {
+        if (actual != expected) {
+            revert("bytes32 mismatch");
+        }
+    }
+
     function assertFalse(bool value) private pure {
         if (value) {
             revert("expected false");
+        }
+    }
+
+    function assertTrue(bool value) private pure {
+        if (!value) {
+            revert("expected true");
         }
     }
 }
