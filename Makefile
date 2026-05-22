@@ -5,6 +5,9 @@ SHELL := bash
 COMPOSE_DIR ?= compose
 DOCKER_COMPOSE ?= docker compose
 COMPOSE_PROJECT_NAME ?= dapps
+DAPPS_DIR := dapps
+DEPENDENCIES_DIR := $(DAPPS_DIR)/dependencies
+DEPENDENCY_METADATA_FILES := $(DAPPS_DIR)/soldeer.lock $(DAPPS_DIR)/remappings.txt $(DAPPS_DIR)/dependency-checksums.txt
 ACTUAL_UID := $(shell id -u)
 LOCAL_UID ?= $(shell id -u)
 LOCAL_GID ?= $(shell id -g)
@@ -71,7 +74,7 @@ deps:
 	case "$(ALLOW_UPDATE)" in \
 	  0) \
 	    apply_service="soldeer-apply-locked"; \
-	    for file in dapps/soldeer.lock dapps/remappings.txt dapps/dependency-checksums.txt; do \
+	    for file in $(DEPENDENCY_METADATA_FILES); do \
 	      if [[ ! -f "$$file" ]]; then \
 	        printf 'Missing locked dependency metadata: %s\n' "$$file" >&2; \
 	        printf '%s\n' 'Run make deps ALLOW_UPDATE=1 only if creating or updating dependency metadata is intended.' >&2; \
@@ -80,10 +83,10 @@ deps:
 	    done ;; \
 	  1) \
 	    apply_service="soldeer-apply-update"; \
-	    touch dapps/soldeer.lock dapps/remappings.txt dapps/dependency-checksums.txt ;; \
+	    touch $(DEPENDENCY_METADATA_FILES) ;; \
 	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
 	esac; \
-	mkdir -p dapps/dependencies; \
+	mkdir -p $(DEPENDENCIES_DIR); \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm "$$apply_service"; \

@@ -6,8 +6,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 SKIP_DIRS = {
+    ".agents",
+    ".codex",
     ".git",
     ".idea",
+    ".cache",
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",

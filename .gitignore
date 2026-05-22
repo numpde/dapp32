@@ -4,6 +4,10 @@
 .env.*
 !.env.example
 
+# Local agent/tool state is machine-specific.
+.agents/
+.codex/
+
 # Compose-local environment files are machine-specific and may contain secrets.
 compose/**/.env
 
@@ -17,6 +21,11 @@ cache/
 out/
 broadcast/
 reports/
+.cache/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
 
 # Package manager installs and local Solidity dependency materialization are
 # reproducible from committed manifests/locks, not source of truth themselves.

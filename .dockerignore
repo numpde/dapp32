@@ -2,6 +2,7 @@
 .git
 .codex
 .agents
+.idea
 
 # Operator secrets and local environment files.
 .env
@@ -23,4 +24,7 @@ reports
 node_modules
 dapps/dependencies
 .cache
+.mypy_cache
+.pytest_cache
+.ruff_cache
 .venv
