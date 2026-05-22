@@ -1,4 +1,4 @@
-pragma solidity 0.8.18;
+pragma solidity 0.8.35;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";

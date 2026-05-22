@@ -1,4 +1,4 @@
-pragma solidity ^0.8.18;
+pragma solidity 0.8.35;
 
 import {Test} from "forge-std-1.12.0/src/Test.sol";
 

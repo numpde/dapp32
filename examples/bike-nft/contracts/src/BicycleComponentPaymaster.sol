@@ -1,4 +1,4 @@
-pragma solidity ^0.8.18;
+pragma solidity 0.8.35;
 
 import "@opengsn/contracts/src/BasePaymaster.sol";
 import "./BicycleComponentOpsFund.sol";
