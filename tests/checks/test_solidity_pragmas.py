@@ -11,10 +11,10 @@ PRAGMA_RE = re.compile(r"^\s*pragma\s+solidity\s+([^;]+);", re.MULTILINE)
 
 
 class SolidityPragmaTest(unittest.TestCase):
-    def test_first_party_solidity_pragmas_match_foundry_compiler(self) -> None:
+    def test_repo_solidity_pragmas_match_foundry_compiler(self) -> None:
         expected = self.foundry_solc_version()
 
-        for path in iter_files("contracts/src", "contracts/test"):
+        for path in iter_files("contracts", "examples"):
             if path.suffix != ".sol":
                 continue
 
