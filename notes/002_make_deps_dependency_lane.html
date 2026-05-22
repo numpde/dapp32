@@ -197,11 +197,12 @@
       </p>
       <div class="meta">
         <span class="pill">Current source: Soldeer</span>
-        <span class="pill">Network: stage only</span>
+        <span class="pill">Network: allowlisted proxy</span>
         <span class="pill">Explicit archive check: soldeer.lock</span>
+        <span class="pill">Source policy: foundry.toml plus soldeer.lock</span>
         <span class="pill">Patch check: pre / patch / post SHA-256</span>
         <span class="pill">Updates: ALLOW_UPDATE=1</span>
-        <span class="pill">Build checks: offline verify first</span>
+        <span class="pill">Live proof: check-live-deps-egress</span>
       </div>
     </div>
   </header>
@@ -210,7 +211,7 @@
     <section>
       <h2>The rule</h2>
       <p>
-        Dependency installation is split into stages because downloading code, changing installed dependency bytes, and writing repository files have different trust boundaries. The networked stage downloads dependencies, verifies each upstream archive against <code>soldeer.lock</code>, applies declared local patches, writes checksums for the final patched tree, and writes only to a temporary Docker volume. Offline apply and verify containers handle repository writes and checks.
+        Dependency installation is split into stages because downloading code, changing installed dependency bytes, and writing repository files have different trust boundaries. The networked stage reaches the internet only through a dependency egress proxy, verifies dependency source policy from <code>foundry.toml</code> and <code>soldeer.lock</code>, verifies each upstream archive against <code>soldeer.lock</code>, applies declared local patches, writes checksums for the final patched tree, and writes only to a temporary Docker volume. Offline apply and verify containers handle repository writes and checks.
       </p>
       <p class="note">
         The important invariant is simple: no networked dependency process gets repo-root read/write access.
@@ -226,27 +227,27 @@
         <div class="card">
           <strong>1. Egress</strong>
           <h3><code>dependency-egress-proxy</code></h3>
-          <p>Image: <code>containers/https-egress-proxy</code>. This is the only service with external network egress. It allows HTTPS CONNECT traffic to public port 443.</p>
+          <p>Image: <code>containers/https-egress-proxy</code>. This is the only service with external network egress. It allows HTTPS CONNECT only to configured global hosts on port 443. Today the dependency lane allowlist is <code>soldeer-revisions.s3.amazonaws.com</code>.</p>
         </div>
         <div class="card">
           <strong>2. Stage</strong>
           <h3><code>soldeer-stage</code></h3>
-          <p>Image: <code>containers/foundry-deps</code>. Runs <code>forge soldeer install</code>, explicitly verifies the upstream ZIP against <code>soldeer.lock</code>, applies declared patches, then writes patched checksums. Writes only to <code>soldeer-out</code>.</p>
+          <p>Image: <code>containers/foundry-deps</code>. Runs <code>forge soldeer install</code> through the proxy, verifies the configured source policy and upstream ZIP against <code>foundry.toml</code> and <code>soldeer.lock</code>, applies declared patches, then writes patched checksums. Writes only to <code>soldeer-out</code>.</p>
         </div>
         <div class="card">
           <strong>3. Apply</strong>
           <h3><code>soldeer-apply-locked</code></h3>
-          <p>Image: <code>containers/foundry</code>. No network. Copies patched dependency output from <code>soldeer-out</code> into repo <code>dependencies/</code>. Fails if the staged <code>soldeer.lock</code>, remappings, or checksums differ from the committed files.</p>
+          <p>Image: <code>containers/foundry</code>. No network. Stages patched dependency output under <code>dependencies/.next</code>, then replaces the visible dependency children. Fails first if the staged <code>soldeer.lock</code>, remappings, or checksums differ from the committed files.</p>
         </div>
         <div class="card">
           <strong>4. Update</strong>
           <h3><code>soldeer-apply-update</code></h3>
-          <p>Image: <code>containers/foundry</code>. No network. Used only by <code>make deps ALLOW_UPDATE=1</code>. This is the only dependency-lane service allowed to copy a staged <code>soldeer.lock</code> back into the repo.</p>
+          <p>Image: <code>containers/foundry</code>. No network. Used only by <code>make deps ALLOW_UPDATE=1</code>. It uses the same staged dependency-tree replacement and is the only dependency-lane service allowed to copy staged metadata back into the repo.</p>
         </div>
         <div class="card">
           <strong>5. Verify</strong>
           <h3><code>soldeer-verify</code></h3>
-          <p>Image: <code>containers/checks</code>. No network, read-only mounts. Runs <code>test_dependency_integrity.py /work</code> against the final installed dependency tree.</p>
+          <p>Image: <code>containers/checks</code>. No network, read-only mounts. Runs <code>test_dependency_integrity.py /work</code> against <code>foundry.toml</code>, <code>soldeer.lock</code>, and the final installed dependency tree.</p>
         </div>
         <div class="card">
           <strong>6. Build/Test</strong>
@@ -260,10 +261,12 @@
     forge soldeer install --config-location foundry
       Soldeer installs from its package metadata and lockfile.
     test_dependency_integrity.py --verify-upstream /tmp/soldeer-work
-      This is the explicit local-hash check for the downloaded ZIP.
+      Check foundry.toml and soldeer.lock source policy.
+      Download each locked ZIP and check its SHA-256.
     apply_dependency_patches
     test_dependency_integrity.py --write-checksums /tmp/soldeer-work
   soldeer-apply-locked OR soldeer-apply-update
+    stage_dependency_tree under dependencies/.next
   soldeer-verify
 
 make build
@@ -316,6 +319,9 @@ make test
       <p>
         <code>make deps ALLOW_UPDATE=1</code> is update mode. After staging, the offline <code>soldeer-apply-update</code> service may copy the staged <code>soldeer.lock</code>, <code>remappings.txt</code>, and <code>dependency-checksums.txt</code> back into the repo. That is the deliberate path for adding, removing, or changing Soldeer dependencies.
       </p>
+      <p>
+        Both apply modes replace the installed dependency tree through a temporary <code>dependencies/.next</code> directory. That keeps the generated tree separate from the visible tree until the metadata checks or update-mode decision have passed.
+      </p>
     </section>
 
     <section>
@@ -346,10 +352,10 @@ make test
     <section>
       <h2>What verification proves</h2>
       <p>
-        During staging, <code>tests/checks/test_dependency_integrity.py</code> reads <code>soldeer.lock</code>, downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, and confirms the installed dependency tree matches the verified archive payload before patches are applied.
+        During staging, <code>tests/checks/test_dependency_integrity.py</code> reads <code>foundry.toml</code> and <code>soldeer.lock</code>. It rejects dependency entries that are not version-only in <code>foundry.toml</code>, rejects name or version drift between <code>foundry.toml</code> and <code>soldeer.lock</code>, and rejects locked URLs outside the approved Soldeer revisions archive shape. It then downloads each package URL over HTTPS, checks the archive SHA-256 against the lockfile checksum, extracts the archive, and confirms the installed dependency tree matches the verified archive payload before patches are applied.
       </p>
       <p>
-        After declared patches are applied, the verifier writes <code>dependency-checksums.txt</code> from the final tree. In offline mode, it checks that <code>dependencies/</code> contains exactly the expected dependency directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, checksum mismatches, patch-file hash drift, and patched-target hash drift.
+        After declared patches are applied, the verifier writes <code>dependency-checksums.txt</code> from the final tree. In offline mode, it checks that <code>dependencies/</code> contains exactly the expected dependency directories. It rejects missing dependency directories, unexpected dependency directories, stray top-level files, duplicate lock entries, missing remappings, stale checksum entries, checksum mismatches, patch-file hash drift, patched-target hash drift, disallowed OpenZeppelin import paths, and source-repo-shaped OpenZeppelin payloads.
       </p>
       <p>
         The local checksum for each dependency is a deterministic SHA-256 over a sorted manifest of every file path and file hash inside that dependency directory. This is intentionally independent of Soldeer internals. It verifies the installed tree that Foundry will actually read.
@@ -362,11 +368,33 @@ make test
         Soldeer records local package hashes in <code>soldeer.lock</code>. The lock entry includes the package URL, a SHA-256 checksum for the downloaded ZIP, and an integrity hash for the unpacked dependency folder. Soldeer uses that package metadata for installation and can later warn when the installed package no longer matches its pristine package identity.
       </p>
       <p>
-        The explicit first-download check in this lane is <code>test_dependency_integrity.py --verify-upstream</code>, which runs immediately after <code>forge soldeer install</code> and before any patches. It reads the committed <code>soldeer.lock</code>, downloads the locked HTTPS URL, checks the downloaded ZIP against the lockfile <code>checksum</code>, extracts it, and confirms the installed dependency tree matches that verified archive payload.
+        The explicit first-download check in this lane is <code>test_dependency_integrity.py --verify-upstream</code>, which runs immediately after <code>forge soldeer install</code> and before any patches. It first checks the committed dependency source policy, then downloads the locked HTTPS URL, checks the downloaded ZIP against the lockfile <code>checksum</code>, extracts it, and confirms the installed dependency tree matches that verified archive payload.
       </p>
       <p>
         After a patch is applied, normal Forge commands may still print Soldeer’s generic <code>FailedIntegrity</code> warning because the installed package no longer matches the pristine package. That warning is expected for a declared patch. The repository verifier is the patch-aware check: it verifies the pristine target hash, the patch-file hash, the patched target hash, and the final dependency-tree checksum before build or test lanes run.
       </p>
+    </section>
+
+    <section>
+      <h2>Check lanes</h2>
+      <div class="list">
+        <div class="item">
+          <strong><code>make checks</code></strong>
+          <p>Runs offline repository/source checks in the checks container. This is the default static-policy lane and does not intentionally reach the external network.</p>
+        </div>
+        <div class="item">
+          <strong><code>make check-runtime</code></strong>
+          <p>Runs local Docker-backed runtime checks that need a renderer or runtime but should still avoid external network. Today this includes the rendered Anvil Compose posture checks.</p>
+        </div>
+        <div class="item">
+          <strong><code>make check-live</code></strong>
+          <p>Umbrella for live checks that intentionally use external network. Keep this separate from default CI unless the runner is expected to have network access.</p>
+        </div>
+        <div class="item">
+          <strong><code>make check-live-deps-egress</code></strong>
+          <p>Starts the real <code>dependency-egress-proxy</code> from <code>compose/deps.yml</code> plus the live-check overlay. The checker has no direct egress, derives allowed dependency hosts from <code>soldeer.lock</code>, proves CONNECT to those hosts succeeds, and proves CONNECT to <code>example.com</code> is denied.</p>
+        </div>
+      </div>
     </section>
 
     <section>
@@ -379,6 +407,18 @@ make deps ALLOW_UPDATE=1
 
 # Check the installed patched dependency tree without network.
 make deps-verify
+
+# Run offline repository/source checks.
+make checks
+
+# Run local Docker-backed runtime checks that do not intentionally hit the internet.
+make check-runtime
+
+# Prove live dependency-egress allow/deny behavior through the real proxy.
+make check-live-deps-egress
+
+# Run all live external-network checks.
+make check-live
 
 # Compile or test. These run deps-verify first.
 make build
@@ -406,8 +446,12 @@ deps-verify:   Forge may also warn FailedIntegrity for this declared patch.</cod
       <p>
         For another Soldeer dependency, add it through the normal Soldeer configuration path, then run <code>make deps ALLOW_UPDATE=1</code>. The command should regenerate <code>soldeer.lock</code>, <code>remappings.txt</code>, <code>dependencies/</code>, and <code>dependency-checksums.txt</code>. Review all committed outputs before committing.
       </p>
+      <p>
+        The source policy is intentionally narrow. A normal Soldeer dependency should lock to <code>soldeer-revisions.s3.amazonaws.com</code>. If a dependency introduces a different locked URL host or archive shape, the verifier and proxy allowlist should fail until that new source is reviewed and deliberately added.
+      </p>
       <pre><code>make deps ALLOW_UPDATE=1
 make ci
+make check-live-deps-egress
 git diff -- foundry.toml soldeer.lock remappings.txt dependency-checksums.txt</code></pre>
     </section>
 
@@ -451,6 +495,10 @@ git diff -- foundry.toml soldeer.lock remappings.txt dependency-checksums.txt</c
           <p>The offline verifier checks the generated state before any build or test consumes it.</p>
         </div>
         <div class="item">
+          <strong>Add a separate egress policy.</strong>
+          <p>If the source needs network access, keep its host allowlist specific and add a live allow/deny proof for that proxy behavior.</p>
+        </div>
+        <div class="item">
           <strong>Wire it into <code>make deps</code> and <code>make deps-verify</code>.</strong>
           <p>The public interface can stay simple while the trust boundaries remain explicit. Default installation must stay locked; metadata updates need an explicit opt-in such as <code>ALLOW_UPDATE=1</code>.</p>
         </div>
@@ -460,7 +508,7 @@ git diff -- foundry.toml soldeer.lock remappings.txt dependency-checksums.txt</c
     <section>
       <h2>What this does not prove</h2>
       <p class="note">
-        This lane proves that the fetched archive matches the committed lockfile checksum, that declared patches match their committed hashes, and that the final installed dependency tree matches <code>dependency-checksums.txt</code>. It does not prove that an upstream package or local patch is correct, audited, or safe to use. Reviewing dependency changes is still a human responsibility.
+        This lane proves that the fetched archive matches the committed lockfile checksum, that declared patches match their committed hashes, and that the final installed dependency tree matches <code>dependency-checksums.txt</code>. The live egress check proves the configured proxy can reach the current locked dependency hosts and denies one non-allowlisted host. It does not prove that an upstream package or local patch is correct, audited, or safe to use, and it does not prove that future hosts will remain reachable. Reviewing dependency changes is still a human responsibility.
       </p>
     </section>
   </main>
