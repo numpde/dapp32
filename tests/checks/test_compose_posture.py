@@ -43,3 +43,16 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("../patches:/work/patches:ro", text)
         self.assertIn("apply_dependency_patches", text)
         self.assertIn("--fuzz=0", text)
+
+    def test_dependency_apply_stages_tree_before_replacement(self) -> None:
+        text = read_text(repo_path("compose/deps.yml"))
+
+        self.assertIn("stage_dependency_tree", text)
+        self.assertIn("/work/dependencies/.next", text)
+        self.assertIn("cp -a /out/dependencies/. /work/dependencies/.next/", text)
+        direct_copy_lines = [
+            line
+            for line in text.splitlines()
+            if line.strip() == "cp -a /out/dependencies/. /work/dependencies/"
+        ]
+        self.assertEqual([], direct_copy_lines)

@@ -175,6 +175,15 @@ services:
       - "-lc"
       - |
         set -euo pipefail
+        stage_dependency_tree() {
+          rm -rf /work/dependencies/.next
+          mkdir -p /work/dependencies/.next
+          cp -a /out/dependencies/. /work/dependencies/.next/
+          find /work/dependencies -mindepth 1 -maxdepth 1 ! -name .next -exec rm -rf -- {} +
+          find /work/dependencies/.next -mindepth 1 -maxdepth 1 -exec mv -- {} /work/dependencies/ \;
+          rmdir /work/dependencies/.next
+        }
+
         test -d /out/dependencies
         test -f /out/soldeer.lock
         test -f /out/remappings.txt
@@ -185,8 +194,7 @@ services:
             exit 2
           fi
         done
-        find /work/dependencies -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-        cp -a /out/dependencies/. /work/dependencies/
+        stage_dependency_tree
 
   soldeer-apply-update:
     build:
@@ -217,12 +225,20 @@ services:
       - "-lc"
       - |
         set -euo pipefail
+        stage_dependency_tree() {
+          rm -rf /work/dependencies/.next
+          mkdir -p /work/dependencies/.next
+          cp -a /out/dependencies/. /work/dependencies/.next/
+          find /work/dependencies -mindepth 1 -maxdepth 1 ! -name .next -exec rm -rf -- {} +
+          find /work/dependencies/.next -mindepth 1 -maxdepth 1 -exec mv -- {} /work/dependencies/ \;
+          rmdir /work/dependencies/.next
+        }
+
         test -d /out/dependencies
         test -f /out/soldeer.lock
         test -f /out/remappings.txt
         test -f /out/dependency-checksums.txt
-        find /work/dependencies -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-        cp -a /out/dependencies/. /work/dependencies/
+        stage_dependency_tree
         cp /out/soldeer.lock /work/soldeer.lock
         cp /out/remappings.txt /work/remappings.txt
         cp /out/dependency-checksums.txt /work/dependency-checksums.txt
