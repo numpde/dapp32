@@ -2,7 +2,6 @@ pragma solidity 0.8.35;
 
 import "@opengsn/contracts/src/ERC2771Recipient.sol";
 
-
 contract AppUI is ERC2771Recipient {
     event Submit(address indexed userAddress, address indexed sender, address indexed origin);
 
@@ -22,7 +21,11 @@ contract AppUI is ERC2771Recipient {
         return string(abi.encodePacked(_baseURI(), "getInitialViewOutput", ".json"));
     }
 
-    function getSecondView(address userAddress, string memory userName, string memory favoriteColor) public pure returns (string memory) {
+    function getSecondView(address userAddress, string memory userName, string memory favoriteColor)
+        public
+        pure
+        returns (string memory)
+    {
         (userAddress, userName, favoriteColor);
         return string(abi.encodePacked(_baseURI(), "getSecondViewOutput", ".json"));
     }

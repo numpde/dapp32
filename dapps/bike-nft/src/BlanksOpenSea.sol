@@ -10,8 +10,15 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 import "./BicycleComponentManager.sol";
 
-
-abstract contract BlanksBase is Initializable, ERC1155Upgradeable, AccessControlUpgradeable, PausableUpgradeable, ERC1155BurnableUpgradeable, ERC1155SupplyUpgradeable, UUPSUpgradeable {
+abstract contract BlanksBase is
+    Initializable,
+    ERC1155Upgradeable,
+    AccessControlUpgradeable,
+    PausableUpgradeable,
+    ERC1155BurnableUpgradeable,
+    ERC1155SupplyUpgradeable,
+    UUPSUpgradeable
+{
     bytes32 public constant URI_SETTER_ROLE = keccak256("URI_SETTER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
@@ -22,7 +29,7 @@ abstract contract BlanksBase is Initializable, ERC1155Upgradeable, AccessControl
         _disableInitializers();
     }
 
-    function initialize() initializer public virtual {
+    function initialize() public virtual initializer {
         __ERC1155_init("");
         __AccessControl_init();
         __Pausable_init();
@@ -50,39 +57,34 @@ abstract contract BlanksBase is Initializable, ERC1155Upgradeable, AccessControl
         _unpause();
     }
 
-    function mint(address account, uint256 id, uint256 amount, bytes memory data)
-    public
-    onlyRole(MINTER_ROLE)
-    {
+    function mint(address account, uint256 id, uint256 amount, bytes memory data) public onlyRole(MINTER_ROLE) {
         _mint(account, id, amount, data);
     }
 
-    function _authorizeUpgrade(address newImplementation)
-    internal
-    onlyRole(UPGRADER_ROLE)
-    override
-    {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
 
     // The following functions are overrides required by Solidity.
 
-    function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
-    internal virtual
-    whenNotPaused
-    override(ERC1155Upgradeable, ERC1155SupplyUpgradeable)
-    {
+    function _beforeTokenTransfer(
+        address operator,
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) internal virtual override(ERC1155Upgradeable, ERC1155SupplyUpgradeable) whenNotPaused {
         super._beforeTokenTransfer(operator, from, to, ids, amounts, data);
     }
 
     function supportsInterface(bytes4 interfaceId)
-    public
-    view
-    override(ERC1155Upgradeable, AccessControlUpgradeable)
-    returns (bool)
+        public
+        view
+        override(ERC1155Upgradeable, AccessControlUpgradeable)
+        returns (bool)
     {
         return super.supportsInterface(interfaceId);
     }
 }
-
 
 contract BlanksOpenSea is BlanksBase {
     using Utils for string;
@@ -103,10 +105,12 @@ contract BlanksOpenSea is BlanksBase {
     uint256 public constant BLANK_NFT_TOKEN_ID_C = 3;
     uint256 public constant BLANK_NFT_TOKEN_ID_D = 4;
 
-    event Registered(address indexed blankTokenOwner, address indexed registerFor, string indexed serialNumber, string tokenURI);
+    event Registered(
+        address indexed blankTokenOwner, address indexed registerFor, string indexed serialNumber, string tokenURI
+    );
     event BalanceWithdrawn(address indexed);
 
-    function initialize() initializer public override {
+    function initialize() public override initializer {
         BlanksBase.initialize();
         owner = msg.sender;
 
@@ -147,17 +151,19 @@ contract BlanksOpenSea is BlanksBase {
         return (id == BLANK_NFT_TOKEN_ID_A) || (id == BLANK_NFT_TOKEN_ID_B) || (id == BLANK_NFT_TOKEN_ID_C);
     }
 
-    function _beforeTokenTransfer(address operator, address from, address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
-    internal virtual override
-    {
-        if (
-        // An admin can transfer any token
-            hasRole(DEFAULT_ADMIN_ROLE, operator) ||
-            // Any approved operator can burn any token
-            (to == address(0)) ||
-            // An approved operator can transfer any token from a minter
-            hasRole(MINTER_ROLE, from)
-        ) {
+    function _beforeTokenTransfer(
+        address operator,
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) internal virtual override {
+        bool isAdminTransfer = hasRole(DEFAULT_ADMIN_ROLE, operator);
+        bool isBurn = to == address(0);
+        bool isMinterTransfer = hasRole(MINTER_ROLE, from);
+
+        if (isAdminTransfer || isBurn || isMinterTransfer) {
             //
             // This is ok
             //
@@ -209,9 +215,13 @@ contract BlanksOpenSea is BlanksBase {
 
     // @notice Attempt to register a bicycle serial number with the BicycleComponentManager for `msg.sender`.
     // @dev This function is non-payable because the idea is to convert an existing Blank to an NFT.
-    function register(uint256 tokenId, string memory serialNumber, string memory name, string memory description, string memory imageURL)
-    external
-    {
+    function register(
+        uint256 tokenId,
+        string memory serialNumber,
+        string memory name,
+        string memory description,
+        string memory imageURL
+    ) external {
         // Note: we don't use _msgSender() here because we're not checking
         // for a trusted forwarder in case we're in a meta-transaction.
         address tokenOwner = msg.sender;
@@ -230,17 +240,23 @@ contract BlanksOpenSea is BlanksBase {
         string memory registerName,
         string memory registerDescription,
         string memory registerImageURL
-    )
-    external
-    {
+    ) external {
         require(
-        // We don't use `onlyRole` because it uses to `_msgSender()`.
-        // This function should be called by an approved proxy directly.
+            // We don't use `onlyRole` because it uses to `_msgSender()`.
+            // This function should be called by an approved proxy directly.
             hasRole(PROXY_ROLE, msg.sender),
             "BlanksOpenSea: msg.sender is not an approved proxy"
         );
 
-        _register(blankTokenOwner, registerFor, blankTokenId, registerSerialNumber, registerName, registerDescription, registerImageURL);
+        _register(
+            blankTokenOwner,
+            registerFor,
+            blankTokenId,
+            registerSerialNumber,
+            registerName,
+            registerDescription,
+            registerImageURL
+        );
     }
 
     // @notice Register a bicycle serial number with the BicycleComponentManager.
@@ -253,9 +269,7 @@ contract BlanksOpenSea is BlanksBase {
         string memory name,
         string memory description,
         string memory imageURL
-    )
-    internal
-    {
+    ) internal {
         require(bicycleComponentManager != address(0), "BlanksOpenSea: BicycleComponentManager not set");
 
         uint256 balance = balanceOf(blankTokenOwner, tokenId);
@@ -267,7 +281,8 @@ contract BlanksOpenSea is BlanksBase {
         attrT[0] = "Authority";
         attrV[0] = _tokenAuthority(tokenId);
 
-        string memory tokenURI = string("").stringifyOnChainMetadata(name, description, imageURL, attrT, attrV).packJSON();
+        string memory tokenURI =
+            string("").stringifyOnChainMetadata(name, description, imageURL, attrT, attrV).packJSON();
 
         BicycleComponentManager bcm = BicycleComponentManager(bicycleComponentManager);
 
@@ -285,8 +300,7 @@ contract BlanksOpenSea is BlanksBase {
 
     // Fallback & withdraw
 
-    receive() external payable {
-    }
+    receive() external payable {}
 
     function withdraw() public onlyRole(DEFAULT_ADMIN_ROLE) {
         // Use `_msgSender` because that's what `onlyRole` uses internally

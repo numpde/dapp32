@@ -12,7 +12,7 @@ OZ_PACKAGE = "@openzeppelin-contracts"
 OZ_ALLOWED_TOP_LEVEL = {"access", "utils"}
 FORGE_STD_PACKAGE = "forge-std"
 FORGE_STD_ALLOWED_TEST_IMPORTS = {"Test.sol"}
-IMPORT_STATEMENT_RE = re.compile(r"\bimport\b(?P<body>[^;]*);", re.MULTILINE | re.DOTALL)
+IMPORT_STATEMENT_RE = re.compile(r"^\s*import\b(?P<body>[^;]*);", re.MULTILINE | re.DOTALL)
 IMPORT_PATH_RE = re.compile(r'["\'](?P<path>[^"\']+)["\']')
 
 
@@ -21,7 +21,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
         dependency_versions = self.dependency_versions()
         failures: list[str] = []
 
-        for path in iter_files("dapps/deposit/src", "dapps/deposit/test"):
+        for path in self.dapp_solidity_files():
             if path.suffix != ".sol":
                 continue
 
@@ -38,7 +38,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
         expected_prefix = f"{OZ_PACKAGE}-{version}/"
         imported_roots: set[str] = set()
 
-        for path in iter_files("dapps/deposit/src", "dapps/deposit/test"):
+        for path in self.dapp_solidity_files():
             if path.suffix != ".sol":
                 continue
 
@@ -107,6 +107,9 @@ class SolidityImportPolicyTest(unittest.TestCase):
             imports.append(matches[0])
         return imports
 
+    def dapp_solidity_files(self) -> list[Path]:
+        return [path for path in iter_files("dapps") if path.suffix == ".sol"]
+
     def validate_import(self, source: Path, import_path: str, dependency_versions: dict[str, str]) -> str | None:
         if import_path.startswith(("./", "../")):
             return self.validate_relative_import(source, import_path)
@@ -125,9 +128,9 @@ class SolidityImportPolicyTest(unittest.TestCase):
             return f"{source}: relative import must target a Solidity file: {import_path}"
 
         resolved = (source.parent / import_path).resolve()
-        contracts_root = repo_path("dapps/deposit").resolve()
-        if resolved != contracts_root and contracts_root not in resolved.parents:
-            return f"{source}: relative import escapes dapps/deposit/: {import_path}"
+        dapp_root = self.dapp_root_for(source)
+        if resolved != dapp_root and dapp_root not in resolved.parents:
+            return f"{source}: relative import escapes {dapp_root.relative_to(repo_path(''))}/: {import_path}"
 
         if not resolved.is_file():
             return f"{source}: relative import target does not exist: {import_path}"
@@ -178,3 +181,9 @@ class SolidityImportPolicyTest(unittest.TestCase):
     def is_test_source(self, source: Path) -> bool:
         relative = source.resolve().relative_to(repo_path("").resolve())
         return "test" in relative.parts
+
+    def dapp_root_for(self, source: Path) -> Path:
+        relative = source.resolve().relative_to(repo_path("").resolve())
+        self.assertGreaterEqual(len(relative.parts), 2, f"{source}: expected dapps/<name>/... path")
+        self.assertEqual("dapps", relative.parts[0], f"{source}: expected dapps/<name>/... path")
+        return repo_path(f"dapps/{relative.parts[1]}").resolve()

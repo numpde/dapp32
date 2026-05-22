@@ -43,11 +43,11 @@ help:
 	  '  make check-live    Run live checks that intentionally use external network' \
 	  '  make check-live-deps-egress  Prove dependency egress allow/deny behavior' \
 	  '  make check-anvil-compose  Run only the rendered Anvil Compose posture checks' \
-	  '  make fmt          Check Solidity formatting' \
-	  '  make build        Compile dapps package' \
-	  '  make test         Run unit tests' \
-	  '  make fuzz         Run fuzz tests' \
-	  '  make invariant    Run invariant tests' \
+	  '  make fmt          Check Solidity formatting for all dapps' \
+	  '  make build        Compile all dapp source trees' \
+	  '  make test         Run unit tests for all dapps' \
+	  '  make fuzz         Run fuzz tests for all dapps' \
+	  '  make invariant    Run invariant tests for all dapps' \
 	  '  make coverage     Print coverage summary' \
 	  '  make ci           Run fmt, build, unit, fuzz, and invariant lanes' \
 	  '  make cast-offline Run offline cast smoke lane' \

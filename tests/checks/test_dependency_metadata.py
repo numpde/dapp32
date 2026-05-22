@@ -182,7 +182,7 @@ class DependencyMetadataTest(unittest.TestCase):
     def imported_openzeppelin_versions(self) -> set[str]:
         versions: set[str] = set()
 
-        for path in iter_files("dapps/deposit/src", "dapps/deposit/test"):
+        for path in iter_files("dapps"):
             if path.suffix != ".sol":
                 continue
             for import_path, version in IMPORT_RE.findall(read_text(path)):

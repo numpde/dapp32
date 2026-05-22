@@ -10,7 +10,6 @@ import "./BicycleComponents.sol";
 import "./Utils.sol";
 import "./BicycleComponentOpsFund.sol";
 
-
 /// @title Bicycle Component Manager Contract
 /// @notice This contract manages the BicycleComponents NFT contract.
 contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
@@ -40,7 +39,9 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
     event UpdatedComponentURI(string indexed serialNumber, uint256 indexed tokenId, string uri);
     event ComponentTransferred(string indexed serialNumber, uint256 indexed tokenId, address indexed to);
     event UpdatedMissingStatus(string indexed serialNumber, uint256 indexed tokenId, bool indexed isMissing);
-    event UpdatedComponentOperatorApproval(address indexed operator, string indexed serialNumber, uint256 indexed tokenId, bool approved);
+    event UpdatedComponentOperatorApproval(
+        address indexed operator, string indexed serialNumber, uint256 indexed tokenId, bool approved
+    );
     event Message(string message);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -48,7 +49,7 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         _disableInitializers();
     }
 
-    function initialize() initializer public {
+    function initialize() public initializer {
         __Pausable_init();
         __AccessControl_init();
         __UUPSUpgradeable_init();
@@ -68,11 +69,7 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation)
-    internal
-    onlyRole(UPGRADER_ROLE)
-    override
-    {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
 
     function nftContractAddress() public view returns (address) {
         return address(nftContract);
@@ -111,7 +108,8 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         require(operator != address(0), "Nonexistent operator");
         require(ownerOf(serialNumber) != address(0), "Serial number not registered");
 
-        return (operator == ownerOf(serialNumber)) || componentOperatorApproval(serialNumber, operator) || hasRole(DEFAULT_ADMIN_ROLE, operator);
+        return (operator == ownerOf(serialNumber)) || componentOperatorApproval(serialNumber, operator)
+            || hasRole(DEFAULT_ADMIN_ROLE, operator);
     }
 
     function canRegister(address operator) public view returns (bool) {
@@ -127,8 +125,7 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
     // Core functions.
     // These functions trust the caller that the registrar/operator is who they say they are.
 
-    function _grantOps(address operator, address owner) internal
-    {
+    function _grantOps(address operator, address owner) internal {
         // Call this function on mint and on transfer.
 
         // If the OpsFund contract is not set, do nothing.
@@ -156,8 +153,8 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
     }
 
     function _register(address owner, string memory serialNumber, string memory uri, address registrar)
-    internal
-    whenNotPaused
+        internal
+        whenNotPaused
     {
         require(canRegister(registrar), INSUFFICIENT_RIGHTS);
         require(msg.value >= minAmountOnRegister, "Insufficient payment");
@@ -188,10 +185,7 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         }
     }
 
-    function _transfer(string memory serialNumber, address to, address operator)
-    internal
-    whenNotPaused
-    {
+    function _transfer(string memory serialNumber, address to, address operator) internal whenNotPaused {
         require(canHandle(operator, serialNumber), INSUFFICIENT_RIGHTS);
 
         uint256 tokenId = generateTokenId(serialNumber);
@@ -217,7 +211,11 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         _register(owner, serialNumber, uri, _msgSender());
     }
 
-    function registerByUI(address owner, string memory serialNumber, string memory uri, address registrar) public payable onlyRole(UI_ROLE) {
+    function registerByUI(address owner, string memory serialNumber, string memory uri, address registrar)
+        public
+        payable
+        onlyRole(UI_ROLE)
+    {
         _register(owner, serialNumber, uri, registrar);
     }
 
@@ -245,9 +243,7 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
 
     // Internal setters
 
-    function _setComponentURI(string memory serialNumber, string memory uri, address operator)
-    internal whenNotPaused
-    {
+    function _setComponentURI(string memory serialNumber, string memory uri, address operator) internal whenNotPaused {
         require(canHandle(operator, serialNumber), INSUFFICIENT_RIGHTS);
 
         uint256 tokenId = generateTokenId(serialNumber);
@@ -257,9 +253,7 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         emit UpdatedComponentURI(serialNumber, tokenId, uri);
     }
 
-    function _setMissingStatus(string memory serialNumber, bool isMissing, address operator)
-    internal whenNotPaused
-    {
+    function _setMissingStatus(string memory serialNumber, bool isMissing, address operator) internal whenNotPaused {
         require(canHandle(operator, serialNumber), INSUFFICIENT_RIGHTS);
 
         uint256 tokenId = generateTokenId(serialNumber);
@@ -268,9 +262,7 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         emit UpdatedMissingStatus(serialNumber, tokenId, isMissing);
     }
 
-    function _setAccountInfo(address account, string memory info, address operator)
-    internal whenNotPaused
-    {
+    function _setAccountInfo(address account, string memory info, address operator) internal whenNotPaused {
         require(canSetAccountInfo(operator, account), INSUFFICIENT_RIGHTS);
 
         require(bytes(info).length > 0, "Info string is empty");
@@ -279,9 +271,12 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         emit AccountInfoSet(account, info);
     }
 
-    function _setComponentOperatorApproval(string memory serialNumber, address newOperator, bool approved, address operator)
-    internal whenNotPaused
-    {
+    function _setComponentOperatorApproval(
+        string memory serialNumber,
+        address newOperator,
+        bool approved,
+        address operator
+    ) internal whenNotPaused {
         require(canHandle(operator, serialNumber), INSUFFICIENT_RIGHTS);
 
         require(newOperator != address(0), "Zero address");
@@ -302,7 +297,10 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         _setComponentURI(serialNumber, uri, _msgSender());
     }
 
-    function setComponentURIByUI(string memory serialNumber, string memory uri, address operator) public onlyRole(UI_ROLE) {
+    function setComponentURIByUI(string memory serialNumber, string memory uri, address operator)
+        public
+        onlyRole(UI_ROLE)
+    {
         _setComponentURI(serialNumber, uri, operator);
     }
 
@@ -314,7 +312,10 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         _setMissingStatus(serialNumber, isMissing, _msgSender());
     }
 
-    function setMissingStatusByUI(string memory serialNumber, bool isMissing, address operator) public onlyRole(UI_ROLE) {
+    function setMissingStatusByUI(string memory serialNumber, bool isMissing, address operator)
+        public
+        onlyRole(UI_ROLE)
+    {
         _setMissingStatus(serialNumber, isMissing, operator);
     }
 
@@ -338,18 +339,27 @@ contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessCo
         _setComponentOperatorApproval(serialNumber, operator, approved, _msgSender());
     }
 
-    function setComponentOperatorApprovalByUI(string memory serialNumber, address newOperator, bool approved, address operator) public onlyRole(UI_ROLE) {
+    function setComponentOperatorApprovalByUI(
+        string memory serialNumber,
+        address newOperator,
+        bool approved,
+        address operator
+    ) public onlyRole(UI_ROLE) {
         _setComponentOperatorApproval(serialNumber, newOperator, approved, operator);
     }
 
     // Convenience functions
 
-    function setOnChainComponentMetadata(string memory serialNumber, string memory name, string memory description, string memory imageURL)
-    public
-    {
+    function setOnChainComponentMetadata(
+        string memory serialNumber,
+        string memory name,
+        string memory description,
+        string memory imageURL
+    ) public {
         string[] memory emptyArray;
 
-        string memory uri = string("").stringifyOnChainMetadata(name, description, imageURL, emptyArray, emptyArray).packJSON();
+        string memory uri =
+            string("").stringifyOnChainMetadata(name, description, imageURL, emptyArray, emptyArray).packJSON();
 
         setComponentURI(serialNumber, uri);
     }

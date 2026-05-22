@@ -1,8 +1,8 @@
 [profile.default]
 solc = "0.8.35"
 evm_version = "prague"
-src = "deposit/src"
-test = "deposit/test"
+src = "."
+test = "."
 out = "out"
 cache_path = "cache"
 libs = ["dependencies"]

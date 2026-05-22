@@ -6,7 +6,6 @@ import "./BicycleComponentManager.sol";
 import "./BaseUI.sol";
 import "./Utils.sol";
 
-
 contract BicycleComponentManagerUI is BaseUI {
     using Utils for string;
 
@@ -19,7 +18,10 @@ contract BicycleComponentManagerUI is BaseUI {
         _disableInitializers();
     }
 
-    function initialize(address payable bcmAddress, address myTrustedForwarder, string memory myBaseURI) public initializer {
+    function initialize(address payable bcmAddress, address myTrustedForwarder, string memory myBaseURI)
+        public
+        initializer
+    {
         __BaseUI_init(myTrustedForwarder, myBaseURI);
         bicycleComponentManager = BicycleComponentManager(bcmAddress);
     }
@@ -38,12 +40,7 @@ contract BicycleComponentManagerUI is BaseUI {
 
     // "Write" functions
 
-    function updateAddressInfo(
-        address infoAddress,
-        string memory addressInfo
-    )
-    public
-    {
+    function updateAddressInfo(address infoAddress, string memory addressInfo) public {
         bicycleComponentManager.setAccountInfoByUI(infoAddress, addressInfo, _msgSender());
     }
 
@@ -53,25 +50,17 @@ contract BicycleComponentManagerUI is BaseUI {
         string memory registerName,
         string memory registerDescription,
         string memory registerImageURL
-    )
-    public
-    {
+    ) public {
         string[] memory emptyArray;
-        string memory uri = string("").stringifyOnChainMetadata(registerName, registerDescription, registerImageURL, emptyArray, emptyArray).packJSON();
+        string memory uri = string("")
+            .stringifyOnChainMetadata(registerName, registerDescription, registerImageURL, emptyArray, emptyArray)
+            .packJSON();
 
         bicycleComponentManager.registerByUI(registerFor, registerSerialNumber, uri, _msgSender());
     }
 
-    function transfer(
-        string memory registerSerialNumber,
-        address transferToAddress
-    )
-    public
-    {
-        require(
-            bicycleComponentManager.ownerOf(registerSerialNumber) != transferToAddress,
-            "Let's not waste gas"
-        );
+    function transfer(string memory registerSerialNumber, address transferToAddress) public {
+        require(bicycleComponentManager.ownerOf(registerSerialNumber) != transferToAddress, "Let's not waste gas");
 
         bicycleComponentManager.transferByUI(registerSerialNumber, transferToAddress, _msgSender());
     }
@@ -81,31 +70,41 @@ contract BicycleComponentManagerUI is BaseUI {
         string memory registerName,
         string memory registerDescription,
         string memory registerImageURL
-    )
-    public
-    {
+    ) public {
         string[] memory emptyArray;
-        string memory uri = string("").stringifyOnChainMetadata(registerName, registerDescription, registerImageURL, emptyArray, emptyArray).packJSON();
+        string memory uri = string("")
+            .stringifyOnChainMetadata(registerName, registerDescription, registerImageURL, emptyArray, emptyArray)
+            .packJSON();
 
         bicycleComponentManager.setComponentURIByUI(registerSerialNumber, uri, _msgSender());
     }
 
     // Views
 
-    function viewEntry(address userAddress)
-    external view
-    returns (string memory, string memory userAddressInfo)
-    {
+    function viewEntry(address userAddress) external view returns (string memory, string memory userAddressInfo) {
         if (bicycleComponentManager.canRegister(userAddress)) {
-            return (_composeWithBaseURI("viewEntry.isRegistrar.returns.json"), bicycleComponentManager.accountInfo(userAddress));
+            return (
+                _composeWithBaseURI("viewEntry.isRegistrar.returns.json"),
+                bicycleComponentManager.accountInfo(userAddress)
+            );
         } else {
-            return (_composeWithBaseURI("viewEntry.noRegistrar.returns.json"), bicycleComponentManager.accountInfo(userAddress));
+            return (
+                _composeWithBaseURI("viewEntry.noRegistrar.returns.json"),
+                bicycleComponentManager.accountInfo(userAddress)
+            );
         }
     }
 
     function viewIsNewSerialNumber(string memory registerSerialNumber)
-    external view
-    returns (string memory, address ownerAddress, string memory ownerInfo, address nftContractAddress, uint256 nftTokenId)
+        external
+        view
+        returns (
+            string memory,
+            address ownerAddress,
+            string memory ownerInfo,
+            address nftContractAddress,
+            uint256 nftTokenId
+        )
     {
         ownerAddress = bicycleComponentManager.ownerOf(registerSerialNumber);
 
@@ -115,16 +114,26 @@ contract BicycleComponentManagerUI is BaseUI {
             nftContractAddress = address(bicycleComponentManager.nftContract());
             nftTokenId = bicycleComponentManager.generateTokenId(registerSerialNumber);
 
-            return (_composeWithBaseURI("viewIsNewSerialNumber.hasSerialNumber.returns.json"), ownerAddress, ownerInfo, nftContractAddress, nftTokenId);
+            return (
+                _composeWithBaseURI("viewIsNewSerialNumber.hasSerialNumber.returns.json"),
+                ownerAddress,
+                ownerInfo,
+                nftContractAddress,
+                nftTokenId
+            );
         } else {
-            return (_composeWithBaseURI("viewIsNewSerialNumber.newSerialNumber.returns.json"), address(0), "", address(0), 0);
+            return
+                (
+                    _composeWithBaseURI("viewIsNewSerialNumber.newSerialNumber.returns.json"),
+                    address(0),
+                    "",
+                    address(0),
+                    0
+                );
         }
     }
 
-    function viewRegisterForm(address userAddress)
-    external view
-    returns (string memory)
-    {
+    function viewRegisterForm(address userAddress) external view returns (string memory) {
         if (bicycleComponentManager.canRegister(userAddress)) {
             return _composeWithBaseURI("viewRegisterForm.isRegistrar.returns.json");
         } else {
@@ -132,8 +141,7 @@ contract BicycleComponentManagerUI is BaseUI {
         }
     }
 
-    function viewRegisterQR() external view returns (string memory)
-    {
+    function viewRegisterQR() external view returns (string memory) {
         return _composeWithBaseURI("viewRegisterQR.returns.json");
     }
 
@@ -146,22 +154,32 @@ contract BicycleComponentManagerUI is BaseUI {
     }
 
     function viewTransfer(address userAddress, string memory registerSerialNumber)
-    external view
-    returns (string memory, address transferFromAddress, uint256 userOpsBalance)
+        external
+        view
+        returns (string memory, address transferFromAddress, uint256 userOpsBalance)
     {
         transferFromAddress = bicycleComponentManager.ownerOf(registerSerialNumber);
 
         if (transferFromAddress != address(0)) {
-            return (_composeWithBaseURI("viewTransfer.hasSerialNumber.returns.json"), transferFromAddress, _getOpsBalance(userAddress));
+            return (
+                _composeWithBaseURI("viewTransfer.hasSerialNumber.returns.json"),
+                transferFromAddress,
+                _getOpsBalance(userAddress)
+            );
         } else {
-            return (_composeWithBaseURI("viewTransfer.newSerialNumber.returns.json"), transferFromAddress, _getOpsBalance(userAddress));
+            return (
+                _composeWithBaseURI("viewTransfer.newSerialNumber.returns.json"),
+                transferFromAddress,
+                _getOpsBalance(userAddress)
+            );
         }
     }
 
     // userAddress: connected address as provided by the front-end
     function viewUpdateUserAddressInfo(address userAddress)
-    public view
-    returns (string memory, address infoAddress, string memory addressInfo, uint256 userOpsBalance)
+        public
+        view
+        returns (string memory, address infoAddress, string memory addressInfo, uint256 userOpsBalance)
     {
         return (
             _composeWithBaseURI("viewUpdateAddressInfo.returns.json"),
@@ -173,8 +191,9 @@ contract BicycleComponentManagerUI is BaseUI {
 
     // ownerAddress: address of the owner of the serial number
     function viewUpdateOwnerAddressInfo(address userAddress, address ownerAddress)
-    public view
-    returns (string memory, address infoAddress, string memory addressInfo, uint256 userOpsBalance)
+        public
+        view
+        returns (string memory, address infoAddress, string memory addressInfo, uint256 userOpsBalance)
     {
         return (
             _composeWithBaseURI("viewUpdateAddressInfo.returns.json"),
@@ -188,7 +207,11 @@ contract BicycleComponentManagerUI is BaseUI {
         return _composeWithBaseURI("viewUpdateAddressInfoOnFailure.returns.json");
     }
 
-    function viewUpdateAddressInfoOnSuccess(address infoAddress) public view returns (string memory, string memory addressInfo) {
+    function viewUpdateAddressInfoOnSuccess(address infoAddress)
+        public
+        view
+        returns (string memory, string memory addressInfo)
+    {
         return (
             _composeWithBaseURI("viewUpdateAddressInfoOnSuccess.returns.json"),
             bicycleComponentManager.accountInfo(infoAddress)
@@ -196,14 +219,18 @@ contract BicycleComponentManagerUI is BaseUI {
     }
 
     function viewUpdateNFT(address userAddress, string memory registerSerialNumber)
-    public view
-    returns (
-        string memory,
-        address registerFor,
-        address nftContractAddress, uint256 nftTokenId,
-        string memory registerName, string memory registerDescription, string memory registerImageURL,
-        uint256 userOpsBalance
-    )
+        public
+        view
+        returns (
+            string memory,
+            address registerFor,
+            address nftContractAddress,
+            uint256 nftTokenId,
+            string memory registerName,
+            string memory registerDescription,
+            string memory registerImageURL,
+            uint256 userOpsBalance
+        )
     {
         registerFor = bicycleComponentManager.ownerOf(registerSerialNumber);
         nftContractAddress = address(bicycleComponentManager.nftContract());
@@ -212,8 +239,11 @@ contract BicycleComponentManagerUI is BaseUI {
         return (
             _composeWithBaseURI("viewUpdateNFT.returns.json"),
             registerFor,
-            nftContractAddress, nftTokenId,
-            "", "", "",
+            nftContractAddress,
+            nftTokenId,
+            "",
+            "",
+            "",
             _getOpsBalance(userAddress)
         );
     }

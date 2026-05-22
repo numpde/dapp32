@@ -2,30 +2,17 @@ pragma solidity 0.8.35;
 
 import {Test} from "forge-std-1.12.0/src/Test.sol";
 
-import "../src/Utils.sol";
+import "../../src/Utils.sol";
 
 contract UtilsTest is Test {
     function test_escapeJSONString_escapesJSONSyntaxCharacters() external pure {
-        assertStringEq(
-            Utils.escapeJSONString('bike "alpha" \\ beta'),
-            'bike \\"alpha\\" \\\\ beta'
-        );
+        assertStringEq(Utils.escapeJSONString('bike "alpha" \\ beta'), 'bike \\"alpha\\" \\\\ beta');
     }
 
     function test_escapeJSONString_escapesJSONControlCharacters() external pure {
         string memory input = string(
             abi.encodePacked(
-                "a",
-                bytes1(0x08),
-                "b",
-                bytes1(0x0c),
-                "c",
-                bytes1(0x0a),
-                "d",
-                bytes1(0x0d),
-                "e",
-                bytes1(0x09),
-                "f"
+                "a", bytes1(0x08), "b", bytes1(0x0c), "c", bytes1(0x0a), "d", bytes1(0x0d), "e", bytes1(0x09), "f"
             )
         );
 
@@ -49,14 +36,8 @@ contract UtilsTest is Test {
         string[] memory traitValues = new string[](1);
         traitValues[0] = string(abi.encodePacked("one", bytes1(0x0a), "two"));
 
-        string memory metadata = Utils.stringifyOnChainMetadata(
-            "",
-            name,
-            description,
-            imageURL,
-            traitTypes,
-            traitValues
-        );
+        string memory metadata =
+            Utils.stringifyOnChainMetadata("", name, description, imageURL, traitTypes, traitValues);
         string memory expected = string(
             abi.encodePacked(
                 '{"name":"',

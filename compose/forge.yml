@@ -44,16 +44,34 @@ services:
   # Formatting is a read-only source check.
   forge-fmt:
     <<: *forge_base
-    command: ["forge", "fmt", "--check"]
+    command:
+      - "forge"
+      - "fmt"
+      - "--check"
+      # Format every dapp package, not the tool-owned dependency tree.
+      - "bike-nft/src"
+      - "bike-nft/test"
+      - "deposit/src"
+      - "deposit/test"
+      - "minimal/src"
+      - "minimal/test"
 
   # Compilation should not write artifacts into the working tree; outputs go
   # to tmpfs through FOUNDRY_OUT and FOUNDRY_CACHE_PATH.
   forge-build:
     <<: *forge_base
-    command: ["forge", "build", "--offline"]
+    command:
+      - "forge"
+      - "build"
+      - "--offline"
+      # Build every dapp source tree explicitly. Passing paths keeps build
+      # discovery away from tests and from Soldeer's dependencies/ directory.
+      - "bike-nft/src"
+      - "deposit/src"
+      - "minimal/src"
 
-  # Routine unit tests. Repository/source hygiene checks live in tests/checks
-  # and are wired through `make test` before this Forge lane runs.
+  # Routine unit tests for every dapp. Repository/source hygiene checks live in
+  # tests/checks and are wired through `make test` before this Forge lane runs.
   forge-test:
     <<: *forge_base
     command:
@@ -61,7 +79,7 @@ services:
       - "test"
       - "--offline"
       - "--match-path"
-      - "deposit/test/unit/**/*.sol"
+      - "*/test/unit/**/*.sol"
       - "-vvv"
 
   # Fuzz tests are separated as a Make target because they are usually heavier
@@ -73,7 +91,7 @@ services:
       - "test"
       - "--offline"
       - "--match-path"
-      - "deposit/test/fuzz/**/*.sol"
+      - "*/test/fuzz/**/*.sol"
       - "-vvv"
 
   # Invariant tests are also heavier and often state-machine oriented. They
@@ -85,7 +103,7 @@ services:
       - "test"
       - "--offline"
       - "--match-path"
-      - "deposit/test/invariant/**/*.sol"
+      - "*/test/invariant/**/*.sol"
       - "-vvv"
 
   # Coverage is a reporting lane over the same checked-in sources.

@@ -13,7 +13,15 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
  * @notice This contract stores bicycle components as NFTs.
  * @dev This is a fairly generic upgradable ERC-721 contract.
  */
-abstract contract BicycleComponentsBase is Initializable, ERC721Upgradeable, ERC721EnumerableUpgradeable, ERC721URIStorageUpgradeable, PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+abstract contract BicycleComponentsBase is
+    Initializable,
+    ERC721Upgradeable,
+    ERC721EnumerableUpgradeable,
+    ERC721URIStorageUpgradeable,
+    PausableUpgradeable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable
+{
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
 
@@ -22,7 +30,7 @@ abstract contract BicycleComponentsBase is Initializable, ERC721Upgradeable, ERC
         _disableInitializers();
     }
 
-    function initialize() initializer virtual public {
+    function initialize() public virtual initializer {
         __ERC721_init("BicycleComponents", "BICO");
         __ERC721Enumerable_init();
         __ERC721URIStorage_init();
@@ -51,44 +59,37 @@ abstract contract BicycleComponentsBase is Initializable, ERC721Upgradeable, ERC
     // ROLE SENTRIES: Upgrading the contract
 
     // An implementation of `_authorizeUpgrade` is required
-    function _authorizeUpgrade(address newImplementation)
-    internal
-    onlyRole(UPGRADER_ROLE)
-    override
-    {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
 
     // The following functions are overrides required by Solidity because:
     // "Two or more base classes define function with same name and parameter types"
 
     function _beforeTokenTransfer(address from, address to, uint256 tokenId, uint256 batchSize)
-    internal
-    whenNotPaused
-    override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
+        internal
+        override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
+        whenNotPaused
     {
         super._beforeTokenTransfer(from, to, tokenId, batchSize);
     }
 
-    function _burn(uint256 tokenId)
-    internal
-    override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
-    {
+    function _burn(uint256 tokenId) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
         super._burn(tokenId);
     }
 
     function tokenURI(uint256 tokenId)
-    public
-    view
-    override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
-    returns (string memory)
+        public
+        view
+        override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
+        returns (string memory)
     {
         return super.tokenURI(tokenId);
     }
 
     function supportsInterface(bytes4 interfaceId)
-    public
-    view
-    override(ERC721Upgradeable, ERC721EnumerableUpgradeable, AccessControlUpgradeable)
-    returns (bool)
+        public
+        view
+        override(ERC721Upgradeable, ERC721EnumerableUpgradeable, AccessControlUpgradeable)
+        returns (bool)
     {
         return super.supportsInterface(interfaceId);
     }

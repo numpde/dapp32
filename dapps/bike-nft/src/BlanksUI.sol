@@ -4,7 +4,6 @@ import "./BlanksOpenSea.sol";
 import "./BicycleComponentManager.sol";
 import "./BaseUI.sol";
 
-
 contract BlanksUI is BaseUI {
     address payable public blanksContractAddress;
 
@@ -15,7 +14,9 @@ contract BlanksUI is BaseUI {
         _disableInitializers();
     }
 
-    function initialize(address payable myBlanksContract, address myTrustedForwarder, string memory myBaseURI) public initializer
+    function initialize(address payable myBlanksContract, address myTrustedForwarder, string memory myBaseURI)
+        public
+        initializer
     {
         __BaseUI_init(myTrustedForwarder, myBaseURI);
         setBlanksContractAddress(myBlanksContract);
@@ -26,16 +27,16 @@ contract BlanksUI is BaseUI {
         blanksContractAddress = newAddress;
     }
 
-    function _getTokenCount(address userAddress, uint256 blankTokenId)
-    internal view
-    returns (uint256) {
+    function _getTokenCount(address userAddress, uint256 blankTokenId) internal view returns (uint256) {
         BlanksOpenSea blanksContract = BlanksOpenSea(blanksContractAddress);
         return blanksContract.balanceOf(userAddress, blankTokenId);
     }
 
     function viewEntry(address userAddress)
-    public view
-    returns (string memory, uint256 tokenCountA, uint256 tokenCountB, uint256 tokenCountC, uint256 tokenCountD) {
+        public
+        view
+        returns (string memory, uint256 tokenCountA, uint256 tokenCountB, uint256 tokenCountC, uint256 tokenCountD)
+    {
         BlanksOpenSea blanksContract = BlanksOpenSea(blanksContractAddress);
 
         tokenCountA = blanksContract.balanceOf(userAddress, blanksContract.BLANK_NFT_TOKEN_ID_A());
@@ -43,39 +44,54 @@ contract BlanksUI is BaseUI {
         tokenCountC = blanksContract.balanceOf(userAddress, blanksContract.BLANK_NFT_TOKEN_ID_C());
         tokenCountD = blanksContract.balanceOf(userAddress, blanksContract.BLANK_NFT_TOKEN_ID_D());
 
-        return (
-            _composeWithBaseURI("viewEntry.returns.json"),
-            tokenCountA, tokenCountB, tokenCountC, tokenCountD
-        );
+        return (_composeWithBaseURI("viewEntry.returns.json"), tokenCountA, tokenCountB, tokenCountC, tokenCountD);
     }
 
-    function viewEntryA(address userAddress) public view returns (string memory, uint256 blankTokenId, uint256 blankTokenCount) {
+    function viewEntryA(address userAddress)
+        public
+        view
+        returns (string memory, uint256 blankTokenId, uint256 blankTokenCount)
+    {
         return _viewRegisterForm(userAddress, BlanksOpenSea(blanksContractAddress).BLANK_NFT_TOKEN_ID_A());
     }
 
-    function viewEntryB(address userAddress) public view returns (string memory, uint256 blankTokenId, uint256 blankTokenCount) {
+    function viewEntryB(address userAddress)
+        public
+        view
+        returns (string memory, uint256 blankTokenId, uint256 blankTokenCount)
+    {
         return _viewRegisterForm(userAddress, BlanksOpenSea(blanksContractAddress).BLANK_NFT_TOKEN_ID_B());
     }
 
-    function viewEntryC(address userAddress) public view returns (string memory, uint256 blankTokenId, uint256 blankTokenCount) {
+    function viewEntryC(address userAddress)
+        public
+        view
+        returns (string memory, uint256 blankTokenId, uint256 blankTokenCount)
+    {
         return _viewRegisterForm(userAddress, BlanksOpenSea(blanksContractAddress).BLANK_NFT_TOKEN_ID_C());
     }
 
-    function viewEntryD(address userAddress) public view returns (string memory, uint256 blankTokenId, uint256 blankTokenCount) {
+    function viewEntryD(address userAddress)
+        public
+        view
+        returns (string memory, uint256 blankTokenId, uint256 blankTokenCount)
+    {
         return _viewRegisterForm(userAddress, BlanksOpenSea(blanksContractAddress).BLANK_NFT_TOKEN_ID_D());
     }
 
     function _viewRegisterForm(address userAddress, uint256 blankTokenId)
-    internal view
-    returns (string memory ui, uint256, uint256 blankTokenCount)
+        internal
+        view
+        returns (string memory ui, uint256, uint256 blankTokenCount)
     {
         (ui, blankTokenCount) = viewRegisterForm(userAddress, blankTokenId);
         return (ui, blankTokenId, blankTokenCount);
     }
 
     function viewRegisterForm(address userAddress, uint256 blankTokenId)
-    public view
-    returns (string memory, uint256 blankTokenCount)
+        public
+        view
+        returns (string memory, uint256 blankTokenCount)
     {
         blankTokenCount = _getTokenCount(userAddress, blankTokenId);
 
@@ -87,8 +103,9 @@ contract BlanksUI is BaseUI {
     }
 
     function viewPreregisterCheck(address userAddress, string memory registerSerialNumber)
-    public view
-    returns (string memory, uint256 nftTokenId)
+        public
+        view
+        returns (string memory, uint256 nftTokenId)
     {
         (userAddress, registerSerialNumber); // silence warnings
 
@@ -113,11 +130,9 @@ contract BlanksUI is BaseUI {
         string memory registerName,
         string memory registerDescription,
         string memory registerImageURL
-    )
-    public
-    {
+    ) public {
         require(
-        // Note: `_msgSender()` checks whether `msg.sender` is a trusted forwarder.
+            // Note: `_msgSender()` checks whether `msg.sender` is a trusted forwarder.
             userAddress == _msgSender(),
             "BlanksUI: userAddress and _msgSender don't match (or not a trusted forwarder)"
         );
@@ -127,9 +142,18 @@ contract BlanksUI is BaseUI {
         address blankTokenOwner = userAddress;
 
         BlanksOpenSea blanksContract = BlanksOpenSea(blanksContractAddress);
-        blanksContract.proxiedRegister(blankTokenOwner, registerFor, blankTokenId, registerSerialNumber, registerName, registerDescription, registerImageURL);
+        blanksContract.proxiedRegister(
+            blankTokenOwner,
+            registerFor,
+            blankTokenId,
+            registerSerialNumber,
+            registerName,
+            registerDescription,
+            registerImageURL
+        );
 
-        uint256 nftTokenId = BicycleComponentManager(blanksContract.bicycleComponentManager()).generateTokenId(registerSerialNumber);
+        uint256 nftTokenId =
+            BicycleComponentManager(blanksContract.bicycleComponentManager()).generateTokenId(registerSerialNumber);
         registeredNftTokens[userAddress].push(nftTokenId);
     }
 
@@ -138,10 +162,11 @@ contract BlanksUI is BaseUI {
         return _composeWithBaseURI("viewRegisterOnFailure.returns.json");
     }
 
-    function viewRegisterOnSuccess(address userAddress) public view returns (string memory, uint256[] memory nftTokens) {
-        return (
-            _composeWithBaseURI("viewRegisterOnSuccess.returns.json"),
-            registeredNftTokens[userAddress]
-        );
+    function viewRegisterOnSuccess(address userAddress)
+        public
+        view
+        returns (string memory, uint256[] memory nftTokens)
+    {
+        return (_composeWithBaseURI("viewRegisterOnSuccess.returns.json"), registeredNftTokens[userAddress]);
     }
 }

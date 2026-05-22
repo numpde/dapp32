@@ -13,13 +13,13 @@ contract BicycleComponentPaymaster is BasePaymaster {
     bool public useRejectOnRecipientRevert = true;
 
     BicycleComponentOpsFund public opsFundContract;
-    uint public opsToConsumePerCall = 1;
+    uint256 public opsToConsumePerCall = 1;
 
     event MethodWhitelisted(address indexed target, bytes4 indexed method, bool isAllowed);
     event TransactionSuccess(address indexed from, address indexed target, bytes4 indexed method);
     event TransactionFailure(address indexed from, address indexed target, bytes4 indexed method);
 
-    function versionPaymaster() external view override virtual returns (string memory) {
+    function versionPaymaster() external view virtual override returns (string memory) {
         return "3.0.0-beta.3+opengsn.bcm.paymaster";
     }
 
@@ -40,11 +40,7 @@ contract BicycleComponentPaymaster is BasePaymaster {
         emit MethodWhitelisted(target, method, isAllowed);
     }
 
-    function getGasAndDataLimits()
-    public override virtual view
-    returns (
-        IPaymaster.GasAndDataLimits memory limits
-    ) {
+    function getGasAndDataLimits() public view virtual override returns (IPaymaster.GasAndDataLimits memory limits) {
         return super.getGasAndDataLimits();
     }
 
@@ -53,9 +49,7 @@ contract BicycleComponentPaymaster is BasePaymaster {
         bytes calldata signature,
         bytes calldata approvalData,
         uint256 maxPossibleGas
-    )
-    internal override virtual
-    returns (bytes memory context, bool revertOnRecipientRevert) {
+    ) internal virtual override returns (bytes memory context, bool revertOnRecipientRevert) {
         (signature, maxPossibleGas);
 
         // Basic checks
@@ -85,10 +79,7 @@ contract BicycleComponentPaymaster is BasePaymaster {
         // * `true` if the Paymaster wants to reject the TX if the recipient reverts.
         // * `false` if the Paymaster wants rejects by the recipient to be completed on chain and paid by the Paymaster.
 
-        return (
-            abi.encode(relayRequest.request.from, target, method),
-            useRejectOnRecipientRevert
-        );
+        return (abi.encode(relayRequest.request.from, target, method), useRejectOnRecipientRevert);
     }
 
     function _postRelayedCall(
@@ -96,9 +87,7 @@ contract BicycleComponentPaymaster is BasePaymaster {
         bool success,
         uint256 gasUseWithoutPost,
         GsnTypes.RelayData calldata relayData
-    )
-    internal override virtual
-    {
+    ) internal virtual override {
         (context, success, gasUseWithoutPost, relayData);
 
         (address requestFrom, address target, bytes4 method) = abi.decode(context, (address, address, bytes4));

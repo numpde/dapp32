@@ -7,8 +7,13 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
-
-abstract contract BaseUI is ERC2771Recipient, Initializable, PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
+abstract contract BaseUI is
+    ERC2771Recipient,
+    Initializable,
+    PausableUpgradeable,
+    AccessControlUpgradeable,
+    UUPSUpgradeable
+{
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
@@ -20,7 +25,7 @@ abstract contract BaseUI is ERC2771Recipient, Initializable, PausableUpgradeable
         _disableInitializers();
     }
 
-    function __BaseUI_init(address myTrustedForwarder, string memory myBaseURI) initializer public {
+    function __BaseUI_init(address myTrustedForwarder, string memory myBaseURI) public initializer {
         __Pausable_init();
         __AccessControl_init();
         __UUPSUpgradeable_init();
@@ -43,11 +48,7 @@ abstract contract BaseUI is ERC2771Recipient, Initializable, PausableUpgradeable
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation)
-    internal
-    onlyRole(UPGRADER_ROLE)
-    override
-    {
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {
         // The upgrade is authorized!
     }
 
@@ -59,7 +60,7 @@ abstract contract BaseUI is ERC2771Recipient, Initializable, PausableUpgradeable
         baseURI = newBaseURI;
     }
 
-    function abiURI() public virtual view returns (string memory) {
+    function abiURI() public view virtual returns (string memory) {
         return _composeWithBaseURI("abi.json");
     }
 
@@ -79,16 +80,16 @@ abstract contract BaseUI is ERC2771Recipient, Initializable, PausableUpgradeable
 
     // Overrides resolution
 
-    function _msgSender()
-    internal virtual view override(ERC2771Recipient, ContextUpgradeable)
-    returns (address)
-    {
+    function _msgSender() internal view virtual override(ERC2771Recipient, ContextUpgradeable) returns (address) {
         return ERC2771Recipient._msgSender();
     }
 
     function _msgData()
-    internal virtual view override(ERC2771Recipient, ContextUpgradeable)
-    returns (bytes calldata ret)
+        internal
+        view
+        virtual
+        override(ERC2771Recipient, ContextUpgradeable)
+        returns (bytes calldata ret)
     {
         return ERC2771Recipient._msgData();
     }
