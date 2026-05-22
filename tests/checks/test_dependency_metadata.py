@@ -9,34 +9,51 @@ from .common import iter_files, read_text, repo_path
 
 
 OZ_PACKAGE = "@openzeppelin-contracts"
+OZ_UPGRADEABLE_PACKAGE = "@openzeppelin-contracts-upgradeable"
+OZ_PACKAGES = (OZ_PACKAGE, OZ_UPGRADEABLE_PACKAGE)
 FORGE_STD_PACKAGE = "forge-std"
 SOLDEER_REVISIONS_HOST = "soldeer-revisions.s3.amazonaws.com"
 SOLDEER_ARCHIVE_SUFFIX_RE = {
     OZ_PACKAGE: r"contracts",
+    OZ_UPGRADEABLE_PACKAGE: r"contracts-upgradeable",
     FORGE_STD_PACKAGE: r"forge-std-[0-9]+(?:\.[0-9]+)*",
 }
 DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE = r"[A-Za-z0-9_.:-]+"
-REMAPPING_RE = re.compile(r"^@openzeppelin-contracts-([^/=]+)/=dependencies/@openzeppelin-contracts-\1/$")
-CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}  @openzeppelin-contracts-([^\s]+)$")
-IMPORT_RE = re.compile(r'from\s+"(@openzeppelin-contracts-([^/"]+)/[^"]+)"')
+REMAPPING_RE = re.compile(
+    r"^(?P<name>@openzeppelin-contracts(?:-upgradeable)?)-(?P<version>[^/=]+)/=dependencies/(?P=name)-(?P=version)/$"
+)
+CHECKSUM_RE = re.compile(r"^[0-9a-f]{64}  (?P<name>@openzeppelin-contracts(?:-upgradeable)?)-(?P<version>[^\s]+)$")
+IMPORT_RE = re.compile(r'["\'](?P<name>@openzeppelin-contracts(?:-upgradeable)?)-(?P<version>[^/"\']+)/')
 
 
 class DependencyMetadataTest(unittest.TestCase):
     def test_openzeppelin_version_is_single_and_consistent(self) -> None:
-        foundry_version = self.foundry_openzeppelin_version()
-        lock_version = self.locked_openzeppelin_version()
-        remapping_version = self.remapped_openzeppelin_version()
-        checksum_version = self.checksummed_openzeppelin_version()
+        foundry_versions = {name: self.foundry_dependency_version(name) for name in OZ_PACKAGES}
+        lock_versions = {name: self.locked_dependency_version(name) for name in OZ_PACKAGES}
+        remapping_versions = self.remapped_openzeppelin_versions()
+        checksum_versions = self.checksummed_openzeppelin_versions()
         import_versions = self.imported_openzeppelin_versions()
 
-        self.assertEqual(foundry_version, lock_version, "foundry.toml and soldeer.lock disagree")
-        self.assertEqual(foundry_version, remapping_version, "foundry.toml and remappings.txt disagree")
         self.assertEqual(
-            foundry_version,
-            checksum_version,
-            "foundry.toml and dependency-checksums.txt disagree",
+            foundry_versions[OZ_PACKAGE],
+            foundry_versions[OZ_UPGRADEABLE_PACKAGE],
+            "OpenZeppelin base and upgradeable packages must use the same version",
         )
-        self.assertLessEqual(import_versions, {foundry_version})
+
+        for name in OZ_PACKAGES:
+            with self.subTest(dependency=name):
+                self.assertEqual(foundry_versions[name], lock_versions[name], "foundry.toml and soldeer.lock disagree")
+                self.assertEqual(
+                    foundry_versions[name],
+                    remapping_versions.get(name),
+                    "foundry.toml and remappings.txt disagree",
+                )
+                self.assertEqual(
+                    foundry_versions[name],
+                    checksum_versions.get(name),
+                    "foundry.toml and dependency-checksums.txt disagree",
+                )
+                self.assertLessEqual(import_versions.get(name, set()), {foundry_versions[name]})
 
     def test_soldeer_dependencies_use_registry_sources(self) -> None:
         foundry_dependencies = self.foundry_dependencies()
@@ -55,6 +72,18 @@ class DependencyMetadataTest(unittest.TestCase):
                     f"{name} version differs between foundry.toml and soldeer.lock",
                 )
                 self.assert_allowed_soldeer_registry_url(name, record["url"], version)
+
+    def test_openzeppelin_upgradeable_uses_pinned_base_package_remapping(self) -> None:
+        version = self.foundry_dependency_version(OZ_PACKAGE)
+        expected = f"@openzeppelin/contracts/=dependencies/{OZ_PACKAGE}-{version}/"
+        lines = read_text(repo_path("dapps/remappings.txt")).splitlines()
+
+        self.assertIn(
+            expected,
+            lines,
+            "OpenZeppelin upgradeable imports canonical @openzeppelin/contracts paths internally; "
+            "that alias must resolve to the pinned base package.",
+        )
 
     def test_soldeer_source_policy_self_check(self) -> None:
         version = "1.2.3"
@@ -90,8 +119,8 @@ class DependencyMetadataTest(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     self.assert_allowed_soldeer_registry_url(OZ_PACKAGE, url, version)
 
-    def foundry_openzeppelin_version(self) -> str:
-        dependency = self.foundry_dependencies()[OZ_PACKAGE]
+    def foundry_dependency_version(self, name: str) -> str:
+        dependency = self.foundry_dependencies()[name]
         version = dependency["version"]
         self.assertIsInstance(version, str)
         return version
@@ -100,7 +129,8 @@ class DependencyMetadataTest(unittest.TestCase):
         config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
         dependencies = config.get("dependencies", {})
         self.assertIsInstance(dependencies, dict)
-        self.assertIn(OZ_PACKAGE, dependencies, "expected OpenZeppelin dependency in foundry.toml")
+        for name in OZ_PACKAGES:
+            self.assertIn(name, dependencies, f"expected {name} dependency in foundry.toml")
 
         parsed: dict[str, dict[str, object]] = {}
         for name, dependency in dependencies.items():
@@ -110,8 +140,8 @@ class DependencyMetadataTest(unittest.TestCase):
 
         return parsed
 
-    def locked_openzeppelin_version(self) -> str:
-        return self.locked_dependency_records()[OZ_PACKAGE]["version"]
+    def locked_dependency_version(self, name: str) -> str:
+        return self.locked_dependency_records()[name]["version"]
 
     def locked_dependency_records(self) -> dict[str, dict[str, str]]:
         lock = tomllib.loads(read_text(repo_path("dapps/soldeer.lock")))
@@ -133,7 +163,8 @@ class DependencyMetadataTest(unittest.TestCase):
 
             records[name] = record
 
-        self.assertIn(OZ_PACKAGE, records, "expected OpenZeppelin dependency in soldeer.lock")
+        for name in OZ_PACKAGES:
+            self.assertIn(name, records, f"expected {name} dependency in soldeer.lock")
         return records
 
     def assert_registry_version_only_dependency(self, name: str, dependency: dict[str, object]) -> str:
@@ -161,36 +192,39 @@ class DependencyMetadataTest(unittest.TestCase):
     def allowed_archive_suffix_re(self, name: str) -> str:
         return SOLDEER_ARCHIVE_SUFFIX_RE.get(name, DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE)
 
-    def remapped_openzeppelin_version(self) -> str:
-        versions = [
-            match.group(1)
+    def remapped_openzeppelin_versions(self) -> dict[str, str]:
+        versions = {
+            match.group("name"): match.group("version")
             for line in read_text(repo_path("dapps/remappings.txt")).splitlines()
             if (match := REMAPPING_RE.match(line))
-        ]
-        self.assertEqual(1, len(versions), "expected exactly one OpenZeppelin remapping")
-        return versions[0]
+        }
+        self.assertEqual(set(OZ_PACKAGES), set(versions), "expected exactly one remapping for each OpenZeppelin package")
+        return versions
 
-    def checksummed_openzeppelin_version(self) -> str:
-        versions = [
-            match.group(1)
+    def checksummed_openzeppelin_versions(self) -> dict[str, str]:
+        versions = {
+            match.group("name"): match.group("version")
             for line in read_text(repo_path("dapps/dependency-checksums.txt")).splitlines()
             if (match := CHECKSUM_RE.match(line))
-        ]
-        self.assertEqual(1, len(versions), "expected exactly one OpenZeppelin checksum")
-        return versions[0]
+        }
+        self.assertEqual(set(OZ_PACKAGES), set(versions), "expected exactly one checksum for each OpenZeppelin package")
+        return versions
 
-    def imported_openzeppelin_versions(self) -> set[str]:
-        versions: set[str] = set()
+    def imported_openzeppelin_versions(self) -> dict[str, set[str]]:
+        versions: dict[str, set[str]] = {name: set() for name in OZ_PACKAGES}
 
         for path in iter_files("dapps"):
             if path.suffix != ".sol":
                 continue
-            for import_path, version in IMPORT_RE.findall(read_text(path)):
+            for match in IMPORT_RE.finditer(read_text(path)):
+                name = match.group("name")
+                version = match.group("version")
                 self.assertTrue(
-                    import_path.startswith(f"{OZ_PACKAGE}-{version}/"),
-                    f"{path}: malformed OpenZeppelin import {import_path}",
+                    name in OZ_PACKAGES,
+                    f"{path}: malformed OpenZeppelin import {match.group(0)}",
                 )
-                versions.add(version)
+                versions[name].add(version)
 
-        self.assertTrue(versions, "expected first-party contracts to exercise the OpenZeppelin dependency")
+        for name in OZ_PACKAGES:
+            self.assertTrue(versions[name], f"expected first-party contracts to exercise {name}")
         return versions

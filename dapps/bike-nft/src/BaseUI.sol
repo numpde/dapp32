@@ -2,10 +2,10 @@ pragma solidity 0.8.35;
 
 import "@opengsn/contracts/src/ERC2771Recipient.sol";
 
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin-contracts-upgradeable-5.6.1/access/AccessControlUpgradeable.sol";
+import "@openzeppelin-contracts-upgradeable-5.6.1/proxy/utils/Initializable.sol";
+import "@openzeppelin-contracts-upgradeable-5.6.1/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin-contracts-upgradeable-5.6.1/utils/PausableUpgradeable.sol";
 
 abstract contract BaseUI is
     ERC2771Recipient,

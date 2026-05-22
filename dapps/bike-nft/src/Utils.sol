@@ -1,6 +1,6 @@
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts-upgradeable/utils/Base64Upgradeable.sol";
+import "@openzeppelin-contracts-5.6.1/utils/Base64.sol";
 
 library Utils {
     function stringifyOnChainMetadata(
@@ -96,6 +96,6 @@ library Utils {
     }
 
     function packJSON(string memory jsonString) internal pure returns (string memory) {
-        return string(abi.encodePacked("data:application/json;base64,", Base64Upgradeable.encode(bytes(jsonString))));
+        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(bytes(jsonString))));
     }
 }

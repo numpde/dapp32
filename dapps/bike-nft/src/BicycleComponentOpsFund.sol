@@ -1,6 +1,6 @@
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin-contracts-5.6.1/access/AccessControl.sol";
 import "./BicycleComponentManager.sol";
 
 /**

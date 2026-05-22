@@ -1,10 +1,9 @@
 pragma solidity 0.8.35;
 
-import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
+import "@openzeppelin-contracts-upgradeable-5.6.1/access/AccessControlUpgradeable.sol";
+import "@openzeppelin-contracts-upgradeable-5.6.1/proxy/utils/Initializable.sol";
+import "@openzeppelin-contracts-upgradeable-5.6.1/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin-contracts-upgradeable-5.6.1/utils/PausableUpgradeable.sol";
 
 import "./BicycleComponents.sol";
 import "./Utils.sol";
@@ -14,7 +13,6 @@ import "./BicycleComponentOpsFund.sol";
 /// @notice This contract manages the BicycleComponents NFT contract.
 contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
     using Utils for string;
-    using AddressUpgradeable for address;
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
