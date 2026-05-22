@@ -9,7 +9,7 @@ from .common import iter_files, read_text, repo_path
 
 
 OZ_PACKAGE = "@openzeppelin-contracts"
-OZ_ALLOWED_TOP_LEVEL = {"access", "token", "utils"}
+OZ_ALLOWED_TOP_LEVEL = {"access", "utils"}
 IMPORT_STATEMENT_RE = re.compile(r"\bimport\b(?P<body>[^;]*);", re.MULTILINE | re.DOTALL)
 IMPORT_PATH_RE = re.compile(r'["\'](?P<path>[^"\']+)["\']')
 
@@ -31,6 +31,27 @@ class SolidityImportPolicyTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_openzeppelin_allowlist_matches_current_import_surface(self) -> None:
+        version = self.openzeppelin_version()
+        expected_prefix = f"{OZ_PACKAGE}-{version}/"
+        imported_roots: set[str] = set()
+
+        for path in iter_files("contracts/src", "contracts/test"):
+            if path.suffix != ".sol":
+                continue
+
+            for import_path in self.import_paths(path):
+                if import_path.startswith(expected_prefix):
+                    suffix = import_path.removeprefix(expected_prefix)
+                    imported_roots.add(suffix.split("/", maxsplit=1)[0])
+
+        self.assertTrue(imported_roots, "expected first-party contracts to import OpenZeppelin")
+        self.assertEqual(
+            imported_roots,
+            OZ_ALLOWED_TOP_LEVEL,
+            "OpenZeppelin import allowlist should match the current first-party import surface",
+        )
+
     def test_import_policy_classifier_self_check(self) -> None:
         version = "5.6.1"
         source = repo_path("contracts/test/unit/HelloWorld.t.sol")
@@ -38,10 +59,14 @@ class SolidityImportPolicyTest(unittest.TestCase):
         self.assertIsNone(
             self.validate_import(source, f"{OZ_PACKAGE}-{version}/access/Ownable.sol", version)
         )
+        self.assertIsNone(
+            self.validate_import(source, f"{OZ_PACKAGE}-{version}/utils/Pausable.sol", version)
+        )
         self.assertIsNone(self.validate_import(source, "../../src/HelloWorld.sol", version))
 
         rejected = [
             f"{OZ_PACKAGE}-{version}/contracts/access/Ownable.sol",
+            f"{OZ_PACKAGE}-{version}/token/ERC20/IERC20.sol",
             f"{OZ_PACKAGE}-5.4.0/access/Ownable.sol",
             "./Missing.sol",
             "forge-std/Test.sol",
