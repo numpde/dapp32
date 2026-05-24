@@ -1,4 +1,4 @@
-import { cloneRequiredRecord, requiredNonEmptyString, requiredRecord } from "./guards.ts"
+import { cloneRequiredRecord, hasOwn, requiredNonEmptyString, requiredRecord } from "./guards.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
 export type CamRuntimeContextInput = {
@@ -15,7 +15,7 @@ export type CamRuntimeContextInput = {
 export function createContext(input: CamRuntimeContextInput): CamRuntimeContext {
   const source = requiredRecord(input, "")
   const host = requiredRecord(source.host, "host")
-  const account = source.account
+  const hasAccount = hasOwn(source, "account")
 
   return {
     host: {
@@ -24,13 +24,13 @@ export function createContext(input: CamRuntimeContextInput): CamRuntimeContext 
     },
     // Do not synthesize an anonymous account object. Routes that require
     // $account.address should fail when the account is genuinely absent.
-    ...(account === undefined
-      ? {}
-      : {
+    ...(hasAccount
+      ? {
           account: {
-            address: requiredNonEmptyString(requiredRecord(account, "account").address, "account.address"),
+            address: requiredNonEmptyString(requiredRecord(source.account, "account").address, "account.address"),
           },
-        }),
+        }
+      : {}),
     params: cloneRequiredRecord(source.params, "params"),
     state: cloneRequiredRecord(source.state, "state"),
     outputs: cloneRequiredRecord(source.outputs, "outputs"),

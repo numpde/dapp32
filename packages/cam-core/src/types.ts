@@ -24,7 +24,7 @@ export type CamRuntimeContext = {
     readonly address: string
   }
   readonly account?: {
-    readonly address?: string
+    readonly address: string
   }
   readonly params: Record<string, unknown>
   readonly state: Record<string, unknown>

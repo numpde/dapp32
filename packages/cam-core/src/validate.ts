@@ -1,6 +1,12 @@
 import { CamError } from "./errors.ts"
 import { validateExpressionValue } from "./expressions.ts"
-import { hasOwn, requiredArray, requiredNonEmptyString, requiredRecord } from "./guards.ts"
+import {
+  hasOwn,
+  isRecordObject,
+  requiredArray,
+  requiredNonEmptyString,
+  requiredRecord,
+} from "./guards.ts"
 import type { CamContract, CamDocument, CamRoute } from "./types.ts"
 
 const TOP_LEVEL_KEYS = new Set(["$schema", "cam", "name", "description", "entry", "contracts", "routes"])
@@ -77,17 +83,33 @@ function parseRoutes(
     routes[name] = {
       contract,
       function: functionName,
-      args,
+      args: args.map((arg) => cloneJsonValue(arg)),
     }
   }
 
   return routes
 }
 
+function cloneJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => cloneJsonValue(item))
+  }
+
+  if (isRecordObject(value)) {
+    // parseCam returns a normalized document snapshot, not live references into
+    // the caller's parsed JSON object.
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, cloneJsonValue(item)]),
+    )
+  }
+
+  return value
+}
+
 function optionalNonEmptyStringProperty(source: Record<string, unknown>, key: string): Record<string, string> {
-  if (source[key] === undefined) {
+  if (!hasOwn(source, key)) {
     // These are document metadata fields. Absence is meaningful and distinct
-    // from an empty string, which is rejected below.
+    // from an empty string or explicit undefined, which are rejected below.
     return {}
   }
 

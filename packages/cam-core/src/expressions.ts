@@ -42,7 +42,25 @@ export function validateExpressionValue(value: unknown, path: string): void {
     for (const [key, item] of Object.entries(value)) {
       validateExpressionValue(item, `${path}.${key}`)
     }
+    return
   }
+
+  validateJsonLiteral(value, path)
+}
+
+function validateJsonLiteral(value: unknown, path: string): void {
+  // CAM manifests may be supplied as already-parsed objects, so reject values
+  // that JSON itself could not carry. That keeps route args portable across
+  // file loading, IPFS, HTTP, tests, and programmatic construction.
+  if (value === null || typeof value === "boolean") {
+    return
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return
+  }
+
+  throw new CamError("CAM_INVALID_FIELD", "expected a JSON value", path)
 }
 
 function resolveValueAtPath(value: unknown, context: CamRuntimeContext, path: string): unknown {

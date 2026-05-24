@@ -169,6 +169,22 @@ test("rejects account context without an address", () => {
   )
 })
 
+test("rejects explicitly undefined optional context fields", () => {
+  assert.throws(
+    () => createContext({
+      host: {
+        chainId: "eip155:31337",
+        address: "0x0000000000000000000000000000000000000001",
+      },
+      account: undefined,
+      params: {},
+      state: {},
+      outputs: {},
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
+})
+
 test("rejects invalid expression syntax", () => {
   assert.throws(
     () => parseCam({
@@ -183,6 +199,34 @@ test("rejects invalid expression syntax", () => {
     }),
     (error) => error instanceof CamError && error.code === "CAM_INVALID_EXPRESSION",
   )
+})
+
+test("rejects route args that cannot exist in JSON", () => {
+  const invalidArgs = [
+    new Date(),
+    undefined,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    () => undefined,
+    Symbol("arg"),
+    BigInt(1),
+  ]
+
+  for (const value of invalidArgs) {
+    assert.throws(
+      () => parseCam({
+        ...mainJson,
+        routes: {
+          entry: {
+            contract: "BicycleComponentManagerUI",
+            function: "viewEntry",
+            args: [value],
+          },
+        },
+      }),
+      (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+    )
+  }
 })
 
 test("requires explicit route args arrays", () => {
@@ -212,6 +256,37 @@ test("requires explicit route args arrays", () => {
     }).routes.entry.args,
     [],
   )
+})
+
+test("copies route args out of the input document", () => {
+  const input = {
+    ...mainJson,
+    routes: {
+      entry: {
+        contract: "BicycleComponentManagerUI",
+        function: "viewEntry",
+        args: [{ value: "$params.serialNumber" }],
+      },
+    },
+  }
+
+  const cam = parseCam(input)
+
+  input.routes.entry.args[0].value = "$params.changed"
+
+  assert.deepEqual(cam.routes.entry.args, [{ value: "$params.serialNumber" }])
+})
+
+test("rejects explicitly undefined optional CAM metadata", () => {
+  for (const field of ["$schema", "description"] as const) {
+    assert.throws(
+      () => parseCam({
+        ...mainJson,
+        [field]: undefined,
+      }),
+      (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+    )
+  }
 })
 
 test("rejects empty required CAM strings", () => {
