@@ -1,4 +1,5 @@
 import { CamError } from "./errors.ts"
+import { hasOwn, isRecordObject } from "./guards.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/
@@ -75,7 +76,7 @@ function resolveString(value: string, context: CamRuntimeContext): unknown {
 
   let current: unknown = context[root as keyof CamRuntimeContext]
   for (const segment of segments.slice(1)) {
-    if (!isRecordObject(current) || !Object.prototype.hasOwnProperty.call(current, segment)) {
+    if (!isRecordObject(current) || !hasOwn(current, segment)) {
       throw new CamError("CAM_UNRESOLVED_VALUE", `unresolved expression: ${value}`)
     }
 
@@ -99,10 +100,4 @@ function validateExpressionString(value: string, path?: string): void {
   if (!EXPRESSION_RE.test(value)) {
     throw new CamError("CAM_INVALID_EXPRESSION", `invalid expression syntax: ${value}`, path)
   }
-}
-
-function isRecordObject(value: unknown): value is Record<string, unknown> {
-  // Expression traversal only descends through record-like objects. Arrays are
-  // values, not addressable path maps in CAM V1.
-  return value !== null && typeof value === "object" && !Array.isArray(value)
 }

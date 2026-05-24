@@ -1,5 +1,6 @@
 import { CamError } from "./errors.ts"
 import { resolveArgs } from "./expressions.ts"
+import { hasOwn } from "./guards.ts"
 import type { CamDocument, CamRouteCall, CamRuntimeContext } from "./types.ts"
 
 export function resolveRouteCall(
@@ -12,7 +13,7 @@ export function resolveRouteCall(
     throw new CamError("CAM_INVALID_FIELD", `route does not exist: ${routeName}`, `routes.${routeName}`)
   }
 
-  if (!Object.prototype.hasOwnProperty.call(cam.contracts, route.contract)) {
+  if (!hasOwn(cam.contracts, route.contract)) {
     throw new CamError(
       "CAM_UNKNOWN_CONTRACT",
       `route references unknown contract: ${route.contract}`,

@@ -133,6 +133,26 @@ test("rejects missing required context records", () => {
   }
 })
 
+test("rejects non-JSON record objects", () => {
+  assert.throws(
+    () => parseCam(new Date()),
+    (error) => error instanceof CamError && error.code === "CAM_NOT_OBJECT",
+  )
+
+  assert.throws(
+    () => createContext({
+      host: {
+        chainId: "eip155:31337",
+        address: "0x0000000000000000000000000000000000000001",
+      },
+      params: new Date(),
+      state: {},
+      outputs: {},
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
+})
+
 test("rejects account context without an address", () => {
   assert.throws(
     () => createContext({
