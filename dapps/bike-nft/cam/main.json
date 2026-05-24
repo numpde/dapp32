@@ -1,0 +1,46 @@
+{
+  "$schema": "https://cam.example/schemas/cam-1.json",
+  "cam": "1.0.0",
+
+  "name": "Bicycle registry",
+  "description": "Register and verify bicycle components by serial number.",
+
+  "entry": "entry",
+
+  "contracts": {
+    "BicycleComponentManagerUI": {
+      "abiURI": "./abi/IBicycleComponentManagerUI.v1.json"
+    },
+    "BicycleComponentManager": {
+      "abiURI": "./abi/IBicycleComponentManager.v1.json"
+    }
+  },
+
+  "routes": {
+    "entry": {
+      "contract": "BicycleComponentManagerUI",
+      "function": "viewEntry",
+      "args": [
+        "$account.address"
+      ]
+    },
+
+    "component": {
+      "contract": "BicycleComponentManagerUI",
+      "function": "viewComponent",
+      "args": [
+        "$params.serialNumber",
+        "$account.address"
+      ]
+    },
+
+    "register": {
+      "contract": "BicycleComponentManagerUI",
+      "function": "viewRegister",
+      "args": [
+        "$account.address",
+        "$params.serialNumber"
+      ]
+    }
+  }
+}
