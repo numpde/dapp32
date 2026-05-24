@@ -1,4 +1,5 @@
-import { cloneRequiredRecord, hasOwn, requiredNonEmptyString, requiredRecord } from "./guards.ts"
+import { CamError } from "./errors.ts"
+import { hasOwn, isRecordObject, requiredNonEmptyString, requiredRecord } from "./guards.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
 export type CamRuntimeContextInput = {
@@ -31,8 +32,43 @@ export function createContext(input: CamRuntimeContextInput): CamRuntimeContext 
           },
         }
       : {}),
-    params: cloneRequiredRecord(source.params, "params"),
-    state: cloneRequiredRecord(source.state, "state"),
-    outputs: cloneRequiredRecord(source.outputs, "outputs"),
+    params: cloneContextRecord(source.params, "params"),
+    state: cloneContextRecord(source.state, "state"),
+    outputs: cloneContextRecord(source.outputs, "outputs"),
   }
+}
+
+function cloneContextRecord(value: unknown, path: string): Record<string, unknown> {
+  const source = requiredRecord(value, path)
+  const clone = Object.create(null) as Record<string, unknown>
+
+  for (const [key, item] of Object.entries(source)) {
+    clone[key] = cloneContextValue(item, `${path}.${key}`)
+  }
+
+  return clone
+}
+
+function cloneContextValue(value: unknown, path: string): unknown {
+  if (value === undefined || typeof value === "function" || typeof value === "symbol") {
+    throw new CamError("CAM_INVALID_FIELD", "expected runtime context data", path)
+  }
+
+  if (typeof value === "number" && !Number.isFinite(value)) {
+    throw new CamError("CAM_INVALID_FIELD", "expected a finite number", path)
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item, index) => cloneContextValue(item, `${path}.${index}`))
+  }
+
+  if (isRecordObject(value)) {
+    return cloneContextRecord(value, path)
+  }
+
+  if (value !== null && typeof value === "object") {
+    throw new CamError("CAM_INVALID_FIELD", "expected runtime context data", path)
+  }
+
+  return value
 }

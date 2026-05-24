@@ -23,10 +23,6 @@ export function requiredRecord(value: unknown, path: string): Record<string, unk
   return value
 }
 
-export function cloneRequiredRecord(value: unknown, path: string): Record<string, unknown> {
-  return { ...requiredRecord(value, path) }
-}
-
 function requiredString(value: unknown, path: string): string {
   if (typeof value !== "string") {
     throw new CamError("CAM_INVALID_FIELD", "expected a string", path)

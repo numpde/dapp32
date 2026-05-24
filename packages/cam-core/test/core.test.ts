@@ -153,6 +153,63 @@ test("rejects non-JSON record objects", () => {
   )
 })
 
+test("copies nested runtime context records", () => {
+  const input = {
+    host: {
+      chainId: "eip155:31337",
+      address: "0x0000000000000000000000000000000000000001",
+    },
+    params: {
+      component: {
+        serialNumber: "ABC123",
+      },
+    },
+    state: {},
+    outputs: {
+      count: BigInt(1),
+    },
+  }
+
+  const context = createContext(input)
+
+  input.params.component.serialNumber = "CHANGED"
+
+  assert.equal(resolveValue("$params.component.serialNumber", context), "ABC123")
+  assert.equal(resolveValue("$outputs.count", context), BigInt(1))
+})
+
+test("rejects unsupported runtime context values", () => {
+  const base = {
+    host: {
+      chainId: "eip155:31337",
+      address: "0x0000000000000000000000000000000000000001",
+    },
+    params: {},
+    state: {},
+    outputs: {},
+  }
+  const invalidValues = [
+    undefined,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    new Date(),
+    () => undefined,
+    Symbol("value"),
+  ]
+
+  for (const value of invalidValues) {
+    assert.throws(
+      () => createContext({
+        ...base,
+        params: {
+          value,
+        },
+      }),
+      (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+    )
+  }
+})
+
 test("rejects account context without an address", () => {
   assert.throws(
     () => createContext({
@@ -363,6 +420,27 @@ test("rejects unresolved expression values", () => {
   assert.throws(
     () => resolveRouteCall(cam, "component", context),
     (error) => error instanceof CamError && error.code === "CAM_UNRESOLVED_VALUE",
+  )
+})
+
+test("rejects inherited route names", () => {
+  const cam = {
+    ...parseCam(mainJson),
+    routes: {},
+  }
+  const context = createContext({
+    host: {
+      chainId: "eip155:31337",
+      address: "0x0000000000000000000000000000000000000001",
+    },
+    params: {},
+    state: {},
+    outputs: {},
+  })
+
+  assert.throws(
+    () => resolveRouteCall(cam, "toString", context),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
   )
 })
 

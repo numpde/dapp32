@@ -8,11 +8,11 @@ export function resolveRouteCall(
   routeName: string,
   context: CamRuntimeContext,
 ): CamRouteCall {
-  const route = cam.routes[routeName]
-  if (route === undefined) {
+  if (!hasOwn(cam.routes, routeName)) {
     throw new CamError("CAM_INVALID_FIELD", `route does not exist: ${routeName}`, `routes.${routeName}`)
   }
 
+  const route = cam.routes[routeName]
   if (!hasOwn(cam.contracts, route.contract)) {
     throw new CamError(
       "CAM_UNKNOWN_CONTRACT",
