@@ -33,7 +33,7 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify checks check-runtime check-live check-live-deps-egress check-anvil-compose fmt build test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
+.PHONY: help deps deps-verify checks check-runtime check-live check-live-deps-egress check-anvil-compose fmt build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
 
 help:
 	@printf '%s\n' \
@@ -48,6 +48,7 @@ help:
 	  '  make check-anvil-compose  Run only the rendered Anvil Compose posture checks' \
 	  '  make fmt          Check Solidity formatting for all dapps' \
 	  '  make build        Compile all dapp source trees' \
+	  '  make abi          Export dapps/<name>/src/*.sol ABIs into existing cam/abi directories' \
 	  '  make test         Run unit tests for all dapps' \
 	  '  make fuzz         Run fuzz tests for all dapps' \
 	  '  make invariant    Run invariant tests for all dapps' \
@@ -121,6 +122,9 @@ fmt:
 
 build: deps-verify
 	$(call compose_run,forge.yml,forge-build)
+
+abi: deps-verify
+	$(call compose_run,forge.yml,forge-abi)
 
 test: deps-verify checks
 	$(call compose_run,forge.yml,forge-test)

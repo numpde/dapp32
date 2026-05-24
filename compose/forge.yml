@@ -82,6 +82,61 @@ services:
         fi
         forge build --offline "$@"
 
+  # ABI export is the one routine Forge lane that writes into the dapp tree.
+  # Only dapps that already have both src/ and cam/ participate. The ABI
+  # directory is treated as generated from direct src/*.sol files. Outputs are
+  # staged in tmpfs first so a failed inspection does not erase the last good
+  # ABI set.
+  forge-abi:
+    <<: *forge_base
+    volumes:
+      - ../dapps:/work/dapps:rw
+    command:
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        found=0
+
+        for dapp in *; do
+          if [ ! -d "$$dapp/src" ] || [ ! -d "$$dapp/cam" ]; then
+            continue
+          fi
+
+          found=1
+          abi_dir="$$dapp/cam/abi"
+          staged_dir="$$(mktemp -d)"
+          generated=0
+
+          for source in "$$dapp"/src/*.sol; do
+            if [ ! -f "$$source" ]; then
+              continue
+            fi
+
+            contract="$$(basename "$$source" .sol)"
+            forge inspect --json "$$source:$$contract" abi > "$$staged_dir/$$contract.json"
+            generated=1
+          done
+
+          if [ "$$generated" -eq 0 ]; then
+            printf 'forge-abi: no direct Solidity files found under %s/src\n' "$$dapp" >&2
+            exit 2
+          fi
+
+          mkdir -p "$$abi_dir"
+          find "$$abi_dir" -maxdepth 1 -type f -name '*.json' -delete
+          for abi in "$$staged_dir"/*.json; do
+            abi_name="$$(basename "$$abi")"
+            mv "$$abi" "$$abi_dir/$$abi_name"
+            printf 'forge-abi: wrote %s\n' "$$abi_dir/$$abi_name"
+          done
+        done
+
+        if [ "$$found" -eq 0 ]; then
+          printf '%s\n' 'forge-abi: no dapps with both src/ and cam/ found' >&2
+          exit 2
+        fi
+
   # Routine unit tests for every dapp. Repository/source hygiene checks live in
   # tests/checks and are wired through `make test` before this Forge lane runs.
   forge-test:
