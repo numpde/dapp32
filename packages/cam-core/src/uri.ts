@@ -7,6 +7,8 @@ export function resolveResourceURI(baseURI: string, resourceURI: string): string
   assertURIString(baseURI, "baseURI")
   assertURIString(resourceURI, "resourceURI")
 
+  // Absolute resource references are already resolved. Core still only returns
+  // the string; adapters decide whether a scheme may be fetched.
   if (SCHEME_RE.test(resourceURI)) {
     return resourceURI
   }
@@ -17,11 +19,13 @@ export function resolveResourceURI(baseURI: string, resourceURI: string): string
 
   const baseWithoutFragment = stripFragment(baseURI)
   if (resourceURI.startsWith("#")) {
+    // Fragment-only references intentionally stay within the current resource.
     return `${baseWithoutFragment}${resourceURI}`
   }
 
   const baseWithoutQuery = stripQuery(baseWithoutFragment)
   if (resourceURI.startsWith("?")) {
+    // Query-only references intentionally stay within the current resource.
     return `${baseWithoutQuery}${resourceURI}`
   }
 
@@ -107,6 +111,8 @@ function normalizePath(path: string): string {
     if (part === "..") {
       const previous = parts.at(-1)
       if (previous !== undefined && previous !== "..") {
+        // Collapse ordinary parent references for deterministic URI strings.
+        // This is not an access-control check; fetch policy belongs outside core.
         parts.pop()
       } else if (!absolute) {
         parts.push(part)

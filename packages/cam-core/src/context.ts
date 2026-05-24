@@ -3,6 +3,7 @@ import type { CamRuntimeContext } from "./types.ts"
 
 export type CamRuntimeContextInput = {
   readonly host: CamRuntimeContext["host"]
+  // Absence means no connected account; if present, the address is required.
   readonly account?: {
     readonly address: string
   }
@@ -20,6 +21,8 @@ export function createContext(input: CamRuntimeContextInput): CamRuntimeContext 
       chainId: requiredString(host.chainId, "host.chainId"),
       address: requiredString(host.address, "host.address"),
     },
+    // Do not synthesize an anonymous account object. Routes that require
+    // $account.address should fail when the account is genuinely absent.
     ...(account === undefined
       ? {}
       : {
@@ -37,6 +40,8 @@ export function mergeContext(
   base: CamRuntimeContext,
   patch: Partial<CamRuntimeContext>,
 ): CamRuntimeContext {
+  // The patch argument is intentionally required so callers do not use this as
+  // a silent clone/defaulting path. Missing bags still come from the base.
   return createContext({
     host: {
       ...base.host,

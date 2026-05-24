@@ -110,6 +110,8 @@ function nonEmptyStringField(value: unknown, path: string): string {
 
 function optionalNonEmptyStringProperty(source: Record<string, unknown>, key: string): Record<string, string> {
   if (source[key] === undefined) {
+    // These are document metadata fields. Absence is meaningful and distinct
+    // from an empty string, which is rejected below.
     return {}
   }
 

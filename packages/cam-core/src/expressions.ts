@@ -57,6 +57,8 @@ function resolveValueAtPath(value: unknown, context: CamRuntimeContext, path: st
 }
 
 function resolveString(value: string, context: CamRuntimeContext): unknown {
+  // Only the exact $root.path grammar is an expression. Other strings remain
+  // literals so CAM V1 does not grow implicit templating or interpolation.
   if (!value.startsWith("$")) {
     return value
   }
@@ -86,6 +88,8 @@ function resolveString(value: string, context: CamRuntimeContext): unknown {
 }
 
 function validateExpressionString(value: string, path?: string): void {
+  // A leading "$" opts into expression parsing. Malformed expressions fail
+  // instead of falling back to string literals.
   if (!value.startsWith("$")) {
     return
   }
