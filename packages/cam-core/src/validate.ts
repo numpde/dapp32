@@ -12,17 +12,17 @@ export function parseCam(input: unknown): CamDocument {
 
   const contracts = parseContracts(objectField(source.contracts, "contracts"))
   const routes = parseRoutes(objectField(source.routes, "routes"), contracts)
-  const entry = stringField(source.entry, "entry")
+  const entry = nonEmptyStringField(source.entry, "entry")
 
   if (!Object.prototype.hasOwnProperty.call(routes, entry)) {
     throw new CamError("CAM_ENTRY_ROUTE_MISSING", `entry route does not exist: ${entry}`, "entry")
   }
 
   return {
-    ...optionalStringProperty(source, "$schema"),
-    cam: stringField(source.cam, "cam"),
-    name: stringField(source.name, "name"),
-    ...optionalStringProperty(source, "description"),
+    ...optionalNonEmptyStringProperty(source, "$schema"),
+    cam: nonEmptyStringField(source.cam, "cam"),
+    name: nonEmptyStringField(source.name, "name"),
+    ...optionalNonEmptyStringProperty(source, "description"),
     entry,
     contracts,
     routes,
@@ -70,15 +70,13 @@ function parseRoutes(
     }
 
     const functionName = nonEmptyStringField(route.function, `${path}.function`)
-    const args = optionalArrayField(route.args, `${path}.args`)
-    if (args !== undefined) {
-      validateExpressionValue(args, `${path}.args`)
-    }
+    const args = requiredArrayField(route.args, `${path}.args`)
+    validateExpressionValue(args, `${path}.args`)
 
     routes[name] = {
       contract,
       function: functionName,
-      ...(args === undefined ? {} : { args }),
+      args,
     }
   }
 
@@ -110,17 +108,17 @@ function nonEmptyStringField(value: unknown, path: string): string {
   return string
 }
 
-function optionalStringProperty(source: Record<string, unknown>, key: string): Record<string, string> {
+function optionalNonEmptyStringProperty(source: Record<string, unknown>, key: string): Record<string, string> {
   if (source[key] === undefined) {
     return {}
   }
 
-  return { [key]: stringField(source[key], key) }
+  return { [key]: nonEmptyStringField(source[key], key) }
 }
 
-function optionalArrayField(value: unknown, path: string): readonly unknown[] | undefined {
+function requiredArrayField(value: unknown, path: string): readonly unknown[] {
   if (value === undefined) {
-    return undefined
+    throw new CamError("CAM_INVALID_FIELD", "expected an explicit args array", path)
   }
 
   if (!Array.isArray(value)) {

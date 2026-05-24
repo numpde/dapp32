@@ -15,7 +15,7 @@ export type CamContract = {
 export type CamRoute = {
   readonly contract: string
   readonly function: string
-  readonly args?: readonly unknown[]
+  readonly args: readonly unknown[]
 }
 
 export type CamRuntimeContext = {

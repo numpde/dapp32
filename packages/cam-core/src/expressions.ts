@@ -22,11 +22,7 @@ export function resolveValue(value: unknown, context: CamRuntimeContext): unknow
   return value
 }
 
-export function resolveArgs(args: readonly unknown[] | undefined, context: CamRuntimeContext): unknown[] {
-  if (args === undefined) {
-    return []
-  }
-
+export function resolveArgs(args: readonly unknown[], context: CamRuntimeContext): unknown[] {
   return args.map((arg, index) => resolveValueAtPath(arg, context, `args.${index}`))
 }
 

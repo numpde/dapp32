@@ -122,6 +122,47 @@ test("rejects invalid expression syntax", () => {
   )
 })
 
+test("requires explicit route args arrays", () => {
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      routes: {
+        entry: {
+          contract: "BicycleComponentManagerUI",
+          function: "viewEntry",
+        },
+      },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
+
+  assert.deepEqual(
+    parseCam({
+      ...mainJson,
+      routes: {
+        entry: {
+          contract: "BicycleComponentManagerUI",
+          function: "viewEntry",
+          args: [],
+        },
+      },
+    }).routes.entry.args,
+    [],
+  )
+})
+
+test("rejects empty required CAM strings", () => {
+  for (const field of ["cam", "name", "entry"] as const) {
+    assert.throws(
+      () => parseCam({
+        ...mainJson,
+        [field]: "",
+      }),
+      (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+    )
+  }
+})
+
 test("rejects unresolved expression values", () => {
   const cam = parseCam(mainJson)
   const context = createContext({
