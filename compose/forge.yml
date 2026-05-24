@@ -92,8 +92,6 @@ services:
       - "--offline"
       - "--match-path"
       - "*/test/unit/**/*.sol"
-      - "--skip"
-      - "old-src"
       - "-vvv"
 
   # Fuzz tests are separated as a Make target because they are usually heavier
@@ -106,8 +104,6 @@ services:
       - "--offline"
       - "--match-path"
       - "*/test/fuzz/**/*.sol"
-      - "--skip"
-      - "old-src"
       - "-vvv"
 
   # Invariant tests are also heavier and often state-machine oriented. They
@@ -120,8 +116,6 @@ services:
       - "--offline"
       - "--match-path"
       - "*/test/invariant/**/*.sol"
-      - "--skip"
-      - "old-src"
       - "-vvv"
 
   # Coverage is a reporting lane over the same unit-test convention as
@@ -134,5 +128,3 @@ services:
       - "--offline"
       - "--match-path"
       - "*/test/unit/**/*.sol"
-      - "--skip"
-      - "old-src"
