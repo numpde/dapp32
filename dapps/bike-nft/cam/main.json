@@ -1,8 +1,6 @@
 {
   "cam": "1.0.0",
-
   "entry": "entry",
-
   "contracts": {
     "BicycleComponentManagerUI": {
       "abiURI": "./abi/BicycleComponentManagerUI.json"
@@ -11,7 +9,6 @@
       "abiURI": "./abi/BicycleComponentManager.json"
     }
   },
-
   "routes": {
     "entry": {
       "contract": "BicycleComponentManagerUI",
@@ -20,7 +17,6 @@
         "$account.address"
       ]
     },
-
     "component": {
       "contract": "BicycleComponentManagerUI",
       "function": "viewComponent",
@@ -29,13 +25,12 @@
         "$account.address"
       ]
     },
-
     "register": {
       "contract": "BicycleComponentManagerUI",
       "function": "viewRegister",
       "args": [
-        "$account.address",
-        "$params.serialNumber"
+        "$params.serialNumber",
+        "$account.address"
       ]
     }
   }

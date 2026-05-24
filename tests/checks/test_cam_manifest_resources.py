@@ -86,6 +86,21 @@ class CamManifestResourceTest(unittest.TestCase):
             )
         )
 
+        self.assertEqual(
+            self.abi_function_inputs(
+                [
+                    {"type": "function", "name": "viewEntry", "inputs": [{"type": "address"}]},
+                    {"type": "event", "name": "Ignored", "inputs": []},
+                    {"type": "function", "name": "overloaded", "inputs": []},
+                    {"type": "function", "name": "overloaded", "inputs": [{"type": "string"}]},
+                ]
+            ),
+            {
+                "viewEntry": 1,
+                "overloaded": None,
+            },
+        )
+
     def cam_manifests(self) -> list[Path]:
         return sorted(repo_path("dapps").glob("*/cam/main.json"))
 
@@ -106,7 +121,7 @@ class CamManifestResourceTest(unittest.TestCase):
         if not isinstance(contracts, dict) or not isinstance(routes, dict):
             return []
 
-        abi_functions_by_contract: dict[str, set[str]] = {}
+        abi_functions_by_contract: dict[str, dict[str, int | None]] = {}
         for contract_name, contract in contracts.items():
             if not isinstance(contract_name, str) or not isinstance(contract, dict):
                 continue
@@ -125,7 +140,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 continue
 
             if isinstance(abi, list):
-                abi_functions_by_contract[contract_name] = self.abi_function_names(abi)
+                abi_functions_by_contract[contract_name] = self.abi_function_inputs(abi)
 
         failures: list[str] = []
         for route_name, route in routes.items():
@@ -144,25 +159,48 @@ class CamManifestResourceTest(unittest.TestCase):
                 failures.append(f"{manifest_path}: {path} must declare string contract and function fields")
                 continue
 
-            function_names = abi_functions_by_contract.get(contract_name)
-            if function_names is not None and function_name not in function_names:
+            functions = abi_functions_by_contract.get(contract_name)
+            if functions is None:
+                continue
+
+            if function_name not in functions:
                 failures.append(
                     f"{manifest_path}: {path}.function is not present in {contract_name} ABI: {function_name}"
+                )
+                continue
+
+            expected_arg_count = functions[function_name]
+            if expected_arg_count is None:
+                failures.append(
+                    f"{manifest_path}: {path}.function is overloaded in {contract_name} ABI: {function_name}"
+                )
+                continue
+
+            args = route.get("args")
+            if not isinstance(args, list):
+                failures.append(f"{manifest_path}: {path}.args must be an array")
+                continue
+
+            if len(args) != expected_arg_count:
+                failures.append(
+                    f"{manifest_path}: {path}.args has {len(args)} item(s), "
+                    f"but {contract_name}.{function_name} expects {expected_arg_count}"
                 )
 
         return failures
 
-    def abi_function_names(self, abi: list[object]) -> set[str]:
-        names: set[str] = set()
+    def abi_function_inputs(self, abi: list[object]) -> dict[str, int | None]:
+        inputs_by_name: dict[str, int | None] = {}
         for item in abi:
             if not isinstance(item, dict):
                 continue
             if item.get("type") != "function":
                 continue
             name = item.get("name")
-            if isinstance(name, str):
-                names.add(name)
-        return names
+            inputs = item.get("inputs")
+            if isinstance(name, str) and isinstance(inputs, list):
+                inputs_by_name[name] = None if name in inputs_by_name else len(inputs)
+        return inputs_by_name
 
     def validate_local_abi_uri(
         self,
