@@ -2,8 +2,12 @@ import { CamError } from "./errors.ts"
 import { hasOwn, isRecordObject, requiredNonEmptyString, requiredRecord } from "./guards.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
+const CONTEXT_KEYS = new Set(["host", "account", "params"])
+
 export function createContext(input: unknown): CamRuntimeContext {
   const source = requiredRecord(input, "")
+  rejectUnknownContextFields(source)
+
   const host = requiredRecord(source.host, "host")
   const hasAccount = hasOwn(source, "account")
 
@@ -22,8 +26,16 @@ export function createContext(input: unknown): CamRuntimeContext {
         }
       : {}),
     params: cloneContextRecord(source.params, "params"),
-    state: cloneContextRecord(source.state, "state"),
-    outputs: cloneContextRecord(source.outputs, "outputs"),
+  }
+}
+
+function rejectUnknownContextFields(source: Record<string, unknown>): void {
+  // Core owns only the data needed to resolve route-call arguments. UI state,
+  // previous call outputs, caches, and renderer-local data belong above core.
+  for (const key of Object.keys(source)) {
+    if (!CONTEXT_KEYS.has(key)) {
+      throw new CamError("CAM_INVALID_FIELD", `field is not allowed in CAM runtime context: ${key}`, key)
+    }
   }
 }
 

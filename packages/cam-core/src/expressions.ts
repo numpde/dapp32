@@ -3,7 +3,7 @@ import { hasOwn, isRecordObject } from "./guards.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/
-const ALLOWED_ROOTS = new Set(["host", "account", "params", "state", "outputs"])
+const ALLOWED_ROOTS = new Set(["host", "account", "params"])
 
 export function resolveValue(value: unknown, context: CamRuntimeContext): unknown {
   if (typeof value === "string") {

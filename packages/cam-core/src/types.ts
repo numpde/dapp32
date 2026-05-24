@@ -27,8 +27,6 @@ export type CamRuntimeContext = {
     readonly address: string
   }
   readonly params: Record<string, unknown>
-  readonly state: Record<string, unknown>
-  readonly outputs: Record<string, unknown>
 }
 
 export type CamRouteCall = {

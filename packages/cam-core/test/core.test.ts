@@ -61,8 +61,6 @@ test("resolves a CAM route into a plain call descriptor", () => {
     params: {
       serialNumber: "ABC123",
     },
-    state: {},
-    outputs: {},
   })
 
   const call = resolveRouteCall(cam, "component", context)
@@ -94,8 +92,6 @@ test("keeps non-expression strings literal", () => {
       address: "0x0000000000000000000000000000000000000001",
     },
     params: {},
-    state: {},
-    outputs: {},
   })
 
   assert.deepEqual(resolveRouteCall(cam, "entry", context).args, ["Price: $5"])
@@ -138,11 +134,9 @@ test("rejects missing required context records", () => {
       address: "0x0000000000000000000000000000000000000001",
     },
     params: {},
-    state: {},
-    outputs: {},
   }
 
-  for (const field of ["params", "state", "outputs"] as const) {
+  for (const field of ["params"] as const) {
     const input = { ...base }
     delete input[field]
 
@@ -166,8 +160,6 @@ test("rejects non-JSON record objects", () => {
         address: "0x0000000000000000000000000000000000000001",
       },
       params: new Date(),
-      state: {},
-      outputs: {},
     }),
     (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
   )
@@ -183,9 +175,6 @@ test("copies nested runtime context records", () => {
       component: {
         serialNumber: "ABC123",
       },
-    },
-    state: {},
-    outputs: {
       count: BigInt(1),
     },
   }
@@ -200,7 +189,7 @@ test("copies nested runtime context records", () => {
       entry: {
         contract: "BicycleComponentManagerUI",
         function: "viewEntry",
-        args: ["$params.component.serialNumber", "$outputs.count"],
+        args: ["$params.component.serialNumber", "$params.count"],
       },
     },
   })
@@ -215,8 +204,6 @@ test("rejects unsupported runtime context values", () => {
       address: "0x0000000000000000000000000000000000000001",
     },
     params: {},
-    state: {},
-    outputs: {},
   }
   const invalidValues = [
     undefined,
@@ -249,8 +236,6 @@ test("rejects account context without an address", () => {
       },
       account: {},
       params: {},
-      state: {},
-      outputs: {},
     }),
     (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
   )
@@ -265,11 +250,25 @@ test("rejects explicitly undefined optional context fields", () => {
       },
       account: undefined,
       params: {},
-      state: {},
-      outputs: {},
     }),
     (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
   )
+})
+
+test("rejects renderer-owned context fields", () => {
+  for (const field of ["state", "outputs"] as const) {
+    assert.throws(
+      () => createContext({
+        host: {
+          chainId: "eip155:31337",
+          address: "0x0000000000000000000000000000000000000001",
+        },
+        params: {},
+        [field]: {},
+      }),
+      (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+    )
+  }
 })
 
 test("rejects invalid expression syntax", () => {
@@ -443,8 +442,6 @@ test("rejects unresolved expression values", () => {
     params: {
       serialNumber: "ABC123",
     },
-    state: {},
-    outputs: {},
   })
 
   assert.throws(
@@ -464,8 +461,6 @@ test("rejects inherited route names", () => {
       address: "0x0000000000000000000000000000000000000001",
     },
     params: {},
-    state: {},
-    outputs: {},
   })
 
   assert.throws(
