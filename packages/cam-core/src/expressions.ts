@@ -88,9 +88,6 @@ function resolveString(value: string, context: CamRuntimeContext): unknown {
 
   const segments = value.slice(1).split(".")
   const root = segments[0]
-  if (!ALLOWED_ROOTS.has(root)) {
-    throw new CamError("CAM_INVALID_EXPRESSION", `unknown expression root: ${root}`)
-  }
 
   let current: unknown = context[root as keyof CamRuntimeContext]
   for (const segment of segments.slice(1)) {
@@ -117,5 +114,10 @@ function validateExpressionString(value: string, path?: string): void {
 
   if (!EXPRESSION_RE.test(value)) {
     throw new CamError("CAM_INVALID_EXPRESSION", `invalid expression syntax: ${value}`, path)
+  }
+
+  const root = value.slice(1).split(".", 1)[0]
+  if (!ALLOWED_ROOTS.has(root)) {
+    throw new CamError("CAM_INVALID_EXPRESSION", `unknown expression root: ${root}`, path)
   }
 }

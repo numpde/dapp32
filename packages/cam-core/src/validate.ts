@@ -37,7 +37,7 @@ export function parseCam(input: unknown): CamDocument {
 }
 
 function parseContracts(source: Record<string, unknown>): Record<string, CamContract> {
-  const contracts: Record<string, CamContract> = {}
+  const contracts = createStringMap<CamContract>()
 
   for (const [name, value] of Object.entries(source)) {
     if (name.length === 0) {
@@ -60,7 +60,7 @@ function parseRoutes(
   source: Record<string, unknown>,
   contracts: Record<string, CamContract>,
 ): Record<string, CamRoute> {
-  const routes: Record<string, CamRoute> = {}
+  const routes = createStringMap<CamRoute>()
 
   for (const [name, value] of Object.entries(source)) {
     if (name.length === 0) {
@@ -88,6 +88,12 @@ function parseRoutes(
   }
 
   return routes
+}
+
+function createStringMap<T>(): Record<string, T> {
+  // CAM contract and route collections are JSON string maps. A null prototype
+  // keeps keys such as "__proto__" as ordinary data instead of object behavior.
+  return Object.create(null) as Record<string, T>
 }
 
 function cloneJsonValue(value: unknown): unknown {

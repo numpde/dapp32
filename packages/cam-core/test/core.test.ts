@@ -201,6 +201,22 @@ test("rejects invalid expression syntax", () => {
   )
 })
 
+test("rejects unknown expression roots while parsing", () => {
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      routes: {
+        entry: {
+          contract: "BicycleComponentManagerUI",
+          function: "viewEntry",
+          args: ["$wallet.address"],
+        },
+      },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_EXPRESSION",
+  )
+})
+
 test("rejects route args that cannot exist in JSON", () => {
   const invalidArgs = [
     new Date(),
@@ -275,6 +291,35 @@ test("copies route args out of the input document", () => {
   input.routes.entry.args[0].value = "$params.changed"
 
   assert.deepEqual(cam.routes.entry.args, [{ value: "$params.serialNumber" }])
+})
+
+test("keeps contract and route map keys prototype-neutral", () => {
+  const cam = parseCam(JSON.parse(`{
+    "cam": "1.0.0",
+    "name": "Prototype key fixture",
+    "entry": "__proto__",
+    "contracts": {
+      "__proto__": {
+        "abiURI": "./abi/proto.json"
+      }
+    },
+    "routes": {
+      "__proto__": {
+        "contract": "__proto__",
+        "function": "viewEntry",
+        "args": []
+      }
+    }
+  }`))
+
+  assert.equal(Object.getPrototypeOf(cam.contracts), null)
+  assert.equal(Object.getPrototypeOf(cam.routes), null)
+  assert.deepEqual(cam.contracts.__proto__, { abiURI: "./abi/proto.json" })
+  assert.deepEqual(cam.routes.__proto__, {
+    contract: "__proto__",
+    function: "viewEntry",
+    args: [],
+  })
 })
 
 test("rejects explicitly undefined optional CAM metadata", () => {
