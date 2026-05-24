@@ -21,6 +21,8 @@ cache
 out
 broadcast
 reports
+dist
+packages/*/dist
 node_modules
 dapps/dependencies
 .cache

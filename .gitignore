@@ -21,6 +21,8 @@ cache/
 out/
 broadcast/
 reports/
+dist/
+packages/*/dist/
 .cache/
 .mypy_cache/
 .pytest_cache/
