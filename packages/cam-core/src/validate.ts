@@ -1,22 +1,24 @@
 import { CamError } from "./errors.ts"
 import { validateExpressionValue } from "./expressions.ts"
 import {
+  createStringMap,
   hasOwn,
   isRecordObject,
   requiredArray,
   requiredNonEmptyString,
   requiredRecord,
+  rejectUnknownFields,
 } from "./guards.ts"
+import { CAM_VERSION } from "./constants.ts"
 import type { CamContract, CamDocument, CamRoute } from "./types.ts"
 
 const TOP_LEVEL_KEYS = new Set(["cam", "entry", "contracts", "routes"])
 const CONTRACT_KEYS = new Set(["abiURI"])
 const ROUTE_KEYS = new Set(["contract", "function", "args"])
-const SUPPORTED_CAM_VERSION = "1.0.0"
 
 export function parseCam(input: unknown): CamDocument {
   const source = requiredRecord(input, "")
-  rejectUnknownFields(source, TOP_LEVEL_KEYS, "")
+  rejectUnknownCamFields(source, TOP_LEVEL_KEYS, "")
 
   const contracts = parseContracts(requiredRecord(source.contracts, "contracts"))
   const routes = parseRoutes(requiredRecord(source.routes, "routes"), contracts)
@@ -36,7 +38,7 @@ export function parseCam(input: unknown): CamDocument {
 
 function parseCamVersion(value: unknown): string {
   const version = requiredNonEmptyString(value, "cam")
-  if (version !== SUPPORTED_CAM_VERSION) {
+  if (version !== CAM_VERSION) {
     throw new CamError("CAM_INVALID_FIELD", `unsupported CAM version: ${version}`, "cam")
   }
 
@@ -53,7 +55,7 @@ function parseContracts(source: Record<string, unknown>): Record<string, CamCont
 
     const path = `contracts.${name}`
     const contract = requiredRecord(value, path)
-    rejectUnknownFields(contract, CONTRACT_KEYS, path)
+    rejectUnknownCamFields(contract, CONTRACT_KEYS, path)
 
     contracts[name] = {
       abiURI: requiredNonEmptyString(contract.abiURI, `${path}.abiURI`),
@@ -76,7 +78,7 @@ function parseRoutes(
 
     const path = `routes.${name}`
     const route = requiredRecord(value, path)
-    rejectUnknownFields(route, ROUTE_KEYS, path)
+    rejectUnknownCamFields(route, ROUTE_KEYS, path)
 
     const contract = requiredNonEmptyString(route.contract, `${path}.contract`)
     if (!hasOwn(contracts, contract)) {
@@ -97,12 +99,6 @@ function parseRoutes(
   return routes
 }
 
-function createStringMap<T>(): Record<string, T> {
-  // CAM contract and route collections are JSON string maps. A null prototype
-  // keeps keys such as "__proto__" as ordinary data instead of object behavior.
-  return Object.create(null) as Record<string, T>
-}
-
 function cloneJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) {
     return value.map((item) => cloneJsonValue(item))
@@ -119,16 +115,12 @@ function cloneJsonValue(value: unknown): unknown {
   return value
 }
 
-function rejectUnknownFields(source: Record<string, unknown>, allowedKeys: ReadonlySet<string>, path: string): void {
+function rejectUnknownCamFields(
+  source: Record<string, unknown>,
+  allowedKeys: ReadonlySet<string>,
+  path: string,
+): void {
   // V1 is intentionally closed-world. Unknown fields are rejected so older or
   // richer CAM shapes cannot be partially interpreted as stricter V1 documents.
-  for (const key of Object.keys(source)) {
-    if (!allowedKeys.has(key)) {
-      throw new CamError("CAM_INVALID_FIELD", `field is not allowed in CAM 1.0.0: ${key}`, joinPath(path, key))
-    }
-  }
-}
-
-function joinPath(parent: string, key: string): string {
-  return parent === "" ? key : `${parent}.${key}`
+  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in CAM ${CAM_VERSION}: ${key}`)
 }

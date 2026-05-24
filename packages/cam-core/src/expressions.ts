@@ -1,9 +1,9 @@
 import { CamError } from "./errors.ts"
+import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import { hasOwn, isRecordObject } from "./guards.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/
-const ALLOWED_ROOTS = new Set(["host", "account", "params"])
 
 export function resolveValue(value: unknown, context: CamRuntimeContext): unknown {
   if (typeof value === "string") {
@@ -117,7 +117,7 @@ function validateExpressionString(value: string, path?: string): void {
   }
 
   const root = value.slice(1).split(".", 1)[0]
-  if (!ALLOWED_ROOTS.has(root)) {
+  if (!CAM_CONTEXT_KEYS.has(root)) {
     throw new CamError("CAM_INVALID_EXPRESSION", `unknown expression root: ${root}`, path)
   }
 }

@@ -1,8 +1,14 @@
 import { CamError } from "./errors.ts"
-import { hasOwn, isRecordObject, requiredNonEmptyString, requiredRecord } from "./guards.ts"
+import {
+  createStringMap,
+  hasOwn,
+  isRecordObject,
+  rejectUnknownFields,
+  requiredNonEmptyString,
+  requiredRecord,
+} from "./guards.ts"
+import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import type { CamRuntimeContext } from "./types.ts"
-
-const CONTEXT_KEYS = new Set(["host", "account", "params"])
 
 export function createContext(input: unknown): CamRuntimeContext {
   const source = requiredRecord(input, "")
@@ -32,16 +38,17 @@ export function createContext(input: unknown): CamRuntimeContext {
 function rejectUnknownContextFields(source: Record<string, unknown>): void {
   // Core owns only the data needed to resolve route-call arguments. UI state,
   // previous call outputs, caches, and renderer-local data belong above core.
-  for (const key of Object.keys(source)) {
-    if (!CONTEXT_KEYS.has(key)) {
-      throw new CamError("CAM_INVALID_FIELD", `field is not allowed in CAM runtime context: ${key}`, key)
-    }
-  }
+  rejectUnknownFields(
+    source,
+    CAM_CONTEXT_KEYS,
+    "",
+    (key) => `field is not allowed in CAM runtime context: ${key}`,
+  )
 }
 
 function cloneContextRecord(value: unknown, path: string): Record<string, unknown> {
   const source = requiredRecord(value, path)
-  const clone = Object.create(null) as Record<string, unknown>
+  const clone = createStringMap<unknown>()
 
   for (const [key, item] of Object.entries(source)) {
     clone[key] = cloneContextValue(item, `${path}.${key}`)
