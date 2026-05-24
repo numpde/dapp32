@@ -12,10 +12,7 @@ export type { CamErrorCode } from "./errors.ts"
 
 export { parseCam } from "./validate.ts"
 
-export {
-  createContext,
-  mergeContext,
-} from "./context.ts"
+export { createContext } from "./context.ts"
 
 export {
   resolveArgs,

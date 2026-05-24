@@ -36,40 +36,6 @@ export function createContext(input: CamRuntimeContextInput): CamRuntimeContext 
   }
 }
 
-export function mergeContext(
-  base: CamRuntimeContext,
-  patch: Partial<CamRuntimeContext>,
-): CamRuntimeContext {
-  // The patch argument is intentionally required so callers do not use this as
-  // a silent clone/defaulting path. Missing bags still come from the base.
-  return createContext({
-    host: {
-      ...base.host,
-      ...patch.host,
-    },
-    ...(base.account === undefined && patch.account === undefined
-      ? {}
-      : {
-          account: {
-            ...base.account,
-            ...patch.account,
-          },
-        }),
-    params: {
-      ...base.params,
-      ...patch.params,
-    },
-    state: {
-      ...base.state,
-      ...patch.state,
-    },
-    outputs: {
-      ...base.outputs,
-      ...patch.outputs,
-    },
-  })
-}
-
 function requiredRecord(value: Record<string, unknown> | undefined, path: string): Record<string, unknown> {
   if (value === undefined) {
     throw new CamError("CAM_INVALID_FIELD", "expected an object", path)
