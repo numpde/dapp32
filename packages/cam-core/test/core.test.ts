@@ -66,9 +66,44 @@ test("resolves a CAM route into a plain call descriptor", () => {
 })
 
 test("keeps non-expression strings literal", () => {
-  const context = createContext()
+  const context = createContext({
+    host: {
+      chainId: "eip155:31337",
+      address: "0x0000000000000000000000000000000000000001",
+    },
+  })
 
   assert.equal(resolveValue("Price: $5", context), "Price: $5")
+})
+
+test("rejects missing required host context", () => {
+  assert.throws(
+    () => createContext({
+      host: {
+        address: "0x0000000000000000000000000000000000000001",
+      },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
+
+  assert.throws(
+    () => createContext({
+      host: {
+        chainId: "eip155:31337",
+      },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
+
+  assert.throws(
+    () => createContext({
+      host: {
+        chainId: "",
+        address: "0x0000000000000000000000000000000000000001",
+      },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
 })
 
 test("rejects invalid expression syntax", () => {
@@ -90,6 +125,10 @@ test("rejects invalid expression syntax", () => {
 test("rejects unresolved expression values", () => {
   const cam = parseCam(mainJson)
   const context = createContext({
+    host: {
+      chainId: "eip155:31337",
+      address: "0x0000000000000000000000000000000000000001",
+    },
     params: {
       serialNumber: "ABC123",
     },

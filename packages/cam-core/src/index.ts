@@ -5,6 +5,7 @@ export type {
   CamRouteCall,
   CamRuntimeContext,
 } from "./types.ts"
+export type { CamRuntimeContextInput } from "./context.ts"
 
 export { CamError } from "./errors.ts"
 export type { CamErrorCode } from "./errors.ts"

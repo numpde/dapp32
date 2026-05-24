@@ -1,20 +1,26 @@
 import { CamError } from "./errors.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
-export function createContext(input: Partial<CamRuntimeContext> = {}): CamRuntimeContext {
-  const host: Partial<CamRuntimeContext["host"]> = input.host ?? {}
+export type CamRuntimeContextInput = Partial<Omit<CamRuntimeContext, "host">> & {
+  readonly host: Partial<CamRuntimeContext["host"]>
+}
+
+export function createContext(input: CamRuntimeContextInput): CamRuntimeContext {
+  const host = input.host
   const account = input.account
 
   return {
     host: {
-      chainId: optionalString(host.chainId, "host.chainId") ?? "",
-      address: optionalString(host.address, "host.address") ?? "",
+      chainId: requiredString(host.chainId, "host.chainId"),
+      address: requiredString(host.address, "host.address"),
     },
     ...(account === undefined
       ? {}
       : {
           account: {
-            ...(account.address === undefined ? {} : { address: optionalString(account.address, "account.address") }),
+            ...(account.address === undefined
+              ? {}
+              : { address: optionalNonEmptyString(account.address, "account.address") }),
           },
         }),
     params: copyRecord(input.params, "params"),
@@ -67,16 +73,24 @@ function copyRecord(value: Record<string, unknown> | undefined, path: string): R
   return { ...value }
 }
 
-function optionalString(value: unknown, path: string): string | undefined {
-  if (value === undefined) {
-    return undefined
-  }
-
+function requiredString(value: unknown, path: string): string {
   if (typeof value !== "string") {
     throw new CamError("CAM_INVALID_FIELD", "expected a string", path)
   }
 
+  if (value.length === 0) {
+    throw new CamError("CAM_INVALID_FIELD", "expected a non-empty string", path)
+  }
+
   return value
+}
+
+function optionalNonEmptyString(value: unknown, path: string): string | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  return requiredString(value, path)
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
