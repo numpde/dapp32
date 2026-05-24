@@ -9,9 +9,10 @@ import {
 } from "./guards.ts"
 import type { CamContract, CamDocument, CamRoute } from "./types.ts"
 
-const TOP_LEVEL_KEYS = new Set(["$schema", "cam", "name", "description", "entry", "contracts", "routes"])
+const TOP_LEVEL_KEYS = new Set(["cam", "entry", "contracts", "routes"])
 const CONTRACT_KEYS = new Set(["abiURI"])
 const ROUTE_KEYS = new Set(["contract", "function", "args"])
+const SUPPORTED_CAM_VERSION = "1.0.0"
 
 export function parseCam(input: unknown): CamDocument {
   const source = requiredRecord(input, "")
@@ -26,14 +27,20 @@ export function parseCam(input: unknown): CamDocument {
   }
 
   return {
-    ...optionalNonEmptyStringProperty(source, "$schema"),
-    cam: requiredNonEmptyString(source.cam, "cam"),
-    name: requiredNonEmptyString(source.name, "name"),
-    ...optionalNonEmptyStringProperty(source, "description"),
+    cam: parseCamVersion(source.cam),
     entry,
     contracts,
     routes,
   }
+}
+
+function parseCamVersion(value: unknown): string {
+  const version = requiredNonEmptyString(value, "cam")
+  if (version !== SUPPORTED_CAM_VERSION) {
+    throw new CamError("CAM_INVALID_FIELD", `unsupported CAM version: ${version}`, "cam")
+  }
+
+  return version
 }
 
 function parseContracts(source: Record<string, unknown>): Record<string, CamContract> {
@@ -110,16 +117,6 @@ function cloneJsonValue(value: unknown): unknown {
   }
 
   return value
-}
-
-function optionalNonEmptyStringProperty(source: Record<string, unknown>, key: string): Record<string, string> {
-  if (!hasOwn(source, key)) {
-    // These are document metadata fields. Absence is meaningful and distinct
-    // from an empty string or explicit undefined, which are rejected below.
-    return {}
-  }
-
-  return { [key]: requiredNonEmptyString(source[key], key) }
 }
 
 function rejectUnknownFields(source: Record<string, unknown>, allowedKeys: ReadonlySet<string>, path: string): void {

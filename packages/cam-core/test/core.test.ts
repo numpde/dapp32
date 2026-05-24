@@ -11,10 +11,7 @@ import {
 } from "../src/index.ts"
 
 const mainJson = {
-  $schema: "https://cam.example/schemas/cam-1.json",
   cam: "1.0.0",
-  name: "Bicycle Registry",
-  description: "Register and verify bicycle components by serial number.",
   entry: "entry",
   contracts: {
     BicycleComponentManagerUI: {
@@ -382,7 +379,6 @@ test("copies route args out of the input document", () => {
 test("keeps contract and route map keys prototype-neutral", () => {
   const cam = parseCam(JSON.parse(`{
     "cam": "1.0.0",
-    "name": "Prototype key fixture",
     "entry": "__proto__",
     "contracts": {
       "__proto__": {
@@ -408,12 +404,12 @@ test("keeps contract and route map keys prototype-neutral", () => {
   })
 })
 
-test("rejects explicitly undefined optional CAM metadata", () => {
-  for (const field of ["$schema", "description"] as const) {
+test("rejects display metadata in core CAM documents", () => {
+  for (const field of ["$schema", "name", "description"] as const) {
     assert.throws(
       () => parseCam({
         ...mainJson,
-        [field]: undefined,
+        [field]: "metadata belongs above core",
       }),
       (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
     )
@@ -421,7 +417,7 @@ test("rejects explicitly undefined optional CAM metadata", () => {
 })
 
 test("rejects empty required CAM strings", () => {
-  for (const field of ["cam", "name", "entry"] as const) {
+  for (const field of ["cam", "entry"] as const) {
     assert.throws(
       () => parseCam({
         ...mainJson,
@@ -430,6 +426,16 @@ test("rejects empty required CAM strings", () => {
       (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
     )
   }
+})
+
+test("rejects unsupported CAM versions", () => {
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      cam: "2.0.0",
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
 })
 
 test("rejects unresolved expression values", () => {

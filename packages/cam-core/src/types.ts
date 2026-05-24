@@ -1,8 +1,5 @@
 export type CamDocument = {
-  readonly $schema?: string
   readonly cam: string
-  readonly name: string
-  readonly description?: string
   readonly entry: string
   readonly contracts: Record<string, CamContract>
   readonly routes: Record<string, CamRoute>
