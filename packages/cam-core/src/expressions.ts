@@ -13,7 +13,7 @@ export function resolveValue(value: unknown, context: CamRuntimeContext): unknow
     return value.map((item) => resolveValue(item, context))
   }
 
-  if (isPlainObject(value)) {
+  if (isRecordObject(value)) {
     return Object.fromEntries(
       Object.entries(value).map(([key, item]) => [key, resolveValue(item, context)]),
     )
@@ -37,7 +37,7 @@ export function validateExpressionValue(value: unknown, path: string): void {
     return
   }
 
-  if (isPlainObject(value)) {
+  if (isRecordObject(value)) {
     for (const [key, item] of Object.entries(value)) {
       validateExpressionValue(item, `${path}.${key}`)
     }
@@ -48,6 +48,8 @@ function resolveValueAtPath(value: unknown, context: CamRuntimeContext, path: st
   try {
     return resolveValue(value, context)
   } catch (error) {
+    // Add the argument path only when a deeper resolver has not already
+    // supplied one. This keeps error locations useful without overwriting them.
     if (error instanceof CamError && error.path === undefined) {
       throw new CamError(error.code, error.message, path)
     }
@@ -73,7 +75,7 @@ function resolveString(value: string, context: CamRuntimeContext): unknown {
 
   let current: unknown = context[root as keyof CamRuntimeContext]
   for (const segment of segments.slice(1)) {
-    if (!isPlainObject(current) || !Object.prototype.hasOwnProperty.call(current, segment)) {
+    if (!isRecordObject(current) || !Object.prototype.hasOwnProperty.call(current, segment)) {
       throw new CamError("CAM_UNRESOLVED_VALUE", `unresolved expression: ${value}`)
     }
 
@@ -99,6 +101,8 @@ function validateExpressionString(value: string, path?: string): void {
   }
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  // Expression traversal only descends through record-like objects. Arrays are
+  // values, not addressable path maps in CAM V1.
   return value !== null && typeof value === "object" && !Array.isArray(value)
 }

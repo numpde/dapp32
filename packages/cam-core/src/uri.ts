@@ -65,6 +65,7 @@ function stripQuery(uri: string): string {
 }
 
 function splitSuffix(uri: string): [string, string] {
+  // Keep query/fragment text attached while resolving only the path prefix.
   const queryIndex = uri.indexOf("?")
   const fragmentIndex = uri.indexOf("#")
   const suffixIndex = [queryIndex, fragmentIndex].filter((index) => index >= 0).sort((left, right) => left - right)[0]
@@ -77,6 +78,8 @@ function splitSuffix(uri: string): [string, string] {
 }
 
 function directoryOf(path: string): string {
+  // URI resolution is relative to the containing resource, not the full file
+  // path. A base ending in "/" already names a directory-like resource.
   if (path.length === 0 || path.endsWith("/")) {
     return path
   }
@@ -91,6 +94,8 @@ function directoryOf(path: string): string {
 
 function normalizeRelativePath(path: string, basePath: string): string {
   const normalized = normalizePath(path)
+  // Preserve "./" for local file-style bases so examples and tests stay
+  // visibly relative instead of becoming bare paths.
   if (basePath.startsWith("./") && !normalized.startsWith(".") && !normalized.startsWith("/")) {
     return `./${normalized}`
   }

@@ -84,7 +84,7 @@ function parseRoutes(
 }
 
 function objectField(value: unknown, path: string): Record<string, unknown> {
-  if (!isPlainObject(value)) {
+  if (!isRecordObject(value)) {
     throw new CamError(path === "" ? "CAM_NOT_OBJECT" : "CAM_INVALID_FIELD", "expected an object", path || undefined)
   }
 
@@ -131,6 +131,8 @@ function requiredArrayField(value: unknown, path: string): readonly unknown[] {
 }
 
 function rejectUnknownFields(source: Record<string, unknown>, allowedKeys: ReadonlySet<string>, path: string): void {
+  // V1 is intentionally closed-world. Unknown fields are rejected so older or
+  // richer CAM shapes cannot be partially interpreted as stricter V1 documents.
   for (const key of Object.keys(source)) {
     if (!allowedKeys.has(key)) {
       throw new CamError("CAM_INVALID_FIELD", `field is not allowed in CAM 1.0.0: ${key}`, joinPath(path, key))
@@ -142,6 +144,8 @@ function joinPath(parent: string, key: string): string {
   return parent === "" ? key : `${parent}.${key}`
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  // Parsed CAM JSON should be made of records, arrays, and primitives. This
+  // guard selects record-like objects before field validation.
   return value !== null && typeof value === "object" && !Array.isArray(value)
 }

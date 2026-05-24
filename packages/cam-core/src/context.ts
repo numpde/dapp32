@@ -41,7 +41,7 @@ function requiredRecord(value: Record<string, unknown> | undefined, path: string
     throw new CamError("CAM_INVALID_FIELD", "expected an object", path)
   }
 
-  if (!isPlainObject(value)) {
+  if (!isRecordObject(value)) {
     throw new CamError("CAM_INVALID_FIELD", "expected an object", path)
   }
 
@@ -60,6 +60,8 @@ function requiredString(value: unknown, path: string): string {
   return value
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  // CAM runtime bags are JSON-style records. Arrays, null, and primitives are
+  // rejected before callers can read arbitrary fields from unknown input.
   return value !== null && typeof value === "object" && !Array.isArray(value)
 }
