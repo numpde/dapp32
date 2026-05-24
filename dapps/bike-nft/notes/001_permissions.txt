@@ -1,0 +1,129 @@
+# Bicycle Registry V1 Permission Plan
+
+This plan targets the current V1 architecture:
+
+- `CamRoot` is the app entry point and CAM/address resolver.
+- `BicycleComponents` is a non-upgradeable ERC-721 collection with role-gated minting and metadata updates.
+- `BicycleComponentManager` is the registry/status/policy contract.
+- `BicycleComponentManagerUI` is read-only: it selects CAM screens and aggregates view data.
+- Token transfers use standard ERC-721 transfer/approval methods directly on `BicycleComponents`.
+- Gas sponsorship, relayers, paymasters, bundlers, and frontends have no registry authority.
+
+## Core Principles
+
+1. No UI role. The UI contract is never a privileged caller of the manager.
+2. No admin fallback inside owner-level component permissions.
+3. Registrars create verified records; they do not control assets forever.
+4. Delegates get scoped, expiring capabilities granted by the current token owner.
+5. Delegations are valid only while the grantor remains the ERC-721 owner.
+6. Standard ERC-721 transfers are allowed in V1; manager status is registry truth, not a transfer gate.
+7. The account address is the actor. The signer, relayer, paymaster, bundler, and frontend are not authorization subjects.
+8. Recovery/dispute and transfer locks are V2 unless explicitly added to the token contract.
+
+## Global Ownership / Administration
+
+| Contract | Admin model | Notes |
+| --- | --- | --- |
+| `CamRoot` | `Ownable2Step` | Owner should be a Safe or timelock. Controls CAM URI/hash and contract address bindings. |
+| `BicycleComponents` | `AccessControl` | Non-upgradeable. Admin grants minter/metadata/config/pause roles. |
+| `BicycleComponentManager` | `AccessControl` | Non-upgradeable V1. Admin manages registrars/config/status attesters. |
+| `BicycleComponentManagerUI` | Immutable or minimal owner/config role | No roles on the manager. No write authority. |
+
+## `CamRoot` Permissions
+
+| Function | Authorized actor | Notes |
+| --- | --- | --- |
+| `setCam(uri, hash)` | `owner()` | Updates the CAM served by the root. Prefer Safe/timelock owner. |
+| `setContractAddress(name, deployedAt)` | `owner()` | Sets/clears app contract address bindings. Passing `address(0)` clears. |
+| `transferOwnership(newOwner)` | `owner()` | Two-step via `Ownable2Step`; new owner must accept. |
+
+## `BicycleComponents` Permissions
+
+| Function | Authorized actor | Notes |
+| --- | --- | --- |
+| `mint(to, tokenId, uri)` | `MINTER_ROLE` | Usually granted to `BicycleComponentManager`. |
+| `safeMint(to, tokenId, uri, data)` | `MINTER_ROLE` | Same, with receiver check. |
+| `setTokenURI(tokenId, uri)` | `TOKEN_URI_SETTER_ROLE` | Usually granted to `BicycleComponentManager`. Manager performs owner/delegate authorization first. |
+| `pause()` | `PAUSER_ROLE` | Emergency stop for mint/metadata operations and, if pausable ERC-721 is used, transfers. |
+| `unpause()` | `PAUSER_ROLE` or separate safer role | Consider separate unpause authority later. |
+| `setBaseURI(uri)` | `CONFIGURER_ROLE` | Collection config only. |
+| `setContractURI(uri)` | `CONFIGURER_ROLE` | Collection metadata only. |
+| `grantRole(...)` / `revokeRole(...)` | `DEFAULT_ADMIN_ROLE` | Prefer Safe/timelock. |
+| ERC-721 `transferFrom` / `safeTransferFrom` | Owner or ERC-721 approved operator | Standard ERC-721 transfer path in V1. |
+| ERC-721 `approve` / `setApprovalForAll` | Owner / approved operator | Standard ERC-721 approval path in V1. |
+
+## `BicycleComponentManager` Roles
+
+| Role | Purpose | V1 holder |
+| --- | --- | --- |
+| `DEFAULT_ADMIN_ROLE` | Grants/revokes manager roles | Safe or timelock |
+| `REGISTRAR_ROLE` | Creates verified component records | Shops, manufacturers, trusted operators |
+| `CONFIGURER_ROLE` | Configures default/allowed component token contracts | Safe or timelock |
+| `PAUSER_ROLE` | Emergency pause of manager writes | Emergency Safe |
+| `STATUS_ATTESTER_ROLE` | Adds official attestations | Optional V1 role |
+
+Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not include `RECOVERY_ROLE` until recovery/dispute is implemented. Do not include `WITHDRAWER_ROLE` unless the manager collects fees.
+
+## `BicycleComponentManager` Function Permissions
+
+| Function | Authorized actor | Notes |
+| --- | --- | --- |
+| `registerComponent(owner, serial, metadataURI)` | `REGISTRAR_ROLE` | Uses the configured default component-token contract. Creates a verified record. |
+| `registerComponentIn(tokenContract, owner, serial, metadataURI)` | `REGISTRAR_ROLE` and `tokenContract` must be allowed | Existing records store `tokenContract + tokenId`; changing defaults affects future records only. |
+| `setDefaultComponents(tokenContract)` | `CONFIGURER_ROLE` | Future registrations only. Does not reinterpret old records. |
+| `setAllowedComponents(tokenContract, allowed)` | `CONFIGURER_ROLE` | Recommended if `registerComponentIn` exists. Prevents arbitrary token targets. |
+| `setComponentMetadata(serial, uri)` | Current ERC-721 owner or `CAP_UPDATE_METADATA` delegate | Manager calls token `setTokenURI` after authorization. |
+| `markMissing(serial)` | Current ERC-721 owner or `CAP_MARK_MISSING` delegate | Emits the reporter. V1 status only; does not block ERC-721 transfer unless token later enforces locks. |
+| `clearMissing(serial)` | Current ERC-721 owner or `CAP_CLEAR_MISSING` delegate | Ordinary registrars should not clear missing status by role alone. |
+| `retireComponent(serial)` | Current ERC-721 owner or `CAP_RETIRE` delegate | Treat as final/irreversible unless explicitly designed otherwise. |
+| `setComponentDelegate(serial, delegate, caps, validUntil)` | Current ERC-721 owner | Store `grantor = owner`. Delegation is valid only while `ownerOf(tokenContract, tokenId) == grantor`. |
+| `revokeComponentDelegate(serial, delegate)` | Current ERC-721 owner | Old-owner delegations are automatically ineffective after transfer. |
+| `addRegistrarAttestation(serial, uri)` | Original registrar or `STATUS_ATTESTER_ROLE` | Does not alter ownership, token URI, or missing status. |
+| `setAccountInfo(uri)` | `msg.sender` only | Prefer no `account` parameter. If kept, require `account == msg.sender`. |
+| `pause()` | `PAUSER_ROLE` | Emergency stop for manager writes. |
+| `unpause()` | `PAUSER_ROLE` or separate governance role | Consider separate unpause authority later. |
+| `grantRole(...)` / `revokeRole(...)` | `DEFAULT_ADMIN_ROLE` | Registrar onboarding/removal. Prefer Safe/timelock. |
+
+## Explicitly Out of V1
+
+| Feature | Reason |
+| --- | --- |
+| `transferComponent(serial, to)` | Transfers are standard ERC-721 calls on the token contract. |
+| `CAP_TRANSFER` | Duplicates ERC-721 approvals in V1. Reconsider only if manager-mediated transfer returns. |
+| `claimComponent(...)` | Unverified claims need separate product semantics. Defer. |
+| Recovery/dispute hard transfer | Requires token-level transfer control or privileged transfer support. Defer to V2. |
+| ERC-5192 / transfer locks | Useful later, but not part of the simple V1 token. |
+| `upgradeToAndCall(...)` | V1 token and manager are non-upgradeable. |
+| AccessManager | Useful for larger multi-contract deployments, but overkill for V1. Safe/timelock + AccessControl is enough. |
+| UI write functions / UI role | UI contract is read-only route/view-model helper. |
+| Paymaster/relayer authorization | Gas sponsorship does not grant registry permissions. |
+
+## Delegation Validity Rule
+
+A delegation should not rely on transfer hooks or epoch bumps, because V1 permits direct ERC-721 transfers. Store the grantor and check current ownership every time:
+
+```solidity
+struct Delegation {
+    address grantor;
+    uint64 capabilities;
+    uint48 validUntil;
+}
+
+function _hasCapability(uint256 recordId, address actor, uint64 capability) internal view returns (bool) {
+    Delegation memory d = delegations[recordId][actor];
+    if (d.grantor == address(0)) return false;
+    if (d.validUntil != 0 && d.validUntil < block.timestamp) return false;
+    if ((d.capabilities & capability) == 0) return false;
+
+    ComponentRecord memory r = records[recordId];
+    return IERC721(r.tokenContract).ownerOf(r.tokenId) == d.grantor;
+}
+```
+
+## V2 Candidates
+
+- Transfer locks for `Missing`, `Disputed`, or `Retired` states.
+- ERC-5192 / ERC-6454 transferability standards.
+- Recovery/dispute state machine with delay.
+- Owner-consent signatures via EIP-712 / ERC-1271.
+- AccessManager if the deployed system grows across many contracts.
