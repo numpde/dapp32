@@ -1,0 +1,27 @@
+{
+  "name": "@cam/evm-viem",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test --experimental-strip-types test/*.test.ts"
+  },
+  "dependencies": {
+    "@cam/core": "workspace:*",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3"
+  }
+}
