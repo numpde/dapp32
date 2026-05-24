@@ -1,364 +1,768 @@
 pragma solidity 0.8.35;
 
-import "@openzeppelin-contracts-upgradeable-5.6.1/access/AccessControlUpgradeable.sol";
-import "@openzeppelin-contracts-upgradeable-5.6.1/proxy/utils/Initializable.sol";
-import "@openzeppelin-contracts-upgradeable-5.6.1/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin-contracts-upgradeable-5.6.1/utils/PausableUpgradeable.sol";
+import {
+    AccessControlDefaultAdminRules
+} from "@openzeppelin-contracts-5.6.1/access/extensions/AccessControlDefaultAdminRules.sol";
+import {Pausable} from "@openzeppelin-contracts-5.6.1/utils/Pausable.sol";
+import {IERC165} from "@openzeppelin-contracts-5.6.1/utils/introspection/IERC165.sol";
 
-import "./BicycleComponents.sol";
-import "./Utils.sol";
-import "./BicycleComponentOpsFund.sol";
+import {IBicycleComponents} from "./IBicycleComponents.sol";
 
-/// @title Bicycle Component Manager Contract
-/// @notice This contract manages the BicycleComponents NFT contract.
-contract BicycleComponentManager is Initializable, PausableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable {
-    using Utils for string;
+/// @title BicycleComponentManager
+/// @notice Registry and policy contract for bicycle component NFTs.
+/// @dev
+/// V1 keeps the ERC-721 token contract simple and transferable. This manager
+/// stores the bicycle-specific registry state:
+///
+/// - serial number -> component NFT reference;
+/// - verified registrar-created records;
+/// - missing / retired status;
+/// - owner-granted delegates for registry actions;
+/// - account profile URIs and event-only attestations.
+///
+/// The manager can use different component-token contracts over time. Each
+/// registered component stores its own `tokenContract`, so changing the default
+/// collection only affects future registrations.
+contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable {
+    // ---------------------------------------------------------------------
+    // Roles
+    // ---------------------------------------------------------------------
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
+    bytes32 public constant CONFIGURER_ROLE = keccak256("CONFIGURER_ROLE");
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
+    bytes32 public constant STATUS_ATTESTER_ROLE = keccak256("STATUS_ATTESTER_ROLE");
 
-    uint256 public minAmountOnRegister;
-    uint256 public maxAmountOnRegister;
+    // ---------------------------------------------------------------------
+    // Component-level delegation capabilities
+    // ---------------------------------------------------------------------
 
-    BicycleComponents public nftContract;
+    uint64 public constant CAP_UPDATE_METADATA = 1 << 0;
+    uint64 public constant CAP_MARK_MISSING = 1 << 1;
+    uint64 public constant CAP_CLEAR_MISSING = 1 << 2;
+    uint64 public constant CAP_RETIRE = 1 << 3;
 
-    mapping(address => string) private _accountInfo;
-    mapping(uint256 => bool) private _missingStatus;
-    mapping(uint256 => mapping(address => bool)) private _componentOperatorApproval;
+    uint64 public constant VALID_CAPABILITY_MASK =
+        CAP_UPDATE_METADATA | CAP_MARK_MISSING | CAP_CLEAR_MISSING | CAP_RETIRE;
 
-    // Upgraded
-    bytes32 public constant UI_ROLE = keccak256("UI_ROLE");
-    string public constant INSUFFICIENT_RIGHTS = "BCM: Insufficient rights";
-    BicycleComponentOpsFund public opsFundContract;
+    uint48 public constant DEFAULT_MAX_DELEGATION_DURATION = 365 days;
 
-    event AccountInfoSet(address indexed account, string info);
-    event ComponentRegistered(address indexed owner, string indexed serialNumber, uint256 indexed tokenId, string uri);
-    event UpdatedComponentURI(string indexed serialNumber, uint256 indexed tokenId, string uri);
-    event ComponentTransferred(string indexed serialNumber, uint256 indexed tokenId, address indexed to);
-    event UpdatedMissingStatus(string indexed serialNumber, uint256 indexed tokenId, bool indexed isMissing);
-    event UpdatedComponentOperatorApproval(
-        address indexed operator, string indexed serialNumber, uint256 indexed tokenId, bool approved
+    // ---------------------------------------------------------------------
+    // Types
+    // ---------------------------------------------------------------------
+
+    enum ComponentStatus {
+        None,
+        Active,
+        Missing,
+        Retired
+    }
+
+    struct ComponentRecord {
+        bytes32 serialHash;
+        address tokenContract;
+        uint256 tokenId;
+        address registrar;
+        ComponentStatus status;
+        uint48 registeredAt;
+        uint48 updatedAt;
+        string serialNumber;
+    }
+
+    struct ComponentView {
+        bool exists;
+        bytes32 serialHash;
+        address tokenContract;
+        uint256 tokenId;
+        address owner;
+        address registrar;
+        ComponentStatus status;
+        string tokenURI;
+        uint48 registeredAt;
+        uint48 updatedAt;
+        string serialNumber;
+    }
+
+    /// @notice Owner-granted registry-action delegation.
+    /// @dev A delegation is effective only while `grantor` remains the token owner.
+    struct Delegation {
+        address grantor;
+        uint64 capabilities;
+        uint48 validUntil;
+    }
+
+    // ---------------------------------------------------------------------
+    // Storage
+    // ---------------------------------------------------------------------
+
+    address private _defaultComponents;
+    uint48 private _maxDelegationDuration;
+
+    mapping(address tokenContract => bool allowed) private _componentCollections;
+    mapping(bytes32 serialHash => ComponentRecord record) private _componentRecords;
+    mapping(bytes32 serialHash => mapping(address delegate => Delegation delegation)) private _delegations;
+    mapping(address account => string infoURI) private _accountInfo;
+
+    // ---------------------------------------------------------------------
+    // Errors
+    // ---------------------------------------------------------------------
+
+    error ZeroAddress();
+    error EmptySerialNumber();
+    error ComponentsHasNoCode(address tokenContract);
+    error ComponentsUnsupported(address tokenContract);
+    error ComponentsNotAllowed(address tokenContract);
+    error DefaultComponentsUnset();
+    error ComponentAlreadyRegistered(bytes32 serialHash);
+    error ComponentNotRegistered(bytes32 serialHash);
+    error Unauthorized(address actor, bytes32 serialHash, uint64 requiredCapability);
+    error InvalidCapabilityMask(uint64 capabilities);
+    error InvalidDelegationExpiry(uint48 validUntil);
+    error InvalidStatus(ComponentStatus status);
+    error DoesNotAcceptPayments();
+    error UnknownFunction(bytes4 selector);
+
+    // ---------------------------------------------------------------------
+    // Events
+    // ---------------------------------------------------------------------
+
+    event ComponentCollectionSet(address indexed tokenContract, bool allowed);
+    event DefaultComponentsSet(address indexed oldTokenContract, address indexed newTokenContract);
+    event MaxDelegationDurationSet(uint48 oldDuration, uint48 newDuration);
+    event AccountInfoSet(address indexed account, string infoURI);
+
+    event ComponentRegistered(
+        bytes32 indexed serialHash,
+        address indexed tokenContract,
+        uint256 indexed tokenId,
+        address owner,
+        address registrar,
+        string serialNumber,
+        string tokenURI
     );
-    event Message(string message);
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
+    event ComponentMetadataUpdated(
+        bytes32 indexed serialHash,
+        address indexed tokenContract,
+        uint256 indexed tokenId,
+        address actor,
+        string serialNumber,
+        string tokenURI
+    );
+
+    event ComponentStatusUpdated(
+        bytes32 indexed serialHash,
+        address indexed tokenContract,
+        uint256 indexed tokenId,
+        address actor,
+        string serialNumber,
+        ComponentStatus oldStatus,
+        ComponentStatus newStatus
+    );
+
+    event ComponentDelegationSet(
+        bytes32 indexed serialHash,
+        address indexed grantor,
+        address indexed delegate,
+        string serialNumber,
+        uint64 capabilities,
+        uint48 validUntil
+    );
+
+    event ComponentAttestationAdded(
+        bytes32 indexed serialHash,
+        bytes32 indexed attestationType,
+        address indexed attester,
+        address tokenContract,
+        uint256 tokenId,
+        string serialNumber,
+        string attestationURI
+    );
+
+    // ---------------------------------------------------------------------
+    // Construction
+    // ---------------------------------------------------------------------
+
+    /// @param admin Safe, timelock, governance executor, or other secured admin account.
+    /// @param adminDelay Delay, in seconds, for future DEFAULT_ADMIN_ROLE transfers.
+    /// @param defaultComponents_ Optional default component-token contract for new registrations.
+    constructor(address admin, uint48 adminDelay, address defaultComponents_)
+        AccessControlDefaultAdminRules(adminDelay, admin)
+    {
+        _grantRole(PAUSER_ROLE, admin);
+        _grantRole(CONFIGURER_ROLE, admin);
+        _grantRole(REGISTRAR_ROLE, admin);
+        _grantRole(STATUS_ATTESTER_ROLE, admin);
+
+        _setMaxDelegationDuration(DEFAULT_MAX_DELEGATION_DURATION);
+
+        if (defaultComponents_ != address(0)) {
+            _setComponentCollection(defaultComponents_, true);
+            _setDefaultComponents(defaultComponents_);
+        }
     }
 
-    function initialize() public initializer {
-        __Pausable_init();
-        __AccessControl_init();
-        __UUPSUpgradeable_init();
+    // ---------------------------------------------------------------------
+    // Operations / configuration
+    // ---------------------------------------------------------------------
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-
-        _grantRole(PAUSER_ROLE, msg.sender);
-        _grantRole(UPGRADER_ROLE, msg.sender);
-        _grantRole(REGISTRAR_ROLE, msg.sender);
-    }
-
-    function pause() public onlyRole(PAUSER_ROLE) {
+    function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
-    function unpause() public onlyRole(PAUSER_ROLE) {
+    function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
-
-    function nftContractAddress() public view returns (address) {
-        return address(nftContract);
+    /// @notice Default component-token contract used by `registerComponent`.
+    function defaultComponents() external view returns (address) {
+        return _defaultComponents;
     }
 
-    function setNftContractAddress(address newAddress) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        nftContract = BicycleComponents(newAddress);
-        emit Message("NFT contract set");
+    /// @notice Returns whether a component-token contract is approved for registrations.
+    function isComponentCollection(address tokenContract) external view returns (bool) {
+        return _componentCollections[tokenContract];
     }
 
-    function opsFundContractAddress() public view returns (address) {
-        return address(opsFundContract);
+    /// @notice Allows or disallows a component-token contract for future registrations.
+    /// @dev Disallowing the current default clears the default. Existing records are unchanged.
+    function setComponentCollection(address tokenContract, bool allowed) external onlyRole(CONFIGURER_ROLE) {
+        _setComponentCollection(tokenContract, allowed);
+
+        if (!allowed && _defaultComponents == tokenContract) {
+            _setDefaultComponents(address(0));
+        }
     }
 
-    function setOpsFundContractAddress(address newAddress) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        opsFundContract = BicycleComponentOpsFund(newAddress);
-        emit Message("OpsFund set");
+    /// @notice Sets the default component-token contract for future registrations.
+    /// @dev Passing address(0) clears the default.
+    function setDefaultComponents(address tokenContract) external onlyRole(CONFIGURER_ROLE) {
+        if (tokenContract != address(0) && !_componentCollections[tokenContract]) {
+            _setComponentCollection(tokenContract, true);
+        }
+
+        _setDefaultComponents(tokenContract);
     }
 
-    // Convert a `serialNumber` string to a `tokenId` uint256
-    function generateTokenId(string memory serialNumber) public pure returns (uint256) {
-        return uint256(keccak256(abi.encodePacked(serialNumber)));
+    function maxDelegationDuration() external view returns (uint48) {
+        return _maxDelegationDuration;
     }
 
-    // Management rights
+    function setMaxDelegationDuration(uint48 duration) external onlyRole(CONFIGURER_ROLE) {
+        _setMaxDelegationDuration(duration);
+    }
 
-    function ownerOf(string memory serialNumber) public view returns (address) {
-        try nftContract.ownerOf(generateTokenId(serialNumber)) returns (address owner) {
+    // ---------------------------------------------------------------------
+    // Serial helpers
+    // ---------------------------------------------------------------------
+
+    function serialHashOf(string calldata serialNumber) public pure returns (bytes32) {
+        return keccak256(bytes(serialNumber));
+    }
+
+    /// @notice Deterministically maps a serial number to a token id.
+    /// @dev Serial-number normalization should happen off-chain before calling this function.
+    function tokenIdOf(string calldata serialNumber) public pure returns (uint256) {
+        return uint256(serialHashOf(serialNumber));
+    }
+
+    // ---------------------------------------------------------------------
+    // Registration
+    // ---------------------------------------------------------------------
+
+    /// @notice Registers a component into the default component-token collection.
+    function registerComponent(address owner, string calldata serialNumber, string calldata tokenURI_)
+        external
+        onlyRole(REGISTRAR_ROLE)
+        whenNotPaused
+        returns (address tokenContract, uint256 tokenId)
+    {
+        tokenContract = _defaultComponents;
+        if (tokenContract == address(0)) revert DefaultComponentsUnset();
+
+        tokenId = _registerComponent(tokenContract, owner, serialNumber, tokenURI_);
+    }
+
+    /// @notice Registers a component into a specific approved component-token collection.
+    function registerComponentIn(
+        address tokenContract,
+        address owner,
+        string calldata serialNumber,
+        string calldata tokenURI_
+    ) external onlyRole(REGISTRAR_ROLE) whenNotPaused returns (uint256 tokenId) {
+        tokenId = _registerComponent(tokenContract, owner, serialNumber, tokenURI_);
+    }
+
+    // ---------------------------------------------------------------------
+    // Owner / delegate registry actions
+    // ---------------------------------------------------------------------
+
+    function setComponentMetadata(string calldata serialNumber, string calldata tokenURI_) external whenNotPaused {
+        bytes32 serialHash = _requireSerialNumber(serialNumber);
+        ComponentRecord storage record = _requireRegistered(serialHash);
+        address actor = _msgSender();
+
+        if (!_canUpdateMetadata(record, actor)) {
+            revert Unauthorized(actor, serialHash, CAP_UPDATE_METADATA);
+        }
+        if (record.status == ComponentStatus.Retired) revert InvalidStatus(record.status);
+
+        IBicycleComponents(record.tokenContract).setTokenURI(record.tokenId, tokenURI_);
+        record.updatedAt = _now48();
+
+        emit ComponentMetadataUpdated(
+            serialHash, record.tokenContract, record.tokenId, actor, record.serialNumber, tokenURI_
+        );
+    }
+
+    function markMissing(string calldata serialNumber) external whenNotPaused {
+        _setMissing(serialNumber, true);
+    }
+
+    function clearMissing(string calldata serialNumber) external whenNotPaused {
+        _setMissing(serialNumber, false);
+    }
+
+    function setMissingStatus(string calldata serialNumber, bool isMissing) external whenNotPaused {
+        _setMissing(serialNumber, isMissing);
+    }
+
+    function retireComponent(string calldata serialNumber) external whenNotPaused {
+        bytes32 serialHash = _requireSerialNumber(serialNumber);
+        ComponentRecord storage record = _requireRegistered(serialHash);
+        address actor = _msgSender();
+
+        if (!_isTokenOwner(record, actor) && !_hasCapability(record, actor, CAP_RETIRE)) {
+            revert Unauthorized(actor, serialHash, CAP_RETIRE);
+        }
+        if (record.status == ComponentStatus.Retired) revert InvalidStatus(record.status);
+
+        _updateStatus(record, actor, ComponentStatus.Retired);
+    }
+
+    /// @notice Grants a delegate limited, expiring permission over registry actions for a component.
+    /// @dev The delegation is effective only while the grantor remains the token owner.
+    function setComponentDelegate(
+        string calldata serialNumber,
+        address delegate,
+        uint64 capabilities,
+        uint48 validUntil
+    ) external whenNotPaused {
+        if (delegate == address(0)) revert ZeroAddress();
+
+        bytes32 serialHash = _requireSerialNumber(serialNumber);
+        ComponentRecord storage record = _requireRegistered(serialHash);
+        address actor = _msgSender();
+        address owner = _ownerOfOrZero(record);
+
+        if (actor != owner) revert Unauthorized(actor, serialHash, 0);
+
+        _validateDelegation(capabilities, validUntil);
+
+        _delegations[serialHash][delegate] =
+            Delegation({grantor: owner, capabilities: capabilities, validUntil: validUntil});
+
+        emit ComponentDelegationSet(serialHash, owner, delegate, record.serialNumber, capabilities, validUntil);
+    }
+
+    function revokeComponentDelegate(string calldata serialNumber, address delegate) external whenNotPaused {
+        if (delegate == address(0)) revert ZeroAddress();
+
+        bytes32 serialHash = _requireSerialNumber(serialNumber);
+        ComponentRecord storage record = _requireRegistered(serialHash);
+        address actor = _msgSender();
+        address owner = _ownerOfOrZero(record);
+
+        if (actor != owner) revert Unauthorized(actor, serialHash, 0);
+
+        delete _delegations[serialHash][delegate];
+
+        emit ComponentDelegationSet(serialHash, owner, delegate, record.serialNumber, 0, 0);
+    }
+
+    // ---------------------------------------------------------------------
+    // Account/profile metadata
+    // ---------------------------------------------------------------------
+
+    function accountInfo(address account) external view returns (string memory) {
+        return _accountInfo[account];
+    }
+
+    /// @notice Sets the caller's public profile/contact-info URI.
+    /// @dev Store a URI or content hash, not sensitive plaintext personal data.
+    function setAccountInfo(string calldata infoURI) external whenNotPaused {
+        address account = _msgSender();
+        _accountInfo[account] = infoURI;
+        emit AccountInfoSet(account, infoURI);
+    }
+
+    // ---------------------------------------------------------------------
+    // Attestations
+    // ---------------------------------------------------------------------
+
+    /// @notice Emits an attestation for a registered component without changing ownership or status.
+    /// @dev The original registrar or STATUS_ATTESTER_ROLE can add official notes/evidence URIs.
+    function addComponentAttestation(
+        string calldata serialNumber,
+        bytes32 attestationType,
+        string calldata attestationURI
+    ) external whenNotPaused {
+        bytes32 serialHash = _requireSerialNumber(serialNumber);
+        ComponentRecord storage record = _requireRegistered(serialHash);
+        address actor = _msgSender();
+
+        if (actor != record.registrar && !hasRole(STATUS_ATTESTER_ROLE, actor)) {
+            revert Unauthorized(actor, serialHash, 0);
+        }
+
+        emit ComponentAttestationAdded(
+            serialHash,
+            attestationType,
+            actor,
+            record.tokenContract,
+            record.tokenId,
+            record.serialNumber,
+            attestationURI
+        );
+    }
+
+    // ---------------------------------------------------------------------
+    // UI-friendly reads
+    // ---------------------------------------------------------------------
+
+    function isRegistered(string calldata serialNumber) external view returns (bool) {
+        return _componentRecords[serialHashOf(serialNumber)].status != ComponentStatus.None;
+    }
+
+    function componentBySerial(string calldata serialNumber) external view returns (ComponentView memory view_) {
+        bytes32 serialHash = serialHashOf(serialNumber);
+        ComponentRecord storage record = _componentRecords[serialHash];
+
+        view_.serialHash = serialHash;
+        view_.tokenId = uint256(serialHash);
+
+        if (record.status == ComponentStatus.None) {
+            return view_;
+        }
+
+        view_.exists = true;
+        view_.tokenContract = record.tokenContract;
+        view_.tokenId = record.tokenId;
+        view_.owner = _ownerOfOrZero(record);
+        view_.registrar = record.registrar;
+        view_.status = record.status;
+        view_.tokenURI = _tokenURIOrEmpty(record);
+        view_.registeredAt = record.registeredAt;
+        view_.updatedAt = record.updatedAt;
+        view_.serialNumber = record.serialNumber;
+    }
+
+    function componentRecord(bytes32 serialHash)
+        external
+        view
+        returns (
+            bool exists,
+            address tokenContract,
+            uint256 tokenId,
+            address registrar,
+            ComponentStatus status,
+            uint48 registeredAt,
+            uint48 updatedAt,
+            string memory serialNumber
+        )
+    {
+        ComponentRecord storage record = _componentRecords[serialHash];
+        exists = record.status != ComponentStatus.None;
+        return (
+            exists,
+            record.tokenContract,
+            record.tokenId,
+            record.registrar,
+            record.status,
+            record.registeredAt,
+            record.updatedAt,
+            record.serialNumber
+        );
+    }
+
+    function tokenReference(string calldata serialNumber)
+        external
+        view
+        returns (address tokenContract, uint256 tokenId)
+    {
+        ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+
+        if (record.status == ComponentStatus.None) {
+            return (address(0), uint256(serialHashOf(serialNumber)));
+        }
+
+        return (record.tokenContract, record.tokenId);
+    }
+
+    function ownerOf(string calldata serialNumber) public view returns (address) {
+        ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+        if (record.status == ComponentStatus.None) return address(0);
+        return _ownerOfOrZero(record);
+    }
+
+    function componentURI(string calldata serialNumber) public view returns (string memory) {
+        ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+        if (record.status == ComponentStatus.None) return "";
+        return _tokenURIOrEmpty(record);
+    }
+
+    function componentStatus(string calldata serialNumber) public view returns (ComponentStatus) {
+        return _componentRecords[serialHashOf(serialNumber)].status;
+    }
+
+    function missingStatus(string calldata serialNumber) external view returns (bool) {
+        return componentStatus(serialNumber) == ComponentStatus.Missing;
+    }
+
+    function componentDelegation(string calldata serialNumber, address delegate)
+        external
+        view
+        returns (address grantor, uint64 capabilities, uint48 validUntil, bool active)
+    {
+        bytes32 serialHash = serialHashOf(serialNumber);
+        ComponentRecord storage record = _componentRecords[serialHash];
+        Delegation storage delegation = _delegations[serialHash][delegate];
+
+        grantor = delegation.grantor;
+        capabilities = delegation.capabilities;
+        validUntil = delegation.validUntil;
+        active = record.status != ComponentStatus.None && _effectiveDelegationCapabilities(record, delegate) != 0;
+    }
+
+    function permissionsOf(address actor, string calldata serialNumber) public view returns (uint64 capabilities) {
+        ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+        if (record.status == ComponentStatus.None || actor == address(0)) return 0;
+
+        if (_isTokenOwner(record, actor)) {
+            return VALID_CAPABILITY_MASK;
+        }
+
+        return _effectiveDelegationCapabilities(record, actor);
+    }
+
+    function canRegister(address actor) external view returns (bool) {
+        return actor != address(0) && hasRole(REGISTRAR_ROLE, actor);
+    }
+
+    function canUpdateMetadata(address actor, string calldata serialNumber) external view returns (bool) {
+        ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+        return record.status != ComponentStatus.None && record.status != ComponentStatus.Retired
+            && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_UPDATE_METADATA));
+    }
+
+    function canMarkMissing(address actor, string calldata serialNumber) external view returns (bool) {
+        ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+        return record.status == ComponentStatus.Active
+            && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_MARK_MISSING));
+    }
+
+    function canClearMissing(address actor, string calldata serialNumber) external view returns (bool) {
+        ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+        return record.status == ComponentStatus.Missing
+            && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_CLEAR_MISSING));
+    }
+
+    function canRetire(address actor, string calldata serialNumber) external view returns (bool) {
+        ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+        return record.status != ComponentStatus.None && record.status != ComponentStatus.Retired
+            && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_RETIRE));
+    }
+
+    // ---------------------------------------------------------------------
+    // Internal registration / status helpers
+    // ---------------------------------------------------------------------
+
+    function _registerComponent(
+        address tokenContract,
+        address owner,
+        string calldata serialNumber,
+        string calldata tokenURI_
+    ) internal returns (uint256 tokenId) {
+        if (owner == address(0)) revert ZeroAddress();
+        if (!_componentCollections[tokenContract]) revert ComponentsNotAllowed(tokenContract);
+
+        bytes32 serialHash = _requireSerialNumber(serialNumber);
+        if (_componentRecords[serialHash].status != ComponentStatus.None) {
+            revert ComponentAlreadyRegistered(serialHash);
+        }
+
+        tokenId = uint256(serialHash);
+
+        IBicycleComponents(tokenContract).mint(owner, tokenId, tokenURI_);
+
+        uint48 now_ = _now48();
+        _componentRecords[serialHash] = ComponentRecord({
+            serialHash: serialHash,
+            tokenContract: tokenContract,
+            tokenId: tokenId,
+            registrar: _msgSender(),
+            status: ComponentStatus.Active,
+            registeredAt: now_,
+            updatedAt: now_,
+            serialNumber: serialNumber
+        });
+
+        emit ComponentRegistered(serialHash, tokenContract, tokenId, owner, _msgSender(), serialNumber, tokenURI_);
+    }
+
+    function _setMissing(string calldata serialNumber, bool isMissing) internal {
+        bytes32 serialHash = _requireSerialNumber(serialNumber);
+        ComponentRecord storage record = _requireRegistered(serialHash);
+        address actor = _msgSender();
+
+        if (isMissing) {
+            if (!_isTokenOwner(record, actor) && !_hasCapability(record, actor, CAP_MARK_MISSING)) {
+                revert Unauthorized(actor, serialHash, CAP_MARK_MISSING);
+            }
+            if (record.status != ComponentStatus.Active) revert InvalidStatus(record.status);
+            _updateStatus(record, actor, ComponentStatus.Missing);
+        } else {
+            if (!_isTokenOwner(record, actor) && !_hasCapability(record, actor, CAP_CLEAR_MISSING)) {
+                revert Unauthorized(actor, serialHash, CAP_CLEAR_MISSING);
+            }
+            if (record.status != ComponentStatus.Missing) revert InvalidStatus(record.status);
+            _updateStatus(record, actor, ComponentStatus.Active);
+        }
+    }
+
+    function _updateStatus(ComponentRecord storage record, address actor, ComponentStatus newStatus) internal {
+        ComponentStatus oldStatus = record.status;
+        record.status = newStatus;
+        record.updatedAt = _now48();
+
+        emit ComponentStatusUpdated(
+            record.serialHash, record.tokenContract, record.tokenId, actor, record.serialNumber, oldStatus, newStatus
+        );
+    }
+
+    // ---------------------------------------------------------------------
+    // Internal authorization helpers
+    // ---------------------------------------------------------------------
+
+    function _isTokenOwner(ComponentRecord storage record, address actor) internal view returns (bool) {
+        return actor != address(0) && _ownerOfOrZero(record) == actor;
+    }
+
+    function _hasCapability(ComponentRecord storage record, address actor, uint64 capability)
+        internal
+        view
+        returns (bool)
+    {
+        if (actor == address(0)) return false;
+        return (_effectiveDelegationCapabilities(record, actor) & capability) != 0;
+    }
+
+    function _canUpdateMetadata(ComponentRecord storage record, address actor) internal view returns (bool) {
+        return _isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_UPDATE_METADATA);
+    }
+
+    function _effectiveDelegationCapabilities(ComponentRecord storage record, address actor)
+        internal
+        view
+        returns (uint64)
+    {
+        Delegation storage delegation = _delegations[record.serialHash][actor];
+
+        if (delegation.grantor == address(0)) return 0;
+        if (delegation.capabilities == 0) return 0;
+        if (delegation.validUntil < block.timestamp) return 0;
+        if (_ownerOfOrZero(record) != delegation.grantor) return 0;
+
+        return delegation.capabilities;
+    }
+
+    function _validateDelegation(uint64 capabilities, uint48 validUntil) internal view {
+        if (capabilities == 0 || (capabilities & ~VALID_CAPABILITY_MASK) != 0) {
+            revert InvalidCapabilityMask(capabilities);
+        }
+
+        uint48 now_ = _now48();
+        uint48 maxValidUntil = now_ + _maxDelegationDuration;
+
+        if (validUntil <= now_ || validUntil > maxValidUntil) {
+            revert InvalidDelegationExpiry(validUntil);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Internal configuration/read helpers
+    // ---------------------------------------------------------------------
+
+    function _setComponentCollection(address tokenContract, bool allowed) internal {
+        if (tokenContract == address(0)) revert ZeroAddress();
+
+        if (allowed) {
+            _requireSupportedComponents(tokenContract);
+        }
+
+        _componentCollections[tokenContract] = allowed;
+        emit ComponentCollectionSet(tokenContract, allowed);
+    }
+
+    function _setDefaultComponents(address tokenContract) internal {
+        address oldTokenContract = _defaultComponents;
+        _defaultComponents = tokenContract;
+        emit DefaultComponentsSet(oldTokenContract, tokenContract);
+    }
+
+    function _setMaxDelegationDuration(uint48 duration) internal {
+        if (duration == 0) revert InvalidDelegationExpiry(0);
+
+        uint48 oldDuration = _maxDelegationDuration;
+        _maxDelegationDuration = duration;
+        emit MaxDelegationDurationSet(oldDuration, duration);
+    }
+
+    function _requireSupportedComponents(address tokenContract) internal view {
+        if (tokenContract.code.length == 0) revert ComponentsHasNoCode(tokenContract);
+
+        try IERC165(tokenContract).supportsInterface(type(IBicycleComponents).interfaceId) returns (bool supported) {
+            if (!supported) revert ComponentsUnsupported(tokenContract);
+        } catch {
+            revert ComponentsUnsupported(tokenContract);
+        }
+    }
+
+    function _requireSerialNumber(string calldata serialNumber) internal pure returns (bytes32 serialHash) {
+        if (bytes(serialNumber).length == 0) revert EmptySerialNumber();
+        serialHash = keccak256(bytes(serialNumber));
+    }
+
+    function _requireRegistered(bytes32 serialHash) internal view returns (ComponentRecord storage record) {
+        record = _componentRecords[serialHash];
+        if (record.status == ComponentStatus.None) revert ComponentNotRegistered(serialHash);
+    }
+
+    function _ownerOfOrZero(ComponentRecord storage record) internal view returns (address) {
+        try IBicycleComponents(record.tokenContract).ownerOf(record.tokenId) returns (address owner) {
             return owner;
         } catch {
             return address(0);
         }
     }
 
-    function canHandle(address operator, string memory serialNumber) public view returns (bool) {
-        require(operator != address(0), "Nonexistent operator");
-        require(ownerOf(serialNumber) != address(0), "Serial number not registered");
-
-        return (operator == ownerOf(serialNumber)) || componentOperatorApproval(serialNumber, operator)
-            || hasRole(DEFAULT_ADMIN_ROLE, operator);
-    }
-
-    function canRegister(address operator) public view returns (bool) {
-        require(operator != address(0), "Nonexistent operator");
-        return hasRole(REGISTRAR_ROLE, operator);
-    }
-
-    function canSetAccountInfo(address operator, address account) public view returns (bool) {
-        require(operator != address(0), "Nonexistent operator");
-        return (operator == account) || hasRole(REGISTRAR_ROLE, operator) || hasRole(DEFAULT_ADMIN_ROLE, operator);
-    }
-
-    // Core functions.
-    // These functions trust the caller that the registrar/operator is who they say they are.
-
-    function _grantOps(address operator, address owner) internal {
-        // Call this function on mint and on transfer.
-
-        // If the OpsFund contract is not set, do nothing.
-        if (address(opsFundContract) == address(0)) {
-            emit Message("OpsFund not set");
-            return;
-        }
-
-        if (opsFundContract.hasRole(opsFundContract.CARTE_BLANCHE_ROLE(), owner)) {
-            return;
-        }
-
-        if (opsFundContract.hasRole(opsFundContract.CARTE_BLANCHE_ROLE(), operator)) {
-            // If `operator` has CARTE_BLANCHE_ROLE on the OpsFund but `owner` does not,
-            // grant `owner` the default allowance of ops tokens in the OpsFund.
-
-            opsFundContract.addAllowance(owner, opsFundContract.defaultAllowanceIncrement());
-        } else {
-            // Neither `operator` nor `owner` has CARTE_BLANCHE_ROLE on the OpsFund.
-            // We don't generate new ops tokens, as this could be used for infinite transfers.
-            // So, there are two options:
-            //  - do nothing;
-            //  - transfer some amount of ops tokens from `operator` to `owner`.
+    function _tokenURIOrEmpty(ComponentRecord storage record) internal view returns (string memory) {
+        try IBicycleComponents(record.tokenContract).tokenURI(record.tokenId) returns (string memory uri) {
+            return uri;
+        } catch {
+            return "";
         }
     }
 
-    function _register(address owner, string memory serialNumber, string memory uri, address registrar)
-        internal
-        whenNotPaused
-    {
-        require(canRegister(registrar), INSUFFICIENT_RIGHTS);
-        require(msg.value >= minAmountOnRegister, "Insufficient payment");
-
-        // Assume that `registrar` is a bike shop registering
-        // a new `serialNumber` for a customer (`owner`).
-
-        uint256 tokenId = generateTokenId(serialNumber);
-
-        nftContract.safeMint(owner, tokenId);
-        nftContract.setTokenURI(tokenId, uri);
-
-        // Event
-        emit ComponentRegistered(owner, serialNumber, tokenId, uri);
-
-        // Grant the "bike shop" the right to handle the NFT on behalf of the "customer".
-        // Can't use `setComponentOperatorApproval` here due to INSUFFICIENT_RIGHTS.
-        _componentOperatorApproval[tokenId][registrar] = true;
-        emit UpdatedComponentOperatorApproval(registrar, serialNumber, tokenId, true);
-
-        // Ops Fund
-        _grantOps(registrar, owner);
-
-        // Return any excess amount to the original sender
-        if (msg.value > maxAmountOnRegister) {
-            bool success = payable(msg.sender).send(msg.value - maxAmountOnRegister);
-            require(success, "BicycleComponentManager: Failed to send excess amount");
-        }
+    function _now48() internal view returns (uint48) {
+        return uint48(block.timestamp);
     }
 
-    function _transfer(string memory serialNumber, address to, address operator) internal whenNotPaused {
-        require(canHandle(operator, serialNumber), INSUFFICIENT_RIGHTS);
-
-        uint256 tokenId = generateTokenId(serialNumber);
-
-        nftContract.transfer(tokenId, to);
-        emit ComponentTransferred(serialNumber, tokenId, to);
-
-        // Ops Fund
-        _grantOps(operator, to);
+    receive() external payable {
+        revert DoesNotAcceptPayments();
     }
 
-    // Public-facing core functions
-
-    function transfer(string memory serialNumber, address to) public {
-        _transfer(serialNumber, to, _msgSender());
-    }
-
-    function transferByUI(string memory serialNumber, address to, address operator) public onlyRole(UI_ROLE) {
-        _transfer(serialNumber, to, operator);
-    }
-
-    function register(address owner, string memory serialNumber, string memory uri) public payable {
-        _register(owner, serialNumber, uri, _msgSender());
-    }
-
-    function registerByUI(address owner, string memory serialNumber, string memory uri, address registrar)
-        public
-        payable
-        onlyRole(UI_ROLE)
-    {
-        _register(owner, serialNumber, uri, registrar);
-    }
-
-    // Withdrawal
-
-    function withdraw() public {
-        withdrawTo(_msgSender()); // delegates permission checks
-    }
-
-    function withdrawTo(address to) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        uint256 contractBalance = address(this).balance;
-        require(contractBalance > 0, "I'm broke");
-        payable(to).transfer(contractBalance);
-    }
-
-    // Value on register
-
-    function setMinAmountOnRegister(uint256 newAmount) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        minAmountOnRegister = newAmount;
-    }
-
-    function setMaxAmountOnRegister(uint256 newAmount) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        maxAmountOnRegister = newAmount;
-    }
-
-    // Internal setters
-
-    function _setComponentURI(string memory serialNumber, string memory uri, address operator) internal whenNotPaused {
-        require(canHandle(operator, serialNumber), INSUFFICIENT_RIGHTS);
-
-        uint256 tokenId = generateTokenId(serialNumber);
-
-        nftContract.setTokenURI(tokenId, uri);
-
-        emit UpdatedComponentURI(serialNumber, tokenId, uri);
-    }
-
-    function _setMissingStatus(string memory serialNumber, bool isMissing, address operator) internal whenNotPaused {
-        require(canHandle(operator, serialNumber), INSUFFICIENT_RIGHTS);
-
-        uint256 tokenId = generateTokenId(serialNumber);
-
-        _missingStatus[tokenId] = isMissing;
-        emit UpdatedMissingStatus(serialNumber, tokenId, isMissing);
-    }
-
-    function _setAccountInfo(address account, string memory info, address operator) internal whenNotPaused {
-        require(canSetAccountInfo(operator, account), INSUFFICIENT_RIGHTS);
-
-        require(bytes(info).length > 0, "Info string is empty");
-
-        _accountInfo[account] = info;
-        emit AccountInfoSet(account, info);
-    }
-
-    function _setComponentOperatorApproval(
-        string memory serialNumber,
-        address newOperator,
-        bool approved,
-        address operator
-    ) internal whenNotPaused {
-        require(canHandle(operator, serialNumber), INSUFFICIENT_RIGHTS);
-
-        require(newOperator != address(0), "Zero address");
-
-        uint256 tokenId = generateTokenId(serialNumber);
-
-        _componentOperatorApproval[tokenId][newOperator] = approved;
-        emit UpdatedComponentOperatorApproval(newOperator, serialNumber, tokenId, approved);
-    }
-
-    // Public getters and setters
-
-    function componentURI(string memory serialNumber) public view returns (string memory) {
-        return nftContract.tokenURI(generateTokenId(serialNumber));
-    }
-
-    function setComponentURI(string memory serialNumber, string memory uri) public {
-        _setComponentURI(serialNumber, uri, _msgSender());
-    }
-
-    function setComponentURIByUI(string memory serialNumber, string memory uri, address operator)
-        public
-        onlyRole(UI_ROLE)
-    {
-        _setComponentURI(serialNumber, uri, operator);
-    }
-
-    function missingStatus(string memory serialNumber) public view returns (bool) {
-        return _missingStatus[generateTokenId(serialNumber)];
-    }
-
-    function setMissingStatus(string memory serialNumber, bool isMissing) public {
-        _setMissingStatus(serialNumber, isMissing, _msgSender());
-    }
-
-    function setMissingStatusByUI(string memory serialNumber, bool isMissing, address operator)
-        public
-        onlyRole(UI_ROLE)
-    {
-        _setMissingStatus(serialNumber, isMissing, operator);
-    }
-
-    function accountInfo(address account) public view returns (string memory) {
-        return _accountInfo[account];
-    }
-
-    function setAccountInfo(address account, string memory info) public {
-        _setAccountInfo(account, info, _msgSender());
-    }
-
-    function setAccountInfoByUI(address account, string memory info, address operator) public onlyRole(UI_ROLE) {
-        _setAccountInfo(account, info, operator);
-    }
-
-    function componentOperatorApproval(string memory serialNumber, address operator) public view returns (bool) {
-        return _componentOperatorApproval[generateTokenId(serialNumber)][operator];
-    }
-
-    function setComponentOperatorApproval(string memory serialNumber, address operator, bool approved) public {
-        _setComponentOperatorApproval(serialNumber, operator, approved, _msgSender());
-    }
-
-    function setComponentOperatorApprovalByUI(
-        string memory serialNumber,
-        address newOperator,
-        bool approved,
-        address operator
-    ) public onlyRole(UI_ROLE) {
-        _setComponentOperatorApproval(serialNumber, newOperator, approved, operator);
-    }
-
-    // Convenience functions
-
-    function setOnChainComponentMetadata(
-        string memory serialNumber,
-        string memory name,
-        string memory description,
-        string memory imageURL
-    ) public {
-        string[] memory emptyArray;
-
-        string memory uri =
-            string("").stringifyOnChainMetadata(name, description, imageURL, emptyArray, emptyArray).packJSON();
-
-        setComponentURI(serialNumber, uri);
+    fallback() external payable {
+        revert UnknownFunction(msg.sig);
     }
 }
