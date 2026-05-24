@@ -51,6 +51,8 @@ test("resolves a CAM route into a plain call descriptor", () => {
     params: {
       serialNumber: "ABC123",
     },
+    state: {},
+    outputs: {},
   })
 
   const call = resolveRouteCall(cam, "component", context)
@@ -71,6 +73,9 @@ test("keeps non-expression strings literal", () => {
       chainId: "eip155:31337",
       address: "0x0000000000000000000000000000000000000001",
     },
+    params: {},
+    state: {},
+    outputs: {},
   })
 
   assert.equal(resolveValue("Price: $5", context), "Price: $5")
@@ -101,6 +106,44 @@ test("rejects missing required host context", () => {
         chainId: "",
         address: "0x0000000000000000000000000000000000000001",
       },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
+})
+
+test("rejects missing required context records", () => {
+  const base = {
+    host: {
+      chainId: "eip155:31337",
+      address: "0x0000000000000000000000000000000000000001",
+    },
+    params: {},
+    state: {},
+    outputs: {},
+  }
+
+  for (const field of ["params", "state", "outputs"] as const) {
+    const input = { ...base }
+    delete input[field]
+
+    assert.throws(
+      () => createContext(input),
+      (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+    )
+  }
+})
+
+test("rejects account context without an address", () => {
+  assert.throws(
+    () => createContext({
+      host: {
+        chainId: "eip155:31337",
+        address: "0x0000000000000000000000000000000000000001",
+      },
+      account: {},
+      params: {},
+      state: {},
+      outputs: {},
     }),
     (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
   )
@@ -173,6 +216,8 @@ test("rejects unresolved expression values", () => {
     params: {
       serialNumber: "ABC123",
     },
+    state: {},
+    outputs: {},
   })
 
   assert.throws(

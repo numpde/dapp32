@@ -1,8 +1,14 @@
 import { CamError } from "./errors.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
-export type CamRuntimeContextInput = Partial<Omit<CamRuntimeContext, "host">> & {
-  readonly host: Partial<CamRuntimeContext["host"]>
+export type CamRuntimeContextInput = {
+  readonly host: CamRuntimeContext["host"]
+  readonly account?: {
+    readonly address: string
+  }
+  readonly params: Record<string, unknown>
+  readonly state: Record<string, unknown>
+  readonly outputs: Record<string, unknown>
 }
 
 export function createContext(input: CamRuntimeContextInput): CamRuntimeContext {
@@ -18,20 +24,18 @@ export function createContext(input: CamRuntimeContextInput): CamRuntimeContext 
       ? {}
       : {
           account: {
-            ...(account.address === undefined
-              ? {}
-              : { address: optionalNonEmptyString(account.address, "account.address") }),
+            address: requiredString(account.address, "account.address"),
           },
         }),
-    params: copyRecord(input.params, "params"),
-    state: copyRecord(input.state, "state"),
-    outputs: copyRecord(input.outputs, "outputs"),
+    params: requiredRecord(input.params, "params"),
+    state: requiredRecord(input.state, "state"),
+    outputs: requiredRecord(input.outputs, "outputs"),
   }
 }
 
 export function mergeContext(
   base: CamRuntimeContext,
-  patch: Partial<CamRuntimeContext> = {},
+  patch: Partial<CamRuntimeContext>,
 ): CamRuntimeContext {
   return createContext({
     host: {
@@ -61,9 +65,9 @@ export function mergeContext(
   })
 }
 
-function copyRecord(value: Record<string, unknown> | undefined, path: string): Record<string, unknown> {
+function requiredRecord(value: Record<string, unknown> | undefined, path: string): Record<string, unknown> {
   if (value === undefined) {
-    return {}
+    throw new CamError("CAM_INVALID_FIELD", "expected an object", path)
   }
 
   if (!isPlainObject(value)) {
@@ -83,14 +87,6 @@ function requiredString(value: unknown, path: string): string {
   }
 
   return value
-}
-
-function optionalNonEmptyString(value: unknown, path: string): string | undefined {
-  if (value === undefined) {
-    return undefined
-  }
-
-  return requiredString(value, path)
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
