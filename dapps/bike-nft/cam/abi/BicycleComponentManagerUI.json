@@ -1,19 +1,32 @@
 [
   {
-    "type": "function",
-    "name": "viewEntry",
+    "type": "constructor",
     "inputs": [
       {
-        "name": "account",
+        "name": "managerAddress",
         "type": "address",
         "internalType": "address"
       }
     ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "fallback",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "manager",
+    "inputs": [],
     "outputs": [
       {
-        "name": "screenURI",
-        "type": "string",
-        "internalType": "string"
+        "name": "",
+        "type": "address",
+        "internalType": "contract IBicycleComponentManagerView"
       }
     ],
     "stateMutability": "view"
@@ -38,6 +51,166 @@
         "name": "screenURI",
         "type": "string",
         "internalType": "string"
+      },
+      {
+        "name": "component",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.ComponentScreenView",
+        "components": [
+          {
+            "name": "exists",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "serialHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "tokenContract",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "ownerInfo",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registrar",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+          },
+          {
+            "name": "tokenURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registeredAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "updatedAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "serialNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "permissions",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "isOwner",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canUpdateMetadata",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canMarkMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canClearMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canRetire",
+            "type": "bool",
+            "internalType": "bool"
+          }
+        ]
+      },
+      {
+        "name": "accountView",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.AccountView",
+        "components": [
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "canRegister",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "accountInfo",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "viewEntry",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "screenURI",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "accountView",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.AccountView",
+        "components": [
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "canRegister",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "accountInfo",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
@@ -47,14 +220,14 @@
     "name": "viewRegister",
     "inputs": [
       {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
         "name": "serialNumber",
         "type": "string",
         "internalType": "string"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [
@@ -62,8 +235,104 @@
         "name": "screenURI",
         "type": "string",
         "internalType": "string"
+      },
+      {
+        "name": "registerView",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.RegisterScreenView",
+        "components": [
+          {
+            "name": "canRegister",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "exists",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "serialHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "defaultComponents",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "serialNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "accountInfo",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
+      },
+      {
+        "name": "accountView",
+        "type": "tuple",
+        "internalType": "struct BicycleComponentManagerUI.AccountView",
+        "components": [
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "canRegister",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "accountInfo",
+            "type": "string",
+            "internalType": "string"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "error",
+    "name": "DoesNotAcceptPayments",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ManagerHasNoCode",
+    "inputs": [
+      {
+        "name": "managerAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnknownFunction",
+    "inputs": [
+      {
+        "name": "selector",
+        "type": "bytes4",
+        "internalType": "bytes4"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ZeroAddress",
+    "inputs": []
   }
 ]
