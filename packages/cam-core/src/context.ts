@@ -2,18 +2,7 @@ import { CamError } from "./errors.ts"
 import { hasOwn, isRecordObject, requiredNonEmptyString, requiredRecord } from "./guards.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
-export type CamRuntimeContextInput = {
-  readonly host: CamRuntimeContext["host"]
-  // Absence means no connected account; if present, the address is required.
-  readonly account?: {
-    readonly address: string
-  }
-  readonly params: Record<string, unknown>
-  readonly state: Record<string, unknown>
-  readonly outputs: Record<string, unknown>
-}
-
-export function createContext(input: CamRuntimeContextInput): CamRuntimeContext {
+export function createContext(input: unknown): CamRuntimeContext {
   const source = requiredRecord(input, "")
   const host = requiredRecord(source.host, "host")
   const hasAccount = hasOwn(source, "account")

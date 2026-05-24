@@ -1,13 +1,13 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import * as camCore from "../src/index.ts"
 import {
   CamError,
   createContext,
   parseCam,
   resolveResourceURI,
   resolveRouteCall,
-  resolveValue,
 } from "../src/index.ts"
 
 const mainJson = {
@@ -37,6 +37,16 @@ const mainJson = {
     },
   },
 }
+
+test("keeps the public API to the CAM core boundary", () => {
+  assert.deepEqual(Object.keys(camCore).sort(), [
+    "CamError",
+    "createContext",
+    "parseCam",
+    "resolveResourceURI",
+    "resolveRouteCall",
+  ])
+})
 
 test("resolves a CAM route into a plain call descriptor", () => {
   const cam = parseCam(mainJson)
@@ -68,6 +78,16 @@ test("resolves a CAM route into a plain call descriptor", () => {
 })
 
 test("keeps non-expression strings literal", () => {
+  const cam = parseCam({
+    ...mainJson,
+    routes: {
+      entry: {
+        contract: "BicycleComponentManagerUI",
+        function: "viewEntry",
+        args: ["Price: $5"],
+      },
+    },
+  })
   const context = createContext({
     host: {
       chainId: "eip155:31337",
@@ -78,7 +98,7 @@ test("keeps non-expression strings literal", () => {
     outputs: {},
   })
 
-  assert.equal(resolveValue("Price: $5", context), "Price: $5")
+  assert.deepEqual(resolveRouteCall(cam, "entry", context).args, ["Price: $5"])
 })
 
 test("rejects missing required host context", () => {
@@ -174,8 +194,18 @@ test("copies nested runtime context records", () => {
 
   input.params.component.serialNumber = "CHANGED"
 
-  assert.equal(resolveValue("$params.component.serialNumber", context), "ABC123")
-  assert.equal(resolveValue("$outputs.count", context), BigInt(1))
+  const cam = parseCam({
+    ...mainJson,
+    routes: {
+      entry: {
+        contract: "BicycleComponentManagerUI",
+        function: "viewEntry",
+        args: ["$params.component.serialNumber", "$outputs.count"],
+      },
+    },
+  })
+
+  assert.deepEqual(resolveRouteCall(cam, "entry", context).args, ["ABC123", BigInt(1)])
 })
 
 test("rejects unsupported runtime context values", () => {
