@@ -44,7 +44,14 @@ export async function loadCamFromHost({
   })
 
   const camText = new TextDecoder().decode(camBytes)
-  const cam = parseCam(JSON.parse(camText))
+  let camJson: unknown
+  try {
+    camJson = JSON.parse(camText)
+  } catch (cause) {
+    throw new CamEvmError("CAM_DOCUMENT_INVALID", `CAM document is not valid JSON: ${camURI}`, cause)
+  }
+
+  const cam = parseCam(camJson)
 
   return {
     host,

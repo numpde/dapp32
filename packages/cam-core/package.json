@@ -18,6 +18,6 @@
     "test": "node --test --experimental-strip-types test/*.test.ts"
   },
   "devDependencies": {
-    "typescript": "5.7.3"
+    "typescript": "6.0.3"
   }
 }

@@ -2,6 +2,7 @@ export type {
   CallCamRouteOptions,
   CamHost,
   LoadedCam,
+  LoadCamFromHostOptions,
   ResolvedCamContract,
   ResolveCamContractsOptions,
   ResourceLoader,

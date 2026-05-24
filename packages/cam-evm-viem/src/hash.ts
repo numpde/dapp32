@@ -6,7 +6,7 @@ import type { VerifyCamHashOptions } from "./types.ts"
 export const ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 export function verifyCamHash({ bytes, expectedHash }: VerifyCamHashOptions): void {
-  if (expectedHash === ZERO_HASH) {
+  if (expectedHash.toLowerCase() === ZERO_HASH) {
     return
   }
 
