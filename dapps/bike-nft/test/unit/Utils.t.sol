@@ -5,11 +5,11 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 import "../../src/Utils.sol";
 
 contract UtilsTest is Test {
-    function test_escapeJSONString_escapesJSONSyntaxCharacters() external pure {
+    function test_escapeJSONString_escapesJSONSyntaxCharacters() external {
         assertStringEq(Utils.escapeJSONString('bike "alpha" \\ beta'), 'bike \\"alpha\\" \\\\ beta');
     }
 
-    function test_escapeJSONString_escapesJSONControlCharacters() external pure {
+    function test_escapeJSONString_escapesJSONControlCharacters() external {
         string memory input = string(
             abi.encodePacked(
                 "a", bytes1(0x08), "b", bytes1(0x0c), "c", bytes1(0x0a), "d", bytes1(0x0d), "e", bytes1(0x09), "f"
@@ -19,13 +19,13 @@ contract UtilsTest is Test {
         assertStringEq(Utils.escapeJSONString(input), "a\\bb\\fc\\nd\\re\\tf");
     }
 
-    function test_escapeJSONString_escapesOtherControlCharactersAsUnicode() external pure {
+    function test_escapeJSONString_escapesOtherControlCharactersAsUnicode() external {
         string memory input = string(abi.encodePacked("a", bytes1(0x01), "b", bytes1(0x1f), "c"));
 
         assertStringEq(Utils.escapeJSONString(input), "a\\u0001b\\u001fc");
     }
 
-    function test_stringifyOnChainMetadata_escapesUserControlledFields() external pure {
+    function test_stringifyOnChainMetadata_escapesUserControlledFields() external {
         string memory name = 'bike","evil":true,"name":"copy';
         string memory description = "desc\\value";
         string memory imageURL = "https://example.test/image\".png";

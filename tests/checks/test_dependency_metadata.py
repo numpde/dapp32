@@ -9,13 +9,11 @@ from .common import iter_files, read_text, repo_path
 
 
 OZ_PACKAGE = "@openzeppelin-contracts"
-OZ_UPGRADEABLE_PACKAGE = "@openzeppelin-contracts-upgradeable"
-OZ_PACKAGES = (OZ_PACKAGE, OZ_UPGRADEABLE_PACKAGE)
+OZ_PACKAGES = (OZ_PACKAGE,)
 FORGE_STD_PACKAGE = "forge-std"
 SOLDEER_REVISIONS_HOST = "soldeer-revisions.s3.amazonaws.com"
 SOLDEER_ARCHIVE_SUFFIX_RE = {
     OZ_PACKAGE: r"contracts",
-    OZ_UPGRADEABLE_PACKAGE: r"contracts-upgradeable",
     FORGE_STD_PACKAGE: r"forge-std-[0-9]+(?:\.[0-9]+)*",
 }
 DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE = r"[A-Za-z0-9_.:-]+"
@@ -33,12 +31,6 @@ class DependencyMetadataTest(unittest.TestCase):
         remapping_versions = self.remapped_openzeppelin_versions()
         checksum_versions = self.checksummed_openzeppelin_versions()
         import_versions = self.imported_openzeppelin_versions()
-
-        self.assertEqual(
-            foundry_versions[OZ_PACKAGE],
-            foundry_versions[OZ_UPGRADEABLE_PACKAGE],
-            "OpenZeppelin base and upgradeable packages must use the same version",
-        )
 
         for name in OZ_PACKAGES:
             with self.subTest(dependency=name):
@@ -72,18 +64,6 @@ class DependencyMetadataTest(unittest.TestCase):
                     f"{name} version differs between foundry.toml and soldeer.lock",
                 )
                 self.assert_allowed_soldeer_registry_url(name, record["url"], version)
-
-    def test_openzeppelin_upgradeable_uses_pinned_base_package_remapping(self) -> None:
-        version = self.foundry_dependency_version(OZ_PACKAGE)
-        expected = f"@openzeppelin/contracts/=dependencies/{OZ_PACKAGE}-{version}/"
-        lines = read_text(repo_path("dapps/remappings.txt")).splitlines()
-
-        self.assertIn(
-            expected,
-            lines,
-            "OpenZeppelin upgradeable imports canonical @openzeppelin/contracts paths internally; "
-            "that alias must resolve to the pinned base package.",
-        )
 
     def test_soldeer_source_policy_self_check(self) -> None:
         version = "1.2.3"

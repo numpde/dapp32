@@ -9,14 +9,12 @@ from .common import iter_files, read_text, repo_path
 
 
 OZ_PACKAGE = "@openzeppelin-contracts"
-OZ_UPGRADEABLE_PACKAGE = "@openzeppelin-contracts-upgradeable"
 OZ_ALLOWED_TOP_LEVEL = {
-    OZ_PACKAGE: {"access", "utils"},
-    OZ_UPGRADEABLE_PACKAGE: {"access", "proxy", "token", "utils"},
+    OZ_PACKAGE: {"access", "token", "utils"},
 }
 FORGE_STD_PACKAGE = "forge-std"
 FORGE_STD_ALLOWED_TEST_IMPORTS = {"Test.sol"}
-DEPENDENCY_PACKAGES = (OZ_PACKAGE, OZ_UPGRADEABLE_PACKAGE, FORGE_STD_PACKAGE)
+DEPENDENCY_PACKAGES = (OZ_PACKAGE, FORGE_STD_PACKAGE)
 IMPORT_STATEMENT_RE = re.compile(r"^\s*import\b(?P<body>[^;]*);", re.MULTILINE | re.DOTALL)
 IMPORT_PATH_RE = re.compile(r'["\'](?P<path>[^"\']+)["\']')
 
@@ -64,11 +62,9 @@ class SolidityImportPolicyTest(unittest.TestCase):
 
     def test_import_policy_classifier_self_check(self) -> None:
         oz_version = "9.8.7"
-        oz_upgradeable_version = "9.8.7"
         forge_std_version = "6.5.4"
         dependency_versions = {
             OZ_PACKAGE: oz_version,
-            OZ_UPGRADEABLE_PACKAGE: oz_upgradeable_version,
             FORGE_STD_PACKAGE: forge_std_version,
         }
         source = repo_path("dapps/deposit/test/unit/HelloWorld/HelloWorld.t.sol")
@@ -82,14 +78,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
         self.assertIsNone(
             self.validate_import(
                 source,
-                f"{OZ_UPGRADEABLE_PACKAGE}-{oz_upgradeable_version}/proxy/utils/Initializable.sol",
-                dependency_versions,
-            )
-        )
-        self.assertIsNone(
-            self.validate_import(
-                source,
-                f"{OZ_UPGRADEABLE_PACKAGE}-{oz_upgradeable_version}/utils/PausableUpgradeable.sol",
+                f"{OZ_PACKAGE}-{oz_version}/token/ERC721/ERC721.sol",
                 dependency_versions,
             )
         )
@@ -98,10 +87,9 @@ class SolidityImportPolicyTest(unittest.TestCase):
 
         rejected = [
             f"{OZ_PACKAGE}-{oz_version}/contracts/access/Ownable.sol",
-            f"{OZ_PACKAGE}-{oz_version}/token/ERC20/IERC20.sol",
+            f"{OZ_PACKAGE}-{oz_version}/interfaces/IERC20.sol",
             f"{OZ_PACKAGE}-5.4.0/access/Ownable.sol",
-            f"{OZ_UPGRADEABLE_PACKAGE}-{oz_upgradeable_version}/security/PausableUpgradeable.sol",
-            f"{OZ_UPGRADEABLE_PACKAGE}-5.4.0/access/AccessControlUpgradeable.sol",
+            "@openzeppelin-contracts-upgradeable-9.8.7/proxy/utils/Initializable.sol",
             "./Missing.sol",
             "forge-std/Test.sol",
             "forge-std-1.11.1/src/Test.sol",

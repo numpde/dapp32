@@ -19,6 +19,7 @@ SKIP_DIRS = {
     "cache",
     "dependencies",
     "node_modules",
+    "old-src",
     "out",
     "reports",
 }

@@ -1,16 +1,14 @@
 pragma solidity 0.8.35;
 
-import "@opengsn/contracts/src/ERC2771Recipient.sol";
-
-contract AppUI is ERC2771Recipient {
+contract AppUI {
     event Submit(address indexed userAddress, address indexed sender, address indexed origin);
 
     function _baseURI() private pure returns (string memory) {
         return "http://0.0.0.0:8540/poc/dapps/minimal/AppUI/";
     }
 
-    function setTrustedForwarder(address forwarder) public {
-        _setTrustedForwarder(forwarder);
+    function setTrustedForwarder(address forwarder) public pure {
+        forwarder;
     }
 
     function abiURI() public pure returns (string memory) {
@@ -31,7 +29,7 @@ contract AppUI is ERC2771Recipient {
     }
 
     function submit(address userAddress) public {
-        emit Submit(userAddress, _msgSender(), msg.sender);
+        emit Submit(userAddress, msg.sender, msg.sender);
     }
 
     function onSuccess() public pure returns (string memory) {
