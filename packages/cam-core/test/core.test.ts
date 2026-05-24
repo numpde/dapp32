@@ -15,10 +15,10 @@ const mainJson = {
   entry: "entry",
   contracts: {
     BicycleComponentManagerUI: {
-      abiURI: "./abi/IBicycleComponentManagerUI.v1.json",
+      abiURI: "./abi/BicycleComponentManagerUI.json",
     },
     BicycleComponentManager: {
-      abiURI: "./abi/IBicycleComponentManager.v1.json",
+      abiURI: "./abi/BicycleComponentManager.json",
     },
   },
   routes: {
@@ -481,7 +481,7 @@ test("rejects old contract address fields", () => {
       ...mainJson,
       contracts: {
         BicycleComponentManagerUI: {
-          abiURI: "./abi/IBicycleComponentManagerUI.v1.json",
+          abiURI: "./abi/BicycleComponentManagerUI.json",
           address: "0x0000000000000000000000000000000000000001",
         },
       },
@@ -522,11 +522,11 @@ test("rejects wallet hints in core V1 documents", () => {
 
 test("resolves resource URIs without fetching", () => {
   assert.equal(
-    resolveResourceURI("./main.json", "./abi/IBicycleComponentManager.v1.json"),
-    "./abi/IBicycleComponentManager.v1.json",
+    resolveResourceURI("./main.json", "./abi/BicycleComponentManager.json"),
+    "./abi/BicycleComponentManager.json",
   )
   assert.equal(
-    resolveResourceURI("ipfs://bafyRoot/main.json", "./abi/IBicycleComponentManager.v1.json"),
-    "ipfs://bafyRoot/abi/IBicycleComponentManager.v1.json",
+    resolveResourceURI("ipfs://bafyRoot/main.json", "./abi/BicycleComponentManager.json"),
+    "ipfs://bafyRoot/abi/BicycleComponentManager.json",
   )
 })

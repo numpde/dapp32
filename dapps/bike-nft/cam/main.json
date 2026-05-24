@@ -5,10 +5,10 @@
 
   "contracts": {
     "BicycleComponentManagerUI": {
-      "abiURI": "./abi/IBicycleComponentManagerUI.v1.json"
+      "abiURI": "./abi/BicycleComponentManagerUI.json"
     },
     "BicycleComponentManager": {
-      "abiURI": "./abi/IBicycleComponentManager.v1.json"
+      "abiURI": "./abi/BicycleComponentManager.json"
     }
   },
 
