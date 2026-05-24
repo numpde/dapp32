@@ -1,85 +1,174 @@
 pragma solidity 0.8.35;
 
-import "@openzeppelin-contracts-upgradeable-5.6.1/access/AccessControlUpgradeable.sol";
-import "@openzeppelin-contracts-upgradeable-5.6.1/proxy/utils/Initializable.sol";
-import "@openzeppelin-contracts-upgradeable-5.6.1/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin-contracts-upgradeable-5.6.1/token/ERC721/ERC721Upgradeable.sol";
-import "@openzeppelin-contracts-upgradeable-5.6.1/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
-import "@openzeppelin-contracts-upgradeable-5.6.1/token/ERC721/extensions/ERC721URIStorageUpgradeable.sol";
-import "@openzeppelin-contracts-upgradeable-5.6.1/utils/PausableUpgradeable.sol";
+import {
+    AccessControlDefaultAdminRules
+} from "@openzeppelin-contracts-5.6.1/access/extensions/AccessControlDefaultAdminRules.sol";
+import {ERC721} from "@openzeppelin-contracts-5.6.1/token/ERC721/ERC721.sol";
+import {ERC721Pausable} from "@openzeppelin-contracts-5.6.1/token/ERC721/extensions/ERC721Pausable.sol";
+import {ERC721URIStorage} from "@openzeppelin-contracts-5.6.1/token/ERC721/extensions/ERC721URIStorage.sol";
+import {IERC721Metadata} from "@openzeppelin-contracts-5.6.1/token/ERC721/extensions/IERC721Metadata.sol";
+import {IERC165} from "@openzeppelin-contracts-5.6.1/utils/introspection/IERC165.sol";
 
-/**
- * @title Bicycle Component NFT Base Contract
- * @notice This contract stores bicycle components as NFTs.
- * @dev This is a fairly generic upgradable ERC-721 contract.
- */
-abstract contract BicycleComponentsBase is
-    Initializable,
-    ERC721Upgradeable,
-    ERC721EnumerableUpgradeable,
-    ERC721URIStorageUpgradeable,
-    PausableUpgradeable,
-    AccessControlUpgradeable,
-    UUPSUpgradeable
+import {IBicycleComponents} from "./IBicycleComponents.sol";
+
+/// @title BicycleComponents
+/// @notice ERC-721 collection for registered bicycle components.
+/// @dev
+/// V1 keeps this contract deliberately close to a normal ERC-721 collection:
+///
+/// - owners can use standard ERC-721 approvals and transfers;
+/// - wallets, explorers, marketplaces, and indexers can treat tokens normally;
+/// - minting and token URI updates are exposed through a small role-gated API;
+/// - serial-number lookup, missing status, registrar rules, delegations, and
+///   recovery/dispute state belong in BicycleComponentManager.
+///
+/// The contract is intentionally not upgradeable. If token behavior needs to
+/// change later, deploy a new component-token contract and point the manager/CAM
+/// root at the new collection for future registrations.
+contract BicycleComponents is
+    ERC721,
+    ERC721URIStorage,
+    ERC721Pausable,
+    AccessControlDefaultAdminRules,
+    IBicycleComponents
 {
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant CONFIGURER_ROLE = keccak256("CONFIGURER_ROLE");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant TOKEN_URI_SETTER_ROLE = keccak256("TOKEN_URI_SETTER_ROLE");
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
+    string private _baseTokenURI;
+    string private _contractMetadataURI;
+
+    event BaseURIUpdated(string oldBaseURI, string newBaseURI);
+    event ContractURIUpdated(string oldContractURI, string newContractURI);
+
+    /// @param tokenName ERC-721 collection name.
+    /// @param tokenSymbol ERC-721 collection symbol.
+    /// @param admin Safe, timelock, governance executor, or other secured admin account.
+    /// @param adminDelay Delay, in seconds, for future DEFAULT_ADMIN_ROLE transfers.
+    /// @param baseTokenURI Optional base URI prefix used with stored token URI suffixes.
+    /// @param collectionURI Optional collection-level metadata URI.
+    constructor(
+        string memory tokenName,
+        string memory tokenSymbol,
+        address admin,
+        uint48 adminDelay,
+        string memory baseTokenURI,
+        string memory collectionURI
+    ) ERC721(tokenName, tokenSymbol) AccessControlDefaultAdminRules(adminDelay, admin) {
+        _grantRole(PAUSER_ROLE, admin);
+        _grantRole(CONFIGURER_ROLE, admin);
+        _grantRole(MINTER_ROLE, admin);
+        _grantRole(TOKEN_URI_SETTER_ROLE, admin);
+
+        _setBaseURI(baseTokenURI);
+        _setContractURI(collectionURI);
     }
 
-    function initialize() public virtual initializer {
-        __ERC721_init("BicycleComponents", "BICO");
-        __ERC721Enumerable_init();
-        __ERC721URIStorage_init();
-        __Pausable_init();
-        __AccessControl_init();
-        __UUPSUpgradeable_init();
+    // -------------------------------------------------------------------------
+    // Operations
+    // -------------------------------------------------------------------------
 
-        // By default, we grant only administrative roles to the deployer of the contract but
-        // not minting/burning roles, which will be the responsibility of another manager contract
-
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(UPGRADER_ROLE, msg.sender);
-        _grantRole(PAUSER_ROLE, msg.sender);
-    }
-
-    // ROLE SENTRIES: Pausing the contract
-
+    /// @notice Pauses token transfers, minting, and metadata updates.
     function pause() external onlyRole(PAUSER_ROLE) {
         _pause();
     }
 
+    /// @notice Resumes token transfers, minting, and metadata updates.
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
     }
 
-    // ROLE SENTRIES: Upgrading the contract
-
-    // An implementation of `_authorizeUpgrade` is required
-    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
-
-    // The following functions are overrides required by Solidity because:
-    // "Two or more base classes define function with same name and parameter types"
-
-    function _beforeTokenTransfer(address from, address to, uint256 tokenId, uint256 batchSize)
-        internal
-        override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
-        whenNotPaused
-    {
-        super._beforeTokenTransfer(from, to, tokenId, batchSize);
+    /// @inheritdoc IBicycleComponents
+    function baseURI() external view returns (string memory) {
+        return _baseTokenURI;
     }
 
-    function _burn(uint256 tokenId) internal override(ERC721Upgradeable, ERC721URIStorageUpgradeable) {
-        super._burn(tokenId);
+    /// @notice Updates the base URI prefix used by tokenURI.
+    function setBaseURI(string calldata baseTokenURI) external onlyRole(CONFIGURER_ROLE) {
+        _setBaseURI(baseTokenURI);
+    }
+
+    /// @inheritdoc IBicycleComponents
+    /// @dev This is collection metadata, not the CAM URI.
+    function contractURI() external view returns (string memory) {
+        return _contractMetadataURI;
+    }
+
+    /// @notice Updates collection-level metadata URI.
+    function setContractURI(string calldata collectionURI) external onlyRole(CONFIGURER_ROLE) {
+        _setContractURI(collectionURI);
+    }
+
+    // -------------------------------------------------------------------------
+    // Privileged minting / metadata
+    // -------------------------------------------------------------------------
+
+    /// @inheritdoc IBicycleComponents
+    /// @dev Restricted to accounts/contracts with MINTER_ROLE.
+    function mint(address to, uint256 tokenId, string calldata uri) external onlyRole(MINTER_ROLE) whenNotPaused {
+        _mint(to, tokenId);
+        _setTokenURI(tokenId, uri);
+    }
+
+    /// @inheritdoc IBicycleComponents
+    /// @dev Restricted to accounts/contracts with MINTER_ROLE.
+    function safeMint(address to, uint256 tokenId, string calldata uri, bytes calldata data)
+        external
+        onlyRole(MINTER_ROLE)
+        whenNotPaused
+    {
+        _safeMint(to, tokenId, data);
+        _setTokenURI(tokenId, uri);
+    }
+
+    /// @inheritdoc IBicycleComponents
+    /// @dev Restricted to accounts/contracts with TOKEN_URI_SETTER_ROLE.
+    function setTokenURI(uint256 tokenId, string calldata uri) external onlyRole(TOKEN_URI_SETTER_ROLE) whenNotPaused {
+        _requireOwned(tokenId);
+        _setTokenURI(tokenId, uri);
+    }
+
+    /// @inheritdoc IBicycleComponents
+    function exists(uint256 tokenId) external view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal helpers and OpenZeppelin overrides
+    // -------------------------------------------------------------------------
+
+    function _setBaseURI(string memory baseTokenURI) internal {
+        string memory oldBaseURI = _baseTokenURI;
+        _baseTokenURI = baseTokenURI;
+
+        emit BaseURIUpdated(oldBaseURI, baseTokenURI);
+    }
+
+    function _setContractURI(string memory collectionURI) internal {
+        string memory oldContractURI = _contractMetadataURI;
+        _contractMetadataURI = collectionURI;
+
+        emit ContractURIUpdated(oldContractURI, collectionURI);
+    }
+
+    function _baseURI() internal view override returns (string memory) {
+        return _baseTokenURI;
+    }
+
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        override(ERC721, ERC721Pausable)
+        returns (address)
+    {
+        return super._update(to, tokenId, auth);
     }
 
     function tokenURI(uint256 tokenId)
         public
         view
-        override(ERC721Upgradeable, ERC721URIStorageUpgradeable)
+        override(ERC721, ERC721URIStorage, IERC721Metadata)
         returns (string memory)
     {
         return super.tokenURI(tokenId);
@@ -88,76 +177,9 @@ abstract contract BicycleComponentsBase is
     function supportsInterface(bytes4 interfaceId)
         public
         view
-        override(ERC721Upgradeable, ERC721EnumerableUpgradeable, AccessControlUpgradeable)
+        override(ERC721, ERC721URIStorage, AccessControlDefaultAdminRules, IERC165)
         returns (bool)
     {
-        return super.supportsInterface(interfaceId);
-    }
-}
-
-/**
- * @title Bicycle Component NFT Contract
- * @notice Extends the base ERC-721 contract `BicycleComponentsBase`.
- * @dev This contract modifies the core logic of token management permissions
- * by overriding `_isApprovedOrOwner`. Specifically, it allows any address with
- * the NFT_MANAGER_ROLE to manage the NFTs of this contract. Moreover:
- *  - Only an address with this role can mint (via `safeMint`).
- *  - An owner, approved address, or address with the NFT_MANAGER_ROLE can
- *    transfer, set the token URI, and burn tokens.
- */
-contract BicycleComponents is BicycleComponentsBase {
-    bytes32 public constant NFT_MANAGER_ROLE = keccak256("NFT_MANAGER_ROLE");
-
-    // Allow/disallow the managing contract/address to manage the NFTs of this contract
-
-    function hireManager(address account) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        _grantRole(NFT_MANAGER_ROLE, account);
-    }
-
-    function fireManager(address account) public onlyRole(DEFAULT_ADMIN_ROLE) {
-        _revokeRole(NFT_MANAGER_ROLE, account);
-    }
-
-    // Modification of the _isApprovedOrOwner behavior from the inherited ERC721 contract
-
-    /**
-     * @dev Extends the default behavior of `_isApprovedOrOwner` from the inherited ERC721 contract.
-     * In addition to the usual checks, allows `sender` to have the NFT_MANAGER_ROLE.
-     * Moreover, this checks that the token exists using `_requireMinted`.
-     *
-     * @param spender The address to check for approval or ownership.
-     * @param tokenId The token ID to check for the given `spender`.
-     * @return bool True if the `spender` is owner, has approval or has the NFT_MANAGER_ROLE.
-     */
-    function _isApprovedOrOwner(address spender, uint256 tokenId) internal view virtual override returns (bool) {
-        _requireMinted(tokenId);
-        return super._isApprovedOrOwner(spender, tokenId) || hasRole(NFT_MANAGER_ROLE, spender);
-    }
-
-    function isApprovedOrOwner(address spender, uint256 tokenId) external view returns (bool) {
-        return _isApprovedOrOwner(spender, tokenId);
-    }
-
-    // Minting: NFT_MANAGER_ROLE only
-
-    function safeMint(address to, uint256 tokenId) external onlyRole(NFT_MANAGER_ROLE) {
-        _safeMint(to, tokenId);
-    }
-
-    // Functions that require `_isApprovedOrOwner`
-
-    function burn(uint256 tokenId) external {
-        require(_isApprovedOrOwner(msg.sender, tokenId), "Not owner/approved");
-        _burn(tokenId);
-    }
-
-    function setTokenURI(uint256 tokenId, string memory uri) external {
-        require(_isApprovedOrOwner(msg.sender, tokenId), "Not owner/approved");
-        _setTokenURI(tokenId, uri);
-    }
-
-    function transfer(uint256 tokenId, address to) external {
-        // Note: safeTransferFrom will check for `_isApprovedOrOwner`
-        super.safeTransferFrom(ownerOf(tokenId), to, tokenId);
+        return interfaceId == type(IBicycleComponents).interfaceId || super.supportsInterface(interfaceId);
     }
 }
