@@ -360,6 +360,70 @@
     </section>
 
     <section>
+      <h2>Supply-chain lanes</h2>
+      <div class="panel">
+        <p>
+          Dependency acquisition is not part of the graphical viewer runtime
+          stack. It remains a separate, explicit operation with egress confined
+          to dedicated proxy-backed Compose lanes.
+        </p>
+        <p>
+          The viewer runtime should use already-materialized Solidity and npm
+          dependencies. It should not run <code>npm install</code>,
+          <code>forge soldeer install</code>, or any dependency update command
+          while serving the app.
+        </p>
+      </div>
+
+      <div class="matrix">
+        <table>
+          <thead>
+            <tr>
+              <th>Lane</th>
+              <th>Compose file</th>
+              <th>Networked service</th>
+              <th>Output</th>
+              <th>Runtime relation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>make deps</code></td>
+              <td><code>compose/deps.yml</code></td>
+              <td><code>dependency-egress-proxy</code> plus Soldeer staging</td>
+              <td><code>dapps/dependencies/</code>, lock metadata, dependency checksums</td>
+              <td>Run before Solidity build/deploy lanes; routine Forge lanes verify with <code>deps-verify</code>.</td>
+            </tr>
+            <tr>
+              <td><code>make package-deps</code></td>
+              <td><code>compose/package-deps.yml</code></td>
+              <td><code>package-egress-proxy</code> plus npm staging</td>
+              <td>Root <code>node_modules/</code> and, only with <code>ALLOW_UPDATE=1</code>, <code>package-lock.json</code></td>
+              <td>Run before package build/test/viewer lanes; routine npm lanes stay offline.</td>
+            </tr>
+            <tr>
+              <td><code>make package-graph-check</code></td>
+              <td><code>compose/packages.yml</code></td>
+              <td>None</td>
+              <td>No new dependency material</td>
+              <td>Checks the installed npm graph before package code runs; it is not a per-file integrity verifier.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout warn">
+        <h2>Keep runtime and acquisition separate</h2>
+        <ul>
+          <li>The graphical viewer stack should not have external package registry access.</li>
+          <li>The static server and viewer web server should not be allowed to update lockfiles.</li>
+          <li>The deploy job should depend on <code>deps-verify</code>, not run Soldeer itself.</li>
+          <li>The viewer web server should depend on <code>package-build</code> or an equivalent offline package build, not run npm install.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
       <h2>Runtime flow</h2>
       <div class="diagram">
         <div class="box">
