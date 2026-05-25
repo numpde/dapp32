@@ -375,11 +375,11 @@
         </p>
         <p>
           The current npm lane is named <code>package-*</code> because the root
-          workspace currently contains <code>packages/*</code>. A browser viewer
-          under <code>apps/</code> should force an explicit naming decision:
-          either rename this lane to a neutral npm/workspace name, or add a
-          separate app lane. Do not quietly make <code>package-build</code>
-          responsible for apps without changing the contract its name implies.
+          workspace currently contains only <code>packages/*</code>. A browser
+          viewer under <code>apps/</code> should not be folded into that lane.
+          Implementing the graphical viewer should rename the existing npm lane
+          into the same repeated npm-project pattern used for apps: same verbs,
+          same confinement model, separate project roots.
         </p>
       </div>
 
@@ -403,18 +403,25 @@
               <td>Run before Solidity build/deploy lanes; routine Forge lanes verify with <code>deps-verify</code>.</td>
             </tr>
             <tr>
-              <td><code>make package-deps</code></td>
-              <td><code>compose/package-deps.yml</code></td>
-              <td><code>package-egress-proxy</code> plus npm staging</td>
+              <td><code>make npm-packages-deps</code></td>
+              <td><code>compose/npm-deps.yml</code></td>
+              <td>npm egress proxy plus npm staging</td>
               <td>Root <code>node_modules/</code> and, only with <code>ALLOW_UPDATE=1</code>, <code>package-lock.json</code></td>
-              <td>Run before npm workspace build/test/viewer lanes; routine npm lanes stay offline.</td>
+              <td>Library npm project for <code>packages/*</code>.</td>
             </tr>
             <tr>
-              <td><code>make package-graph-check</code></td>
-              <td><code>compose/packages.yml</code></td>
+              <td><code>make npm-cam-viewer-web-deps</code></td>
+              <td><code>compose/npm-deps.yml</code></td>
+              <td>npm egress proxy plus npm staging</td>
+              <td><code>apps/cam-viewer-web/node_modules/</code> and its app-local lockfile</td>
+              <td>App npm project for <code>apps/cam-viewer-web</code>.</td>
+            </tr>
+            <tr>
+              <td><code>make npm-&lt;project&gt;-graph-check</code></td>
+              <td><code>compose/npm-project.yml</code></td>
               <td>None</td>
               <td>No new dependency material</td>
-              <td>Checks the installed npm graph before package code runs; it is not a per-file integrity verifier.</td>
+              <td>Checks the installed npm graph before that project runs; it is not a per-file integrity verifier.</td>
             </tr>
           </tbody>
         </table>
@@ -426,40 +433,64 @@
           <li>The graphical viewer stack should not have external package registry access.</li>
           <li>The static server and viewer web server should not be allowed to update lockfiles.</li>
           <li>The deploy job should depend on <code>deps-verify</code>, not run Soldeer itself.</li>
-          <li>The viewer web server should depend on an offline npm workspace/app build, not run npm install.</li>
+          <li>The viewer web server should depend on its app-local offline npm build, not run npm install.</li>
         </ul>
       </div>
     </section>
 
     <section>
-      <h2>Naming decision before implementation</h2>
+      <h2>Symmetric npm projects</h2>
       <div class="panel">
         <p>
-          If <code>apps/cam-viewer-web</code> becomes an npm workspace, the root
-          workspace changes from <code>packages/*</code> to something like
-          <code>packages/*</code> plus <code>apps/*</code>. At that point,
-          <code>package-deps</code>, <code>package-build</code>, and
-          <code>package-test</code> are no longer precise names.
+          Keep npm confinement by treating libraries and apps as separate npm
+          projects, not as one shared root workspace. Each project has its own
+          dependency material and the same lifecycle verbs.
+        </p>
+      </div>
+
+      <div class="matrix">
+        <table>
+          <thead>
+            <tr>
+              <th>Project</th>
+              <th>Root</th>
+              <th>Dependency state</th>
+              <th>Targets</th>
+              <th>Allowed write surface</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>packages</code></td>
+              <td>repo root workspace over <code>packages/*</code></td>
+              <td>repo root <code>package-lock.json</code> and <code>node_modules/</code></td>
+              <td><code>npm-packages-deps</code>, <code>npm-packages-graph-check</code>, <code>npm-packages-build</code>, <code>npm-packages-test</code></td>
+              <td><code>packages/*/dist</code> during build only</td>
+            </tr>
+            <tr>
+              <td><code>cam-viewer-web</code></td>
+              <td><code>apps/cam-viewer-web</code></td>
+              <td>app-local <code>package-lock.json</code> and <code>node_modules/</code></td>
+              <td><code>npm-cam-viewer-web-deps</code>, <code>npm-cam-viewer-web-graph-check</code>, <code>npm-cam-viewer-web-build</code>, <code>npm-cam-viewer-web-test</code>, <code>npm-cam-viewer-web-dev</code></td>
+              <td><code>apps/cam-viewer-web/dist</code> during build; dev cache in tmpfs</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout">
+        <h2>Shared implementation, isolated projects</h2>
+        <p>
+          The implementation should be symmetric too: prefer a reusable
+          parameterized npm Compose harness over copied per-app Compose files.
+          The Make targets pass a project root, manifest input, lockfile path,
+          node_modules path, and script name. The containers stay the same; the
+          mounted writable paths change by project.
         </p>
         <p>
-          The lower-regret shape is to rename the npm lane around what it
-          actually governs:
-        </p>
-        <p>
-          <code>npm-deps</code>, <code>npm-graph-check</code>,
-          <code>npm-build</code>, <code>npm-test</code>
-        </p>
-        <p>
-          or:
-        </p>
-        <p>
-          <code>workspace-deps</code>, <code>workspace-graph-check</code>,
-          <code>workspace-build</code>, <code>workspace-test</code>
-        </p>
-        <p>
-          The exact names matter less than the boundary: one controlled npm
-          supply-chain lane for the whole root workspace, and no registry access
-          in the local graphical viewer runtime.
+          This keeps the app's React/Vite dependency churn out of the protocol
+          package dependency graph while preserving one familiar operational
+          shape for every npm project.
         </p>
       </div>
     </section>
@@ -626,12 +657,12 @@
           <code>make bike-nft-viewer-local</code>
         </p>
         <p>
-          It should depend on npm workspace and dependency integrity gates,
-          including an offline build that covers both
-          <code>packages/*</code> and the viewer app under <code>apps/*</code>,
-          plus <code>deps-verify</code> before any Foundry compile/deploy work.
-          Then it should start Anvil and the static server, run the local deploy
-          job, and start the viewer web server. A matching
+          It should depend on the relevant isolated npm-project gates:
+          <code>npm-packages-build</code> for the CAM libraries,
+          <code>npm-cam-viewer-web-build</code> for the app, and
+          <code>deps-verify</code> before any Foundry compile/deploy work. Then
+          it should start Anvil and the static server, run the local deploy job,
+          and start the viewer web server. A matching
           <code>make bike-nft-viewer-local-down</code> should stop the stack and
           remove only this scenario's containers and generated volumes.
         </p>
