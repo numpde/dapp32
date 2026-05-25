@@ -53,6 +53,8 @@ Keep the project small, explicit, and protocol-first.
   registry packages from `https://registry.npmjs.org/` with integrity metadata.
 - Keep npm install policy in `compose/package-deps.yml`; do not add repo
   `.npmrc` files.
+- Keep npm package execution in `compose/packages.yml`; package build/test lanes
+  are offline consumers of the locked `node_modules/` tree.
 - Use root `package-lock.json` as the only package lock source; do not add yarn,
   pnpm, bun, nested package-lock, or npm-shrinkwrap locks unless the dependency
   lane is deliberately redesigned.
@@ -63,7 +65,7 @@ Keep the project small, explicit, and protocol-first.
   dependency materialization owns only root `node_modules/` and
   `package-lock.json`.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
-  dependency contents before compiling.
+  dependency contents before compiling or executing package code.
 
 ## Dapp Layout
 

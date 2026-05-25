@@ -106,6 +106,35 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn('test -f "$(PACKAGE_LOCK_FILE)"', text)
         self.assertIn("find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json", text)
 
+    def test_package_build_and_test_lanes_are_offline(self) -> None:
+        text = read_text(repo_path("compose/packages.yml"))
+
+        self.assertIn("package-build:", text)
+        self.assertIn("package-test:", text)
+        self.assertEqual(2, text.count('network_mode: "none"'))
+        self.assertGreaterEqual(text.count("read_only: true"), 2)
+        self.assertGreaterEqual(text.count("no-new-privileges:true"), 2)
+        self.assertGreaterEqual(text.count("- ALL"), 2)
+        self.assertIn("../node_modules:/work/node_modules:ro", text)
+        self.assertIn("../package-lock.json:/work/package-lock.json:ro", text)
+        self.assertIn("../packages:/work/packages:rw", text)
+        self.assertIn("../packages:/work/packages:ro", text)
+        self.assertNotIn("../:/work", text)
+        self.assertNotIn("..:/work", text)
+        self.assertNotIn("npm install", text)
+        self.assertNotIn("npm ci", text)
+        self.assertNotIn("HTTP_PROXY", text)
+        self.assertNotIn("HTTPS_PROXY", text)
+
+    def test_package_build_and_test_targets_use_locked_deps(self) -> None:
+        text = read_text(repo_path("Makefile"))
+
+        self.assertIn("package-build: package-deps", text)
+        self.assertIn("package-test: package-build", text)
+        self.assertIn("$(call compose_run,packages.yml,package-build)", text)
+        self.assertIn("$(call compose_run,packages.yml,package-test)", text)
+        self.assertIn("ci: fmt build test fuzz invariant package-test", text)
+
     def test_live_dependency_egress_check_reuses_dependency_proxy_service(self) -> None:
         text = read_text(repo_path("compose/check-live-deps-egress.yml"))
 
@@ -121,7 +150,7 @@ class ComposePostureTest(unittest.TestCase):
     def test_check_target_names_are_layered_by_cost(self) -> None:
         text = read_text(repo_path("Makefile"))
 
-        self.assertIn(".PHONY: help deps deps-verify package-deps checks check-runtime check-live check-live-deps-egress", text)
+        self.assertIn(".PHONY: help deps deps-verify package-deps package-build package-test checks check-runtime check-live check-live-deps-egress", text)
         self.assertIn("check-runtime: check-anvil-compose", text)
         self.assertIn("check-live: check-live-deps-egress", text)
         self.assertIn("LIVE_DEPS_EGRESS_COMPOSE_FILES :=", text)

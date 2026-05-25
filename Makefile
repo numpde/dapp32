@@ -37,7 +37,7 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps checks check-runtime check-live check-live-deps-egress check-anvil-compose fmt build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
+.PHONY: help deps deps-verify package-deps package-build package-test checks check-runtime check-live check-live-deps-egress check-anvil-compose fmt build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
 
 help:
 	@printf '%s\n' \
@@ -47,6 +47,8 @@ help:
 	  '  make deps-verify  Verify installed dependencies against committed checksums' \
 	  '  make package-deps Install only the currently locked npm workspace dependencies' \
 	  '  make package-deps ALLOW_UPDATE=1  Allow package-lock.json updates' \
+	  '  make package-build  Build all npm workspace packages offline' \
+	  '  make package-test   Build and test all npm workspace packages offline' \
 	  '  make checks       Run offline repository/source checks' \
 	  '  make check-runtime  Run local Docker-backed runtime checks' \
 	  '  make check-live    Run live checks that intentionally use external network' \
@@ -173,6 +175,12 @@ package-deps:
 	reject_unsafe_package_targets; \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm "$$apply_service"
 
+package-build: package-deps
+	$(call compose_run,packages.yml,package-build)
+
+package-test: package-build
+	$(call compose_run,packages.yml,package-test)
+
 checks:
 	$(call compose_run,checks.yml,checks)
 
@@ -215,7 +223,7 @@ invariant: deps-verify
 coverage: deps-verify
 	$(call compose_run,forge.yml,forge-coverage)
 
-ci: fmt build test fuzz invariant
+ci: fmt build test fuzz invariant package-test
 
 cast-offline:
 	$(call compose_run,cast.yml,cast-offline)

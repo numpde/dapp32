@@ -1,0 +1,70 @@
+# Offline npm workspace build/test lanes.
+#
+# This file deliberately does not install dependencies and has no network. Run
+# make package-deps first to materialize root node_modules/ from the committed
+# package-lock.json through compose/package-deps.yml.
+services:
+  package-build:
+    build:
+      context: ../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 384
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      npm_config_cache: /tmp/npm-cache
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    volumes:
+      - ../package.json:/work/package.json:ro
+      - ../package-lock.json:/work/package-lock.json:ro
+      - ../node_modules:/work/node_modules:ro
+      - ../packages:/work/packages:rw
+    command:
+      - "npm"
+      - "run"
+      - "build:packages"
+
+  package-test:
+    build:
+      context: ../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 384
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      npm_config_cache: /tmp/npm-cache
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    volumes:
+      - ../package.json:/work/package.json:ro
+      - ../package-lock.json:/work/package-lock.json:ro
+      - ../node_modules:/work/node_modules:ro
+      - ../packages:/work/packages:ro
+    command:
+      - "npm"
+      - "test"
+      - "--workspaces"
+      - "--if-present"
