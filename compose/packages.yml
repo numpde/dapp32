@@ -27,12 +27,12 @@ x-package-base: &package_base
     - /tmp:rw,nosuid,nodev,noexec,size=512m
 
 services:
-  # This is the offline npm equivalent of deps-verify. npm's lockfile pins
-  # tarball integrity, but it does not provide a committed per-file checksum
-  # manifest for node_modules/. The practical gate before package code runs is
-  # therefore `npm ls`: verify that the installed workspace dependency graph is
-  # present and consistent with package.json/package-lock.json.
-  package-deps-verify:
+  # This is an offline dependency-graph check, not a file-integrity verifier.
+  # npm's lockfile pins tarball integrity, but npm does not provide a committed
+  # per-file checksum manifest for node_modules/. The practical gate before
+  # package code runs is therefore `npm ls`: check that the installed workspace
+  # dependency graph is present and consistent with package.json/package-lock.json.
+  package-graph-check:
     <<: *package_base
     volumes:
       - ../package.json:/work/package.json:ro
@@ -44,8 +44,8 @@ services:
       - "-eu"
       - "-c"
       - |
-        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-deps-verify.json
-        printf '%s\n' 'package-deps-verify: installed npm workspace dependencies match package-lock.json'
+        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
+        printf '%s\n' 'package-graph-check: installed npm dependency graph matches package-lock.json'
 
   # Package build is the only npm package lane with a writable packages/ mount.
   # The workspace convention is intentionally narrow: each package build script

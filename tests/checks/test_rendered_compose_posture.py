@@ -67,7 +67,7 @@ class RenderedComposePostureTest(unittest.TestCase):
     def test_package_lanes_render_as_offline_hardened_services(self) -> None:
         config = rendered_compose_config("compose/packages.yml")
 
-        verify = service(config, "package-deps-verify")
+        verify = service(config, "package-graph-check")
         build = service(config, "package-build")
         test = service(config, "package-test")
         for config_service in [verify, build, test]:
