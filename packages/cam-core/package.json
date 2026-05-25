@@ -11,10 +11,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./internal/json": {
-      "types": "./dist/internal/json.d.ts",
-      "default": "./dist/internal/json.js"
     }
   },
   "scripts": {

@@ -1,7 +1,6 @@
 import { SCREEN_CONTEXT_KEYS } from "./constants.ts"
 import { ScreenError } from "./errors.ts"
 import { hasOwn, isRecordObject } from "./guards.ts"
-import { isJsonScalar, joinPath } from "@cam/core/internal/json"
 import type { ScreenRuntimeContext } from "./types.ts"
 
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.(?:[A-Za-z][A-Za-z0-9_]*|0|[1-9][0-9]*))*$/
@@ -46,7 +45,11 @@ export function resolveValueAtPath(value: unknown, context: ScreenRuntimeContext
 }
 
 function validateJsonLiteral(value: unknown, path: string): void {
-  if (isJsonScalar(value)) {
+  if (value === null || typeof value === "boolean") {
+    return
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
     return
   }
 
@@ -108,4 +111,8 @@ function validateExpressionString(value: string, path: string): void {
 
 function isArrayIndex(value: string): boolean {
   return value === "0" || /^[1-9][0-9]*$/.test(value)
+}
+
+function joinPath(parent: string, key: string): string {
+  return `${parent}.${key}`
 }

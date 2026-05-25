@@ -58,6 +58,17 @@ class PackageMetadataTest(unittest.TestCase):
             with self.subTest(path=str(path)):
                 self.assertFalse(path.is_symlink(), f"{path}: package manifests must not be symlinks")
 
+    def test_package_exports_do_not_publish_internal_paths(self) -> None:
+        for path in sorted(repo_path("packages").glob("*/package.json")):
+            manifest = self.read_manifest(path)
+            exports = manifest.get("exports", {})
+            self.assertIsInstance(exports, dict, f"{path}: exports must be an object")
+
+            for export_path in exports:
+                with self.subTest(path=str(path), export_path=export_path):
+                    self.assertIsInstance(export_path, str, f"{path}: export path must be a string")
+                    self.assertNotIn("internal", export_path, f"{path}: internal modules must not be public exports")
+
     def test_package_dependency_versions_are_exact(self) -> None:
         workspace_names = self.workspace_package_names()
 

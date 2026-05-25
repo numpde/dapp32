@@ -239,20 +239,20 @@ package-deps:
 package-graph-check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)
 
-package-build-check: package-graph-check
+package-build-check:
 	$(call compose_run_with_package_deps,packages.yml,package-build-check)
 
-package-test: package-graph-check
+package-test:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
 package-ci: package-test viewer-terminal-check
 
-viewer-terminal-check: package-graph-check
+viewer-terminal-check:
 	@$(NON_ROOT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm -T viewer-terminal-check
 
-viewer-terminal: package-graph-check
+viewer-terminal:
 	@$(NON_ROOT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	if $(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all --quiet viewer-terminal | grep -q .; then \

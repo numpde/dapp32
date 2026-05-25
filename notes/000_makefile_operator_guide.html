@@ -374,7 +374,7 @@
               <td>Build checks and tests copy source/manifests from read-only <code>/input/packages</code> into writable tmpfs at <code>/work/packages</code>, with <code>node_modules</code> mounted read-only into that workspace. Package <code>dist/</code> output is discarded with the container. No target exports durable JS artifacts.</td>
               <td>None.</td>
               <td>One-shot <code>docker compose run --rm</code>.</td>
-              <td>Validate and test TypeScript packages after <code>package-graph-check</code> accepts the installed dependency graph; execution lanes repeat the offline graph check after staging and before package scripts run.</td>
+              <td>Validate and test TypeScript packages by staging the package workspace, checking the installed dependency graph inside that execution tree, then running package scripts offline.</td>
             </tr>
             <tr>
               <td><code>viewer-terminal</code>, <code>viewer-terminal-check</code></td>
@@ -502,7 +502,7 @@
             </div>
             <div class="fact">
               <strong>Graph check before use</strong>
-              <code>package-graph-check</code> runs offline before package build/test/viewer targets.
+              Package build/test/viewer targets run the same offline graph check inside their staged execution workspace before package scripts.
             </div>
             <div class="fact">
               <strong>Guards</strong>
@@ -590,7 +590,7 @@
           <div class="facts">
             <div class="fact">
               <strong>Prerequisite</strong>
-              Runs <code>package-graph-check</code> first, then stages package sources into container-local tmpfs, mounts <code>node_modules</code> read-only, repeats the graph check, and builds there.
+              Stages package sources into container-local tmpfs, mounts <code>node_modules</code> read-only, checks the graph, and builds there.
             </div>
             <div class="fact">
               <strong>Container</strong>
