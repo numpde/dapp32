@@ -52,7 +52,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build package-test viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
 
 help:
 	@printf '%s\n' \
@@ -63,8 +63,9 @@ help:
 	  '  make package-deps Install only the currently locked npm workspace dependencies' \
 	  '  make package-deps ALLOW_UPDATE=1  Allow package-lock.json updates' \
 	  '  make package-graph-check  Check installed npm dependency graph offline' \
-	  '  make package-build  Build all npm workspace packages offline' \
-	  '  make package-test   Build and test all npm workspace packages offline' \
+	  '  make package-build-check  Validate npm workspace package builds offline' \
+	  '  make package-test   Build and test npm workspace packages offline' \
+	  '  make package-ci     Run package tests and mock viewer terminal checks in one package container' \
 	  '  make viewer-terminal-check  Smoke-check the mock CAM viewer terminal offline' \
 	  '  make viewer-terminal  Run the mock-backed CAM viewer terminal offline' \
 	  '  make viewer-terminal-status  Show mock viewer terminal Compose status' \
@@ -83,7 +84,7 @@ help:
 	  '  make fuzz         Run fuzz tests for all dapps' \
 	  '  make invariant    Run invariant tests for all dapps' \
 	  '  make coverage     Print coverage summary from all dapp unit tests' \
-	  '  make ci           Run fmt, build, script-build, unit, fuzz, invariant, package-test, and viewer-terminal-check lanes' \
+	  '  make ci           Run fmt, build, script-build, unit, fuzz, invariant, and package-ci lanes' \
 	  '  make cast-offline Run offline cast smoke lane' \
 	  '  make cast-rpc RPC_URL_FILE=/path  Read a block number through the RPC egress proxy' \
 	  '  RPC_URL=https://... make cast-rpc  Same, using a temporary secret file' \
@@ -93,7 +94,8 @@ help:
 	  '  make bike-nft-local-deploy CAM_URI=... BIKE_NFT_PRIVATE_KEY_FILE=/path  Deploy the bike NFT fixture to an internal Anvil' \
 	  '' \
 	  'All lanes are Docker-backed. Default check lanes are offline, read-only,' \
-	  'non-root, capability-free, and avoid writing build artifacts into the repo.'
+	  'non-root, capability-free, and avoid writing build artifacts into the repo.' \
+	  'Dependency install lanes are the only guarded host bind-target setup exception.'
 
 deps:
 	@$(NON_ROOT_GUARD); \
@@ -237,11 +239,14 @@ package-deps:
 package-graph-check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)
 
-package-build: package-graph-check
-	$(call compose_run_with_package_deps,packages.yml,package-build)
+package-build-check: package-graph-check
+	$(call compose_run_with_package_deps,packages.yml,package-build-check)
 
 package-test: package-graph-check
 	$(call compose_run_with_package_deps,packages.yml,package-test)
+
+package-ci: package-graph-check
+	$(call compose_run_with_package_deps,packages.yml,package-ci)
 
 viewer-terminal-check: package-graph-check
 	@$(NON_ROOT_GUARD); \
@@ -316,7 +321,7 @@ invariant: deps-verify
 coverage: deps-verify
 	$(call compose_run,forge.yml,forge-coverage)
 
-ci: fmt build script-build test fuzz invariant package-test viewer-terminal-check
+ci: fmt build script-build test fuzz invariant package-ci
 
 cast-offline:
 	$(call compose_run,cast.yml,cast-offline)

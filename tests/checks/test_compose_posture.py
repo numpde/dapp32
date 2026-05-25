@@ -128,14 +128,15 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("rm -f $$created_dependency_metadata_placeholders", text)
         self.assertIn("test -d $(DEPENDENCIES_DIR)", text)
 
-    def test_package_build_and_test_lanes_are_offline(self) -> None:
+    def test_package_build_check_test_and_ci_lanes_are_offline(self) -> None:
         text = read_text(repo_path("compose/packages.yml"))
 
         self.assertIn("package-graph-check:", text)
-        self.assertIn("package-build:", text)
+        self.assertIn("package-build-check:", text)
         self.assertIn("package-test:", text)
+        self.assertIn("package-ci:", text)
         self.assertIn("x-package-base: &package_base", text)
-        self.assertGreaterEqual(text.count("<<: *package_base"), 3)
+        self.assertGreaterEqual(text.count("<<: *package_base"), 4)
         self.assertEqual(1, text.count('network_mode: "none"'))
         self.assertEqual(1, text.count("read_only: true"))
         self.assertEqual(1, text.count("no-new-privileges:true"))
@@ -166,7 +167,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertNotIn("HTTP_PROXY", text)
         self.assertNotIn("HTTPS_PROXY", text)
 
-    def test_package_build_is_dist_artifact_lane_by_convention(self) -> None:
+    def test_package_build_check_is_compile_validation_by_convention(self) -> None:
         for package_json in sorted(repo_path("packages").glob("*/package.json")):
             with self.subTest(package=str(package_json.relative_to(repo_path(".")))):
                 package_text = read_text(package_json)
@@ -186,22 +187,26 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("Run make package-deps to install the locked package dependencies.", text)
         self.assertIn("define compose_run_with_package_deps", text)
         self.assertIn("package-graph-check:", text)
-        self.assertIn("package-build: package-graph-check", text)
+        self.assertIn("package-build-check: package-graph-check", text)
+        self.assertNotIn("\npackage-build:", text)
         self.assertNotIn("mkdir -p \"$${manifest%/package.json}/dist\"", text)
         self.assertIsNone(re.search(r"^package-build:\s+package-deps$", text, re.MULTILINE))
         self.assertIn("package-test: package-graph-check", text)
+        self.assertIn("package-ci: package-graph-check", text)
         self.assertIn("viewer-terminal-check: package-graph-check", text)
         self.assertIn("npm run build:packages", text)
         self.assertIn("./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json", text)
         self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", text)
         self.assertIn("viewer-terminal: package-graph-check", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-graph-check)", text)
-        self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-build)", text)
+        self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-build-check)", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-test)", text)
+        self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-ci)", text)
         self.assertIn("VIEWER_TERMINAL_COMPOSE_PROJECT_NAME", text)
         self.assertIn("VIEWER_TERMINAL_CONTAINER_NAME", text)
         self.assertIn("$(PACKAGE_DEPS_GUARD)", text)
-        self.assertIn("ci: fmt build script-build test fuzz invariant package-test viewer-terminal-check", text)
+        self.assertIn("ci: fmt build script-build test fuzz invariant package-ci", text)
+        self.assertNotIn("ci: fmt build script-build test fuzz invariant package-test viewer-terminal-check", text)
 
     def test_interactive_viewer_has_explicit_lifecycle_targets(self) -> None:
         text = read_text(repo_path("Makefile"))
@@ -243,7 +248,7 @@ class ComposePostureTest(unittest.TestCase):
     def test_check_target_names_are_layered_by_cost(self) -> None:
         text = read_text(repo_path("Makefile"))
 
-        self.assertIn(".PHONY: help deps deps-verify package-deps package-graph-check package-build package-test viewer-terminal-check checks check-runtime check-live check-live-deps-egress", text)
+        self.assertIn(".PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress", text)
         self.assertIn("check-runtime: check-anvil-compose", text)
         self.assertIn("check-live: check-live-deps-egress", text)
         self.assertIn("LIVE_DEPS_EGRESS_COMPOSE_FILES :=", text)

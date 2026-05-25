@@ -65,11 +65,18 @@ Keep the project small, explicit, and protocol-first.
   `dapps/remappings.txt`, and `dapps/dependency-checksums.txt`. Npm workspace
   dependency materialization owns only `packages/node_modules/` and
   `packages/package-lock.json`.
+- Dependency materialization lanes may pre-create only their guarded host bind
+  targets, after rejecting symlinks and wrong-type paths, so Docker never creates
+  repository paths implicitly.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
   dependency contents before compiling or executing package code.
 - Package build/test lanes must not create host-side package build directories as
   preflight. Package `dist/` outputs belong in container-local tmpfs unless an
   explicit artifact export lane is added.
+- `package-build-check` is compile validation only. Do not use a `package-build`
+  name unless the lane intentionally produces durable host-visible artifacts.
+- `package-ci` should keep package tests and package-backed tool smoke checks in
+  one container-local filesystem when that avoids rebuilding ephemeral `dist/`.
 - ABI export must keep `dapps/` read-only and mount only explicit, pre-existing
   `dapps/<name>/cam/abi/` directories writable.
 

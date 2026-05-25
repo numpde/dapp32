@@ -44,12 +44,10 @@ services:
         npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
         printf '%s\n' 'package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata'
 
-  # Package build keeps packages/ read-only and overlays generated dist/
-  # directories with container-local tmpfs mounts.
-  # The workspace convention is intentionally narrow: each package build script
-  # runs `tsc -p tsconfig.json`, each tsconfig reads src/**/*.ts, and emitted
-  # artifacts go under that package's ephemeral dist/ mount.
-  package-build:
+  # Package build-check validates compilation only. It does not export durable
+  # artifacts; package dist/ outputs live only in container-local tmpfs mounts.
+  # Add a separate artifact-export lane if host-visible JS output is ever needed.
+  package-build-check:
     <<: *package_base
     volumes:
       - ../packages:/work/packages:ro
@@ -99,3 +97,37 @@ services:
       - "npm"
       - "run"
       - "test:packages"
+
+  # CI keeps package tests and the terminal harness in one container-local
+  # filesystem so TypeScript dist/ output is built once and discarded once.
+  package-ci:
+    <<: *package_base
+    volumes:
+      - ../dapps:/work/dapps:ro
+      - ../packages:/work/packages:ro
+      - ../tools:/work/tools:ro
+      - type: tmpfs
+        target: /work/packages/cam-core/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-evm-viem/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-screen/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-viewer/dist
+        tmpfs:
+          mode: 511
+    command:
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run test:packages
+        ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json
+        cd /work
+        printf "quit\n" | node --experimental-strip-types tools/viewer-terminal/terminal-session.ts >/dev/null
