@@ -41,7 +41,8 @@ x-forge-base: &forge_base
     - ..:/work:ro
 
 services:
-  # Formatting is a read-only source check.
+  # Formatting is a read-only source check. Deployment scripts are source too;
+  # they are included here even though execution gets its own scenario lane.
   forge-fmt:
     <<: *forge_base
     command:
@@ -50,13 +51,13 @@ services:
       - "-c"
       - |
         set --
-        for dir in */src */test; do
+        for dir in */src */test */script; do
           if [ -d "$$dir" ]; then
             set -- "$$@" "$$dir"
           fi
         done
         if [ "$$#" -eq 0 ]; then
-          printf '%s\n' 'forge-fmt: no dapp src/test directories found' >&2
+          printf '%s\n' 'forge-fmt: no dapp src/test/script directories found' >&2
           exit 2
         fi
         forge fmt --check "$@"
@@ -79,6 +80,27 @@ services:
         if [ "$$#" -eq 0 ]; then
           printf '%s\n' 'forge-build: no dapp src directories found' >&2
           exit 2
+        fi
+        forge build --offline "$@"
+
+  # Deployment scripts are compiled routinely, but they are not executed here.
+  # Broadcast/RPC/private-key handling belongs in scenario-specific compose files.
+  forge-script-build:
+    <<: *forge_base
+    command:
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        set --
+        for dir in */script; do
+          if [ -d "$$dir" ]; then
+            set -- "$$@" "$$dir"
+          fi
+        done
+        if [ "$$#" -eq 0 ]; then
+          printf '%s\n' 'forge-script-build: no dapp script directories found'
+          exit 0
         fi
         forge build --offline "$@"
 

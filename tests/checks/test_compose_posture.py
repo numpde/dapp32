@@ -140,7 +140,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-build)", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-test)", text)
         self.assertIn("$(call compose_run_with_package_deps,viewer-terminal.yml,viewer-terminal)", text)
-        self.assertIn("ci: fmt build test fuzz invariant package-test", text)
+        self.assertIn("ci: fmt build script-build test fuzz invariant package-test", text)
 
     def test_live_dependency_egress_check_reuses_dependency_proxy_service(self) -> None:
         text = read_text(repo_path("compose/check-live-deps-egress.yml"))
@@ -196,9 +196,11 @@ class ComposePostureTest(unittest.TestCase):
     def test_forge_lanes_discover_dapps_by_convention(self) -> None:
         text = read_text(repo_path("compose/forge.yml"))
 
-        self.assertIn("for dir in */src */test", text)
+        self.assertIn("for dir in */src */test */script", text)
         self.assertIn("for dir in */src", text)
-        self.assertIn("no dapp src/test directories found", text)
+        self.assertIn("for dir in */script", text)
+        self.assertIn("forge-script-build:", text)
+        self.assertIn("no dapp src/test/script directories found", text)
         self.assertIn("no dapp src directories found", text)
         self.assertNotIn("deposit/src", text)
         self.assertNotIn("deposit/test", text)

@@ -45,7 +45,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-build package-test checks check-runtime check-live check-live-deps-egress viewer-terminal check-anvil-compose fmt build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
+.PHONY: help deps deps-verify package-deps package-build package-test checks check-runtime check-live check-live-deps-egress viewer-terminal check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
 
 help:
 	@printf '%s\n' \
@@ -65,12 +65,13 @@ help:
 	  '  make check-anvil-compose  Run only the rendered Anvil Compose posture checks' \
 	  '  make fmt          Check Solidity formatting for all dapps' \
 	  '  make build        Compile all dapp source trees' \
+	  '  make script-build Compile all dapp deployment scripts without executing them' \
 	  '  make abi          Export dapps/<name>/src/*.sol ABIs into existing cam/abi directories' \
 	  '  make test         Run unit tests for all dapps' \
 	  '  make fuzz         Run fuzz tests for all dapps' \
 	  '  make invariant    Run invariant tests for all dapps' \
 	  '  make coverage     Print coverage summary from all dapp unit tests' \
-	  '  make ci           Run fmt, build, unit, fuzz, and invariant lanes' \
+	  '  make ci           Run fmt, build, script-build, unit, fuzz, invariant, and package-test lanes' \
 	  '  make cast-offline Run offline cast smoke lane' \
 	  '  make cast-rpc RPC_URL_FILE=/path  Read a block number through the RPC egress proxy' \
 	  '  RPC_URL=https://... make cast-rpc  Same, using a temporary secret file' \
@@ -220,6 +221,9 @@ fmt:
 build: deps-verify
 	$(call compose_run,forge.yml,forge-build)
 
+script-build: deps-verify
+	$(call compose_run,forge.yml,forge-script-build)
+
 abi: deps-verify
 	$(call compose_run,forge.yml,forge-abi)
 
@@ -235,7 +239,7 @@ invariant: deps-verify
 coverage: deps-verify
 	$(call compose_run,forge.yml,forge-coverage)
 
-ci: fmt build test fuzz invariant package-test
+ci: fmt build script-build test fuzz invariant package-test
 
 cast-offline:
 	$(call compose_run,cast.yml,cast-offline)
