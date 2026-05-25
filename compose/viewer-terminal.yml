@@ -3,7 +3,7 @@
 # This service is deliberately mock-backed and networkless. It is not a real
 # chain/RPC viewer; it proves that the viewer state machine can be driven over
 # stdin/stdout against checked-in CAM resources while contract reads are faked
-# inside packages/cam-viewer/examples/terminal-session.ts.
+# inside tools/viewer-terminal/terminal-session.ts.
 services:
   viewer-terminal:
     container_name: "${VIEWER_TERMINAL_CONTAINER_NAME:?missing_VIEWER_TERMINAL_CONTAINER_NAME}"
@@ -36,7 +36,8 @@ services:
       - ../node_modules:/work/node_modules:ro
       - ../dapps:/work/dapps:ro
       - ../packages:/work/packages:ro
+      - ../tools:/work/tools:ro
     command:
       - "node"
       - "--experimental-strip-types"
-      - "packages/cam-viewer/examples/terminal-session.ts"
+      - "tools/viewer-terminal/terminal-session.ts"

@@ -92,5 +92,9 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("none", viewer.get("network_mode"))
         self.assertEqual(True, viewer.get("stdin_open"))
         self.assertEqual(True, viewer.get("tty"))
-        for target in ["/work/dapps", "/work/packages", "/work/node_modules"]:
+        self.assertEqual(
+            ["node", "--experimental-strip-types", "tools/viewer-terminal/terminal-session.ts"],
+            viewer.get("command"),
+        )
+        for target in ["/work/dapps", "/work/packages", "/work/node_modules", "/work/tools"]:
             self.assertEqual(True, volume_for(viewer, target).get("read_only"))

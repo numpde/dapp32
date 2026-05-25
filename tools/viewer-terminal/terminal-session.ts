@@ -9,11 +9,11 @@ import type {
   PublicClient,
 } from "viem"
 
-import { createCamViewerSession } from "../src/index.ts"
+import { createCamViewerSession } from "@cam/viewer"
 import type {
   CamViewerSession,
   CamViewerSnapshot,
-} from "../src/index.ts"
+} from "@cam/viewer"
 import type {
   ResolvedButtonElement,
   ResolvedScreenElement,
@@ -29,9 +29,10 @@ const MOCK_CHAIN_ID = "eip155:31337"
 const MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
 const MOCK_CAM_URI = new URL("main.json", MOCK_CAM_BASE_URI).href
 
-// This file is intentionally a mock terminal harness, not a general CAM
-// viewer runner. It has no RPC, no network, and no environment-based target
-// selection; all "chain" reads are deterministic in-process fakes.
+// This is an internal mock terminal harness for debugging the headless viewer.
+// It is intentionally not a general CAM runner: there is no RPC, no network,
+// and no environment-based target selection. All "chain" reads below are
+// deterministic in-process fakes for the checked-in bike NFT CAM files.
 type DebugEvent =
   | {
     readonly step: number
