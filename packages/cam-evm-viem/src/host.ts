@@ -1,7 +1,7 @@
 import { parseCam } from "@cam/core"
 import type { Hex } from "viem"
 
-import { camRootAbi } from "./abi.ts"
+import { CAM_ROOT_FUNCTIONS, camRootAbi } from "./abi.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamHash } from "./hash.ts"
 import { parseJsonBytes } from "./json.ts"
@@ -18,12 +18,12 @@ export async function loadCamFromHost({
       publicClient.readContract({
         address: host.address,
         abi: camRootAbi,
-        functionName: "camURI",
+        functionName: CAM_ROOT_FUNCTIONS.camURI,
       }),
       publicClient.readContract({
         address: host.address,
         abi: camRootAbi,
-        functionName: "camHash",
+        functionName: CAM_ROOT_FUNCTIONS.camHash,
       }),
     ])
   } catch (cause) {

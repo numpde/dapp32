@@ -1,7 +1,7 @@
 import { resolveResourceURI } from "@cam/core"
 import type { Address } from "viem"
 
-import { camRootAbi, parseAbiBytes } from "./abi.ts"
+import { CAM_ROOT_FUNCTIONS, camRootAbi, parseAbiBytes } from "./abi.ts"
 import { ZERO_ADDRESS } from "./constants.ts"
 import { CamEvmError } from "./errors.ts"
 import type { ResolvedCamContract, ResolveCamContractsOptions } from "./types.ts"
@@ -20,7 +20,7 @@ export async function resolveCamContracts({
         address = await publicClient.readContract({
           address: host.address,
           abi: camRootAbi,
-          functionName: "contractAddress",
+          functionName: CAM_ROOT_FUNCTIONS.contractAddress,
           args: [name],
         }) as Address
       } catch (cause) {

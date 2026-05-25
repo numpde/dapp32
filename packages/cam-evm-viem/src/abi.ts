@@ -3,24 +3,30 @@ import type { Abi } from "viem"
 import { CamEvmError } from "./errors.ts"
 import { parseJsonBytes } from "./json.ts"
 
+export const CAM_ROOT_FUNCTIONS = {
+  camURI: "camURI",
+  camHash: "camHash",
+  contractAddress: "contractAddress",
+} as const
+
 export const camRootAbi = [
   {
     type: "function",
-    name: "camURI",
+    name: CAM_ROOT_FUNCTIONS.camURI,
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "string" }],
   },
   {
     type: "function",
-    name: "camHash",
+    name: CAM_ROOT_FUNCTIONS.camHash,
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "bytes32" }],
   },
   {
     type: "function",
-    name: "contractAddress",
+    name: CAM_ROOT_FUNCTIONS.contractAddress,
     stateMutability: "view",
     inputs: [{ name: "contractName", type: "string" }],
     outputs: [{ name: "", type: "address" }],

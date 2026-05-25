@@ -13,6 +13,7 @@ import {
   verifyCamHash,
   ZERO_HASH,
 } from "../src/index.ts"
+import { CAM_ROOT_FUNCTIONS } from "../src/abi.ts"
 import { ZERO_ADDRESS } from "../src/constants.ts"
 import type { CamHost, ResourceLoader } from "../src/index.ts"
 
@@ -24,6 +25,9 @@ const host: CamHost = {
 const userAddress = "0x0000000000000000000000000000000000000002"
 const uiAddress = "0x0000000000000000000000000000000000000003"
 const managerAddress = "0x0000000000000000000000000000000000000004"
+const camDocumentURI = "ipfs://example/main.json"
+const uiAbiURI = "ipfs://example/abi/BicycleComponentManagerUI.json"
+const managerAbiURI = "ipfs://example/abi/BicycleComponentManager.json"
 
 const camJson = {
   cam: "1.0.0",
@@ -78,11 +82,11 @@ const managerAbi = [] as const satisfies Abi
 test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned CAM", async () => {
   const camBytes = encodeJson(camJson)
   const publicClient = createPublicClient({
-    camURI: "ipfs://example/main.json",
+    camURI: camDocumentURI,
     camHash: ZERO_HASH,
   })
   const resources = createResourceLoader({
-    "ipfs://example/main.json": camBytes,
+    [camDocumentURI]: camBytes,
   })
 
   const loaded = await loadCamFromHost({
@@ -91,10 +95,13 @@ test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned 
     loadResource: resources,
   })
 
-  assert.equal(loaded.camURI, "ipfs://example/main.json")
+  assert.equal(loaded.camURI, camDocumentURI)
   assert.equal(loaded.camHash, ZERO_HASH)
   assert.deepEqual(loaded.cam, parseCam(camJson))
-  assert.deepEqual(publicClient.calls.map((call) => call.functionName), ["camURI", "camHash"])
+  assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
+    CAM_ROOT_FUNCTIONS.camURI,
+    CAM_ROOT_FUNCTIONS.camHash,
+  ])
 })
 
 test("verifyCamHash rejects mismatched nonzero hashes", () => {
@@ -118,12 +125,12 @@ test("loadCamFromHost wraps invalid CAM JSON in an adapter error", async () => {
   await assert.rejects(
     () => loadCamFromHost({
       publicClient: createPublicClient({
-        camURI: "ipfs://example/main.json",
+        camURI: camDocumentURI,
         camHash: ZERO_HASH,
       }),
       host,
       loadResource: createResourceLoader({
-        "ipfs://example/main.json": encodeText("{not json"),
+        [camDocumentURI]: encodeText("{not json"),
       }),
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_DOCUMENT_INVALID",
@@ -139,20 +146,20 @@ test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relati
     },
   })
   const resources = createResourceLoader({
-    "ipfs://example/abi/BicycleComponentManagerUI.json": encodeJson(uiAbi),
-    "ipfs://example/abi/BicycleComponentManager.json": encodeJson(managerAbi),
+    [uiAbiURI]: encodeJson(uiAbi),
+    [managerAbiURI]: encodeJson(managerAbi),
   })
 
   const contracts = await resolveCamContracts({
     publicClient,
     host,
-    camURI: "ipfs://example/main.json",
+    camURI: camDocumentURI,
     cam,
     loadResource: resources,
   })
 
   assert.equal(contracts.BicycleComponentManagerUI.address, uiAddress)
-  assert.equal(contracts.BicycleComponentManagerUI.abiURI, "ipfs://example/abi/BicycleComponentManagerUI.json")
+  assert.equal(contracts.BicycleComponentManagerUI.abiURI, uiAbiURI)
   assert.deepEqual(contracts.BicycleComponentManagerUI.abi, uiAbi)
   assert.equal(contracts.BicycleComponentManager.address, managerAddress)
 })
@@ -166,7 +173,7 @@ test("resolveCamContracts rejects unbound contract names", async () => {
         },
       }),
       host,
-      camURI: "ipfs://example/main.json",
+      camURI: camDocumentURI,
       cam: parseCam(camJson),
       loadResource: createResourceLoader({}),
     }),
@@ -185,12 +192,12 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns r
   const result = await callCamRoute({
     publicClient,
     cam,
-    camURI: "ipfs://example/main.json",
+    camURI: camDocumentURI,
     contracts: {
       BicycleComponentManagerUI: {
         name: "BicycleComponentManagerUI",
         address: uiAddress,
-        abiURI: "ipfs://example/abi/BicycleComponentManagerUI.json",
+        abiURI: uiAbiURI,
         abi: uiAbi,
       },
     },
@@ -223,12 +230,12 @@ test("callCamRoute requires the first route return value to be a non-empty scree
         },
       }),
       cam: parseCam(camJson),
-      camURI: "ipfs://example/main.json",
+      camURI: camDocumentURI,
       contracts: {
         BicycleComponentManagerUI: {
           name: "BicycleComponentManagerUI",
           address: uiAddress,
-          abiURI: "ipfs://example/abi/BicycleComponentManagerUI.json",
+          abiURI: uiAbiURI,
           abi: uiAbi,
         },
       },
@@ -252,12 +259,12 @@ test("callCamRoute rejects route functions missing from the resolved ABI", async
         },
       }),
       cam: parseCam(camJson),
-      camURI: "ipfs://example/main.json",
+      camURI: camDocumentURI,
       contracts: {
         BicycleComponentManagerUI: {
           name: "BicycleComponentManagerUI",
           address: uiAddress,
-          abiURI: "ipfs://example/abi/BicycleComponentManagerUI.json",
+          abiURI: uiAbiURI,
           abi: managerAbi,
         },
       },
@@ -289,12 +296,12 @@ test("callCamRoute rejects overloaded route function names in CAM V1", async () 
         },
       }),
       cam: parseCam(camJson),
-      camURI: "ipfs://example/main.json",
+      camURI: camDocumentURI,
       contracts: {
         BicycleComponentManagerUI: {
           name: "BicycleComponentManagerUI",
           address: uiAddress,
-          abiURI: "ipfs://example/abi/BicycleComponentManagerUI.json",
+          abiURI: uiAbiURI,
           abi: overloadedAbi,
         },
       },
@@ -310,7 +317,7 @@ test("callCamRoute rejects overloaded route function names in CAM V1", async () 
 })
 
 function createPublicClient({
-  camURI = "ipfs://example/main.json",
+  camURI = camDocumentURI,
   camHash = ZERO_HASH,
   addresses = {},
   routeResults = {},
@@ -337,15 +344,15 @@ function createPublicClient({
     }): Promise<unknown> {
       calls.push(request)
 
-      if (request.functionName === "camURI") {
+      if (request.functionName === CAM_ROOT_FUNCTIONS.camURI) {
         return camURI
       }
 
-      if (request.functionName === "camHash") {
+      if (request.functionName === CAM_ROOT_FUNCTIONS.camHash) {
         return camHash
       }
 
-      if (request.functionName === "contractAddress") {
+      if (request.functionName === CAM_ROOT_FUNCTIONS.contractAddress) {
         const [name] = request.args ?? []
         return typeof name === "string" && addresses[name] !== undefined
           ? addresses[name]
