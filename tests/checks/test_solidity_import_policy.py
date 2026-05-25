@@ -109,6 +109,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
             "forge-std/Test.sol",
             "forge-std-1.11.1/src/Test.sol",
             f"forge-std-{forge_std_version}/src/Script.sol",
+            "cam/src/Other.sol",
             "deposit/src/DepositVault.sol",
             "https://example.test/Contract.sol",
         ]
@@ -154,7 +155,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
         if import_path.startswith(FORGE_STD_PACKAGE):
             return self.validate_forge_std_import(source, import_path, dependency_versions[FORGE_STD_PACKAGE])
 
-        if self.is_script_source(source) and import_path.startswith("cam/src/"):
+        if self.is_script_source(source) and import_path == "cam/src/CamRoot.sol":
             return self.validate_dapps_root_import(source, import_path)
 
         return f"{source}: disallowed package import {import_path}"
