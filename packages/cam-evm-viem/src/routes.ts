@@ -45,10 +45,20 @@ export async function callCamRoute({
       `CAM route did not return a screen URI as its first output: ${route}`,
     )
   }
+  assertLocalScreenURI(screenURI, route)
 
   return {
     screenURI: resolveResourceURI(camURI, screenURI),
     values,
+  }
+}
+
+function assertLocalScreenURI(screenURI: string, route: string): void {
+  if (!/^\.\/screens\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$/.test(screenURI)) {
+    throw new CamEvmError(
+      "CAM_ROUTE_INVALID_RESULT",
+      `CAM route returned an unsafe screen URI for ${route}: ${screenURI}`,
+    )
   }
 }
 

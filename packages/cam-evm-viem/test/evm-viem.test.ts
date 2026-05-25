@@ -1,8 +1,10 @@
 import assert from "node:assert/strict"
+import { readFile } from "node:fs/promises"
 import test from "node:test"
 import { TextEncoder } from "node:util"
 
 import { parseCam } from "@cam/core"
+import { parseScreen, resolveScreen } from "@cam/screen"
 import type { Abi, Address, Hex } from "viem"
 
 import {
@@ -51,6 +53,11 @@ const camJson = {
       function: "viewComponent",
       args: ["$params.serialNumber", "$account.address"],
     },
+    register: {
+      contract: "BicycleComponentManagerUI",
+      function: "viewRegister",
+      args: ["$params.serialNumber", "$account.address"],
+    },
   },
 }
 
@@ -68,6 +75,16 @@ const uiAbi = [
   {
     type: "function",
     name: "viewComponent",
+    stateMutability: "view",
+    inputs: [
+      { name: "serialNumber", type: "string" },
+      { name: "viewer", type: "address" },
+    ],
+    outputs: [{ name: "screenURI", type: "string" }],
+  },
+  {
+    type: "function",
+    name: "viewRegister",
     stateMutability: "view",
     inputs: [
       { name: "serialNumber", type: "string" },
@@ -290,6 +307,140 @@ test("callCamRoute requires the first route return value to be a non-empty scree
   )
 })
 
+test("callCamRoute accepts only CAM-local screen JSON resources", async () => {
+  const unsafeScreenURIs = [
+    "https://example.com/x.json",
+    "ipfs://example/x.json",
+    "../x.json",
+    "./abi/BicycleComponentManager.json",
+    "./screens/../x.json",
+    "/screens/component.json",
+  ]
+
+  for (const unsafeScreenURI of unsafeScreenURIs) {
+    await assert.rejects(
+      () => callCamRoute({
+        publicClient: createPublicClient({
+          routeResults: {
+            viewEntry: [unsafeScreenURI],
+          },
+        }),
+        cam: parseCam(camJson),
+        camURI: camDocumentURI,
+        contracts: {
+          BicycleComponentManagerUI: {
+            address: uiAddress,
+            abiURI: uiAbiURI,
+            abi: uiAbi,
+          },
+        },
+        route: "entry",
+        context: {
+          host,
+          account: { address: userAddress },
+          params: {},
+        },
+      }),
+      (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+    )
+  }
+})
+
+test("bike CAM routes resolve to the three route-level screens", async () => {
+  const cam = parseCam(camJson)
+  const routeResults = {
+    viewEntry: [
+      "./screens/entry.json",
+      {
+        account: userAddress,
+        canRegister: true,
+        accountInfo: "registrar",
+      },
+    ],
+    viewComponent: [
+      "./screens/component.json",
+      {
+        exists: true,
+        serialHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
+        tokenContract: "0x0000000000000000000000000000000000000010",
+        tokenId: BigInt(42),
+        owner: userAddress,
+        ownerInfo: "owner",
+        registrar: userAddress,
+        status: 1,
+        tokenURI: "ipfs://example/token/42",
+        registeredAt: 1,
+        updatedAt: 2,
+        serialNumber: "ABC123",
+        permissions: BigInt(7),
+        isOwner: true,
+        canUpdateMetadata: true,
+        canMarkMissing: true,
+        canClearMissing: false,
+        canRetire: false,
+      },
+      {
+        account: userAddress,
+        canRegister: true,
+        accountInfo: "registrar",
+      },
+    ],
+    viewRegister: [
+      "./screens/register.json",
+      {
+        canRegister: true,
+        exists: false,
+        serialHash: "0x2222222222222222222222222222222222222222222222222222222222222222",
+        tokenId: BigInt(0),
+        defaultComponents: "0x0000000000000000000000000000000000000020",
+        serialNumber: "ABC123",
+        accountInfo: "registrar",
+      },
+      {
+        account: userAddress,
+        canRegister: true,
+        accountInfo: "registrar",
+      },
+    ],
+  }
+
+  for (const [route, expectedScreenURI] of [
+    ["entry", "ipfs://example/screens/entry.json"],
+    ["component", "ipfs://example/screens/component.json"],
+    ["register", "ipfs://example/screens/register.json"],
+  ] as const) {
+    const result = await callCamRoute({
+      publicClient: createPublicClient({ routeResults }),
+      cam,
+      camURI: camDocumentURI,
+      contracts: {
+        BicycleComponentManagerUI: {
+          address: uiAddress,
+          abiURI: uiAbiURI,
+          abi: uiAbi,
+        },
+      },
+      route,
+      context: {
+        host,
+        account: { address: userAddress },
+        params: { serialNumber: "ABC123" },
+      },
+    })
+
+    assert.equal(result.screenURI, expectedScreenURI)
+
+    const screen = parseScreen(JSON.parse(await readBikeScreen(route)))
+    assert.doesNotThrow(() => resolveScreen(screen, {
+      host,
+      account: { address: userAddress },
+      params: { serialNumber: "ABC123" },
+      state: { serialNumber: "ABC123" },
+      values: result.values,
+    }))
+  }
+})
+
 test("callCamRoute rejects route functions missing from the resolved ABI", async () => {
   await assert.rejects(
     () => callCamRoute({
@@ -451,6 +602,13 @@ function createResourceLoader(resources: Record<string, Uint8Array>): ResourceLo
 
     return bytes
   }
+}
+
+async function readBikeScreen(route: "entry" | "component" | "register"): Promise<string> {
+  return await readFile(
+    new URL(`../../../dapps/bike-nft/cam/screens/${route}.json`, import.meta.url),
+    "utf8",
+  )
 }
 
 function encodeJson(value: unknown): Uint8Array {
