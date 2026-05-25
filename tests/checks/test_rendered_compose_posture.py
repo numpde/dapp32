@@ -150,9 +150,11 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("/work/packages", test.get("working_dir"))
         for config_service in [verify, build, test]:
             self.assertEqual(True, volume_for(config_service, "/input/packages").get("read_only"))
+            self.assertEqual(True, volume_for(config_service, "/work/packages/node_modules").get("read_only"))
             self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777", config_service.get("tmpfs", []))
             command = " ".join(config_service.get("command", []))
             self.assertIn("stage-package-workspace /input/packages /work/packages", command)
+            self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", command)
 
         self.assertEqual(True, volume_for(test, "/work/dapps").get("read_only"))
 
@@ -181,7 +183,11 @@ class RenderedComposePostureTest(unittest.TestCase):
             self.assertEqual(True, volume_for(check, target).get("read_only"))
         self.assertEqual(True, volume_for(viewer, "/input/packages").get("read_only"))
         self.assertEqual(True, volume_for(check, "/input/packages").get("read_only"))
+        self.assertEqual(True, volume_for(viewer, "/work/packages/node_modules").get("read_only"))
+        self.assertEqual(True, volume_for(check, "/work/packages/node_modules").get("read_only"))
         self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777", viewer.get("tmpfs", []))
         self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777", check.get("tmpfs", []))
         self.assertIn("stage-package-workspace /input/packages /work/packages", " ".join(viewer.get("command", [])))
         self.assertIn("stage-package-workspace /input/packages /work/packages", " ".join(check.get("command", [])))
+        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", " ".join(viewer.get("command", [])))
+        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", " ".join(check.get("command", [])))

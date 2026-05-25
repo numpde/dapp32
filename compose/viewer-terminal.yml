@@ -8,6 +8,7 @@
 x-viewer-terminal-volumes: &viewer_terminal_volumes
   - ../dapps:/work/dapps:ro
   - ../packages:/input/packages:ro
+  - ../packages/node_modules:/work/packages/node_modules:ro
   - ../tools:/work/tools:ro
 
 x-viewer-terminal-base: &viewer_terminal_base
@@ -48,6 +49,7 @@ services:
       - |
         stage-package-workspace /input/packages /work/packages
         cd /work/packages
+        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
         npm run build:packages
         cd /work
         node --experimental-strip-types tools/viewer-terminal/terminal-session.ts
@@ -61,6 +63,7 @@ services:
       - |
         stage-package-workspace /input/packages /work/packages
         cd /work/packages
+        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
         npm run build:packages
         ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json
         cd /work

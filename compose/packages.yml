@@ -29,6 +29,7 @@ x-package-base: &package_base
 
 x-package-volumes: &package_volumes
   - ../packages:/input/packages:ro
+  - ../packages/node_modules:/work/packages/node_modules:ro
 
 services:
   # This is an offline dependency-graph check, not a file-integrity verifier.
@@ -62,6 +63,7 @@ services:
       - |
         stage-package-workspace /input/packages /work/packages
         cd /work/packages
+        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
         npm run build:packages
 
   package-test:
@@ -69,6 +71,7 @@ services:
     volumes:
       - ../dapps:/work/dapps:ro
       - ../packages:/input/packages:ro
+      - ../packages/node_modules:/work/packages/node_modules:ro
     command:
       - "sh"
       - "-eu"
@@ -76,4 +79,5 @@ services:
       - |
         stage-package-workspace /input/packages /work/packages
         cd /work/packages
+        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
         npm run test:packages

@@ -242,7 +242,7 @@
         </p>
         <p>
           Deviations are intentional: dependency staging gets network, dependency materialization pre-creates guarded host bind targets,
-          ABI generation writes CAM ABI files, package lanes copy the package workspace into container-local tmpfs before writing <code>dist/</code>,
+          ABI generation writes CAM ABI files, package lanes copy source/manifests into container-local tmpfs and mount <code>node_modules</code> read-only before writing <code>dist/</code>,
           and local scenario deploys can broadcast to an internal Anvil.
         </p>
       </div>
@@ -305,7 +305,7 @@
               <td><code>package-graph-check</code></td>
               <td><code>network_mode: "none"</code></td>
               <td>Host UID/GID; read-only rootfs; dropped capabilities; <code>no-new-privileges</code>; bounded PIDs/memory.</td>
-              <td>None; the host <code>packages/</code> npm project is mounted read-only at <code>/input/packages</code>, then copied to a container-local tmpfs workspace.</td>
+              <td>None; the host <code>packages/</code> npm project is mounted read-only at <code>/input/packages</code>, source/manifests are copied to tmpfs, and <code>node_modules</code> is mounted read-only.</td>
               <td>None.</td>
               <td>One-shot <code>docker compose run --rm</code>.</td>
               <td>Check the installed npm workspace graph before package scripts execute.</td>
@@ -371,10 +371,10 @@
               <td><code>package-build-check</code>, <code>package-test</code></td>
               <td><code>network_mode: "none"</code></td>
               <td>Host UID/GID; read-only rootfs; dropped capabilities; <code>no-new-privileges</code>; bounded PIDs/memory.</td>
-              <td>Build checks and tests copy the host package workspace from read-only <code>/input/packages</code> into writable tmpfs at <code>/work/packages</code>. Package <code>dist/</code> output is discarded with the container. No target exports durable JS artifacts.</td>
+              <td>Build checks and tests copy source/manifests from read-only <code>/input/packages</code> into writable tmpfs at <code>/work/packages</code>, with <code>node_modules</code> mounted read-only into that workspace. Package <code>dist/</code> output is discarded with the container. No target exports durable JS artifacts.</td>
               <td>None.</td>
               <td>One-shot <code>docker compose run --rm</code>.</td>
-              <td>Validate and test TypeScript packages after <code>package-graph-check</code> accepts the installed dependency graph.</td>
+              <td>Validate and test TypeScript packages after <code>package-graph-check</code> accepts the installed dependency graph; execution lanes repeat the offline graph check after staging and before package scripts run.</td>
             </tr>
             <tr>
               <td><code>viewer-terminal</code>, <code>viewer-terminal-check</code></td>
@@ -382,7 +382,7 @@
               <td><code>viewer-terminal</code>, <code>viewer-terminal-check</code></td>
               <td><code>network_mode: "none"</code></td>
               <td>Host UID/GID; read-only rootfs; dropped capabilities; <code>no-new-privileges</code>; bounded PIDs/memory; interactive TTY only for <code>viewer-terminal</code>.</td>
-              <td>None; host packages, dapps, and tools are mounted read-only. The terminal copies packages into <code>/work/packages</code> tmpfs before building.</td>
+              <td>None; host packages, dapps, and tools are mounted read-only. The terminal stages package sources into <code>/work/packages</code> tmpfs and uses read-only <code>node_modules</code> before building.</td>
               <td>None.</td>
               <td>Normal <code>quit</code> exits and removes the run container; lifecycle targets are for an attached or abnormal interactive session.</td>
               <td>Run or smoke-check the mock-backed CAM viewer terminal through its own runtime boundary.</td>
@@ -590,7 +590,7 @@
           <div class="facts">
             <div class="fact">
               <strong>Prerequisite</strong>
-              Runs <code>package-graph-check</code> first, then stages packages into container-local tmpfs and builds there.
+              Runs <code>package-graph-check</code> first, then stages package sources into container-local tmpfs, mounts <code>node_modules</code> read-only, repeats the graph check, and builds there.
             </div>
             <div class="fact">
               <strong>Container</strong>
@@ -610,7 +610,7 @@
             </div>
             <div class="fact">
               <strong>Check</strong>
-              <code>viewer-terminal-check</code> stages packages into tmpfs, builds them, typechecks the terminal tool, and runs its entrypoint noninteractively.
+              <code>viewer-terminal-check</code> stages package sources into tmpfs, checks the read-only dependency graph, builds packages, typechecks the terminal tool, and runs its entrypoint noninteractively.
             </div>
             <div class="fact">
               <strong>Reality</strong>

@@ -11,6 +11,21 @@ fi
 
 test -d "$source_dir"
 test -d "$target_dir"
-find "$target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
-cp -a "$source_dir"/. "$target_dir"/
-find "$target_dir" -mindepth 2 -maxdepth 2 -type d -name dist -exec rm -rf -- {} +
+find "$target_dir" -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +
+
+cp -a "$source_dir/package.json" "$target_dir/package.json"
+if [ -f "$source_dir/package-lock.json" ]; then
+  cp -a "$source_dir/package-lock.json" "$target_dir/package-lock.json"
+fi
+if [ -f "$source_dir/tsconfig.base.json" ]; then
+  cp -a "$source_dir/tsconfig.base.json" "$target_dir/tsconfig.base.json"
+fi
+
+for manifest in "$source_dir"/*/package.json; do
+  [ -f "$manifest" ] || continue
+  package_dir="${manifest%/package.json}"
+  package_name="${package_dir##*/}"
+  rm -rf "$target_dir/$package_name"
+  cp -a "$package_dir" "$target_dir/$package_name"
+  rm -rf "$target_dir/$package_name/dist"
+done

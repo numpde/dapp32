@@ -54,8 +54,9 @@ Keep the project small, explicit, and protocol-first.
 - Keep npm install policy in `compose/package-deps.yml`; do not add repo
   `.npmrc` files.
 - Keep npm package execution in `compose/packages.yml`; package build/test lanes
-  are offline consumers of the locked `node_modules/` tree. Package-backed tool
-  checks with a distinct runtime boundary belong in their own Compose file.
+  are offline consumers of the locked `node_modules/` tree, mounted read-only
+  into a staged tmpfs source workspace. Package-backed tool checks with a
+  distinct runtime boundary belong in their own Compose file.
 - Use `packages/package-lock.json` as the only package lock source for the
   current package workspace; do not add repo-root locks, yarn, pnpm, bun,
   nested app package-lock, or npm-shrinkwrap locks unless the dependency lane is
@@ -73,7 +74,8 @@ Keep the project small, explicit, and protocol-first.
   dependency contents before compiling or executing package code.
 - Package build/test lanes must not create host-side package build directories as
   preflight. Package lanes should mount the host package workspace read-only,
-  stage it into container-local tmpfs, and leave `dist/` outputs there unless
+  stage only source/manifests into container-local tmpfs, mount
+  `packages/node_modules/` read-only, and leave `dist/` outputs in tmpfs unless
   an explicit artifact export lane is added.
 - `package-build-check` is compile validation only. Do not add `package-build`
   unless there is a deliberate durable artifact-export lane.
