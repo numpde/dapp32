@@ -670,7 +670,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable {
 
         if (delegation.grantor == address(0)) return 0;
         if (delegation.capabilities == 0) return 0;
-        if (delegation.validUntil < block.timestamp) return 0;
+        if (delegation.validUntil <= block.timestamp) return 0;
         if (_ownerOfOrZero(record) != delegation.grantor) return 0;
 
         return delegation.capabilities;
