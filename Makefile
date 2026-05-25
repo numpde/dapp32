@@ -37,6 +37,14 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
+PACKAGE_DEPS_GUARD := if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Missing npm workspace dependencies. Run make package-deps to install the locked package dependencies.' >&2; exit 2; fi
+
+define compose_run_with_package_deps
+@$(NON_ROOT_GUARD); \
+$(PACKAGE_DEPS_GUARD); \
+$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
+endef
+
 .PHONY: help deps deps-verify package-deps package-build package-test checks check-runtime check-live check-live-deps-egress viewer-terminal check-anvil-compose fmt build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
 
 help:
@@ -176,14 +184,14 @@ package-deps:
 	reject_unsafe_package_targets; \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm "$$apply_service"
 
-package-build: package-deps
-	$(call compose_run,packages.yml,package-build)
+package-build:
+	$(call compose_run_with_package_deps,packages.yml,package-build)
 
 package-test: package-build
-	$(call compose_run,packages.yml,package-test)
+	$(call compose_run_with_package_deps,packages.yml,package-test)
 
 viewer-terminal: package-build
-	$(call compose_run,viewer-terminal.yml,viewer-terminal)
+	$(call compose_run_with_package_deps,viewer-terminal.yml,viewer-terminal)
 
 checks:
 	$(call compose_run,checks.yml,checks)

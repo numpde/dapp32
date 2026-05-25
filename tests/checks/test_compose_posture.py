@@ -126,13 +126,20 @@ class ComposePostureTest(unittest.TestCase):
         self.assertNotIn("HTTP_PROXY", text)
         self.assertNotIn("HTTPS_PROXY", text)
 
-    def test_package_build_and_test_targets_use_locked_deps(self) -> None:
+    def test_package_build_test_and_viewer_targets_require_existing_locked_deps(self) -> None:
         text = read_text(repo_path("Makefile"))
 
-        self.assertIn("package-build: package-deps", text)
+        self.assertIn("PACKAGE_DEPS_GUARD :=", text)
+        self.assertIn('[[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]', text)
+        self.assertIn("Run make package-deps to install the locked package dependencies.", text)
+        self.assertIn("define compose_run_with_package_deps", text)
+        self.assertIn("package-build:", text)
+        self.assertNotIn("package-build: package-deps", text)
         self.assertIn("package-test: package-build", text)
-        self.assertIn("$(call compose_run,packages.yml,package-build)", text)
-        self.assertIn("$(call compose_run,packages.yml,package-test)", text)
+        self.assertIn("viewer-terminal: package-build", text)
+        self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-build)", text)
+        self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-test)", text)
+        self.assertIn("$(call compose_run_with_package_deps,viewer-terminal.yml,viewer-terminal)", text)
         self.assertIn("ci: fmt build test fuzz invariant package-test", text)
 
     def test_live_dependency_egress_check_reuses_dependency_proxy_service(self) -> None:

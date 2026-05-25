@@ -77,6 +77,10 @@ services:
       npm_config_update_notifier: "false"
       npm_config_package_lock: "true"
       npm_config_save_exact: "true"
+      npm_config_fetch_retries: "5"
+      npm_config_fetch_retry_mintimeout: "1000"
+      npm_config_fetch_retry_maxtimeout: "30000"
+      npm_config_fetch_timeout: "300000"
       ALLOW_UPDATE: "${ALLOW_UPDATE:-0}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=1024m
