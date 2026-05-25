@@ -39,7 +39,7 @@ def require_allowed_host(host: str, allowed_hosts: frozenset[str] | None = None)
     if allowed_hosts is None:
         allowed_hosts = ALLOWED_HOSTS
     if not allowed_hosts:
-        return
+        raise ProxyRejected("CONNECT target host allowlist is empty")
 
     normalized = normalize_host(host)
     if normalized not in allowed_hosts:
