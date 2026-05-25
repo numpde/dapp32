@@ -55,7 +55,7 @@ interface IBicycleComponentManagerView {
 /// - it has no write functions;
 /// - it never calls manager write functions;
 /// - it never forwards user actions;
-/// - it only reads manager state and chooses screen URIs.
+/// - it only reads manager state and returns route-level screen URIs.
 ///
 /// CAM screens should send state-changing transactions directly to
 /// BicycleComponentManager. The manager remains the source of truth for all
@@ -64,21 +64,8 @@ contract BicycleComponentManagerUI {
     IBicycleComponentManagerView public immutable manager;
 
     string private constant SCREEN_ENTRY = "./screens/entry.json";
-    string private constant SCREEN_ENTRY_REGISTRAR = "./screens/entry.registrar.json";
-
-    string private constant SCREEN_COMPONENT_EMPTY = "./screens/component.empty.json";
-    string private constant SCREEN_COMPONENT_UNREGISTERED = "./screens/component.unregistered.json";
-    string private constant SCREEN_COMPONENT_REGISTERED = "./screens/component.registered.json";
-    string private constant SCREEN_COMPONENT_MANAGE = "./screens/component.manage.json";
-    string private constant SCREEN_COMPONENT_MISSING = "./screens/component.missing.json";
-    string private constant SCREEN_COMPONENT_MISSING_MANAGE = "./screens/component.missing.manage.json";
-    string private constant SCREEN_COMPONENT_RETIRED = "./screens/component.retired.json";
-
+    string private constant SCREEN_COMPONENT = "./screens/component.json";
     string private constant SCREEN_REGISTER = "./screens/register.json";
-    string private constant SCREEN_REGISTER_EMPTY = "./screens/register.empty.json";
-    string private constant SCREEN_REGISTER_NOT_REGISTRAR = "./screens/register.not-registrar.json";
-    string private constant SCREEN_REGISTER_ALREADY_REGISTERED = "./screens/register.already-registered.json";
-    string private constant SCREEN_REGISTER_NO_DEFAULT_COMPONENTS = "./screens/register.no-default-components.json";
 
     struct AccountView {
         address account;
@@ -137,7 +124,7 @@ contract BicycleComponentManagerUI {
         returns (string memory screenURI, AccountView memory accountView)
     {
         accountView = _accountView(account);
-        screenURI = accountView.canRegister ? SCREEN_ENTRY_REGISTRAR : SCREEN_ENTRY;
+        screenURI = SCREEN_ENTRY;
     }
 
     /// @notice Route helper for a component lookup/detail screen.
@@ -147,24 +134,15 @@ contract BicycleComponentManagerUI {
         view
         returns (string memory screenURI, ComponentScreenView memory component, AccountView memory accountView)
     {
+        screenURI = SCREEN_COMPONENT;
         accountView = _accountView(account);
 
         if (_isEmpty(serialNumber)) {
-            screenURI = SCREEN_COMPONENT_EMPTY;
+            component.serialNumber = serialNumber;
             return (screenURI, component, accountView);
         }
 
         component = _componentView(serialNumber, account);
-
-        if (!component.exists) {
-            screenURI = SCREEN_COMPONENT_UNREGISTERED;
-        } else if (component.status == IBicycleComponentManagerView.ComponentStatus.Retired) {
-            screenURI = SCREEN_COMPONENT_RETIRED;
-        } else if (component.status == IBicycleComponentManagerView.ComponentStatus.Missing) {
-            screenURI = _canManage(component) ? SCREEN_COMPONENT_MISSING_MANAGE : SCREEN_COMPONENT_MISSING;
-        } else {
-            screenURI = _canManage(component) ? SCREEN_COMPONENT_MANAGE : SCREEN_COMPONENT_REGISTERED;
-        }
     }
 
     /// @notice Route helper for the registration screen.
@@ -174,6 +152,7 @@ contract BicycleComponentManagerUI {
         view
         returns (string memory screenURI, RegisterScreenView memory registerView, AccountView memory accountView)
     {
+        screenURI = SCREEN_REGISTER;
         accountView = _accountView(account);
         registerView.canRegister = accountView.canRegister;
         registerView.defaultComponents = manager.defaultComponents();
@@ -181,7 +160,6 @@ contract BicycleComponentManagerUI {
         registerView.accountInfo = accountView.accountInfo;
 
         if (_isEmpty(serialNumber)) {
-            screenURI = SCREEN_REGISTER_EMPTY;
             return (screenURI, registerView, accountView);
         }
 
@@ -189,16 +167,6 @@ contract BicycleComponentManagerUI {
         registerView.exists = component.exists;
         registerView.serialHash = component.serialHash;
         registerView.tokenId = component.tokenId;
-
-        if (!registerView.canRegister) {
-            screenURI = SCREEN_REGISTER_NOT_REGISTRAR;
-        } else if (registerView.exists) {
-            screenURI = SCREEN_REGISTER_ALREADY_REGISTERED;
-        } else if (registerView.defaultComponents == address(0)) {
-            screenURI = SCREEN_REGISTER_NO_DEFAULT_COMPONENTS;
-        } else {
-            screenURI = SCREEN_REGISTER;
-        }
     }
 
     function _accountView(address account) internal view returns (AccountView memory view_) {
@@ -245,11 +213,6 @@ contract BicycleComponentManagerUI {
             view_.canClearMissing = manager.canClearMissing(account, serialNumber);
             view_.canRetire = manager.canRetire(account, serialNumber);
         }
-    }
-
-    function _canManage(ComponentScreenView memory component) internal pure returns (bool) {
-        return
-            component.canUpdateMetadata || component.canMarkMissing || component.canClearMissing || component.canRetire;
     }
 
     function _isEmpty(string calldata value) internal pure returns (bool) {

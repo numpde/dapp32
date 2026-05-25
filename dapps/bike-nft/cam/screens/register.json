@@ -1,0 +1,67 @@
+{
+  "screen": "1.0.0",
+  "title": "Register component",
+  "elements": [
+    {
+      "type": "input",
+      "name": "serialNumber",
+      "label": "Serial number",
+      "value": "$params.serialNumber"
+    },
+    {
+      "type": "button",
+      "label": "Check registration",
+      "action": {
+        "route": "register",
+        "params": {
+          "serialNumber": "$state.serialNumber"
+        }
+      }
+    },
+    {
+      "type": "status",
+      "label": "Serial number",
+      "value": "$values.1.serialNumber"
+    },
+    {
+      "type": "status",
+      "label": "Connected account can register",
+      "value": "$values.1.canRegister"
+    },
+    {
+      "type": "status",
+      "label": "Component already exists",
+      "value": "$values.1.exists"
+    },
+    {
+      "type": "address",
+      "label": "Default component contract",
+      "address": "$values.1.defaultComponents"
+    },
+    {
+      "type": "status",
+      "label": "Serial hash",
+      "value": "$values.1.serialHash"
+    },
+    {
+      "type": "status",
+      "label": "Token ID",
+      "value": "$values.1.tokenId"
+    },
+    {
+      "type": "status",
+      "label": "Account info",
+      "value": "$values.1.accountInfo"
+    },
+    {
+      "type": "button",
+      "label": "Open component",
+      "action": {
+        "route": "component",
+        "params": {
+          "serialNumber": "$state.serialNumber"
+        }
+      }
+    }
+  ]
+}

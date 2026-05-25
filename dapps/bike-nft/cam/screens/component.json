@@ -1,0 +1,97 @@
+{
+  "screen": "1.0.0",
+  "title": "Component",
+  "elements": [
+    {
+      "type": "input",
+      "name": "serialNumber",
+      "label": "Serial number",
+      "value": "$params.serialNumber"
+    },
+    {
+      "type": "button",
+      "label": "Look up component",
+      "action": {
+        "route": "component",
+        "params": {
+          "serialNumber": "$state.serialNumber"
+        }
+      }
+    },
+    {
+      "type": "status",
+      "label": "Current serial number",
+      "value": "$values.1.serialNumber"
+    },
+    {
+      "type": "status",
+      "label": "Registered",
+      "value": "$values.1.exists"
+    },
+    {
+      "type": "status",
+      "label": "Status",
+      "value": "$values.1.status"
+    },
+    {
+      "type": "address",
+      "label": "Owner",
+      "address": "$values.1.owner"
+    },
+    {
+      "type": "status",
+      "label": "Owner info",
+      "value": "$values.1.ownerInfo"
+    },
+    {
+      "type": "address",
+      "label": "Token contract",
+      "address": "$values.1.tokenContract"
+    },
+    {
+      "type": "status",
+      "label": "Token ID",
+      "value": "$values.1.tokenId"
+    },
+    {
+      "type": "status",
+      "label": "Token URI",
+      "value": "$values.1.tokenURI"
+    },
+    {
+      "type": "status",
+      "label": "Serial hash",
+      "value": "$values.1.serialHash"
+    },
+    {
+      "type": "status",
+      "label": "Can update metadata",
+      "value": "$values.1.canUpdateMetadata"
+    },
+    {
+      "type": "status",
+      "label": "Can mark missing",
+      "value": "$values.1.canMarkMissing"
+    },
+    {
+      "type": "status",
+      "label": "Can clear missing",
+      "value": "$values.1.canClearMissing"
+    },
+    {
+      "type": "status",
+      "label": "Can retire",
+      "value": "$values.1.canRetire"
+    },
+    {
+      "type": "button",
+      "label": "Open registration",
+      "action": {
+        "route": "register",
+        "params": {
+          "serialNumber": "$state.serialNumber"
+        }
+      }
+    }
+  ]
+}

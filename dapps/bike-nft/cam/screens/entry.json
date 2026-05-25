@@ -12,6 +12,11 @@
       "address": "$account.address"
     },
     {
+      "type": "status",
+      "label": "Can register components",
+      "value": "$values.1.canRegister"
+    },
+    {
       "type": "input",
       "name": "serialNumber",
       "label": "Serial number"
@@ -21,6 +26,16 @@
       "label": "Look up component",
       "action": {
         "route": "component",
+        "params": {
+          "serialNumber": "$state.serialNumber"
+        }
+      }
+    },
+    {
+      "type": "button",
+      "label": "Register component",
+      "action": {
+        "route": "register",
         "params": {
           "serialNumber": "$state.serialNumber"
         }
