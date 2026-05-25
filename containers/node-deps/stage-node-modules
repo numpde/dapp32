@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+source_dir="${1:?missing source node_modules directory}"
+target_dir="${2:?missing target node_modules directory}"
+
+if [ "$source_dir" != "/out/node_modules" ] || [ "$target_dir" != "/work/node_modules" ]; then
+  printf '%s\n' "stage-node-modules only supports /out/node_modules -> /work/node_modules" >&2
+  exit 2
+fi
+
+test -d "$source_dir"
+mkdir -p "$target_dir"
+rm -rf "$target_dir/.next"
+mkdir -p "$target_dir/.next"
+cp -a "$source_dir"/. "$target_dir/.next"/
+find "$target_dir" -mindepth 1 -maxdepth 1 ! -name .next -exec rm -rf -- {} +
+find "$target_dir/.next" -mindepth 1 -maxdepth 1 -exec mv -- {} "$target_dir"/ \;
+rmdir "$target_dir/.next"

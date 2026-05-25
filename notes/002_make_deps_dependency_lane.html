@@ -232,25 +232,30 @@
         <div class="card">
           <strong>2. Stage</strong>
           <h3><code>soldeer-stage</code></h3>
-          <p>Image: <code>containers/foundry-deps</code>. Runs <code>forge soldeer install</code> through the proxy, verifies the configured source policy and upstream ZIP against <code>dapps/foundry.toml</code> and <code>dapps/soldeer.lock</code>, applies declared patches, then writes patched checksums. Writes only to <code>soldeer-out</code>.</p>
+          <p>Image: <code>containers/foundry-deps</code>. Runs <code>forge soldeer install</code> or <code>forge soldeer update</code> through the proxy. It writes the pristine Soldeer output to <code>soldeer-out</code> and does not carry Python.</p>
         </div>
         <div class="card">
-          <strong>3. Apply</strong>
+          <strong>3. Verify/Patch</strong>
+          <h3><code>soldeer-verify-stage</code></h3>
+          <p>Image: <code>containers/python-deps</code>. Uses Python 3.13 and <code>patch</code>. It verifies configured source policy and upstream ZIPs against <code>dapps/foundry.toml</code> and <code>dapps/soldeer.lock</code>, applies declared patches, then writes patched checksums to <code>soldeer-out</code>.</p>
+        </div>
+        <div class="card">
+          <strong>4. Apply</strong>
           <h3><code>soldeer-apply-locked</code></h3>
           <p>Image: <code>containers/foundry</code>. No network. Stages patched dependency output under <code>dapps/dependencies/.next</code>, then replaces the visible dependency children. Fails first if the staged <code>dapps/soldeer.lock</code>, remappings, or checksums differ from the committed files.</p>
         </div>
         <div class="card">
-          <strong>4. Update</strong>
+          <strong>5. Update</strong>
           <h3><code>soldeer-apply-update</code></h3>
           <p>Image: <code>containers/foundry</code>. No network. Used only by <code>make deps ALLOW_UPDATE=1</code>. It uses the same staged dependency-tree replacement and is the only dependency-lane service allowed to copy staged metadata back into the repo.</p>
         </div>
         <div class="card">
-          <strong>5. Verify</strong>
+          <strong>6. Final Verify</strong>
           <h3><code>soldeer-verify</code></h3>
           <p>Image: <code>containers/checks</code>. No network, read-only mounts. Runs <code>test_dependency_integrity.py /work</code> against <code>dapps/foundry.toml</code>, <code>dapps/soldeer.lock</code>, and the final installed dependency tree.</p>
         </div>
         <div class="card">
-          <strong>6. Build/Test</strong>
+          <strong>7. Build/Test</strong>
           <h3><code>forge-build</code> / <code>forge-test</code></h3>
           <p>Image: <code>containers/foundry</code>. No network, repo read-only. Runs <code>forge build --offline</code> over every first-level <code>dapps/*/src</code> directory, or <code>forge test --offline</code> over the shared <code>*/test/unit/**/*.sol</code> convention, after the dependency verifier has accepted the installed tree.</p>
         </div>
@@ -260,11 +265,12 @@
   soldeer-stage
     forge soldeer install --config-location foundry
       Soldeer installs from its package metadata and lockfile.
-    test_dependency_integrity.py --verify-upstream /tmp/soldeer-work
+  soldeer-verify-stage
+    test_dependency_integrity.py --verify-upstream /out
       Check foundry.toml and soldeer.lock source policy.
       Download each locked ZIP and check its SHA-256.
     apply_dependency_patches
-    test_dependency_integrity.py --write-checksums /tmp/soldeer-work
+    test_dependency_integrity.py --write-checksums /out
   soldeer-apply-locked OR soldeer-apply-update
     stage_dependency_tree under dependencies/.next
   soldeer-verify

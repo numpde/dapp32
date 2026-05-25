@@ -35,6 +35,77 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("deps_egress:", text)
         self.assertIn("internal: true", text)
 
+    def test_package_dependency_stage_uses_manifest_input_and_filtered_egress(self) -> None:
+        text = read_text(repo_path("compose/package-deps.yml"))
+
+        self.assertIn("package-egress-proxy:", text)
+        self.assertIn("context: ../containers/https-egress-proxy", text)
+        self.assertIn("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: registry.npmjs.org", text)
+        self.assertIn("HTTPS_PROXY: http://package-egress-proxy:8080", text)
+        self.assertIn("https_proxy: http://package-egress-proxy:8080", text)
+        self.assertIn("${PACKAGE_INPUT_DIR:?missing_PACKAGE_INPUT_DIR}:/input:ro", text)
+        self.assertIn("package_internal:", text)
+        self.assertIn("package_egress:", text)
+        self.assertIn("internal: true", text)
+        self.assertNotIn("..:/work", text)
+        self.assertNotIn("../package.json", text)
+        self.assertNotIn("../packages", text)
+        self.assertNotIn("../:/input", text)
+
+    def test_package_dependency_stage_disables_npm_lifecycle_scripts(self) -> None:
+        text = read_text(repo_path("compose/package-deps.yml"))
+
+        self.assertIn('npm_config_ignore_scripts: "true"', text)
+        self.assertIn('npm_config_audit: "false"', text)
+        self.assertIn('npm_config_fund: "false"', text)
+        self.assertIn('npm_config_save_exact: "true"', text)
+        self.assertIn("npm ci", text)
+        self.assertIn("npm install", text)
+        self.assertNotIn("--ignore-scripts", text)
+
+    def test_package_dependency_apply_stages_are_offline(self) -> None:
+        text = read_text(repo_path("compose/package-deps.yml"))
+
+        self.assertIn("package-apply-locked:", text)
+        self.assertIn("package-apply-update:", text)
+        self.assertGreaterEqual(text.count('network_mode: "none"'), 2)
+        self.assertIn("../node_modules:/work/node_modules:rw", text)
+        self.assertIn("../package-lock.json:/work/package-lock.json:ro", text)
+        self.assertIn("../package-lock.json:/work/package-lock.json:rw", text)
+        self.assertEqual(2, text.count('network_mode: "none"'))
+
+    def test_package_dependency_apply_uses_shared_node_modules_stager(self) -> None:
+        compose_text = read_text(repo_path("compose/package-deps.yml"))
+        dockerfile_text = read_text(repo_path("containers/node-deps/Dockerfile"))
+        dockerignore_text = read_text(repo_path("containers/node-deps/.dockerignore"))
+        stager_text = read_text(repo_path("containers/node-deps/stage-node-modules"))
+
+        self.assertIn("stage-node-modules /out/node_modules /work/node_modules", compose_text)
+        self.assertNotIn("find /work/node_modules", compose_text)
+        self.assertIn("COPY stage-node-modules /usr/local/bin/stage-node-modules", dockerfile_text)
+        self.assertIn("chmod 1777 /out", dockerfile_text)
+        self.assertEqual("**\n!Dockerfile\n!stage-node-modules\n", dockerignore_text)
+        self.assertIn('"$source_dir" != "/out/node_modules"', stager_text)
+        self.assertIn('"$target_dir" != "/work/node_modules"', stager_text)
+
+    def test_package_dependency_make_target_precreates_bind_mount_targets(self) -> None:
+        text = read_text(repo_path("Makefile"))
+
+        self.assertIn("reject_unsafe_package_targets()", text)
+        self.assertGreaterEqual(text.count("reject_unsafe_package_targets"), 4)
+        self.assertIn('[[ -L "$(PACKAGE_NODE_MODULES_DIR)" || -L "$(PACKAGE_LOCK_FILE)" ]]', text)
+        self.assertIn('[[ -e "$(PACKAGE_NODE_MODULES_DIR)" && ! -d "$(PACKAGE_NODE_MODULES_DIR)" ]]', text)
+        self.assertIn('[[ -e "$(PACKAGE_LOCK_FILE)" && ! -f "$(PACKAGE_LOCK_FILE)" ]]', text)
+        self.assertIn("[[ -L package.json ]]", text)
+        self.assertIn('[[ -L "$$manifest" ]]', text)
+        self.assertIn('mkdir -p "$(PACKAGE_NODE_MODULES_DIR)"', text)
+        self.assertIn('test -d "$(PACKAGE_NODE_MODULES_DIR)"', text)
+        self.assertIn('touch "$(PACKAGE_LOCK_FILE)"', text)
+        self.assertIn('created_package_lock_placeholder=1', text)
+        self.assertIn('rm -f "$(PACKAGE_LOCK_FILE)"', text)
+        self.assertIn('test -f "$(PACKAGE_LOCK_FILE)"', text)
+        self.assertIn("find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json", text)
+
     def test_live_dependency_egress_check_reuses_dependency_proxy_service(self) -> None:
         text = read_text(repo_path("compose/check-live-deps-egress.yml"))
 
@@ -50,21 +121,28 @@ class ComposePostureTest(unittest.TestCase):
     def test_check_target_names_are_layered_by_cost(self) -> None:
         text = read_text(repo_path("Makefile"))
 
-        self.assertIn(".PHONY: help deps deps-verify checks check-runtime check-live check-live-deps-egress", text)
+        self.assertIn(".PHONY: help deps deps-verify package-deps checks check-runtime check-live check-live-deps-egress", text)
         self.assertIn("check-runtime: check-anvil-compose", text)
         self.assertIn("check-live: check-live-deps-egress", text)
         self.assertIn("LIVE_DEPS_EGRESS_COMPOSE_FILES :=", text)
         self.assertIn("-f $(COMPOSE_DIR)/deps.yml -f $(COMPOSE_DIR)/check-live-deps-egress.yml", text)
 
-    def test_dependency_stage_applies_declared_patches(self) -> None:
+    def test_dependency_verify_stage_applies_declared_patches(self) -> None:
         text = read_text(repo_path("compose/deps.yml"))
+        foundry_deps_text = read_text(repo_path("containers/foundry-deps/Dockerfile"))
+        python_deps_text = read_text(repo_path("containers/python-deps/Dockerfile"))
 
+        self.assertIn("soldeer-verify-stage:", text)
+        self.assertIn("context: ../containers/python-deps", text)
         self.assertIn("../dapps/dependency-patches.txt:/input/dependency-patches.txt:ro", text)
-        self.assertIn("../dapps/dependency-patches.txt:/work/dependency-patches.txt:ro", text)
         self.assertIn("../dapps/_patches:/input/_patches:ro", text)
-        self.assertIn("../dapps/_patches:/work/_patches:ro", text)
         self.assertIn("apply_dependency_patches", text)
         self.assertIn("--fuzz=0", text)
+        self.assertIn("python3 -I -B /input/test_dependency_integrity.py --verify-upstream /out", text)
+        self.assertNotIn("python3 -I -B /input/test_dependency_integrity.py --verify-upstream /tmp/soldeer-work", text)
+        self.assertNotIn("apt-get install", foundry_deps_text)
+        self.assertNotIn("python3.10", foundry_deps_text)
+        self.assertIn("patch=2.8-r0", python_deps_text)
 
     def test_dependency_apply_stages_tree_before_replacement(self) -> None:
         text = read_text(repo_path("compose/deps.yml"))

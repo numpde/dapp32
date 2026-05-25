@@ -45,11 +45,22 @@ Keep the project small, explicit, and protocol-first.
   checksums, and writes to a staging volume; the offline apply step writes only
   the expected dependency outputs.
 - Default dependency installation must not change committed dependency metadata.
-  In this repo, lock/remapping/checksum updates require `make deps ALLOW_UPDATE=1`.
+  Soldeer lock/remapping/checksum updates require `make deps ALLOW_UPDATE=1`;
+  npm workspace lock updates require `make package-deps ALLOW_UPDATE=1`.
+- Keep direct npm dependency versions exact. Use `workspace:*` only for local
+  workspace package references. Generated package locks must resolve registry
+  packages from `https://registry.npmjs.org/` with integrity metadata.
+- Keep npm install policy in `compose/package-deps.yml`; do not add repo
+  `.npmrc` files.
+- Use root `package-lock.json` as the only package lock source; do not add yarn,
+  pnpm, bun, nested package-lock, or npm-shrinkwrap locks unless the dependency
+  lane is deliberately redesigned.
 - Do not give networked dependency tools repo-root read/write mounts. In this
   repo, the dapps package owns the expected dependency outputs:
   `dapps/dependencies/`, `dapps/soldeer.lock`,
-  `dapps/remappings.txt`, and `dapps/dependency-checksums.txt`.
+  `dapps/remappings.txt`, and `dapps/dependency-checksums.txt`. Npm workspace
+  dependency materialization owns only root `node_modules/` and
+  `package-lock.json`.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
   dependency contents before compiling.
 

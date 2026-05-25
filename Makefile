@@ -6,8 +6,11 @@ COMPOSE_DIR ?= compose
 DOCKER_COMPOSE ?= docker compose
 COMPOSE_PROJECT_NAME ?= dapps
 DAPPS_DIR := dapps
+PACKAGES_DIR := packages
 DEPENDENCIES_DIR := $(DAPPS_DIR)/dependencies
 DEPENDENCY_METADATA_FILES := $(DAPPS_DIR)/soldeer.lock $(DAPPS_DIR)/remappings.txt $(DAPPS_DIR)/dependency-checksums.txt
+PACKAGE_NODE_MODULES_DIR := node_modules
+PACKAGE_LOCK_FILE := package-lock.json
 ACTUAL_UID := $(shell id -u)
 LOCAL_UID ?= $(shell id -u)
 LOCAL_GID ?= $(shell id -g)
@@ -19,6 +22,7 @@ LIVE_CHECK_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-check-live
 
 COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)
 DEPS_COMPOSE_ENV := $(COMPOSE_ENV) ALLOW_UPDATE=$(ALLOW_UPDATE)
+PACKAGE_DEPS_COMPOSE_ENV := $(COMPOSE_ENV) ALLOW_UPDATE=$(ALLOW_UPDATE)
 RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_COMPOSE_PROJECT_NAME)
 ANVIL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
 LIVE_CHECK_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(LIVE_CHECK_COMPOSE_PROJECT_NAME)
@@ -33,7 +37,7 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify checks check-runtime check-live check-live-deps-egress check-anvil-compose fmt build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
+.PHONY: help deps deps-verify package-deps checks check-runtime check-live check-live-deps-egress check-anvil-compose fmt build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
 
 help:
 	@printf '%s\n' \
@@ -41,6 +45,8 @@ help:
 	  '  make deps         Install only the currently locked Soldeer dependencies' \
 	  '  make deps ALLOW_UPDATE=1  Allow dependency lock/remapping/checksum updates' \
 	  '  make deps-verify  Verify installed dependencies against committed checksums' \
+	  '  make package-deps Install only the currently locked npm workspace dependencies' \
+	  '  make package-deps ALLOW_UPDATE=1  Allow package-lock.json updates' \
 	  '  make checks       Run offline repository/source checks' \
 	  '  make check-runtime  Run local Docker-backed runtime checks' \
 	  '  make check-live    Run live checks that intentionally use external network' \
@@ -90,11 +96,82 @@ deps:
 	mkdir -p $(DEPENDENCIES_DIR); \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify-stage; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm "$$apply_service"; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify
 
 deps-verify:
 	$(call compose_run,deps.yml,soldeer-verify)
+
+package-deps:
+	@$(NON_ROOT_GUARD); \
+	cleanup() { \
+	  status="$$?"; \
+	  if [[ -n "$${package_input_dir:-}" ]]; then \
+	    $(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	    rm -rf "$$package_input_dir"; \
+	  fi; \
+	  if [[ "$$status" != "0" && "$${created_package_lock_placeholder:-0}" == "1" ]]; then \
+	    rm -f "$(PACKAGE_LOCK_FILE)"; \
+	  fi; \
+	  exit "$$status"; \
+	}; \
+	reject_unsafe_package_targets() { \
+	  if [[ -L "$(PACKAGE_NODE_MODULES_DIR)" || -L "$(PACKAGE_LOCK_FILE)" ]]; then \
+	    printf '%s\n' 'Refusing package dependency install because node_modules or package-lock.json is a symlink.' >&2; \
+	    exit 2; \
+	  fi; \
+	  if [[ -e "$(PACKAGE_NODE_MODULES_DIR)" && ! -d "$(PACKAGE_NODE_MODULES_DIR)" ]]; then \
+	    printf '%s\n' 'Refusing package dependency install because node_modules exists and is not a directory.' >&2; \
+	    exit 2; \
+	  fi; \
+	  if [[ -e "$(PACKAGE_LOCK_FILE)" && ! -f "$(PACKAGE_LOCK_FILE)" ]]; then \
+	    printf '%s\n' 'Refusing package dependency install because package-lock.json exists and is not a file.' >&2; \
+	    exit 2; \
+	  fi; \
+	  if [[ -L package.json ]]; then \
+	    printf '%s\n' 'Refusing package dependency install because package.json is a symlink.' >&2; \
+	    exit 2; \
+	  fi; \
+	}; \
+	trap cleanup EXIT; \
+	reject_unsafe_package_targets; \
+	case "$(ALLOW_UPDATE)" in \
+	  0) \
+	    apply_service="package-apply-locked"; \
+	    if [[ ! -f "$(PACKAGE_LOCK_FILE)" ]]; then \
+	      printf 'Missing locked package metadata: %s\n' "$(PACKAGE_LOCK_FILE)" >&2; \
+	      printf '%s\n' 'Run make package-deps ALLOW_UPDATE=1 only if creating or updating package metadata is intended.' >&2; \
+	      exit 2; \
+	    fi ;; \
+	  1) apply_service="package-apply-update" ;; \
+	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
+	esac; \
+	package_input_dir="$$(mktemp -d)"; \
+	mkdir -p "$$package_input_dir/$(PACKAGES_DIR)"; \
+	cp package.json "$$package_input_dir/package.json"; \
+	if [[ -f "$(PACKAGE_LOCK_FILE)" ]]; then cp "$(PACKAGE_LOCK_FILE)" "$$package_input_dir/$(PACKAGE_LOCK_FILE)"; fi; \
+	while IFS= read -r manifest; do \
+	  if [[ -L "$$manifest" ]]; then \
+	    printf 'Refusing package dependency install because package manifest is a symlink: %s\n' "$$manifest" >&2; \
+	    exit 2; \
+	  fi; \
+	  package_dir="$${manifest%/package.json}"; \
+	  mkdir -p "$$package_input_dir/$$package_dir"; \
+	  cp "$$manifest" "$$package_input_dir/$$manifest"; \
+	done < <(find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json -type f | sort); \
+	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm package-stage; \
+	reject_unsafe_package_targets; \
+	mkdir -p "$(PACKAGE_NODE_MODULES_DIR)"; \
+	test -d "$(PACKAGE_NODE_MODULES_DIR)"; \
+	if [[ "$(ALLOW_UPDATE)" = "1" && ! -e "$(PACKAGE_LOCK_FILE)" ]]; then \
+	  touch "$(PACKAGE_LOCK_FILE)"; \
+	  created_package_lock_placeholder=1; \
+	fi; \
+	test -f "$(PACKAGE_LOCK_FILE)"; \
+	reject_unsafe_package_targets; \
+	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm "$$apply_service"
 
 checks:
 	$(call compose_run,checks.yml,checks)

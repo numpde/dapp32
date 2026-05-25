@@ -1,0 +1,183 @@
+# npm workspace dependency installation lane.
+#
+# This lane mirrors the repo's Soldeer dependency posture, but for npm:
+# - package-egress-proxy is the only service with external egress, and allows
+#   HTTPS CONNECT only to registry.npmjs.org on port 443.
+# - package-stage receives only a temporary manifest input directory, not the
+#   repository. It installs with lifecycle scripts disabled and writes only to a
+#   Docker volume.
+# - package-apply-locked has no network, writes only node_modules/, and fails if
+#   package-lock.json would change.
+# - package-apply-update has no network and may update package-lock.json only
+#   when make package-deps is run with ALLOW_UPDATE=1.
+services:
+  package-egress-proxy:
+    build:
+      context: ../containers/https-egress-proxy
+      dockerfile: Dockerfile
+    init: true
+    user: "65532:65532"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    environment:
+      HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: registry.npmjs.org
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    networks:
+      package_internal:
+        aliases:
+          - package-egress-proxy
+      package_egress: {}
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).close()"
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  package-stage:
+    build:
+      context: ../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /tmp
+    depends_on:
+      package-egress-proxy:
+        condition: service_healthy
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 384
+    mem_limit: 2g
+    environment:
+      HOME: /tmp/home
+      HTTP_PROXY: http://package-egress-proxy:8080
+      HTTPS_PROXY: http://package-egress-proxy:8080
+      ALL_PROXY: http://package-egress-proxy:8080
+      http_proxy: http://package-egress-proxy:8080
+      https_proxy: http://package-egress-proxy:8080
+      all_proxy: http://package-egress-proxy:8080
+      NO_PROXY: localhost,127.0.0.1,::1,package-egress-proxy
+      no_proxy: localhost,127.0.0.1,::1,package-egress-proxy
+      npm_config_registry: https://registry.npmjs.org/
+      npm_config_cache: /tmp/npm-cache
+      npm_config_ignore_scripts: "true"
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+      npm_config_package_lock: "true"
+      npm_config_save_exact: "true"
+      ALLOW_UPDATE: "${ALLOW_UPDATE:-0}"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=1024m
+    volumes:
+      - ${PACKAGE_INPUT_DIR:?missing_PACKAGE_INPUT_DIR}:/input:ro
+      - package-out:/out:rw
+    networks:
+      - package_internal
+    command:
+      - "bash"
+      - "-lc"
+      - |
+        set -euo pipefail
+        rm -rf /tmp/package-work /out/node_modules /out/package-lock.json
+        mkdir -p /tmp/package-work
+        cp -a /input/. /tmp/package-work/
+        cd /tmp/package-work
+        case "$${ALLOW_UPDATE}" in
+          0)
+            test -f package-lock.json
+            npm ci ;;
+          1)
+            npm install ;;
+          *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;;
+        esac
+        test -d node_modules
+        test -f package-lock.json
+        cp -a node_modules /out/node_modules
+        cp package-lock.json /out/package-lock.json
+
+  package-apply-locked:
+    build:
+      context: ../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    environment:
+      HOME: /tmp/home
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    volumes:
+      - package-out:/out:ro
+      - ../node_modules:/work/node_modules:rw
+      - ../package-lock.json:/work/package-lock.json:ro
+    command:
+      - "bash"
+      - "-lc"
+      - |
+        set -euo pipefail
+        test -d /out/node_modules
+        test -f /out/package-lock.json
+        if ! cmp -s /out/package-lock.json /work/package-lock.json; then
+          printf '%s\n' 'package-apply-locked: package-lock.json would change; rerun make package-deps ALLOW_UPDATE=1 only if this dependency update is intended.' >&2
+          exit 2
+        fi
+        stage-node-modules /out/node_modules /work/node_modules
+
+  package-apply-update:
+    build:
+      context: ../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    environment:
+      HOME: /tmp/home
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    volumes:
+      - package-out:/out:ro
+      - ../node_modules:/work/node_modules:rw
+      - ../package-lock.json:/work/package-lock.json:rw
+    command:
+      - "bash"
+      - "-lc"
+      - |
+        set -euo pipefail
+        test -d /out/node_modules
+        test -f /out/package-lock.json
+        stage-node-modules /out/node_modules /work/node_modules
+        cp /out/package-lock.json /work/package-lock.json
+
+volumes:
+  package-out: {}
+
+networks:
+  package_internal:
+    internal: true
+  package_egress: {}

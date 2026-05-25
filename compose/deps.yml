@@ -6,8 +6,10 @@
 # - dependency-egress-proxy is the only service with external egress. It allows
 #   HTTPS CONNECT only to allowlisted global hosts on port 443.
 # - soldeer-stage is on an internal network, reads only dependency input files,
-#   verifies upstream archives against soldeer.lock, applies declared local
-#   patches with pre/patch/post checksums, and writes only to a Docker volume.
+#   runs Soldeer install/update, and writes only to a Docker volume.
+# - soldeer-verify-stage is on the same internal network, verifies upstream
+#   archives against soldeer.lock, applies declared local patches with
+#   pre/patch/post checksums, and writes final checksums to the same volume.
 # - soldeer-apply-locked has no network, can write only dapps/dependencies/, and
 #   fails if locked metadata would change.
 # - soldeer-apply-update has no network and can write dependency metadata only
@@ -83,9 +85,6 @@ services:
       - ../dapps/foundry.toml:/input/foundry.toml:ro
       - ../dapps/soldeer.lock:/input/soldeer.lock:ro
       - ../dapps/remappings.txt:/input/remappings.txt:ro
-      - ../dapps/dependency-patches.txt:/input/dependency-patches.txt:ro
-      - ../dapps/_patches:/input/_patches:ro
-      - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
       - soldeer-out:/out:rw
     networks:
       - deps_internal
@@ -94,6 +93,65 @@ services:
       - "-lc"
       - |
         set -euo pipefail
+        rm -rf /tmp/soldeer-work /out/dependencies /out/foundry.toml /out/soldeer.lock /out/remappings.txt /out/dependency-checksums.txt
+        mkdir -p /tmp/soldeer-work
+        cp /input/foundry.toml /tmp/soldeer-work/foundry.toml
+        cp /input/soldeer.lock /tmp/soldeer-work/soldeer.lock
+        cp /input/remappings.txt /tmp/soldeer-work/remappings.txt
+        cd /tmp/soldeer-work
+        if [ "$${ALLOW_UPDATE}" = "1" ]; then
+          forge soldeer update --config-location foundry --regenerate-remappings
+        else
+          forge soldeer install --config-location foundry
+        fi
+        test -d dependencies
+        test -f foundry.toml
+        test -f soldeer.lock
+        test -f remappings.txt
+        cp -a dependencies /out/dependencies
+        cp foundry.toml /out/foundry.toml
+        cp soldeer.lock /out/soldeer.lock
+        cp remappings.txt /out/remappings.txt
+
+  soldeer-verify-stage:
+    build:
+      context: ../containers/python-deps
+      dockerfile: Dockerfile
+    working_dir: /out
+    depends_on:
+      dependency-egress-proxy:
+        condition: service_healthy
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    environment:
+      HOME: /tmp/home
+      HTTP_PROXY: http://dependency-egress-proxy:8080
+      HTTPS_PROXY: http://dependency-egress-proxy:8080
+      ALL_PROXY: http://dependency-egress-proxy:8080
+      http_proxy: http://dependency-egress-proxy:8080
+      https_proxy: http://dependency-egress-proxy:8080
+      all_proxy: http://dependency-egress-proxy:8080
+      NO_PROXY: localhost,127.0.0.1,::1,dependency-egress-proxy
+      no_proxy: localhost,127.0.0.1,::1,dependency-egress-proxy
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    volumes:
+      - ../dapps/dependency-patches.txt:/input/dependency-patches.txt:ro
+      - ../dapps/_patches:/input/_patches:ro
+      - ../tests/checks/test_dependency_integrity.py:/input/test_dependency_integrity.py:ro
+      - soldeer-out:/out:rw
+    networks:
+      - deps_internal
+    command:
+      - "sh"
+      - "-ec"
+      - |
         apply_dependency_patches() {
           while read -r dependency target patch_file pre_hash patch_hash post_hash extra; do
             case "$${dependency:-}" in
@@ -128,28 +186,14 @@ services:
           done < /input/dependency-patches.txt
         }
 
-        rm -rf /tmp/soldeer-work /out/dependencies /out/soldeer.lock /out/remappings.txt /out/dependency-checksums.txt
-        mkdir -p /tmp/soldeer-work
-        cp /input/foundry.toml /tmp/soldeer-work/foundry.toml
-        cp /input/soldeer.lock /tmp/soldeer-work/soldeer.lock
-        cp /input/remappings.txt /tmp/soldeer-work/remappings.txt
-        cd /tmp/soldeer-work
-        if [ "$${ALLOW_UPDATE}" = "1" ]; then
-          forge soldeer update --config-location foundry --regenerate-remappings
-        else
-          forge soldeer install --config-location foundry
-        fi
         test -d dependencies
+        test -f foundry.toml
         test -f soldeer.lock
         test -f remappings.txt
-        python3 -I -B /input/test_dependency_integrity.py --verify-upstream /tmp/soldeer-work
+        python3 -I -B /input/test_dependency_integrity.py --verify-upstream /out
         apply_dependency_patches
-        python3 -I -B /input/test_dependency_integrity.py --write-checksums /tmp/soldeer-work
+        python3 -I -B /input/test_dependency_integrity.py --write-checksums /out
         test -f dependency-checksums.txt
-        cp -a dependencies /out/dependencies
-        cp soldeer.lock /out/soldeer.lock
-        cp remappings.txt /out/remappings.txt
-        cp dependency-checksums.txt /out/dependency-checksums.txt
 
   soldeer-apply-locked:
     build:

@@ -1,0 +1,179 @@
+from __future__ import annotations
+
+import json
+import re
+import unittest
+from pathlib import Path
+from urllib.parse import urlparse
+
+from .common import iter_files, read_text, repo_path
+
+
+NPM_REGISTRY_HOST = "registry.npmjs.org"
+VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
+DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
+UNSUPPORTED_PACKAGE_MANAGER_FILES = (
+    "bun.lock",
+    "bun.lockb",
+    "npm-shrinkwrap.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+)
+
+
+class PackageMetadataTest(unittest.TestCase):
+    def test_npm_config_is_not_checked_in(self) -> None:
+        npmrc_files = self.repo_files_named(".npmrc")
+
+        self.assertEqual([], npmrc_files, "npm config belongs in compose/package-deps.yml, not checked-in .npmrc files")
+
+    def test_package_lock_source_is_npm_package_lock_only(self) -> None:
+        package_locks = self.repo_files_named("package-lock.json")
+        allowed_lock = repo_path("package-lock.json")
+        self.assertLessEqual(set(package_locks), {allowed_lock}, "package-lock.json belongs only at repo root")
+        for path in package_locks:
+            with self.subTest(path=str(path)):
+                self.assertFalse(path.is_symlink(), f"{path}: package lock must not be a symlink")
+
+        unexpected_files = sorted(
+            path
+            for filename in UNSUPPORTED_PACKAGE_MANAGER_FILES
+            for path in self.repo_files_named(filename)
+        )
+
+        self.assertEqual([], unexpected_files, "package-lock.json is the only supported package lock source")
+
+    def test_root_workspace_layout_matches_package_lane_convention(self) -> None:
+        root_manifest = self.read_manifest(repo_path("package.json"))
+
+        self.assertIs(root_manifest.get("private"), True)
+        self.assertEqual(["packages/*"], root_manifest.get("workspaces"))
+
+    def test_package_manifests_follow_workspace_layout(self) -> None:
+        expected_paths = set(self.package_manifest_paths())
+        actual_paths = {path for path in iter_files(".") if path.name == "package.json"}
+
+        self.assertEqual(expected_paths, actual_paths)
+        for path in sorted(actual_paths):
+            with self.subTest(path=str(path)):
+                self.assertFalse(path.is_symlink(), f"{path}: package manifests must not be symlinks")
+
+    def test_package_dependency_versions_are_exact(self) -> None:
+        workspace_names = self.workspace_package_names()
+
+        for path in self.package_manifest_paths():
+            manifest = self.read_manifest(path)
+            for field in DEPENDENCY_FIELDS:
+                dependencies = manifest.get(field, {})
+                self.assertIsInstance(dependencies, dict, f"{path}: {field} must be an object")
+
+                for name, version in sorted(dependencies.items()):
+                    with self.subTest(path=str(path), field=field, dependency=name):
+                        self.assertIsInstance(version, str, f"{path}: {field}.{name} must be a string")
+                        if name in workspace_names:
+                            self.assertEqual("workspace:*", version)
+                        else:
+                            self.assertRegex(
+                                version,
+                                VERSION_RE,
+                                f"{path}: {field}.{name} must use an exact version, not a range",
+                            )
+
+    def test_package_dependency_version_policy_self_check(self) -> None:
+        for version in ("1.2.3", "1.2.3-beta.1"):
+            with self.subTest(version=version):
+                self.assertRegex(version, VERSION_RE)
+
+        for version in ("^1.2.3", "~1.2.3", ">=1.2.3", "latest", "git+https://example.test/pkg"):
+            with self.subTest(version=version):
+                self.assertNotRegex(version, VERSION_RE)
+
+    def test_package_lock_uses_registry_sources_with_integrity(self) -> None:
+        lock_path = repo_path("package-lock.json")
+        if not lock_path.exists():
+            self.skipTest("package-lock.json has not been generated yet")
+
+        lock = self.read_manifest(lock_path)
+        self.assertIn(lock.get("lockfileVersion"), {2, 3})
+
+        packages = lock.get("packages")
+        self.assertIsInstance(packages, dict, "package-lock.json: packages must be an object")
+        workspace_lock_paths = self.workspace_lock_paths()
+        for path, package in sorted(packages.items()):
+            self.assertIsInstance(path, str, "package-lock.json package path must be a string")
+            self.assertIsInstance(package, dict, f"package-lock.json: {path} must be an object")
+
+            if path == "" or path in workspace_lock_paths:
+                continue
+
+            if package.get("link") is True:
+                resolved = package.get("resolved")
+                with self.subTest(path=path):
+                    self.assertIsInstance(resolved, str, f"package-lock.json: {path}.resolved must be a string")
+                    self.assertIn(resolved, workspace_lock_paths, f"package-lock.json: {path} must link to a workspace")
+                continue
+
+            resolved = package.get("resolved")
+            with self.subTest(path=path):
+                self.assertIsInstance(resolved, str, f"package-lock.json: {path}.resolved must be a string")
+                parsed = urlparse(resolved)
+                self.assertEqual("https", parsed.scheme, f"package-lock.json: {path} must resolve over https")
+                self.assertEqual(NPM_REGISTRY_HOST, parsed.netloc, f"package-lock.json: {path} must use npm registry")
+                self.assertTrue(
+                    parsed.path.endswith(".tgz"),
+                    f"package-lock.json: {path} must resolve to an npm tarball",
+                )
+
+                integrity = package.get("integrity")
+                self.assertIsInstance(integrity, str, f"package-lock.json: {path} must include integrity")
+                self.assertTrue(
+                    integrity.startswith("sha512-"),
+                    f"package-lock.json: {path} must use sha512 integrity",
+                )
+
+    def test_package_lock_source_policy_self_check(self) -> None:
+        accepted = "https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz"
+        parsed = urlparse(accepted)
+        self.assertEqual(("https", NPM_REGISTRY_HOST), (parsed.scheme, parsed.netloc))
+        self.assertTrue(parsed.path.endswith(".tgz"))
+
+        for url in (
+            "http://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz",
+            "https://example.com/typescript.tgz",
+            "https://registry.npmjs.org/typescript",
+            "git+https://github.com/example/package.git",
+            "file:../package.tgz",
+        ):
+            with self.subTest(url=url):
+                parsed = urlparse(url)
+                self.assertFalse(
+                    (parsed.scheme, parsed.netloc) == ("https", NPM_REGISTRY_HOST)
+                    and parsed.path.endswith(".tgz")
+                )
+
+    def package_manifest_paths(self) -> list[Path]:
+        return [repo_path("package.json"), *sorted(repo_path("packages").glob("*/package.json"))]
+
+    def workspace_package_names(self) -> set[str]:
+        names: set[str] = set()
+        for path in sorted(repo_path("packages").glob("*/package.json")):
+            name = self.read_manifest(path).get("name")
+            self.assertIsInstance(name, str, f"{path}: package name must be a string")
+            names.add(name)
+        return names
+
+    def read_manifest(self, path: Path) -> dict[str, object]:
+        manifest = json.loads(read_text(path))
+        self.assertIsInstance(manifest, dict, f"{path}: package manifest must be a JSON object")
+        return manifest
+
+    def repo_files_named(self, name: str) -> list[Path]:
+        return [path for path in iter_files(".") if path.name == name]
+
+    def workspace_lock_paths(self) -> set[str]:
+        root = repo_path(".")
+        return {
+            manifest.parent.relative_to(root).as_posix()
+            for manifest in self.package_manifest_paths()
+            if manifest != repo_path("package.json")
+        }
