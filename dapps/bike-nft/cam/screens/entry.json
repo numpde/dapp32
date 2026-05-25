@@ -1,0 +1,30 @@
+{
+  "screen": "1.0.0",
+  "title": "Bicycle component registry",
+  "elements": [
+    {
+      "type": "text",
+      "text": "Look up a component by the serial number stamped on the bicycle."
+    },
+    {
+      "type": "address",
+      "label": "Connected account",
+      "address": "$account.address"
+    },
+    {
+      "type": "input",
+      "name": "serialNumber",
+      "label": "Serial number"
+    },
+    {
+      "type": "button",
+      "label": "Look up component",
+      "action": {
+        "route": "component",
+        "params": {
+          "serialNumber": "$state.serialNumber"
+        }
+      }
+    }
+  ]
+}
