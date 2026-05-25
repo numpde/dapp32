@@ -1,23 +1,11 @@
 import { ScreenError } from "./errors.ts"
-
-export function hasOwn(source: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(source, key)
-}
-
-export function createStringMap<T>(): Record<string, T> {
-  return Object.create(null) as Record<string, T>
-}
-
-export function isRecordObject(value: unknown): value is Record<string, unknown> {
-  // Screen JSON uses plain records. Arrays, null, and class instances are data
-  // values or invalid inputs, not field maps.
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false
-  }
-
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
+import { isRecordObject, joinPath } from "@cam/core/internal/json"
+export {
+  cloneJsonValue,
+  createStringMap,
+  hasOwn,
+  isRecordObject,
+} from "@cam/core/internal/json"
 
 export function requiredRecord(value: unknown, path: string): Record<string, unknown> {
   if (!isRecordObject(value)) {
@@ -62,24 +50,4 @@ export function rejectUnknownFields(
       throw new ScreenError("SCREEN_INVALID_FIELD", message(key), joinPath(path, key))
     }
   }
-}
-
-export function cloneJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => cloneJsonValue(item))
-  }
-
-  if (isRecordObject(value)) {
-    // Parsed screens are normalized snapshots, not live references into the
-    // caller's parsed JSON object.
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, cloneJsonValue(item)]),
-    )
-  }
-
-  return value
-}
-
-function joinPath(parent: string, key: string): string {
-  return parent === "" ? key : `${parent}.${key}`
 }

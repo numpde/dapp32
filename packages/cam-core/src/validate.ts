@@ -1,9 +1,9 @@
 import { CamError } from "./errors.ts"
 import { validateExpressionValue } from "./expressions.ts"
 import {
+  cloneJsonValue,
   createStringMap,
   hasOwn,
-  isRecordObject,
   requiredArray,
   requiredNonEmptyString,
   requiredRecord,
@@ -97,22 +97,6 @@ function parseRoutes(
   }
 
   return routes
-}
-
-function cloneJsonValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map((item) => cloneJsonValue(item))
-  }
-
-  if (isRecordObject(value)) {
-    // parseCam returns a normalized document snapshot, not live references into
-    // the caller's parsed JSON object.
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, cloneJsonValue(item)]),
-    )
-  }
-
-  return value
 }
 
 function rejectUnknownCamFields(

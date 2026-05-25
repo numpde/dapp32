@@ -1,6 +1,7 @@
 import { CamError } from "./errors.ts"
 import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import { hasOwn, isRecordObject } from "./guards.ts"
+import { isJsonScalar } from "./internal/json.ts"
 import type { CamRuntimeContext } from "./types.ts"
 
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/
@@ -52,11 +53,7 @@ function validateJsonLiteral(value: unknown, path: string): void {
   // CAM manifests may be supplied as already-parsed objects, so reject values
   // that JSON itself could not carry. That keeps route args portable across
   // file loading, IPFS, HTTP, tests, and programmatic construction.
-  if (value === null || typeof value === "boolean") {
-    return
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
+  if (isJsonScalar(value)) {
     return
   }
 
