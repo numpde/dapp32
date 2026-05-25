@@ -54,7 +54,8 @@ Keep the project small, explicit, and protocol-first.
 - Keep npm install policy in `compose/package-deps.yml`; do not add repo
   `.npmrc` files.
 - Keep npm package execution in `compose/packages.yml`; package build/test lanes
-  are offline consumers of the locked `node_modules/` tree.
+  are offline consumers of the locked `node_modules/` tree. Package-backed tool
+  checks with a distinct runtime boundary belong in their own Compose file.
 - Use `packages/package-lock.json` as the only package lock source for the
   current package workspace; do not add repo-root locks, yarn, pnpm, bun,
   nested app package-lock, or npm-shrinkwrap locks unless the dependency lane is
@@ -73,10 +74,11 @@ Keep the project small, explicit, and protocol-first.
 - Package build/test lanes must not create host-side package build directories as
   preflight. Package `dist/` outputs belong in container-local tmpfs unless an
   explicit artifact export lane is added.
-- `package-build-check` is compile validation only. Do not use a `package-build`
-  name unless the lane intentionally produces durable host-visible artifacts.
-- `package-ci` should keep package tests and package-backed tool smoke checks in
-  one container-local filesystem when that avoids rebuilding ephemeral `dist/`.
+- `package-build-check` is compile validation only. `package-build` must remain
+  an explicit failure until there is a deliberate durable artifact-export lane.
+- `package-ci` is a Make aggregation over package tests and package-backed tool
+  checks. Do not duplicate a tool's smoke command inside `compose/packages.yml`;
+  run the tool's own Compose check service instead.
 - ABI export must keep `dapps/` read-only and mount only explicit, pre-existing
   `dapps/<name>/cam/abi/` directories writable.
 
