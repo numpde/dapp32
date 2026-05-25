@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 from typing import Any
 
@@ -103,16 +104,11 @@ def rendered_compose_config(compose_file: str, *, env: dict[str, str] | None = N
     if env is not None:
         render_env.update(env)
 
+    command = shlex.split(render_env.get("DOCKER_COMPOSE", "docker compose"))
+    command.extend(["-f", str(repo_path(compose_file)), "config", "--format", "json"])
+
     result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(repo_path(compose_file)),
-            "config",
-            "--format",
-            "json",
-        ],
+        command,
         cwd=ROOT,
         env=render_env,
         check=True,

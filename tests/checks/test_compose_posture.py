@@ -24,6 +24,12 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn('[[ "$(ACTUAL_UID)" == "0" || "$(LOCAL_UID)" == "0" ]]', text)
         self.assertIn("Refusing to run Docker lanes as root", text)
 
+    def test_rendered_compose_helper_honors_docker_compose_abstraction(self) -> None:
+        text = read_text(repo_path("tests/checks/common.py"))
+
+        self.assertIn('shlex.split(render_env.get("DOCKER_COMPOSE", "docker compose"))', text)
+        self.assertNotIn('["docker",', text)
+
     def test_dependency_stage_uses_filtered_egress_proxy(self) -> None:
         text = read_text(repo_path("compose/deps.yml"))
 
@@ -131,7 +137,10 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("--offline", text)
         self.assertIn("--omit=optional", text)
         self.assertIn("--json >/tmp/package-graph-check.json", text)
-        self.assertIn("package-graph-check: installed npm dependency graph matches package-lock.json", text)
+        self.assertIn(
+            "package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata",
+            text,
+        )
         self.assertNotIn("../:/work", text)
         self.assertNotIn("..:/work", text)
         self.assertNotIn("npm install", text)

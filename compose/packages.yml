@@ -45,7 +45,7 @@ services:
       - "-c"
       - |
         npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
-        printf '%s\n' 'package-graph-check: installed npm dependency graph matches package-lock.json'
+        printf '%s\n' 'package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata'
 
   # Package build is the only npm package lane with a writable packages/ mount.
   # The workspace convention is intentionally narrow: each package build script
