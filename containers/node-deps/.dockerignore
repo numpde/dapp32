@@ -1,3 +1,4 @@
 **
 !Dockerfile
 !stage-node-modules
+!stage-package-workspace

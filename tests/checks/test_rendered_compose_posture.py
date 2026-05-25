@@ -148,17 +148,13 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("/work/packages", verify.get("working_dir"))
         self.assertEqual("/work/packages", build.get("working_dir"))
         self.assertEqual("/work/packages", test.get("working_dir"))
-        self.assertEqual(True, volume_for(verify, "/work/packages").get("read_only"))
-        self.assertEqual(True, volume_for(build, "/work/packages").get("read_only"))
-        for package_json in sorted(repo_path("packages").glob("*/package.json")):
-            package_dir = package_json.parent.name
-            build_dist = volume_for(build, f"/work/packages/{package_dir}/dist")
-            test_dist = volume_for(test, f"/work/packages/{package_dir}/dist")
-            self.assertEqual("tmpfs", build_dist.get("type"))
-            self.assertEqual("tmpfs", test_dist.get("type"))
-            self.assertEqual(511, build_dist.get("tmpfs", {}).get("mode"))
-            self.assertEqual(511, test_dist.get("tmpfs", {}).get("mode"))
-        self.assertEqual(True, volume_for(test, "/work/packages").get("read_only"))
+        for config_service in [verify, build, test]:
+            self.assertEqual(True, volume_for(config_service, "/input/packages").get("read_only"))
+            self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777", config_service.get("tmpfs", []))
+            command = " ".join(config_service.get("command", []))
+            self.assertIn("stage-package-workspace /input/packages /work/packages", command)
+
+        self.assertEqual(True, volume_for(test, "/work/dapps").get("read_only"))
 
     def test_viewer_terminal_renders_as_offline_read_only_interactive_lane(self) -> None:
         config = rendered_compose_config(
@@ -180,14 +176,12 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn("npm run build:packages", " ".join(check.get("command", [])))
         self.assertIn("tsc -p ../tools/viewer-terminal/tsconfig.json", " ".join(check.get("command", [])))
         self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", " ".join(check.get("command", [])))
-        for target in ["/work/dapps", "/work/packages", "/work/tools"]:
+        for target in ["/work/dapps", "/work/tools"]:
             self.assertEqual(True, volume_for(viewer, target).get("read_only"))
             self.assertEqual(True, volume_for(check, target).get("read_only"))
-        for package_json in sorted(repo_path("packages").glob("*/package.json")):
-            package_dir = package_json.parent.name
-            viewer_dist = volume_for(viewer, f"/work/packages/{package_dir}/dist")
-            check_dist = volume_for(check, f"/work/packages/{package_dir}/dist")
-            self.assertEqual("tmpfs", viewer_dist.get("type"))
-            self.assertEqual("tmpfs", check_dist.get("type"))
-            self.assertEqual(511, viewer_dist.get("tmpfs", {}).get("mode"))
-            self.assertEqual(511, check_dist.get("tmpfs", {}).get("mode"))
+        self.assertEqual(True, volume_for(viewer, "/input/packages").get("read_only"))
+        self.assertEqual(True, volume_for(check, "/input/packages").get("read_only"))
+        self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777", viewer.get("tmpfs", []))
+        self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777", check.get("tmpfs", []))
+        self.assertIn("stage-package-workspace /input/packages /work/packages", " ".join(viewer.get("command", [])))
+        self.assertIn("stage-package-workspace /input/packages /work/packages", " ".join(check.get("command", [])))

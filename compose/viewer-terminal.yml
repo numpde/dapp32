@@ -4,38 +4,11 @@
 # real chain/RPC viewers; they prove that the viewer state machine can be
 # driven over stdin/stdout against checked-in CAM resources while contract reads
 # are faked inside tools/viewer-terminal/terminal-session.ts.
-x-dist-cam-core: &dist_cam_core
-  type: tmpfs
-  target: /work/packages/cam-core/dist
-  tmpfs:
-    mode: 511
-
-x-dist-cam-evm-viem: &dist_cam_evm_viem
-  type: tmpfs
-  target: /work/packages/cam-evm-viem/dist
-  tmpfs:
-    mode: 511
-
-x-dist-cam-screen: &dist_cam_screen
-  type: tmpfs
-  target: /work/packages/cam-screen/dist
-  tmpfs:
-    mode: 511
-
-x-dist-cam-viewer: &dist_cam_viewer
-  type: tmpfs
-  target: /work/packages/cam-viewer/dist
-  tmpfs:
-    mode: 511
 
 x-viewer-terminal-volumes: &viewer_terminal_volumes
   - ../dapps:/work/dapps:ro
-  - ../packages:/work/packages:ro
+  - ../packages:/input/packages:ro
   - ../tools:/work/tools:ro
-  - *dist_cam_core
-  - *dist_cam_evm_viem
-  - *dist_cam_screen
-  - *dist_cam_viewer
 
 x-viewer-terminal-base: &viewer_terminal_base
   build:
@@ -59,6 +32,7 @@ x-viewer-terminal-base: &viewer_terminal_base
     npm_config_update_notifier: "false"
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=256m
+    - /work/packages:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
   volumes: *viewer_terminal_volumes
 
 services:
@@ -72,6 +46,7 @@ services:
       - "-eu"
       - "-c"
       - |
+        stage-package-workspace /input/packages /work/packages
         cd /work/packages
         npm run build:packages
         cd /work
@@ -84,6 +59,7 @@ services:
       - "-eu"
       - "-c"
       - |
+        stage-package-workspace /input/packages /work/packages
         cd /work/packages
         npm run build:packages
         ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json

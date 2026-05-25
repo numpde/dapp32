@@ -72,8 +72,9 @@ Keep the project small, explicit, and protocol-first.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
   dependency contents before compiling or executing package code.
 - Package build/test lanes must not create host-side package build directories as
-  preflight. Package `dist/` outputs belong in container-local tmpfs unless an
-  explicit artifact export lane is added.
+  preflight. Package lanes should mount the host package workspace read-only,
+  stage it into container-local tmpfs, and leave `dist/` outputs there unless
+  an explicit artifact export lane is added.
 - `package-build-check` is compile validation only. Do not add `package-build`
   unless there is a deliberate durable artifact-export lane.
 - `package-ci` is a Make aggregation over package tests and package-backed tool

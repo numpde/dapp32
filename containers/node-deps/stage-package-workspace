@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+source_dir="${1:?missing source package workspace directory}"
+target_dir="${2:?missing target package workspace directory}"
+
+if [ "$source_dir" != "/input/packages" ] || [ "$target_dir" != "/work/packages" ]; then
+  printf '%s\n' "stage-package-workspace only supports /input/packages -> /work/packages" >&2
+  exit 2
+fi
+
+test -d "$source_dir"
+test -d "$target_dir"
+find "$target_dir" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+cp -a "$source_dir"/. "$target_dir"/
+find "$target_dir" -mindepth 2 -maxdepth 2 -type d -name dist -exec rm -rf -- {} +

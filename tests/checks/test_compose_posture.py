@@ -97,9 +97,9 @@ class ComposePostureTest(unittest.TestCase):
 
         self.assertIn("stage-node-modules /out/node_modules /work/node_modules", compose_text)
         self.assertNotIn("find /work/node_modules", compose_text)
-        self.assertIn("COPY stage-node-modules /usr/local/bin/stage-node-modules", dockerfile_text)
+        self.assertIn("COPY stage-node-modules stage-package-workspace /usr/local/bin/", dockerfile_text)
         self.assertIn("chmod 1777 /out", dockerfile_text)
-        self.assertEqual("**\n!Dockerfile\n!stage-node-modules\n", dockerignore_text)
+        self.assertEqual("**\n!Dockerfile\n!stage-node-modules\n!stage-package-workspace\n", dockerignore_text)
         self.assertIn('"$source_dir" != "/out/node_modules"', stager_text)
         self.assertIn('"$target_dir" != "/work/node_modules"', stager_text)
 
@@ -144,22 +144,21 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("package-test:", text)
         self.assertNotIn("package-ci:", text)
         self.assertIn("x-package-base: &package_base", text)
-        self.assertIn("x-package-build-volumes: &package_build_volumes", text)
-        self.assertIn("x-package-test-volumes: &package_test_volumes", text)
         self.assertEqual(3, text.count("<<: *package_base"))
         self.assertEqual(1, text.count('network_mode: "none"'))
         self.assertEqual(1, text.count("read_only: true"))
         self.assertEqual(1, text.count("no-new-privileges:true"))
         self.assertEqual(1, text.count("- ALL"))
-        self.assertIn("../packages:/work/packages:ro", text)
+        self.assertIn("../packages:/input/packages:ro", text)
+        self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777", text)
+        self.assertIn("stage-package-workspace /input/packages /work/packages", text)
+        self.assertNotIn("../packages:/work/packages:ro", text)
         self.assertNotIn("../packages:/work/packages:rw", text)
         for package_json in sorted(repo_path("packages").glob("*/package.json")):
             package_dir = package_json.parent.name
-            self.assertIn(f"target: /work/packages/{package_dir}/dist", text)
+            self.assertNotIn(f"target: /work/packages/{package_dir}/dist", text)
             self.assertNotIn(f"../packages/{package_dir}/dist:", text)
         self.assertIn("working_dir: /work/packages", text)
-        self.assertIn("volumes: *package_build_volumes", text)
-        self.assertIn("volumes: *package_test_volumes", text)
         self.assertIn("npm", text)
         self.assertIn("ls", text)
         self.assertIn("--all", text)
@@ -179,6 +178,19 @@ class ComposePostureTest(unittest.TestCase):
         self.assertNotIn("HTTP_PROXY", text)
         self.assertNotIn("HTTPS_PROXY", text)
         self.assertNotIn("tools/viewer-terminal/terminal-session.ts", text)
+
+    def test_node_package_workspace_stager_is_image_owned(self) -> None:
+        dockerfile_text = read_text(repo_path("containers/node-deps/Dockerfile"))
+        dockerignore_text = read_text(repo_path("containers/node-deps/.dockerignore"))
+        stager_text = read_text(repo_path("containers/node-deps/stage-package-workspace"))
+
+        self.assertIn("COPY stage-node-modules stage-package-workspace /usr/local/bin/", dockerfile_text)
+        self.assertIn("chmod 0755 /usr/local/bin/stage-package-workspace", dockerfile_text)
+        self.assertIn("!stage-package-workspace", dockerignore_text)
+        self.assertIn('"$source_dir" != "/input/packages"', stager_text)
+        self.assertIn('"$target_dir" != "/work/packages"', stager_text)
+        self.assertIn('cp -a "$source_dir"/. "$target_dir"/', stager_text)
+        self.assertIn('-type d -name dist -exec rm -rf -- {} +', stager_text)
 
     def test_package_build_check_is_compile_validation_by_convention(self) -> None:
         for package_json in sorted(repo_path("packages").glob("*/package.json")):
