@@ -8,6 +8,7 @@ COMPOSE_PROJECT_NAME ?= dapps
 DAPPS_DIR := dapps
 PACKAGES_DIR := packages
 DEPENDENCIES_DIR := $(DAPPS_DIR)/dependencies
+FOUNDRY_MANIFEST_FILE := $(DAPPS_DIR)/foundry.toml
 DEPENDENCY_METADATA_FILES := $(DAPPS_DIR)/soldeer.lock $(DAPPS_DIR)/remappings.txt $(DAPPS_DIR)/dependency-checksums.txt
 PACKAGE_MANIFEST_FILE := $(PACKAGES_DIR)/package.json
 PACKAGE_NODE_MODULES_DIR := $(PACKAGES_DIR)/node_modules
@@ -99,9 +100,37 @@ deps:
 	cleanup() { \
 	  status="$$?"; \
 	  $(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	  if [[ "$$status" != "0" && -n "$${created_dependency_metadata_placeholders:-}" ]]; then \
+	    rm -f $$created_dependency_metadata_placeholders; \
+	  fi; \
 	  exit "$$status"; \
 	}; \
+	reject_unsafe_dependency_targets() { \
+	  if [[ -L "$(DEPENDENCIES_DIR)" ]]; then \
+	    printf '%s\n' 'Refusing dependency install because dapps/dependencies is a symlink.' >&2; \
+	    exit 2; \
+	  fi; \
+	  if [[ -e "$(DEPENDENCIES_DIR)" && ! -d "$(DEPENDENCIES_DIR)" ]]; then \
+	    printf '%s\n' 'Refusing dependency install because dapps/dependencies exists and is not a directory.' >&2; \
+	    exit 2; \
+	  fi; \
+	  if [[ -L "$(FOUNDRY_MANIFEST_FILE)" ]]; then \
+	    printf '%s\n' 'Refusing dependency install because dapps/foundry.toml is a symlink.' >&2; \
+	    exit 2; \
+	  fi; \
+	  for file in $(DEPENDENCY_METADATA_FILES); do \
+	    if [[ -L "$$file" ]]; then \
+	      printf 'Refusing dependency install because metadata file is a symlink: %s\n' "$$file" >&2; \
+	      exit 2; \
+	    fi; \
+	    if [[ -e "$$file" && ! -f "$$file" ]]; then \
+	      printf 'Refusing dependency install because metadata target exists and is not a file: %s\n' "$$file" >&2; \
+	      exit 2; \
+	    fi; \
+	  done; \
+	}; \
 	trap cleanup EXIT; \
+	reject_unsafe_dependency_targets; \
 	case "$(ALLOW_UPDATE)" in \
 	  0) \
 	    apply_service="soldeer-apply-locked"; \
@@ -114,10 +143,18 @@ deps:
 	    done ;; \
 	  1) \
 	    apply_service="soldeer-apply-update"; \
-	    touch $(DEPENDENCY_METADATA_FILES) ;; \
+	    for file in $(DEPENDENCY_METADATA_FILES); do \
+	      if [[ ! -e "$$file" ]]; then \
+	        touch "$$file"; \
+	        created_dependency_metadata_placeholders="$${created_dependency_metadata_placeholders:-} $$file"; \
+	      fi; \
+	    done ;; \
 	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
 	esac; \
+	reject_unsafe_dependency_targets; \
 	mkdir -p $(DEPENDENCIES_DIR); \
+	test -d $(DEPENDENCIES_DIR); \
+	reject_unsafe_dependency_targets; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify-stage; \

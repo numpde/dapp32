@@ -113,6 +113,21 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn('test -f "$(PACKAGE_LOCK_FILE)"', text)
         self.assertIn("find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json", text)
 
+    def test_solidity_dependency_make_target_rejects_unsafe_bind_targets(self) -> None:
+        text = read_text(repo_path("Makefile"))
+
+        self.assertIn("FOUNDRY_MANIFEST_FILE := $(DAPPS_DIR)/foundry.toml", text)
+        self.assertIn("reject_unsafe_dependency_targets()", text)
+        self.assertGreaterEqual(text.count("reject_unsafe_dependency_targets"), 4)
+        self.assertIn('[[ -L "$(DEPENDENCIES_DIR)" ]]', text)
+        self.assertIn('[[ -e "$(DEPENDENCIES_DIR)" && ! -d "$(DEPENDENCIES_DIR)" ]]', text)
+        self.assertIn('[[ -L "$(FOUNDRY_MANIFEST_FILE)" ]]', text)
+        self.assertIn('[[ -L "$$file" ]]', text)
+        self.assertIn('[[ -e "$$file" && ! -f "$$file" ]]', text)
+        self.assertIn("created_dependency_metadata_placeholders", text)
+        self.assertIn("rm -f $$created_dependency_metadata_placeholders", text)
+        self.assertIn("test -d $(DEPENDENCIES_DIR)", text)
+
     def test_package_build_and_test_lanes_are_offline(self) -> None:
         text = read_text(repo_path("compose/packages.yml"))
 
@@ -277,6 +292,27 @@ class ComposePostureTest(unittest.TestCase):
         self.assertNotIn("deposit/test", text)
         self.assertNotIn("bike-nft/src", text)
         self.assertNotIn("minimal/src", text)
+
+    def test_forge_abi_has_explicit_writable_abi_mounts_only(self) -> None:
+        text = read_text(repo_path("compose/forge.yml"))
+
+        self.assertIn("../dapps:/work/dapps:ro", text)
+        self.assertNotIn("../dapps:/work/dapps:rw", text)
+        self.assertNotIn("mkdir -p \"$$abi_dir\"", text)
+        self.assertIn("must exist before ABI export", text)
+
+        expected_mounts = []
+        for dapp_dir in sorted(repo_path("dapps").iterdir()):
+            abi_dir = dapp_dir / "cam" / "abi"
+            if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
+                expected_mounts.append(
+                    f"../dapps/{dapp_dir.name}/cam/abi:/work/dapps/{dapp_dir.name}/cam/abi:rw"
+                )
+                self.assertTrue(abi_dir.is_dir(), f"{abi_dir} must exist for explicit ABI export mounting")
+
+        self.assertTrue(expected_mounts)
+        for mount in expected_mounts:
+            self.assertIn(mount, text)
 
     def test_coverage_uses_unit_test_convention(self) -> None:
         text = read_text(repo_path("compose/forge.yml"))

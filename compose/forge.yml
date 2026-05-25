@@ -108,11 +108,13 @@ services:
   # Only dapps that already have both src/ and cam/ participate. The ABI
   # directory is treated as generated from direct src/*.sol files. Outputs are
   # staged in tmpfs first so a failed inspection does not erase the last good
-  # ABI set.
+  # ABI set. Keep dapps/ read-only and mount each generated abi/ directory as
+  # the only writable host path.
   forge-abi:
     <<: *forge_base
     volumes:
-      - ../dapps:/work/dapps:rw
+      - ../dapps:/work/dapps:ro
+      - ../dapps/bike-nft/cam/abi:/work/dapps/bike-nft/cam/abi:rw
     command:
       - "sh"
       - "-eu"
@@ -127,6 +129,10 @@ services:
 
           found=1
           abi_dir="$$dapp/cam/abi"
+          if [ ! -d "$$abi_dir" ]; then
+            printf 'forge-abi: %s must exist before ABI export; do not let Docker create bind targets\n' "$$abi_dir" >&2
+            exit 2
+          fi
           staged_dir="$$(mktemp -d)"
           generated=0
 
@@ -145,7 +151,6 @@ services:
             exit 2
           fi
 
-          mkdir -p "$$abi_dir"
           find "$$abi_dir" -maxdepth 1 -type f -name '*.json' -delete
           for abi in "$$staged_dir"/*.json; do
             abi_name="$$(basename "$$abi")"

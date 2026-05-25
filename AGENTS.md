@@ -70,6 +70,8 @@ Keep the project small, explicit, and protocol-first.
 - Package build/test lanes must not create host-side package build directories as
   preflight. Package `dist/` outputs belong in container-local tmpfs unless an
   explicit artifact export lane is added.
+- ABI export must keep `dapps/` read-only and mount only explicit, pre-existing
+  `dapps/<name>/cam/abi/` directories writable.
 
 ## Dapp Layout
 
@@ -77,6 +79,9 @@ Keep the project small, explicit, and protocol-first.
 - Each dapp should use `src/` for Solidity sources and `test/` for Solidity
   tests. Forge lanes discover those directories by convention.
 - Soldeer-managed dependency material belongs only under `dapps/dependencies/`.
+- A dapp that owns CAM resources and expects ABI export must create
+  `dapps/<name>/cam/abi/` deliberately; Docker must not create that path as a
+  bind-mount side effect.
 
 ## Checks Lane
 

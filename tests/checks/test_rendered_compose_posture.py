@@ -63,6 +63,74 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         self.assertIn("*/script", " ".join(service(config, "forge-fmt")["command"]))
         self.assertIn("forge-script-build", config["services"])
+        forge_abi = service(config, "forge-abi")
+        self.assertEqual(True, volume_for(forge_abi, "/work/dapps").get("read_only"))
+        for dapp_dir in sorted(repo_path("dapps").iterdir()):
+            if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
+                abi_mount = volume_for(forge_abi, f"/work/dapps/{dapp_dir.name}/cam/abi")
+                self.assertNotEqual(True, abi_mount.get("read_only", False))
+
+    def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
+        expected = {
+            ("compose/deps.yml", "soldeer-apply-locked", str(repo_path("dapps/dependencies")), "/work/dependencies"),
+            ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/dependencies")), "/work/dependencies"),
+            ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/soldeer.lock")), "/work/soldeer.lock"),
+            ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/remappings.txt")), "/work/remappings.txt"),
+            (
+                "compose/deps.yml",
+                "soldeer-apply-update",
+                str(repo_path("dapps/dependency-checksums.txt")),
+                "/work/dependency-checksums.txt",
+            ),
+            ("compose/package-deps.yml", "package-apply-locked", str(repo_path("packages/node_modules")), "/work/node_modules"),
+            ("compose/package-deps.yml", "package-apply-update", str(repo_path("packages/node_modules")), "/work/node_modules"),
+            (
+                "compose/package-deps.yml",
+                "package-apply-update",
+                str(repo_path("packages/package-lock.json")),
+                "/work/package-lock.json",
+            ),
+        }
+
+        for dapp_dir in sorted(repo_path("dapps").iterdir()):
+            if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
+                expected.add(
+                    (
+                        "compose/forge.yml",
+                        "forge-abi",
+                        str(dapp_dir / "cam" / "abi"),
+                        f"/work/dapps/{dapp_dir.name}/cam/abi",
+                    )
+                )
+
+        actual = set()
+        for compose_file in [
+            "compose/anvil.yml",
+            "compose/bike-nft-local.yml",
+            "compose/cast.yml",
+            "compose/checks.yml",
+            "compose/deps.yml",
+            "compose/forge.yml",
+            "compose/package-deps.yml",
+            "compose/packages.yml",
+            "compose/viewer-terminal.yml",
+        ]:
+            config = rendered_compose_config(
+                compose_file,
+                env={
+                    "CAM_URI": "file:///work/dapps/bike-nft/cam/main.json",
+                    "BIKE_NFT_PRIVATE_KEY_FILE": "/tmp/bike-nft-private-key",
+                    "PACKAGE_INPUT_DIR": "/tmp/package-input",
+                    "RPC_URL_FILE": "/tmp/rpc-url",
+                    "VIEWER_TERMINAL_CONTAINER_NAME": "dapps-viewer-terminal-session",
+                },
+            )
+            for service_name, config_service in config["services"].items():
+                for volume in config_service.get("volumes", []):
+                    if volume.get("type") == "bind" and not volume.get("read_only", False):
+                        actual.add((compose_file, service_name, volume["source"], volume["target"]))
+
+        self.assertEqual(expected, actual)
 
     def test_package_lanes_render_as_offline_hardened_services(self) -> None:
         config = rendered_compose_config("compose/packages.yml")
