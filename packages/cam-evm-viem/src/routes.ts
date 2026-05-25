@@ -7,7 +7,6 @@ import type { CallCamRouteOptions, RouteResult } from "./types.ts"
 type AbiFunction = {
   readonly type: "function"
   readonly name: string
-  readonly outputs?: readonly { readonly name?: string }[]
 }
 
 export async function callCamRoute({
@@ -27,7 +26,7 @@ export async function callCamRoute({
       `CAM route references unresolved contract: ${routeCall.contract}`,
     )
   }
-  const functionAbi = findUniqueFunctionAbi(contract.abi, routeCall.function)
+  findUniqueFunctionAbi(contract.abi, routeCall.function)
 
   let raw: unknown
   try {
@@ -56,10 +55,6 @@ export async function callCamRoute({
     route,
     screenURI: resolveResourceURI(camURI, screenURI),
     raw,
-    outputs: mapRouteOutputs({
-      functionAbi,
-      values,
-    }),
   }
 }
 
@@ -80,27 +75,4 @@ function findUniqueFunctionAbi(abi: Abi, functionName: string): AbiFunction {
   }
 
   return matches[0]
-}
-
-function mapRouteOutputs({
-  functionAbi,
-  values,
-}: {
-  functionAbi: AbiFunction
-  values: readonly unknown[]
-}): Record<string, unknown> {
-  const outputs = functionAbi.outputs ?? []
-  const result: Record<string, unknown> = {}
-
-  for (let valueIndex = 1; valueIndex < values.length; valueIndex++) {
-    const outputIndex = valueIndex - 1
-    result[String(outputIndex)] = values[valueIndex]
-
-    const name = outputs[valueIndex]?.name
-    if (name !== undefined && name.length > 0) {
-      result[name] = values[valueIndex]
-    }
-  }
-
-  return result
 }

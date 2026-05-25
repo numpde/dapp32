@@ -173,7 +173,7 @@ test("resolveCamContracts rejects unbound contract names", async () => {
   )
 })
 
-test("callCamRoute resolves CAM args, calls the selected contract, and maps outputs", async () => {
+test("callCamRoute resolves CAM args, calls the selected contract, and returns raw route output", async () => {
   const cam = parseCam(camJson)
   const publicClient = createPublicClient({
     routeResults: {
@@ -204,10 +204,6 @@ test("callCamRoute resolves CAM args, calls the selected contract, and maps outp
   assert.equal(result.route, "entry")
   assert.equal(result.screenURI, "ipfs://example/screens/entry.json")
   assert.deepEqual(result.raw, ["./screens/entry.json", BigInt(7)])
-  assert.deepEqual(result.outputs, {
-    "0": BigInt(7),
-    componentCount: BigInt(7),
-  })
 
   assert.deepEqual(publicClient.calls.at(-1), {
     address: uiAddress,

@@ -27,7 +27,6 @@ export type RouteResult = {
   readonly route: string
   readonly screenURI: string
   readonly raw: unknown
-  readonly outputs: Record<string, unknown>
 }
 
 export type LoadCamFromHostOptions = {
