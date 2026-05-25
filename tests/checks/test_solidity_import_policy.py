@@ -14,6 +14,7 @@ OZ_ALLOWED_TOP_LEVEL = {
 }
 FORGE_STD_PACKAGE = "forge-std"
 FORGE_STD_ALLOWED_TEST_IMPORTS = {"Test.sol"}
+FORGE_STD_ALLOWED_SCRIPT_IMPORTS = {"Script.sol"}
 DEPENDENCY_PACKAGES = (OZ_PACKAGE, FORGE_STD_PACKAGE)
 IMPORT_STATEMENT_RE = re.compile(r"^\s*import\b(?P<body>[^;]*);", re.MULTILINE | re.DOTALL)
 IMPORT_PATH_RE = re.compile(r'["\'](?P<path>[^"\']+)["\']')
@@ -84,6 +85,20 @@ class SolidityImportPolicyTest(unittest.TestCase):
         )
         self.assertIsNone(self.validate_import(source, "../../../src/HelloWorld.sol", dependency_versions))
         self.assertIsNone(self.validate_import(source, f"forge-std-{forge_std_version}/src/Test.sol", dependency_versions))
+        self.assertIsNone(
+            self.validate_import(
+                repo_path("dapps/bike-nft/script/DeployBikeNftLocal.s.sol"),
+                f"forge-std-{forge_std_version}/src/Script.sol",
+                dependency_versions,
+            )
+        )
+        self.assertIsNone(
+            self.validate_import(
+                repo_path("dapps/bike-nft/script/BikeNftLocalFixture.sol"),
+                "cam/src/CamRoot.sol",
+                dependency_versions,
+            )
+        )
 
         rejected = [
             f"{OZ_PACKAGE}-{oz_version}/contracts/access/Ownable.sol",
@@ -94,6 +109,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
             "forge-std/Test.sol",
             "forge-std-1.11.1/src/Test.sol",
             f"forge-std-{forge_std_version}/src/Script.sol",
+            "deposit/src/DepositVault.sol",
             "https://example.test/Contract.sol",
         ]
         for import_path in rejected:
@@ -137,6 +153,9 @@ class SolidityImportPolicyTest(unittest.TestCase):
 
         if import_path.startswith(FORGE_STD_PACKAGE):
             return self.validate_forge_std_import(source, import_path, dependency_versions[FORGE_STD_PACKAGE])
+
+        if self.is_script_source(source) and import_path.startswith("cam/src/"):
+            return self.validate_dapps_root_import(source, import_path)
 
         return f"{source}: disallowed package import {import_path}"
 
@@ -182,23 +201,46 @@ class SolidityImportPolicyTest(unittest.TestCase):
         return None
 
     def validate_forge_std_import(self, source: Path, import_path: str, version: str) -> str | None:
-        if not self.is_test_source(source):
-            return f"{source}: forge-std imports are allowed only in Solidity tests: {import_path}"
-
         expected_prefix = f"{FORGE_STD_PACKAGE}-{version}/src/"
         if not import_path.startswith(expected_prefix):
             return f"{source}: forge-std import must use {expected_prefix}: {import_path}"
 
         suffix = import_path.removeprefix(expected_prefix)
-        if suffix not in FORGE_STD_ALLOWED_TEST_IMPORTS:
-            allowed = ", ".join(sorted(FORGE_STD_ALLOWED_TEST_IMPORTS))
+        if self.is_test_source(source):
+            allowed_imports = FORGE_STD_ALLOWED_TEST_IMPORTS
+        elif self.is_script_source(source):
+            allowed_imports = FORGE_STD_ALLOWED_SCRIPT_IMPORTS
+        else:
+            return f"{source}: forge-std imports are allowed only in Solidity tests or scripts: {import_path}"
+
+        if suffix not in allowed_imports:
+            allowed = ", ".join(sorted(allowed_imports))
             return f"{source}: forge-std import must be one of ({allowed}): {import_path}"
+
+        return None
+
+    def validate_dapps_root_import(self, source: Path, import_path: str) -> str | None:
+        if not import_path.endswith(".sol"):
+            return f"{source}: dapps-root import must target a Solidity file: {import_path}"
+        if any(part in {"", ".", ".."} for part in import_path.split("/")):
+            return f"{source}: dapps-root import contains an unsafe path segment: {import_path}"
+
+        resolved = (repo_path("dapps") / import_path).resolve()
+        dapps_root = repo_path("dapps").resolve()
+        if resolved != dapps_root and dapps_root not in resolved.parents:
+            return f"{source}: dapps-root import escapes dapps/: {import_path}"
+        if not resolved.is_file():
+            return f"{source}: dapps-root import target does not exist: {import_path}"
 
         return None
 
     def is_test_source(self, source: Path) -> bool:
         relative = source.resolve().relative_to(repo_path("").resolve())
         return "test" in relative.parts
+
+    def is_script_source(self, source: Path) -> bool:
+        relative = source.resolve().relative_to(repo_path("").resolve())
+        return "script" in relative.parts
 
     def dapp_root_for(self, source: Path) -> Path:
         relative = source.resolve().relative_to(repo_path("").resolve())
