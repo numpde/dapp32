@@ -1,0 +1,49 @@
+pragma solidity 0.8.35;
+
+import {Test} from "forge-std-1.12.0/src/Test.sol";
+
+import "../../../script/BikeNftLocalFixture.sol";
+
+contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
+    function deployForTest() external returns (Deployment memory deployment) {
+        deployment = deployLocalFixture(address(this), "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
+    }
+}
+
+contract BikeNftLocalFixtureTest is Test {
+    function test_deployLocalFixture_seedsDemoComponentsThroughManager() external {
+        BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
+
+        BikeNftLocalFixture.Deployment memory deployment = harness.deployForTest();
+
+        assertSeededComponent(
+            deployment, address(harness), "DEMO-FRAME-001", "fixture://bike-nft/components/demo-frame-001.json"
+        );
+        assertSeededComponent(
+            deployment, address(harness), "DEMO-BATTERY-001", "fixture://bike-nft/components/demo-battery-001.json"
+        );
+        assertSeededComponent(
+            deployment, address(harness), "DEMO-MOTOR-001", "fixture://bike-nft/components/demo-motor-001.json"
+        );
+    }
+
+    function assertSeededComponent(
+        BikeNftLocalFixture.Deployment memory deployment,
+        address owner,
+        string memory serialNumber,
+        string memory tokenURI_
+    ) private view {
+        BicycleComponentManager.ComponentView memory component = deployment.manager.componentBySerial(serialNumber);
+
+        assertTrue(component.exists, "seeded component should have a manager record");
+        assertEq(
+            component.tokenContract, address(deployment.components), "seeded component should use default collection"
+        );
+        assertEq(component.owner, owner, "seeded component owner mismatch");
+        assertEq(component.registrar, owner, "seeded component registrar mismatch");
+        assertEq(uint8(component.status), uint8(BicycleComponentManager.ComponentStatus.Active), "status mismatch");
+        assertEq(component.tokenURI, tokenURI_, "manager token URI mismatch");
+        assertEq(deployment.components.ownerOf(component.tokenId), owner, "NFT owner mismatch");
+        assertEq(deployment.components.tokenURI(component.tokenId), tokenURI_, "NFT token URI mismatch");
+    }
+}

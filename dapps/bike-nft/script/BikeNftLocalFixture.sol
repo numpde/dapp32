@@ -16,6 +16,9 @@ contract BikeNftLocalFixture {
 
     string internal constant CAM_CONTRACT_MANAGER = "BicycleComponentManager";
     string internal constant CAM_CONTRACT_MANAGER_UI = "BicycleComponentManagerUI";
+    string internal constant SEEDED_FRAME_SERIAL = "DEMO-FRAME-001";
+    string internal constant SEEDED_BATTERY_SERIAL = "DEMO-BATTERY-001";
+    string internal constant SEEDED_MOTOR_SERIAL = "DEMO-MOTOR-001";
 
     struct Deployment {
         CamRoot camRoot;
@@ -50,5 +53,13 @@ contract BikeNftLocalFixture {
 
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER_UI, address(deployment.ui));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));
+
+        _seedLocalComponents(deployment.manager, broadcasterAdmin);
+    }
+
+    function _seedLocalComponents(BicycleComponentManager manager, address owner) private {
+        manager.registerComponent(owner, SEEDED_FRAME_SERIAL, "fixture://bike-nft/components/demo-frame-001.json");
+        manager.registerComponent(owner, SEEDED_BATTERY_SERIAL, "fixture://bike-nft/components/demo-battery-001.json");
+        manager.registerComponent(owner, SEEDED_MOTOR_SERIAL, "fixture://bike-nft/components/demo-motor-001.json");
     }
 }
