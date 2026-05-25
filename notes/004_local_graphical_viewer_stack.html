@@ -374,12 +374,12 @@
           while serving the app.
         </p>
         <p>
-          The current npm lane is named <code>package-*</code> because the root
-          workspace currently contains only <code>packages/*</code>. A browser
-          viewer under <code>apps/</code> should not be folded into that lane.
-          Implementing the graphical viewer should rename the existing npm lane
-          into the same repeated npm-project pattern used for apps: same verbs,
-          same confinement model, separate project roots.
+          The current npm lane is named <code>package-*</code> because the repo
+          root currently acts as the npm workspace root for
+          <code>packages/*</code>. That is not the target shape. Implementing
+          the graphical viewer should move npm state out of the repo root and
+          use the same repeated npm-project pattern for libraries and apps:
+          same verbs, same confinement model, separate project roots.
         </p>
       </div>
 
@@ -406,15 +406,15 @@
               <td><code>make npm-packages-deps</code></td>
               <td><code>compose/npm-deps.yml</code></td>
               <td>npm egress proxy plus npm staging</td>
-              <td>Root <code>node_modules/</code> and, only with <code>ALLOW_UPDATE=1</code>, <code>package-lock.json</code></td>
+              <td><code>packages/node_modules/</code> and, only with <code>ALLOW_UPDATE=1</code>, <code>packages/package-lock.json</code></td>
               <td>Library npm project for <code>packages/*</code>.</td>
             </tr>
             <tr>
-              <td><code>make npm-cam-viewer-web-deps</code></td>
+              <td><code>make npm-cam-web-deps</code></td>
               <td><code>compose/npm-deps.yml</code></td>
               <td>npm egress proxy plus npm staging</td>
-              <td><code>apps/cam-viewer-web/node_modules/</code> and its app-local lockfile</td>
-              <td>App npm project for <code>apps/cam-viewer-web</code>.</td>
+              <td><code>apps/cam-web/node_modules/</code> and its app-local lockfile</td>
+              <td>App npm project for <code>apps/cam-web</code>.</td>
             </tr>
             <tr>
               <td><code>make npm-&lt;project&gt;-graph-check</code></td>
@@ -443,8 +443,10 @@
       <div class="panel">
         <p>
           Keep npm confinement by treating libraries and apps as separate npm
-          projects, not as one shared root workspace. Each project has its own
-          dependency material and the same lifecycle verbs.
+          projects, not as one shared repo-root workspace. Each project has its
+          own dependency material and the same lifecycle verbs. The target shape
+          has no repo-root <code>package-lock.json</code> and no repo-root
+          <code>node_modules/</code>.
         </p>
       </div>
 
@@ -462,17 +464,17 @@
           <tbody>
             <tr>
               <td><code>packages</code></td>
-              <td>repo root workspace over <code>packages/*</code></td>
-              <td>repo root <code>package-lock.json</code> and <code>node_modules/</code></td>
+              <td><code>packages/</code> workspace over package children</td>
+              <td><code>packages/package-lock.json</code> and <code>packages/node_modules/</code></td>
               <td><code>npm-packages-deps</code>, <code>npm-packages-graph-check</code>, <code>npm-packages-build</code>, <code>npm-packages-test</code></td>
               <td><code>packages/*/dist</code> during build only</td>
             </tr>
             <tr>
-              <td><code>cam-viewer-web</code></td>
-              <td><code>apps/cam-viewer-web</code></td>
+              <td><code>cam-web</code></td>
+              <td><code>apps/cam-web</code></td>
               <td>app-local <code>package-lock.json</code> and <code>node_modules/</code></td>
-              <td><code>npm-cam-viewer-web-deps</code>, <code>npm-cam-viewer-web-graph-check</code>, <code>npm-cam-viewer-web-build</code>, <code>npm-cam-viewer-web-test</code>, <code>npm-cam-viewer-web-dev</code></td>
-              <td><code>apps/cam-viewer-web/dist</code> during build; dev cache in tmpfs</td>
+              <td><code>npm-cam-web-deps</code>, <code>npm-cam-web-graph-check</code>, <code>npm-cam-web-build</code>, <code>npm-cam-web-test</code>, <code>npm-cam-web-dev</code></td>
+              <td><code>apps/cam-web/dist</code> during build; dev cache in tmpfs</td>
             </tr>
           </tbody>
         </table>
@@ -489,8 +491,9 @@
         </p>
         <p>
           This keeps the app's React/Vite dependency churn out of the protocol
-          package dependency graph while preserving one familiar operational
-          shape for every npm project.
+          package dependency graph, and it keeps npm lockfiles and
+          <code>node_modules</code> trees out of the repo root, while preserving
+          one familiar operational shape for every npm project.
         </p>
       </div>
     </section>
@@ -659,7 +662,7 @@
         <p>
           It should depend on the relevant isolated npm-project gates:
           <code>npm-packages-build</code> for the CAM libraries,
-          <code>npm-cam-viewer-web-build</code> for the app, and
+          <code>npm-cam-web-build</code> for the app, and
           <code>deps-verify</code> before any Foundry compile/deploy work. Then
           it should start Anvil and the static server, run the local deploy job,
           and start the viewer web server. A matching
