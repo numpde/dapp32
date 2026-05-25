@@ -30,7 +30,7 @@ RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT
 ANVIL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
 LIVE_CHECK_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(LIVE_CHECK_COMPOSE_PROJECT_NAME)
 BIKE_NFT_LOCAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME)
-VIEWER_TERMINAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME)
+VIEWER_TERMINAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) VIEWER_TERMINAL_CONTAINER_NAME=$(VIEWER_TERMINAL_CONTAINER_NAME)
 ANVIL_INTERNAL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
 ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host
 ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host
@@ -203,22 +203,24 @@ package-test: package-build
 viewer-terminal: package-build
 	@$(NON_ROOT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	if docker container inspect "$(VIEWER_TERMINAL_CONTAINER_NAME)" >/dev/null 2>&1; then \
+	if $(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all --quiet viewer-terminal | grep -q .; then \
 	  printf 'Viewer terminal container already exists: %s\n' "$(VIEWER_TERMINAL_CONTAINER_NAME)" >&2; \
 	  printf '%s\n' 'Use make viewer-terminal-attach or make viewer-terminal-down.' >&2; \
 	  exit 2; \
 	fi; \
-	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm --name "$(VIEWER_TERMINAL_CONTAINER_NAME)" viewer-terminal
+	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm viewer-terminal
 
 viewer-terminal-status:
-	@docker ps -a --filter "name=^/$(VIEWER_TERMINAL_CONTAINER_NAME)$$" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+	@$(NON_ROOT_GUARD); \
+	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all viewer-terminal
 
 viewer-terminal-attach:
-	@docker attach "$(VIEWER_TERMINAL_CONTAINER_NAME)"
+	@$(NON_ROOT_GUARD); \
+	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml attach viewer-terminal
 
 viewer-terminal-down:
-	@$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml down --volumes --remove-orphans >/dev/null 2>&1 || true
-	@docker rm -f "$(VIEWER_TERMINAL_CONTAINER_NAME)" >/dev/null 2>&1 || true
+	@$(NON_ROOT_GUARD); \
+	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml down --volumes --remove-orphans >/dev/null 2>&1 || true
 
 checks:
 	$(call compose_run,checks.yml,checks)
@@ -317,7 +319,7 @@ anvil:
 	@printf '%s\n' 'Choose an explicit Anvil access boundary: make anvil-internal or make anvil-host.' >&2
 	@exit 2
 
-bike-nft-local-deploy:
+bike-nft-local-deploy: deps-verify
 	@$(NON_ROOT_GUARD); \
 	if [[ -z "$${CAM_URI:-}" ]]; then \
 	  printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; \

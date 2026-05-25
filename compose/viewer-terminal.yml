@@ -6,6 +6,7 @@
 # inside packages/cam-viewer/examples/terminal-session.ts.
 services:
   viewer-terminal:
+    container_name: "${VIEWER_TERMINAL_CONTAINER_NAME:?missing_VIEWER_TERMINAL_CONTAINER_NAME}"
     build:
       context: ../containers/node-deps
       dockerfile: Dockerfile

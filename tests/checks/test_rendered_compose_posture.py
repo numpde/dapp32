@@ -79,10 +79,14 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual(True, volume_for(test, "/work/packages").get("read_only"))
 
     def test_viewer_terminal_renders_as_offline_read_only_interactive_lane(self) -> None:
-        config = rendered_compose_config("compose/viewer-terminal.yml")
+        config = rendered_compose_config(
+            "compose/viewer-terminal.yml",
+            env={"VIEWER_TERMINAL_CONTAINER_NAME": "dapps-viewer-terminal-session"},
+        )
         viewer = service(config, "viewer-terminal")
 
         self.assert_hardened(viewer)
+        self.assertEqual("dapps-viewer-terminal-session", viewer.get("container_name"))
         self.assertEqual("none", viewer.get("network_mode"))
         self.assertEqual(True, viewer.get("stdin_open"))
         self.assertEqual(True, viewer.get("tty"))
