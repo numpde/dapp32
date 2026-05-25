@@ -162,6 +162,55 @@ test("setState updates local state without calling a route", async () => {
   assert.equal(publicClient.calls.length, callsBefore)
 })
 
+test("setState re-resolves current screen actions with updated state", async () => {
+  const session = createSession({
+    resources: {
+      [entryScreenURI]: encodeJson({
+        screen: "1.0.0",
+        title: "Entry",
+        elements: [
+          {
+            type: "input",
+            name: "serialNumber",
+            label: "Serial number",
+          },
+          {
+            type: "button",
+            label: "Look up",
+            action: {
+              route: "component",
+              params: {
+                serialNumber: "$state.serialNumber",
+              },
+            },
+          },
+        ],
+      }),
+    },
+  })
+  await session.load()
+
+  const snapshot = session.setState({
+    serialNumber: "ABC123",
+  })
+
+  assert.deepEqual(snapshot.resolvedScreen?.elements[0], {
+    type: "input",
+    name: "serialNumber",
+    label: "Serial number",
+  })
+  assert.deepEqual(snapshot.resolvedScreen?.elements[1], {
+    type: "button",
+    label: "Look up",
+    action: {
+      route: "component",
+      params: {
+        serialNumber: "ABC123",
+      },
+    },
+  })
+})
+
 test("dispatchAction surfaces contract calls without sending transactions", async () => {
   const publicClient = createPublicClient()
   const session = createSession({ publicClient })

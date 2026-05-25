@@ -1,0 +1,40 @@
+# Offline interactive Node terminal for the headless CAM viewer session.
+#
+# This service is deliberately mock-backed and networkless. It proves that the
+# viewer state machine can be driven over stdin/stdout without giving the
+# container RPC access or general egress.
+services:
+  viewer-terminal:
+    build:
+      context: ../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    stdin_open: true
+    tty: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    environment:
+      HOME: /tmp/home
+      npm_config_cache: /tmp/npm-cache
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+    volumes:
+      - ../package.json:/work/package.json:ro
+      - ../package-lock.json:/work/package-lock.json:ro
+      - ../node_modules:/work/node_modules:ro
+      - ../dapps:/work/dapps:ro
+      - ../packages:/work/packages:ro
+    command:
+      - "node"
+      - "--experimental-strip-types"
+      - "packages/cam-viewer/examples/terminal-session.ts"

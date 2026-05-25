@@ -10,6 +10,7 @@ import {
 import type {
   ContractCallAction,
   ScreenDocument,
+  ScreenElement,
 } from "@cam/screen"
 
 import { CamViewerError } from "./errors.ts"
@@ -99,6 +100,16 @@ export function createCamViewerSession({
       ...patch,
     }
 
+    if (screen !== undefined && values !== undefined) {
+      resolvedScreen = resolveScreen(screen, {
+        host,
+        ...(account === undefined ? {} : { account }),
+        params,
+        state,
+        values,
+      })
+    }
+
     return snapshot()
   }
 
@@ -141,6 +152,7 @@ export function createCamViewerSession({
 
     const screenBytes = await loadScreenBytes(routeResult.screenURI)
     const parsedScreen = parseScreenBytes(screenBytes, routeResult.screenURI)
+    state = seedInputState(parsedScreen, state)
     const nextResolvedScreen = resolveScreen(parsedScreen, {
       host,
       ...(account === undefined ? {} : { account }),
@@ -203,6 +215,25 @@ export function createCamViewerSession({
 
 function copyRecord(source: Record<string, unknown>): Record<string, unknown> {
   return { ...source }
+}
+
+function seedInputState(screen: ScreenDocument, currentState: Record<string, unknown>): Record<string, unknown> {
+  const nextState = { ...currentState }
+  for (const element of screen.elements) {
+    seedInputElementState(element, nextState)
+  }
+
+  return nextState
+}
+
+function seedInputElementState(element: ScreenElement, state: Record<string, unknown>): void {
+  if (element.type !== "input" || Object.hasOwn(state, element.name)) {
+    return
+  }
+
+  state[element.name] = typeof element.value === "string" && !element.value.startsWith("$")
+    ? element.value
+    : ""
 }
 
 function isNavigateAction(action: unknown): action is { readonly route: string; readonly params: Record<string, unknown> } {
