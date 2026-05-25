@@ -48,32 +48,20 @@ type DebugEvent =
   }
 
 type TerminalContext = {
-  readonly session: CamViewerSession
+  session: CamViewerSession
   readonly events: DebugEvent[]
 }
 
 async function main(): Promise<void> {
   const events: DebugEvent[] = []
-  const publicClient = createMockPublicClient(events)
-  const session = createCamViewerSession({
-    publicClient,
-    host: {
-      chainId: MOCK_CHAIN_ID,
-      address: HOST_ADDRESS,
-    },
-    account: {
-      address: USER_ADDRESS,
-    },
-    loadResource: createMockResourceLoader(events),
-  })
   const context = {
-    session,
+    session: createMockSession(events),
     events,
   }
 
-  await session.load()
+  await context.session.load()
   printHelp()
-  render(session.snapshot())
+  render(context.session.snapshot())
 
   const terminal = createInterface({
     input,
@@ -106,7 +94,6 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
   }
 
   const [command = "", ...args] = line.split(/\s+/)
-  const { session } = context
 
   try {
     switch (command) {
@@ -114,29 +101,32 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
         printHelp()
         return true
       case "show":
-        render(session.snapshot())
+        render(context.session.snapshot())
         return true
       case "state":
-        printState(session.snapshot())
+        printState(context.session.snapshot())
         return true
       case "values":
-        printValues(session.snapshot())
+        printValues(context.session.snapshot())
         return true
       case "actions":
-        printActions(session.snapshot())
+        printActions(context.session.snapshot())
         return true
       case "screen":
-        printScreen(session.snapshot())
+        printScreen(context.session.snapshot())
         return true
       case "trace":
         handleTrace(context, args)
         return true
+      case "restart":
+        await handleRestart(context)
+        return true
       case "set":
-        handleSet(session, args)
-        render(session.snapshot())
+        handleSet(context.session, args)
+        render(context.session.snapshot())
         return true
       case "press":
-        await handlePress(session, args)
+        await handlePress(context.session, args)
         return true
       case "quit":
       case "exit":
@@ -152,6 +142,20 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
   }
 }
 
+function createMockSession(events: DebugEvent[]): CamViewerSession {
+  return createCamViewerSession({
+    publicClient: createMockPublicClient(events),
+    host: {
+      chainId: MOCK_CHAIN_ID,
+      address: HOST_ADDRESS,
+    },
+    account: {
+      address: USER_ADDRESS,
+    },
+    loadResource: createMockResourceLoader(events),
+  })
+}
+
 function handleSet(session: CamViewerSession, args: readonly string[]): void {
   const [name, ...valueParts] = args
   if (name === undefined || valueParts.length === 0) {
@@ -161,6 +165,13 @@ function handleSet(session: CamViewerSession, args: readonly string[]): void {
   session.setState({
     [name]: valueParts.join(" "),
   })
+}
+
+async function handleRestart(context: TerminalContext): Promise<void> {
+  context.events.length = 0
+  context.session = createMockSession(context.events)
+  await context.session.load()
+  render(context.session.snapshot())
 }
 
 async function handlePress(session: CamViewerSession, args: readonly string[]): Promise<void> {
@@ -450,6 +461,7 @@ function printHelp(): void {
     "  screen                Print the resolved screen document.",
     "  trace                 Print mocked contract reads and resource loads.",
     "  trace clear           Clear the trace buffer.",
+    "  restart               Reset the mock session and reload the entry route.",
     "  set <name> <value>    Set local screen state and re-resolve actions.",
     "  press <n>             Dispatch a resolved button action.",
     "  help                  Print this help.",
