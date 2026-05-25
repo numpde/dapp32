@@ -1,13 +1,8 @@
 import { readFile } from "node:fs/promises"
 import { createInterface } from "node:readline/promises"
 import { env, stdin as input, stdout as output } from "node:process"
-import { TextEncoder } from "node:util"
 import { fileURLToPath } from "node:url"
 
-import {
-  createPublicClient,
-  http,
-} from "viem"
 import type {
   Address,
   Hex,
@@ -33,36 +28,31 @@ const COMPONENTS_ADDRESS = "0x0000000000000000000000000000000000000010" as const
 
 const DEFAULT_MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
 const DEFAULT_MOCK_CAM_URI = new URL("main.json", DEFAULT_MOCK_CAM_BASE_URI).href
-const DEFAULT_MAX_RESOURCE_BYTES = 4 * 1024 * 1024
 
-type TerminalMode = "mock" | "real"
-
-type TerminalConfig = {
-  readonly mode: TerminalMode
+// This file is intentionally a mock terminal harness, not a general CAM
+// viewer runner. It proves stdin/stdout driving against checked-in CAM files
+// while all on-chain reads are deterministic in-process fakes.
+type MockTerminalConfig = {
   readonly hostAddress: Address
   readonly chainId: string
-  readonly accountAddress?: Address
-  readonly rpcURL?: string
+  readonly accountAddress: Address
   readonly mockCamURI: string
-  readonly resourceBaseURIs: readonly string[]
-  readonly allowedSchemes: ReadonlySet<string>
-  readonly ipfsGatewayURI?: string
-  readonly maxResourceBytes: number
+  readonly mockResourceBaseURIs: readonly string[]
 }
 
 async function main(): Promise<void> {
-  const config = readConfig()
-  const publicClient = config.mode === "mock"
-    ? createMockPublicClient(config)
-    : createRpcPublicClient(config)
+  const config = readMockConfig()
+  const publicClient = createMockPublicClient(config)
   const session = createCamViewerSession({
     publicClient,
     host: {
       chainId: config.chainId,
       address: config.hostAddress,
     },
-    ...(config.accountAddress === undefined ? {} : { account: { address: config.accountAddress } }),
-    loadResource: createResourceLoader(config),
+    account: {
+      address: config.accountAddress,
+    },
+    loadResource: createMockResourceLoader(config),
   })
 
   await session.load()
@@ -274,17 +264,7 @@ function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonElement[
   )
 }
 
-function createRpcPublicClient(config: TerminalConfig): PublicClient {
-  if (config.rpcURL === undefined) {
-    throw new Error("CAM_VIEWER_RPC_URL is required when CAM_VIEWER_MODE=real")
-  }
-
-  return createPublicClient({
-    transport: http(config.rpcURL),
-  }) as PublicClient
-}
-
-function createMockPublicClient(config: TerminalConfig): PublicClient {
+function createMockPublicClient(config: MockTerminalConfig): PublicClient {
   return {
     async readContract(request: {
       readonly functionName: string
@@ -328,8 +308,8 @@ function contractAddress(name: string): Address {
   }
 }
 
-function componentRouteResult(config: TerminalConfig, serialNumber: string): readonly unknown[] {
-  const account = config.accountAddress ?? USER_ADDRESS
+function componentRouteResult(config: MockTerminalConfig, serialNumber: string): readonly unknown[] {
+  const account = config.accountAddress
 
   return [
     "./screens/component.json",
@@ -363,8 +343,8 @@ function componentRouteResult(config: TerminalConfig, serialNumber: string): rea
   ]
 }
 
-function registerRouteResult(config: TerminalConfig, serialNumber: string): readonly unknown[] {
-  const account = config.accountAddress ?? USER_ADDRESS
+function registerRouteResult(config: MockTerminalConfig, serialNumber: string): readonly unknown[] {
+  const account = config.accountAddress
 
   return [
     "./screens/register.json",
@@ -387,24 +367,15 @@ function registerRouteResult(config: TerminalConfig, serialNumber: string): read
   ]
 }
 
-function createResourceLoader(config: TerminalConfig): (uri: string) => Promise<Uint8Array> {
+function createMockResourceLoader(config: MockTerminalConfig): (uri: string) => Promise<Uint8Array> {
   return async (uri: string): Promise<Uint8Array> => {
     const resourceURI = new URL(uri)
-    if (!config.allowedSchemes.has(resourceURI.protocol.slice(0, -1))) {
-      throw new Error(`resource scheme is not allowed: ${resourceURI.protocol}`)
+    if (resourceURI.protocol !== "file:") {
+      throw new Error(`mock terminal loads file resources only: ${resourceURI.protocol}`)
     }
 
-    switch (resourceURI.protocol) {
-      case "file:":
-        requireAllowedFileURI(resourceURI, config.resourceBaseURIs)
-        return await readFile(fileURLToPath(resourceURI))
-      case "https:":
-        return await fetchBytes(resourceURI, config.maxResourceBytes)
-      case "ipfs:":
-        return await fetchBytes(ipfsGatewayURL(resourceURI, config), config.maxResourceBytes)
-      default:
-        throw new Error(`resource scheme is not implemented: ${resourceURI.protocol}`)
-    }
+    requireAllowedFileURI(resourceURI, config.mockResourceBaseURIs)
+    return await readFile(fileURLToPath(resourceURI))
   }
 }
 
@@ -416,41 +387,6 @@ function requireAllowedFileURI(uri: URL, baseURIs: readonly string[]): void {
   }
 
   throw new Error(`file resource is outside configured resource bases: ${uri.href}`)
-}
-
-async function fetchBytes(uri: URL, maxBytes: number): Promise<Uint8Array> {
-  const response = await fetch(uri)
-  if (!response.ok) {
-    throw new Error(`resource fetch failed: ${response.status} ${response.statusText}`)
-  }
-
-  const finalURL = new URL(response.url)
-  if (finalURL.protocol !== "https:") {
-    throw new Error(`resource fetch redirected to a non-HTTPS URI: ${finalURL.href}`)
-  }
-
-  const contentLength = response.headers.get("content-length")
-  if (contentLength !== null && Number(contentLength) > maxBytes) {
-    throw new Error(`resource is too large: ${contentLength} bytes`)
-  }
-
-  const bytes = new Uint8Array(await response.arrayBuffer())
-  if (bytes.byteLength > maxBytes) {
-    throw new Error(`resource is too large: ${bytes.byteLength} bytes`)
-  }
-
-  return bytes
-}
-
-function ipfsGatewayURL(uri: URL, config: TerminalConfig): URL {
-  if (config.ipfsGatewayURI === undefined) {
-    throw new Error("CAM_VIEWER_IPFS_GATEWAY_URI is required to load ipfs:// resources")
-  }
-
-  const gateway = ensureTrailingSlash(config.ipfsGatewayURI)
-  const cid = uri.hostname
-  const path = uri.pathname.startsWith("/") ? uri.pathname.slice(1) : uri.pathname
-  return new URL(`${cid}/${path}`, gateway)
 }
 
 function formatValue(value: unknown): string {
@@ -485,56 +421,24 @@ function printHelp(): void {
   output.write("Commands: show, state, set <name> <value>, press <n>, route <name> [key=value ...], account <address|clear>, help, quit\n")
 }
 
-function readConfig(): TerminalConfig {
-  const mode = readMode()
-  const mockCamURI = env.CAM_VIEWER_CAM_URI ?? DEFAULT_MOCK_CAM_URI
-  const resourceBaseURIs = readList(
-    env.CAM_VIEWER_RESOURCE_BASE_URIS ?? env.CAM_VIEWER_RESOURCE_BASE_URI,
+function readMockConfig(): MockTerminalConfig {
+  const mockCamURI = env.CAM_VIEWER_MOCK_CAM_URI ?? DEFAULT_MOCK_CAM_URI
+  const mockResourceBaseURIs = readList(
+    env.CAM_VIEWER_MOCK_RESOURCE_BASE_URIS ?? env.CAM_VIEWER_MOCK_RESOURCE_BASE_URI,
     [directoryURI(mockCamURI)],
-  )
-  const accountAddress = readOptionalAddress(
-    "CAM_VIEWER_ACCOUNT_ADDRESS",
-    mode === "mock" ? USER_ADDRESS : undefined,
   )
 
   return {
-    mode,
-    hostAddress: readAddress("CAM_VIEWER_HOST_ADDRESS", mode === "mock" ? HOST_ADDRESS : undefined),
+    hostAddress: readAddress("CAM_VIEWER_MOCK_HOST_ADDRESS", HOST_ADDRESS),
     chainId: env.CAM_VIEWER_CHAIN_ID ?? "eip155:31337",
-    ...(accountAddress === undefined ? {} : { accountAddress }),
-    ...(env.CAM_VIEWER_RPC_URL === undefined ? {} : { rpcURL: env.CAM_VIEWER_RPC_URL }),
+    accountAddress: readAddress("CAM_VIEWER_MOCK_ACCOUNT_ADDRESS", USER_ADDRESS),
     mockCamURI,
-    resourceBaseURIs,
-    allowedSchemes: new Set(readList(env.CAM_VIEWER_ALLOWED_SCHEMES, ["file"])),
-    ...(env.CAM_VIEWER_IPFS_GATEWAY_URI === undefined ? {} : { ipfsGatewayURI: env.CAM_VIEWER_IPFS_GATEWAY_URI }),
-    maxResourceBytes: Number(env.CAM_VIEWER_MAX_RESOURCE_BYTES ?? DEFAULT_MAX_RESOURCE_BYTES),
+    mockResourceBaseURIs,
   }
 }
 
-function readMode(): TerminalMode {
-  const value = env.CAM_VIEWER_MODE ?? "mock"
-  if (value === "mock" || value === "real") {
-    return value
-  }
-
-  throw new Error("CAM_VIEWER_MODE must be mock or real")
-}
-
-function readAddress(name: string, fallback: Address | undefined): Address {
-  const value = readOptionalAddress(name, fallback)
-  if (value === undefined) {
-    throw new Error(`${name} is required`)
-  }
-
-  return value
-}
-
-function readOptionalAddress(name: string, fallback: Address | undefined): Address | undefined {
+function readAddress(name: string, fallback: Address): Address {
   const value = env[name] ?? fallback
-  if (value === undefined || value.length === 0) {
-    return undefined
-  }
-
   if (!/^0x[a-fA-F0-9]{40}$/.test(value)) {
     throw new Error(`${name} must be an EVM address`)
   }

@@ -1,8 +1,9 @@
 # Offline interactive Node terminal for the headless CAM viewer session.
 #
-# This service is deliberately mock-backed and networkless. It proves that the
-# viewer state machine can be driven over stdin/stdout without giving the
-# container RPC access or general egress.
+# This service is deliberately mock-backed and networkless. It is not a real
+# chain/RPC viewer; it proves that the viewer state machine can be driven over
+# stdin/stdout against checked-in CAM resources while contract reads are faked
+# inside packages/cam-viewer/examples/terminal-session.ts.
 services:
   viewer-terminal:
     build:
@@ -22,12 +23,10 @@ services:
     mem_limit: 512m
     environment:
       HOME: /tmp/home
-      CAM_VIEWER_MODE: "${CAM_VIEWER_MODE:-mock}"
-      CAM_VIEWER_CAM_URI: "${CAM_VIEWER_CAM_URI:-file:///work/dapps/bike-nft/cam/main.json}"
-      CAM_VIEWER_RESOURCE_BASE_URIS: "${CAM_VIEWER_RESOURCE_BASE_URIS:-file:///work/dapps/bike-nft/cam/}"
-      CAM_VIEWER_ALLOWED_SCHEMES: "${CAM_VIEWER_ALLOWED_SCHEMES:-file}"
-      CAM_VIEWER_HOST_ADDRESS: "${CAM_VIEWER_HOST_ADDRESS:-0x0000000000000000000000000000000000000001}"
-      CAM_VIEWER_ACCOUNT_ADDRESS: "${CAM_VIEWER_ACCOUNT_ADDRESS:-0x0000000000000000000000000000000000000002}"
+      CAM_VIEWER_MOCK_CAM_URI: "${CAM_VIEWER_MOCK_CAM_URI:-file:///work/dapps/bike-nft/cam/main.json}"
+      CAM_VIEWER_MOCK_RESOURCE_BASE_URIS: "${CAM_VIEWER_MOCK_RESOURCE_BASE_URIS:-file:///work/dapps/bike-nft/cam/}"
+      CAM_VIEWER_MOCK_HOST_ADDRESS: "${CAM_VIEWER_MOCK_HOST_ADDRESS:-0x0000000000000000000000000000000000000001}"
+      CAM_VIEWER_MOCK_ACCOUNT_ADDRESS: "${CAM_VIEWER_MOCK_ACCOUNT_ADDRESS:-0x0000000000000000000000000000000000000002}"
       CAM_VIEWER_CHAIN_ID: "${CAM_VIEWER_CHAIN_ID:-eip155:31337}"
       npm_config_cache: /tmp/npm-cache
       npm_config_audit: "false"
