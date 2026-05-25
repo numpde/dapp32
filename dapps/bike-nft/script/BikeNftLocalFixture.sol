@@ -5,11 +5,12 @@ import {BicycleComponentManager} from "../src/BicycleComponentManager.sol";
 import {BicycleComponentManagerUI} from "../src/BicycleComponentManagerUI.sol";
 import {BicycleComponents} from "../src/BicycleComponents.sol";
 
-/// @notice Reusable local deployment fixture for the bike NFT CAM example.
+/// @notice Shared Forge-broadcast deployment fixture for the bike NFT CAM example.
 /// @dev
-/// This contract owns only the shared setup logic. Executable scripts and
-/// scenario tests should call this fixture instead of duplicating deployment
-/// order, role grants, or CAM root bindings.
+/// This contract owns only the shared setup logic for a caller that is already
+/// broadcasting as the fixture admin. The role grants and CAM root bindings
+/// below are admin/owner-gated calls, so `broadcasterAdmin` must be the active
+/// Forge broadcaster used for the script run.
 contract BikeNftLocalFixture {
     uint48 internal constant LOCAL_ADMIN_DELAY = 0;
 
@@ -23,23 +24,23 @@ contract BikeNftLocalFixture {
         BicycleComponentManagerUI ui;
     }
 
-    function deployLocalFixture(address admin, string memory camURI, bytes32 camHash)
+    function deployLocalFixture(address broadcasterAdmin, string memory camURI, bytes32 camHash)
         internal
         returns (Deployment memory deployment)
     {
-        deployment.camRoot = new CamRoot(admin, camURI, camHash);
+        deployment.camRoot = new CamRoot(broadcasterAdmin, camURI, camHash);
 
         deployment.components = new BicycleComponents({
             tokenName: "Bicycle Components",
             tokenSymbol: "BIKE",
-            admin: admin,
+            admin: broadcasterAdmin,
             adminDelay: LOCAL_ADMIN_DELAY,
             baseTokenURI: "",
             collectionURI: ""
         });
 
         deployment.manager = new BicycleComponentManager({
-            admin: admin, adminDelay: LOCAL_ADMIN_DELAY, defaultComponents_: address(deployment.components)
+            admin: broadcasterAdmin, adminDelay: LOCAL_ADMIN_DELAY, defaultComponents_: address(deployment.components)
         });
 
         deployment.ui = new BicycleComponentManagerUI(address(deployment.manager));
