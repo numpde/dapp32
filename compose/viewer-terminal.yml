@@ -23,11 +23,6 @@ services:
     mem_limit: 512m
     environment:
       HOME: /tmp/home
-      CAM_VIEWER_MOCK_CAM_URI: "${CAM_VIEWER_MOCK_CAM_URI:-file:///work/dapps/bike-nft/cam/main.json}"
-      CAM_VIEWER_MOCK_RESOURCE_BASE_URIS: "${CAM_VIEWER_MOCK_RESOURCE_BASE_URIS:-file:///work/dapps/bike-nft/cam/}"
-      CAM_VIEWER_MOCK_HOST_ADDRESS: "${CAM_VIEWER_MOCK_HOST_ADDRESS:-0x0000000000000000000000000000000000000001}"
-      CAM_VIEWER_MOCK_ACCOUNT_ADDRESS: "${CAM_VIEWER_MOCK_ACCOUNT_ADDRESS:-0x0000000000000000000000000000000000000002}"
-      CAM_VIEWER_CHAIN_ID: "${CAM_VIEWER_CHAIN_ID:-eip155:31337}"
       npm_config_cache: /tmp/npm-cache
       npm_config_audit: "false"
       npm_config_fund: "false"

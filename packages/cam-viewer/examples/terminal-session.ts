@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises"
 import { createInterface } from "node:readline/promises"
-import { env, stdin as input, stdout as output } from "node:process"
+import { stdin as input, stdout as output } from "node:process"
 import { fileURLToPath } from "node:url"
 
 import type {
@@ -25,34 +25,26 @@ const USER_ADDRESS = "0x0000000000000000000000000000000000000002" as const
 const UI_ADDRESS = "0x0000000000000000000000000000000000000003" as const
 const MANAGER_ADDRESS = "0x0000000000000000000000000000000000000004" as const
 const COMPONENTS_ADDRESS = "0x0000000000000000000000000000000000000010" as const
-
-const DEFAULT_MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
-const DEFAULT_MOCK_CAM_URI = new URL("main.json", DEFAULT_MOCK_CAM_BASE_URI).href
+const MOCK_CHAIN_ID = "eip155:31337"
+const MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
+const MOCK_CAM_URI = new URL("main.json", MOCK_CAM_BASE_URI).href
 
 // This file is intentionally a mock terminal harness, not a general CAM
-// viewer runner. It proves stdin/stdout driving against checked-in CAM files
-// while all on-chain reads are deterministic in-process fakes.
-type MockTerminalConfig = {
-  readonly hostAddress: Address
-  readonly chainId: string
-  readonly accountAddress: Address
-  readonly mockCamURI: string
-  readonly mockResourceBaseURIs: readonly string[]
-}
+// viewer runner. It has no RPC, no network, and no environment-based target
+// selection; all "chain" reads are deterministic in-process fakes.
 
 async function main(): Promise<void> {
-  const config = readMockConfig()
-  const publicClient = createMockPublicClient(config)
+  const publicClient = createMockPublicClient()
   const session = createCamViewerSession({
     publicClient,
     host: {
-      chainId: config.chainId,
-      address: config.hostAddress,
+      chainId: MOCK_CHAIN_ID,
+      address: HOST_ADDRESS,
     },
     account: {
-      address: config.accountAddress,
+      address: USER_ADDRESS,
     },
-    loadResource: createMockResourceLoader(config),
+    loadResource: createMockResourceLoader(),
   })
 
   await session.load()
@@ -109,14 +101,6 @@ async function handleCommand(session: CamViewerSession, rawLine: string): Promis
       case "press":
         await handlePress(session, args)
         return true
-      case "route":
-        await handleRoute(session, args)
-        render(session.snapshot())
-        return true
-      case "account":
-        await handleAccount(session, args)
-        render(session.snapshot())
-        return true
       case "quit":
       case "exit":
         return false
@@ -163,48 +147,6 @@ async function handlePress(session: CamViewerSession, args: readonly string[]): 
   output.write(`contract: ${result.action.contract}\n`)
   output.write(`function: ${result.action.function}\n`)
   output.write(`args: ${formatValue(result.action.args)}\n`)
-}
-
-async function handleRoute(session: CamViewerSession, args: readonly string[]): Promise<void> {
-  const [route, ...paramArgs] = args
-  if (route === undefined) {
-    throw new Error("usage: route <route> [name=value ...]")
-  }
-
-  await session.navigate(route, {
-    ...session.snapshot().params,
-    ...parseParams(paramArgs),
-  })
-}
-
-async function handleAccount(session: CamViewerSession, args: readonly string[]): Promise<void> {
-  const [address] = args
-  if (address === undefined) {
-    throw new Error("usage: account <address|clear>")
-  }
-
-  if (address === "clear") {
-    await session.setAccount(undefined)
-    return
-  }
-
-  await session.setAccount({
-    address: address as Address,
-  })
-}
-
-function parseParams(args: readonly string[]): Record<string, unknown> {
-  const params: Record<string, unknown> = {}
-  for (const arg of args) {
-    const separator = arg.indexOf("=")
-    if (separator <= 0) {
-      throw new Error(`route parameter must be name=value: ${arg}`)
-    }
-
-    params[arg.slice(0, separator)] = arg.slice(separator + 1)
-  }
-
-  return params
 }
 
 function render(snapshot: CamViewerSnapshot): void {
@@ -264,7 +206,7 @@ function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonElement[
   )
 }
 
-function createMockPublicClient(config: MockTerminalConfig): PublicClient {
+function createMockPublicClient(): PublicClient {
   return {
     async readContract(request: {
       readonly functionName: string
@@ -272,7 +214,7 @@ function createMockPublicClient(config: MockTerminalConfig): PublicClient {
     }): Promise<unknown> {
       switch (request.functionName) {
         case "camURI":
-          return config.mockCamURI
+          return MOCK_CAM_URI
         case "camHash":
           return ZERO_HASH satisfies Hex
         case "contractAddress":
@@ -287,9 +229,9 @@ function createMockPublicClient(config: MockTerminalConfig): PublicClient {
             },
           ]
         case "viewComponent":
-          return componentRouteResult(config, String(request.args?.[0] ?? ""))
+          return componentRouteResult(String(request.args?.[0] ?? ""))
         case "viewRegister":
-          return registerRouteResult(config, String(request.args?.[0] ?? ""))
+          return registerRouteResult(String(request.args?.[0] ?? ""))
         default:
           throw new Error(`unexpected readContract call: ${request.functionName}`)
       }
@@ -308,9 +250,7 @@ function contractAddress(name: string): Address {
   }
 }
 
-function componentRouteResult(config: MockTerminalConfig, serialNumber: string): readonly unknown[] {
-  const account = config.accountAddress
-
+function componentRouteResult(serialNumber: string): readonly unknown[] {
   return [
     "./screens/component.json",
     {
@@ -320,9 +260,9 @@ function componentRouteResult(config: MockTerminalConfig, serialNumber: string):
         : "0x0000000000000000000000000000000000000000000000000000000000000000",
       tokenContract: COMPONENTS_ADDRESS,
       tokenId: serialNumber.length > 0 ? 42 : 0,
-      owner: account,
+      owner: USER_ADDRESS,
       ownerInfo: "Mock owner account",
-      registrar: account,
+      registrar: USER_ADDRESS,
       status: serialNumber.length > 0 ? 1 : 0,
       tokenURI: serialNumber.length > 0 ? `ipfs://example/token/${serialNumber}` : "",
       registeredAt: serialNumber.length > 0 ? 1 : 0,
@@ -336,16 +276,14 @@ function componentRouteResult(config: MockTerminalConfig, serialNumber: string):
       canRetire: serialNumber.length > 0,
     },
     {
-      account,
+      account: USER_ADDRESS,
       canRegister: true,
       accountInfo: "Mock registrar account",
     },
   ]
 }
 
-function registerRouteResult(config: MockTerminalConfig, serialNumber: string): readonly unknown[] {
-  const account = config.accountAddress
-
+function registerRouteResult(serialNumber: string): readonly unknown[] {
   return [
     "./screens/register.json",
     {
@@ -360,33 +298,29 @@ function registerRouteResult(config: MockTerminalConfig, serialNumber: string): 
       accountInfo: "Mock registrar account",
     },
     {
-      account,
+      account: USER_ADDRESS,
       canRegister: true,
       accountInfo: "Mock registrar account",
     },
   ]
 }
 
-function createMockResourceLoader(config: MockTerminalConfig): (uri: string) => Promise<Uint8Array> {
+function createMockResourceLoader(): (uri: string) => Promise<Uint8Array> {
   return async (uri: string): Promise<Uint8Array> => {
     const resourceURI = new URL(uri)
     if (resourceURI.protocol !== "file:") {
       throw new Error(`mock terminal loads file resources only: ${resourceURI.protocol}`)
     }
 
-    requireAllowedFileURI(resourceURI, config.mockResourceBaseURIs)
+    requireMockCamFileURI(resourceURI)
     return await readFile(fileURLToPath(resourceURI))
   }
 }
 
-function requireAllowedFileURI(uri: URL, baseURIs: readonly string[]): void {
-  for (const baseURI of baseURIs) {
-    if (uri.href.startsWith(ensureTrailingSlash(new URL(baseURI).href))) {
-      return
-    }
+function requireMockCamFileURI(uri: URL): void {
+  if (!uri.href.startsWith(MOCK_CAM_BASE_URI)) {
+    throw new Error(`mock terminal can only load checked-in bike CAM files: ${uri.href}`)
   }
-
-  throw new Error(`file resource is outside configured resource bases: ${uri.href}`)
 }
 
 function formatValue(value: unknown): string {
@@ -410,7 +344,12 @@ function formatError(error: unknown): string {
 }
 
 function printSnapshot(snapshot: CamViewerSnapshot): void {
-  output.write(`${JSON.stringify(snapshot, jsonReplacer, 2)}\n`)
+  output.write(`${JSON.stringify({
+    route: snapshot.route,
+    params: snapshot.params,
+    state: snapshot.state,
+    values: snapshot.values,
+  }, jsonReplacer, 2)}\n`)
 }
 
 function jsonReplacer(_key: string, value: unknown): unknown {
@@ -418,53 +357,7 @@ function jsonReplacer(_key: string, value: unknown): unknown {
 }
 
 function printHelp(): void {
-  output.write("Commands: show, state, set <name> <value>, press <n>, route <name> [key=value ...], account <address|clear>, help, quit\n")
-}
-
-function readMockConfig(): MockTerminalConfig {
-  const mockCamURI = env.CAM_VIEWER_MOCK_CAM_URI ?? DEFAULT_MOCK_CAM_URI
-  const mockResourceBaseURIs = readList(
-    env.CAM_VIEWER_MOCK_RESOURCE_BASE_URIS ?? env.CAM_VIEWER_MOCK_RESOURCE_BASE_URI,
-    [directoryURI(mockCamURI)],
-  )
-
-  return {
-    hostAddress: readAddress("CAM_VIEWER_MOCK_HOST_ADDRESS", HOST_ADDRESS),
-    chainId: env.CAM_VIEWER_CHAIN_ID ?? "eip155:31337",
-    accountAddress: readAddress("CAM_VIEWER_MOCK_ACCOUNT_ADDRESS", USER_ADDRESS),
-    mockCamURI,
-    mockResourceBaseURIs,
-  }
-}
-
-function readAddress(name: string, fallback: Address): Address {
-  const value = env[name] ?? fallback
-  if (!/^0x[a-fA-F0-9]{40}$/.test(value)) {
-    throw new Error(`${name} must be an EVM address`)
-  }
-
-  return value as Address
-}
-
-function readList(value: string | undefined, fallback: readonly string[]): readonly string[] {
-  if (value === undefined || value.trim().length === 0) {
-    return fallback
-  }
-
-  return value.split(",").map((item) => item.trim()).filter((item) => item.length > 0)
-}
-
-function directoryURI(uri: string): string {
-  const parsed = new URL(uri)
-  const slash = parsed.pathname.lastIndexOf("/")
-  parsed.pathname = slash < 0 ? "/" : parsed.pathname.slice(0, slash + 1)
-  parsed.search = ""
-  parsed.hash = ""
-  return parsed.href
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith("/") ? value : `${value}/`
+  output.write("Commands: show, state, set <name> <value>, press <n>, help, quit\n")
 }
 
 main().catch((error: unknown) => {
