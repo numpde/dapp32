@@ -4,6 +4,10 @@
 # make package-deps first to materialize root node_modules/ from the committed
 # package-lock.json through compose/package-deps.yml.
 services:
+  # Package build is the only npm package lane with a writable packages/ mount.
+  # The workspace convention is intentionally narrow: each package build script
+  # runs `tsc -p tsconfig.json`, each tsconfig reads src/**/*.ts, and emitted
+  # artifacts go under that package's ignored dist/ directory.
   package-build:
     build:
       context: ../containers/node-deps

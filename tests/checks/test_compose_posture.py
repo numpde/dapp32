@@ -126,6 +126,17 @@ class ComposePostureTest(unittest.TestCase):
         self.assertNotIn("HTTP_PROXY", text)
         self.assertNotIn("HTTPS_PROXY", text)
 
+    def test_package_build_is_dist_artifact_lane_by_convention(self) -> None:
+        for package_json in sorted(repo_path("packages").glob("*/package.json")):
+            with self.subTest(package=str(package_json.relative_to(repo_path(".")))):
+                package_text = read_text(package_json)
+                tsconfig_text = read_text(package_json.parent / "tsconfig.json")
+
+                self.assertIn('"build": "tsc -p tsconfig.json"', package_text)
+                self.assertIn('"outDir": "dist"', tsconfig_text)
+                self.assertIn('"rootDir": "src"', tsconfig_text)
+                self.assertIn('"src/**/*.ts"', tsconfig_text)
+
     def test_package_build_test_and_viewer_targets_require_existing_locked_deps(self) -> None:
         text = read_text(repo_path("Makefile"))
 
