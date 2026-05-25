@@ -50,7 +50,7 @@ function resolveElement(
       return {
         type: "status",
         ...(element.label === undefined ? {} : { label: resolveStringField(element.label, context, `${path}.label`) }),
-        value: resolveStringField(element.value, context, `${path}.value`),
+        value: resolveValueAtPath(element.value, context, `${path}.value`),
       }
     case "nft":
       return {

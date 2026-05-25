@@ -41,7 +41,7 @@ export type ButtonElement = {
 export type StatusElement = {
   readonly type: "status"
   readonly label?: string
-  readonly value: string
+  readonly value: unknown
 }
 
 export type NftElement = {

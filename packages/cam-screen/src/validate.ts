@@ -108,10 +108,12 @@ function parseButtonElement(source: Record<string, unknown>, path: string): Scre
 
 function parseStatusElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, STATUS_KEYS, path)
+  validateExpressionValue(source.value, `${path}.value`)
+
   return {
     type: "status",
     ...(source.label === undefined ? {} : { label: parseExpressionString(source.label, `${path}.label`) }),
-    value: parseExpressionString(source.value, `${path}.value`),
+    value: cloneJsonValue(source.value),
   }
 }
 

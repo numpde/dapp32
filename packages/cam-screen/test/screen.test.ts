@@ -26,6 +26,7 @@ const context: ScreenRuntimeContext = {
   values: [
     "./screens/component.json",
     {
+      exists: true,
       owner: "0x0000000000000000000000000000000000000003",
       tokenContract: "0x0000000000000000000000000000000000000004",
       tokenId: "42",
@@ -121,8 +122,8 @@ test("resolveScreen resolves params, state, and route values", () => {
       },
       {
         type: "status",
-        label: "Owner",
-        value: "$values.1.owner",
+        label: "Registered",
+        value: "$values.1.exists",
       },
       {
         type: "nft",
@@ -144,8 +145,8 @@ test("resolveScreen resolves params, state, and route values", () => {
     },
     {
       type: "status",
-      label: "Owner",
-      value: "0x0000000000000000000000000000000000000003",
+      label: "Registered",
+      value: true,
     },
     {
       type: "nft",
