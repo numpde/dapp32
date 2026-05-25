@@ -125,8 +125,14 @@ class ComposePostureTest(unittest.TestCase):
         self.assertEqual(1, text.count("read_only: true"))
         self.assertEqual(1, text.count("no-new-privileges:true"))
         self.assertEqual(1, text.count("- ALL"))
-        self.assertIn("../packages:/work/packages:rw", text)
         self.assertIn("../packages:/work/packages:ro", text)
+        self.assertNotIn("../packages:/work/packages:rw", text)
+        for package_json in sorted(repo_path("packages").glob("*/package.json")):
+            package_dir = package_json.parent.name
+            self.assertIn(
+                f"../packages/{package_dir}/dist:/work/packages/{package_dir}/dist:rw",
+                text,
+            )
         self.assertIn("working_dir: /work/packages", text)
         self.assertIn("npm", text)
         self.assertIn("ls", text)
@@ -168,8 +174,12 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("define compose_run_with_package_deps", text)
         self.assertIn("package-graph-check:", text)
         self.assertIn("package-build: package-graph-check", text)
+        self.assertIn("find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json", text)
         self.assertIsNone(re.search(r"^package-build:\s+package-deps$", text, re.MULTILINE))
         self.assertIn("package-test: package-build", text)
+        self.assertIn("viewer-terminal-check: package-build", text)
+        self.assertIn("./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json", text)
+        self.assertIn("node --experimental-strip-types ../tools/viewer-terminal/terminal-session.ts", text)
         self.assertIn("viewer-terminal: package-build", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-graph-check)", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-build)", text)
@@ -177,7 +187,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("VIEWER_TERMINAL_COMPOSE_PROJECT_NAME", text)
         self.assertIn("VIEWER_TERMINAL_CONTAINER_NAME", text)
         self.assertIn("$(PACKAGE_DEPS_GUARD)", text)
-        self.assertIn("ci: fmt build script-build test fuzz invariant package-test", text)
+        self.assertIn("ci: fmt build script-build test fuzz invariant package-test viewer-terminal-check", text)
 
     def test_interactive_viewer_has_explicit_lifecycle_targets(self) -> None:
         text = read_text(repo_path("Makefile"))
@@ -219,7 +229,7 @@ class ComposePostureTest(unittest.TestCase):
     def test_check_target_names_are_layered_by_cost(self) -> None:
         text = read_text(repo_path("Makefile"))
 
-        self.assertIn(".PHONY: help deps deps-verify package-deps package-graph-check package-build package-test checks check-runtime check-live check-live-deps-egress", text)
+        self.assertIn(".PHONY: help deps deps-verify package-deps package-graph-check package-build package-test viewer-terminal-check checks check-runtime check-live check-live-deps-egress", text)
         self.assertIn("check-runtime: check-anvil-compose", text)
         self.assertIn("check-live: check-live-deps-egress", text)
         self.assertIn("LIVE_DEPS_EGRESS_COMPOSE_FILES :=", text)

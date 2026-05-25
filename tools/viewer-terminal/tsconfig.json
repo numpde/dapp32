@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "exactOptionalPropertyTypes": true,
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "paths": {
+      "@cam/screen": [
+        "../../packages/cam-screen/dist/index.d.ts"
+      ],
+      "viem": [
+        "../../packages/node_modules/viem/_types/index.d.ts"
+      ]
+    },
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "verbatimModuleSyntax": true
+  },
+  "include": [
+    "node-shims.d.ts",
+    "terminal-session.ts"
+  ]
+}

@@ -80,7 +80,13 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("/work/packages", build.get("working_dir"))
         self.assertEqual("/work/packages", test.get("working_dir"))
         self.assertEqual(True, volume_for(verify, "/work/packages").get("read_only"))
-        self.assertNotEqual(True, volume_for(build, "/work/packages").get("read_only", False))
+        self.assertEqual(True, volume_for(build, "/work/packages").get("read_only"))
+        for package_json in sorted(repo_path("packages").glob("*/package.json")):
+            package_dir = package_json.parent.name
+            self.assertNotEqual(
+                True,
+                volume_for(build, f"/work/packages/{package_dir}/dist").get("read_only", False),
+            )
         self.assertEqual(True, volume_for(test, "/work/packages").get("read_only"))
 
     def test_viewer_terminal_renders_as_offline_read_only_interactive_lane(self) -> None:

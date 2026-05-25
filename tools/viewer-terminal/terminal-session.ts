@@ -15,9 +15,10 @@ import type {
   CamViewerSnapshot,
 } from "../../packages/cam-viewer/dist/index.js"
 import type {
-  ResolvedButtonElement,
   ResolvedScreenElement,
 } from "@cam/screen"
+
+type ResolvedButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
 
 const ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000" as const
 const HOST_ADDRESS = "0x0000000000000000000000000000000000000001" as const

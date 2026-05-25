@@ -51,7 +51,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build package-test checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
+.PHONY: help deps deps-verify package-deps package-graph-check package-build package-test viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
 
 help:
 	@printf '%s\n' \
@@ -64,10 +64,11 @@ help:
 	  '  make package-graph-check  Check installed npm dependency graph offline' \
 	  '  make package-build  Build all npm workspace packages offline' \
 	  '  make package-test   Build and test all npm workspace packages offline' \
+	  '  make viewer-terminal-check  Smoke-check the mock CAM viewer terminal offline' \
 	  '  make viewer-terminal  Run the mock-backed CAM viewer terminal offline' \
-	  '  make viewer-terminal-status  Show the mock viewer terminal container status' \
-	  '  make viewer-terminal-attach  Attach to the mock viewer terminal container' \
-	  '  make viewer-terminal-down    Stop and remove the mock viewer terminal container' \
+	  '  make viewer-terminal-status  Show mock viewer terminal Compose status' \
+	  '  make viewer-terminal-attach  Attach if the mock viewer terminal is still running' \
+	  '  make viewer-terminal-down    Stop and clean up the mock viewer terminal Compose project' \
 	  '  make checks       Run offline repository/source checks' \
 	  '  make check-runtime  Run local Docker-backed runtime checks' \
 	  '  make check-live    Run live checks that intentionally use external network' \
@@ -81,7 +82,7 @@ help:
 	  '  make fuzz         Run fuzz tests for all dapps' \
 	  '  make invariant    Run invariant tests for all dapps' \
 	  '  make coverage     Print coverage summary from all dapp unit tests' \
-	  '  make ci           Run fmt, build, script-build, unit, fuzz, invariant, and package-test lanes' \
+	  '  make ci           Run fmt, build, script-build, unit, fuzz, invariant, package-test, and viewer-terminal-check lanes' \
 	  '  make cast-offline Run offline cast smoke lane' \
 	  '  make cast-rpc RPC_URL_FILE=/path  Read a block number through the RPC egress proxy' \
 	  '  RPC_URL=https://... make cast-rpc  Same, using a temporary secret file' \
@@ -200,10 +201,17 @@ package-graph-check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)
 
 package-build: package-graph-check
+	@find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json -type f | while IFS= read -r manifest; do mkdir -p "$${manifest%/package.json}/dist"; done
 	$(call compose_run_with_package_deps,packages.yml,package-build)
 
 package-test: package-build
 	$(call compose_run_with_package_deps,packages.yml,package-test)
+
+viewer-terminal-check: package-build
+	@$(NON_ROOT_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm -T viewer-terminal \
+	  sh -eu -c 'cd /work/packages && ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json && printf "quit\n" | node --experimental-strip-types ../tools/viewer-terminal/terminal-session.ts >/dev/null'
 
 viewer-terminal: package-build
 	@$(NON_ROOT_GUARD); \
@@ -272,7 +280,7 @@ invariant: deps-verify
 coverage: deps-verify
 	$(call compose_run,forge.yml,forge-coverage)
 
-ci: fmt build script-build test fuzz invariant package-test
+ci: fmt build script-build test fuzz invariant package-test viewer-terminal-check
 
 cast-offline:
 	$(call compose_run,cast.yml,cast-offline)

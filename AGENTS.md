@@ -55,15 +55,16 @@ Keep the project small, explicit, and protocol-first.
   `.npmrc` files.
 - Keep npm package execution in `compose/packages.yml`; package build/test lanes
   are offline consumers of the locked `node_modules/` tree.
-- Use root `package-lock.json` as the only package lock source; do not add yarn,
-  pnpm, bun, nested package-lock, or npm-shrinkwrap locks unless the dependency
-  lane is deliberately redesigned.
+- Use `packages/package-lock.json` as the only package lock source for the
+  current package workspace; do not add repo-root locks, yarn, pnpm, bun,
+  nested app package-lock, or npm-shrinkwrap locks unless the dependency lane is
+  deliberately redesigned.
 - Do not give networked dependency tools repo-root read/write mounts. In this
   repo, the dapps package owns the expected dependency outputs:
   `dapps/dependencies/`, `dapps/soldeer.lock`,
   `dapps/remappings.txt`, and `dapps/dependency-checksums.txt`. Npm workspace
-  dependency materialization owns only root `node_modules/` and
-  `package-lock.json`.
+  dependency materialization owns only `packages/node_modules/` and
+  `packages/package-lock.json`.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
   dependency contents before compiling or executing package code.
 
