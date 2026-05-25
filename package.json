@@ -7,6 +7,6 @@
   ],
   "scripts": {
     "build:packages": "npm run build --workspaces --if-present",
-    "test:packages": "npm test --workspaces --if-present"
+    "test:packages": "npm run build:packages && npm test --workspaces --if-present"
   }
 }

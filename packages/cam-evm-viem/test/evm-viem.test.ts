@@ -255,6 +255,7 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
 
   assert.deepEqual(publicClient.calls.at(-1), {
     address: uiAddress,
+    abi: uiAbi,
     functionName: "viewEntry",
     args: [userAddress],
     account: userAddress,
@@ -401,6 +402,7 @@ function createPublicClient({
 }) {
   const calls: Array<{
     readonly address: Address
+    readonly abi?: Abi
     readonly functionName: string
     readonly args?: readonly unknown[]
     readonly account?: Address

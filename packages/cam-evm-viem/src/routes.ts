@@ -1,14 +1,8 @@
 import { resolveResourceURI, resolveRouteCall } from "@cam/core"
-import type { Abi, Address } from "viem"
+import type { Abi, AbiFunction, Address } from "viem"
 
 import { CamEvmError } from "./errors.ts"
 import type { CallCamRouteOptions, RouteResult } from "./types.ts"
-
-type AbiFunction = {
-  readonly type: "function"
-  readonly name: string
-  readonly stateMutability?: string
-}
 
 export async function callCamRoute({
   publicClient,
