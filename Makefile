@@ -52,7 +52,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
+.PHONY: help deps deps-verify package-deps package-graph-check package-build package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
 
 help:
 	@printf '%s\n' \
@@ -65,7 +65,7 @@ help:
 	  '  make package-graph-check  Check installed npm dependency graph offline' \
 	  '  make package-build-check  Validate npm workspace package builds offline' \
 	  '  make package-test   Build and test npm workspace packages offline' \
-	  '  make package-ci     Run package tests and mock viewer terminal checks in one package container' \
+	  '  make package-ci     Run package tests and mock viewer terminal checks offline' \
 	  '  make viewer-terminal-check  Smoke-check the mock CAM viewer terminal offline' \
 	  '  make viewer-terminal  Run the mock-backed CAM viewer terminal offline' \
 	  '  make viewer-terminal-status  Show mock viewer terminal Compose status' \
@@ -239,20 +239,23 @@ package-deps:
 package-graph-check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)
 
+package-build:
+	@printf '%s\n' 'make package-build is intentionally undefined as an artifact-producing lane.' >&2
+	@printf '%s\n' 'Use make package-build-check to validate TypeScript package compilation in container-local tmpfs.' >&2
+	@exit 2
+
 package-build-check: package-graph-check
 	$(call compose_run_with_package_deps,packages.yml,package-build-check)
 
 package-test: package-graph-check
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-package-ci: package-graph-check
-	$(call compose_run_with_package_deps,packages.yml,package-ci)
+package-ci: package-test viewer-terminal-check
 
 viewer-terminal-check: package-graph-check
 	@$(NON_ROOT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm -T viewer-terminal \
-	  sh -eu -c 'cd /work/packages && npm run build:packages && ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json && cd /work && printf "quit\n" | node --experimental-strip-types tools/viewer-terminal/terminal-session.ts >/dev/null'
+	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm -T viewer-terminal-check
 
 viewer-terminal: package-graph-check
 	@$(NON_ROOT_GUARD); \

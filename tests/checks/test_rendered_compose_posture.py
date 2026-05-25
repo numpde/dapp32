@@ -138,8 +138,8 @@ class RenderedComposePostureTest(unittest.TestCase):
         verify = service(config, "package-graph-check")
         build = service(config, "package-build-check")
         test = service(config, "package-test")
-        package_ci = service(config, "package-ci")
-        for config_service in [verify, build, test, package_ci]:
+        self.assertNotIn("package-ci", config["services"])
+        for config_service in [verify, build, test]:
             self.assert_hardened(config_service)
             self.assertEqual("none", config_service.get("network_mode"))
             self.assertNotIn("HTTP_PROXY", config_service.get("environment", {}))
@@ -148,26 +148,17 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("/work/packages", verify.get("working_dir"))
         self.assertEqual("/work/packages", build.get("working_dir"))
         self.assertEqual("/work/packages", test.get("working_dir"))
-        self.assertEqual("/work/packages", package_ci.get("working_dir"))
         self.assertEqual(True, volume_for(verify, "/work/packages").get("read_only"))
         self.assertEqual(True, volume_for(build, "/work/packages").get("read_only"))
-        self.assertEqual(True, volume_for(package_ci, "/work/packages").get("read_only"))
-        self.assertEqual(True, volume_for(package_ci, "/work/tools").get("read_only"))
         for package_json in sorted(repo_path("packages").glob("*/package.json")):
             package_dir = package_json.parent.name
             build_dist = volume_for(build, f"/work/packages/{package_dir}/dist")
             test_dist = volume_for(test, f"/work/packages/{package_dir}/dist")
-            ci_dist = volume_for(package_ci, f"/work/packages/{package_dir}/dist")
             self.assertEqual("tmpfs", build_dist.get("type"))
             self.assertEqual("tmpfs", test_dist.get("type"))
-            self.assertEqual("tmpfs", ci_dist.get("type"))
             self.assertEqual(511, build_dist.get("tmpfs", {}).get("mode"))
             self.assertEqual(511, test_dist.get("tmpfs", {}).get("mode"))
-            self.assertEqual(511, ci_dist.get("tmpfs", {}).get("mode"))
         self.assertEqual(True, volume_for(test, "/work/packages").get("read_only"))
-        self.assertIn("npm run test:packages", " ".join(package_ci.get("command", [])))
-        self.assertIn("tsc -p ../tools/viewer-terminal/tsconfig.json", " ".join(package_ci.get("command", [])))
-        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", " ".join(package_ci.get("command", [])))
 
     def test_viewer_terminal_renders_as_offline_read_only_interactive_lane(self) -> None:
         config = rendered_compose_config(
@@ -175,18 +166,28 @@ class RenderedComposePostureTest(unittest.TestCase):
             env={"VIEWER_TERMINAL_CONTAINER_NAME": "dapps-viewer-terminal-session"},
         )
         viewer = service(config, "viewer-terminal")
+        check = service(config, "viewer-terminal-check")
 
         self.assert_hardened(viewer)
+        self.assert_hardened(check)
         self.assertEqual("dapps-viewer-terminal-session", viewer.get("container_name"))
         self.assertEqual("none", viewer.get("network_mode"))
+        self.assertEqual("none", check.get("network_mode"))
         self.assertEqual(True, viewer.get("stdin_open"))
         self.assertEqual(True, viewer.get("tty"))
         self.assertIn("npm run build:packages", " ".join(viewer.get("command", [])))
         self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", " ".join(viewer.get("command", [])))
+        self.assertIn("npm run build:packages", " ".join(check.get("command", [])))
+        self.assertIn("tsc -p ../tools/viewer-terminal/tsconfig.json", " ".join(check.get("command", [])))
+        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", " ".join(check.get("command", [])))
         for target in ["/work/dapps", "/work/packages", "/work/tools"]:
             self.assertEqual(True, volume_for(viewer, target).get("read_only"))
+            self.assertEqual(True, volume_for(check, target).get("read_only"))
         for package_json in sorted(repo_path("packages").glob("*/package.json")):
             package_dir = package_json.parent.name
             viewer_dist = volume_for(viewer, f"/work/packages/{package_dir}/dist")
+            check_dist = volume_for(check, f"/work/packages/{package_dir}/dist")
             self.assertEqual("tmpfs", viewer_dist.get("type"))
+            self.assertEqual("tmpfs", check_dist.get("type"))
             self.assertEqual(511, viewer_dist.get("tmpfs", {}).get("mode"))
+            self.assertEqual(511, check_dist.get("tmpfs", {}).get("mode"))

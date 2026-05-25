@@ -26,6 +26,45 @@ x-package-base: &package_base
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=512m
 
+x-dist-cam-core: &dist_cam_core
+  type: tmpfs
+  target: /work/packages/cam-core/dist
+  tmpfs:
+    mode: 511
+
+x-dist-cam-evm-viem: &dist_cam_evm_viem
+  type: tmpfs
+  target: /work/packages/cam-evm-viem/dist
+  tmpfs:
+    mode: 511
+
+x-dist-cam-screen: &dist_cam_screen
+  type: tmpfs
+  target: /work/packages/cam-screen/dist
+  tmpfs:
+    mode: 511
+
+x-dist-cam-viewer: &dist_cam_viewer
+  type: tmpfs
+  target: /work/packages/cam-viewer/dist
+  tmpfs:
+    mode: 511
+
+x-package-build-volumes: &package_build_volumes
+  - ../packages:/work/packages:ro
+  - *dist_cam_core
+  - *dist_cam_evm_viem
+  - *dist_cam_screen
+  - *dist_cam_viewer
+
+x-package-test-volumes: &package_test_volumes
+  - ../dapps:/work/dapps:ro
+  - ../packages:/work/packages:ro
+  - *dist_cam_core
+  - *dist_cam_evm_viem
+  - *dist_cam_screen
+  - *dist_cam_viewer
+
 services:
   # This is an offline dependency-graph check, not a file-integrity verifier.
   # npm's lockfile pins tarball integrity, but npm does not provide a committed
@@ -49,24 +88,7 @@ services:
   # Add a separate artifact-export lane if host-visible JS output is ever needed.
   package-build-check:
     <<: *package_base
-    volumes:
-      - ../packages:/work/packages:ro
-      - type: tmpfs
-        target: /work/packages/cam-core/dist
-        tmpfs:
-          mode: 511
-      - type: tmpfs
-        target: /work/packages/cam-evm-viem/dist
-        tmpfs:
-          mode: 511
-      - type: tmpfs
-        target: /work/packages/cam-screen/dist
-        tmpfs:
-          mode: 511
-      - type: tmpfs
-        target: /work/packages/cam-viewer/dist
-        tmpfs:
-          mode: 511
+    volumes: *package_build_volumes
     command:
       - "npm"
       - "run"
@@ -74,60 +96,8 @@ services:
 
   package-test:
     <<: *package_base
-    volumes:
-      - ../dapps:/work/dapps:ro
-      - ../packages:/work/packages:ro
-      - type: tmpfs
-        target: /work/packages/cam-core/dist
-        tmpfs:
-          mode: 511
-      - type: tmpfs
-        target: /work/packages/cam-evm-viem/dist
-        tmpfs:
-          mode: 511
-      - type: tmpfs
-        target: /work/packages/cam-screen/dist
-        tmpfs:
-          mode: 511
-      - type: tmpfs
-        target: /work/packages/cam-viewer/dist
-        tmpfs:
-          mode: 511
+    volumes: *package_test_volumes
     command:
       - "npm"
       - "run"
       - "test:packages"
-
-  # CI keeps package tests and the terminal harness in one container-local
-  # filesystem so TypeScript dist/ output is built once and discarded once.
-  package-ci:
-    <<: *package_base
-    volumes:
-      - ../dapps:/work/dapps:ro
-      - ../packages:/work/packages:ro
-      - ../tools:/work/tools:ro
-      - type: tmpfs
-        target: /work/packages/cam-core/dist
-        tmpfs:
-          mode: 511
-      - type: tmpfs
-        target: /work/packages/cam-evm-viem/dist
-        tmpfs:
-          mode: 511
-      - type: tmpfs
-        target: /work/packages/cam-screen/dist
-        tmpfs:
-          mode: 511
-      - type: tmpfs
-        target: /work/packages/cam-viewer/dist
-        tmpfs:
-          mode: 511
-    command:
-      - "sh"
-      - "-eu"
-      - "-c"
-      - |
-        npm run test:packages
-        ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json
-        cd /work
-        printf "quit\n" | node --experimental-strip-types tools/viewer-terminal/terminal-session.ts >/dev/null
