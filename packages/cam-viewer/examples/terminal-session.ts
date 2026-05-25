@@ -71,6 +71,7 @@ async function main(): Promise<void> {
   const interactive = input.isTTY
 
   if (interactive) {
+    printPromptContext(context.session.snapshot())
     terminal.prompt()
   }
   for await (const line of terminal) {
@@ -80,6 +81,7 @@ async function main(): Promise<void> {
     }
 
     if (interactive) {
+      printPromptContext(context.session.snapshot())
       terminal.prompt()
     }
   }
@@ -419,6 +421,15 @@ function printState(snapshot: CamViewerSnapshot): void {
     params: snapshot.params,
     state: snapshot.state,
   }, jsonReplacer, 2)}\n`)
+}
+
+function printPromptContext(snapshot: CamViewerSnapshot): void {
+  output.write("Context before command:\n")
+  output.write(`  host: ${MOCK_CHAIN_ID} ${HOST_ADDRESS}\n`)
+  output.write(`  account: ${snapshot.account?.address ?? "(none)"}\n`)
+  output.write(`  params: ${formatValue(snapshot.params)}\n`)
+  output.write(`  state: ${formatValue(snapshot.state)}\n`)
+  output.write(`  values: ${formatValue(snapshot.values ?? [])}\n`)
 }
 
 function printValues(snapshot: CamViewerSnapshot): void {
