@@ -5,7 +5,7 @@ import {BicycleComponentManager} from "../src/BicycleComponentManager.sol";
 import {BicycleComponentManagerUI} from "../src/BicycleComponentManagerUI.sol";
 import {BicycleComponents} from "../src/BicycleComponents.sol";
 
-/// @notice Shared Forge-broadcast deployment fixture for the bike NFT CAM example.
+/// @notice Shared Forge-broadcast deployment helpers for the bike NFT CAM example.
 /// @dev
 /// This contract owns only the shared setup logic for a caller that is already
 /// broadcasting as the fixture admin. The role grants and CAM root bindings
@@ -53,7 +53,13 @@ contract BikeNftLocalFixture {
 
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER_UI, address(deployment.ui));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));
+    }
 
+    function deploySeededLocalFixture(address broadcasterAdmin, string memory camURI, bytes32 camHash)
+        internal
+        returns (Deployment memory deployment)
+    {
+        deployment = deployLocalFixture(broadcasterAdmin, camURI, camHash);
         _seedLocalComponents(deployment.manager, broadcasterAdmin);
     }
 

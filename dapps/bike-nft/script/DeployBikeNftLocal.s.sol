@@ -22,7 +22,7 @@ contract DeployBikeNftLocal is Script, BikeNftLocalFixture {
         bytes32 camHash = vm.envOr("CAM_HASH", bytes32(0));
 
         vm.startBroadcast(deployerKey);
-        deployment = deployLocalFixture(admin, camURI, camHash);
+        deployment = deploySeededLocalFixture(admin, camURI, camHash);
         vm.stopBroadcast();
 
         console2.log("CamRoot", address(deployment.camRoot));

@@ -5,16 +5,36 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 import "../../../script/BikeNftLocalFixture.sol";
 
 contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
-    function deployForTest() external returns (Deployment memory deployment) {
+    function deployCleanForTest() external returns (Deployment memory deployment) {
         deployment = deployLocalFixture(address(this), "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
+    }
+
+    function deploySeededForTest() external returns (Deployment memory deployment) {
+        deployment = deploySeededLocalFixture(address(this), "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
     }
 }
 
 contract BikeNftLocalFixtureTest is Test {
-    function test_deployLocalFixture_seedsDemoComponentsThroughManager() external {
+    function test_deployLocalFixture_keepsCleanFixtureReusable() external {
         BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
 
-        BikeNftLocalFixture.Deployment memory deployment = harness.deployForTest();
+        BikeNftLocalFixture.Deployment memory deployment = harness.deployCleanForTest();
+
+        assertFalse(
+            deployment.manager.componentBySerial("DEMO-FRAME-001").exists, "clean fixture should not seed frame"
+        );
+        assertFalse(
+            deployment.manager.componentBySerial("DEMO-BATTERY-001").exists, "clean fixture should not seed battery"
+        );
+        assertFalse(
+            deployment.manager.componentBySerial("DEMO-MOTOR-001").exists, "clean fixture should not seed motor"
+        );
+    }
+
+    function test_deploySeededLocalFixture_seedsDemoComponentsThroughManager() external {
+        BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
+
+        BikeNftLocalFixture.Deployment memory deployment = harness.deploySeededForTest();
 
         assertSeededComponent(
             deployment, address(harness), "DEMO-FRAME-001", "fixture://bike-nft/components/demo-frame-001.json"
