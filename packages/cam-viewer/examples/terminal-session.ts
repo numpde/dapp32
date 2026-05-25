@@ -32,9 +32,29 @@ const MOCK_CAM_URI = new URL("main.json", MOCK_CAM_BASE_URI).href
 // This file is intentionally a mock terminal harness, not a general CAM
 // viewer runner. It has no RPC, no network, and no environment-based target
 // selection; all "chain" reads are deterministic in-process fakes.
+type DebugEvent =
+  | {
+    readonly step: number
+    readonly kind: "contract-read"
+    readonly functionName: string
+    readonly args: readonly unknown[]
+    readonly result: unknown
+  }
+  | {
+    readonly step: number
+    readonly kind: "resource-load"
+    readonly uri: string
+    readonly bytes: number
+  }
+
+type TerminalContext = {
+  readonly session: CamViewerSession
+  readonly events: DebugEvent[]
+}
 
 async function main(): Promise<void> {
-  const publicClient = createMockPublicClient()
+  const events: DebugEvent[] = []
+  const publicClient = createMockPublicClient(events)
   const session = createCamViewerSession({
     publicClient,
     host: {
@@ -44,8 +64,12 @@ async function main(): Promise<void> {
     account: {
       address: USER_ADDRESS,
     },
-    loadResource: createMockResourceLoader(),
+    loadResource: createMockResourceLoader(events),
   })
+  const context = {
+    session,
+    events,
+  }
 
   await session.load()
   printHelp()
@@ -62,7 +86,7 @@ async function main(): Promise<void> {
     terminal.prompt()
   }
   for await (const line of terminal) {
-    const shouldContinue = await handleCommand(session, line)
+    const shouldContinue = await handleCommand(context, line)
     if (!shouldContinue) {
       break
     }
@@ -75,13 +99,14 @@ async function main(): Promise<void> {
   terminal.close()
 }
 
-async function handleCommand(session: CamViewerSession, rawLine: string): Promise<boolean> {
+async function handleCommand(context: TerminalContext, rawLine: string): Promise<boolean> {
   const line = rawLine.trim()
   if (line.length === 0) {
     return true
   }
 
   const [command = "", ...args] = line.split(/\s+/)
+  const { session } = context
 
   try {
     switch (command) {
@@ -92,7 +117,19 @@ async function handleCommand(session: CamViewerSession, rawLine: string): Promis
         render(session.snapshot())
         return true
       case "state":
-        printSnapshot(session.snapshot())
+        printState(session.snapshot())
+        return true
+      case "values":
+        printValues(session.snapshot())
+        return true
+      case "actions":
+        printActions(session.snapshot())
+        return true
+      case "screen":
+        printScreen(session.snapshot())
+        return true
+      case "trace":
+        handleTrace(context, args)
         return true
       case "set":
         handleSet(session, args)
@@ -206,37 +243,50 @@ function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonElement[
   )
 }
 
-function createMockPublicClient(): PublicClient {
+function createMockPublicClient(events: DebugEvent[]): PublicClient {
   return {
     async readContract(request: {
       readonly functionName: string
       readonly args?: readonly unknown[]
     }): Promise<unknown> {
-      switch (request.functionName) {
-        case "camURI":
-          return MOCK_CAM_URI
-        case "camHash":
-          return ZERO_HASH satisfies Hex
-        case "contractAddress":
-          return contractAddress(String(request.args?.[0] ?? ""))
-        case "viewEntry":
-          return [
-            "./screens/entry.json",
-            {
-              account: request.args?.[0],
-              canRegister: true,
-              accountInfo: "Mock registrar account",
-            },
-          ]
-        case "viewComponent":
-          return componentRouteResult(String(request.args?.[0] ?? ""))
-        case "viewRegister":
-          return registerRouteResult(String(request.args?.[0] ?? ""))
-        default:
-          throw new Error(`unexpected readContract call: ${request.functionName}`)
-      }
+      const args = request.args ?? []
+      const result = mockReadContract(request.functionName, args)
+      events.push({
+        step: events.length + 1,
+        kind: "contract-read",
+        functionName: request.functionName,
+        args,
+        result,
+      })
+      return result
     },
   } as PublicClient
+}
+
+function mockReadContract(functionName: string, args: readonly unknown[]): unknown {
+  switch (functionName) {
+    case "camURI":
+      return MOCK_CAM_URI
+    case "camHash":
+      return ZERO_HASH satisfies Hex
+    case "contractAddress":
+      return contractAddress(String(args[0] ?? ""))
+    case "viewEntry":
+      return [
+        "./screens/entry.json",
+        {
+          account: args[0],
+          canRegister: true,
+          accountInfo: "Mock registrar account",
+        },
+      ]
+    case "viewComponent":
+      return componentRouteResult(String(args[0] ?? ""))
+    case "viewRegister":
+      return registerRouteResult(String(args[0] ?? ""))
+    default:
+      throw new Error(`unexpected readContract call: ${functionName}`)
+  }
 }
 
 function contractAddress(name: string): Address {
@@ -305,7 +355,7 @@ function registerRouteResult(serialNumber: string): readonly unknown[] {
   ]
 }
 
-function createMockResourceLoader(): (uri: string) => Promise<Uint8Array> {
+function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promise<Uint8Array> {
   return async (uri: string): Promise<Uint8Array> => {
     const resourceURI = new URL(uri)
     if (resourceURI.protocol !== "file:") {
@@ -313,7 +363,14 @@ function createMockResourceLoader(): (uri: string) => Promise<Uint8Array> {
     }
 
     requireMockCamFileURI(resourceURI)
-    return await readFile(fileURLToPath(resourceURI))
+    const bytes = await readFile(fileURLToPath(resourceURI))
+    events.push({
+      step: events.length + 1,
+      kind: "resource-load",
+      uri: resourceURI.href,
+      bytes: bytes.byteLength,
+    })
+    return bytes
   }
 }
 
@@ -343,13 +400,40 @@ function formatError(error: unknown): string {
   return `Error: ${String(error)}\n`
 }
 
-function printSnapshot(snapshot: CamViewerSnapshot): void {
+function printState(snapshot: CamViewerSnapshot): void {
   output.write(`${JSON.stringify({
     route: snapshot.route,
+    screenURI: snapshot.screenURI,
+    account: snapshot.account,
     params: snapshot.params,
     state: snapshot.state,
-    values: snapshot.values,
   }, jsonReplacer, 2)}\n`)
+}
+
+function printValues(snapshot: CamViewerSnapshot): void {
+  output.write(`${JSON.stringify(snapshot.values ?? [], jsonReplacer, 2)}\n`)
+}
+
+function printActions(snapshot: CamViewerSnapshot): void {
+  output.write(`${JSON.stringify(buttonsOf(snapshot).map((button, index) => ({
+    index: index + 1,
+    label: button.label,
+    action: button.action,
+  })), jsonReplacer, 2)}\n`)
+}
+
+function printScreen(snapshot: CamViewerSnapshot): void {
+  output.write(`${JSON.stringify(snapshot.resolvedScreen ?? null, jsonReplacer, 2)}\n`)
+}
+
+function handleTrace(context: TerminalContext, args: readonly string[]): void {
+  if (args[0] === "clear") {
+    context.events.length = 0
+    output.write("Trace cleared.\n")
+    return
+  }
+
+  output.write(`${JSON.stringify(context.events, jsonReplacer, 2)}\n`)
 }
 
 function jsonReplacer(_key: string, value: unknown): unknown {
@@ -357,7 +441,21 @@ function jsonReplacer(_key: string, value: unknown): unknown {
 }
 
 function printHelp(): void {
-  output.write("Commands: show, state, set <name> <value>, press <n>, help, quit\n")
+  output.write([
+    "Commands:",
+    "  show                  Render the current resolved screen.",
+    "  state                 Print route, screen URI, account, params, and local state.",
+    "  values                Print the current route return values.",
+    "  actions               Print resolved button actions and their button numbers.",
+    "  screen                Print the resolved screen document.",
+    "  trace                 Print mocked contract reads and resource loads.",
+    "  trace clear           Clear the trace buffer.",
+    "  set <name> <value>    Set local screen state and re-resolve actions.",
+    "  press <n>             Dispatch a resolved button action.",
+    "  help                  Print this help.",
+    "  quit                  Exit.",
+    "",
+  ].join("\n"))
 }
 
 main().catch((error: unknown) => {
