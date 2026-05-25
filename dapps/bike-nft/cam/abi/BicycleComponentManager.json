@@ -395,7 +395,7 @@
       {
         "name": "view_",
         "type": "tuple",
-        "internalType": "struct BicycleComponentManager.ComponentView",
+        "internalType": "struct IBicycleComponentManagerView.ComponentView",
         "components": [
           {
             "name": "exists",
@@ -430,7 +430,7 @@
           {
             "name": "status",
             "type": "uint8",
-            "internalType": "enum BicycleComponentManager.ComponentStatus"
+            "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
           },
           {
             "name": "tokenURI",
@@ -530,7 +530,7 @@
       {
         "name": "status",
         "type": "uint8",
-        "internalType": "enum BicycleComponentManager.ComponentStatus"
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
       },
       {
         "name": "registeredAt",
@@ -564,7 +564,7 @@
       {
         "name": "",
         "type": "uint8",
-        "internalType": "enum BicycleComponentManager.ComponentStatus"
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
       }
     ],
     "stateMutability": "view"
@@ -1507,13 +1507,13 @@
         "name": "oldStatus",
         "type": "uint8",
         "indexed": false,
-        "internalType": "enum BicycleComponentManager.ComponentStatus"
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
       },
       {
         "name": "newStatus",
         "type": "uint8",
         "indexed": false,
-        "internalType": "enum BicycleComponentManager.ComponentStatus"
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
       }
     ],
     "anonymous": false
@@ -1864,7 +1864,7 @@
       {
         "name": "status",
         "type": "uint8",
-        "internalType": "enum BicycleComponentManager.ComponentStatus"
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
       }
     ]
   },
