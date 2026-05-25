@@ -3,33 +3,56 @@
 # This file deliberately does not install dependencies and has no network. Run
 # make package-deps first to materialize root node_modules/ from the committed
 # package-lock.json through compose/package-deps.yml.
+x-package-base: &package_base
+  build:
+    context: ../containers/node-deps
+    dockerfile: Dockerfile
+  working_dir: /work
+  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+  read_only: true
+  network_mode: "none"
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  pids_limit: 384
+  mem_limit: 1g
+  environment:
+    HOME: /tmp/home
+    npm_config_cache: /tmp/npm-cache
+    npm_config_audit: "false"
+    npm_config_fund: "false"
+    npm_config_update_notifier: "false"
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,noexec,size=512m
+
 services:
+  # This is the offline npm equivalent of deps-verify. npm's lockfile pins
+  # tarball integrity, but it does not provide a committed per-file checksum
+  # manifest for node_modules/. The practical gate before package code runs is
+  # therefore `npm ls`: verify that the installed workspace dependency graph is
+  # present and consistent with package.json/package-lock.json.
+  package-deps-verify:
+    <<: *package_base
+    volumes:
+      - ../package.json:/work/package.json:ro
+      - ../package-lock.json:/work/package-lock.json:ro
+      - ../node_modules:/work/node_modules:ro
+      - ../packages:/work/packages:ro
+    command:
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-deps-verify.json
+        printf '%s\n' 'package-deps-verify: installed npm workspace dependencies match package-lock.json'
+
   # Package build is the only npm package lane with a writable packages/ mount.
   # The workspace convention is intentionally narrow: each package build script
   # runs `tsc -p tsconfig.json`, each tsconfig reads src/**/*.ts, and emitted
   # artifacts go under that package's ignored dist/ directory.
   package-build:
-    build:
-      context: ../containers/node-deps
-      dockerfile: Dockerfile
-    working_dir: /work
-    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
-    read_only: true
-    network_mode: "none"
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 384
-    mem_limit: 1g
-    environment:
-      HOME: /tmp/home
-      npm_config_cache: /tmp/npm-cache
-      npm_config_audit: "false"
-      npm_config_fund: "false"
-      npm_config_update_notifier: "false"
-    tmpfs:
-      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    <<: *package_base
     volumes:
       - ../package.json:/work/package.json:ro
       - ../package-lock.json:/work/package-lock.json:ro
@@ -41,27 +64,7 @@ services:
       - "build:packages"
 
   package-test:
-    build:
-      context: ../containers/node-deps
-      dockerfile: Dockerfile
-    working_dir: /work
-    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
-    read_only: true
-    network_mode: "none"
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 384
-    mem_limit: 1g
-    environment:
-      HOME: /tmp/home
-      npm_config_cache: /tmp/npm-cache
-      npm_config_audit: "false"
-      npm_config_fund: "false"
-      npm_config_update_notifier: "false"
-    tmpfs:
-      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    <<: *package_base
     volumes:
       - ../package.json:/work/package.json:ro
       - ../package-lock.json:/work/package-lock.json:ro

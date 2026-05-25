@@ -50,7 +50,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-build package-test checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
+.PHONY: help deps deps-verify package-deps package-deps-verify package-build package-test checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
 
 help:
 	@printf '%s\n' \
@@ -60,6 +60,7 @@ help:
 	  '  make deps-verify  Verify installed dependencies against committed checksums' \
 	  '  make package-deps Install only the currently locked npm workspace dependencies' \
 	  '  make package-deps ALLOW_UPDATE=1  Allow package-lock.json updates' \
+	  '  make package-deps-verify  Verify installed npm workspace dependencies offline' \
 	  '  make package-build  Build all npm workspace packages offline' \
 	  '  make package-test   Build and test all npm workspace packages offline' \
 	  '  make viewer-terminal  Run the mock-backed CAM viewer terminal offline' \
@@ -194,7 +195,10 @@ package-deps:
 	reject_unsafe_package_targets; \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm "$$apply_service"
 
-package-build:
+package-deps-verify:
+	$(call compose_run_with_package_deps,packages.yml,package-deps-verify)
+
+package-build: package-deps-verify
 	$(call compose_run_with_package_deps,packages.yml,package-build)
 
 package-test: package-build

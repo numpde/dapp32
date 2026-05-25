@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unittest
 
 from .common import iter_files, read_text, repo_path
@@ -109,16 +110,28 @@ class ComposePostureTest(unittest.TestCase):
     def test_package_build_and_test_lanes_are_offline(self) -> None:
         text = read_text(repo_path("compose/packages.yml"))
 
+        self.assertIn("package-deps-verify:", text)
         self.assertIn("package-build:", text)
         self.assertIn("package-test:", text)
-        self.assertEqual(2, text.count('network_mode: "none"'))
-        self.assertGreaterEqual(text.count("read_only: true"), 2)
-        self.assertGreaterEqual(text.count("no-new-privileges:true"), 2)
-        self.assertGreaterEqual(text.count("- ALL"), 2)
+        self.assertIn("x-package-base: &package_base", text)
+        self.assertGreaterEqual(text.count("<<: *package_base"), 3)
+        self.assertEqual(1, text.count('network_mode: "none"'))
+        self.assertEqual(1, text.count("read_only: true"))
+        self.assertEqual(1, text.count("no-new-privileges:true"))
+        self.assertEqual(1, text.count("- ALL"))
         self.assertIn("../node_modules:/work/node_modules:ro", text)
         self.assertIn("../package-lock.json:/work/package-lock.json:ro", text)
         self.assertIn("../packages:/work/packages:rw", text)
         self.assertIn("../packages:/work/packages:ro", text)
+        self.assertIn("npm", text)
+        self.assertIn("ls", text)
+        self.assertIn("--all", text)
+        self.assertIn("--workspaces", text)
+        self.assertIn("--ignore-scripts", text)
+        self.assertIn("--offline", text)
+        self.assertIn("--omit=optional", text)
+        self.assertIn("--json >/tmp/package-deps-verify.json", text)
+        self.assertIn("package-deps-verify: installed npm workspace dependencies match package-lock.json", text)
         self.assertNotIn("../:/work", text)
         self.assertNotIn("..:/work", text)
         self.assertNotIn("npm install", text)
@@ -137,17 +150,19 @@ class ComposePostureTest(unittest.TestCase):
                 self.assertIn('"rootDir": "src"', tsconfig_text)
                 self.assertIn('"src/**/*.ts"', tsconfig_text)
 
-    def test_package_build_test_and_viewer_targets_require_existing_locked_deps(self) -> None:
+    def test_package_build_test_and_viewer_targets_verify_locked_deps(self) -> None:
         text = read_text(repo_path("Makefile"))
 
         self.assertIn("PACKAGE_DEPS_GUARD :=", text)
         self.assertIn('[[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]', text)
         self.assertIn("Run make package-deps to install the locked package dependencies.", text)
         self.assertIn("define compose_run_with_package_deps", text)
-        self.assertIn("package-build:", text)
-        self.assertNotIn("package-build: package-deps", text)
+        self.assertIn("package-deps-verify:", text)
+        self.assertIn("package-build: package-deps-verify", text)
+        self.assertIsNone(re.search(r"^package-build:\s+package-deps$", text, re.MULTILINE))
         self.assertIn("package-test: package-build", text)
         self.assertIn("viewer-terminal: package-build", text)
+        self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-deps-verify)", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-build)", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-test)", text)
         self.assertIn("VIEWER_TERMINAL_COMPOSE_PROJECT_NAME", text)
@@ -195,7 +210,7 @@ class ComposePostureTest(unittest.TestCase):
     def test_check_target_names_are_layered_by_cost(self) -> None:
         text = read_text(repo_path("Makefile"))
 
-        self.assertIn(".PHONY: help deps deps-verify package-deps package-build package-test checks check-runtime check-live check-live-deps-egress", text)
+        self.assertIn(".PHONY: help deps deps-verify package-deps package-deps-verify package-build package-test checks check-runtime check-live check-live-deps-egress", text)
         self.assertIn("check-runtime: check-anvil-compose", text)
         self.assertIn("check-live: check-live-deps-egress", text)
         self.assertIn("LIVE_DEPS_EGRESS_COMPOSE_FILES :=", text)

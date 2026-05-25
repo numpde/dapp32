@@ -67,14 +67,16 @@ class RenderedComposePostureTest(unittest.TestCase):
     def test_package_lanes_render_as_offline_hardened_services(self) -> None:
         config = rendered_compose_config("compose/packages.yml")
 
+        verify = service(config, "package-deps-verify")
         build = service(config, "package-build")
         test = service(config, "package-test")
-        for config_service in [build, test]:
+        for config_service in [verify, build, test]:
             self.assert_hardened(config_service)
             self.assertEqual("none", config_service.get("network_mode"))
             self.assertNotIn("HTTP_PROXY", config_service.get("environment", {}))
             self.assertNotIn("HTTPS_PROXY", config_service.get("environment", {}))
 
+        self.assertEqual(True, volume_for(verify, "/work/packages").get("read_only"))
         self.assertNotEqual(True, volume_for(build, "/work/packages").get("read_only", False))
         self.assertEqual(True, volume_for(test, "/work/packages").get("read_only"))
 
