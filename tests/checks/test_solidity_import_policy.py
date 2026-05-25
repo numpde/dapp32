@@ -99,6 +99,13 @@ class SolidityImportPolicyTest(unittest.TestCase):
                 dependency_versions,
             )
         )
+        self.assertIsNotNone(
+            self.validate_import(
+                repo_path("dapps/bike-nft/test/unit/script/BikeNftLocalFixture.t.sol"),
+                "cam/src/CamRoot.sol",
+                dependency_versions,
+            )
+        )
 
         rejected = [
             f"{OZ_PACKAGE}-{oz_version}/contracts/access/Ownable.sol",
@@ -237,11 +244,11 @@ class SolidityImportPolicyTest(unittest.TestCase):
 
     def is_test_source(self, source: Path) -> bool:
         relative = source.resolve().relative_to(repo_path("").resolve())
-        return "test" in relative.parts
+        return len(relative.parts) >= 4 and relative.parts[0] == "dapps" and relative.parts[2] == "test"
 
     def is_script_source(self, source: Path) -> bool:
         relative = source.resolve().relative_to(repo_path("").resolve())
-        return "script" in relative.parts
+        return len(relative.parts) >= 4 and relative.parts[0] == "dapps" and relative.parts[2] == "script"
 
     def dapp_root_for(self, source: Path) -> Path:
         relative = source.resolve().relative_to(repo_path("").resolve())
