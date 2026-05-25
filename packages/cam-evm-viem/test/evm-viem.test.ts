@@ -13,6 +13,7 @@ import {
   verifyCamHash,
   ZERO_HASH,
 } from "../src/index.ts"
+import { ZERO_ADDRESS } from "../src/constants.ts"
 import type { CamHost, ResourceLoader } from "../src/index.ts"
 
 const host: CamHost = {
@@ -348,7 +349,7 @@ function createPublicClient({
         const [name] = request.args ?? []
         return typeof name === "string" && addresses[name] !== undefined
           ? addresses[name]
-          : "0x0000000000000000000000000000000000000000"
+          : ZERO_ADDRESS
       }
 
       if (Object.hasOwn(routeResults, request.functionName)) {

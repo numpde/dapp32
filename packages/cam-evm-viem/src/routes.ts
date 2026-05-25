@@ -26,7 +26,7 @@ export async function callCamRoute({
       `CAM route references unresolved contract: ${routeCall.contract}`,
     )
   }
-  findUniqueFunctionAbi(contract.abi, routeCall.function)
+  assertUniqueFunctionAbi(contract.abi, routeCall.function)
 
   let raw: unknown
   try {
@@ -58,7 +58,7 @@ export async function callCamRoute({
   }
 }
 
-function findUniqueFunctionAbi(abi: Abi, functionName: string): AbiFunction {
+function assertUniqueFunctionAbi(abi: Abi, functionName: string): void {
   const matches = abi.filter(
     (item): item is AbiFunction => item.type === "function" && item.name === functionName,
   )
@@ -73,6 +73,4 @@ function findUniqueFunctionAbi(abi: Abi, functionName: string): AbiFunction {
       `CAM route function is overloaded and not supported in CAM V1: ${functionName}`,
     )
   }
-
-  return matches[0]
 }

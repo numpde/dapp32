@@ -1,6 +1,7 @@
 import type { Abi } from "viem"
 
 import { CamEvmError } from "./errors.ts"
+import { parseJsonBytes } from "./json.ts"
 
 export const camRootAbi = [
   {
@@ -27,12 +28,7 @@ export const camRootAbi = [
 ] as const
 
 export function parseAbiBytes(bytes: Uint8Array, uri: string): Abi {
-  let value: unknown
-  try {
-    value = JSON.parse(new TextDecoder().decode(bytes))
-  } catch (cause) {
-    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI is not valid JSON: ${uri}`, cause)
-  }
+  const value = parseJsonBytes(bytes, "CAM_ABI_INVALID", `CAM ABI is not valid JSON: ${uri}`)
 
   if (!Array.isArray(value)) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI must be a JSON array: ${uri}`)

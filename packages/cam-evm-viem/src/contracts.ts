@@ -2,10 +2,9 @@ import { resolveResourceURI } from "@cam/core"
 import type { Address } from "viem"
 
 import { camRootAbi, parseAbiBytes } from "./abi.ts"
+import { ZERO_ADDRESS } from "./constants.ts"
 import { CamEvmError } from "./errors.ts"
 import type { ResolvedCamContract, ResolveCamContractsOptions } from "./types.ts"
-
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 export async function resolveCamContracts({
   publicClient,
