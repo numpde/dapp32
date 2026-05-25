@@ -24,6 +24,14 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn('[[ "$(ACTUAL_UID)" == "0" || "$(LOCAL_UID)" == "0" ]]', text)
         self.assertIn("Refusing to run Docker lanes as root", text)
 
+    def test_make_help_describes_only_supported_lanes_as_docker_backed(self) -> None:
+        text = read_text(repo_path("Makefile"))
+
+        self.assertIn("Supported lanes are Docker/Compose-backed.", text)
+        self.assertNotIn("All lanes are Docker-backed.", text)
+        self.assertIn("make package-build-check  Validate npm workspace package builds offline", text)
+        self.assertNotIn("make package-build ", text)
+
     def test_rendered_compose_helper_honors_docker_compose_abstraction(self) -> None:
         text = read_text(repo_path("tests/checks/common.py"))
 
@@ -193,6 +201,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("define compose_run_with_package_deps", text)
         self.assertIn("package-graph-check:", text)
         self.assertIn("package-build-check: package-graph-check", text)
+        self.assertNotIn("\npackage-build:", text)
         self.assertNotIn("mkdir -p \"$${manifest%/package.json}/dist\"", text)
         self.assertIsNone(re.search(r"^package-build:\s+package-deps$", text, re.MULTILINE))
         self.assertIn("package-test: package-graph-check", text)
@@ -208,8 +217,6 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("VIEWER_TERMINAL_CONTAINER_NAME", text)
         self.assertIn("$(PACKAGE_DEPS_GUARD)", text)
         self.assertIn("ci: fmt build script-build test fuzz invariant package-ci", text)
-        self.assertIn("package-build:", text)
-        self.assertIn("make package-build is intentionally undefined as an artifact-producing lane.", text)
 
     def test_interactive_viewer_has_explicit_lifecycle_targets(self) -> None:
         text = read_text(repo_path("Makefile"))
@@ -251,7 +258,7 @@ class ComposePostureTest(unittest.TestCase):
     def test_check_target_names_are_layered_by_cost(self) -> None:
         text = read_text(repo_path("Makefile"))
 
-        self.assertIn(".PHONY: help deps deps-verify package-deps package-graph-check package-build package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress", text)
+        self.assertIn(".PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress", text)
         self.assertIn("check-runtime: check-anvil-compose", text)
         self.assertIn("check-live: check-live-deps-egress", text)
         self.assertIn("LIVE_DEPS_EGRESS_COMPOSE_FILES :=", text)

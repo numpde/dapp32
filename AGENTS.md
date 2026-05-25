@@ -74,8 +74,8 @@ Keep the project small, explicit, and protocol-first.
 - Package build/test lanes must not create host-side package build directories as
   preflight. Package `dist/` outputs belong in container-local tmpfs unless an
   explicit artifact export lane is added.
-- `package-build-check` is compile validation only. `package-build` must remain
-  an explicit failure until there is a deliberate durable artifact-export lane.
+- `package-build-check` is compile validation only. Do not add `package-build`
+  unless there is a deliberate durable artifact-export lane.
 - `package-ci` is a Make aggregation over package tests and package-backed tool
   checks. Do not duplicate a tool's smoke command inside `compose/packages.yml`;
   run the tool's own Compose check service instead.

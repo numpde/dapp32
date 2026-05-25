@@ -52,7 +52,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
 
 help:
 	@printf '%s\n' \
@@ -93,7 +93,7 @@ help:
 	  '  make anvil-down      Stop Anvil services and remove their network' \
 	  '  make bike-nft-local-deploy CAM_URI=... BIKE_NFT_PRIVATE_KEY_FILE=/path  Deploy the bike NFT fixture to an internal Anvil' \
 	  '' \
-	  'All lanes are Docker-backed. Default check lanes are offline, read-only,' \
+	  'Supported lanes are Docker/Compose-backed. Default check lanes are offline, read-only,' \
 	  'non-root, capability-free, and avoid writing build artifacts into the repo.' \
 	  'Dependency install lanes are the only guarded host bind-target setup exception.'
 
@@ -238,11 +238,6 @@ package-deps:
 
 package-graph-check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)
-
-package-build:
-	@printf '%s\n' 'make package-build is intentionally undefined as an artifact-producing lane.' >&2
-	@printf '%s\n' 'Use make package-build-check to validate TypeScript package compilation in container-local tmpfs.' >&2
-	@exit 2
 
 package-build-check: package-graph-check
 	$(call compose_run_with_package_deps,packages.yml,package-build-check)
