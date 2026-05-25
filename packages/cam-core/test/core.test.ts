@@ -9,31 +9,16 @@ import {
   resolveResourceURI,
   resolveRouteCall,
 } from "../src/index.ts"
-
-const mainJson = {
-  cam: "1.0.0",
-  entry: "entry",
-  contracts: {
-    BicycleComponentManagerUI: {
-      abiURI: "./abi/BicycleComponentManagerUI.json",
-    },
-    BicycleComponentManager: {
-      abiURI: "./abi/BicycleComponentManager.json",
-    },
-  },
-  routes: {
-    entry: {
-      contract: "BicycleComponentManagerUI",
-      function: "viewEntry",
-      args: ["$account.address"],
-    },
-    component: {
-      contract: "BicycleComponentManagerUI",
-      function: "viewComponent",
-      args: ["$params.serialNumber", "$account.address"],
-    },
-  },
-}
+import {
+  BIKE_ACCOUNT_ADDRESS,
+  BIKE_HOST_ADDRESS,
+  BIKE_HOST_CHAIN_ID,
+  BIKE_ROUTE_COMPONENT,
+  BIKE_SERIAL_NUMBER,
+  BIKE_UI_CONTRACT,
+  BIKE_VIEW_COMPONENT,
+  bikeCamJson as mainJson,
+} from "./fixtures/bike.ts"
 
 test("keeps the public API to the CAM core boundary", () => {
   assert.deepEqual(Object.keys(camCore).sort(), [
@@ -49,25 +34,25 @@ test("resolves a CAM route into a plain call descriptor", () => {
   const cam = parseCam(mainJson)
   const context = createContext({
     host: {
-      chainId: "eip155:31337",
-      address: "0x0000000000000000000000000000000000000001",
+      chainId: BIKE_HOST_CHAIN_ID,
+      address: BIKE_HOST_ADDRESS,
     },
     account: {
-      address: "0x0000000000000000000000000000000000000002",
+      address: BIKE_ACCOUNT_ADDRESS,
     },
     params: {
-      serialNumber: "ABC123",
+      serialNumber: BIKE_SERIAL_NUMBER,
     },
   })
 
-  const call = resolveRouteCall(cam, "component", context)
+  const call = resolveRouteCall(cam, BIKE_ROUTE_COMPONENT, context)
 
   assert.deepEqual(call, {
-    contract: "BicycleComponentManagerUI",
-    function: "viewComponent",
+    contract: BIKE_UI_CONTRACT,
+    function: BIKE_VIEW_COMPONENT,
     args: [
-      "ABC123",
-      "0x0000000000000000000000000000000000000002",
+      BIKE_SERIAL_NUMBER,
+      BIKE_ACCOUNT_ADDRESS,
     ],
   })
 })

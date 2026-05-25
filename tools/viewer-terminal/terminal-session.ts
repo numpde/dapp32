@@ -17,16 +17,22 @@ import type {
 import type {
   ResolvedScreenElement,
 } from "@cam/screen"
+import {
+  BIKE_ACCOUNT_ADDRESS as USER_ADDRESS,
+  BIKE_HOST_ADDRESS as HOST_ADDRESS,
+  BIKE_HOST_CHAIN_ID as MOCK_CHAIN_ID,
+  BIKE_VIEW_COMPONENT,
+  BIKE_VIEW_ENTRY,
+  BIKE_VIEW_REGISTER,
+  bikeAddressForContract,
+  bikeComponentRouteResult,
+  bikeEntryRouteResult,
+  bikeRegisterRouteResult,
+} from "../../packages/cam-core/test/fixtures/bike.ts"
 
 type ResolvedButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
 
 const ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000" as const
-const HOST_ADDRESS = "0x0000000000000000000000000000000000000001" as const
-const USER_ADDRESS = "0x0000000000000000000000000000000000000002" as const
-const UI_ADDRESS = "0x0000000000000000000000000000000000000003" as const
-const MANAGER_ADDRESS = "0x0000000000000000000000000000000000000004" as const
-const COMPONENTS_ADDRESS = "0x0000000000000000000000000000000000000010" as const
-const MOCK_CHAIN_ID = "eip155:31337"
 const MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
 const MOCK_CAM_URI = new URL("main.json", MOCK_CAM_BASE_URI).href
 
@@ -286,88 +292,19 @@ function mockReadContract(functionName: string, args: readonly unknown[]): unkno
       return ZERO_HASH satisfies Hex
     case "contractAddress":
       return contractAddress(String(args[0] ?? ""))
-    case "viewEntry":
-      return [
-        "./screens/entry.json",
-        {
-          account: args[0],
-          canRegister: true,
-          accountInfo: "Mock registrar account",
-        },
-      ]
-    case "viewComponent":
-      return componentRouteResult(String(args[0] ?? ""))
-    case "viewRegister":
-      return registerRouteResult(String(args[0] ?? ""))
+    case BIKE_VIEW_ENTRY:
+      return bikeEntryRouteResult(String(args[0] ?? USER_ADDRESS))
+    case BIKE_VIEW_COMPONENT:
+      return bikeComponentRouteResult(String(args[0] ?? ""))
+    case BIKE_VIEW_REGISTER:
+      return bikeRegisterRouteResult(String(args[0] ?? ""))
     default:
       throw new Error(`unexpected readContract call: ${functionName}`)
   }
 }
 
 function contractAddress(name: string): Address {
-  switch (name) {
-    case "BicycleComponentManagerUI":
-      return UI_ADDRESS
-    case "BicycleComponentManager":
-      return MANAGER_ADDRESS
-    default:
-      return "0x0000000000000000000000000000000000000000"
-  }
-}
-
-function componentRouteResult(serialNumber: string): readonly unknown[] {
-  return [
-    "./screens/component.json",
-    {
-      exists: serialNumber.length > 0,
-      serialHash: serialNumber.length > 0
-        ? "0x1111111111111111111111111111111111111111111111111111111111111111"
-        : "0x0000000000000000000000000000000000000000000000000000000000000000",
-      tokenContract: COMPONENTS_ADDRESS,
-      tokenId: serialNumber.length > 0 ? 42 : 0,
-      owner: USER_ADDRESS,
-      ownerInfo: "Mock owner account",
-      registrar: USER_ADDRESS,
-      status: serialNumber.length > 0 ? 1 : 0,
-      tokenURI: serialNumber.length > 0 ? `ipfs://example/token/${serialNumber}` : "",
-      registeredAt: serialNumber.length > 0 ? 1 : 0,
-      updatedAt: serialNumber.length > 0 ? 2 : 0,
-      serialNumber,
-      permissions: 7,
-      isOwner: true,
-      canUpdateMetadata: serialNumber.length > 0,
-      canMarkMissing: serialNumber.length > 0,
-      canClearMissing: false,
-      canRetire: serialNumber.length > 0,
-    },
-    {
-      account: USER_ADDRESS,
-      canRegister: true,
-      accountInfo: "Mock registrar account",
-    },
-  ]
-}
-
-function registerRouteResult(serialNumber: string): readonly unknown[] {
-  return [
-    "./screens/register.json",
-    {
-      canRegister: true,
-      exists: false,
-      serialHash: serialNumber.length > 0
-        ? "0x2222222222222222222222222222222222222222222222222222222222222222"
-        : "0x0000000000000000000000000000000000000000000000000000000000000000",
-      tokenId: 0,
-      defaultComponents: COMPONENTS_ADDRESS,
-      serialNumber,
-      accountInfo: "Mock registrar account",
-    },
-    {
-      account: USER_ADDRESS,
-      canRegister: true,
-      accountInfo: "Mock registrar account",
-    },
-  ]
+  return bikeAddressForContract(name) as Address
 }
 
 function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promise<Uint8Array> {

@@ -10,83 +10,31 @@ import {
   createCamViewerSession,
 } from "../src/index.ts"
 import type { CamHost } from "@cam/evm-viem"
+import {
+  BIKE_ACCOUNT_ADDRESS as userAddress,
+  BIKE_CAM_URI as camURI,
+  BIKE_COMPONENT_SCREEN_URI as componentScreenURI,
+  BIKE_ENTRY_SCREEN_URI as entryScreenURI,
+  BIKE_MANAGER_ABI_URI as managerAbiURI,
+  BIKE_MANAGER_CONTRACT,
+  BIKE_REGISTER_SCREEN_URI as registerScreenURI,
+  BIKE_RELATIVE_ENTRY_SCREEN_URI,
+  BIKE_ROUTE_COMPONENT,
+  BIKE_ROUTE_ENTRY,
+  BIKE_ROUTE_REGISTER,
+  BIKE_SERIAL_NUMBER,
+  BIKE_UI_ABI_URI as uiAbiURI,
+  BIKE_VIEW_COMPONENT,
+  BIKE_VIEW_ENTRY,
+  bikeCamJson as camJson,
+  bikeContractAddresses,
+  bikeHost,
+  bikeManagerAbi as managerAbi,
+  bikeRouteResults,
+  bikeUiAbi as uiAbi,
+} from "../../cam-core/test/fixtures/bike.ts"
 
-const host: CamHost = {
-  chainId: "eip155:31337",
-  address: "0x0000000000000000000000000000000000000001",
-}
-
-const userAddress = "0x0000000000000000000000000000000000000002"
-const uiAddress = "0x0000000000000000000000000000000000000003"
-const managerAddress = "0x0000000000000000000000000000000000000004"
-const camURI = "ipfs://example/main.json"
-const uiAbiURI = "ipfs://example/abi/BicycleComponentManagerUI.json"
-const managerAbiURI = "ipfs://example/abi/BicycleComponentManager.json"
-const entryScreenURI = "ipfs://example/screens/entry.json"
-const componentScreenURI = "ipfs://example/screens/component.json"
-const registerScreenURI = "ipfs://example/screens/register.json"
-
-const camJson = {
-  cam: "1.0.0",
-  entry: "entry",
-  contracts: {
-    BicycleComponentManagerUI: {
-      abiURI: "./abi/BicycleComponentManagerUI.json",
-    },
-    BicycleComponentManager: {
-      abiURI: "./abi/BicycleComponentManager.json",
-    },
-  },
-  routes: {
-    entry: {
-      contract: "BicycleComponentManagerUI",
-      function: "viewEntry",
-      args: ["$account.address"],
-    },
-    component: {
-      contract: "BicycleComponentManagerUI",
-      function: "viewComponent",
-      args: ["$params.serialNumber", "$account.address"],
-    },
-    register: {
-      contract: "BicycleComponentManagerUI",
-      function: "viewRegister",
-      args: ["$params.serialNumber", "$account.address"],
-    },
-  },
-}
-
-const uiAbi = [
-  {
-    type: "function",
-    name: "viewEntry",
-    stateMutability: "view",
-    inputs: [{ name: "viewer", type: "address" }],
-    outputs: [{ name: "screenURI", type: "string" }],
-  },
-  {
-    type: "function",
-    name: "viewComponent",
-    stateMutability: "view",
-    inputs: [
-      { name: "serialNumber", type: "string" },
-      { name: "viewer", type: "address" },
-    ],
-    outputs: [{ name: "screenURI", type: "string" }],
-  },
-  {
-    type: "function",
-    name: "viewRegister",
-    stateMutability: "view",
-    inputs: [
-      { name: "serialNumber", type: "string" },
-      { name: "viewer", type: "address" },
-    ],
-    outputs: [{ name: "screenURI", type: "string" }],
-  },
-] as const satisfies Abi
-
-const managerAbi = [] as const satisfies Abi
+const host: CamHost = bikeHost
 
 test("load resolves host CAM, entry route, and entry screen", async () => {
   const publicClient = createPublicClient()
@@ -95,15 +43,16 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
   const snapshot = await session.load()
 
   assert.equal(snapshot.loaded, true)
-  assert.equal(snapshot.route, "entry")
+  assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
   assert.equal(snapshot.screenURI, entryScreenURI)
   assert.equal(snapshot.screen?.title, "Entry")
   assert.equal(snapshot.resolvedScreen?.title, "Entry")
   assert.deepEqual(snapshot.values, [
-    "./screens/entry.json",
+    BIKE_RELATIVE_ENTRY_SCREEN_URI,
     {
       account: userAddress,
       canRegister: true,
+      accountInfo: "Mock registrar account",
     },
   ])
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
@@ -111,7 +60,7 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
     "camHash",
     "contractAddress",
     "contractAddress",
-    "viewEntry",
+    BIKE_VIEW_ENTRY,
   ])
 })
 
@@ -121,29 +70,29 @@ test("dispatchAction executes navigation actions", async () => {
   await session.load()
 
   const result = await session.dispatchAction({
-    route: "component",
+    route: BIKE_ROUTE_COMPONENT,
     params: {
-      serialNumber: "ABC123",
+      serialNumber: BIKE_SERIAL_NUMBER,
     },
   })
 
   assert.equal(result.type, "navigated")
-  assert.equal(result.snapshot.route, "component")
-  assert.equal(result.snapshot.params.serialNumber, "ABC123")
+  assert.equal(result.snapshot.route, BIKE_ROUTE_COMPONENT)
+  assert.equal(result.snapshot.params.serialNumber, BIKE_SERIAL_NUMBER)
   assert.equal(result.snapshot.screenURI, componentScreenURI)
-  assert.equal(publicClient.calls.at(-1)?.functionName, "viewComponent")
-  assert.deepEqual(publicClient.calls.at(-1)?.args, ["ABC123", userAddress])
+  assert.equal(publicClient.calls.at(-1)?.functionName, BIKE_VIEW_COMPONENT)
+  assert.deepEqual(publicClient.calls.at(-1)?.args, [BIKE_SERIAL_NUMBER, userAddress])
 })
 
 test("navigate works for the register route", async () => {
   const session = createSession()
   await session.load()
 
-  const snapshot = await session.navigate("register", {
-    serialNumber: "ABC123",
+  const snapshot = await session.navigate(BIKE_ROUTE_REGISTER, {
+    serialNumber: BIKE_SERIAL_NUMBER,
   })
 
-  assert.equal(snapshot.route, "register")
+  assert.equal(snapshot.route, BIKE_ROUTE_REGISTER)
   assert.equal(snapshot.screenURI, registerScreenURI)
   assert.equal(snapshot.resolvedScreen?.title, "Register")
 })
@@ -155,10 +104,10 @@ test("setState updates local state without calling a route", async () => {
   const callsBefore = publicClient.calls.length
 
   const snapshot = session.setState({
-    serialNumber: "ABC123",
+    serialNumber: BIKE_SERIAL_NUMBER,
   })
 
-  assert.equal(snapshot.state.serialNumber, "ABC123")
+  assert.equal(snapshot.state.serialNumber, BIKE_SERIAL_NUMBER)
   assert.equal(publicClient.calls.length, callsBefore)
 })
 
@@ -178,7 +127,7 @@ test("setState re-resolves current screen actions with updated state", async () 
             type: "button",
             label: "Look up",
             action: {
-              route: "component",
+              route: BIKE_ROUTE_COMPONENT,
               params: {
                 serialNumber: "$state.serialNumber",
               },
@@ -191,7 +140,7 @@ test("setState re-resolves current screen actions with updated state", async () 
   await session.load()
 
   const snapshot = session.setState({
-    serialNumber: "ABC123",
+    serialNumber: BIKE_SERIAL_NUMBER,
   })
 
   assert.deepEqual(snapshot.resolvedScreen?.elements[0], {
@@ -203,9 +152,9 @@ test("setState re-resolves current screen actions with updated state", async () 
     type: "button",
     label: "Look up",
     action: {
-      route: "component",
+      route: BIKE_ROUTE_COMPONENT,
       params: {
-        serialNumber: "ABC123",
+        serialNumber: BIKE_SERIAL_NUMBER,
       },
     },
   })
@@ -218,9 +167,9 @@ test("dispatchAction surfaces contract calls without sending transactions", asyn
   const callsBefore = publicClient.calls.length
 
   const action = {
-    contract: "BicycleComponentManager",
+    contract: BIKE_MANAGER_CONTRACT,
     function: "markMissing",
-    args: ["ABC123"],
+    args: [BIKE_SERIAL_NUMBER],
   }
   const result = await session.dispatchAction(action)
 
@@ -235,7 +184,7 @@ test("navigate rejects before load", async () => {
   const session = createSession()
 
   await assert.rejects(
-    () => session.navigate("entry"),
+    () => session.navigate(BIKE_ROUTE_ENTRY),
     (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_NOT_LOADED",
   )
 })
@@ -245,7 +194,7 @@ test("dispatchAction rejects unsupported runtime action shapes", async () => {
   await session.load()
 
   await assert.rejects(
-    () => session.dispatchAction({ route: "component" } as never),
+    () => session.dispatchAction({ route: BIKE_ROUTE_COMPONENT } as never),
     (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED",
   )
 })
@@ -254,7 +203,7 @@ test("load wraps missing screen resources", async () => {
   const session = createSession({
     publicClient: createPublicClient({
       routeResults: {
-        viewEntry: ["./screens/missing.json"],
+        [BIKE_VIEW_ENTRY]: ["./screens/missing.json"],
       },
     }),
   })
@@ -323,33 +272,8 @@ function createSession({
 
 function createPublicClient({
   camHash = ZERO_HASH,
-  addresses = {
-    BicycleComponentManagerUI: uiAddress,
-    BicycleComponentManager: managerAddress,
-  },
-  routeResults = {
-    viewEntry: [
-      "./screens/entry.json",
-      {
-        account: userAddress,
-        canRegister: true,
-      },
-    ],
-    viewComponent: [
-      "./screens/component.json",
-      {
-        serialNumber: "ABC123",
-        exists: true,
-      },
-    ],
-    viewRegister: [
-      "./screens/register.json",
-      {
-        serialNumber: "ABC123",
-        canRegister: true,
-      },
-    ],
-  },
+  addresses = bikeContractAddresses,
+  routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER),
 }: {
   readonly camHash?: Hex
   readonly addresses?: Record<string, Address>

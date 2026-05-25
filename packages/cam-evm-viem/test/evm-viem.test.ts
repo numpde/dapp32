@@ -18,83 +18,34 @@ import {
 import { CAM_ROOT_FUNCTIONS } from "../src/abi.ts"
 import { ZERO_ADDRESS } from "../src/constants.ts"
 import type { CamHost, ResourceLoader } from "../src/index.ts"
+import {
+  BIKE_ACCOUNT_ADDRESS as userAddress,
+  BIKE_CAM_URI as camDocumentURI,
+  BIKE_COMPONENT_SCREEN_URI,
+  BIKE_ENTRY_SCREEN_URI,
+  BIKE_MANAGER_ABI_URI as managerAbiURI,
+  BIKE_MANAGER_ADDRESS as managerAddress,
+  BIKE_MANAGER_CONTRACT,
+  BIKE_REGISTER_SCREEN_URI,
+  BIKE_RELATIVE_ENTRY_SCREEN_URI,
+  BIKE_RELATIVE_MANAGER_ABI_URI,
+  BIKE_ROUTE_COMPONENT,
+  BIKE_ROUTE_ENTRY,
+  BIKE_ROUTE_REGISTER,
+  BIKE_SERIAL_NUMBER,
+  BIKE_UI_ABI_URI as uiAbiURI,
+  BIKE_UI_ADDRESS as uiAddress,
+  BIKE_UI_CONTRACT,
+  BIKE_VIEW_ENTRY,
+  bikeCamJson as camJson,
+  bikeContractAddresses,
+  bikeHost,
+  bikeManagerAbi as managerAbi,
+  bikeRouteResults,
+  bikeUiAbi as uiAbi,
+} from "../../cam-core/test/fixtures/bike.ts"
 
-const host: CamHost = {
-  chainId: "eip155:31337",
-  address: "0x0000000000000000000000000000000000000001",
-}
-
-const userAddress = "0x0000000000000000000000000000000000000002"
-const uiAddress = "0x0000000000000000000000000000000000000003"
-const managerAddress = "0x0000000000000000000000000000000000000004"
-const camDocumentURI = "ipfs://example/main.json"
-const uiAbiURI = "ipfs://example/abi/BicycleComponentManagerUI.json"
-const managerAbiURI = "ipfs://example/abi/BicycleComponentManager.json"
-
-const camJson = {
-  cam: "1.0.0",
-  entry: "entry",
-  contracts: {
-    BicycleComponentManagerUI: {
-      abiURI: "./abi/BicycleComponentManagerUI.json",
-    },
-    BicycleComponentManager: {
-      abiURI: "./abi/BicycleComponentManager.json",
-    },
-  },
-  routes: {
-    entry: {
-      contract: "BicycleComponentManagerUI",
-      function: "viewEntry",
-      args: ["$account.address"],
-    },
-    component: {
-      contract: "BicycleComponentManagerUI",
-      function: "viewComponent",
-      args: ["$params.serialNumber", "$account.address"],
-    },
-    register: {
-      contract: "BicycleComponentManagerUI",
-      function: "viewRegister",
-      args: ["$params.serialNumber", "$account.address"],
-    },
-  },
-}
-
-const uiAbi = [
-  {
-    type: "function",
-    name: "viewEntry",
-    stateMutability: "view",
-    inputs: [{ name: "viewer", type: "address" }],
-    outputs: [
-      { name: "screenURI", type: "string" },
-      { name: "componentCount", type: "uint256" },
-    ],
-  },
-  {
-    type: "function",
-    name: "viewComponent",
-    stateMutability: "view",
-    inputs: [
-      { name: "serialNumber", type: "string" },
-      { name: "viewer", type: "address" },
-    ],
-    outputs: [{ name: "screenURI", type: "string" }],
-  },
-  {
-    type: "function",
-    name: "viewRegister",
-    stateMutability: "view",
-    inputs: [
-      { name: "serialNumber", type: "string" },
-      { name: "viewer", type: "address" },
-    ],
-    outputs: [{ name: "screenURI", type: "string" }],
-  },
-] as const satisfies Abi
-
-const managerAbi = [] as const satisfies Abi
+const host: CamHost = bikeHost
 
 test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned CAM", async () => {
   const camBytes = encodeJson(camJson)
@@ -158,8 +109,8 @@ test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relati
   const cam = parseCam(camJson)
   const publicClient = createPublicClient({
     addresses: {
-      BicycleComponentManagerUI: uiAddress,
-      BicycleComponentManager: managerAddress,
+      [BIKE_UI_CONTRACT]: uiAddress,
+      [BIKE_MANAGER_CONTRACT]: managerAddress,
     },
   })
   const resources = createResourceLoader({
@@ -175,10 +126,10 @@ test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relati
     loadResource: resources,
   })
 
-  assert.equal(contracts.BicycleComponentManagerUI.address, uiAddress)
-  assert.equal(contracts.BicycleComponentManagerUI.abiURI, uiAbiURI)
-  assert.deepEqual(contracts.BicycleComponentManagerUI.abi, uiAbi)
-  assert.equal(contracts.BicycleComponentManager.address, managerAddress)
+  assert.equal(contracts[BIKE_UI_CONTRACT].address, uiAddress)
+  assert.equal(contracts[BIKE_UI_CONTRACT].abiURI, uiAbiURI)
+  assert.deepEqual(contracts[BIKE_UI_CONTRACT].abi, uiAbi)
+  assert.equal(contracts[BIKE_MANAGER_CONTRACT].address, managerAddress)
 })
 
 test("resolveCamContracts rejects unbound contract names", async () => {
@@ -186,7 +137,7 @@ test("resolveCamContracts rejects unbound contract names", async () => {
     () => resolveCamContracts({
       publicClient: createPublicClient({
         addresses: {
-          BicycleComponentManagerUI: uiAddress,
+          [BIKE_UI_CONTRACT]: uiAddress,
         },
       }),
       host,
@@ -203,8 +154,8 @@ test("resolveCamContracts rejects invalid ABI JSON", async () => {
     () => resolveCamContracts({
       publicClient: createPublicClient({
         addresses: {
-          BicycleComponentManagerUI: uiAddress,
-          BicycleComponentManager: managerAddress,
+          [BIKE_UI_CONTRACT]: uiAddress,
+          [BIKE_MANAGER_CONTRACT]: managerAddress,
         },
       }),
       host,
@@ -224,8 +175,8 @@ test("resolveCamContracts rejects ABI JSON that is not an array", async () => {
     () => resolveCamContracts({
       publicClient: createPublicClient({
         addresses: {
-          BicycleComponentManagerUI: uiAddress,
-          BicycleComponentManager: managerAddress,
+          [BIKE_UI_CONTRACT]: uiAddress,
+          [BIKE_MANAGER_CONTRACT]: managerAddress,
         },
       }),
       host,
@@ -244,7 +195,7 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
   const cam = parseCam(camJson)
   const publicClient = createPublicClient({
     routeResults: {
-      viewEntry: ["./screens/entry.json", BigInt(7)],
+      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, BigInt(7)],
     },
   })
 
@@ -253,13 +204,13 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
     cam,
     camURI: camDocumentURI,
     contracts: {
-      BicycleComponentManagerUI: {
+      [BIKE_UI_CONTRACT]: {
         address: uiAddress,
         abiURI: uiAbiURI,
         abi: uiAbi,
       },
     },
-    route: "entry",
+    route: BIKE_ROUTE_ENTRY,
     context: {
       host,
       account: { address: userAddress },
@@ -267,13 +218,13 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
     },
   })
 
-  assert.equal(result.screenURI, "ipfs://example/screens/entry.json")
-  assert.deepEqual(result.values, ["./screens/entry.json", BigInt(7)])
+  assert.equal(result.screenURI, BIKE_ENTRY_SCREEN_URI)
+  assert.deepEqual(result.values, [BIKE_RELATIVE_ENTRY_SCREEN_URI, BigInt(7)])
 
   assert.deepEqual(publicClient.calls.at(-1), {
     address: uiAddress,
     abi: uiAbi,
-    functionName: "viewEntry",
+    functionName: BIKE_VIEW_ENTRY,
     args: [userAddress],
     account: userAddress,
   })
@@ -284,19 +235,19 @@ test("callCamRoute requires the first route return value to be a non-empty scree
     () => callCamRoute({
       publicClient: createPublicClient({
         routeResults: {
-          viewEntry: "",
+          [BIKE_VIEW_ENTRY]: "",
         },
       }),
       cam: parseCam(camJson),
       camURI: camDocumentURI,
       contracts: {
-        BicycleComponentManagerUI: {
+        [BIKE_UI_CONTRACT]: {
           address: uiAddress,
           abiURI: uiAbiURI,
           abi: uiAbi,
         },
       },
-      route: "entry",
+      route: BIKE_ROUTE_ENTRY,
       context: {
         host,
         account: { address: userAddress },
@@ -312,7 +263,7 @@ test("callCamRoute accepts only CAM-local screen JSON resources", async () => {
     "https://example.com/x.json",
     "ipfs://example/x.json",
     "../x.json",
-    "./abi/BicycleComponentManager.json",
+    BIKE_RELATIVE_MANAGER_ABI_URI,
     "./screens/../x.json",
     "/screens/component.json",
   ]
@@ -322,19 +273,19 @@ test("callCamRoute accepts only CAM-local screen JSON resources", async () => {
       () => callCamRoute({
         publicClient: createPublicClient({
           routeResults: {
-            viewEntry: [unsafeScreenURI],
+            [BIKE_VIEW_ENTRY]: [unsafeScreenURI],
           },
         }),
         cam: parseCam(camJson),
         camURI: camDocumentURI,
         contracts: {
-          BicycleComponentManagerUI: {
+          [BIKE_UI_CONTRACT]: {
             address: uiAddress,
             abiURI: uiAbiURI,
             abi: uiAbi,
           },
         },
-        route: "entry",
+        route: BIKE_ROUTE_ENTRY,
         context: {
           host,
           account: { address: userAddress },
@@ -348,73 +299,19 @@ test("callCamRoute accepts only CAM-local screen JSON resources", async () => {
 
 test("bike CAM routes resolve to the three route-level screens", async () => {
   const cam = parseCam(camJson)
-  const routeResults = {
-    viewEntry: [
-      "./screens/entry.json",
-      {
-        account: userAddress,
-        canRegister: true,
-        accountInfo: "registrar",
-      },
-    ],
-    viewComponent: [
-      "./screens/component.json",
-      {
-        exists: true,
-        serialHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
-        tokenContract: "0x0000000000000000000000000000000000000010",
-        tokenId: BigInt(42),
-        owner: userAddress,
-        ownerInfo: "owner",
-        registrar: userAddress,
-        status: 1,
-        tokenURI: "ipfs://example/token/42",
-        registeredAt: 1,
-        updatedAt: 2,
-        serialNumber: "ABC123",
-        permissions: BigInt(7),
-        isOwner: true,
-        canUpdateMetadata: true,
-        canMarkMissing: true,
-        canClearMissing: false,
-        canRetire: false,
-      },
-      {
-        account: userAddress,
-        canRegister: true,
-        accountInfo: "registrar",
-      },
-    ],
-    viewRegister: [
-      "./screens/register.json",
-      {
-        canRegister: true,
-        exists: false,
-        serialHash: "0x2222222222222222222222222222222222222222222222222222222222222222",
-        tokenId: BigInt(0),
-        defaultComponents: "0x0000000000000000000000000000000000000020",
-        serialNumber: "ABC123",
-        accountInfo: "registrar",
-      },
-      {
-        account: userAddress,
-        canRegister: true,
-        accountInfo: "registrar",
-      },
-    ],
-  }
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER)
 
   for (const [route, expectedScreenURI] of [
-    ["entry", "ipfs://example/screens/entry.json"],
-    ["component", "ipfs://example/screens/component.json"],
-    ["register", "ipfs://example/screens/register.json"],
+    [BIKE_ROUTE_ENTRY, BIKE_ENTRY_SCREEN_URI],
+    [BIKE_ROUTE_COMPONENT, BIKE_COMPONENT_SCREEN_URI],
+    [BIKE_ROUTE_REGISTER, BIKE_REGISTER_SCREEN_URI],
   ] as const) {
     const result = await callCamRoute({
       publicClient: createPublicClient({ routeResults }),
       cam,
       camURI: camDocumentURI,
       contracts: {
-        BicycleComponentManagerUI: {
+        [BIKE_UI_CONTRACT]: {
           address: uiAddress,
           abiURI: uiAbiURI,
           abi: uiAbi,
@@ -424,7 +321,7 @@ test("bike CAM routes resolve to the three route-level screens", async () => {
       context: {
         host,
         account: { address: userAddress },
-        params: { serialNumber: "ABC123" },
+        params: { serialNumber: BIKE_SERIAL_NUMBER },
       },
     })
 
@@ -434,8 +331,8 @@ test("bike CAM routes resolve to the three route-level screens", async () => {
     assert.doesNotThrow(() => resolveScreen(screen, {
       host,
       account: { address: userAddress },
-      params: { serialNumber: "ABC123" },
-      state: { serialNumber: "ABC123" },
+      params: { serialNumber: BIKE_SERIAL_NUMBER },
+      state: { serialNumber: BIKE_SERIAL_NUMBER },
       values: result.values,
     }))
   }
@@ -446,19 +343,19 @@ test("callCamRoute rejects route functions missing from the resolved ABI", async
     () => callCamRoute({
       publicClient: createPublicClient({
         routeResults: {
-          viewEntry: ["./screens/entry.json"],
+          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
         },
       }),
       cam: parseCam(camJson),
       camURI: camDocumentURI,
       contracts: {
-        BicycleComponentManagerUI: {
+        [BIKE_UI_CONTRACT]: {
           address: uiAddress,
           abiURI: uiAbiURI,
           abi: managerAbi,
         },
       },
-      route: "entry",
+      route: BIKE_ROUTE_ENTRY,
       context: {
         host,
         account: { address: userAddress },
@@ -481,19 +378,19 @@ test("callCamRoute rejects route functions that are not view or pure", async () 
     () => callCamRoute({
       publicClient: createPublicClient({
         routeResults: {
-          viewEntry: ["./screens/entry.json"],
+          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
         },
       }),
       cam: parseCam(camJson),
       camURI: camDocumentURI,
       contracts: {
-        BicycleComponentManagerUI: {
+        [BIKE_UI_CONTRACT]: {
           address: uiAddress,
           abiURI: uiAbiURI,
           abi: nonViewAbi,
         },
       },
-      route: "entry",
+      route: BIKE_ROUTE_ENTRY,
       context: {
         host,
         account: { address: userAddress },
@@ -517,19 +414,19 @@ test("callCamRoute rejects overloaded route function names in CAM V1", async () 
     () => callCamRoute({
       publicClient: createPublicClient({
         routeResults: {
-          viewEntry: ["./screens/entry.json"],
+          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
         },
       }),
       cam: parseCam(camJson),
       camURI: camDocumentURI,
       contracts: {
-        BicycleComponentManagerUI: {
+        [BIKE_UI_CONTRACT]: {
           address: uiAddress,
           abiURI: uiAbiURI,
           abi: overloadedAbi,
         },
       },
-      route: "entry",
+      route: BIKE_ROUTE_ENTRY,
       context: {
         host,
         account: { address: userAddress },
@@ -543,7 +440,7 @@ test("callCamRoute rejects overloaded route function names in CAM V1", async () 
 function createPublicClient({
   camURI = camDocumentURI,
   camHash = ZERO_HASH,
-  addresses = {},
+  addresses = bikeContractAddresses,
   routeResults = {},
 }: {
   readonly camURI?: string
@@ -604,7 +501,9 @@ function createResourceLoader(resources: Record<string, Uint8Array>): ResourceLo
   }
 }
 
-async function readBikeScreen(route: "entry" | "component" | "register"): Promise<string> {
+async function readBikeScreen(
+  route: typeof BIKE_ROUTE_ENTRY | typeof BIKE_ROUTE_COMPONENT | typeof BIKE_ROUTE_REGISTER,
+): Promise<string> {
   return await readFile(
     new URL(`../../../dapps/bike-nft/cam/screens/${route}.json`, import.meta.url),
     "utf8",
