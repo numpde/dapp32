@@ -52,7 +52,6 @@ export async function callCamRoute({
   }
 
   return {
-    route,
     screenURI: resolveResourceURI(camURI, screenURI),
     raw,
   }

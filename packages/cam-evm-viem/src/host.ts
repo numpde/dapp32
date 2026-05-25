@@ -5,6 +5,7 @@ import { CAM_ROOT_FUNCTIONS, camRootAbi } from "./abi.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamHash } from "./hash.ts"
 import { parseJsonBytes } from "./json.ts"
+import { loadResourceBytes } from "./resources.ts"
 import type { LoadedCam, LoadCamFromHostOptions } from "./types.ts"
 
 export async function loadCamFromHost({
@@ -32,12 +33,11 @@ export async function loadCamFromHost({
 
   const [camURI, camHash] = rootValues as [string, Hex]
 
-  let camBytes: Uint8Array
-  try {
-    camBytes = await loadResource(camURI)
-  } catch (cause) {
-    throw new CamEvmError("CAM_RESOURCE_LOAD_FAILED", `failed to load CAM resource: ${camURI}`, cause)
-  }
+  const camBytes = await loadResourceBytes(
+    loadResource,
+    camURI,
+    `failed to load CAM resource: ${camURI}`,
+  )
 
   verifyCamHash({
     bytes: camBytes,

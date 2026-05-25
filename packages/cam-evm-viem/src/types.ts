@@ -17,14 +17,12 @@ export type LoadedCam = {
 }
 
 export type ResolvedCamContract = {
-  readonly name: string
   readonly address: Address
   readonly abiURI: string
   readonly abi: Abi
 }
 
 export type RouteResult = {
-  readonly route: string
   readonly screenURI: string
   readonly raw: unknown
 }

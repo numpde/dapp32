@@ -4,6 +4,7 @@ import type { Address } from "viem"
 import { CAM_ROOT_FUNCTIONS, camRootAbi, parseAbiBytes } from "./abi.ts"
 import { ZERO_ADDRESS } from "./constants.ts"
 import { CamEvmError } from "./errors.ts"
+import { loadResourceBytes } from "./resources.ts"
 import type { ResolvedCamContract, ResolveCamContractsOptions } from "./types.ts"
 
 export async function resolveCamContracts({
@@ -32,12 +33,15 @@ export async function resolveCamContracts({
       }
 
       const abiURI = resolveResourceURI(camURI, contract.abiURI)
-      const abiBytes = await loadAbiResource(loadResource, abiURI)
+      const abiBytes = await loadResourceBytes(
+        loadResource,
+        abiURI,
+        `failed to load CAM ABI resource: ${abiURI}`,
+      )
 
       return [
         name,
         {
-          name,
           address,
           abiURI,
           abi: parseAbiBytes(abiBytes, abiURI),
@@ -47,15 +51,4 @@ export async function resolveCamContracts({
   )
 
   return Object.fromEntries(entries)
-}
-
-async function loadAbiResource(
-  loadResource: ResolveCamContractsOptions["loadResource"],
-  abiURI: string,
-): Promise<Uint8Array> {
-  try {
-    return await loadResource(abiURI)
-  } catch (cause) {
-    throw new CamEvmError("CAM_RESOURCE_LOAD_FAILED", `failed to load CAM ABI resource: ${abiURI}`, cause)
-  }
 }

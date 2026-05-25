@@ -195,7 +195,6 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns r
     camURI: camDocumentURI,
     contracts: {
       BicycleComponentManagerUI: {
-        name: "BicycleComponentManagerUI",
         address: uiAddress,
         abiURI: uiAbiURI,
         abi: uiAbi,
@@ -209,7 +208,6 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns r
     },
   })
 
-  assert.equal(result.route, "entry")
   assert.equal(result.screenURI, "ipfs://example/screens/entry.json")
   assert.deepEqual(result.raw, ["./screens/entry.json", BigInt(7)])
 
@@ -233,7 +231,6 @@ test("callCamRoute requires the first route return value to be a non-empty scree
       camURI: camDocumentURI,
       contracts: {
         BicycleComponentManagerUI: {
-          name: "BicycleComponentManagerUI",
           address: uiAddress,
           abiURI: uiAbiURI,
           abi: uiAbi,
@@ -262,7 +259,6 @@ test("callCamRoute rejects route functions missing from the resolved ABI", async
       camURI: camDocumentURI,
       contracts: {
         BicycleComponentManagerUI: {
-          name: "BicycleComponentManagerUI",
           address: uiAddress,
           abiURI: uiAbiURI,
           abi: managerAbi,
@@ -299,7 +295,6 @@ test("callCamRoute rejects overloaded route function names in CAM V1", async () 
       camURI: camDocumentURI,
       contracts: {
         BicycleComponentManagerUI: {
-          name: "BicycleComponentManagerUI",
           address: uiAddress,
           abiURI: uiAbiURI,
           abi: overloadedAbi,
