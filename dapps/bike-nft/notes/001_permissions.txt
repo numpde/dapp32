@@ -71,14 +71,14 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 | `registerComponent(owner, serial, metadataURI)` | `REGISTRAR_ROLE` | Uses the configured default component-token contract. Creates a verified record. |
 | `registerComponentIn(tokenContract, owner, serial, metadataURI)` | `REGISTRAR_ROLE` and `tokenContract` must be allowed | Existing records store `tokenContract + tokenId`; changing defaults affects future records only. |
 | `setDefaultComponents(tokenContract)` | `CONFIGURER_ROLE` | Future registrations only. Does not reinterpret old records. |
-| `setAllowedComponents(tokenContract, allowed)` | `CONFIGURER_ROLE` | Recommended if `registerComponentIn` exists. Prevents arbitrary token targets. |
+| `setComponentCollection(tokenContract, allowed)` | `CONFIGURER_ROLE` | Recommended if `registerComponentIn` exists. Prevents arbitrary token targets. |
 | `setComponentMetadata(serial, uri)` | Current ERC-721 owner or `CAP_UPDATE_METADATA` delegate | Manager calls token `setTokenURI` after authorization. |
 | `markMissing(serial)` | Current ERC-721 owner or `CAP_MARK_MISSING` delegate | Emits the reporter. V1 status only; does not block ERC-721 transfer unless token later enforces locks. |
 | `clearMissing(serial)` | Current ERC-721 owner or `CAP_CLEAR_MISSING` delegate | Ordinary registrars should not clear missing status by role alone. |
 | `retireComponent(serial)` | Current ERC-721 owner or `CAP_RETIRE` delegate | Treat as final/irreversible unless explicitly designed otherwise. |
 | `setComponentDelegate(serial, delegate, caps, validUntil)` | Current ERC-721 owner | Store `grantor = owner`. Delegation is valid only while `ownerOf(tokenContract, tokenId) == grantor`. |
 | `revokeComponentDelegate(serial, delegate)` | Current ERC-721 owner | Old-owner delegations are automatically ineffective after transfer. |
-| `addRegistrarAttestation(serial, uri)` | Original registrar or `STATUS_ATTESTER_ROLE` | Does not alter ownership, token URI, or missing status. |
+| `addComponentAttestation(serial, attestationType, uri)` | Original registrar or `STATUS_ATTESTER_ROLE` | Does not alter ownership, token URI, or missing status. |
 | `setAccountInfo(uri)` | `msg.sender` only | Prefer no `account` parameter. If kept, require `account == msg.sender`. |
 | `pause()` | `PAUSER_ROLE` | Emergency stop for manager writes. |
 | `unpause()` | `PAUSER_ROLE` or separate governance role | Consider separate unpause authority later. |
