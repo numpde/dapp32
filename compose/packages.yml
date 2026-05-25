@@ -44,19 +44,31 @@ services:
         npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
         printf '%s\n' 'package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata'
 
-  # Package build keeps packages/ read-only and overlays only generated dist/
-  # directories as writable.
+  # Package build keeps packages/ read-only and overlays generated dist/
+  # directories with container-local tmpfs mounts.
   # The workspace convention is intentionally narrow: each package build script
   # runs `tsc -p tsconfig.json`, each tsconfig reads src/**/*.ts, and emitted
-  # artifacts go under that package's ignored dist/ directory.
+  # artifacts go under that package's ephemeral dist/ mount.
   package-build:
     <<: *package_base
     volumes:
       - ../packages:/work/packages:ro
-      - ../packages/cam-core/dist:/work/packages/cam-core/dist:rw
-      - ../packages/cam-evm-viem/dist:/work/packages/cam-evm-viem/dist:rw
-      - ../packages/cam-screen/dist:/work/packages/cam-screen/dist:rw
-      - ../packages/cam-viewer/dist:/work/packages/cam-viewer/dist:rw
+      - type: tmpfs
+        target: /work/packages/cam-core/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-evm-viem/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-screen/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-viewer/dist
+        tmpfs:
+          mode: 511
     command:
       - "npm"
       - "run"
@@ -67,8 +79,23 @@ services:
     volumes:
       - ../dapps:/work/dapps:ro
       - ../packages:/work/packages:ro
+      - type: tmpfs
+        target: /work/packages/cam-core/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-evm-viem/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-screen/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-viewer/dist
+        tmpfs:
+          mode: 511
     command:
       - "npm"
-      - "test"
-      - "--workspaces"
-      - "--if-present"
+      - "run"
+      - "test:packages"

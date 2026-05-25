@@ -83,10 +83,12 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual(True, volume_for(build, "/work/packages").get("read_only"))
         for package_json in sorted(repo_path("packages").glob("*/package.json")):
             package_dir = package_json.parent.name
-            self.assertNotEqual(
-                True,
-                volume_for(build, f"/work/packages/{package_dir}/dist").get("read_only", False),
-            )
+            build_dist = volume_for(build, f"/work/packages/{package_dir}/dist")
+            test_dist = volume_for(test, f"/work/packages/{package_dir}/dist")
+            self.assertEqual("tmpfs", build_dist.get("type"))
+            self.assertEqual("tmpfs", test_dist.get("type"))
+            self.assertEqual(511, build_dist.get("tmpfs", {}).get("mode"))
+            self.assertEqual(511, test_dist.get("tmpfs", {}).get("mode"))
         self.assertEqual(True, volume_for(test, "/work/packages").get("read_only"))
 
     def test_viewer_terminal_renders_as_offline_read_only_interactive_lane(self) -> None:
@@ -101,9 +103,12 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("none", viewer.get("network_mode"))
         self.assertEqual(True, viewer.get("stdin_open"))
         self.assertEqual(True, viewer.get("tty"))
-        self.assertEqual(
-            ["node", "--experimental-strip-types", "tools/viewer-terminal/terminal-session.ts"],
-            viewer.get("command"),
-        )
+        self.assertIn("npm run build:packages", " ".join(viewer.get("command", [])))
+        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", " ".join(viewer.get("command", [])))
         for target in ["/work/dapps", "/work/packages", "/work/tools"]:
             self.assertEqual(True, volume_for(viewer, target).get("read_only"))
+        for package_json in sorted(repo_path("packages").glob("*/package.json")):
+            package_dir = package_json.parent.name
+            viewer_dist = volume_for(viewer, f"/work/packages/{package_dir}/dist")
+            self.assertEqual("tmpfs", viewer_dist.get("type"))
+            self.assertEqual(511, viewer_dist.get("tmpfs", {}).get("mode"))

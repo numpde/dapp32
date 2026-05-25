@@ -129,10 +129,8 @@ class ComposePostureTest(unittest.TestCase):
         self.assertNotIn("../packages:/work/packages:rw", text)
         for package_json in sorted(repo_path("packages").glob("*/package.json")):
             package_dir = package_json.parent.name
-            self.assertIn(
-                f"../packages/{package_dir}/dist:/work/packages/{package_dir}/dist:rw",
-                text,
-            )
+            self.assertIn(f"target: /work/packages/{package_dir}/dist", text)
+            self.assertNotIn(f"../packages/{package_dir}/dist:", text)
         self.assertIn("working_dir: /work/packages", text)
         self.assertIn("npm", text)
         self.assertIn("ls", text)
@@ -174,13 +172,14 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("define compose_run_with_package_deps", text)
         self.assertIn("package-graph-check:", text)
         self.assertIn("package-build: package-graph-check", text)
-        self.assertIn("find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json", text)
+        self.assertNotIn("mkdir -p \"$${manifest%/package.json}/dist\"", text)
         self.assertIsNone(re.search(r"^package-build:\s+package-deps$", text, re.MULTILINE))
-        self.assertIn("package-test: package-build", text)
-        self.assertIn("viewer-terminal-check: package-build", text)
+        self.assertIn("package-test: package-graph-check", text)
+        self.assertIn("viewer-terminal-check: package-graph-check", text)
+        self.assertIn("npm run build:packages", text)
         self.assertIn("./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json", text)
-        self.assertIn("node --experimental-strip-types ../tools/viewer-terminal/terminal-session.ts", text)
-        self.assertIn("viewer-terminal: package-build", text)
+        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", text)
+        self.assertIn("viewer-terminal: package-graph-check", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-graph-check)", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-build)", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-test)", text)

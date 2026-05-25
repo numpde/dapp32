@@ -20,8 +20,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    pids_limit: 128
-    mem_limit: 512m
+    pids_limit: 384
+    mem_limit: 1g
     environment:
       HOME: /tmp/home
       npm_config_cache: /tmp/npm-cache
@@ -34,7 +34,28 @@ services:
       - ../dapps:/work/dapps:ro
       - ../packages:/work/packages:ro
       - ../tools:/work/tools:ro
+      - type: tmpfs
+        target: /work/packages/cam-core/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-evm-viem/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-screen/dist
+        tmpfs:
+          mode: 511
+      - type: tmpfs
+        target: /work/packages/cam-viewer/dist
+        tmpfs:
+          mode: 511
     command:
-      - "node"
-      - "--experimental-strip-types"
-      - "tools/viewer-terminal/terminal-session.ts"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        cd /work/packages
+        npm run build:packages
+        cd /work
+        node --experimental-strip-types tools/viewer-terminal/terminal-session.ts

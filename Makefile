@@ -201,19 +201,18 @@ package-graph-check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)
 
 package-build: package-graph-check
-	@find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json -type f | while IFS= read -r manifest; do mkdir -p "$${manifest%/package.json}/dist"; done
 	$(call compose_run_with_package_deps,packages.yml,package-build)
 
-package-test: package-build
+package-test: package-graph-check
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-viewer-terminal-check: package-build
+viewer-terminal-check: package-graph-check
 	@$(NON_ROOT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm -T viewer-terminal \
-	  sh -eu -c 'cd /work/packages && ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json && printf "quit\n" | node --experimental-strip-types ../tools/viewer-terminal/terminal-session.ts >/dev/null'
+	  sh -eu -c 'cd /work/packages && npm run build:packages && ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json && cd /work && printf "quit\n" | node --experimental-strip-types tools/viewer-terminal/terminal-session.ts >/dev/null'
 
-viewer-terminal: package-build
+viewer-terminal: package-graph-check
 	@$(NON_ROOT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	if $(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all --quiet viewer-terminal | grep -q .; then \
