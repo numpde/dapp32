@@ -373,6 +373,14 @@
           <code>forge soldeer install</code>, or any dependency update command
           while serving the app.
         </p>
+        <p>
+          The current npm lane is named <code>package-*</code> because the root
+          workspace currently contains <code>packages/*</code>. A browser viewer
+          under <code>apps/</code> should force an explicit naming decision:
+          either rename this lane to a neutral npm/workspace name, or add a
+          separate app lane. Do not quietly make <code>package-build</code>
+          responsible for apps without changing the contract its name implies.
+        </p>
       </div>
 
       <div class="matrix">
@@ -399,7 +407,7 @@
               <td><code>compose/package-deps.yml</code></td>
               <td><code>package-egress-proxy</code> plus npm staging</td>
               <td>Root <code>node_modules/</code> and, only with <code>ALLOW_UPDATE=1</code>, <code>package-lock.json</code></td>
-              <td>Run before package build/test/viewer lanes; routine npm lanes stay offline.</td>
+              <td>Run before npm workspace build/test/viewer lanes; routine npm lanes stay offline.</td>
             </tr>
             <tr>
               <td><code>make package-graph-check</code></td>
@@ -418,8 +426,41 @@
           <li>The graphical viewer stack should not have external package registry access.</li>
           <li>The static server and viewer web server should not be allowed to update lockfiles.</li>
           <li>The deploy job should depend on <code>deps-verify</code>, not run Soldeer itself.</li>
-          <li>The viewer web server should depend on <code>package-build</code> or an equivalent offline package build, not run npm install.</li>
+          <li>The viewer web server should depend on an offline npm workspace/app build, not run npm install.</li>
         </ul>
+      </div>
+    </section>
+
+    <section>
+      <h2>Naming decision before implementation</h2>
+      <div class="panel">
+        <p>
+          If <code>apps/cam-viewer-web</code> becomes an npm workspace, the root
+          workspace changes from <code>packages/*</code> to something like
+          <code>packages/*</code> plus <code>apps/*</code>. At that point,
+          <code>package-deps</code>, <code>package-build</code>, and
+          <code>package-test</code> are no longer precise names.
+        </p>
+        <p>
+          The lower-regret shape is to rename the npm lane around what it
+          actually governs:
+        </p>
+        <p>
+          <code>npm-deps</code>, <code>npm-graph-check</code>,
+          <code>npm-build</code>, <code>npm-test</code>
+        </p>
+        <p>
+          or:
+        </p>
+        <p>
+          <code>workspace-deps</code>, <code>workspace-graph-check</code>,
+          <code>workspace-build</code>, <code>workspace-test</code>
+        </p>
+        <p>
+          The exact names matter less than the boundary: one controlled npm
+          supply-chain lane for the whole root workspace, and no registry access
+          in the local graphical viewer runtime.
+        </p>
       </div>
     </section>
 
@@ -533,7 +574,7 @@
             <tr>
               <td><code>viewer-web</code></td>
               <td>Host-loopback dev server</td>
-              <td>None for runtime; package build output only in normal package lanes</td>
+              <td>None for runtime; npm build output only in normal workspace lanes</td>
               <td>None</td>
               <td>The browser app should contain no private material.</td>
             </tr>
@@ -585,11 +626,12 @@
           <code>make bike-nft-viewer-local</code>
         </p>
         <p>
-          It should depend on the package build and dependency integrity gates,
-          including <code>package-build</code> for TypeScript packages and
-          <code>deps-verify</code> before any Foundry compile/deploy work. Then
-          it should start Anvil and the static server, run the local deploy job,
-          and start the viewer web server. A matching
+          It should depend on npm workspace and dependency integrity gates,
+          including an offline build that covers both
+          <code>packages/*</code> and the viewer app under <code>apps/*</code>,
+          plus <code>deps-verify</code> before any Foundry compile/deploy work.
+          Then it should start Anvil and the static server, run the local deploy
+          job, and start the viewer web server. A matching
           <code>make bike-nft-viewer-local-down</code> should stop the stack and
           remove only this scenario's containers and generated volumes.
         </p>
