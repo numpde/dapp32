@@ -9,8 +9,9 @@ DAPPS_DIR := dapps
 PACKAGES_DIR := packages
 DEPENDENCIES_DIR := $(DAPPS_DIR)/dependencies
 DEPENDENCY_METADATA_FILES := $(DAPPS_DIR)/soldeer.lock $(DAPPS_DIR)/remappings.txt $(DAPPS_DIR)/dependency-checksums.txt
-PACKAGE_NODE_MODULES_DIR := node_modules
-PACKAGE_LOCK_FILE := package-lock.json
+PACKAGE_MANIFEST_FILE := $(PACKAGES_DIR)/package.json
+PACKAGE_NODE_MODULES_DIR := $(PACKAGES_DIR)/node_modules
+PACKAGE_LOCK_FILE := $(PACKAGES_DIR)/package-lock.json
 ACTUAL_UID := $(shell id -u)
 LOCAL_UID ?= $(shell id -u)
 LOCAL_GID ?= $(shell id -g)
@@ -151,7 +152,7 @@ package-deps:
 	    printf '%s\n' 'Refusing package dependency install because package-lock.json exists and is not a file.' >&2; \
 	    exit 2; \
 	  fi; \
-	  if [[ -L package.json ]]; then \
+	  if [[ -L "$(PACKAGE_MANIFEST_FILE)" ]]; then \
 	    printf '%s\n' 'Refusing package dependency install because package.json is a symlink.' >&2; \
 	    exit 2; \
 	  fi; \
@@ -170,17 +171,17 @@ package-deps:
 	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
 	esac; \
 	package_input_dir="$$(mktemp -d)"; \
-	mkdir -p "$$package_input_dir/$(PACKAGES_DIR)"; \
-	cp package.json "$$package_input_dir/package.json"; \
-	if [[ -f "$(PACKAGE_LOCK_FILE)" ]]; then cp "$(PACKAGE_LOCK_FILE)" "$$package_input_dir/$(PACKAGE_LOCK_FILE)"; fi; \
+	cp "$(PACKAGE_MANIFEST_FILE)" "$$package_input_dir/package.json"; \
+	if [[ -f "$(PACKAGE_LOCK_FILE)" ]]; then cp "$(PACKAGE_LOCK_FILE)" "$$package_input_dir/package-lock.json"; fi; \
 	while IFS= read -r manifest; do \
 	  if [[ -L "$$manifest" ]]; then \
 	    printf 'Refusing package dependency install because package manifest is a symlink: %s\n' "$$manifest" >&2; \
 	    exit 2; \
 	  fi; \
 	  package_dir="$${manifest%/package.json}"; \
+	  package_dir="$${package_dir#$(PACKAGES_DIR)/}"; \
 	  mkdir -p "$$package_input_dir/$$package_dir"; \
-	  cp "$$manifest" "$$package_input_dir/$$manifest"; \
+	  cp "$$manifest" "$$package_input_dir/$$package_dir/package.json"; \
 	done < <(find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json -type f | sort); \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm package-stage; \

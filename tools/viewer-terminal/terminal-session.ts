@@ -9,11 +9,11 @@ import type {
   PublicClient,
 } from "viem"
 
-import { createCamViewerSession } from "@cam/viewer"
+import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
 import type {
   CamViewerSession,
   CamViewerSnapshot,
-} from "@cam/viewer"
+} from "../../packages/cam-viewer/dist/index.js"
 import type {
   ResolvedButtonElement,
   ResolvedScreenElement,

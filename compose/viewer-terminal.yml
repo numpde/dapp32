@@ -31,9 +31,6 @@ services:
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=256m
     volumes:
-      - ../package.json:/work/package.json:ro
-      - ../package-lock.json:/work/package-lock.json:ro
-      - ../node_modules:/work/node_modules:ro
       - ../dapps:/work/dapps:ro
       - ../packages:/work/packages:ro
       - ../tools:/work/tools:ro

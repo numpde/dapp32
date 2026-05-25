@@ -29,8 +29,8 @@ class PackageMetadataTest(unittest.TestCase):
 
     def test_package_lock_source_is_npm_package_lock_only(self) -> None:
         package_locks = self.repo_files_named("package-lock.json")
-        allowed_lock = repo_path("package-lock.json")
-        self.assertLessEqual(set(package_locks), {allowed_lock}, "package-lock.json belongs only at repo root")
+        allowed_lock = repo_path("packages/package-lock.json")
+        self.assertLessEqual(set(package_locks), {allowed_lock}, "package-lock.json belongs only in packages/")
         for path in package_locks:
             with self.subTest(path=str(path)):
                 self.assertFalse(path.is_symlink(), f"{path}: package lock must not be a symlink")
@@ -43,11 +43,11 @@ class PackageMetadataTest(unittest.TestCase):
 
         self.assertEqual([], unexpected_files, "package-lock.json is the only supported package lock source")
 
-    def test_root_workspace_layout_matches_package_lane_convention(self) -> None:
-        root_manifest = self.read_manifest(repo_path("package.json"))
+    def test_packages_workspace_layout_matches_package_lane_convention(self) -> None:
+        root_manifest = self.read_manifest(repo_path("packages/package.json"))
 
         self.assertIs(root_manifest.get("private"), True)
-        self.assertEqual(["packages/*"], root_manifest.get("workspaces"))
+        self.assertEqual(["cam-*"], root_manifest.get("workspaces"))
 
     def test_package_manifests_follow_workspace_layout(self) -> None:
         expected_paths = set(self.package_manifest_paths())
@@ -93,7 +93,7 @@ class PackageMetadataTest(unittest.TestCase):
                 self.assertNotRegex(version, VERSION_RE)
 
     def test_package_lock_uses_registry_sources_with_integrity(self) -> None:
-        lock_path = repo_path("package-lock.json")
+        lock_path = repo_path("packages/package-lock.json")
         if not lock_path.exists():
             self.skipTest("package-lock.json has not been generated yet")
 
@@ -156,7 +156,7 @@ class PackageMetadataTest(unittest.TestCase):
                 )
 
     def package_manifest_paths(self) -> list[Path]:
-        return [repo_path("package.json"), *sorted(repo_path("packages").glob("*/package.json"))]
+        return [repo_path("packages/package.json"), *sorted(repo_path("packages").glob("*/package.json"))]
 
     def workspace_package_names(self) -> dict[str, str]:
         names: dict[str, str] = {}
@@ -179,9 +179,9 @@ class PackageMetadataTest(unittest.TestCase):
         return [path for path in iter_files(".") if path.name == name]
 
     def workspace_lock_paths(self) -> set[str]:
-        root = repo_path(".")
+        root = repo_path("packages")
         return {
             manifest.parent.relative_to(root).as_posix()
             for manifest in self.package_manifest_paths()
-            if manifest != repo_path("package.json")
+            if manifest != repo_path("packages/package.json")
         }

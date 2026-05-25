@@ -1,13 +1,13 @@
 # Offline npm workspace build/test lanes.
 #
 # This file deliberately does not install dependencies and has no network. Run
-# make package-deps first to materialize root node_modules/ from the committed
-# package-lock.json through compose/package-deps.yml.
+# make package-deps first to materialize packages/node_modules/ from the
+# committed packages/package-lock.json through compose/package-deps.yml.
 x-package-base: &package_base
   build:
     context: ../containers/node-deps
     dockerfile: Dockerfile
-  working_dir: /work
+  working_dir: /work/packages
   user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
   read_only: true
   network_mode: "none"
@@ -35,9 +35,6 @@ services:
   package-graph-check:
     <<: *package_base
     volumes:
-      - ../package.json:/work/package.json:ro
-      - ../package-lock.json:/work/package-lock.json:ro
-      - ../node_modules:/work/node_modules:ro
       - ../packages:/work/packages:ro
     command:
       - "sh"
@@ -54,9 +51,6 @@ services:
   package-build:
     <<: *package_base
     volumes:
-      - ../package.json:/work/package.json:ro
-      - ../package-lock.json:/work/package-lock.json:ro
-      - ../node_modules:/work/node_modules:ro
       - ../packages:/work/packages:rw
     command:
       - "npm"
@@ -66,9 +60,6 @@ services:
   package-test:
     <<: *package_base
     volumes:
-      - ../package.json:/work/package.json:ro
-      - ../package-lock.json:/work/package-lock.json:ro
-      - ../node_modules:/work/node_modules:ro
       - ../dapps:/work/dapps:ro
       - ../packages:/work/packages:ro
     command:

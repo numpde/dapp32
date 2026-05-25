@@ -56,7 +56,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("internal: true", text)
         self.assertNotIn("..:/work", text)
         self.assertNotIn("../package.json", text)
-        self.assertNotIn("../packages", text)
+        self.assertNotIn("../packages:/input", text)
         self.assertNotIn("../:/input", text)
 
     def test_package_dependency_stage_disables_npm_lifecycle_scripts(self) -> None:
@@ -76,9 +76,9 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("package-apply-locked:", text)
         self.assertIn("package-apply-update:", text)
         self.assertGreaterEqual(text.count('network_mode: "none"'), 2)
-        self.assertIn("../node_modules:/work/node_modules:rw", text)
-        self.assertIn("../package-lock.json:/work/package-lock.json:ro", text)
-        self.assertIn("../package-lock.json:/work/package-lock.json:rw", text)
+        self.assertIn("../packages/node_modules:/work/node_modules:rw", text)
+        self.assertIn("../packages/package-lock.json:/work/package-lock.json:ro", text)
+        self.assertIn("../packages/package-lock.json:/work/package-lock.json:rw", text)
         self.assertEqual(2, text.count('network_mode: "none"'))
 
     def test_package_dependency_apply_uses_shared_node_modules_stager(self) -> None:
@@ -103,7 +103,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn('[[ -L "$(PACKAGE_NODE_MODULES_DIR)" || -L "$(PACKAGE_LOCK_FILE)" ]]', text)
         self.assertIn('[[ -e "$(PACKAGE_NODE_MODULES_DIR)" && ! -d "$(PACKAGE_NODE_MODULES_DIR)" ]]', text)
         self.assertIn('[[ -e "$(PACKAGE_LOCK_FILE)" && ! -f "$(PACKAGE_LOCK_FILE)" ]]', text)
-        self.assertIn("[[ -L package.json ]]", text)
+        self.assertIn('[[ -L "$(PACKAGE_MANIFEST_FILE)" ]]', text)
         self.assertIn('[[ -L "$$manifest" ]]', text)
         self.assertIn('mkdir -p "$(PACKAGE_NODE_MODULES_DIR)"', text)
         self.assertIn('test -d "$(PACKAGE_NODE_MODULES_DIR)"', text)
@@ -125,10 +125,9 @@ class ComposePostureTest(unittest.TestCase):
         self.assertEqual(1, text.count("read_only: true"))
         self.assertEqual(1, text.count("no-new-privileges:true"))
         self.assertEqual(1, text.count("- ALL"))
-        self.assertIn("../node_modules:/work/node_modules:ro", text)
-        self.assertIn("../package-lock.json:/work/package-lock.json:ro", text)
         self.assertIn("../packages:/work/packages:rw", text)
         self.assertIn("../packages:/work/packages:ro", text)
+        self.assertIn("working_dir: /work/packages", text)
         self.assertIn("npm", text)
         self.assertIn("ls", text)
         self.assertIn("--all", text)
@@ -164,6 +163,7 @@ class ComposePostureTest(unittest.TestCase):
 
         self.assertIn("PACKAGE_DEPS_GUARD :=", text)
         self.assertIn('[[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]', text)
+        self.assertIn("PACKAGE_MANIFEST_FILE := $(PACKAGES_DIR)/package.json", text)
         self.assertIn("Run make package-deps to install the locked package dependencies.", text)
         self.assertIn("define compose_run_with_package_deps", text)
         self.assertIn("package-graph-check:", text)

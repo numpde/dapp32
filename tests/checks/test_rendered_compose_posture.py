@@ -76,6 +76,9 @@ class RenderedComposePostureTest(unittest.TestCase):
             self.assertNotIn("HTTP_PROXY", config_service.get("environment", {}))
             self.assertNotIn("HTTPS_PROXY", config_service.get("environment", {}))
 
+        self.assertEqual("/work/packages", verify.get("working_dir"))
+        self.assertEqual("/work/packages", build.get("working_dir"))
+        self.assertEqual("/work/packages", test.get("working_dir"))
         self.assertEqual(True, volume_for(verify, "/work/packages").get("read_only"))
         self.assertNotEqual(True, volume_for(build, "/work/packages").get("read_only", False))
         self.assertEqual(True, volume_for(test, "/work/packages").get("read_only"))
@@ -96,5 +99,5 @@ class RenderedComposePostureTest(unittest.TestCase):
             ["node", "--experimental-strip-types", "tools/viewer-terminal/terminal-session.ts"],
             viewer.get("command"),
         )
-        for target in ["/work/dapps", "/work/packages", "/work/node_modules", "/work/tools"]:
+        for target in ["/work/dapps", "/work/packages", "/work/tools"]:
             self.assertEqual(True, volume_for(viewer, target).get("read_only"))

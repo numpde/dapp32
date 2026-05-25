@@ -1,9 +1,9 @@
 {
-  "name": "cam-workspace",
+  "name": "cam-packages",
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "cam-*"
   ],
   "scripts": {
     "build:packages": "npm run build --workspaces --if-present",
