@@ -181,7 +181,49 @@ test("resolveCamContracts rejects unbound contract names", async () => {
   )
 })
 
-test("callCamRoute resolves CAM args, calls the selected contract, and returns raw route output", async () => {
+test("resolveCamContracts rejects invalid ABI JSON", async () => {
+  await assert.rejects(
+    () => resolveCamContracts({
+      publicClient: createPublicClient({
+        addresses: {
+          BicycleComponentManagerUI: uiAddress,
+          BicycleComponentManager: managerAddress,
+        },
+      }),
+      host,
+      camURI: camDocumentURI,
+      cam: parseCam(camJson),
+      loadResource: createResourceLoader({
+        [uiAbiURI]: encodeText("{not json"),
+        [managerAbiURI]: encodeJson(managerAbi),
+      }),
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
+  )
+})
+
+test("resolveCamContracts rejects ABI JSON that is not an array", async () => {
+  await assert.rejects(
+    () => resolveCamContracts({
+      publicClient: createPublicClient({
+        addresses: {
+          BicycleComponentManagerUI: uiAddress,
+          BicycleComponentManager: managerAddress,
+        },
+      }),
+      host,
+      camURI: camDocumentURI,
+      cam: parseCam(camJson),
+      loadResource: createResourceLoader({
+        [uiAbiURI]: encodeJson({ abi: uiAbi }),
+        [managerAbiURI]: encodeJson(managerAbi),
+      }),
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
+  )
+})
+
+test("callCamRoute resolves CAM args, calls the selected contract, and returns normalized route values", async () => {
   const cam = parseCam(camJson)
   const publicClient = createPublicClient({
     routeResults: {
@@ -209,7 +251,7 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns r
   })
 
   assert.equal(result.screenURI, "ipfs://example/screens/entry.json")
-  assert.deepEqual(result.raw, ["./screens/entry.json", BigInt(7)])
+  assert.deepEqual(result.values, ["./screens/entry.json", BigInt(7)])
 
   assert.deepEqual(publicClient.calls.at(-1), {
     address: uiAddress,
@@ -272,6 +314,41 @@ test("callCamRoute rejects route functions missing from the resolved ABI", async
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_FUNCTION_NOT_FOUND",
+  )
+})
+
+test("callCamRoute rejects route functions that are not view or pure", async () => {
+  const nonViewAbi = [
+    {
+      ...uiAbi[0],
+      stateMutability: "nonpayable",
+    },
+  ] as const satisfies Abi
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient({
+        routeResults: {
+          viewEntry: ["./screens/entry.json"],
+        },
+      }),
+      cam: parseCam(camJson),
+      camURI: camDocumentURI,
+      contracts: {
+        BicycleComponentManagerUI: {
+          address: uiAddress,
+          abiURI: uiAbiURI,
+          abi: nonViewAbi,
+        },
+      },
+      route: "entry",
+      context: {
+        host,
+        account: { address: userAddress },
+        params: {},
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_FUNCTION_NOT_VIEW",
   )
 })
 

@@ -7,6 +7,7 @@ import type { CallCamRouteOptions, RouteResult } from "./types.ts"
 type AbiFunction = {
   readonly type: "function"
   readonly name: string
+  readonly stateMutability?: string
 }
 
 export async function callCamRoute({
@@ -26,7 +27,7 @@ export async function callCamRoute({
       `CAM route references unresolved contract: ${routeCall.contract}`,
     )
   }
-  assertUniqueFunctionAbi(contract.abi, routeCall.function)
+  assertRouteFunctionAbi(contract.abi, routeCall.function)
 
   let raw: unknown
   try {
@@ -53,11 +54,11 @@ export async function callCamRoute({
 
   return {
     screenURI: resolveResourceURI(camURI, screenURI),
-    raw,
+    values,
   }
 }
 
-function assertUniqueFunctionAbi(abi: Abi, functionName: string): void {
+function assertRouteFunctionAbi(abi: Abi, functionName: string): void {
   const matches = abi.filter(
     (item): item is AbiFunction => item.type === "function" && item.name === functionName,
   )
@@ -71,5 +72,10 @@ function assertUniqueFunctionAbi(abi: Abi, functionName: string): void {
       "CAM_ROUTE_FUNCTION_AMBIGUOUS",
       `CAM route function is overloaded and not supported in CAM V1: ${functionName}`,
     )
+  }
+
+  const [fn] = matches
+  if (fn.stateMutability !== "view" && fn.stateMutability !== "pure") {
+    throw new CamEvmError("CAM_ROUTE_FUNCTION_NOT_VIEW", `CAM route function must be view or pure: ${functionName}`)
   }
 }

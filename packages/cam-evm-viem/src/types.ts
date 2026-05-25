@@ -24,7 +24,7 @@ export type ResolvedCamContract = {
 
 export type RouteResult = {
   readonly screenURI: string
-  readonly raw: unknown
+  readonly values: readonly unknown[]
 }
 
 export type LoadCamFromHostOptions = {
