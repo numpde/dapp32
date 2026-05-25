@@ -19,6 +19,9 @@ ALLOW_UPDATE ?= 0
 RPC_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-cast-rpc
 ANVIL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-anvil
 LIVE_CHECK_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-check-live
+BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-local
+VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-viewer-terminal
+VIEWER_TERMINAL_CONTAINER_NAME ?= $(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME)-session
 
 COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)
 DEPS_COMPOSE_ENV := $(COMPOSE_ENV) ALLOW_UPDATE=$(ALLOW_UPDATE)
@@ -26,6 +29,8 @@ PACKAGE_DEPS_COMPOSE_ENV := $(COMPOSE_ENV) ALLOW_UPDATE=$(ALLOW_UPDATE)
 RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(RPC_COMPOSE_PROJECT_NAME)
 ANVIL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
 LIVE_CHECK_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(LIVE_CHECK_COMPOSE_PROJECT_NAME)
+BIKE_NFT_LOCAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME)
+VIEWER_TERMINAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME)
 ANVIL_INTERNAL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
 ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host
 ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host
@@ -45,7 +50,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-build package-test checks check-runtime check-live check-live-deps-egress viewer-terminal check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil
+.PHONY: help deps deps-verify package-deps package-build package-test checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi test fuzz invariant coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy
 
 help:
 	@printf '%s\n' \
@@ -58,6 +63,9 @@ help:
 	  '  make package-build  Build all npm workspace packages offline' \
 	  '  make package-test   Build and test all npm workspace packages offline' \
 	  '  make viewer-terminal  Run the mock-backed CAM viewer terminal offline' \
+	  '  make viewer-terminal-status  Show the mock viewer terminal container status' \
+	  '  make viewer-terminal-attach  Attach to the mock viewer terminal container' \
+	  '  make viewer-terminal-down    Stop and remove the mock viewer terminal container' \
 	  '  make checks       Run offline repository/source checks' \
 	  '  make check-runtime  Run local Docker-backed runtime checks' \
 	  '  make check-live    Run live checks that intentionally use external network' \
@@ -78,6 +86,7 @@ help:
 	  '  make anvil-internal  Start Docker-only Anvil with no host port' \
 	  '  make anvil-host      Start Anvil on 127.0.0.1:$${ANVIL_HOST_PORT:-8545}' \
 	  '  make anvil-down      Stop Anvil services and remove their network' \
+	  '  make bike-nft-local-deploy CAM_URI=... BIKE_NFT_PRIVATE_KEY_FILE=/path  Deploy the bike NFT fixture to an internal Anvil' \
 	  '' \
 	  'All lanes are Docker-backed. Default check lanes are offline, read-only,' \
 	  'non-root, capability-free, and avoid writing build artifacts into the repo.'
@@ -192,7 +201,24 @@ package-test: package-build
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
 viewer-terminal: package-build
-	$(call compose_run_with_package_deps,viewer-terminal.yml,viewer-terminal)
+	@$(NON_ROOT_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	if docker container inspect "$(VIEWER_TERMINAL_CONTAINER_NAME)" >/dev/null 2>&1; then \
+	  printf 'Viewer terminal container already exists: %s\n' "$(VIEWER_TERMINAL_CONTAINER_NAME)" >&2; \
+	  printf '%s\n' 'Use make viewer-terminal-attach or make viewer-terminal-down.' >&2; \
+	  exit 2; \
+	fi; \
+	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm --name "$(VIEWER_TERMINAL_CONTAINER_NAME)" viewer-terminal
+
+viewer-terminal-status:
+	@docker ps -a --filter "name=^/$(VIEWER_TERMINAL_CONTAINER_NAME)$$" --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+
+viewer-terminal-attach:
+	@docker attach "$(VIEWER_TERMINAL_CONTAINER_NAME)"
+
+viewer-terminal-down:
+	@$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml down --volumes --remove-orphans >/dev/null 2>&1 || true
+	@docker rm -f "$(VIEWER_TERMINAL_CONTAINER_NAME)" >/dev/null 2>&1 || true
 
 checks:
 	$(call compose_run,checks.yml,checks)
@@ -290,3 +316,25 @@ anvil-down:
 anvil:
 	@printf '%s\n' 'Choose an explicit Anvil access boundary: make anvil-internal or make anvil-host.' >&2
 	@exit 2
+
+bike-nft-local-deploy:
+	@$(NON_ROOT_GUARD); \
+	if [[ -z "$${CAM_URI:-}" ]]; then \
+	  printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; \
+	  exit 2; \
+	fi; \
+	if [[ -z "$${BIKE_NFT_PRIVATE_KEY_FILE:-}" ]]; then \
+	  printf '%s\n' 'Set BIKE_NFT_PRIVATE_KEY_FILE to a readable file containing the local deployer private key.' >&2; \
+	  exit 2; \
+	fi; \
+	if [[ ! -r "$$BIKE_NFT_PRIVATE_KEY_FILE" ]]; then \
+	  printf 'BIKE_NFT_PRIVATE_KEY_FILE is not readable: %s\n' "$$BIKE_NFT_PRIVATE_KEY_FILE" >&2; \
+	  exit 2; \
+	fi; \
+	cleanup() { \
+	  status="$$?"; \
+	  $(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/bike-nft-local.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/bike-nft-local.yml up --build --abort-on-container-exit --exit-code-from deploy-bike-nft-local deploy-bike-nft-local

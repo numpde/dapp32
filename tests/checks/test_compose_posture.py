@@ -150,8 +150,29 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("viewer-terminal: package-build", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-build)", text)
         self.assertIn("$(call compose_run_with_package_deps,packages.yml,package-test)", text)
-        self.assertIn("$(call compose_run_with_package_deps,viewer-terminal.yml,viewer-terminal)", text)
+        self.assertIn("VIEWER_TERMINAL_COMPOSE_PROJECT_NAME", text)
+        self.assertIn("VIEWER_TERMINAL_CONTAINER_NAME", text)
+        self.assertIn("$(PACKAGE_DEPS_GUARD)", text)
         self.assertIn("ci: fmt build script-build test fuzz invariant package-test", text)
+
+    def test_interactive_viewer_has_explicit_lifecycle_targets(self) -> None:
+        text = read_text(repo_path("Makefile"))
+
+        self.assertIn("viewer-terminal-status:", text)
+        self.assertIn("viewer-terminal-attach:", text)
+        self.assertIn("viewer-terminal-down:", text)
+        self.assertIn("docker attach", text)
+        self.assertIn("docker rm -f", text)
+        self.assertIn("--name \"$(VIEWER_TERMINAL_CONTAINER_NAME)\"", text)
+
+    def test_bike_nft_local_deploy_has_explicit_scenario_target(self) -> None:
+        text = read_text(repo_path("Makefile"))
+
+        self.assertIn("BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME", text)
+        self.assertIn("bike-nft-local-deploy:", text)
+        self.assertIn("BIKE_NFT_PRIVATE_KEY_FILE", text)
+        self.assertIn("env -u PRIVATE_KEY", text)
+        self.assertIn("bike-nft-local.yml", text)
 
     def test_live_dependency_egress_check_reuses_dependency_proxy_service(self) -> None:
         text = read_text(repo_path("compose/check-live-deps-egress.yml"))

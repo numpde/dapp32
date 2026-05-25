@@ -1,0 +1,103 @@
+# Local bike NFT fixture scenario.
+#
+# This stack is intentionally separate from routine Forge checks because it
+# starts a local chain and broadcasts a deployment script. It is local-only:
+# - no external network egress
+# - no host-published RPC port
+# - repository mounted read-only
+# - private key read from a Compose secret file
+# - Foundry outputs/broadcasts written only to tmpfs
+services:
+  bike-nft-anvil:
+    build:
+      context: ../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work
+    init: true
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+    networks:
+      - bike_nft_local
+    command:
+      - "anvil"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8545"
+    healthcheck:
+      test:
+        - "CMD"
+        - "cast"
+        - "block-number"
+        - "--rpc-url"
+        - "http://127.0.0.1:8545"
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 2s
+
+  deploy-bike-nft-local:
+    build:
+      context: ../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work/dapps
+    depends_on:
+      bike-nft-anvil:
+        condition: service_healthy
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      XDG_DATA_HOME: /usr/local/share
+      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+      FOUNDRY_CONFIG: /work/dapps/foundry.toml
+      FOUNDRY_OUT: /tmp/foundry-out
+      FOUNDRY_BROADCAST: /tmp/foundry-broadcast
+      CAM_URI: "${CAM_URI:?missing_CAM_URI}"
+      CAM_HASH: "${CAM_HASH:-}"
+    secrets:
+      - source: bike_nft_private_key
+        target: bike_nft_private_key
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    volumes:
+      - ..:/work:ro
+    networks:
+      - bike_nft_local
+    command:
+      - "bash"
+      - "-lc"
+      - |
+        set -euo pipefail
+        export PRIVATE_KEY="$(cat /run/secrets/bike_nft_private_key)"
+        if [ -z "$${CAM_HASH:-}" ]; then
+          unset CAM_HASH
+        fi
+        forge script --offline bike-nft/script/DeployBikeNftLocal.s.sol \
+          --rpc-url http://bike-nft-anvil:8545 \
+          --broadcast \
+          -vvv
+
+secrets:
+  bike_nft_private_key:
+    file: "${BIKE_NFT_PRIVATE_KEY_FILE:?missing_BIKE_NFT_PRIVATE_KEY_FILE}"
+
+networks:
+  bike_nft_local:
+    internal: true

@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Makefile operator guide</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17212f;
+      --muted: #607086;
+      --line: #d8e0ea;
+      --panel: #ffffff;
+      --wash: #f5f7fa;
+      --accent: #176b5f;
+      --accent-2: #9a4d2e;
+      --code: #edf2f6;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--wash);
+      line-height: 1.55;
+    }
+
+    .shell {
+      width: min(1080px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 50px 0 34px;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(120deg, rgba(23, 107, 95, 0.11), transparent 42%),
+        linear-gradient(270deg, rgba(154, 77, 46, 0.10), transparent 48%),
+        #fbfcfe;
+    }
+
+    h1 {
+      max-width: 780px;
+      margin: 0;
+      font-size: clamp(2.1rem, 6vw, 4.2rem);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .lede {
+      max-width: 780px;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: clamp(1.04rem, 2vw, 1.22rem);
+    }
+
+    main {
+      padding: 34px 0 58px;
+    }
+
+    section {
+      margin-top: 34px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.42rem;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.92em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      min-height: 100%;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .step {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    .step strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--accent);
+    }
+
+    .label {
+      display: inline-block;
+      margin-bottom: 8px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(23, 107, 95, 0.11);
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .warn {
+      border-color: rgba(154, 77, 46, 0.35);
+      background: #fffaf7;
+    }
+
+    .warn .label {
+      background: rgba(154, 77, 46, 0.12);
+      color: var(--accent-2);
+    }
+
+    .table {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 760px;
+    }
+
+    th,
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    ul {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    @media (max-width: 840px) {
+      .grid,
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      header {
+        padding-top: 38px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <h1>Makefile operator guide</h1>
+      <p class="lede">
+        The Makefile is the supported control plane for this repository. It keeps routine work Docker-backed,
+        gives each task an explicit trust boundary, and prevents dependency installation, local chains,
+        RPC access, and interactive debugging from blending into one broad authority.
+      </p>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section>
+      <h2>The shape</h2>
+      <div class="flow">
+        <div class="step">
+          <strong>Install</strong>
+          <code>deps</code> and <code>package-deps</code> are the only normal networked dependency lanes.
+        </div>
+        <div class="step">
+          <strong>Verify</strong>
+          <code>deps-verify</code> and <code>checks</code> validate locked inputs, repo shape, and Compose posture.
+        </div>
+        <div class="step">
+          <strong>Build</strong>
+          <code>build</code>, <code>script-build</code>, and <code>package-build</code> compile without network.
+        </div>
+        <div class="step">
+          <strong>Test</strong>
+          <code>test</code>, <code>fuzz</code>, <code>invariant</code>, and <code>package-test</code> run controlled checks.
+        </div>
+        <div class="step">
+          <strong>Operate</strong>
+          <code>anvil-*</code>, <code>cast-rpc</code>, <code>viewer-terminal</code>, and scenario targets are explicit.
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Default posture</h2>
+      <div class="grid">
+        <div class="card">
+          <span class="label">Non-root</span>
+          <p>
+            Docker lanes refuse root execution through <code>NON_ROOT_GUARD</code>. Runtime containers use the
+            caller's UID/GID or a fixed unprivileged UID.
+          </p>
+        </div>
+        <div class="card">
+          <span class="label">Offline</span>
+          <p>
+            Ordinary check, build, test, fuzz, invariant, coverage, package build, and package test lanes run with
+            <code>network_mode: "none"</code>.
+          </p>
+        </div>
+        <div class="card">
+          <span class="label">Read-only</span>
+          <p>
+            Routine lanes mount the repo read-only and use tmpfs for caches, artifacts, and broadcasts. Writable
+            lanes are named and narrow.
+          </p>
+        </div>
+        <div class="card">
+          <span class="label">Cap-free</span>
+          <p>
+            Compose services drop Linux capabilities, set <code>no-new-privileges:true</code>, and bound memory and
+            process counts.
+          </p>
+        </div>
+        <div class="card">
+          <span class="label">Explicit state</span>
+          <p>
+            Long-lived services use separate Compose project names. Targets such as <code>anvil-down</code> and
+            <code>viewer-terminal-down</code> encode cleanup.
+          </p>
+        </div>
+        <div class="card">
+          <span class="label">No hidden updates</span>
+          <p>
+            Default dependency targets install locked material only. Metadata changes require
+            <code>ALLOW_UPDATE=1</code>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Targets</h2>
+      <div class="table">
+        <table>
+          <thead>
+            <tr>
+              <th>Target</th>
+              <th>Purpose</th>
+              <th>Authority</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>deps</code></td>
+              <td>Install locked Soldeer dependencies into <code>dapps/dependencies/</code>.</td>
+              <td>Networked stage through an HTTPS allowlist proxy; offline apply writes only dependency outputs.</td>
+            </tr>
+            <tr>
+              <td><code>package-deps</code></td>
+              <td>Install locked npm workspace dependencies into root <code>node_modules/</code>.</td>
+              <td>Networked stage sees only temporary package manifests; offline apply writes <code>node_modules/</code>.</td>
+            </tr>
+            <tr>
+              <td><code>checks</code></td>
+              <td>Run Python repository checks: hygiene, source policy, dependency metadata, and Compose posture.</td>
+              <td>Offline, read-only, no Docker socket; Compose rendering only.</td>
+            </tr>
+            <tr>
+              <td><code>fmt</code></td>
+              <td>Check Solidity formatting for dapp <code>src</code>, <code>test</code>, and <code>script</code> trees.</td>
+              <td>Offline and read-only.</td>
+            </tr>
+            <tr>
+              <td><code>build</code></td>
+              <td>Compile ordinary dapp Solidity source trees.</td>
+              <td>Runs after dependency verification; offline and read-only.</td>
+            </tr>
+            <tr>
+              <td><code>script-build</code></td>
+              <td>Compile deployment scripts without executing or broadcasting them.</td>
+              <td>Offline and read-only; execution belongs to scenario lanes.</td>
+            </tr>
+            <tr>
+              <td><code>abi</code></td>
+              <td>Generate ABIs from <code>dapps/&lt;name&gt;/src/*.sol</code> into existing CAM ABI directories.</td>
+              <td>Offline, but intentionally writes under <code>dapps/&lt;name&gt;/cam/abi/</code>.</td>
+            </tr>
+            <tr>
+              <td><code>test</code></td>
+              <td>Run repository checks and Forge unit tests.</td>
+              <td>Verifies dependencies first, then runs checks and offline unit tests.</td>
+            </tr>
+            <tr>
+              <td><code>fuzz</code>, <code>invariant</code>, <code>coverage</code></td>
+              <td>Run heavier Forge lanes by convention over dapp test trees.</td>
+              <td>Offline and read-only after dependency verification.</td>
+            </tr>
+            <tr>
+              <td><code>package-build</code>, <code>package-test</code></td>
+              <td>Build and test TypeScript workspace packages.</td>
+              <td>Offline consumers of locked <code>node_modules/</code>; build writes only package <code>dist/</code>.</td>
+            </tr>
+            <tr>
+              <td><code>ci</code></td>
+              <td>Run the default local confidence path.</td>
+              <td>Composes routine formatting, compilation, contract tests, and package tests.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Dependency lanes</h2>
+      <div class="grid">
+        <div class="card">
+          <span class="label">Soldeer</span>
+          <p>
+            <code>make deps</code> stages downloads through <code>compose/deps.yml</code>, verifies upstream
+            archives, applies declared patches, writes checksums, and only then copies material into
+            <code>dapps/dependencies/</code>.
+          </p>
+        </div>
+        <div class="card">
+          <span class="label">npm</span>
+          <p>
+            <code>make package-deps</code> stages a minimal manifest tree through <code>compose/package-deps.yml</code>.
+            Install scripts are disabled, registry access is allowlisted, and lock updates require
+            <code>ALLOW_UPDATE=1</code>.
+          </p>
+        </div>
+        <div class="card warn">
+          <span class="label">Boundary</span>
+          <p>
+            Networked dependency tools do not receive repo-root write mounts. Repository writes happen later in
+            offline apply services with narrow target paths.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Runtime and scenario lanes</h2>
+      <div class="grid">
+        <div class="card">
+          <span class="label">Anvil</span>
+          <p>
+            <code>anvil-internal</code> starts a Docker-only chain. <code>anvil-host</code> binds to
+            <code>127.0.0.1</code> for host tools. The plain <code>anvil</code> target fails so the access boundary
+            must be chosen explicitly.
+          </p>
+        </div>
+        <div class="card">
+          <span class="label">RPC</span>
+          <p>
+            <code>cast-rpc</code> reads an external RPC URL from a temporary file or explicit file path, unsets the
+            raw environment variable, and routes through a method-filtering proxy.
+          </p>
+        </div>
+        <div class="card">
+          <span class="label">Viewer</span>
+          <p>
+            <code>viewer-terminal</code> is a mock-backed, networkless interactive session. Separate status, attach,
+            and down targets make the long-running container visible and cleanable.
+          </p>
+        </div>
+        <div class="card">
+          <span class="label">Bike fixture</span>
+          <p>
+            <code>bike-nft-local-deploy</code> starts an internal Anvil, reads the deployer key from a Compose secret,
+            requires <code>CAM_URI</code>, broadcasts the local fixture, and removes the stack on exit.
+          </p>
+        </div>
+        <div class="card warn">
+          <span class="label">Secrets</span>
+          <p>
+            Use file-backed secrets for private keys and RPC URLs. Do not commit, log, or paste production keys into
+            shell history.
+          </p>
+        </div>
+        <div class="card warn">
+          <span class="label">External access</span>
+          <p>
+            The only intended external network lanes are dependency staging, live egress checks, and proxied RPC
+            inspection. Everything else should stay offline unless a new Compose boundary is reviewed.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>How to read changes to the Makefile</h2>
+      <div class="card">
+        <p>
+          A new target should exist only when it has a distinct operator purpose or trust boundary. Routine checks
+          should reuse existing offline services; network, host ports, secrets, writable mounts, browsers, RPC, and
+          long-running containers should get explicit Compose services and explicit cleanup behavior.
+        </p>
+        <ul>
+          <li>If it downloads dependencies, split staging from applying.</li>
+          <li>If it writes the repo, make the writable path narrow and generated.</li>
+          <li>If it runs with secrets, prefer file-backed secrets and unset raw environment variables before Compose.</li>
+          <li>If it starts a service, provide a stop/status path and a separate Compose project name.</li>
+          <li>If it changes posture, add rendered Compose checks under <code>tests/checks/</code>.</li>
+        </ul>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

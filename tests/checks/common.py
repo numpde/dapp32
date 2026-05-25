@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
+import subprocess
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -85,3 +89,35 @@ def iter_repo_text_files() -> list[Path]:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def rendered_compose_config(compose_file: str, *, env: dict[str, str] | None = None) -> dict[str, Any]:
+    render_env = os.environ.copy()
+    render_env.update(
+        {
+            "LOCAL_UID": "1000",
+            "LOCAL_GID": "1000",
+            "COMPOSE_PROJECT_NAME": "dapps-check",
+        }
+    )
+    if env is not None:
+        render_env.update(env)
+
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(repo_path(compose_file)),
+            "config",
+            "--format",
+            "json",
+        ],
+        cwd=ROOT,
+        env=render_env,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return json.loads(result.stdout)
