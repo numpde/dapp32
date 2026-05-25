@@ -47,9 +47,10 @@ Keep the project small, explicit, and protocol-first.
 - Default dependency installation must not change committed dependency metadata.
   Soldeer lock/remapping/checksum updates require `make deps ALLOW_UPDATE=1`;
   npm workspace lock updates require `make package-deps ALLOW_UPDATE=1`.
-- Keep direct npm dependency versions exact. Use `workspace:*` only for local
-  workspace package references. Generated package locks must resolve registry
-  packages from `https://registry.npmjs.org/` with integrity metadata.
+- Keep direct npm dependency versions exact. For local workspace package
+  references, use the referenced package's exact local version so npm records a
+  workspace link in `package-lock.json`. Generated package locks must resolve
+  registry packages from `https://registry.npmjs.org/` with integrity metadata.
 - Keep npm install policy in `compose/package-deps.yml`; do not add repo
   `.npmrc` files.
 - Use root `package-lock.json` as the only package lock source; do not add yarn,

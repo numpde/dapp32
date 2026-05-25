@@ -71,7 +71,11 @@ class PackageMetadataTest(unittest.TestCase):
                     with self.subTest(path=str(path), field=field, dependency=name):
                         self.assertIsInstance(version, str, f"{path}: {field}.{name} must be a string")
                         if name in workspace_names:
-                            self.assertEqual("workspace:*", version)
+                            self.assertEqual(
+                                workspace_names[name],
+                                version,
+                                f"{path}: {field}.{name} must match the local workspace package version",
+                            )
                         else:
                             self.assertRegex(
                                 version,
@@ -154,12 +158,16 @@ class PackageMetadataTest(unittest.TestCase):
     def package_manifest_paths(self) -> list[Path]:
         return [repo_path("package.json"), *sorted(repo_path("packages").glob("*/package.json"))]
 
-    def workspace_package_names(self) -> set[str]:
-        names: set[str] = set()
+    def workspace_package_names(self) -> dict[str, str]:
+        names: dict[str, str] = {}
         for path in sorted(repo_path("packages").glob("*/package.json")):
-            name = self.read_manifest(path).get("name")
+            manifest = self.read_manifest(path)
+            name = manifest.get("name")
             self.assertIsInstance(name, str, f"{path}: package name must be a string")
-            names.add(name)
+            version = manifest.get("version")
+            self.assertIsInstance(version, str, f"{path}: package version must be a string")
+            self.assertRegex(version, VERSION_RE, f"{path}: package version must be exact")
+            names[name] = version
         return names
 
     def read_manifest(self, path: Path) -> dict[str, object]:
