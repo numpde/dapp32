@@ -4,6 +4,7 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 
 import "../../../src/BicycleComponentManager.sol";
 import "../../../src/BicycleComponents.sol";
+import "../../../src/IBicycleComponentManagerView.sol";
 
 contract BicycleComponentManagerTest is Test {
     BicycleComponents private components;
@@ -45,14 +46,14 @@ contract BicycleComponentManagerTest is Test {
         assertEq(components.tokenURI(tokenId), TOKEN_URI, "component token URI mismatch");
         assertTrue(manager.isRegistered(SERIAL), "manager should mark serial registered");
 
-        BicycleComponentManager.ComponentView memory component = manager.componentBySerial(SERIAL);
+        IBicycleComponentManagerView.ComponentView memory component = manager.componentBySerial(SERIAL);
         assertTrue(component.exists, "component view should exist");
         assertEq(component.serialHash, expectedSerialHash, "serial hash mismatch");
         assertEq(component.tokenContract, address(components), "token contract mismatch");
         assertEq(component.tokenId, expectedTokenId, "component view token id mismatch");
         assertEq(component.owner, owner, "component view owner mismatch");
         assertEq(component.registrar, registrar, "component view registrar mismatch");
-        assertEq(uint8(component.status), uint8(BicycleComponentManager.ComponentStatus.Active), "status mismatch");
+        assertEq(uint8(component.status), uint8(IBicycleComponentManagerView.ComponentStatus.Active), "status mismatch");
         assertEq(component.tokenURI, TOKEN_URI, "component view token URI mismatch");
         assertEq(component.serialNumber, SERIAL, "component view serial mismatch");
     }
@@ -135,7 +136,7 @@ contract BicycleComponentManagerTest is Test {
         manager.markMissing(SERIAL);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
-            uint8(BicycleComponentManager.ComponentStatus.Missing),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
             "component should be missing"
         );
 
@@ -143,7 +144,7 @@ contract BicycleComponentManagerTest is Test {
         manager.clearMissing(SERIAL);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
-            uint8(BicycleComponentManager.ComponentStatus.Active),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Active),
             "component should be active again"
         );
 
@@ -163,7 +164,7 @@ contract BicycleComponentManagerTest is Test {
         manager.retireComponent(SERIAL);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
-            uint8(BicycleComponentManager.ComponentStatus.Retired),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
             "component should be retired"
         );
     }

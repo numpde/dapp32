@@ -7,6 +7,7 @@ import {Pausable} from "@openzeppelin-contracts-5.6.1/utils/Pausable.sol";
 import {IERC165} from "@openzeppelin-contracts-5.6.1/utils/introspection/IERC165.sol";
 
 import {IBicycleComponents} from "./IBicycleComponents.sol";
+import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 
 /// @title BicycleComponentManager
 /// @notice Registry and policy contract for bicycle component NFTs.
@@ -23,7 +24,7 @@ import {IBicycleComponents} from "./IBicycleComponents.sol";
 /// The manager can use different component-token contracts over time. Each
 /// registered component stores its own `tokenContract`, so changing the default
 /// collection only affects future registrations.
-contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable {
+contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IBicycleComponentManagerView {
     // ---------------------------------------------------------------------
     // Roles
     // ---------------------------------------------------------------------
@@ -51,33 +52,12 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable {
     // Types
     // ---------------------------------------------------------------------
 
-    enum ComponentStatus {
-        None,
-        Active,
-        Missing,
-        Retired
-    }
-
     struct ComponentRecord {
         bytes32 serialHash;
         address tokenContract;
         uint256 tokenId;
         address registrar;
         ComponentStatus status;
-        uint48 registeredAt;
-        uint48 updatedAt;
-        string serialNumber;
-    }
-
-    struct ComponentView {
-        bool exists;
-        bytes32 serialHash;
-        address tokenContract;
-        uint256 tokenId;
-        address owner;
-        address registrar;
-        ComponentStatus status;
-        string tokenURI;
         uint48 registeredAt;
         uint48 updatedAt;
         string serialNumber;
@@ -215,7 +195,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable {
     }
 
     /// @notice Default component-token contract used by `registerComponent`.
-    function defaultComponents() external view returns (address) {
+    function defaultComponents() external view override returns (address) {
         return _defaultComponents;
     }
 
@@ -384,7 +364,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable {
     // Account/profile metadata
     // ---------------------------------------------------------------------
 
-    function accountInfo(address account) external view returns (string memory) {
+    function accountInfo(address account) external view override returns (string memory) {
         return _accountInfo[account];
     }
 
@@ -434,7 +414,12 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable {
         return _componentRecords[serialHashOf(serialNumber)].status != ComponentStatus.None;
     }
 
-    function componentBySerial(string calldata serialNumber) external view returns (ComponentView memory view_) {
+    function componentBySerial(string calldata serialNumber)
+        external
+        view
+        override
+        returns (ComponentView memory view_)
+    {
         bytes32 serialHash = serialHashOf(serialNumber);
         ComponentRecord storage record = _componentRecords[serialHash];
 
@@ -534,7 +519,12 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable {
         active = record.status != ComponentStatus.None && _effectiveDelegationCapabilities(record, delegate) != 0;
     }
 
-    function permissionsOf(address actor, string calldata serialNumber) public view returns (uint64 capabilities) {
+    function permissionsOf(address actor, string calldata serialNumber)
+        public
+        view
+        override
+        returns (uint64 capabilities)
+    {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
         if (record.status == ComponentStatus.None || actor == address(0)) return 0;
 
@@ -545,29 +535,29 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable {
         return _effectiveDelegationCapabilities(record, actor);
     }
 
-    function canRegister(address actor) external view returns (bool) {
+    function canRegister(address actor) external view override returns (bool) {
         return actor != address(0) && hasRole(REGISTRAR_ROLE, actor);
     }
 
-    function canUpdateMetadata(address actor, string calldata serialNumber) external view returns (bool) {
+    function canUpdateMetadata(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
         return record.status != ComponentStatus.None && record.status != ComponentStatus.Retired
             && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_UPDATE_METADATA));
     }
 
-    function canMarkMissing(address actor, string calldata serialNumber) external view returns (bool) {
+    function canMarkMissing(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
         return record.status == ComponentStatus.Active
             && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_MARK_MISSING));
     }
 
-    function canClearMissing(address actor, string calldata serialNumber) external view returns (bool) {
+    function canClearMissing(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
         return record.status == ComponentStatus.Missing
             && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_CLEAR_MISSING));
     }
 
-    function canRetire(address actor, string calldata serialNumber) external view returns (bool) {
+    function canRetire(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
         return record.status != ComponentStatus.None && record.status != ComponentStatus.Retired
             && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_RETIRE));

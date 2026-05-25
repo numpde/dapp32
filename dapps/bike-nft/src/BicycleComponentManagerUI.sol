@@ -1,49 +1,6 @@
 pragma solidity 0.8.35;
 
-/// @notice Read-only subset of BicycleComponentManager used by the CAM UI helper.
-/// @dev Kept local on purpose: this is not a separate protocol boundary. The
-/// frontend consumes the UI helper ABI; this interface only keeps the helper
-/// decoupled from manager implementation details and write/admin functions.
-interface IBicycleComponentManagerView {
-    enum ComponentStatus {
-        None,
-        Active,
-        Missing,
-        Retired
-    }
-
-    struct ComponentView {
-        bool exists;
-        bytes32 serialHash;
-        address tokenContract;
-        uint256 tokenId;
-        address owner;
-        address registrar;
-        ComponentStatus status;
-        string tokenURI;
-        uint48 registeredAt;
-        uint48 updatedAt;
-        string serialNumber;
-    }
-
-    function defaultComponents() external view returns (address);
-
-    function accountInfo(address account) external view returns (string memory);
-
-    function canRegister(address actor) external view returns (bool);
-
-    function componentBySerial(string calldata serialNumber) external view returns (ComponentView memory view_);
-
-    function permissionsOf(address actor, string calldata serialNumber) external view returns (uint64 capabilities);
-
-    function canUpdateMetadata(address actor, string calldata serialNumber) external view returns (bool);
-
-    function canMarkMissing(address actor, string calldata serialNumber) external view returns (bool);
-
-    function canClearMissing(address actor, string calldata serialNumber) external view returns (bool);
-
-    function canRetire(address actor, string calldata serialNumber) external view returns (bool);
-}
+import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 
 /// @title BicycleComponentManagerUI
 /// @notice Read-only CAM route helper for BicycleComponentManager.

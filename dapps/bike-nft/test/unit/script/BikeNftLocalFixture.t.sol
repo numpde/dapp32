@@ -3,6 +3,7 @@ pragma solidity 0.8.35;
 import {Test} from "forge-std-1.12.0/src/Test.sol";
 
 import "../../../script/BikeNftLocalFixture.sol";
+import "../../../src/IBicycleComponentManagerView.sol";
 
 contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
     function deployCleanForTest() external returns (Deployment memory deployment) {
@@ -53,7 +54,7 @@ contract BikeNftLocalFixtureTest is Test {
         string memory serialNumber,
         string memory tokenURI_
     ) private view {
-        BicycleComponentManager.ComponentView memory component = deployment.manager.componentBySerial(serialNumber);
+        IBicycleComponentManagerView.ComponentView memory component = deployment.manager.componentBySerial(serialNumber);
 
         assertTrue(component.exists, "seeded component should have a manager record");
         assertEq(
@@ -61,7 +62,7 @@ contract BikeNftLocalFixtureTest is Test {
         );
         assertEq(component.owner, owner, "seeded component owner mismatch");
         assertEq(component.registrar, owner, "seeded component registrar mismatch");
-        assertEq(uint8(component.status), uint8(BicycleComponentManager.ComponentStatus.Active), "status mismatch");
+        assertEq(uint8(component.status), uint8(IBicycleComponentManagerView.ComponentStatus.Active), "status mismatch");
         assertEq(component.tokenURI, tokenURI_, "manager token URI mismatch");
         assertEq(deployment.components.ownerOf(component.tokenId), owner, "NFT owner mismatch");
         assertEq(deployment.components.tokenURI(component.tokenId), tokenURI_, "NFT token URI mismatch");
