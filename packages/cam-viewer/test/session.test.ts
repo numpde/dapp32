@@ -4,6 +4,7 @@ import { TextEncoder } from "node:util"
 
 import { CamEvmError, ZERO_HASH } from "@cam/evm-viem"
 import { toInertValue } from "@cam/core"
+import type { InertValue } from "@cam/core"
 
 import {
   CamViewerError,
@@ -134,6 +135,9 @@ test("setState updates local state without calling a route", async () => {
 
 test("setState re-resolves current screen actions with updated state", async () => {
   const session = createSession({
+    state: {
+      serialNumber: "",
+    },
     resources: {
       [entryScreenURI]: encodeJson({
         screen: "1.0.0",
@@ -342,16 +346,18 @@ function createSession({
   // dependency explicitly so the fixture does not hide setup.
   publicClient = createPublicClient(),
   resources = {},
+  state = {},
 }: {
   readonly publicClient?: ReturnType<typeof createPublicClient>
   readonly resources?: Record<string, Uint8Array>
+  readonly state?: Record<string, InertValue>
 } = {}) {
   return createCamViewerSession({
     publicClient,
     host,
     account: { address: userAddress },
     params: {},
-    state: {},
+    state,
     loadResource: createResourceLoader({
       [camURI]: encodeJson(camJson),
       [uiAbiURI]: encodeJson(uiAbi),

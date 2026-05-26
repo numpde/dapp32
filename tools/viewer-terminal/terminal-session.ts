@@ -169,7 +169,9 @@ function createMockSession(events: DebugEvent[]): CamViewerSession {
       address: USER_ADDRESS,
     },
     params: {},
-    state: {},
+    state: {
+      serialNumber: "",
+    },
     loadResource: createMockResourceLoader(events),
   })
 }

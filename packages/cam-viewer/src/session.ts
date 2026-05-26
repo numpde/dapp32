@@ -16,7 +16,6 @@ import type {
   ResolvedScreen,
   ResolvedScreenAction,
   ScreenDocument,
-  ScreenElement,
 } from "@cam/screen"
 
 import { CamViewerError } from "./errors.ts"
@@ -170,7 +169,6 @@ export function createCamViewerSession({
 
     const screenBytes = await loadScreenBytes(routeResult.screenURI)
     const parsedScreen = parseScreenBytes(screenBytes, routeResult.screenURI)
-    state = seedInputState(parsedScreen, state)
     const nextResolvedScreen = resolveScreen(parsedScreen, {
       host,
       ...(account === undefined ? {} : { account }),
@@ -267,26 +265,4 @@ function cloneSnapshotData<T>(value: T, path: string): T {
       { cause },
     )
   }
-}
-
-function seedInputState(screen: ScreenDocument, currentState: Record<string, InertValue>): Record<string, InertValue> {
-  const nextState = { ...currentState }
-  for (const element of screen.elements) {
-    seedInputElementState(element, nextState)
-  }
-
-  return nextState
-}
-
-function seedInputElementState(element: ScreenElement, state: Record<string, InertValue>): void {
-  if (element.type !== "input" || Object.hasOwn(state, element.name)) {
-    return
-  }
-
-  // TODO(silent-defaults): defaulting unresolved input values to "" is UI
-  // behavior embedded in the headless session. A renderer-owned state layer may
-  // be the better place for this default.
-  state[element.name] = typeof element.value === "string" && !element.value.startsWith("$")
-    ? element.value
-    : ""
 }
