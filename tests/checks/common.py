@@ -104,6 +104,9 @@ def rendered_compose_config(compose_file: str, *, env: dict[str, str] | None = N
     if env is not None:
         render_env.update(env)
 
+    # TODO(silent-defaults): this mirrors the Makefile default. If Make changes
+    # its compose command, posture checks should receive DOCKER_COMPOSE
+    # explicitly rather than silently inspecting a different binary.
     command = shlex.split(render_env.get("DOCKER_COMPOSE", "docker compose"))
     command.extend(["-f", str(repo_path(compose_file)), "config", "--format", "json"])
 

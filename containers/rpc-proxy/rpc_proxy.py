@@ -10,6 +10,10 @@ import sys
 from urllib.parse import urlsplit
 
 
+# TODO(silent-defaults): these defaults match the current Compose service, but
+# running the proxy outside Compose would silently bind all interfaces and read
+# the standard secret path. Consider requiring explicit env once the proxy is
+# reused outside this controlled lane.
 LISTEN_HOST = os.environ.get("RPC_PROXY_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("RPC_PROXY_PORT", "8080"))
 UPSTREAM_FILE = os.environ.get("RPC_UPSTREAM_FILE", "/run/secrets/rpc_url")
@@ -17,6 +21,8 @@ MAX_REQUEST_BYTES = int(os.environ.get("RPC_PROXY_MAX_REQUEST_BYTES", str(1024 *
 MAX_RESPONSE_BYTES = int(os.environ.get("RPC_PROXY_MAX_RESPONSE_BYTES", str(4 * 1024 * 1024)))
 MAX_UPSTREAM_URL_BYTES = int(os.environ.get("RPC_PROXY_MAX_UPSTREAM_URL_BYTES", "4096"))
 CONNECT_TIMEOUT_SECONDS = float(os.environ.get("RPC_PROXY_CONNECT_TIMEOUT_SECONDS", "10"))
+# TODO(silent-defaults): defaulting to eth_blockNumber is intentionally narrow,
+# but still grants one RPC method if Compose forgets RPC_ALLOWED_METHODS.
 ALLOWED_METHODS = frozenset(
     method
     for method in os.environ.get("RPC_ALLOWED_METHODS", "eth_blockNumber").replace(",", " ").split()

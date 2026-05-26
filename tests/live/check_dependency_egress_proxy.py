@@ -8,6 +8,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
+# TODO(silent-defaults): these defaults describe the current live-check Compose
+# topology. If the check is reused elsewhere, require explicit env so it cannot
+# accidentally test the wrong proxy or lock file.
 PROXY_HOST = os.environ.get("DEPENDENCY_EGRESS_PROXY_HOST", "dependency-egress-proxy")
 PROXY_PORT = int(os.environ.get("DEPENDENCY_EGRESS_PROXY_PORT", "8080"))
 LOCK_FILE = Path(os.environ.get("DEPENDENCY_EGRESS_LOCK_FILE", "/input/soldeer.lock"))

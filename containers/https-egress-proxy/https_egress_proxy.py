@@ -10,6 +10,9 @@ import sys
 import time
 
 
+# TODO(silent-defaults): these listener defaults assume a confined Compose
+# network. If this proxy is run directly, require explicit host/port instead of
+# silently binding all interfaces on 8080.
 LISTEN_HOST = os.environ.get("HTTPS_EGRESS_PROXY_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("HTTPS_EGRESS_PROXY_PORT", "8080"))
 CONNECT_TIMEOUT_SECONDS = float(os.environ.get("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS", "10"))
@@ -215,6 +218,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main() -> int:
     global ALLOWED_HOSTS
+    # TODO(silent-defaults): the empty default fails closed, but it can also
+    # hide a missing allowlist until runtime. Prefer explicit configuration for
+    # any non-test deployment of this proxy.
     ALLOWED_HOSTS = parse_allowed_hosts(os.environ.get("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS", ""))
 
     server = http.server.ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
