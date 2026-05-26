@@ -66,11 +66,16 @@ class CamManifestResourceValidator:
     def validate_generated_abi_uri_conventions(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         contracts = manifest.get("contracts")
         if not isinstance(contracts, dict):
-            return []
+            return [f"{manifest_path}: contracts must be an object"]
 
         failures: list[str] = []
         for contract_name, contract in contracts.items():
-            if not isinstance(contract_name, str) or not isinstance(contract, dict):
+            if not isinstance(contract_name, str) or contract_name == "":
+                failures.append(f"{manifest_path}: contract names must be non-empty strings")
+                continue
+
+            if not isinstance(contract, dict):
+                failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
                 continue
 
             error = abi_resources.validate_generated_abi_uri_convention(
@@ -86,12 +91,17 @@ class CamManifestResourceValidator:
     def validate_route_functions_match_declared_abis(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         contracts = manifest.get("contracts")
         routes = manifest.get("routes")
-        if not isinstance(contracts, dict) or not isinstance(routes, dict):
-            return []
-
-        abi_functions_by_contract = self.abi_route_functions_by_contract(manifest_path, contracts)
-
         failures: list[str] = []
+        if not isinstance(contracts, dict):
+            failures.append(f"{manifest_path}: contracts must be an object")
+        if not isinstance(routes, dict):
+            failures.append(f"{manifest_path}: routes must be an object")
+        if failures:
+            return failures
+
+        abi_functions_by_contract, abi_failures = self.abi_route_functions_by_contract(manifest_path, contracts)
+        failures.extend(abi_failures)
+
         for route_name, route in routes.items():
             path = f"routes.{route_name}"
             if not isinstance(route_name, str) or route_name == "":
@@ -110,6 +120,7 @@ class CamManifestResourceValidator:
 
             functions = abi_functions_by_contract.get(contract_name)
             if functions is None:
+                failures.append(f"{manifest_path}: {path}.contract has no readable ABI function map: {contract_name}")
                 continue
 
             function = functions.get(function_name)
@@ -199,29 +210,40 @@ class CamManifestResourceValidator:
         self,
         manifest_path: Path,
         contracts: dict[object, object],
-    ) -> dict[str, dict[str, route_abi.AbiRouteFunction | None]]:
+    ) -> tuple[dict[str, dict[str, route_abi.AbiRouteFunction | None]], list[str]]:
         abi_functions_by_contract: dict[str, dict[str, route_abi.AbiRouteFunction | None]] = {}
+        failures: list[str] = []
         for contract_name, contract in contracts.items():
-            if not isinstance(contract_name, str) or not isinstance(contract, dict):
+            if not isinstance(contract_name, str) or contract_name == "":
+                failures.append(f"{manifest_path}: contract names must be non-empty strings")
+                continue
+
+            if not isinstance(contract, dict):
+                failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
                 continue
 
             abi_uri = contract.get("abiURI")
             if not isinstance(abi_uri, str):
+                failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI must be a string")
                 continue
 
             abi_path = abi_resources.resolve_local_abi_path(manifest_path, abi_uri)
             if abi_path is None or not abi_path.is_file():
+                failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI target is not readable: {abi_uri}")
                 continue
 
             try:
                 abi = json.loads(read_text(abi_path))
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as error:
+                failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI target is invalid JSON: {abi_uri}: {error}")
                 continue
 
             if isinstance(abi, list):
                 abi_functions_by_contract[contract_name] = route_abi.abi_route_functions(abi)
+            else:
+                failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI target must be a JSON ABI array: {abi_uri}")
 
-        return abi_functions_by_contract
+        return abi_functions_by_contract, failures
 
     def validate_no_orphan_abi_files(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         return abi_resources.validate_no_orphan_abi_files(manifest_path, manifest)

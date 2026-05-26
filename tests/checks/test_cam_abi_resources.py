@@ -112,6 +112,58 @@ class CamAbiResourceTest(unittest.TestCase):
             [f"{self.manifest}: cam/abi contains unused ABI file not referenced by contracts.*.abiURI: Unused.json"],
         )
 
+        self.assertEqual(
+            validate_no_orphan_abi_files(
+                self.manifest,
+                {"contracts": []},
+                existing_files=set(),
+            ),
+            [f"{self.manifest}: contracts must be an object"],
+        )
+
+        self.assertEqual(
+            validate_no_orphan_abi_files(
+                self.manifest,
+                {
+                    "contracts": {
+                        "Broken": {},
+                    }
+                },
+                existing_files=set(),
+            ),
+            [f"{self.manifest}: contracts.Broken.abiURI must be a string"],
+        )
+
+        self.assertEqual(
+            validate_no_orphan_abi_files(
+                self.manifest,
+                {
+                    "contracts": {
+                        "Escaped": {
+                            "abiURI": "../abi/Escaped.json",
+                        }
+                    }
+                },
+                existing_files=set(),
+            ),
+            [f"{self.manifest}: contracts.Escaped.abiURI escapes the CAM directory: ../abi/Escaped.json"],
+        )
+
+        self.assertEqual(
+            validate_no_orphan_abi_files(
+                self.manifest,
+                {
+                    "contracts": {
+                        "Missing": {
+                            "abiURI": "./abi/Missing.json",
+                        }
+                    }
+                },
+                existing_files=set(),
+            ),
+            [f"{self.manifest}: contracts.Missing.abiURI target does not exist: ./abi/Missing.json"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

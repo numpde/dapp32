@@ -18,6 +18,59 @@ class CamManifestResourceTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_cam_route_function_checker_fails_closed_on_malformed_prerequisites(self) -> None:
+        manifest = Path("dapps/example/cam/main.json")
+
+        self.assertEqual(
+            self.validator.validate_route_functions_match_declared_abis(manifest, {"contracts": [], "routes": []}),
+            [
+                "dapps/example/cam/main.json: contracts must be an object",
+                "dapps/example/cam/main.json: routes must be an object",
+            ],
+        )
+
+        failures = self.validator.validate_route_functions_match_declared_abis(
+            manifest,
+            {
+                "contracts": {
+                    "Example": {
+                        "abiURI": "./abi/Missing.json",
+                    }
+                },
+                "routes": {
+                    "entry": {
+                        "contract": "Example",
+                        "function": "viewEntry",
+                        "args": [],
+                    }
+                },
+            },
+        )
+
+        self.assertIn(
+            "dapps/example/cam/main.json: contracts.Example.abiURI target is not readable: ./abi/Missing.json",
+            failures,
+        )
+        self.assertIn(
+            "dapps/example/cam/main.json: routes.entry.contract has no readable ABI function map: Example",
+            failures,
+        )
+
+    def test_generated_abi_convention_checker_fails_closed_on_malformed_contracts(self) -> None:
+        manifest = Path("dapps/example/cam/main.json")
+
+        self.assertEqual(
+            self.validator.validate_generated_abi_uri_conventions(
+                manifest,
+                {
+                    "contracts": {
+                        "Broken": [],
+                    }
+                },
+            ),
+            ["dapps/example/cam/main.json: contracts.Broken must be an object"],
+        )
+
     def test_abi_export_plan_scopes_contract_names_by_dapp_source_path(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
