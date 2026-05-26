@@ -13,8 +13,6 @@ import {
   resolveCamContracts,
   verifyCamHash,
 } from "../src/index.ts"
-import { CAM_ROOT_FUNCTIONS } from "../src/abi.ts"
-import { ZERO_ADDRESS } from "../src/constants.ts"
 import type { CamHost, ResourceLoader } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
@@ -45,6 +43,10 @@ import {
 } from "../../../tests/fixtures/cam/bike.ts"
 
 const host: CamHost = bikeHost
+const ROOT_CAM_URI = "camURI"
+const ROOT_CAM_HASH = "camHash"
+const ROOT_CONTRACT_ADDRESS = "contractAddress"
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 test("keeps the public API to the CAM EVM viem adapter boundary", () => {
   assert.deepEqual(Object.keys(camEvmViem).sort(), [
@@ -75,8 +77,8 @@ test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned 
   assert.equal(loaded.camURI, camDocumentURI)
   assert.deepEqual(loaded.cam, parseCam(camJson))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
-    CAM_ROOT_FUNCTIONS.camURI,
-    CAM_ROOT_FUNCTIONS.camHash,
+    ROOT_CAM_URI,
+    ROOT_CAM_HASH,
   ])
 })
 
@@ -480,15 +482,15 @@ function createPublicClient({
     }): Promise<unknown> {
       calls.push(request)
 
-      if (request.functionName === CAM_ROOT_FUNCTIONS.camURI) {
+      if (request.functionName === ROOT_CAM_URI) {
         return camURI
       }
 
-      if (request.functionName === CAM_ROOT_FUNCTIONS.camHash) {
+      if (request.functionName === ROOT_CAM_HASH) {
         return camHash
       }
 
-      if (request.functionName === CAM_ROOT_FUNCTIONS.contractAddress) {
+      if (request.functionName === ROOT_CONTRACT_ADDRESS) {
         const name = requireContractName(request.args)
         return addresses[name] !== undefined
           ? addresses[name]
