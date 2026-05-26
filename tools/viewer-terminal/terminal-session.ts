@@ -226,11 +226,13 @@ function render(snapshot: CamViewerSnapshot): void {
     output.write(`\n${snapshot.resolvedScreen.title}\n`)
   }
 
+  if (snapshot.resolvedScreen === undefined) {
+    output.write("\n(no resolved screen)\n\n")
+    return
+  }
+
   const buttons: ResolvedButtonElement[] = []
-  // TODO(silent-defaults): an unloaded session renders as a screen with no
-  // elements. That is useful for the mock terminal, but a real UI should have
-  // an explicit loading/error state instead of an empty element list.
-  for (const element of snapshot.resolvedScreen?.elements ?? []) {
+  for (const element of snapshot.resolvedScreen.elements) {
     renderElement(element, snapshot, buttons)
   }
 
@@ -275,10 +277,11 @@ function renderElement(
 }
 
 function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonElement[] {
-  // TODO(silent-defaults): before load, this returns no buttons and `press`
-  // reports "button does not exist". A production controller should surface
-  // "viewer not loaded" as a distinct state.
-  return (snapshot.resolvedScreen?.elements ?? []).filter(
+  if (snapshot.resolvedScreen === undefined) {
+    throw new Error("viewer has no resolved screen")
+  }
+
+  return snapshot.resolvedScreen.elements.filter(
     (element): element is ResolvedButtonElement => element.type === "button",
   )
 }
@@ -409,15 +412,16 @@ function printPromptContext(snapshot: CamViewerSnapshot): void {
   output.write(`  account: ${snapshot.account?.address ?? "(none)"}\n`)
   output.write(`  params: ${formatValue(snapshot.params)}\n`)
   output.write(`  state: ${formatValue(snapshot.state)}\n`)
-  // TODO(silent-defaults): this keeps the prompt compact before the first route
-  // call, but it hides "not loaded" versus "loaded route returned no values".
-  output.write(`  values: ${formatValue(snapshot.values ?? [])}\n`)
+  output.write(`  values: ${snapshot.values === undefined ? "(not loaded)" : formatValue(snapshot.values)}\n`)
 }
 
 function printValues(snapshot: CamViewerSnapshot): void {
-  // TODO(silent-defaults): printing [] for an unloaded route is convenient, but
-  // it hides the difference between "no values yet" and "route returned none".
-  output.write(`${JSON.stringify(snapshot.values ?? [], jsonReplacer, 2)}\n`)
+  if (snapshot.values === undefined) {
+    output.write("(not loaded)\n")
+    return
+  }
+
+  output.write(`${JSON.stringify(snapshot.values, jsonReplacer, 2)}\n`)
 }
 
 function printActions(snapshot: CamViewerSnapshot): void {
