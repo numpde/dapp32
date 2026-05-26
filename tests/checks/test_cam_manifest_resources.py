@@ -39,6 +39,7 @@ class CamManifestResourceTest(unittest.TestCase):
                     failures.append(error)
 
             failures.extend(self.validate_route_functions_exist_in_abis(manifest_path, manifest))
+            failures.extend(self.validate_no_orphan_abi_files(manifest_path, manifest))
 
         if failures:
             self.fail("\n".join(failures))
@@ -61,6 +62,8 @@ class CamManifestResourceTest(unittest.TestCase):
             ("Absolute", "/tmp/Example.json"),
             ("Remote", "https://example.test/Example.json"),
             ("Escape", "../abi/Example.json"),
+            ("WrongDirectory", "./Example.json"),
+            ("WrongBasename", "./abi/Other.json"),
             ("WrongSuffix", "./abi/Example.txt"),
             ("MissingFile", "./abi/Missing.json"),
         ]
@@ -99,6 +102,24 @@ class CamManifestResourceTest(unittest.TestCase):
                 "viewEntry": 1,
                 "overloaded": None,
             },
+        )
+
+        self.assertEqual(
+            self.validate_no_orphan_abi_files(
+                manifest,
+                {
+                    "contracts": {
+                        "Example": {
+                            "abiURI": "./abi/Example.json",
+                        }
+                    }
+                },
+                existing_files={
+                    repo_path("dapps/example/cam/abi/Example.json"),
+                    repo_path("dapps/example/cam/abi/Unused.json"),
+                },
+            ),
+            [f"{manifest}: cam/abi contains unused ABI file not referenced by contracts.*.abiURI: Unused.json"],
         )
 
     def cam_manifests(self) -> list[Path]:
@@ -202,6 +223,45 @@ class CamManifestResourceTest(unittest.TestCase):
                 inputs_by_name[name] = None if name in inputs_by_name else len(inputs)
         return inputs_by_name
 
+    def validate_no_orphan_abi_files(
+        self,
+        manifest_path: Path,
+        manifest: dict[str, object],
+        *,
+        existing_files: set[Path] | None = None,
+    ) -> list[str]:
+        contracts = manifest.get("contracts")
+        if not isinstance(contracts, dict):
+            return []
+
+        referenced: set[Path] = set()
+        for contract in contracts.values():
+            if not isinstance(contract, dict):
+                continue
+
+            abi_uri = contract.get("abiURI")
+            if not isinstance(abi_uri, str):
+                continue
+
+            abi_path = self.resolve_local_abi_path(manifest_path, abi_uri)
+            if abi_path is not None:
+                referenced.add(abi_path)
+
+        if existing_files is None:
+            abi_dir = manifest_path.parent / "abi"
+            abi_files = set(abi_dir.glob("*.json")) if abi_dir.is_dir() else set()
+        else:
+            abi_files = existing_files
+
+        failures: list[str] = []
+        for orphan in sorted(abi_files - referenced):
+            failures.append(
+                f"{manifest_path}: cam/abi contains unused ABI file not referenced by contracts.*.abiURI: "
+                f"{orphan.name}"
+            )
+
+        return failures
+
     def validate_local_abi_uri(
         self,
         manifest_path: Path,
@@ -230,6 +290,13 @@ class CamManifestResourceTest(unittest.TestCase):
         cam_dir = manifest_path.parent.resolve()
         if resolved != cam_dir and cam_dir not in resolved.parents:
             return f"{manifest_path}: {path} escapes the CAM directory: {abi_uri}"
+
+        abi_dir = cam_dir / "abi"
+        if resolved.parent != abi_dir:
+            return f"{manifest_path}: {path} must target a file directly under cam/abi: {abi_uri}"
+
+        if resolved.name != f"{contract_name}.json":
+            return f"{manifest_path}: {path} basename must match the contract name: {abi_uri}"
 
         if existing_files is None:
             if not resolved.is_file():

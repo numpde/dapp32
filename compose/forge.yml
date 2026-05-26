@@ -105,11 +105,12 @@ services:
         forge build --offline "$@"
 
   # ABI export is the one routine Forge lane that writes into the dapp tree.
-  # Only dapps that already have both src/ and cam/ participate. The ABI
-  # directory is treated as generated from direct src/*.sol files. Outputs are
-  # staged in tmpfs first so a failed inspection does not erase the last good
-  # ABI set. Keep dapps/ read-only and mount each generated abi/ directory as
-  # the only writable host path.
+  # Only dapps that already have src/, cam/main.json, and cam/abi/ participate.
+  # The CAM manifest is the source of truth: contracts.*.abiURI declares the ABI
+  # files that should exist, and no other cam/abi/*.json files are preserved.
+  # Outputs are staged in tmpfs first so a failed inspection does not erase the
+  # last good ABI set. Keep dapps/ read-only and mount each generated abi/
+  # directory as the only writable host path.
   forge-abi:
     <<: *forge_base
     volumes:
@@ -123,7 +124,7 @@ services:
         found=0
 
         for dapp in *; do
-          if [ ! -d "$$dapp/src" ] || [ ! -d "$$dapp/cam" ]; then
+          if [ ! -d "$$dapp/src" ] || [ ! -f "$$dapp/cam/main.json" ]; then
             continue
           fi
 
@@ -136,18 +137,26 @@ services:
           staged_dir="$$(mktemp -d)"
           generated=0
 
-          for source in "$$dapp"/src/*.sol; do
+          abi_names="$$(sed -nE 's/^[[:space:]]*"abiURI"[[:space:]]*:[[:space:]]*"\.\/abi\/([A-Za-z_][A-Za-z0-9_]*\.json)"[[:space:]]*,?[[:space:]]*$$/\1/p' "$$dapp/cam/main.json" | sort -u)"
+          if [ -z "$$abi_names" ]; then
+            printf 'forge-abi: %s declares no local ./abi/*.json contract ABI URIs\n' "$$dapp/cam/main.json" >&2
+            exit 2
+          fi
+
+          for abi_name in $$abi_names; do
+            contract="$${abi_name%.json}"
+            source="$$dapp/src/$$contract.sol"
             if [ ! -f "$$source" ]; then
-              continue
+              printf 'forge-abi: %s references %s, but %s is missing\n' "$$dapp/cam/main.json" "$$abi_name" "$$source" >&2
+              exit 2
             fi
 
-            contract="$$(basename "$$source" .sol)"
             forge inspect --json "$$source:$$contract" abi > "$$staged_dir/$$contract.json"
             generated=1
           done
 
           if [ "$$generated" -eq 0 ]; then
-            printf 'forge-abi: no direct Solidity files found under %s/src\n' "$$dapp" >&2
+            printf 'forge-abi: no manifest-declared ABI files were generated for %s\n' "$$dapp" >&2
             exit 2
           fi
 
@@ -160,7 +169,7 @@ services:
         done
 
         if [ "$$found" -eq 0 ]; then
-          printf '%s\n' 'forge-abi: no dapps with both src/ and cam/ found' >&2
+          printf '%s\n' 'forge-abi: no dapps with src/ and cam/main.json found' >&2
           exit 2
         fi
 

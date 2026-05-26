@@ -363,7 +363,7 @@
               <td>Only explicit, pre-existing <code>dapps/&lt;name&gt;/cam/abi/*.json</code> output directories are writable; the rest of <code>dapps/</code> is read-only.</td>
               <td>None.</td>
               <td>One-shot <code>docker compose run --rm</code>.</td>
-              <td>Regenerate checked CAM ABI resources from direct Solidity source files.</td>
+              <td>Regenerate only the ABI resources declared by <code>contracts.*.abiURI</code> in each CAM manifest.</td>
             </tr>
             <tr>
               <td><code>package-build-check</code>, <code>package-test</code></td>

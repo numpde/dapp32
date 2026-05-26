@@ -84,6 +84,10 @@ Keep the project small, explicit, and protocol-first.
   run the tool's own Compose check service instead.
 - ABI export must keep `dapps/` read-only and mount only explicit, pre-existing
   `dapps/<name>/cam/abi/` directories writable.
+- CAM ABI files are generated resources whose source of truth is
+  `dapps/<name>/cam/main.json`. `contracts.*.abiURI` must point directly to
+  `cam/abi/<ContractName>.json`; unused `cam/abi/*.json` files are repository
+  hygiene failures.
 
 ## Dapp Layout
 

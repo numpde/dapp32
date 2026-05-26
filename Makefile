@@ -79,7 +79,7 @@ help:
 	  '  make fmt          Check Solidity formatting for all dapps' \
 	  '  make build        Compile all dapp source trees' \
 	  '  make script-build Compile all dapp deployment scripts without executing them' \
-	  '  make abi          Export dapps/<name>/src/*.sol ABIs into existing cam/abi directories' \
+	  '  make abi          Export only CAM manifest-declared ABIs into existing cam/abi directories' \
 	  '  make test         Run unit tests for all dapps' \
 	  '  make fuzz         Run fuzz tests for all dapps' \
 	  '  make invariant    Run invariant tests for all dapps' \
