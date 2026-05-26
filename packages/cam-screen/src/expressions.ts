@@ -16,7 +16,14 @@ export function validateExpressionValue(value: unknown, path: string): void {
   }
 
   if (Array.isArray(value)) {
-    value.forEach((item, index) => validateExpressionValue(item, `${path}.${index}`))
+    for (let index = 0; index < value.length; index++) {
+      const itemPath = `${path}.${index}`
+      if (!(index in value)) {
+        throw new ScreenError("SCREEN_INVALID_FIELD", "expected a JSON value", itemPath)
+      }
+
+      validateExpressionValue(value[index], itemPath)
+    }
     return
   }
 

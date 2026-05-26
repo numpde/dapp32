@@ -116,6 +116,32 @@ test("parseScreen rejects invalid button actions", () => {
   )
 })
 
+test("parseScreen rejects sparse action arg arrays", () => {
+  const args = ["present", "missing"] as unknown[]
+  delete args[1]
+
+  assert.throws(
+    () => parseScreen({
+      screen: "1.0.0",
+      elements: [
+        {
+          type: "button",
+          label: "Mark missing",
+          action: {
+            contract: "BicycleComponentManager",
+            function: "markMissing",
+            args,
+          },
+        },
+      ],
+    }),
+    (error) =>
+      error instanceof ScreenError
+      && error.code === "SCREEN_INVALID_FIELD"
+      && error.path === "elements.0.action.args.1",
+  )
+})
+
 test("resolveScreen resolves params, state, and route values", () => {
   const screen = parseScreen({
     screen: "1.0.0",

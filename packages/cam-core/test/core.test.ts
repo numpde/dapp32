@@ -315,6 +315,28 @@ test("rejects route args that cannot exist in JSON", () => {
   }
 })
 
+test("rejects sparse route arg arrays", () => {
+  const args = ["present", "missing"] as unknown[]
+  delete args[1]
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      routes: {
+        entry: {
+          contract: "BicycleComponentManagerUI",
+          function: "viewEntry",
+          args,
+        },
+      },
+    }),
+    (error) =>
+      error instanceof CamError
+      && error.code === "CAM_INVALID_FIELD"
+      && error.path === "routes.entry.args.1",
+  )
+})
+
 test("requires explicit route args arrays", () => {
   assert.throws(
     () => parseCam({
