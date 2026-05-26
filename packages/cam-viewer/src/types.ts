@@ -38,7 +38,7 @@ export type CamViewerSession = {
   readonly load: () => Promise<CamViewerSnapshot>
   readonly navigate: (
     route: string,
-    params?: Record<string, InertValue>,
+    params: Record<string, InertValue>,
   ) => Promise<CamViewerSnapshot>
   readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerSnapshot>
   readonly setState: (patch: Record<string, InertValue>) => CamViewerSnapshot

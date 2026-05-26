@@ -103,7 +103,7 @@ test("navigate works for the register route", async () => {
   assert.equal(snapshot.resolvedScreen?.title, "Register")
 })
 
-test("navigate without params starts from empty route params", async () => {
+test("navigate accepts explicit empty route params", async () => {
   const publicClient = createPublicClient()
   const session = createSession({ publicClient })
   await session.load()
@@ -111,7 +111,7 @@ test("navigate without params starts from empty route params", async () => {
     serialNumber: BIKE_SERIAL_NUMBER,
   })
 
-  const snapshot = await session.navigate(BIKE_ROUTE_ENTRY)
+  const snapshot = await session.navigate(BIKE_ROUTE_ENTRY, {})
 
   assert.deepEqual(snapshot.params, {})
   assert.deepEqual(publicClient.calls.at(-1)?.args, [userAddress])
@@ -275,7 +275,7 @@ test("navigate rejects before load", async () => {
   const session = createSession()
 
   await assert.rejects(
-    () => session.navigate(BIKE_ROUTE_ENTRY),
+    () => session.navigate(BIKE_ROUTE_ENTRY, {}),
     (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_NOT_LOADED",
   )
 })

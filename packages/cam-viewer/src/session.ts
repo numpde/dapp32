@@ -91,7 +91,7 @@ export function createCamViewerSession({
 
   async function navigate(
     nextRoute: string,
-    nextParams: Record<string, InertValue> = {},
+    nextParams: Record<string, InertValue>,
   ): Promise<CamViewerSnapshot> {
     assertLoaded()
     return await navigateLoaded(nextRoute, nextParams)
