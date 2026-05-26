@@ -3,8 +3,8 @@ import { isRecordObject, joinPath } from "./internal/json.ts"
 
 export function requiredRecord(value: unknown, path: string): Record<string, unknown> {
   if (!isRecordObject(value)) {
-    // TODO(silent-defaults): the root path is represented as absent in public
-    // errors. Nested paths must stay explicit so parser failures remain local.
+    // The root path is represented as absent in public errors. Nested paths
+    // stay explicit so parser failures remain local.
     throw new CamError(path === "" ? "CAM_NOT_OBJECT" : "CAM_INVALID_FIELD", "expected an object", path || undefined)
   }
 

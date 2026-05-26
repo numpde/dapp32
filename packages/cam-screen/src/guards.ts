@@ -19,8 +19,8 @@ export function isRecordObject(value: unknown): value is Record<string, unknown>
 
 export function requiredRecord(value: unknown, path: string): Record<string, unknown> {
   if (!isRecordObject(value)) {
-    // TODO(silent-defaults): the root path is represented as absent in public
-    // errors. Nested paths must stay explicit so parser failures remain local.
+    // The root path is represented as absent in public errors. Nested paths
+    // stay explicit so parser failures remain local.
     throw new ScreenError(
       path === "" ? "SCREEN_NOT_OBJECT" : "SCREEN_INVALID_FIELD",
       "expected an object",

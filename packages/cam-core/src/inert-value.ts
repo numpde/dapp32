@@ -37,8 +37,8 @@ export function cloneInertValue(value: InertValue): InertValue {
 }
 
 function inertError(message: string, path: string): CamError {
-  // TODO(silent-defaults): the root value has no public path label. Nested
-  // failures still include their constructed path, such as owner.address.
+  // The root value has no public path label. Nested failures still include
+  // their constructed path, such as owner.address.
   return new CamError("CAM_INVALID_FIELD", message, path === "" ? undefined : path)
 }
 
