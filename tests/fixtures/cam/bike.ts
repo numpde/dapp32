@@ -1,5 +1,3 @@
-import type { InertValue } from "../../../packages/cam-core/src/index.ts"
-
 export const BIKE_HOST_CHAIN_ID = "eip155:31337"
 export const BIKE_HOST_ADDRESS = "0x0000000000000000000000000000000000000001"
 export const BIKE_ACCOUNT_ADDRESS = "0x0000000000000000000000000000000000000002"
@@ -177,7 +175,7 @@ export function bikeAddressForContract(name: string): string {
 export function bikeRouteResults(
   serialNumber: string,
   account: string,
-): Record<string, readonly InertValue[]> {
+): Record<string, readonly unknown[]> {
   return {
     [BIKE_VIEW_ENTRY]: bikeEntryRouteResult(account),
     [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber),
@@ -185,7 +183,7 @@ export function bikeRouteResults(
   }
 }
 
-export function bikeEntryRouteResult(account: string): readonly InertValue[] {
+export function bikeEntryRouteResult(account: string): readonly unknown[] {
   return [
     BIKE_RELATIVE_ENTRY_SCREEN_URI,
     {
@@ -196,7 +194,7 @@ export function bikeEntryRouteResult(account: string): readonly InertValue[] {
   ]
 }
 
-export function bikeComponentRouteResult(serialNumber: string): readonly InertValue[] {
+export function bikeComponentRouteResult(serialNumber: string): readonly unknown[] {
   return [
     BIKE_RELATIVE_COMPONENT_SCREEN_URI,
     {
@@ -229,7 +227,7 @@ export function bikeComponentRouteResult(serialNumber: string): readonly InertVa
   ]
 }
 
-export function bikeRegisterRouteResult(serialNumber: string): readonly InertValue[] {
+export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[] {
   return [
     BIKE_RELATIVE_REGISTER_SCREEN_URI,
     {

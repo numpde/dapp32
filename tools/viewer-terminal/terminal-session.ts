@@ -50,7 +50,7 @@ type DebugEvent =
     readonly kind: "contract-read"
     readonly functionName: string
     readonly args: readonly InertValue[]
-    readonly result: InertValue
+    readonly result: unknown
   }
   | {
     readonly step: number
@@ -311,7 +311,7 @@ function formatInputValue(element: Extract<ResolvedScreenElement, { readonly typ
   return value === undefined ? "(unset)" : formatValue(value)
 }
 
-function mockReadContract(functionName: string, args: readonly InertValue[]): InertValue {
+function mockReadContract(functionName: string, args: readonly InertValue[]): unknown {
   switch (functionName) {
     case "camURI":
       requireNoArgs(functionName, args)
