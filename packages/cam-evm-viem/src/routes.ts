@@ -1,5 +1,9 @@
 import { resolveResourceURI, resolveRouteCall } from "@cam/core"
-import { toInertValue } from "@cam/protocol"
+import {
+  createStringMap,
+  isRecordObject,
+  toInertValue,
+} from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
 import type { CamRuntimeContext, InertValue } from "@cam/protocol"
 import { isAddress } from "viem"
@@ -97,8 +101,8 @@ function normalizeRouteValue(value: unknown, path: string): InertValue {
   if (Array.isArray(value)) {
     return value.map((item, index) => normalizeRouteValue(item, `${path}.${index}`))
   }
-  if (isPlainRecord(value)) {
-    const record = Object.create(null) as Record<string, InertValue>
+  if (isRecordObject(value)) {
+    const record = createStringMap<InertValue>()
     for (const [key, item] of Object.entries(value)) {
       record[key] = normalizeRouteValue(item, `${path}.${key}`)
     }
@@ -114,15 +118,6 @@ function normalizeRouteValue(value: unknown, path: string): InertValue {
       cause,
     )
   }
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false
-  }
-
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
 }
 
 function assertLocalScreenURI(screenURI: string, route: string): void {
