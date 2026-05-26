@@ -17,16 +17,15 @@ class CamAbiPlanError(ValueError):
 @dataclass(frozen=True)
 class AbiPlanRow:
     dapp: str
-    contract: str
+    inspect_target: str
     abi_name: str
 
     def as_tsv(self) -> str:
-        return f"{self.dapp}\t{self.contract}\t{self.abi_name}\n"
+        return f"{self.dapp}\t{self.inspect_target}\t{self.abi_name}\n"
 
 
 def build_abi_plan_rows(root: Path) -> list[AbiPlanRow]:
     rows: list[AbiPlanRow] = []
-    seen_contracts: dict[str, str] = {}
 
     for dapp in sorted(root.iterdir(), key=lambda path: path.name):
         if dapp.is_symlink():
@@ -62,7 +61,7 @@ def build_abi_plan_rows(root: Path) -> list[AbiPlanRow]:
             raise CamAbiPlanError(f"{manifest_path} must declare contracts.*.abiURI entries")
 
         for contract_name, contract in sorted(contracts.items()):
-            rows.append(abi_plan_row(manifest_path, dapp.name, contract_name, contract, seen_contracts))
+            rows.append(abi_plan_row(manifest_path, dapp.name, dapp, contract_name, contract))
 
     if not rows:
         raise CamAbiPlanError("no dapps with src/ and cam/main.json found")
@@ -73,26 +72,32 @@ def build_abi_plan_rows(root: Path) -> list[AbiPlanRow]:
 def abi_plan_row(
     manifest_path: Path,
     dapp_name: str,
+    dapp_path: Path,
     contract_name: object,
     contract: object,
-    seen_contracts: dict[str, str],
 ) -> AbiPlanRow:
     if not isinstance(contract_name, str) or not IDENTIFIER_RE.fullmatch(contract_name):
         raise CamAbiPlanError(f"{manifest_path}: invalid contract name: {contract_name!r}")
 
-    previous_dapp = seen_contracts.setdefault(contract_name, dapp_name)
-    if previous_dapp != dapp_name:
-        raise CamAbiPlanError(
-            f"{manifest_path}: contract name {contract_name!r} is also declared by "
-            f"{previous_dapp}; ABI export requires globally unique CAM contract names"
-        )
-
     if not isinstance(contract, dict):
         raise CamAbiPlanError(f"{manifest_path}: contracts.{contract_name} must be an object")
 
+    source_path = dapp_path / "src" / f"{contract_name}.sol"
+    if source_path.is_symlink():
+        raise CamAbiPlanError(f"{manifest_path}: refusing symlinked ABI export source: {source_path}")
+    if not source_path.is_file():
+        raise CamAbiPlanError(
+            f"{manifest_path}: contracts.{contract_name} requires source file src/{contract_name}.sol "
+            "for path-qualified ABI export"
+        )
+
     abi_uri = contract.get("abiURI")
     abi_name = generated_abi_name(manifest_path, contract_name, abi_uri)
-    return AbiPlanRow(dapp=dapp_name, contract=contract_name, abi_name=abi_name)
+    return AbiPlanRow(
+        dapp=dapp_name,
+        inspect_target=f"{dapp_name}/src/{contract_name}.sol:{contract_name}",
+        abi_name=abi_name,
+    )
 
 
 def generated_abi_name(manifest_path: Path, contract_name: str, abi_uri: object) -> str:

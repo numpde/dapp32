@@ -152,9 +152,9 @@ services:
 
         staged_root="$$(mktemp -d)"
 
-        while IFS="	" read -r dapp contract abi_name; do
-          if [ -z "$$dapp" ] || [ -z "$$contract" ] || [ -z "$$abi_name" ]; then
-            printf 'forge-abi: invalid ABI export plan row: %s %s %s\n' "$$dapp" "$$contract" "$$abi_name" >&2
+        while IFS="	" read -r dapp inspect_target abi_name; do
+          if [ -z "$$dapp" ] || [ -z "$$inspect_target" ] || [ -z "$$abi_name" ]; then
+            printf 'forge-abi: invalid ABI export plan row: %s %s %s\n' "$$dapp" "$$inspect_target" "$$abi_name" >&2
             exit 2
           fi
           abi_dir="$$dapp/cam/abi"
@@ -164,10 +164,10 @@ services:
           fi
 
           mkdir -p "$$staged_root/$$dapp"
-          forge inspect --json "$$contract" abi > "$$staged_root/$$dapp/$$abi_name"
+          forge inspect --json "$$inspect_target" abi > "$$staged_root/$$dapp/$$abi_name"
         done < "$$plan"
 
-        while IFS="	" read -r dapp contract abi_name; do
+        while IFS="	" read -r dapp inspect_target abi_name; do
           abi_dir="$$dapp/cam/abi"
 
           if [ ! -e "$$staged_root/$$dapp/.cleared" ]; then
