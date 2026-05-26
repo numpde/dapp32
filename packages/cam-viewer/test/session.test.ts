@@ -22,6 +22,7 @@ import {
   BIKE_CAM_URI as camURI,
   BIKE_COMPONENT_SCREEN_URI as componentScreenURI,
   BIKE_ENTRY_SCREEN_URI as entryScreenURI,
+  BIKE_MARK_MISSING,
   BIKE_MANAGER_ABI_URI as managerAbiURI,
   BIKE_MANAGER_CONTRACT,
   BIKE_REGISTER_SCREEN_URI as registerScreenURI,
@@ -268,7 +269,7 @@ test("dispatchAction surfaces contract calls without sending transactions", asyn
 
   const action = {
     contract: BIKE_MANAGER_CONTRACT,
-    function: "markMissing",
+    function: BIKE_MARK_MISSING,
     args: [BIKE_SERIAL_NUMBER],
   }
   const result = await session.dispatchAction(action)

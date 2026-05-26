@@ -17,6 +17,7 @@ export const BIKE_ROUTE_REGISTER = "register"
 export const BIKE_VIEW_ENTRY = "viewEntry"
 export const BIKE_VIEW_COMPONENT = "viewComponent"
 export const BIKE_VIEW_REGISTER = "viewRegister"
+export const BIKE_MARK_MISSING = "markMissing"
 
 export const BIKE_CAM_URI = "ipfs://example/main.json"
 export const BIKE_UI_ABI_URI = "ipfs://example/abi/BicycleComponentManagerUI.json"
@@ -106,10 +107,15 @@ export const bikeUiAbi = [
   },
 ] as const
 
-// TODO(silent-defaults): this fixture is currently read-route-only, so manager
-// ABI contents are not exercised. Add the real ABI before testing screen
-// contract-call actions against BicycleComponentManager.
-export const bikeManagerAbi = [] as const
+export const bikeManagerAbi = [
+  {
+    type: "function",
+    name: BIKE_MARK_MISSING,
+    stateMutability: "nonpayable",
+    inputs: [{ name: "serialNumber", type: "string" }],
+    outputs: [],
+  },
+] as const
 
 export function bikeAddressForContract(name: string): string {
   // TODO(silent-defaults): address(0) mirrors CamRoot's "unbound contract"
