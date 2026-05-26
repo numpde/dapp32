@@ -12,7 +12,7 @@ from .common import read_text, repo_path
 @dataclass(frozen=True)
 class AbiRouteFunction:
     input_count: int
-    outputs: list[object]
+    first_output: object | None
 
 
 class CamManifestResourceTest(unittest.TestCase):
@@ -102,7 +102,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 failures.append(str(error))
                 continue
 
-            failures.extend(self.validate_route_functions_exist_in_abis(manifest_path, manifest))
+            failures.extend(self.validate_route_functions_match_declared_abis(manifest_path, manifest))
 
         if failures:
             self.fail("\n".join(failures))
@@ -180,7 +180,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 ]
             ),
             {
-                "viewEntry": AbiRouteFunction(input_count=1, outputs=[]),
+                "viewEntry": AbiRouteFunction(input_count=1, first_output=None),
                 "overloaded": None,
             },
         )
@@ -193,24 +193,22 @@ class CamManifestResourceTest(unittest.TestCase):
                 "viewEntry",
                 AbiRouteFunction(
                     input_count=1,
-                    outputs=[
-                        {
-                            "name": "screenURI",
-                            "type": "string",
-                        }
-                    ],
+                    first_output={
+                        "name": "screenURI",
+                        "type": "string",
+                    },
                 ),
             ),
             [],
         )
 
-        bad_outputs = [
-            ("MissingOutputs", []),
-            ("WrongName", [{"name": "uri", "type": "string"}]),
-            ("WrongType", [{"name": "screenURI", "type": "bytes32"}]),
-            ("MalformedOutput", ["screenURI"]),
+        bad_first_outputs = [
+            ("MissingOutputs", None),
+            ("WrongName", {"name": "uri", "type": "string"}),
+            ("WrongType", {"name": "screenURI", "type": "bytes32"}),
+            ("MalformedOutput", "screenURI"),
         ]
-        for case_name, outputs in bad_outputs:
+        for case_name, first_output in bad_first_outputs:
             with self.subTest(case_name=case_name):
                 self.assertTrue(
                     self.validate_route_output_shape(
@@ -218,7 +216,7 @@ class CamManifestResourceTest(unittest.TestCase):
                         "routes.entry",
                         "Example",
                         "viewEntry",
-                        AbiRouteFunction(input_count=1, outputs=outputs),
+                        AbiRouteFunction(input_count=1, first_output=first_output),
                     )
                 )
 
@@ -254,7 +252,7 @@ class CamManifestResourceTest(unittest.TestCase):
 
         return document
 
-    def validate_route_functions_exist_in_abis(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+    def validate_route_functions_match_declared_abis(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         contracts = manifest.get("contracts")
         routes = manifest.get("routes")
         if not isinstance(contracts, dict) or not isinstance(routes, dict):
@@ -319,14 +317,13 @@ class CamManifestResourceTest(unittest.TestCase):
         function_name: str,
         function: AbiRouteFunction,
     ) -> list[str]:
-        outputs = function.outputs
-        if not outputs:
+        first_output = function.first_output
+        if first_output is None:
             return [
                 f"{manifest_path}: {route_path}.function must return screenURI as its first output: "
                 f"{contract_name}.{function_name}"
             ]
 
-        first_output = outputs[0]
         if not isinstance(first_output, dict):
             return [
                 f"{manifest_path}: {route_path}.function first output must be an ABI object: "
@@ -390,7 +387,10 @@ class CamManifestResourceTest(unittest.TestCase):
                 functions_by_name[name] = (
                     None
                     if name in functions_by_name
-                    else AbiRouteFunction(input_count=len(inputs), outputs=outputs if isinstance(outputs, list) else [])
+                    else AbiRouteFunction(
+                        input_count=len(inputs),
+                        first_output=outputs[0] if isinstance(outputs, list) and outputs else None,
+                    )
                 )
         return functions_by_name
 
