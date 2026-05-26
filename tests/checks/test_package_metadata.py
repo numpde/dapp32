@@ -61,10 +61,7 @@ class PackageMetadataTest(unittest.TestCase):
     def test_package_exports_do_not_publish_internal_paths(self) -> None:
         for path in sorted(repo_path("packages").glob("*/package.json")):
             manifest = self.read_manifest(path)
-            # TODO(silent-defaults): packages without exports currently behave
-            # like packages with no public internal paths. If all packages must
-            # publish the same surface shape, require exports explicitly.
-            exports = manifest.get("exports", {})
+            exports = manifest.get("exports")
             self.assertIsInstance(exports, dict, f"{path}: exports must be an object")
 
             for export_path in exports:
@@ -78,11 +75,10 @@ class PackageMetadataTest(unittest.TestCase):
         for path in self.package_manifest_paths():
             manifest = self.read_manifest(path)
             for field in DEPENDENCY_FIELDS:
-                # TODO(silent-defaults): missing dependency sections are treated
-                # as empty. That is fine for optional sections, but if a package
-                # kind requires devDependencies/build tooling, add a stricter
-                # package-shape check instead of relying on this default.
-                dependencies = manifest.get(field, {})
+                dependencies = manifest.get(field)
+                if dependencies is None:
+                    continue
+
                 self.assertIsInstance(dependencies, dict, f"{path}: {field} must be an object")
 
                 for name, version in sorted(dependencies.items()):
