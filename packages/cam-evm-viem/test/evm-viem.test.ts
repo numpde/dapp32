@@ -90,10 +90,19 @@ test("verifyCamHash rejects mismatched nonzero hashes", () => {
   )
 })
 
-test("verifyCamHash treats any casing of bytes32(0) as unsigned", () => {
+test("verifyCamHash requires explicit unsigned mode for bytes32(0)", () => {
+  assert.throws(
+    () => verifyCamHash({
+      bytes: encodeText("unsigned CAM"),
+      expectedHash: BIKE_UNSIGNED_CAM_HASH,
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_HASH_UNSIGNED",
+  )
+
   assert.doesNotThrow(() => verifyCamHash({
     bytes: encodeText("unsigned CAM"),
     expectedHash: BIKE_UNSIGNED_CAM_HASH.toUpperCase() as Hex,
+    allowUnsigned: true,
   }))
 })
 

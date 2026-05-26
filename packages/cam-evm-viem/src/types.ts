@@ -49,4 +49,5 @@ export type CallCamRouteOptions = {
 export type VerifyCamHashOptions = {
   readonly bytes: Uint8Array
   readonly expectedHash: Hex
+  readonly allowUnsigned?: boolean
 }

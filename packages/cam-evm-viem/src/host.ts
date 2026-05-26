@@ -41,6 +41,7 @@ export async function loadCamFromHost({
   verifyCamHash({
     bytes: camBytes,
     expectedHash: camHash,
+    allowUnsigned: true,
   })
 
   const camJson = parseJsonBytes(camBytes, "CAM_DOCUMENT_INVALID", `CAM document is not valid JSON: ${camURI}`)
