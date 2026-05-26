@@ -77,13 +77,62 @@ export const bikeCamJson = {
   },
 } as const
 
+const accountViewOutput = {
+  name: "accountView",
+  type: "tuple",
+  components: [
+    { name: "account", type: "address" },
+    { name: "canRegister", type: "bool" },
+    { name: "accountInfo", type: "string" },
+  ],
+} as const
+
+const componentViewOutput = {
+  name: "component",
+  type: "tuple",
+  components: [
+    { name: "exists", type: "bool" },
+    { name: "serialHash", type: "bytes32" },
+    { name: "tokenContract", type: "address" },
+    { name: "tokenId", type: "uint256" },
+    { name: "owner", type: "address" },
+    { name: "ownerInfo", type: "string" },
+    { name: "registrar", type: "address" },
+    { name: "status", type: "uint8" },
+    { name: "tokenURI", type: "string" },
+    { name: "registeredAt", type: "uint48" },
+    { name: "updatedAt", type: "uint48" },
+    { name: "serialNumber", type: "string" },
+    { name: "permissions", type: "uint64" },
+    { name: "isOwner", type: "bool" },
+    { name: "canUpdateMetadata", type: "bool" },
+    { name: "canMarkMissing", type: "bool" },
+    { name: "canClearMissing", type: "bool" },
+    { name: "canRetire", type: "bool" },
+  ],
+} as const
+
+const registerViewOutput = {
+  name: "registerView",
+  type: "tuple",
+  components: [
+    { name: "canRegister", type: "bool" },
+    { name: "exists", type: "bool" },
+    { name: "serialHash", type: "bytes32" },
+    { name: "tokenId", type: "uint256" },
+    { name: "defaultComponents", type: "address" },
+    { name: "serialNumber", type: "string" },
+    { name: "accountInfo", type: "string" },
+  ],
+} as const
+
 export const bikeUiAbi = [
   {
     type: "function",
     name: BIKE_VIEW_ENTRY,
     stateMutability: "view",
     inputs: [{ name: "viewer", type: "address" }],
-    outputs: [{ name: "screenURI", type: "string" }],
+    outputs: [{ name: "screenURI", type: "string" }, accountViewOutput],
   },
   {
     type: "function",
@@ -93,7 +142,7 @@ export const bikeUiAbi = [
       { name: "serialNumber", type: "string" },
       { name: "viewer", type: "address" },
     ],
-    outputs: [{ name: "screenURI", type: "string" }],
+    outputs: [{ name: "screenURI", type: "string" }, componentViewOutput, accountViewOutput],
   },
   {
     type: "function",
@@ -103,7 +152,7 @@ export const bikeUiAbi = [
       { name: "serialNumber", type: "string" },
       { name: "viewer", type: "address" },
     ],
-    outputs: [{ name: "screenURI", type: "string" }],
+    outputs: [{ name: "screenURI", type: "string" }, registerViewOutput, accountViewOutput],
   },
 ] as const
 
