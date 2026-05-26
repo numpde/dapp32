@@ -50,7 +50,6 @@ export async function loadCamFromHost({
   return {
     camURI,
     camHash,
-    camBytes,
     cam,
   }
 }
