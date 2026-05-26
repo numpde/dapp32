@@ -1,6 +1,5 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { TextEncoder } from "node:util"
 
 import { CamEvmError } from "@cam/evm-viem"
 import { toInertValue } from "@cam/core"
@@ -13,10 +12,9 @@ import {
 } from "../src/index.ts"
 import type {
   CamHost,
-  ResolvedCamContract,
 } from "@cam/evm-viem"
 import type { CreateCamViewerSessionOptions } from "../src/index.ts"
-import type { Hex } from "viem"
+import type { Address, Hex } from "viem"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camURI,
@@ -42,11 +40,13 @@ import {
   bikeRouteResults,
   bikeUiAbi as uiAbi,
 } from "../../../tests/fixtures/cam/bike.mts"
+import {
+  createMockCamPublicClient,
+  createMockResourceLoader as createResourceLoader,
+  encodeJson,
+} from "../../../tests/fixtures/cam/mock.mts"
 
 const host: CamHost = bikeHost
-type MockAddress = CamHost["address"]
-type MockAbi = ResolvedCamContract["abi"]
-type MockHash = Hex
 
 test("keeps the public API to the CAM viewer boundary", () => {
   assert.deepEqual(Object.keys(camViewer).sort(), [
@@ -387,89 +387,19 @@ function createPublicClient({
   addresses = bikeContractAddresses,
   routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
 }: {
-  readonly camHash?: MockHash
-  readonly addresses?: Record<string, MockAddress>
-  // This fake models raw viem return values before @cam/evm-viem normalizes
-  // them to RouteResult.values.
+  readonly camHash?: Hex
+  readonly addresses?: Readonly<Record<string, Address>>
   readonly routeResults?: Record<string, unknown>
 } = {}) {
-  const calls: Array<{
-    readonly address: MockAddress
-    readonly abi?: MockAbi
-    readonly functionName: string
-    readonly args?: readonly unknown[]
-    readonly account?: MockAddress
-  }> = []
-
-  type MockReadContractRequest = {
-    readonly address?: MockAddress
-    readonly abi?: MockAbi
-    readonly functionName: string
-    readonly args?: readonly unknown[]
-    readonly account?: MockAddress
-  }
-
-  async function readContract(request: MockReadContractRequest): Promise<unknown> {
-    const call: {
-      address: MockAddress
-      abi?: MockAbi
-      functionName: string
-      args?: readonly unknown[]
-      account?: MockAddress
-    } = {
-      address: request.address ?? host.address,
-      functionName: request.functionName,
-    }
-    if (request.abi !== undefined) call.abi = request.abi
-    if (request.args !== undefined) call.args = request.args
-    if (request.account !== undefined) call.account = request.account
-    calls.push(call)
-
-    if (request.functionName === "camURI") {
-      return camURI
-    }
-
-    if (request.functionName === "camHash") {
-      return camHash
-    }
-
-    if (request.functionName === "contractAddress") {
-      const name = requireContractName(request.args)
-      return addresses[name] !== undefined
-        ? addresses[name]
-        : "0x0000000000000000000000000000000000000000"
-    }
-
-    if (Object.hasOwn(routeResults, request.functionName)) {
-      return routeResults[request.functionName]
-    }
-
-    throw new Error(`unexpected readContract call: ${request.functionName}`)
-  }
-
-  return {
-    calls,
-    readContract: readContract as CreateCamViewerSessionOptions["publicClient"]["readContract"],
-  }
-}
-
-function requireContractName(args: readonly unknown[] | undefined): string {
-  if (args?.length !== 1 || typeof args[0] !== "string") {
-    throw new Error("contractAddress expected one string argument")
-  }
-
-  return args[0]
-}
-
-function createResourceLoader(resources: Record<string, Uint8Array>) {
-  return async (uri: string): Promise<Uint8Array> => {
-    const bytes = resources[uri]
-    if (bytes === undefined) {
-      throw new Error(`unexpected resource URI: ${uri}`)
-    }
-
-    return bytes
-  }
+  // This fake models raw viem return values before @cam/evm-viem normalizes
+  // them to RouteResult.values.
+  return createMockCamPublicClient<CreateCamViewerSessionOptions["publicClient"]["readContract"]>({
+    camURI,
+    camHash,
+    addresses,
+    routeResults,
+    hostAddress: host.address,
+  })
 }
 
 function mutableRecord(value: unknown): Record<string, unknown> {
@@ -517,8 +447,4 @@ const registerScreen = {
       value: "$values.0.canRegister",
     },
   ],
-}
-
-function encodeJson(value: unknown): Uint8Array {
-  return new TextEncoder().encode(JSON.stringify(value))
 }

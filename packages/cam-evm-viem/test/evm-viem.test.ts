@@ -1,6 +1,5 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { TextEncoder } from "node:util"
 
 import { parseCam, toInertValue } from "@cam/core"
 import type { Abi, Address, Hex } from "viem"
@@ -13,7 +12,7 @@ import {
   resolveCamContracts,
   verifyCamHash,
 } from "../src/index.ts"
-import type { CamHost, CamPublicClient, ResourceLoader } from "../src/index.ts"
+import type { CamHost, CamPublicClient } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
@@ -41,12 +40,17 @@ import {
   bikeRouteResults,
   bikeUiAbi as uiAbi,
 } from "../../../tests/fixtures/cam/bike.mts"
+import {
+  createMockCamPublicClient,
+  createMockResourceLoader as createResourceLoader,
+  encodeJson,
+  encodeText,
+} from "../../../tests/fixtures/cam/mock.mts"
 
 const host: CamHost = bikeHost
 const ROOT_CAM_URI = "camURI"
 const ROOT_CAM_HASH = "camHash"
 const ROOT_CONTRACT_ADDRESS = "contractAddress"
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 test("keeps the public API to the CAM EVM viem adapter boundary", () => {
   assert.deepEqual(Object.keys(camEvmViem).sort(), [
@@ -484,78 +488,15 @@ function createPublicClient({
   readonly camURI?: string
   readonly camHash?: Hex
   readonly addresses?: Record<string, Address>
-  // This fake models raw viem return values before callCamRoute normalizes
-  // them to RouteResult.values.
   readonly routeResults?: Record<string, unknown>
 }) {
-  const calls: Array<{
-    readonly address: Address
-    readonly abi?: Abi
-    readonly functionName: string
-    readonly args?: readonly unknown[]
-    readonly account?: Address
-  }> = []
-
-  async function readContract(request: {
-    readonly address: Address
-    readonly abi?: Abi
-    readonly functionName: string
-    readonly args?: readonly unknown[]
-    readonly account?: Address
-  }): Promise<unknown> {
-    calls.push(request)
-
-    if (request.functionName === ROOT_CAM_URI) {
-      return camURI
-    }
-
-    if (request.functionName === ROOT_CAM_HASH) {
-      return camHash
-    }
-
-    if (request.functionName === ROOT_CONTRACT_ADDRESS) {
-      const name = requireContractName(request.args)
-      return addresses[name] !== undefined
-        ? addresses[name]
-        : ZERO_ADDRESS
-    }
-
-    if (Object.hasOwn(routeResults, request.functionName)) {
-      return routeResults[request.functionName]
-    }
-
-    throw new Error(`unexpected readContract call: ${request.functionName}`)
-  }
-
-  return {
-    calls,
-    readContract: readContract as CamPublicClient["readContract"],
-  }
-}
-
-function requireContractName(args: readonly unknown[] | undefined): string {
-  if (args?.length !== 1 || typeof args[0] !== "string") {
-    throw new Error("contractAddress expected one string argument")
-  }
-
-  return args[0]
-}
-
-function createResourceLoader(resources: Record<string, Uint8Array>): ResourceLoader {
-  return async (uri) => {
-    const bytes = resources[uri]
-    if (bytes === undefined) {
-      throw new Error(`unexpected resource URI: ${uri}`)
-    }
-
-    return bytes
-  }
-}
-
-function encodeJson(value: unknown): Uint8Array {
-  return encodeText(JSON.stringify(value))
-}
-
-function encodeText(value: string): Uint8Array {
-  return new TextEncoder().encode(value)
+  // This fake models raw viem return values before callCamRoute normalizes
+  // them to RouteResult.values.
+  return createMockCamPublicClient<CamPublicClient["readContract"]>({
+    camURI,
+    camHash,
+    addresses,
+    routeResults,
+    hostAddress: host.address,
+  })
 }
