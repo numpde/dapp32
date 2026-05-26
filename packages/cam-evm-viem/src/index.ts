@@ -1,13 +1,9 @@
 export type {
-  CallCamRouteOptions,
   CamHost,
   LoadedCam,
-  LoadCamFromHostOptions,
   ResolvedCamContract,
-  ResolveCamContractsOptions,
   ResourceLoader,
   RouteResult,
-  VerifyCamHashOptions,
 } from "./types.ts"
 
 export { CamEvmError } from "./errors.ts"

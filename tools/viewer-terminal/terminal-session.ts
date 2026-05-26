@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url"
 
 import type {
   CamHost,
-  LoadCamFromHostOptions,
 } from "../../packages/cam-evm-viem/dist/index.js"
 import {
   createCamViewerSession,
@@ -13,6 +12,7 @@ import {
 import type {
   CamViewerSession,
   CamViewerSnapshot,
+  CreateCamViewerSessionOptions,
 } from "../../packages/cam-viewer/dist/index.js"
 import { toInertValue } from "../../packages/cam-core/dist/index.js"
 import type { InertValue } from "../../packages/cam-core/dist/index.js"
@@ -35,7 +35,7 @@ import {
 
 type ResolvedButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
 type MockAddress = CamHost["address"]
-type MockPublicClient = LoadCamFromHostOptions["publicClient"]
+type MockPublicClient = CreateCamViewerSessionOptions["publicClient"]
 
 const MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
 const MOCK_CAM_URI = new URL("main.json", MOCK_CAM_BASE_URI).href

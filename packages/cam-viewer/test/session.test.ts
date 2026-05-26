@@ -13,9 +13,9 @@ import {
 } from "../src/index.ts"
 import type {
   CamHost,
-  LoadCamFromHostOptions,
   ResolvedCamContract,
 } from "@cam/evm-viem"
+import type { CreateCamViewerSessionOptions } from "../src/index.ts"
 import type { Hex } from "viem"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
@@ -400,7 +400,7 @@ function createPublicClient({
 
   return {
     calls,
-    async readContract(request: Parameters<LoadCamFromHostOptions["publicClient"]["readContract"]>[0]): Promise<unknown> {
+    async readContract(request: Parameters<CreateCamViewerSessionOptions["publicClient"]["readContract"]>[0]): Promise<unknown> {
       calls.push(request)
 
       if (request.functionName === "camURI") {

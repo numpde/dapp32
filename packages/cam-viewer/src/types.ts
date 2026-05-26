@@ -1,9 +1,9 @@
 import type { InertValue } from "@cam/core"
 import type {
   CamHost,
-  LoadCamFromHostOptions,
   ResourceLoader,
 } from "@cam/evm-viem"
+import type { loadCamFromHost } from "@cam/evm-viem"
 import type {
   ResolvedScreen,
   ResolvedScreenAction,
@@ -16,7 +16,7 @@ export type CamViewerAccount = {
 }
 
 export type CreateCamViewerSessionOptions = {
-  readonly publicClient: LoadCamFromHostOptions["publicClient"]
+  readonly publicClient: Parameters<typeof loadCamFromHost>[0]["publicClient"]
   readonly host: CamHost
   readonly loadResource: ResourceLoader
   readonly account?: CamViewerAccount
