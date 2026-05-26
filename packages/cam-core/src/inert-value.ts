@@ -15,21 +15,14 @@ type InertRecord = {
   readonly [key: string]: InertValue
 }
 
-function isInertValue(value: unknown): value is InertValue {
-  return validateInertValue(value) === undefined
-}
-
-function assertInertValue(value: unknown): asserts value is InertValue {
+export function toInertValue(value: unknown): InertValue {
   const error = validateInertValue(value)
 
   if (error !== undefined) {
     throw error
   }
-}
 
-export function toInertValue(value: unknown): InertValue {
-  assertInertValue(value)
-  return cloneValidatedInertValue(value)
+  return cloneValidatedInertValue(value as InertValue)
 }
 
 function inertError(message: string, path: string): CamError {
