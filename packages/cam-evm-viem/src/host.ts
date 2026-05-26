@@ -48,7 +48,6 @@ export async function loadCamFromHost({
   const cam = parseCam(camJson)
 
   return {
-    host,
     camURI,
     camHash,
     camBytes,

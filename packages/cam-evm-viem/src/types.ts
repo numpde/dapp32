@@ -9,7 +9,6 @@ export type CamHost = {
 export type ResourceLoader = (uri: string) => Promise<Uint8Array>
 
 export type LoadedCam = {
-  readonly host: CamHost
   readonly camURI: string
   readonly camHash: Hex
   readonly camBytes: Uint8Array
