@@ -1,7 +1,7 @@
 import { toInertValue } from "@cam/core"
 import { SCREEN_CONTEXT_KEYS } from "./constants.ts"
 import { ScreenError } from "./errors.ts"
-import { hasOwn, isRecordObject } from "./guards.ts"
+import { hasOwn, isRecordObject, joinPath } from "./guards.ts"
 import type { ScreenRuntimeContext } from "./types.ts"
 import type { InertValue } from "@cam/core"
 
@@ -115,8 +115,4 @@ function validateExpressionString(value: string, path: string): void {
 
 function isArrayIndex(value: string): boolean {
   return value === "0" || /^[1-9][0-9]*$/.test(value)
-}
-
-function joinPath(parent: string, key: string): string {
-  return `${parent}.${key}`
 }
