@@ -1,7 +1,7 @@
 import type { Abi, Address, PublicClient } from "viem"
 import type { CamDocument, InertValue } from "@cam/core"
 
-export type CamPublicClient = PublicClient
+export type CamPublicClient = Pick<PublicClient, "readContract">
 
 export type CamHost = {
   readonly chainId: string
