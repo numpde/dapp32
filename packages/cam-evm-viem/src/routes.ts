@@ -1,9 +1,9 @@
 import { resolveResourceURI, resolveRouteCall, toInertValue } from "@cam/core"
-import type { InertValue } from "@cam/core"
-import type { Abi, AbiFunction, Address } from "viem"
+import type { CamDocument, CamRuntimeContext, InertValue } from "@cam/core"
+import type { Abi, AbiFunction, Address, PublicClient } from "viem"
 
 import { CamEvmError } from "./errors.ts"
-import type { CallCamRouteOptions, RouteResult } from "./types.ts"
+import type { ResolvedCamContract, RouteResult } from "./types.ts"
 
 export async function callCamRoute({
   publicClient,
@@ -52,6 +52,15 @@ export async function callCamRoute({
     screenURI: resolveResourceURI(camURI, screenURI),
     values: normalizeRouteValues(values.slice(1), route),
   }
+}
+
+type CallCamRouteOptions = {
+  readonly publicClient: PublicClient
+  readonly cam: CamDocument
+  readonly camURI: string
+  readonly contracts: Record<string, ResolvedCamContract>
+  readonly route: string
+  readonly context: CamRuntimeContext
 }
 
 function normalizeRouteValues(values: readonly unknown[], route: string): readonly InertValue[] {

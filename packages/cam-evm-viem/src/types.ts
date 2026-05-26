@@ -1,5 +1,5 @@
-import type { Abi, Address, Hex, PublicClient } from "viem"
-import type { CamDocument, CamRuntimeContext, InertValue } from "@cam/core"
+import type { Abi, Address } from "viem"
+import type { CamDocument, InertValue } from "@cam/core"
 
 export type CamHost = {
   readonly chainId: string
@@ -21,33 +21,4 @@ export type ResolvedCamContract = {
 export type RouteResult = {
   readonly screenURI: string
   readonly values: readonly InertValue[]
-}
-
-export type LoadCamFromHostOptions = {
-  readonly publicClient: PublicClient
-  readonly host: CamHost
-  readonly loadResource: ResourceLoader
-}
-
-export type ResolveCamContractsOptions = {
-  readonly publicClient: PublicClient
-  readonly host: CamHost
-  readonly camURI: string
-  readonly cam: CamDocument
-  readonly loadResource: ResourceLoader
-}
-
-export type CallCamRouteOptions = {
-  readonly publicClient: PublicClient
-  readonly cam: CamDocument
-  readonly camURI: string
-  readonly contracts: Record<string, ResolvedCamContract>
-  readonly route: string
-  readonly context: CamRuntimeContext
-}
-
-export type VerifyCamHashOptions = {
-  readonly bytes: Uint8Array
-  readonly expectedHash: Hex
-  readonly allowUnsigned?: boolean
 }

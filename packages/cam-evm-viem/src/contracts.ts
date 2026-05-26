@@ -1,10 +1,12 @@
 import { resolveResourceURI } from "@cam/core"
+import type { CamDocument } from "@cam/core"
+import type { PublicClient } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi, parseAbiBytes } from "./abi.ts"
 import { ZERO_ADDRESS } from "./constants.ts"
 import { CamEvmError } from "./errors.ts"
 import { loadResourceBytes } from "./resources.ts"
-import type { ResolvedCamContract, ResolveCamContractsOptions } from "./types.ts"
+import type { CamHost, ResolvedCamContract, ResourceLoader } from "./types.ts"
 
 export async function resolveCamContracts({
   publicClient,
@@ -49,4 +51,12 @@ export async function resolveCamContracts({
   )
 
   return Object.fromEntries(entries)
+}
+
+type ResolveCamContractsOptions = {
+  readonly publicClient: PublicClient
+  readonly host: CamHost
+  readonly camURI: string
+  readonly cam: CamDocument
+  readonly loadResource: ResourceLoader
 }
