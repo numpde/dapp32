@@ -157,6 +157,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", command)
 
         self.assertEqual(True, volume_for(test, "/work/dapps").get("read_only"))
+        self.assertEqual(True, volume_for(test, "/work/tests/fixtures").get("read_only"))
 
     def test_viewer_terminal_renders_as_offline_read_only_interactive_lane(self) -> None:
         config = rendered_compose_config(
@@ -178,7 +179,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn("npm run build:packages", " ".join(check.get("command", [])))
         self.assertIn("tsc -p ../tools/viewer-terminal/tsconfig.json", " ".join(check.get("command", [])))
         self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", " ".join(check.get("command", [])))
-        for target in ["/work/dapps", "/work/tools"]:
+        for target in ["/work/dapps", "/work/tests/fixtures", "/work/tools"]:
             self.assertEqual(True, volume_for(viewer, target).get("read_only"))
             self.assertEqual(True, volume_for(check, target).get("read_only"))
         self.assertEqual(True, volume_for(viewer, "/input/packages").get("read_only"))

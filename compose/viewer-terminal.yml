@@ -9,6 +9,7 @@ x-viewer-terminal-volumes: &viewer_terminal_volumes
   - ../dapps:/work/dapps:ro
   - ../packages:/input/packages:ro
   - ../packages/node_modules:/work/packages/node_modules:ro
+  - ../tests/fixtures:/work/tests/fixtures:ro
   - ../tools:/work/tools:ro
 
 x-viewer-terminal-base: &viewer_terminal_base

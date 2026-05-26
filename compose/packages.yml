@@ -72,6 +72,7 @@ services:
       - ../dapps:/work/dapps:ro
       - ../packages:/input/packages:ro
       - ../packages/node_modules:/work/packages/node_modules:ro
+      - ../tests/fixtures:/work/tests/fixtures:ro
     command:
       - "sh"
       - "-eu"

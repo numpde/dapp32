@@ -120,6 +120,10 @@ Keep the project small, explicit, and protocol-first.
 - Do not add Python package dependencies to the checks lane unless there is a
   clear, reviewed need. Prefer standard-library parsing for small repository
   invariants.
+- Cross-package TypeScript test fixtures live under `tests/fixtures/`, not
+  under one package's `test/` tree and not in package exports. Package/test
+  Compose lanes may mount this directory read-only when tests need shared
+  fixture data.
 
 ## Implementation Discipline
 

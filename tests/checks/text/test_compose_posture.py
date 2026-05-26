@@ -151,6 +151,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertEqual(1, text.count("- ALL"))
         self.assertIn("../packages:/input/packages:ro", text)
         self.assertIn("../packages/node_modules:/work/packages/node_modules:ro", text)
+        self.assertIn("../tests/fixtures:/work/tests/fixtures:ro", text)
         self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777", text)
         self.assertIn("stage-package-workspace /input/packages /work/packages", text)
         self.assertNotIn("../packages:/work/packages:ro", text)

@@ -28,7 +28,7 @@ import {
   bikeComponentRouteResult,
   bikeEntryRouteResult,
   bikeRegisterRouteResult,
-} from "../../packages/cam-core/test/fixtures/bike.ts"
+} from "../../tests/fixtures/cam/bike.ts"
 
 type ResolvedButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
 

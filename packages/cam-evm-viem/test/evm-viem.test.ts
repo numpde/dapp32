@@ -43,7 +43,7 @@ import {
   bikeManagerAbi as managerAbi,
   bikeRouteResults,
   bikeUiAbi as uiAbi,
-} from "../../cam-core/test/fixtures/bike.ts"
+} from "../../../tests/fixtures/cam/bike.ts"
 
 const host: CamHost = bikeHost
 

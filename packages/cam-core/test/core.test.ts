@@ -18,7 +18,7 @@ import {
   BIKE_UI_CONTRACT,
   BIKE_VIEW_COMPONENT,
   bikeCamJson as mainJson,
-} from "./fixtures/bike.ts"
+} from "../../../tests/fixtures/cam/bike.ts"
 
 test("keeps the public API to the CAM core boundary", () => {
   assert.deepEqual(Object.keys(camCore).sort(), [
