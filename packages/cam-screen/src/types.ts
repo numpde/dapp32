@@ -88,4 +88,4 @@ export type ResolvedButtonElement = {
   readonly action: ResolvedScreenAction
 }
 
-export type ResolvedScreenAction = NavigateAction | ContractCallAction
+export type ResolvedScreenAction = ScreenAction
