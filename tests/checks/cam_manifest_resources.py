@@ -421,58 +421,6 @@ class CamManifestResourceValidator:
                 )
         return functions_by_name
 
-    def validate_known_fields(
-        self,
-        source_path: Path,
-        path: str,
-        source: dict[object, object],
-        allowed: frozenset[str],
-    ) -> list[str]:
-        failures: list[str] = []
-        for key in source:
-            if not isinstance(key, str) or key not in allowed:
-                location = f"{path}.{key}" if path and isinstance(key, str) else path
-                failures.append(f"{source_path}: {location} field is not allowed in screen {SCREEN_VERSION}: {key}")
-
-        return failures
-
-    def validate_non_empty_string(self, source_path: Path, path: str, value: object) -> list[str]:
-        return [] if isinstance(value, str) and value != "" else [f"{source_path}: {path} must be a non-empty string"]
-
-    def validate_expression_string(self, source_path: Path, path: str, value: object) -> list[str]:
-        failures = self.validate_non_empty_string(source_path, path, value)
-        if not failures and isinstance(value, str):
-            failures.extend(self.validate_expression_syntax(source_path, path, value))
-
-        return failures
-
-    def validate_expression_payload(self, source_path: Path, path: str, value: object) -> list[str]:
-        if isinstance(value, str):
-            return self.validate_expression_syntax(source_path, path, value)
-        if isinstance(value, list):
-            failures: list[str] = []
-            for index, item in enumerate(value):
-                failures.extend(self.validate_expression_payload(source_path, f"{path}.{index}", item))
-            return failures
-        if isinstance(value, dict):
-            failures = []
-            for key, item in value.items():
-                if not isinstance(key, str) or key == "":
-                    failures.append(f"{source_path}: {path} object keys must be non-empty strings")
-                    continue
-                failures.extend(self.validate_expression_payload(source_path, f"{path}.{key}", item))
-            return failures
-        if value is None or isinstance(value, (bool, int, float)):
-            return []
-
-        return [f"{source_path}: {path} must be a JSON value"]
-
-    def validate_expression_syntax(self, source_path: Path, path: str, value: str) -> list[str]:
-        if not value.startswith("$") or SCREEN_EXPRESSION_RE.match(value):
-            return []
-
-        return [f"{source_path}: {path} has invalid screen expression: {value}"]
-
     def validate_no_orphan_abi_files(
         self,
         manifest_path: Path,
