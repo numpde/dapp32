@@ -15,7 +15,7 @@ test("keeps the public API to protocol support primitives", () => {
     "createJsonGuards",
     "createStringMap",
     "hasOwn",
-    "isJsonScalar",
+    "isNonStringJsonScalar",
     "isRecordObject",
     "joinPath",
     "parseJsonText",

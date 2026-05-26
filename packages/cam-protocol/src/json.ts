@@ -19,7 +19,7 @@ export function isRecordObject(value: unknown): value is Record<string, unknown>
   return prototype === Object.prototype || prototype === null
 }
 
-export function isJsonScalar(value: unknown): boolean {
+export function isNonStringJsonScalar(value: unknown): boolean {
   if (value === null || typeof value === "boolean") {
     return true
   }

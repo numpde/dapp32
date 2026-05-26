@@ -11,7 +11,7 @@ export {
   createJsonGuards,
   createStringMap,
   hasOwn,
-  isJsonScalar,
+  isNonStringJsonScalar,
   isRecordObject,
   joinPath,
   parseJsonText,

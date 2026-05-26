@@ -1,7 +1,7 @@
 import {
   createStringMap,
   hasOwn,
-  isJsonScalar,
+  isNonStringJsonScalar,
   isRecordObject,
   joinPath,
 } from "./json.ts"
@@ -70,7 +70,7 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
       return
     }
 
-    if (!isJsonScalar(value)) {
+    if (!isNonStringJsonScalar(value)) {
       throw options.error("invalidField", "expected a JSON value", path)
     }
   }
