@@ -109,10 +109,7 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
     return true
   }
 
-  // TODO(silent-defaults): line is known non-empty after trim(), so this
-  // fallback is only satisfying destructuring/typing. If command parsing grows,
-  // make empty command an explicit parser error instead of a default branch.
-  const [command = "", ...args] = line.split(/\s+/)
+  const [command, ...args] = line.split(/\s+/)
 
   try {
     switch (command) {
@@ -309,29 +306,40 @@ function createMockPublicClient(events: DebugEvent[]): MockPublicClient {
 function mockReadContract(functionName: string, args: readonly InertValue[]): InertValue {
   switch (functionName) {
     case "camURI":
+      requireNoArgs(functionName, args)
       return MOCK_CAM_URI
     case "camHash":
+      requireNoArgs(functionName, args)
       return ZERO_HASH
     case "contractAddress":
-      // TODO(silent-defaults): this mock turns a missing contract-name arg into
-      // "". Real readContract calls should fail loudly on malformed args.
-      return contractAddress(String(args[0] ?? ""))
+      return contractAddress(requireStringArgs(functionName, args, 1)[0])
     case BIKE_VIEW_ENTRY:
-      // TODO(silent-defaults): this fallback makes manual terminal use easy,
-      // but it can mask a broken route arg resolver in the debug harness.
-      return bikeEntryRouteResult(String(args[0] ?? USER_ADDRESS))
+      return bikeEntryRouteResult(requireStringArgs(functionName, args, 1)[0])
     case BIKE_VIEW_COMPONENT:
-      // TODO(silent-defaults): an absent serial number currently becomes the
-      // empty component route. That should be explicit if this grows beyond a
-      // mock terminal.
-      return bikeComponentRouteResult(String(args[0] ?? ""))
+      return bikeComponentRouteResult(requireStringArgs(functionName, args, 2)[0])
     case BIKE_VIEW_REGISTER:
-      // TODO(silent-defaults): same empty-serial fallback as component; keep it
-      // visible because real viewers should pass explicit route params.
-      return bikeRegisterRouteResult(String(args[0] ?? ""))
+      return bikeRegisterRouteResult(requireStringArgs(functionName, args, 2)[0])
     default:
       throw new Error(`unexpected readContract call: ${functionName}`)
   }
+}
+
+function requireNoArgs(functionName: string, args: readonly InertValue[]): void {
+  if (args.length !== 0) {
+    throw new Error(`${functionName} expected no arguments, got ${args.length}`)
+  }
+}
+
+function requireStringArgs(
+  functionName: string,
+  args: readonly InertValue[],
+  length: number,
+): readonly string[] {
+  if (args.length !== length || args.some((arg) => typeof arg !== "string")) {
+    throw new Error(`${functionName} expected ${length} string argument(s), got ${formatValue(args)}`)
+  }
+
+  return args as readonly string[]
 }
 
 function contractAddress(name: string): MockAddress {
