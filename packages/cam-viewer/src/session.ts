@@ -6,6 +6,7 @@ import {
 import {
   toInertValue,
 } from "@cam/core"
+import { parseJsonText } from "@cam/protocol"
 import type { CamDocument, CamRuntimeContext, InertRecord, InertValue } from "@cam/core"
 import {
   parseScreen,
@@ -185,7 +186,7 @@ export function createCamViewerSession({
 
   function parseScreenBytes(bytes: Uint8Array, uri: string): ScreenDocument {
     try {
-      return parseScreen(JSON.parse(new TextDecoder().decode(bytes)))
+      return parseScreen(parseJsonText(new TextDecoder().decode(bytes)))
     } catch (cause) {
       throw new CamViewerError(
         "CAM_VIEWER_SCREEN_PARSE_FAILED",

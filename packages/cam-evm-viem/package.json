@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@cam/core": "0.1.0",
+    "@cam/protocol": "0.1.0",
     "viem": "2.50.4"
   }
 }

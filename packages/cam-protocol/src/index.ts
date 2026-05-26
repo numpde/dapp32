@@ -14,6 +14,7 @@ export {
   isJsonScalar,
   isRecordObject,
   joinPath,
+  parseJsonText,
 } from "./json.ts"
 export type {
   JsonGuardErrorKind,

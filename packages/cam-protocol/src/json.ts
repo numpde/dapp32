@@ -33,6 +33,10 @@ export function joinPath(parent: string, key: string): string {
   return parent === "" ? key : `${parent}.${key}`
 }
 
+export function parseJsonText(text: string): unknown {
+  return JSON.parse(text)
+}
+
 export type JsonGuardErrorKind = "notObject" | "invalidField"
 
 export type JsonGuards = {
