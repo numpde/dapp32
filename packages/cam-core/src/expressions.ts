@@ -7,7 +7,7 @@ import type { InertValue } from "./inert-value.ts"
 
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/
 
-export function resolveValue(value: InertValue, context: CamRuntimeContext): InertValue {
+function resolveValue(value: InertValue, context: CamRuntimeContext): InertValue {
   if (typeof value === "string") {
     return resolveString(value, context)
   }
