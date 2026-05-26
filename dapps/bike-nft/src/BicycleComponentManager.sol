@@ -282,7 +282,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         ComponentRecord storage record = _requireRegistered(serialHash);
         address actor = _msgSender();
 
-        if (!_canUpdateMetadata(record, actor)) {
+        if (!_canAct(record, actor, CAP_UPDATE_METADATA)) {
             revert Unauthorized(actor, serialHash, CAP_UPDATE_METADATA);
         }
         if (record.status == ComponentStatus.Retired) revert InvalidStatus(record.status);
@@ -312,7 +312,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         ComponentRecord storage record = _requireRegistered(serialHash);
         address actor = _msgSender();
 
-        if (!_isTokenOwner(record, actor) && !_hasCapability(record, actor, CAP_RETIRE)) {
+        if (!_canAct(record, actor, CAP_RETIRE)) {
             revert Unauthorized(actor, serialHash, CAP_RETIRE);
         }
         if (record.status == ComponentStatus.Retired) revert InvalidStatus(record.status);
@@ -550,25 +550,23 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     function canUpdateMetadata(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
         return record.status != ComponentStatus.None && record.status != ComponentStatus.Retired
-            && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_UPDATE_METADATA));
+            && _canAct(record, actor, CAP_UPDATE_METADATA);
     }
 
     function canMarkMissing(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
-        return record.status == ComponentStatus.Active
-            && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_MARK_MISSING));
+        return record.status == ComponentStatus.Active && _canAct(record, actor, CAP_MARK_MISSING);
     }
 
     function canClearMissing(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
-        return record.status == ComponentStatus.Missing
-            && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_CLEAR_MISSING));
+        return record.status == ComponentStatus.Missing && _canAct(record, actor, CAP_CLEAR_MISSING);
     }
 
     function canRetire(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
         return record.status != ComponentStatus.None && record.status != ComponentStatus.Retired
-            && (_isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_RETIRE));
+            && _canAct(record, actor, CAP_RETIRE);
     }
 
     // ---------------------------------------------------------------------
@@ -614,13 +612,13 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         address actor = _msgSender();
 
         if (isMissing) {
-            if (!_isTokenOwner(record, actor) && !_hasCapability(record, actor, CAP_MARK_MISSING)) {
+            if (!_canAct(record, actor, CAP_MARK_MISSING)) {
                 revert Unauthorized(actor, serialHash, CAP_MARK_MISSING);
             }
             if (record.status != ComponentStatus.Active) revert InvalidStatus(record.status);
             _updateStatus(record, actor, ComponentStatus.Missing);
         } else {
-            if (!_isTokenOwner(record, actor) && !_hasCapability(record, actor, CAP_CLEAR_MISSING)) {
+            if (!_canAct(record, actor, CAP_CLEAR_MISSING)) {
                 revert Unauthorized(actor, serialHash, CAP_CLEAR_MISSING);
             }
             if (record.status != ComponentStatus.Missing) revert InvalidStatus(record.status);
@@ -655,8 +653,8 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         return (_effectiveDelegationCapabilities(record, actor) & capability) != 0;
     }
 
-    function _canUpdateMetadata(ComponentRecord storage record, address actor) internal view returns (bool) {
-        return _isTokenOwner(record, actor) || _hasCapability(record, actor, CAP_UPDATE_METADATA);
+    function _canAct(ComponentRecord storage record, address actor, uint64 capability) internal view returns (bool) {
+        return _isTokenOwner(record, actor) || _hasCapability(record, actor, capability);
     }
 
     function _effectiveDelegationCapabilities(ComponentRecord storage record, address actor)

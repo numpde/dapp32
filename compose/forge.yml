@@ -119,7 +119,7 @@ services:
     volumes:
       - ../dapps:/work/dapps:ro
       - ../tools/forge-abi-plan.py:/work/tools/forge-abi-plan.py:ro
-      - ${ABI_PLAN_DIR:?missing_ABI_PLAN_DIR}:/work/abi-plan:rw
+      - ${ABI_PLAN_DIR:-/tmp/cam-abi-plan-unused}:/work/abi-plan:rw
     command:
       - "-I"
       - "-B"
@@ -135,7 +135,7 @@ services:
   forge-abi:
     <<: *forge_base
     volumes:
-      - ${ABI_PLAN_DIR:?missing_ABI_PLAN_DIR}:/work/abi-plan:ro
+      - ${ABI_PLAN_DIR:-/tmp/cam-abi-plan-unused}:/work/abi-plan:ro
       - ../dapps:/work/dapps:ro
       - ../dapps/bike-nft/cam/abi:/work/dapps/bike-nft/cam/abi:rw
     command:
