@@ -98,6 +98,8 @@ class PackageMetadataTest(unittest.TestCase):
 
     def test_workspace_packages_use_the_common_build_shape(self) -> None:
         package_tsconfig = self.read_manifest(repo_path("packages/tsconfig.package.json"))
+        dom_tsconfig = self.read_manifest(repo_path("packages/tsconfig.dom.json"))
+        dom_test_tsconfig = self.read_manifest(repo_path("packages/tsconfig.dom.test.json"))
         base_tsconfig = self.read_manifest(repo_path("packages/tsconfig.base.json"))
         compiler_options = package_tsconfig.get("compilerOptions")
 
@@ -106,6 +108,10 @@ class PackageMetadataTest(unittest.TestCase):
         self.assertEqual("${configDir}/dist", compiler_options.get("outDir"))
         self.assertEqual("${configDir}/src", compiler_options.get("rootDir"))
         self.assertEqual(["${configDir}/src/**/*.ts"], package_tsconfig.get("include"))
+        self.assertEqual("./tsconfig.package.json", dom_tsconfig.get("extends"))
+        self.assertEqual("./tsconfig.test.json", dom_test_tsconfig.get("extends"))
+        self.assertEqual({"ES2022", "DOM"}, set(self.compiler_libs(dom_tsconfig, "packages/tsconfig.dom.json")))
+        self.assertEqual({"ES2022", "DOM"}, set(self.compiler_libs(dom_test_tsconfig, "packages/tsconfig.dom.test.json")))
 
         base_options = base_tsconfig.get("compilerOptions")
         self.assertIsInstance(base_options, dict, "packages/tsconfig.base.json: compilerOptions must be an object")
@@ -124,13 +130,14 @@ class PackageMetadataTest(unittest.TestCase):
 
                 tsconfig = self.read_manifest(path.parent / "tsconfig.json")
                 test_tsconfig = self.read_manifest(path.parent / "tsconfig.test.json")
-                self.assertEqual("../tsconfig.package.json", tsconfig.get("extends"))
-                self.assertEqual("../tsconfig.test.json", test_tsconfig.get("extends"))
+                self.assertIn(tsconfig.get("extends"), {"../tsconfig.package.json", "../tsconfig.dom.json"})
+                self.assertIn(test_tsconfig.get("extends"), {"../tsconfig.test.json", "../tsconfig.dom.test.json"})
 
     def test_package_tests_are_semantically_typechecked(self) -> None:
         self.assertTrue(repo_path("packages/tsconfig.test.json").is_file())
         stager = read_text(repo_path("containers/node-deps/stage-package-workspace"))
         self.assertIn('copy_file_if_present "$source_dir/tsconfig.test.json"', stager)
+        self.assertIn('copy_file_if_present "$source_dir/tsconfig.dom.test.json"', stager)
 
         for path in sorted(repo_path("packages").glob("*/package.json")):
             manifest = self.read_manifest(path)
@@ -259,6 +266,14 @@ class PackageMetadataTest(unittest.TestCase):
         manifest = json.loads(read_text(path))
         self.assertIsInstance(manifest, dict, f"{path}: package manifest must be a JSON object")
         return manifest
+
+    def compiler_libs(self, manifest: dict[str, object], path: str) -> list[str]:
+        compiler_options = manifest.get("compilerOptions")
+        self.assertIsInstance(compiler_options, dict, f"{path}: compilerOptions must be an object")
+        libs = compiler_options.get("lib")
+        self.assertIsInstance(libs, list, f"{path}: compilerOptions.lib must be an array")
+        self.assertTrue(all(isinstance(lib, str) for lib in libs), f"{path}: compilerOptions.lib must contain strings")
+        return libs
 
     def repo_files_named(self, name: str) -> list[Path]:
         return [path for path in iter_files(".") if path.name == name]

@@ -59,6 +59,8 @@ reject_symlink "$source_dir/package.json"
 copy_file_if_present "$source_dir/package.json"
 copy_file_if_present "$source_dir/package-lock.json"
 copy_file_if_present "$source_dir/tsconfig.base.json"
+copy_file_if_present "$source_dir/tsconfig.dom.json"
+copy_file_if_present "$source_dir/tsconfig.dom.test.json"
 copy_file_if_present "$source_dir/tsconfig.package.json"
 copy_file_if_present "$source_dir/tsconfig.test.json"
 

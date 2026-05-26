@@ -156,6 +156,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("reject_symlink", stager_text)
         self.assertIn("! -name node_modules", stager_text)
         self.assertIn('copy_file_if_present "$source_dir/package.json"', stager_text)
+        self.assertIn('copy_file_if_present "$source_dir/tsconfig.dom.json"', stager_text)
         self.assertIn('copy_file_if_present "$source_dir/tsconfig.package.json"', stager_text)
         self.assertIn("for pattern in $workspace_patterns", stager_text)
         self.assertIn("dist | node_modules | package.json", stager_text)
