@@ -1,5 +1,6 @@
 import { resolveResourceURI, resolveRouteCall, toInertValue } from "@cam/core"
 import type { CamDocument, CamRuntimeContext, InertValue } from "@cam/core"
+import { isAddress } from "viem"
 import type { Abi, AbiFunction, Address } from "viem"
 
 import { CamEvmError } from "./errors.ts"
@@ -24,6 +25,7 @@ export async function callCamRoute({
   }
   assertRouteFunctionAbi(contract.abi, routeCall.function)
 
+  const account = routeAccount(context)
   let raw: unknown
   try {
     raw = await publicClient.readContract({
@@ -31,7 +33,7 @@ export async function callCamRoute({
       abi: contract.abi,
       functionName: routeCall.function,
       args: routeCall.args,
-      account: context.account?.address as Address | undefined,
+      account,
     })
   } catch (cause) {
     throw new CamEvmError("CAM_ROUTE_CALL_FAILED", `failed to call CAM route: ${route}`, cause)
@@ -47,6 +49,19 @@ type CallCamRouteOptions = {
   readonly contracts: Record<string, ResolvedCamContract>
   readonly route: string
   readonly context: CamRuntimeContext
+}
+
+function routeAccount(context: CamRuntimeContext): Address | undefined {
+  const address = context.account?.address
+  if (address === undefined) {
+    return undefined
+  }
+
+  if (!isAddress(address)) {
+    throw new CamEvmError("CAM_INVALID_ACCOUNT", `CAM account address is invalid: ${address}`)
+  }
+
+  return address
 }
 
 function normalizeRouteResult(raw: unknown, camURI: string, route: string): RouteResult {

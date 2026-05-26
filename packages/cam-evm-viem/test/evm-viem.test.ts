@@ -279,6 +279,38 @@ test("callCamRoute requires the first route return value to be a non-empty scree
   )
 })
 
+test("callCamRoute validates account addresses before calling viem", async () => {
+  const publicClient = createPublicClient({
+    routeResults: {
+      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
+    },
+  })
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient,
+      cam: parseCam(camJson),
+      camURI: camDocumentURI,
+      contracts: {
+        [BIKE_UI_CONTRACT]: {
+          address: uiAddress,
+          abiURI: uiAbiURI,
+          abi: uiAbi,
+        },
+      },
+      route: BIKE_ROUTE_ENTRY,
+      context: {
+        host,
+        account: { address: "not-an-address" },
+        params: {},
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_INVALID_ACCOUNT",
+  )
+
+  assert.equal(publicClient.calls.length, 0)
+})
+
 test("callCamRoute accepts only CAM-local screen JSON resources", async () => {
   const unsafeScreenURIs = [
     "https://example.com/x.json",
