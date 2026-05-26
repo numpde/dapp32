@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 import { TextEncoder } from "node:util"
 
-import { parseCam } from "@cam/core"
+import { parseCam, toInertValue } from "@cam/core"
 import { parseScreen, resolveScreen } from "@cam/screen"
 import type { Abi, Address, Hex } from "viem"
 
@@ -195,7 +195,7 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
   const cam = parseCam(camJson)
   const publicClient = createPublicClient({
     routeResults: {
-      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, 7],
+      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, 7n, { count: 8n }],
     },
   })
 
@@ -219,7 +219,11 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
   })
 
   assert.equal(result.screenURI, BIKE_ENTRY_SCREEN_URI)
-  assert.deepEqual(result.values, [BIKE_RELATIVE_ENTRY_SCREEN_URI, 7])
+  assert.deepEqual(result.values, [
+    BIKE_RELATIVE_ENTRY_SCREEN_URI,
+    "7",
+    toInertValue({ count: "8" }),
+  ])
 
   assert.deepEqual(publicClient.calls.at(-1), {
     address: uiAddress,

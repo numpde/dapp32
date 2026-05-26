@@ -93,7 +93,7 @@ function parseRoutes(
     routes[name] = {
       contract,
       function: functionName,
-      args: args.map((arg) => toInertValue(arg)) as readonly InertValue[],
+      args: args.map((arg): InertValue => toInertValue(arg)),
     }
   }
 

@@ -171,14 +171,13 @@ export function createCamViewerSession({
 
     const screenBytes = await loadScreenBytes(routeResult.screenURI)
     const parsedScreen = parseScreenBytes(screenBytes, routeResult.screenURI)
-    const routeValues = normalizeRouteValues(routeResult.values)
     state = seedInputState(parsedScreen, state)
     const nextResolvedScreen = resolveScreen(parsedScreen, {
       host,
       ...(account === undefined ? {} : { account }),
       params: routeParams,
       state,
-      values: routeValues,
+      values: routeResult.values,
     })
 
     route = nextRoute
@@ -186,7 +185,7 @@ export function createCamViewerSession({
     screenURI = routeResult.screenURI
     screen = parsedScreen
     resolvedScreen = nextResolvedScreen
-    values = routeValues
+    values = routeResult.values
 
     return snapshot()
   }
@@ -257,20 +256,6 @@ function cloneViewerInertValue(value: InertValue, path: string): InertValue {
       { cause },
     )
   }
-}
-
-function normalizeRouteValues(source: readonly unknown[]): readonly InertValue[] {
-  return source.map((value, index) => {
-    try {
-      return toInertValue(value)
-    } catch (cause) {
-      throw new CamViewerError(
-        "CAM_VIEWER_INVALID_SNAPSHOT",
-        `CAM route value is not safely cloneable: values.${index}`,
-        { cause },
-      )
-    }
-  })
 }
 
 function cloneValue(value: unknown, path: string): unknown {

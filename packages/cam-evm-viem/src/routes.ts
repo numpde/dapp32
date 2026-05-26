@@ -55,17 +55,44 @@ export async function callCamRoute({
 }
 
 function normalizeRouteValues(values: readonly unknown[], route: string): readonly InertValue[] {
-  return values.map((value, index) => {
-    try {
-      return toInertValue(value)
-    } catch (cause) {
-      throw new CamEvmError(
-        "CAM_ROUTE_INVALID_RESULT",
-        `CAM route returned a non-inert value at ${route}[${index}]`,
-        cause,
-      )
+  return values.map((value, index) => normalizeRouteValue(value, `${route}.${index}`))
+}
+
+function normalizeRouteValue(value: unknown, path: string): InertValue {
+  if (typeof value === "bigint") {
+    // viem decodes Solidity integers as bigint; CAM screen data carries them
+    // as decimal strings because InertValue deliberately has no bigint scalar.
+    return value.toString()
+  }
+  if (Array.isArray(value)) {
+    return value.map((item, index) => normalizeRouteValue(item, `${path}.${index}`))
+  }
+  if (isPlainRecord(value)) {
+    const record = Object.create(null) as Record<string, InertValue>
+    for (const [key, item] of Object.entries(value)) {
+      record[key] = normalizeRouteValue(item, `${path}.${key}`)
     }
-  })
+    return record
+  }
+
+  try {
+    return toInertValue(value)
+  } catch (cause) {
+    throw new CamEvmError(
+      "CAM_ROUTE_INVALID_RESULT",
+      `CAM route returned a non-inert value at ${path}`,
+      cause,
+    )
+  }
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false
+  }
+
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
 }
 
 function assertLocalScreenURI(screenURI: string, route: string): void {
