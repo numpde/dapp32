@@ -4,6 +4,9 @@ SHELL := bash
 
 COMPOSE_DIR ?= compose
 DOCKER_COMPOSE ?= docker compose
+# TODO(silent-defaults): the default project name is convenient locally, but it
+# can collide with another checkout/user. Prefer explicit COMPOSE_PROJECT_NAME
+# for shared machines, CI, and parallel scenario runs.
 COMPOSE_PROJECT_NAME ?= dapps
 DAPPS_DIR := dapps
 PACKAGES_DIR := packages

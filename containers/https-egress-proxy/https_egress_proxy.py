@@ -15,6 +15,9 @@ import time
 # silently binding all interfaces on 8080.
 LISTEN_HOST = os.environ.get("HTTPS_EGRESS_PROXY_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("HTTPS_EGRESS_PROXY_PORT", "8080"))
+
+# TODO(silent-defaults): these are part of the dependency-egress policy. Keep
+# them explicit in Compose before this proxy is reused outside the current lane.
 CONNECT_TIMEOUT_SECONDS = float(os.environ.get("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS", "10"))
 TUNNEL_IDLE_TIMEOUT_SECONDS = float(os.environ.get("HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS", "300"))
 MAX_HOST_BYTES = int(os.environ.get("HTTPS_EGRESS_PROXY_MAX_HOST_BYTES", "255"))

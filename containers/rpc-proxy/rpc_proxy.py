@@ -17,6 +17,10 @@ from urllib.parse import urlsplit
 LISTEN_HOST = os.environ.get("RPC_PROXY_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("RPC_PROXY_PORT", "8080"))
 UPSTREAM_FILE = os.environ.get("RPC_UPSTREAM_FILE", "/run/secrets/rpc_url")
+
+# TODO(silent-defaults): these caps are security policy, not incidental tuning.
+# If the proxy becomes reusable, move them into explicit Compose/env settings so
+# callers cannot inherit stale limits silently.
 MAX_REQUEST_BYTES = int(os.environ.get("RPC_PROXY_MAX_REQUEST_BYTES", str(1024 * 1024)))
 MAX_RESPONSE_BYTES = int(os.environ.get("RPC_PROXY_MAX_RESPONSE_BYTES", str(4 * 1024 * 1024)))
 MAX_UPSTREAM_URL_BYTES = int(os.environ.get("RPC_PROXY_MAX_UPSTREAM_URL_BYTES", "4096"))
