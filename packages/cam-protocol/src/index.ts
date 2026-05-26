@@ -8,6 +8,15 @@ export type {
 } from "./expressions.ts"
 
 export {
+  InertValueError,
+  toInertValue,
+} from "./inert-value.ts"
+export type {
+  InertRecord,
+  InertValue,
+} from "./inert-value.ts"
+
+export {
   createJsonGuards,
   createStringMap,
   hasOwn,

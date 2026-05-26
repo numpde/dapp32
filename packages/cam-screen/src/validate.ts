@@ -9,7 +9,7 @@ import {
   rejectUnknownFields,
 } from "./guards.ts"
 import type { ScreenDocument, ScreenElement } from "./types.ts"
-import type { InertValue } from "@cam/core"
+import type { InertValue } from "@cam/protocol"
 
 const TOP_LEVEL_KEYS = new Set(["screen", "title", "elements"])
 const TEXT_KEYS = elementKeys("text")

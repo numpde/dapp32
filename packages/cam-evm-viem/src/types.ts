@@ -1,5 +1,6 @@
 import type { Abi, Address, PublicClient } from "viem"
-import type { CamDocument, InertValue } from "@cam/core"
+import type { CamDocument } from "@cam/core"
+import type { InertValue } from "@cam/protocol"
 
 export type CamPublicClient = Pick<PublicClient, "readContract">
 

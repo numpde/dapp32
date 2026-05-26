@@ -1,4 +1,4 @@
-import type { InertRecord, InertValue } from "@cam/core"
+import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
   CamHost,
   CamPublicClient,

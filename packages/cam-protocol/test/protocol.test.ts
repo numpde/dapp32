@@ -6,12 +6,15 @@ import {
   createExpressionRuntime,
   createJsonGuards,
   createStringMap,
+  InertValueError,
   parseJsonBytes,
   parseJsonText,
+  toInertValue,
 } from "../src/index.ts"
 
 test("keeps the public API to protocol support primitives", () => {
   assert.deepEqual(Object.keys(camProtocol).sort(), [
+    "InertValueError",
     "createExpressionRuntime",
     "createJsonGuards",
     "createStringMap",
@@ -21,6 +24,7 @@ test("keeps the public API to protocol support primitives", () => {
     "joinPath",
     "parseJsonBytes",
     "parseJsonText",
+    "toInertValue",
   ])
 })
 
@@ -82,6 +86,31 @@ test("creates prototype-neutral string maps", () => {
 
   assert.equal(Object.getPrototypeOf(map), null)
   assert.equal(map.__proto__, "data")
+})
+
+test("validates and clones inert protocol values", () => {
+  const source = {
+    nested: {
+      value: "before",
+    },
+  }
+
+  const clone = toInertValue(source) as Record<string, unknown>
+  const nested = clone.nested as Record<string, unknown>
+
+  assert.equal(Object.getPrototypeOf(clone), null)
+  assert.equal(Object.getPrototypeOf(nested), null)
+
+  source.nested.value = "after"
+  assert.equal(nested.value, "before")
+})
+
+test("rejects non-inert protocol values with a precise path", () => {
+  assert.throws(
+    () => toInertValue({ route: { params: [new Date(0)] } }),
+    (error) => error instanceof InertValueError
+      && error.path === "route.params.0",
+  )
 })
 
 test("parses JSON text", () => {

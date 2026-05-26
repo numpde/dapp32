@@ -1,5 +1,7 @@
-import { resolveResourceURI, resolveRouteCall, toInertValue } from "@cam/core"
-import type { CamDocument, CamRuntimeContext, InertValue } from "@cam/core"
+import { resolveResourceURI, resolveRouteCall } from "@cam/core"
+import { toInertValue } from "@cam/protocol"
+import type { CamDocument, CamRuntimeContext } from "@cam/core"
+import type { InertValue } from "@cam/protocol"
 import { isAddress } from "viem"
 import type { Abi, AbiFunction, Address } from "viem"
 

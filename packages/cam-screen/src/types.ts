@@ -1,4 +1,5 @@
-import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/core"
+import type { CamRuntimeContext } from "@cam/core"
+import type { InertRecord, InertValue } from "@cam/protocol"
 
 export type ScreenDocument = {
   readonly screen: string

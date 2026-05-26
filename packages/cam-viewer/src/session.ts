@@ -4,10 +4,11 @@ import {
   resolveCamContracts,
 } from "@cam/evm-viem"
 import {
+  parseJsonBytes,
   toInertValue,
-} from "@cam/core"
-import { parseJsonBytes } from "@cam/protocol"
-import type { CamDocument, CamRuntimeContext, InertRecord, InertValue } from "@cam/core"
+} from "@cam/protocol"
+import type { CamDocument, CamRuntimeContext } from "@cam/core"
+import type { InertRecord, InertValue } from "@cam/protocol"
 import {
   parseScreen,
   resolveScreen,

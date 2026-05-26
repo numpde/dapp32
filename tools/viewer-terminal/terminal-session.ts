@@ -14,8 +14,10 @@ import type {
   CamViewerSnapshot,
   CreateCamViewerSessionOptions,
 } from "../../packages/cam-viewer/dist/index.js"
-import { toInertValue } from "../../packages/cam-core/dist/index.js"
-import type { InertValue } from "../../packages/cam-core/dist/index.js"
+import {
+  toInertValue,
+} from "../../packages/cam-protocol/dist/index.js"
+import type { InertValue } from "../../packages/cam-protocol/dist/index.js"
 import type {
   ResolvedScreenElement,
 } from "../../packages/cam-screen/dist/index.js"

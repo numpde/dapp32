@@ -11,7 +11,7 @@ import {
   rejectUnknownFields,
 } from "./guards.ts"
 import { parseExpressionPayload, resolveValueAtPath } from "./expressions.ts"
-import type { InertRecord, InertValue } from "@cam/core"
+import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
   ContractCallAction,
   NavigateAction,
