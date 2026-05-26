@@ -42,10 +42,6 @@ export function parseAction(input: unknown, path: string): ScreenAction {
   throw new ScreenError("SCREEN_INVALID_FIELD", "expected navigation or contract call action", path)
 }
 
-export function resolveAction(action: ScreenAction, context: ScreenRuntimeContext): ResolvedScreenAction {
-  return resolveActionAtPath(action, context, "action")
-}
-
 export function resolveActionAtPath(
   action: ScreenAction,
   context: ScreenRuntimeContext,

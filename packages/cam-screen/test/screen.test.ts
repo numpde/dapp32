@@ -7,8 +7,7 @@ import {
   resolveScreen,
   ScreenError,
 } from "../src/index.ts"
-import { resolveAction } from "../src/actions.ts"
-import type { ScreenAction, ScreenRuntimeContext } from "../src/types.ts"
+import type { ScreenRuntimeContext } from "../src/index.ts"
 
 const context: ScreenRuntimeContext = {
   host: {
@@ -164,43 +163,69 @@ test("resolveScreen resolves params, state, and route values", () => {
   ])
 })
 
-test("resolveAction resolves navigation params", () => {
-  const action: ScreenAction = {
-    route: "component",
-    params: {
-      serialNumber: "$state.serialNumber",
-    },
-  }
+test("resolveScreen resolves navigation action params", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "button",
+        label: "Look up",
+        action: {
+          route: "component",
+          params: {
+            serialNumber: "$state.serialNumber",
+          },
+        },
+      },
+    ],
+  })
 
-  assert.deepEqual(resolveAction(action, context), {
-    route: "component",
-    params: {
-      serialNumber: "XYZ789",
+  assert.deepEqual(resolveScreen(screen, context).elements[0], {
+    type: "button",
+    label: "Look up",
+    action: {
+      route: "component",
+      params: {
+        serialNumber: "XYZ789",
+      },
     },
   })
 })
 
-test("resolveAction resolves contract-call args and success navigation", () => {
-  const action: ScreenAction = {
-    contract: "BicycleComponentManager",
-    function: "markMissing",
-    args: ["$params.serialNumber", "$account.address"],
-    onSuccess: {
-      route: "component",
-      params: {
-        serialNumber: "$params.serialNumber",
+test("resolveScreen resolves contract-call args and success navigation", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "button",
+        label: "Mark missing",
+        action: {
+          contract: "BicycleComponentManager",
+          function: "markMissing",
+          args: ["$params.serialNumber", "$account.address"],
+          onSuccess: {
+            route: "component",
+            params: {
+              serialNumber: "$params.serialNumber",
+            },
+          },
+        },
       },
-    },
-  }
+    ],
+  })
 
-  assert.deepEqual(resolveAction(action, context), {
-    contract: "BicycleComponentManager",
-    function: "markMissing",
-    args: ["ABC123", "0x0000000000000000000000000000000000000002"],
-    onSuccess: {
-      route: "component",
-      params: {
-        serialNumber: "ABC123",
+  assert.deepEqual(resolveScreen(screen, context).elements[0], {
+    type: "button",
+    label: "Mark missing",
+    action: {
+      contract: "BicycleComponentManager",
+      function: "markMissing",
+      args: ["ABC123", "0x0000000000000000000000000000000000000002"],
+      onSuccess: {
+        route: "component",
+        params: {
+          serialNumber: "ABC123",
+        },
       },
     },
   })
@@ -241,18 +266,27 @@ test("resolveScreen reports the exact field path for unresolved expressions", ()
   )
 })
 
-test("resolveAction reports the exact action path for unresolved expressions", () => {
-  const action: ScreenAction = {
-    contract: "BicycleComponentManager",
-    function: "markMissing",
-    args: ["$params.missing"],
-  }
+test("resolveScreen reports the exact button action path for unresolved expressions", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "button",
+        label: "Mark missing",
+        action: {
+          contract: "BicycleComponentManager",
+          function: "markMissing",
+          args: ["$params.missing"],
+        },
+      },
+    ],
+  })
 
   assert.throws(
-    () => resolveAction(action, context),
+    () => resolveScreen(screen, context),
     (error) =>
       error instanceof ScreenError
       && error.code === "SCREEN_UNRESOLVED_VALUE"
-      && error.path === "action.args.0",
+      && error.path === "elements.0.action.args.0",
   )
 })
