@@ -70,6 +70,9 @@ services:
       FOUNDRY_OUT: /tmp/foundry-out
       FOUNDRY_BROADCAST: /tmp/foundry-broadcast
       CAM_URI: "${CAM_URI:?missing_CAM_URI}"
+      # TODO(silent-defaults): empty CAM_HASH becomes an unset env var below,
+      # and the Forge script then uses bytes32(0). That is local-fixture
+      # convenience, not a production deploy default.
       CAM_HASH: "${CAM_HASH:-}"
     secrets:
       - source: bike_nft_private_key

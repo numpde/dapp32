@@ -75,6 +75,9 @@ services:
     networks:
       - anvil_host
     ports:
+      # TODO(silent-defaults): defaulting to 8545 matches common local tooling,
+      # but it can hide an operator's access-boundary choice. Prefer an
+      # explicit ANVIL_HOST_PORT for shared/dev-machine workflows.
       - "127.0.0.1:${ANVIL_HOST_PORT:-8545}:8545"
 
 networks:

@@ -478,6 +478,9 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
 
         if (record.status == ComponentStatus.None) {
+            // TODO(silent-defaults): unregistered components are represented as
+            // address(0) plus a deterministic token id. This is convenient for
+            // lookup UIs, but callers must not treat it as an existing token.
             return (address(0), uint256(serialHashOf(serialNumber)));
         }
 
@@ -486,12 +489,17 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
 
     function ownerOf(string calldata serialNumber) public view returns (address) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+        // TODO(silent-defaults): this intentionally returns address(0) instead
+        // of reverting for unknown serials. Keep callers aware that zero means
+        // "no recorded owner", not an account.
         if (record.status == ComponentStatus.None) return address(0);
         return _ownerOfOrZero(record);
     }
 
     function componentURI(string calldata serialNumber) public view returns (string memory) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
+        // TODO(silent-defaults): the empty string is the unknown-component
+        // sentinel. It should not be confused with a deliberately blank URI.
         if (record.status == ComponentStatus.None) return "";
         return _tokenURIOrEmpty(record);
     }
@@ -658,6 +666,9 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     {
         Delegation storage delegation = _delegations[record.serialHash][actor];
 
+        // TODO(silent-defaults): all inactive delegation cases collapse to
+        // capability mask 0. That keeps callers simple, but hides which
+        // precondition failed unless a dedicated diagnostic view is added.
         if (delegation.grantor == address(0)) return 0;
         if (delegation.capabilities == 0) return 0;
         if (delegation.validUntil <= block.timestamp) return 0;
@@ -732,6 +743,9 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         try IBicycleComponents(record.tokenContract).ownerOf(record.tokenId) returns (address owner) {
             return owner;
         } catch {
+            // TODO(silent-defaults): owner lookup failures collapse to
+            // address(0). This protects read helpers from reverting, but can
+            // hide a broken component-token contract.
             return address(0);
         }
     }
@@ -740,6 +754,9 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         try IBicycleComponents(record.tokenContract).tokenURI(record.tokenId) returns (string memory uri) {
             return uri;
         } catch {
+            // TODO(silent-defaults): tokenURI lookup failures collapse to "".
+            // Callers cannot distinguish missing metadata from a token contract
+            // error without an explicit diagnostic path.
             return "";
         }
     }

@@ -5,6 +5,9 @@ import { CamEvmError } from "./errors.ts"
 import type { VerifyCamHashOptions } from "./types.ts"
 
 export function verifyCamHash({ bytes, expectedHash }: VerifyCamHashOptions): void {
+  // TODO(silent-defaults): ZERO_HASH intentionally means "unsigned CAM", but
+  // it also disables integrity checking silently for callers that pass the
+  // zero value by accident. Consider making unsigned mode explicit in options.
   if (expectedHash.toLowerCase() === ZERO_HASH) {
     return
   }

@@ -89,6 +89,9 @@ services:
 
 secrets:
   rpc_url:
+    # TODO(silent-defaults): /dev/null exists only so `docker compose config`
+    # can render without a real secret. Runtime Make targets still require an
+    # explicit RPC_URL/RPC_URL_FILE before starting cast-rpc.
     file: "${RPC_URL_FILE:-/dev/null}"
 
 networks:

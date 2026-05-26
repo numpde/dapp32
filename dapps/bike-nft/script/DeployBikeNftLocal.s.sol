@@ -19,6 +19,9 @@ contract DeployBikeNftLocal is Script, BikeNftLocalFixture {
         address admin = vm.addr(deployerKey);
 
         string memory camURI = vm.envString("CAM_URI");
+        // TODO(silent-defaults): bytes32(0) means "unsigned CAM". This is
+        // acceptable for a local fixture, but a real deploy lane should require
+        // the operator to choose signed or unsigned CAM mode explicitly.
         bytes32 camHash = vm.envOr("CAM_HASH", bytes32(0));
 
         vm.startBroadcast(deployerKey);
