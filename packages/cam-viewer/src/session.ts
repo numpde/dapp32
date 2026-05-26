@@ -53,7 +53,6 @@ export function createCamViewerSession({
 
   function snapshot(): CamViewerSnapshot {
     return {
-      loaded: loadedState !== undefined,
       ...(route === undefined ? {} : { route }),
       params: cloneRecord(params, "params"),
       state: cloneRecord(state, "state"),

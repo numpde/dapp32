@@ -51,7 +51,6 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
 
   const snapshot = await session.load()
 
-  assert.equal(snapshot.loaded, true)
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
   assert.equal(snapshot.screenURI, entryScreenURI)
   assert.equal(snapshot.resolvedScreen?.title, "Entry")

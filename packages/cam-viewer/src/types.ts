@@ -24,7 +24,6 @@ export type CreateCamViewerSessionOptions = {
 }
 
 export type CamViewerSnapshot = {
-  readonly loaded: boolean
   readonly route?: string
   readonly params: Record<string, InertValue>
   readonly state: Record<string, InertValue>
