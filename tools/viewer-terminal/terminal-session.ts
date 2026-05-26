@@ -3,9 +3,6 @@ import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
 import { fileURLToPath } from "node:url"
 
-import {
-  ZERO_HASH,
-} from "../../packages/cam-evm-viem/dist/index.js"
 import type {
   CamHost,
   LoadCamFromHostOptions,
@@ -26,6 +23,7 @@ import {
   BIKE_ACCOUNT_ADDRESS as USER_ADDRESS,
   BIKE_HOST_ADDRESS as HOST_ADDRESS,
   BIKE_HOST_CHAIN_ID as MOCK_CHAIN_ID,
+  BIKE_UNSIGNED_CAM_HASH,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
   BIKE_VIEW_REGISTER,
@@ -320,7 +318,7 @@ function mockReadContract(functionName: string, args: readonly InertValue[]): In
       return MOCK_CAM_URI
     case "camHash":
       requireNoArgs(functionName, args)
-      return ZERO_HASH
+      return BIKE_UNSIGNED_CAM_HASH
     case "contractAddress":
       return contractAddress(requireStringArgs(functionName, args, 1)[0])
     case BIKE_VIEW_ENTRY:

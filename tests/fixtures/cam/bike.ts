@@ -34,6 +34,7 @@ export const BIKE_COMPONENT_SCREEN_URI = "ipfs://example/screens/component.json"
 export const BIKE_REGISTER_SCREEN_URI = "ipfs://example/screens/register.json"
 
 export const BIKE_SERIAL_NUMBER = "ABC123"
+export const BIKE_UNSIGNED_CAM_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000"
 
 export const bikeHost = {
   chainId: BIKE_HOST_CHAIN_ID,

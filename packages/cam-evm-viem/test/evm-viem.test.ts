@@ -11,7 +11,6 @@ import {
   loadCamFromHost,
   resolveCamContracts,
   verifyCamHash,
-  ZERO_HASH,
 } from "../src/index.ts"
 import { CAM_ROOT_FUNCTIONS } from "../src/abi.ts"
 import { ZERO_ADDRESS } from "../src/constants.ts"
@@ -31,6 +30,7 @@ import {
   BIKE_ROUTE_ENTRY,
   BIKE_ROUTE_REGISTER,
   BIKE_SERIAL_NUMBER,
+  BIKE_UNSIGNED_CAM_HASH,
   BIKE_UI_ABI_URI as uiAbiURI,
   BIKE_UI_ADDRESS as uiAddress,
   BIKE_UI_CONTRACT,
@@ -49,7 +49,7 @@ test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned 
   const camBytes = encodeJson(camJson)
   const publicClient = createPublicClient({
     camURI: camDocumentURI,
-    camHash: ZERO_HASH,
+    camHash: BIKE_UNSIGNED_CAM_HASH,
   })
   const resources = createResourceLoader({
     [camDocumentURI]: camBytes,
@@ -82,7 +82,7 @@ test("verifyCamHash rejects mismatched nonzero hashes", () => {
 test("verifyCamHash treats any casing of bytes32(0) as unsigned", () => {
   assert.doesNotThrow(() => verifyCamHash({
     bytes: encodeText("unsigned CAM"),
-    expectedHash: ZERO_HASH.toUpperCase() as Hex,
+    expectedHash: BIKE_UNSIGNED_CAM_HASH.toUpperCase() as Hex,
   }))
 })
 
@@ -91,7 +91,7 @@ test("loadCamFromHost wraps invalid CAM JSON in an adapter error", async () => {
     () => loadCamFromHost({
       publicClient: createPublicClient({
         camURI: camDocumentURI,
-        camHash: ZERO_HASH,
+        camHash: BIKE_UNSIGNED_CAM_HASH,
       }),
       host,
       loadResource: createResourceLoader({
@@ -432,7 +432,7 @@ function createPublicClient({
   // exercising host metadata, bindings, or route returns should override the
   // relevant field explicitly.
   camURI = camDocumentURI,
-  camHash = ZERO_HASH,
+  camHash = BIKE_UNSIGNED_CAM_HASH,
   addresses = bikeContractAddresses,
   routeResults = {},
 }: {

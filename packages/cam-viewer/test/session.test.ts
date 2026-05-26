@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { TextEncoder } from "node:util"
 
-import { CamEvmError, ZERO_HASH } from "@cam/evm-viem"
+import { CamEvmError } from "@cam/evm-viem"
 import { toInertValue } from "@cam/core"
 import type { InertValue } from "@cam/core"
 
@@ -29,6 +29,7 @@ import {
   BIKE_ROUTE_ENTRY,
   BIKE_ROUTE_REGISTER,
   BIKE_SERIAL_NUMBER,
+  BIKE_UNSIGNED_CAM_HASH,
   BIKE_UI_ABI_URI as uiAbiURI,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
@@ -372,7 +373,7 @@ function createPublicClient({
   // TODO(silent-defaults): these are viewer test defaults, not protocol
   // defaults. Override them in tests where hash, binding, or route output
   // behavior is under scrutiny.
-  camHash = ZERO_HASH,
+  camHash = BIKE_UNSIGNED_CAM_HASH,
   addresses = bikeContractAddresses,
   routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
 }: {
