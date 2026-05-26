@@ -27,7 +27,6 @@ SOLDEER_ARCHIVE_SUFFIX_RE = {
     "@openzeppelin-contracts": r"contracts",
     "forge-std": r"forge-std-[0-9]+(?:\.[0-9]+)*",
 }
-DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE = r"[A-Za-z0-9_.:-]+"
 DEPENDENCIES_DIR_NAME = "dependencies"
 DOWNLOAD_TIMEOUT_SECONDS = 15
 DOWNLOAD_TOTAL_TIMEOUT_SECONDS = 300
@@ -229,11 +228,10 @@ class DependencyVerifier:
             raise DependencyVerificationError(f"{record.key} lock URL must use Soldeer revisions: {record.url}")
         if parsed.params or parsed.query or parsed.fragment:
             raise DependencyVerificationError(f"{record.key} lock URL must not include params, query, or fragment: {record.url}")
-        # TODO(silent-defaults): unknown packages fall back to a permissive
-        # archive suffix. That is acceptable only while the dependency set is
-        # separately locked; future package additions should define suffix
-        # policy explicitly.
-        suffix_re = SOLDEER_ARCHIVE_SUFFIX_RE.get(record.name, DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE)
+        suffix_re = SOLDEER_ARCHIVE_SUFFIX_RE.get(record.name)
+        if suffix_re is None:
+            raise DependencyVerificationError(f"{record.name} must have an explicit Soldeer archive suffix policy")
+
         if re.fullmatch(rf"/{re.escape(record.name)}/{re.escape(expected_version_prefix)}_[^/]+_{suffix_re}\.zip", parsed.path) is None:
             raise DependencyVerificationError(
                 f"{record.key} lock URL must point to an allowed Soldeer archive: {record.url}"

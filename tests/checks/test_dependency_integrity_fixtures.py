@@ -19,11 +19,17 @@ from .test_dependency_integrity import (
 )
 
 
+FIXTURE_PACKAGE = "forge-std"
+FIXTURE_VERSION = "1.0.0"
+FIXTURE_KEY = f"{FIXTURE_PACKAGE}-{FIXTURE_VERSION}"
+FIXTURE_PATCH = f"_patches/{FIXTURE_PACKAGE}.patch"
+
+
 class DependencyIntegrityFixtureTest(unittest.TestCase):
     def test_rejects_bad_checksum_lines(self) -> None:
         with self.fixture() as root:
             self.write_minimal_dependency(root)
-            (root / "dependency-checksums.txt").write_text("not-a-checksum  pkg-1.0.0\n", encoding="utf-8")
+            (root / "dependency-checksums.txt").write_text(f"not-a-checksum  {FIXTURE_KEY}\n", encoding="utf-8")
 
             with self.assertRaisesRegex(DependencyVerificationError, "malformed dependency checksum line"):
                 DependencyVerifier(root).read_checksum_file()
@@ -50,7 +56,7 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             self.write_minimal_dependency(root)
             self.write_patch_manifest(root, patch_hash="0" * 64)
 
-            with self.assertRaisesRegex(DependencyVerificationError, "_patches/pkg.patch checksum mismatch"):
+            with self.assertRaisesRegex(DependencyVerificationError, f"{FIXTURE_PATCH} checksum mismatch"):
                 with redirect_stdout(io.StringIO()):
                     DependencyVerifier(root).verify_local()
 
@@ -72,7 +78,7 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             with redirect_stdout(output):
                 DependencyVerifier(root).verify_local()
 
-            self.assertIn("deps-verify: pkg-1.0.0 declared patch ok", output.getvalue())
+            self.assertIn(f"deps-verify: {FIXTURE_KEY} declared patch ok", output.getvalue())
             self.assertIn("deps-verify:   target: Package.sol", output.getvalue())
             self.assertIn("Forge may also warn FailedIntegrity", output.getvalue())
 
@@ -80,7 +86,7 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
         with self.fixture() as root:
             self.write_minimal_dependency(root)
             (root / "foundry.toml").write_text(
-                '[dependencies]\npkg = { version = "1.0.0", url = "https://example.invalid/pkg.zip" }\n',
+                f'[dependencies]\n{FIXTURE_PACKAGE} = {{ version = "{FIXTURE_VERSION}", url = "https://example.invalid/pkg.zip" }}\n',
                 encoding="utf-8",
             )
 
@@ -91,7 +97,7 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
     def test_rejects_lock_url_outside_soldeer_registry(self) -> None:
         with self.fixture() as root:
             self.write_minimal_dependency(root)
-            self.write_lock(root, [self.record(url="https://example.invalid/pkg/1_0_0_test_contracts.zip")])
+            self.write_lock(root, [self.record(url=f"https://example.invalid/{FIXTURE_PACKAGE}/1_0_0_test_forge-std-1.0.zip")])
 
             with self.assertRaisesRegex(DependencyVerificationError, "must use Soldeer revisions"):
                 verifier = DependencyVerifier(root)
@@ -104,7 +110,7 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
                 zip_file.writestr("../evil.txt", "bad")
 
             with self.assertRaisesRegex(DependencyVerificationError, "unsafe path"):
-                DependencyVerifier(root).extract_verified_zip("pkg-1.0.0", archive, root / "extract")
+                DependencyVerifier(root).extract_verified_zip(FIXTURE_KEY, archive, root / "extract")
 
     def test_rejects_non_https_url(self) -> None:
         with self.fixture() as root:
@@ -163,20 +169,20 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
 
     def write_minimal_dependency(self, root_name: str | Path, *, content: str = "contract") -> Path:
         root = Path(root_name)
-        dependency = root / "dependencies" / "pkg-1.0.0"
+        dependency = root / "dependencies" / FIXTURE_KEY
         dependency.mkdir(parents=True)
         (dependency / "Package.sol").write_text(content, encoding="utf-8")
 
         record = self.record()
         self.write_lock(root, [record])
         self.write_foundry(root, [record])
-        (root / "remappings.txt").write_text("pkg-1.0.0/=dependencies/pkg-1.0.0/\n", encoding="utf-8")
+        (root / "remappings.txt").write_text(f"{FIXTURE_KEY}/=dependencies/{FIXTURE_KEY}/\n", encoding="utf-8")
 
         tree_hash = DependencyVerifier(root).tree_hash(dependency)
         (root / "dependency-checksums.txt").write_text(
             "# Deterministic SHA-256 of installed dependency file manifests.\n"
             "# Format: <sha256>  <dependency-name-version>\n"
-            f"{tree_hash}  pkg-1.0.0\n",
+            f"{tree_hash}  {FIXTURE_KEY}\n",
             encoding="utf-8",
         )
         return root
@@ -194,13 +200,13 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
         patch_hash: str | None = None,
         post_hash: str | None = None,
     ) -> None:
-        patch = root / "_patches" / "pkg.patch"
+        patch = root / FIXTURE_PATCH
         patch.parent.mkdir(parents=True)
         patch.write_text("--- a/Package.sol\n+++ b/Package.sol\n", encoding="utf-8")
 
-        target = root / "dependencies" / "pkg-1.0.0" / "Package.sol"
+        target = root / "dependencies" / FIXTURE_KEY / "Package.sol"
         (root / "dependency-patches.txt").write_text(
-            "pkg-1.0.0  Package.sol  _patches/pkg.patch  "
+            f"{FIXTURE_KEY}  Package.sol  {FIXTURE_PATCH}  "
             f"{self.file_hash(target)}  "
             f"{patch_hash or self.file_hash(patch)}  "
             f"{post_hash or self.file_hash(target)}\n",
@@ -225,10 +231,10 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
     def record(
         self,
         *,
-        url: str = "https://soldeer-revisions.s3.amazonaws.com/pkg/1_0_0_test_contracts.zip",
+        url: str = f"https://soldeer-revisions.s3.amazonaws.com/{FIXTURE_PACKAGE}/1_0_0_test_forge-std-1.0.zip",
         checksum: str = "1" * 64,
     ) -> DependencyRecord:
-        return DependencyRecord(name="pkg", version="1.0.0", url=url, checksum=checksum)
+        return DependencyRecord(name=FIXTURE_PACKAGE, version=FIXTURE_VERSION, url=url, checksum=checksum)
 
     def file_hash(self, path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
