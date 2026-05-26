@@ -14,6 +14,7 @@ export {
   isNonStringJsonScalar,
   isRecordObject,
   joinPath,
+  parseJsonBytes,
   parseJsonText,
 } from "./json.ts"
 export type {

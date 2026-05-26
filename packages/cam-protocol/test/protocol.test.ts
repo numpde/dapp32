@@ -6,6 +6,7 @@ import {
   createExpressionRuntime,
   createJsonGuards,
   createStringMap,
+  parseJsonBytes,
   parseJsonText,
 } from "../src/index.ts"
 
@@ -18,6 +19,7 @@ test("keeps the public API to protocol support primitives", () => {
     "isNonStringJsonScalar",
     "isRecordObject",
     "joinPath",
+    "parseJsonBytes",
     "parseJsonText",
   ])
 })
@@ -85,6 +87,15 @@ test("creates prototype-neutral string maps", () => {
 test("parses JSON text", () => {
   assert.deepEqual(
     parseJsonText('{"ok":true}'),
+    {
+      ok: true,
+    },
+  )
+})
+
+test("parses UTF-8 JSON bytes", () => {
+  assert.deepEqual(
+    parseJsonBytes(new TextEncoder().encode('{"ok":true}')),
     {
       ok: true,
     },

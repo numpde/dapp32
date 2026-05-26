@@ -37,6 +37,10 @@ export function parseJsonText(text: string): unknown {
   return JSON.parse(text)
 }
 
+export function parseJsonBytes(bytes: Uint8Array): unknown {
+  return parseJsonText(new TextDecoder().decode(bytes))
+}
+
 export type JsonGuardErrorKind = "notObject" | "invalidField"
 
 export type JsonGuards = {

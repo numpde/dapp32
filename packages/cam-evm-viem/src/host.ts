@@ -1,10 +1,10 @@
 import { parseCam } from "@cam/core"
+import { parseJsonBytes } from "@cam/protocol"
 import type { Hex } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi } from "./abi.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamHash } from "./hash.ts"
-import { parseJsonBytes } from "./json.ts"
 import { loadResourceBytes } from "./resources.ts"
 import type { CamHost, CamPublicClient, LoadedCam, ResourceLoader } from "./types.ts"
 
@@ -44,7 +44,12 @@ export async function loadCamFromHost({
     allowUnsigned: true,
   })
 
-  const camJson = parseJsonBytes(camBytes, "CAM_DOCUMENT_INVALID", `CAM document is not valid JSON: ${camURI}`)
+  let camJson: unknown
+  try {
+    camJson = parseJsonBytes(camBytes)
+  } catch (cause) {
+    throw new CamEvmError("CAM_DOCUMENT_INVALID", `CAM document is not valid JSON: ${camURI}`, cause)
+  }
   const cam = parseCam(camJson)
 
   return {
