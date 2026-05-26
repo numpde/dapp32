@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import json
-import os
 import re
-import shlex
-import subprocess
 import sys
 import unittest
 from typing import Any
 
-from .common import ROOT, read_text, repo_path
+from .common import read_text, rendered_compose_config, repo_path
 
 
 def setUpModule() -> None:
@@ -26,41 +22,14 @@ class AnvilComposePostureTest(unittest.TestCase):
 
     @staticmethod
     def render_config(profiles: str, *, host_port: str = "8545") -> dict[str, Any]:
-        env = os.environ.copy()
-        env.update(
-            {
-                "LOCAL_UID": "1000",
-                "LOCAL_GID": "1000",
+        return rendered_compose_config(
+            "compose/anvil.yml",
+            env={
                 "COMPOSE_PROJECT_NAME": "dapps-anvil-check",
                 "COMPOSE_PROFILES": profiles,
                 "ANVIL_HOST_PORT": host_port,
-            }
+            },
         )
-        # TODO(silent-defaults): keep this in sync with tests/checks/common.py;
-        # rendered Compose posture should not silently inspect a different
-        # compose binary than Make uses.
-        command = shlex.split(env.get("DOCKER_COMPOSE", "docker compose"))
-        command.extend(["-f", "compose/anvil.yml", "config", "--format", "json"])
-
-        result = subprocess.run(
-            command,
-            cwd=ROOT,
-            env=env,
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise AssertionError(
-                f"docker compose config failed for profiles={profiles!r}:\n{result.stderr}"
-            )
-
-        try:
-            return json.loads(result.stdout)
-        except json.JSONDecodeError as exc:
-            raise AssertionError(
-                f"docker compose config returned invalid JSON for profiles={profiles!r}: {exc}"
-            ) from exc
 
     def test_profile_service_sets(self) -> None:
         self.assertEqual(sorted(self.no_profile["services"].keys()), [])
