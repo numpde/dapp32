@@ -94,6 +94,22 @@ test("parseScreen rejects unknown element types", () => {
   )
 })
 
+test("parseScreen rejects sparse element arrays", () => {
+  const elements = [{ type: "text", text: "Present" }, { type: "text", text: "Missing" }] as unknown[]
+  delete elements[1]
+
+  assert.throws(
+    () => parseScreen({
+      screen: "1.0.0",
+      elements,
+    }),
+    (error) =>
+      error instanceof ScreenError
+      && error.code === "SCREEN_INVALID_FIELD"
+      && error.path === "elements.1",
+  )
+})
+
 test("parseScreen rejects invalid button actions", () => {
   assert.throws(
     () => parseScreen({

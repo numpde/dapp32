@@ -37,6 +37,12 @@ export function requiredArray(value: unknown, path: string): readonly unknown[] 
     throw new CamError("CAM_INVALID_FIELD", "expected an array", path)
   }
 
+  for (let index = 0; index < value.length; index++) {
+    if (!(index in value)) {
+      throw new CamError("CAM_INVALID_FIELD", "expected a JSON value", joinPath(path, String(index)))
+    }
+  }
+
   return value
 }
 
