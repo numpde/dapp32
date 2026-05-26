@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import subprocess
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
+DOCKER_COMPOSE_DEFAULT_RE = re.compile(r"^DOCKER_COMPOSE \?= (?P<command>.+)$", re.MULTILINE)
 
 SKIP_DIRS = {
     ".agents",
@@ -104,10 +106,7 @@ def rendered_compose_config(compose_file: str, *, env: dict[str, str] | None = N
     if env is not None:
         render_env.update(env)
 
-    # TODO(silent-defaults): this mirrors the Makefile default. If Make changes
-    # its compose command, posture checks should receive DOCKER_COMPOSE
-    # explicitly rather than silently inspecting a different binary.
-    command = shlex.split(render_env.get("DOCKER_COMPOSE", "docker compose"))
+    command = docker_compose_command(render_env)
     command.extend(["-f", str(repo_path(compose_file)), "config", "--format", "json"])
 
     result = subprocess.run(
@@ -120,3 +119,16 @@ def rendered_compose_config(compose_file: str, *, env: dict[str, str] | None = N
         stderr=subprocess.PIPE,
     )
     return json.loads(result.stdout)
+
+
+def docker_compose_command(env: dict[str, str]) -> list[str]:
+    configured = env.get("DOCKER_COMPOSE")
+    return shlex.split(configured if configured is not None else makefile_docker_compose_default())
+
+
+def makefile_docker_compose_default() -> str:
+    match = DOCKER_COMPOSE_DEFAULT_RE.search(read_text(repo_path("Makefile")))
+    if match is None:
+        raise AssertionError("Makefile must declare DOCKER_COMPOSE ?=")
+
+    return match.group("command")

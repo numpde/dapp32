@@ -35,7 +35,9 @@ class ComposePostureTest(unittest.TestCase):
     def test_rendered_compose_helper_honors_docker_compose_abstraction(self) -> None:
         text = read_text(repo_path("tests/checks/common.py"))
 
-        self.assertIn('shlex.split(render_env.get("DOCKER_COMPOSE", "docker compose"))', text)
+        self.assertIn('env.get("DOCKER_COMPOSE")', text)
+        self.assertIn("makefile_docker_compose_default()", text)
+        self.assertIn("DOCKER_COMPOSE_DEFAULT_RE", text)
         self.assertNotIn('["docker",', text)
 
     def test_dependency_stage_uses_filtered_egress_proxy(self) -> None:
