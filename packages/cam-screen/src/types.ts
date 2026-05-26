@@ -15,7 +15,9 @@ export type ScreenElement =
   | NftElement
   | GroupElement
 
-type LeafScreenElement = Exclude<ScreenElement, GroupElement>
+export type LeafScreenElement = Exclude<ScreenElement, GroupElement>
+
+type ResolvedLeaf<T> = T extends ElementVisibility ? Omit<T, "visibleWhen"> : never
 
 type ElementVisibility = {
   readonly visibleWhen?: InertValue
@@ -86,10 +88,6 @@ export type ResolvedScreen = {
   readonly elements: readonly ResolvedScreenElement[]
 }
 
-export type ResolvedScreenElement = LeafScreenElement extends infer Element
-  ? Element extends object
-    ? Omit<Element, "visibleWhen">
-    : never
-  : never
+export type ResolvedScreenElement = ResolvedLeaf<LeafScreenElement>
 
 export type ResolvedScreenAction = ScreenAction

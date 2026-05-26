@@ -4,12 +4,11 @@ import { resolveValueAtPath } from "./expressions.ts"
 import type {
   ResolvedScreen,
   ResolvedScreenElement,
+  LeafScreenElement,
   ScreenDocument,
   ScreenElement,
   ScreenRuntimeContext,
 } from "./types.ts"
-
-type LeafScreenElement = Exclude<ScreenElement, { readonly type: "group" }>
 
 export function resolveScreen(screen: ScreenDocument, context: ScreenRuntimeContext): ResolvedScreen {
   const elements: ResolvedScreenElement[] = []

@@ -1,8 +1,7 @@
-import { CamError, toInertValue } from "@cam/core"
 import { parseAction } from "./actions.ts"
 import { SCREEN_VERSION } from "./constants.ts"
 import { ScreenError } from "./errors.ts"
-import { validateExpressionValue } from "./expressions.ts"
+import { parseExpressionPayload, validateExpressionValue } from "./expressions.ts"
 import {
   requiredArray,
   requiredNonEmptyString,
@@ -150,19 +149,6 @@ function parseExpressionString(value: unknown, path: string): string {
   const string = requiredNonEmptyString(value, path)
   validateExpressionValue(string, path)
   return string
-}
-
-function parseExpressionPayload(value: unknown, path: string): InertValue {
-  validateExpressionValue(value, path)
-  try {
-    return toInertValue(value)
-  } catch (error) {
-    if (error instanceof CamError) {
-      throw new ScreenError("SCREEN_INVALID_FIELD", error.message, error.path === undefined ? path : `${path}.${error.path}`)
-    }
-
-    throw error
-  }
 }
 
 function rejectUnknownScreenFields(

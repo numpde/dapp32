@@ -1,4 +1,3 @@
-import { CamError, toInertValue } from "@cam/core"
 import { ScreenError } from "./errors.ts"
 import {
   createStringMap,
@@ -9,7 +8,7 @@ import {
   requiredRecord,
   rejectUnknownFields,
 } from "./guards.ts"
-import { resolveValueAtPath, validateExpressionValue } from "./expressions.ts"
+import { parseExpressionPayload, resolveValueAtPath, validateExpressionValue } from "./expressions.ts"
 import type { InertValue } from "@cam/core"
 import type {
   ContractCallAction,
@@ -140,21 +139,4 @@ function resolveParams(
   }
 
   return resolved as Record<string, InertValue>
-}
-
-function parseExpressionPayload(value: unknown, path: string): InertValue {
-  validateExpressionValue(value, path)
-  try {
-    return toInertValue(value)
-  } catch (error) {
-    if (error instanceof CamError) {
-      throw new ScreenError(
-        "SCREEN_INVALID_FIELD",
-        error.message,
-        error.path === undefined ? path : `${path}.${error.path}`,
-      )
-    }
-
-    throw error
-  }
 }

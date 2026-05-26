@@ -1,4 +1,4 @@
-import { toInertValue } from "@cam/core"
+import { CamError, toInertValue } from "@cam/core"
 import { SCREEN_CONTEXT_KEYS } from "./constants.ts"
 import { ScreenError } from "./errors.ts"
 import { hasOwn, isRecordObject, joinPath } from "./guards.ts"
@@ -35,6 +35,23 @@ export function validateExpressionValue(value: unknown, path: string): void {
   }
 
   validateJsonLiteral(value, path)
+}
+
+export function parseExpressionPayload(value: unknown, path: string): InertValue {
+  validateExpressionValue(value, path)
+  try {
+    return toInertValue(value)
+  } catch (error) {
+    if (error instanceof CamError) {
+      throw new ScreenError(
+        "SCREEN_INVALID_FIELD",
+        error.message,
+        error.path === undefined ? path : `${path}.${error.path}`,
+      )
+    }
+
+    throw error
+  }
 }
 
 export function resolveValueAtPath(value: InertValue, context: ScreenRuntimeContext, path: string): InertValue {
