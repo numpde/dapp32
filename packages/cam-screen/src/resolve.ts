@@ -9,24 +9,37 @@ import type {
   ScreenRuntimeContext,
 } from "./types.ts"
 
+type LeafScreenElement = Exclude<ScreenElement, { readonly type: "group" }>
+
 export function resolveScreen(screen: ScreenDocument, context: ScreenRuntimeContext): ResolvedScreen {
+  const elements: ResolvedScreenElement[] = []
+  appendResolvedElements(screen.elements, context, "elements", elements)
+
   return {
     ...(screen.title === undefined ? {} : { title: resolveStringField(screen.title, context, "title") }),
-    elements: resolveElements(screen.elements, context, "elements"),
+    elements,
   }
 }
 
-function resolveElements(
+function appendResolvedElements(
   elements: readonly ScreenElement[],
   context: ScreenRuntimeContext,
   path: string,
-): readonly ResolvedScreenElement[] {
-  return elements.flatMap((element, index) => {
+  target: ResolvedScreenElement[],
+): void {
+  for (const [index, element] of elements.entries()) {
     const elementPath = `${path}.${index}`
-    return isElementVisible(element, context, elementPath)
-      ? resolveElement(element, context, elementPath)
-      : []
-  })
+    if (!isElementVisible(element, context, elementPath)) {
+      continue
+    }
+
+    if (element.type === "group") {
+      appendResolvedElements(element.elements, context, `${elementPath}.elements`, target)
+      continue
+    }
+
+    target.push(resolveLeafElement(element, context, elementPath))
+  }
 }
 
 function isElementVisible(element: ScreenElement, context: ScreenRuntimeContext, path: string): boolean {
@@ -42,50 +55,48 @@ function isElementVisible(element: ScreenElement, context: ScreenRuntimeContext,
   return visible
 }
 
-function resolveElement(
-  element: ScreenElement,
+function resolveLeafElement(
+  element: LeafScreenElement,
   context: ScreenRuntimeContext,
   path: string,
-): readonly ResolvedScreenElement[] {
+): ResolvedScreenElement {
   switch (element.type) {
     case "text":
-      return [{
+      return {
         type: "text",
         text: resolveStringField(element.text, context, `${path}.text`),
-      }]
+      }
     case "input":
-      return [{
+      return {
         type: "input",
         name: element.name,
         label: resolveStringField(element.label, context, `${path}.label`),
         ...(element.value === undefined ? {} : { value: resolveValueAtPath(element.value, context, `${path}.value`) }),
-      }]
+      }
     case "address":
-      return [{
+      return {
         type: "address",
         ...(element.label === undefined ? {} : { label: resolveStringField(element.label, context, `${path}.label`) }),
         address: resolveStringField(element.address, context, `${path}.address`),
-      }]
+      }
     case "button":
-      return [{
+      return {
         type: "button",
         label: resolveStringField(element.label, context, `${path}.label`),
         action: resolveActionAtPath(element.action, context, `${path}.action`),
-      }]
+      }
     case "status":
-      return [{
+      return {
         type: "status",
         ...(element.label === undefined ? {} : { label: resolveStringField(element.label, context, `${path}.label`) }),
         value: resolveValueAtPath(element.value, context, `${path}.value`),
-      }]
+      }
     case "nft":
-      return [{
+      return {
         type: "nft",
         contractAddress: resolveStringField(element.contractAddress, context, `${path}.contractAddress`),
         tokenId: resolveValueAtPath(element.tokenId, context, `${path}.tokenId`),
-      }]
-    case "group":
-      return resolveElements(element.elements, context, `${path}.elements`)
+      }
   }
 }
 
