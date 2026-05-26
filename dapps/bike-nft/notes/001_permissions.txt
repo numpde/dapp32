@@ -27,7 +27,7 @@ This plan targets the current V1 architecture:
 | `CamRoot` | `Ownable2Step` | Owner should be a Safe or timelock. Controls CAM URI/hash and contract address bindings. |
 | `BicycleComponents` | `AccessControl` | Non-upgradeable. Admin grants minter/metadata/config/pause roles. |
 | `BicycleComponentManager` | `AccessControl` | Non-upgradeable V1. Admin manages registrars/config/status attesters. |
-| `BicycleComponentManagerUI` | Immutable or minimal owner/config role | No roles on the manager. No write authority. |
+| `BicycleComponentManagerUI` | Immutable constructor wiring | Read-only view helper. No roles on the manager. No write authority. |
 
 ## `CamRoot` Permissions
 
@@ -72,6 +72,7 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 | `registerComponentIn(tokenContract, owner, serial, metadataURI)` | `REGISTRAR_ROLE` and `tokenContract` must be allowed | Existing records store `tokenContract + tokenId`; changing defaults affects future records only. |
 | `setDefaultComponents(tokenContract)` | `CONFIGURER_ROLE` | Future registrations only. Does not reinterpret old records. |
 | `setComponentCollection(tokenContract, allowed)` | `CONFIGURER_ROLE` | Recommended if `registerComponentIn` exists. Prevents arbitrary token targets. |
+| `setMaxDelegationDuration(duration)` | `CONFIGURER_ROLE` | Caps owner-granted delegation windows. |
 | `setComponentMetadata(serial, uri)` | Current ERC-721 owner or `CAP_UPDATE_METADATA` delegate | Manager calls token `setTokenURI` after authorization. |
 | `markMissing(serial)` | Current ERC-721 owner or `CAP_MARK_MISSING` delegate | Emits the reporter. V1 status only; does not block ERC-721 transfer unless token later enforces locks. |
 | `clearMissing(serial)` | Current ERC-721 owner or `CAP_CLEAR_MISSING` delegate | Ordinary registrars should not clear missing status by role alone. |
@@ -112,7 +113,7 @@ struct Delegation {
 function _hasCapability(uint256 recordId, address actor, uint64 capability) internal view returns (bool) {
     Delegation memory d = delegations[recordId][actor];
     if (d.grantor == address(0)) return false;
-    if (d.validUntil != 0 && d.validUntil < block.timestamp) return false;
+    if (d.validUntil <= block.timestamp) return false;
     if ((d.capabilities & capability) == 0) return false;
 
     ComponentRecord memory r = records[recordId];
