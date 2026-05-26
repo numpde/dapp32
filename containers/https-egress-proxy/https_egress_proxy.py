@@ -10,13 +10,13 @@ import sys
 import time
 
 
-# TODO(silent-defaults): these listener defaults assume a confined Compose
+# Intentional default: these listener defaults assume a confined Compose
 # network. If this proxy is run directly, require explicit host/port instead of
 # silently binding all interfaces on 8080.
 LISTEN_HOST = os.environ.get("HTTPS_EGRESS_PROXY_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("HTTPS_EGRESS_PROXY_PORT", "8080"))
 
-# TODO(silent-defaults): these are part of the dependency-egress policy. Keep
+# Intentional default: these are part of the dependency-egress policy. Keep
 # them explicit in Compose before this proxy is reused outside the current lane.
 CONNECT_TIMEOUT_SECONDS = float(os.environ.get("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS", "10"))
 TUNNEL_IDLE_TIMEOUT_SECONDS = float(os.environ.get("HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS", "300"))
@@ -160,7 +160,7 @@ def tunnel(client: socket.socket, upstream: socket.socket) -> None:
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "https-egress-proxy"
-    # TODO(silent-defaults): blanking Python's default sys_version intentionally
+    # Intentional default: blanking Python's default sys_version intentionally
     # reduces response fingerprinting. Keep this local to the proxy handler so
     # it is not mistaken for an unconfigured server version.
     sys_version = ""
@@ -224,7 +224,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main() -> int:
     global ALLOWED_HOSTS
-    # TODO(silent-defaults): the empty default fails closed, but it can also
+    # Intentional default: the empty default fails closed, but it can also
     # hide a missing allowlist until runtime. Prefer explicit configuration for
     # any non-test deployment of this proxy.
     ALLOWED_HOSTS = parse_allowed_hosts(os.environ.get("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS", ""))

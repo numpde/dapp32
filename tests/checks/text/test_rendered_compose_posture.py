@@ -93,7 +93,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
                 abi_mount = volume_for(forge_abi, f"/work/dapps/{dapp_dir.name}/cam/abi")
-                # TODO(silent-defaults): Docker bind mounts are writable when
+                # Intentional default: Docker bind mounts are writable when
                 # read_only is omitted. Treat both false and absent as the
                 # explicit ABI materialization boundary this test is checking.
                 self.assertIsNot(abi_mount.get("read_only"), True)
@@ -156,7 +156,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             )
             for service_name, config_service in config["services"].items():
                 for volume in sequence_or_empty(config_service, "volumes"):
-                    # TODO(silent-defaults): rendered bind mounts without an
+                    # Intentional default: rendered bind mounts without an
                     # explicit read_only flag are Docker-writable by default,
                     # so missing read_only is intentionally classified here as
                     # a writable host bind.

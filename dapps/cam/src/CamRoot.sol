@@ -57,7 +57,7 @@ contract CamRoot is ICamApp, Ownable2Step {
 
     /// @notice Resolves a CAM contract name to this chain's deployed address.
     function contractAddress(string calldata contractName) external view returns (address) {
-        // TODO(silent-defaults): Solidity mappings return address(0) for an
+        // Intentional default: Solidity mappings return address(0) for an
         // unset binding. CAM clients currently must treat address(0) as
         // unbound; consider an explicit exists flag if this becomes ambiguous.
         return _contractAddress[keccak256(bytes(contractName))];
@@ -65,7 +65,7 @@ contract CamRoot is ICamApp, Ownable2Step {
 
     /// @notice Resolves a precomputed CAM contract-name hash.
     function contractAddressByHash(bytes32 contractNameHash) external view returns (address) {
-        // TODO(silent-defaults): this has the same unset-binding address(0)
+        // Intentional default: this has the same unset-binding address(0)
         // sentinel as contractAddress(string).
         return _contractAddress[contractNameHash];
     }

@@ -10,7 +10,7 @@ import sys
 from urllib.parse import urlsplit
 
 
-# TODO(silent-defaults): these defaults match the current Compose service, but
+# Intentional default: these defaults match the current Compose service, but
 # running the proxy outside Compose would silently bind all interfaces and read
 # the standard secret path. Consider requiring explicit env once the proxy is
 # reused outside this controlled lane.
@@ -18,14 +18,14 @@ LISTEN_HOST = os.environ.get("RPC_PROXY_HOST", "0.0.0.0")
 LISTEN_PORT = int(os.environ.get("RPC_PROXY_PORT", "8080"))
 UPSTREAM_FILE = os.environ.get("RPC_UPSTREAM_FILE", "/run/secrets/rpc_url")
 
-# TODO(silent-defaults): these caps are security policy, not incidental tuning.
+# Intentional default: these caps are security policy, not incidental tuning.
 # If the proxy becomes reusable, move them into explicit Compose/env settings so
 # callers cannot inherit stale limits silently.
 MAX_REQUEST_BYTES = int(os.environ.get("RPC_PROXY_MAX_REQUEST_BYTES", str(1024 * 1024)))
 MAX_RESPONSE_BYTES = int(os.environ.get("RPC_PROXY_MAX_RESPONSE_BYTES", str(4 * 1024 * 1024)))
 MAX_UPSTREAM_URL_BYTES = int(os.environ.get("RPC_PROXY_MAX_UPSTREAM_URL_BYTES", "4096"))
 CONNECT_TIMEOUT_SECONDS = float(os.environ.get("RPC_PROXY_CONNECT_TIMEOUT_SECONDS", "10"))
-# TODO(silent-defaults): defaulting to eth_blockNumber is intentionally narrow,
+# Intentional default: defaulting to eth_blockNumber is intentionally narrow,
 # but still grants one RPC method if Compose forgets RPC_ALLOWED_METHODS.
 ALLOWED_METHODS = frozenset(
     method
@@ -162,7 +162,7 @@ def validate_rpc_request(raw_body, allowed_methods):
 
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "safe-rpc-proxy"
-    # TODO(silent-defaults): blanking Python's default sys_version intentionally
+    # Intentional default: blanking Python's default sys_version intentionally
     # reduces response fingerprinting. Keep this local to the proxy handler so
     # it is not mistaken for an unconfigured server version.
     sys_version = ""

@@ -4,7 +4,7 @@ SHELL := bash
 
 COMPOSE_DIR ?= compose
 DOCKER_COMPOSE ?= docker compose
-# TODO(silent-defaults): the default project name is convenient locally, but it
+# Intentional default: the default project name is convenient locally, but it
 # can collide with another checkout/user. Prefer explicit COMPOSE_PROJECT_NAME
 # for shared machines, CI, and parallel scenario runs.
 COMPOSE_PROJECT_NAME ?= dapps
@@ -41,7 +41,7 @@ ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host
 ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host
 LIVE_DEPS_EGRESS_COMPOSE_FILES := -f $(COMPOSE_DIR)/deps.yml -f $(COMPOSE_DIR)/check-live-deps-egress.yml
 NON_ROOT_GUARD := if [[ "$(ACTUAL_UID)" == "0" || "$(LOCAL_UID)" == "0" ]]; then printf '%s\n' 'Refusing to run Docker lanes as root or with LOCAL_UID=0. Run make as a non-root user.' >&2; exit 2; fi
-# TODO(silent-defaults): cleanup handlers intentionally ignore Compose teardown
+# Intentional default: cleanup handlers intentionally ignore Compose teardown
 # failure so the user sees the primary lane failure. Do not use this outside
 # best-effort cleanup paths where the original status is preserved separately.
 COMPOSE_DOWN_CLEANUP := down --volumes --remove-orphans >/dev/null 2>&1 || true

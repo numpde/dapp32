@@ -129,7 +129,7 @@ contract BicycleComponentManagerUI {
     function _accountView(address account) internal view returns (AccountView memory view_) {
         view_.account = account;
 
-        // TODO(silent-defaults): address(0) leaves canRegister=false and
+        // Intentional default: address(0) leaves canRegister=false and
         // accountInfo="" through Solidity struct defaults. That is convenient
         // for unauthenticated views, but callers must treat it as "no account".
         if (account != address(0)) {
@@ -157,7 +157,7 @@ contract BicycleComponentManagerUI {
         view_.updatedAt = component.updatedAt;
         view_.serialNumber = component.exists ? component.serialNumber : serialNumber;
 
-        // TODO(silent-defaults): an unknown component returns a mostly default
+        // Intentional default: an unknown component returns a mostly default
         // struct with only serialNumber populated. Screen/rendering code must
         // branch on exists instead of trusting zero/empty fields.
         if (!component.exists) {

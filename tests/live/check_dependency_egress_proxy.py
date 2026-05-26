@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-# TODO(silent-defaults): these defaults describe the current live-check Compose
+# Intentional default: these defaults describe the current live-check Compose
 # topology. If the check is reused elsewhere, require explicit env so it cannot
 # accidentally test the wrong proxy or lock file.
 PROXY_HOST = os.environ.get("DEPENDENCY_EGRESS_PROXY_HOST", "dependency-egress-proxy")
@@ -22,7 +22,7 @@ def locked_dependency_hosts() -> list[str]:
     lock = tomllib.loads(LOCK_FILE.read_text(encoding="utf-8"))
     hosts = {
         host
-        # TODO(silent-defaults): a missing dependencies list becomes empty and
+        # Intentional default: a missing dependencies list becomes empty and
         # fails below as "no dependency hosts". Prefer an explicit lock-shape
         # assertion if this check grows beyond a live smoke test.
         for record in lock.get("dependencies", [])
