@@ -42,7 +42,6 @@ export async function resolveCamContracts({
         name,
         {
           address,
-          abiURI,
           abi: parseAbiBytes(abiBytes, abiURI),
         },
       ] as const

@@ -15,7 +15,6 @@ export type LoadedCam = {
 
 export type ResolvedCamContract = {
   readonly address: Address
-  readonly abiURI: string
   readonly abi: Abi
 }
 
