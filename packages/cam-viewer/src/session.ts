@@ -51,7 +51,7 @@ export function createCamViewerSession({
   let state = cloneRecord(initialState, "state")
   let account = initialAccount === undefined ? undefined : cloneAccount(initialAccount)
   let screenURI: string | undefined
-  let screen: CamViewerSnapshot["screen"]
+  let screen: ScreenDocument | undefined
   let resolvedScreen: CamViewerSnapshot["resolvedScreen"]
   let values: readonly InertValue[] | undefined
 
@@ -63,10 +63,9 @@ export function createCamViewerSession({
       state: cloneRecord(state, "state"),
       ...(account === undefined ? {} : { account: cloneAccount(account) }),
       ...(screenURI === undefined ? {} : { screenURI }),
-      ...(screen === undefined ? {} : { screen: cloneValue(screen, "screen") as ScreenDocument }),
       ...(resolvedScreen === undefined
         ? {}
-        : { resolvedScreen: cloneValue(resolvedScreen, "resolvedScreen") as ResolvedScreen }),
+        : { resolvedScreen: cloneSnapshotData(resolvedScreen, "resolvedScreen") }),
       ...(values === undefined ? {} : { values: cloneArray(values, "values") }),
     }
   }
@@ -264,36 +263,16 @@ function cloneViewerInertValue(value: InertValue, path: string): InertValue {
   }
 }
 
-function cloneValue(value: unknown, path: string): unknown {
-  if (Array.isArray(value)) {
-    return cloneUnknownArray(value, path)
-  }
-
-  if (isPlainRecord(value)) {
-    return clonePlainRecord(value, path)
-  }
-
-  if (
-    value !== null
-    && typeof value === "object"
-  ) {
+function cloneSnapshotData<T>(value: T, path: string): T {
+  try {
+    return toInertValue(value) as T
+  } catch (cause) {
     throw new CamViewerError(
       "CAM_VIEWER_INVALID_SNAPSHOT",
       `CAM viewer data is not safely cloneable: ${path}`,
+      { cause },
     )
   }
-
-  return value
-}
-
-function cloneUnknownArray(source: readonly unknown[], path: string): readonly unknown[] {
-  return source.map((value, index) => cloneValue(value, `${path}.${index}`))
-}
-
-function clonePlainRecord(source: Record<string, unknown>, path: string): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(source).map(([key, value]) => [key, cloneValue(value, `${path}.${key}`)]),
-  )
 }
 
 function seedInputState(screen: ScreenDocument, currentState: Record<string, InertValue>): Record<string, InertValue> {
@@ -316,13 +295,4 @@ function seedInputElementState(element: ScreenElement, state: Record<string, Ine
   state[element.name] = typeof element.value === "string" && !element.value.startsWith("$")
     ? element.value
     : ""
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false
-  }
-
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
 }

@@ -53,7 +53,6 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
   assert.equal(snapshot.loaded, true)
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
   assert.equal(snapshot.screenURI, entryScreenURI)
-  assert.equal(snapshot.screen?.title, "Entry")
   assert.equal(snapshot.resolvedScreen?.title, "Entry")
   assert.deepEqual(snapshot.values, [
     BIKE_RELATIVE_ENTRY_SCREEN_URI,
@@ -151,12 +150,12 @@ test("setState re-resolves current screen actions with updated state", async () 
     serialNumber: BIKE_SERIAL_NUMBER,
   })
 
-  assert.deepEqual(snapshot.resolvedScreen?.elements[0], {
+  assert.deepEqual(snapshot.resolvedScreen?.elements[0], toInertValue({
     type: "input",
     name: "serialNumber",
     label: "Serial number",
-  })
-  assert.deepEqual(snapshot.resolvedScreen?.elements[1], {
+  }))
+  assert.deepEqual(snapshot.resolvedScreen?.elements[1], toInertValue({
     type: "button",
     label: "Look up",
     action: {
@@ -165,10 +164,10 @@ test("setState re-resolves current screen actions with updated state", async () 
         serialNumber: BIKE_SERIAL_NUMBER,
       },
     },
-  })
+  }))
 })
 
-test("snapshot returns isolated copies of nested route and screen data", async () => {
+test("snapshot returns isolated copies of nested route and resolved screen data", async () => {
   const session = createSession({
     resources: {
       [entryScreenURI]: encodeJson({
@@ -189,7 +188,6 @@ test("snapshot returns isolated copies of nested route and screen data", async (
 
   mutableRecord(snapshot.values?.[1]).accountInfo = "mutated route value"
   mutableRecord(mutableRecord(snapshot.resolvedScreen?.elements[0]).value).accountInfo = "mutated resolved value"
-  mutableRecord(snapshot.screen?.elements[0]).label = "Mutated label"
 
   const nextSnapshot = session.snapshot()
   assert.equal(mutableRecord(nextSnapshot.values?.[1]).accountInfo, "Mock registrar account")
@@ -197,7 +195,6 @@ test("snapshot returns isolated copies of nested route and screen data", async (
     mutableRecord(mutableRecord(nextSnapshot.resolvedScreen?.elements[0]).value).accountInfo,
     "Mock registrar account",
   )
-  assert.equal(mutableRecord(nextSnapshot.screen?.elements[0]).label, "Account")
 })
 
 test("setState and navigate copy caller-owned nested input records", async () => {

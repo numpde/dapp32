@@ -8,7 +8,6 @@ import type {
   ContractCallAction,
   ResolvedScreen,
   ResolvedScreenAction,
-  ScreenDocument,
 } from "@cam/screen"
 
 export type CamViewerAccount = {
@@ -31,7 +30,6 @@ export type CamViewerSnapshot = {
   readonly state: Record<string, InertValue>
   readonly account?: CamViewerAccount
   readonly screenURI?: string
-  readonly screen?: ScreenDocument
   readonly resolvedScreen?: ResolvedScreen
   readonly values?: readonly InertValue[]
 }
