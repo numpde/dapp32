@@ -9,7 +9,7 @@ import {
   rejectUnknownFields,
 } from "./guards.ts"
 import { parseExpressionPayload, resolveValueAtPath } from "./expressions.ts"
-import type { InertValue } from "@cam/core"
+import type { InertRecord, InertValue } from "@cam/core"
 import type {
   ContractCallAction,
   NavigateAction,
@@ -89,7 +89,7 @@ function parseContractCallAction(source: Record<string, unknown>, path: string):
   }
 }
 
-function parseParams(source: Record<string, unknown>, path: string): Record<string, InertValue> {
+function parseParams(source: Record<string, unknown>, path: string): InertRecord {
   const params = createStringMap<InertValue>()
 
   for (const [key, value] of Object.entries(source)) {
@@ -128,14 +128,14 @@ function parseOnSuccessAction(input: unknown, path: string): NavigateAction {
 }
 
 function resolveParams(
-  params: Record<string, InertValue>,
+  params: InertRecord,
   context: ScreenRuntimeContext,
   path: string,
-): Record<string, InertValue> {
+): InertRecord {
   const resolved = resolveValueAtPath(params, context, path)
   if (!isRecordObject(resolved)) {
     throw new ScreenError("SCREEN_INVALID_FIELD", "expected resolved parameters object", path)
   }
 
-  return resolved as Record<string, InertValue>
+  return resolved as InertRecord
 }

@@ -6,7 +6,7 @@ import {
 import {
   toInertValue,
 } from "@cam/core"
-import type { CamDocument, CamRuntimeContext, InertValue } from "@cam/core"
+import type { CamDocument, CamRuntimeContext, InertRecord, InertValue } from "@cam/core"
 import {
   parseScreen,
   resolveScreen,
@@ -44,8 +44,8 @@ export function createCamViewerSession({
 }: CreateCamViewerSessionOptions): CamViewerSession {
   let loadedState: CamViewerLoadedState | undefined
   let route: string | undefined
-  let params = cloneViewerData<Record<string, InertValue>>(initialParams, "params")
-  let state = cloneViewerData<Record<string, InertValue>>(initialState, "state")
+  let params = cloneViewerData<InertRecord>(initialParams, "params")
+  let state = cloneViewerData<InertRecord>(initialState, "state")
   let account = initialAccount === undefined ? undefined : cloneAccount(initialAccount)
   let screenURI: string | undefined
   let screen: ScreenDocument | undefined
@@ -55,8 +55,8 @@ export function createCamViewerSession({
   function snapshot(): CamViewerSnapshot {
     return {
       ...(route === undefined ? {} : { route }),
-      params: cloneViewerData<Record<string, InertValue>>(params, "params"),
-      state: cloneViewerData<Record<string, InertValue>>(state, "state"),
+      params: cloneViewerData<InertRecord>(params, "params"),
+      state: cloneViewerData<InertRecord>(state, "state"),
       ...(account === undefined ? {} : { account: cloneAccount(account) }),
       ...(screenURI === undefined ? {} : { screenURI }),
       ...(resolvedScreen === undefined
@@ -92,7 +92,7 @@ export function createCamViewerSession({
 
   async function navigate(
     nextRoute: string,
-    nextParams: Record<string, InertValue>,
+    nextParams: InertRecord,
   ): Promise<CamViewerSnapshot> {
     assertLoaded()
     return await navigateLoaded(nextRoute, nextParams)
@@ -108,10 +108,10 @@ export function createCamViewerSession({
     return await navigateLoaded(route, params)
   }
 
-  function setState(patch: Record<string, InertValue>): CamViewerSnapshot {
+  function setState(patch: InertRecord): CamViewerSnapshot {
     state = {
       ...state,
-      ...cloneViewerData<Record<string, InertValue>>(patch, "state"),
+      ...cloneViewerData<InertRecord>(patch, "state"),
     }
 
     if (screen !== undefined && values !== undefined) {
@@ -143,10 +143,10 @@ export function createCamViewerSession({
 
   async function navigateLoaded(
     nextRoute: string,
-    nextParams: Record<string, InertValue>,
+    nextParams: InertRecord,
   ): Promise<CamViewerSnapshot> {
     const current = assertLoaded()
-    const routeParams = cloneViewerData<Record<string, InertValue>>(nextParams, "params")
+    const routeParams = cloneViewerData<InertRecord>(nextParams, "params")
 
     const routeResult = await callCamRoute({
       publicClient,
@@ -203,7 +203,7 @@ export function createCamViewerSession({
     return loadedState
   }
 
-  function routeContext(routeParams: Record<string, InertValue>): CamRuntimeContext {
+  function routeContext(routeParams: InertRecord): CamRuntimeContext {
     return {
       host,
       ...(account === undefined ? {} : { account }),
@@ -212,7 +212,7 @@ export function createCamViewerSession({
   }
 
   function screenContext(
-    routeParams: Record<string, InertValue>,
+    routeParams: InertRecord,
     routeValues: readonly InertValue[],
   ): ScreenRuntimeContext {
     return {

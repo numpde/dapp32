@@ -1,4 +1,4 @@
-import type { InertValue } from "@cam/core"
+import type { InertRecord, InertValue } from "@cam/core"
 import type {
   CamHost,
   CamPublicClient,
@@ -20,14 +20,14 @@ export type CreateCamViewerSessionOptions = {
   readonly host: CamHost
   readonly loadResource: ResourceLoader
   readonly account?: CamViewerAccount
-  readonly params: Record<string, InertValue>
-  readonly state: Record<string, InertValue>
+  readonly params: InertRecord
+  readonly state: InertRecord
 }
 
 export type CamViewerSnapshot = {
   readonly route?: string
-  readonly params: Record<string, InertValue>
-  readonly state: Record<string, InertValue>
+  readonly params: InertRecord
+  readonly state: InertRecord
   readonly account?: CamViewerAccount
   readonly screenURI?: string
   readonly resolvedScreen?: ResolvedScreen
@@ -39,10 +39,10 @@ export type CamViewerSession = {
   readonly load: () => Promise<CamViewerSnapshot>
   readonly navigate: (
     route: string,
-    params: Record<string, InertValue>,
+    params: InertRecord,
   ) => Promise<CamViewerSnapshot>
   readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerSnapshot>
-  readonly setState: (patch: Record<string, InertValue>) => CamViewerSnapshot
+  readonly setState: (patch: InertRecord) => CamViewerSnapshot
   readonly dispatchAction: (action: ResolvedScreenAction) => Promise<CamViewerActionResult>
 }
 

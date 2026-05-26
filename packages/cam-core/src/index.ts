@@ -4,6 +4,7 @@ export type {
   CamRuntimeContext,
 } from "./types.ts"
 export type {
+  InertRecord,
   InertValue,
 } from "./inert-value.ts"
 

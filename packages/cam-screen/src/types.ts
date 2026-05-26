@@ -1,4 +1,4 @@
-import type { CamRuntimeContext, InertValue } from "@cam/core"
+import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/core"
 
 export type ScreenDocument = {
   readonly screen: string
@@ -68,7 +68,7 @@ export type ScreenAction = NavigateAction | ContractCallAction
 
 export type NavigateAction = {
   readonly route: string
-  readonly params: Record<string, InertValue>
+  readonly params: InertRecord
 }
 
 export type ContractCallAction = {
@@ -79,7 +79,7 @@ export type ContractCallAction = {
 }
 
 export type ScreenRuntimeContext = CamRuntimeContext & {
-  readonly state: Record<string, InertValue>
+  readonly state: InertRecord
   readonly values: readonly InertValue[]
 }
 

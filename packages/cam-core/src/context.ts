@@ -8,7 +8,7 @@ import { createStringMap, hasOwn } from "./internal/json.ts"
 import { toInertValue } from "./inert-value.ts"
 import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import type { CamRuntimeContext } from "./types.ts"
-import type { InertValue } from "./inert-value.ts"
+import type { InertRecord, InertValue } from "./inert-value.ts"
 
 export function createContext(input: unknown): CamRuntimeContext {
   const source = requiredRecord(input, "")
@@ -46,7 +46,7 @@ function rejectUnknownContextFields(source: Record<string, unknown>): void {
   )
 }
 
-function cloneContextRecord(value: unknown, path: string): Record<string, InertValue> {
+function cloneContextRecord(value: unknown, path: string): InertRecord {
   const source = requiredRecord(value, path)
   const clone = createStringMap<InertValue>()
 
