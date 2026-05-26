@@ -126,11 +126,8 @@ class SolidityImportPolicyTest(unittest.TestCase):
 
     def dependency_versions(self) -> dict[str, str]:
         config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
-        # TODO(silent-defaults): a missing [dependencies] table becomes {} and
-        # fails later per package. A shared required-table helper would make the
-        # configuration error more direct.
-        dependencies = config.get("dependencies", {})
-        self.assertIsInstance(dependencies, dict)
+        dependencies = config.get("dependencies")
+        self.assertIsInstance(dependencies, dict, "foundry.toml must declare [dependencies]")
 
         versions: dict[str, str] = {}
         for package in DEPENDENCY_PACKAGES:

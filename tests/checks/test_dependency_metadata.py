@@ -16,7 +16,6 @@ SOLDEER_ARCHIVE_SUFFIX_RE = {
     OZ_PACKAGE: r"contracts",
     FORGE_STD_PACKAGE: r"forge-std-[0-9]+(?:\.[0-9]+)*",
 }
-DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE = r"[A-Za-z0-9_.:-]+"
 REMAPPING_RE = re.compile(
     r"^(?P<name>@openzeppelin-contracts(?:-upgradeable)?)-(?P<version>[^/=]+)/=dependencies/(?P=name)-(?P=version)/$"
 )
@@ -107,11 +106,8 @@ class DependencyMetadataTest(unittest.TestCase):
 
     def foundry_dependencies(self) -> dict[str, dict[str, object]]:
         config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
-        # TODO(silent-defaults): treating a missing [dependencies] table as {}
-        # keeps assertion code compact, but a future parser helper should report
-        # the missing table directly instead of falling through to package checks.
-        dependencies = config.get("dependencies", {})
-        self.assertIsInstance(dependencies, dict)
+        dependencies = config.get("dependencies")
+        self.assertIsInstance(dependencies, dict, "foundry.toml must declare [dependencies]")
         for name in OZ_PACKAGES:
             self.assertIn(name, dependencies, f"expected {name} dependency in foundry.toml")
 
@@ -128,11 +124,8 @@ class DependencyMetadataTest(unittest.TestCase):
 
     def locked_dependency_records(self) -> dict[str, dict[str, str]]:
         lock = tomllib.loads(read_text(repo_path("dapps/soldeer.lock")))
-        # TODO(silent-defaults): an absent dependencies array becomes [] here.
-        # That still fails later, but the error is less precise than "missing
-        # lock dependencies"; prefer an explicit required-field helper.
-        raw_records = lock.get("dependencies", [])
-        self.assertIsInstance(raw_records, list)
+        raw_records = lock.get("dependencies")
+        self.assertIsInstance(raw_records, list, "soldeer.lock must declare dependencies")
 
         records: dict[str, dict[str, str]] = {}
         for raw_record in raw_records:
@@ -176,10 +169,8 @@ class DependencyMetadataTest(unittest.TestCase):
         )
 
     def allowed_archive_suffix_re(self, name: str) -> str:
-        # TODO(silent-defaults): this fallback permits any unknown Soldeer
-        # package archive suffix. Add explicit package policy before broadening
-        # DEPENDENCY_PACKAGES beyond the current dependencies.
-        return SOLDEER_ARCHIVE_SUFFIX_RE.get(name, DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE)
+        self.assertIn(name, SOLDEER_ARCHIVE_SUFFIX_RE, f"{name} must have an explicit archive suffix policy")
+        return SOLDEER_ARCHIVE_SUFFIX_RE[name]
 
     def remapped_openzeppelin_versions(self) -> dict[str, str]:
         versions = {
