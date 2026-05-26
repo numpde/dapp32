@@ -6,7 +6,7 @@ import {
 import {
   toInertValue,
 } from "@cam/core"
-import type { CamDocument, InertValue } from "@cam/core"
+import type { CamDocument, CamRuntimeContext, InertValue } from "@cam/core"
 import {
   parseScreen,
   resolveScreen,
@@ -15,6 +15,7 @@ import type { ResolvedCamContract } from "@cam/evm-viem"
 import type {
   ResolvedScreen,
   ResolvedScreenAction,
+  ScreenRuntimeContext,
   ScreenDocument,
 } from "@cam/screen"
 
@@ -114,13 +115,7 @@ export function createCamViewerSession({
     }
 
     if (screen !== undefined && values !== undefined) {
-      resolvedScreen = resolveScreen(screen, {
-        host,
-        ...(account === undefined ? {} : { account }),
-        params,
-        state,
-        values,
-      })
+      resolvedScreen = resolveScreen(screen, screenContext(params, values))
     }
 
     return snapshot()
@@ -159,22 +154,12 @@ export function createCamViewerSession({
       camURI: current.camURI,
       contracts: current.contracts,
       route: nextRoute,
-      context: {
-        host,
-        ...(account === undefined ? {} : { account }),
-        params: routeParams,
-      },
+      context: routeContext(routeParams),
     })
 
     const screenBytes = await loadScreenBytes(routeResult.screenURI)
     const parsedScreen = parseScreenBytes(screenBytes, routeResult.screenURI)
-    const nextResolvedScreen = resolveScreen(parsedScreen, {
-      host,
-      ...(account === undefined ? {} : { account }),
-      params: routeParams,
-      state,
-      values: routeResult.values,
-    })
+    const nextResolvedScreen = resolveScreen(parsedScreen, screenContext(routeParams, routeResult.values))
 
     route = nextRoute
     params = routeParams
@@ -216,6 +201,25 @@ export function createCamViewerSession({
     }
 
     return loadedState
+  }
+
+  function routeContext(routeParams: Record<string, InertValue>): CamRuntimeContext {
+    return {
+      host,
+      ...(account === undefined ? {} : { account }),
+      params: routeParams,
+    }
+  }
+
+  function screenContext(
+    routeParams: Record<string, InertValue>,
+    routeValues: readonly InertValue[],
+  ): ScreenRuntimeContext {
+    return {
+      ...routeContext(routeParams),
+      state,
+      values: routeValues,
+    }
   }
 
   return {
