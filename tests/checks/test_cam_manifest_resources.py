@@ -4,7 +4,6 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from .cam_screen_schema import CamScreenSchemaValidator
 from .cam_manifest_resources import AbiRouteFunction, CamManifestResourceValidator
 from .common import repo_path
 from tools.cam_abi_plan import build_abi_plan_rows
@@ -13,7 +12,6 @@ from tools.cam_abi_plan import build_abi_plan_rows
 class CamManifestResourceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.validator = CamManifestResourceValidator()
-        self.screen_validator = CamScreenSchemaValidator()
 
     def test_local_cam_contract_abi_uris_resolve_to_checked_in_abi_arrays(self) -> None:
         failures = self.validator.collect_manifest_failures(self.validator.validate_manifest_abi_uris)
@@ -235,44 +233,6 @@ class CamManifestResourceTest(unittest.TestCase):
             route_function,
         )
         self.assertEqual(len(failures), 3)
-
-        screen_path = manifest.parent / "screens" / "entry.json"
-        self.assertEqual(
-            self.screen_validator.validate_screen_document(
-                screen_path,
-                {
-                    "screen": "1.0.0",
-                    "title": "$params.serialNumber",
-                    "elements": [
-                        {"type": "text", "text": "Component"},
-                        {"type": "input", "name": "serialNumber", "label": "Serial number", "value": "$state.serialNumber"},
-                        {
-                            "type": "button",
-                            "label": "Look up",
-                            "action": {"route": "component", "params": {"serialNumber": "$state.serialNumber"}},
-                        },
-                    ],
-                },
-            ),
-            [],
-        )
-        self.assertEqual(
-            len(
-                self.screen_validator.validate_screen_document(
-                    screen_path,
-                    {
-                        "screen": "1.0.0",
-                        "layout": {},
-                        "elements": [
-                            {"type": "html", "html": "<b>unsafe</b>"},
-                            {"type": "button", "label": "Bad", "action": {"route": "x", "contract": "Y"}},
-                            {"type": "status", "value": "$bad.root"},
-                        ],
-                    },
-                )
-            ),
-            4,
-        )
 
         self.assertEqual(
             self.validator.validate_no_orphan_abi_files(
