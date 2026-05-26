@@ -6,7 +6,7 @@ import {
   requiredRecord,
   rejectUnknownFields,
 } from "./guards.ts"
-import { createStringMap, hasOwn } from "./internal/json.ts"
+import { createStringMap, hasOwn } from "@cam/protocol"
 import { CAM_VERSION } from "./constants.ts"
 import type { CamContract, CamDocument, CamRoute } from "./types.ts"
 

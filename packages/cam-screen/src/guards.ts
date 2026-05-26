@@ -1,21 +1,15 @@
+import {
+  isRecordObject,
+  joinPath,
+} from "@cam/protocol"
 import { ScreenError } from "./errors.ts"
 
-export function hasOwn(source: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(source, key)
-}
-
-export function createStringMap<T>(): Record<string, T> {
-  return Object.create(null) as Record<string, T>
-}
-
-export function isRecordObject(value: unknown): value is Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    return false
-  }
-
-  const prototype = Object.getPrototypeOf(value)
-  return prototype === Object.prototype || prototype === null
-}
+export {
+  createStringMap,
+  hasOwn,
+  isRecordObject,
+  joinPath,
+} from "@cam/protocol"
 
 export function requiredRecord(value: unknown, path: string): Record<string, unknown> {
   if (!isRecordObject(value)) {
@@ -68,10 +62,4 @@ export function rejectUnknownFields(
       throw new ScreenError("SCREEN_INVALID_FIELD", message(key), joinPath(path, key))
     }
   }
-}
-
-export function joinPath(parent: string, key: string): string {
-  // The empty parent is the internal root path. Do not emit a leading dot for
-  // first-level fields; public paths should read "elements", not ".elements".
-  return parent === "" ? key : `${parent}.${key}`
 }

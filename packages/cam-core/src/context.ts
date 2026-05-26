@@ -4,7 +4,7 @@ import {
   requiredNonEmptyString,
   requiredRecord,
 } from "./guards.ts"
-import { createStringMap, hasOwn } from "./internal/json.ts"
+import { createStringMap, hasOwn } from "@cam/protocol"
 import { toInertValue } from "./inert-value.ts"
 import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import type { CamRuntimeContext } from "./types.ts"

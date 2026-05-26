@@ -1,5 +1,5 @@
 import { CamError } from "./errors.ts"
-import { isRecordObject, joinPath } from "./internal/json.ts"
+import { isRecordObject, joinPath } from "@cam/protocol"
 
 // Inert values are boundary-safe data: JSON-compatible, deeply cloneable, and
 // free of functions, prototypes, host handles, cycles, and hidden mutability.

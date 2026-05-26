@@ -3,7 +3,11 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "cam-*"
+    "cam-protocol",
+    "cam-core",
+    "cam-evm-viem",
+    "cam-screen",
+    "cam-viewer"
   ],
   "scripts": {
     "build:packages": "npm run build --workspaces --if-present",

@@ -1,5 +1,5 @@
 {
-  "name": "@cam/core",
+  "name": "@cam/protocol",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,8 +16,5 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test --experimental-strip-types test/*.test.ts"
-  },
-  "dependencies": {
-    "@cam/protocol": "0.1.0"
   }
 }

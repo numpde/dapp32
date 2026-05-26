@@ -47,7 +47,23 @@ class PackageMetadataTest(unittest.TestCase):
         root_manifest = self.read_manifest(repo_path("packages/package.json"))
 
         self.assertIs(root_manifest["private"], True)
-        self.assertEqual(["cam-*"], root_manifest["workspaces"])
+        workspaces = root_manifest["workspaces"]
+        self.assertIsInstance(workspaces, list)
+        self.assertTrue(all(isinstance(workspace, str) for workspace in workspaces))
+        self.assertEqual(len(workspaces), len(set(workspaces)), "workspace entries must be unique")
+        self.assertFalse(any("*" in workspace for workspace in workspaces), "workspace order must be explicit")
+
+        package_dirs = [
+            path.parent.name
+            for path in self.package_manifest_paths()
+            if path != repo_path("packages/package.json")
+        ]
+        self.assertEqual(set(package_dirs), set(workspaces))
+        self.assertLess(
+            workspaces.index("cam-protocol"),
+            workspaces.index("cam-core"),
+            "shared protocol support must build before packages that consume it",
+        )
 
     def test_package_manifests_follow_workspace_layout(self) -> None:
         expected_paths = set(self.package_manifest_paths())

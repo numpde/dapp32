@@ -1,5 +1,5 @@
 import { CamError } from "./errors.ts"
-import { isRecordObject, joinPath } from "./internal/json.ts"
+import { isRecordObject, joinPath } from "@cam/protocol"
 
 export function requiredRecord(value: unknown, path: string): Record<string, unknown> {
   if (!isRecordObject(value)) {
