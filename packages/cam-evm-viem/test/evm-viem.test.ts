@@ -5,6 +5,7 @@ import { TextEncoder } from "node:util"
 import { parseCam, toInertValue } from "@cam/core"
 import type { Abi, Address, Hex } from "viem"
 
+import * as camEvmViem from "../src/index.ts"
 import {
   CamEvmError,
   callCamRoute,
@@ -44,6 +45,16 @@ import {
 } from "../../../tests/fixtures/cam/bike.ts"
 
 const host: CamHost = bikeHost
+
+test("keeps the public API to the CAM EVM viem adapter boundary", () => {
+  assert.deepEqual(Object.keys(camEvmViem).sort(), [
+    "CamEvmError",
+    "callCamRoute",
+    "loadCamFromHost",
+    "resolveCamContracts",
+    "verifyCamHash",
+  ])
+})
 
 test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned CAM", async () => {
   const camBytes = encodeJson(camJson)

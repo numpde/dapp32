@@ -6,6 +6,7 @@ import { CamEvmError } from "@cam/evm-viem"
 import { toInertValue } from "@cam/core"
 import type { InertValue } from "@cam/core"
 
+import * as camViewer from "../src/index.ts"
 import {
   CamViewerError,
   createCamViewerSession,
@@ -45,6 +46,13 @@ const host: CamHost = bikeHost
 type MockAddress = CamHost["address"]
 type MockAbi = ResolvedCamContract["abi"]
 type MockHash = Hex
+
+test("keeps the public API to the CAM viewer boundary", () => {
+  assert.deepEqual(Object.keys(camViewer).sort(), [
+    "CamViewerError",
+    "createCamViewerSession",
+  ])
+})
 
 test("load resolves host CAM, entry route, and entry screen", async () => {
   const publicClient = createPublicClient()

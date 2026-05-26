@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import * as camScreen from "../src/index.ts"
 import {
   parseScreen,
   resolveScreen,
@@ -32,6 +33,14 @@ const context: ScreenRuntimeContext = {
     },
   ],
 }
+
+test("keeps the public API to the CAM screen boundary", () => {
+  assert.deepEqual(Object.keys(camScreen).sort(), [
+    "ScreenError",
+    "parseScreen",
+    "resolveScreen",
+  ])
+})
 
 test("parseScreen accepts a minimal text and button screen", () => {
   const screen = parseScreen({
