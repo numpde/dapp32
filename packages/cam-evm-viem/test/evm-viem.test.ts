@@ -1,10 +1,8 @@
 import assert from "node:assert/strict"
-import { readFile } from "node:fs/promises"
 import test from "node:test"
 import { TextEncoder } from "node:util"
 
 import { parseCam, toInertValue } from "@cam/core"
-import { parseScreen, resolveScreen } from "@cam/screen"
 import type { Abi, Address, Hex } from "viem"
 
 import {
@@ -330,15 +328,6 @@ test("bike CAM routes resolve to the three route-level screens", async () => {
     })
 
     assert.equal(result.screenURI, expectedScreenURI)
-
-    const screen = parseScreen(JSON.parse(await readBikeScreen(route)))
-    assert.doesNotThrow(() => resolveScreen(screen, {
-      host,
-      account: { address: userAddress },
-      params: { serialNumber: BIKE_SERIAL_NUMBER },
-      state: { serialNumber: BIKE_SERIAL_NUMBER },
-      values: result.values,
-    }))
   }
 })
 
@@ -512,15 +501,6 @@ function createResourceLoader(resources: Record<string, Uint8Array>): ResourceLo
 
     return bytes
   }
-}
-
-async function readBikeScreen(
-  route: typeof BIKE_ROUTE_ENTRY | typeof BIKE_ROUTE_COMPONENT | typeof BIKE_ROUTE_REGISTER,
-): Promise<string> {
-  return await readFile(
-    new URL(`../../../dapps/bike-nft/cam/screens/${route}.json`, import.meta.url),
-    "utf8",
-  )
 }
 
 function encodeJson(value: unknown): Uint8Array {

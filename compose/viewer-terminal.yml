@@ -68,4 +68,4 @@ services:
         npm run build:packages
         ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json
         cd /work
-        printf "quit\n" | node --experimental-strip-types tools/viewer-terminal/terminal-session.ts >/dev/null
+        printf "set serialNumber ABC123\npress 1\npress 2\nquit\n" | node --experimental-strip-types tools/viewer-terminal/terminal-session.ts >/dev/null
