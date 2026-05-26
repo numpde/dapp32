@@ -12,24 +12,6 @@ class CamManifestResourceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.validator = CamManifestResourceValidator()
 
-    def test_local_cam_contract_abi_uris_resolve_to_checked_in_abi_arrays(self) -> None:
-        failures = self.validator.collect_manifest_failures(self.validator.validate_manifest_abi_uris)
-
-        if failures:
-            self.fail("\n".join(failures))
-
-    def test_cam_contract_abi_uris_follow_generated_resource_convention(self) -> None:
-        failures = self.validator.collect_manifest_failures(self.validator.validate_generated_abi_uri_conventions)
-
-        if failures:
-            self.fail("\n".join(failures))
-
-    def test_cam_abi_directories_contain_only_manifest_referenced_files(self) -> None:
-        failures = self.validator.collect_manifest_failures(self.validator.validate_no_orphan_abi_files)
-
-        if failures:
-            self.fail("\n".join(failures))
-
     def test_cam_route_functions_match_declared_abis(self) -> None:
         failures = self.validator.collect_manifest_failures(self.validator.validate_route_functions_match_declared_abis)
 

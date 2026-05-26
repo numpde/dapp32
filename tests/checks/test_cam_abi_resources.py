@@ -5,13 +5,33 @@ import unittest
 from .cam_abi_resources import validate_generated_abi_uri_convention
 from .cam_abi_resources import validate_local_abi_uri
 from .cam_abi_resources import validate_no_orphan_abi_files
+from .cam_manifest_resources import CamManifestResourceValidator
 from .common import repo_path
 
 
 class CamAbiResourceTest(unittest.TestCase):
     def setUp(self) -> None:
+        self.validator = CamManifestResourceValidator()
         self.manifest = repo_path("dapps/example/cam/main.json")
         self.abi_path = repo_path("dapps/example/cam/abi/Example.json")
+
+    def test_local_cam_contract_abi_uris_resolve_to_checked_in_abi_arrays(self) -> None:
+        failures = self.validator.collect_manifest_failures(self.validator.validate_manifest_abi_uris)
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_cam_contract_abi_uris_follow_generated_resource_convention(self) -> None:
+        failures = self.validator.collect_manifest_failures(self.validator.validate_generated_abi_uri_conventions)
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_cam_abi_directories_contain_only_manifest_referenced_files(self) -> None:
+        failures = self.validator.collect_manifest_failures(self.validator.validate_no_orphan_abi_files)
+
+        if failures:
+            self.fail("\n".join(failures))
 
     def test_local_abi_uri_must_resolve_to_checked_in_abi_array(self) -> None:
         self.assertIsNone(
