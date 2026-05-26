@@ -38,8 +38,64 @@ class CamManifestResourceTest(unittest.TestCase):
                 if error is not None:
                     failures.append(error)
 
-            failures.extend(self.validate_route_functions_exist_in_abis(manifest_path, manifest))
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_cam_contract_abi_uris_follow_generated_resource_convention(self) -> None:
+        failures: list[str] = []
+
+        for manifest_path in self.cam_manifests():
+            try:
+                manifest = self.read_json_object(manifest_path)
+            except AssertionError as error:
+                failures.append(str(error))
+                continue
+
+            contracts = manifest.get("contracts")
+            if not isinstance(contracts, dict):
+                continue
+
+            for contract_name, contract in contracts.items():
+                if not isinstance(contract_name, str) or not isinstance(contract, dict):
+                    continue
+
+                error = self.validate_generated_abi_uri_convention(
+                    manifest_path,
+                    contract_name,
+                    contract.get("abiURI"),
+                )
+                if error is not None:
+                    failures.append(error)
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_cam_abi_directories_contain_only_manifest_referenced_files(self) -> None:
+        failures: list[str] = []
+
+        for manifest_path in self.cam_manifests():
+            try:
+                manifest = self.read_json_object(manifest_path)
+            except AssertionError as error:
+                failures.append(str(error))
+                continue
+
             failures.extend(self.validate_no_orphan_abi_files(manifest_path, manifest))
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_cam_route_functions_exist_in_declared_abis(self) -> None:
+        failures: list[str] = []
+
+        for manifest_path in self.cam_manifests():
+            try:
+                manifest = self.read_json_object(manifest_path)
+            except AssertionError as error:
+                failures.append(str(error))
+                continue
+
+            failures.extend(self.validate_route_functions_exist_in_abis(manifest_path, manifest))
 
         if failures:
             self.fail("\n".join(failures))
@@ -62,8 +118,6 @@ class CamManifestResourceTest(unittest.TestCase):
             ("Absolute", "/tmp/Example.json"),
             ("Remote", "https://example.test/Example.json"),
             ("Escape", "../abi/Example.json"),
-            ("WrongDirectory", "./Example.json"),
-            ("WrongBasename", "./abi/Other.json"),
             ("WrongSuffix", "./abi/Example.txt"),
             ("MissingFile", "./abi/Missing.json"),
         ]
@@ -77,6 +131,26 @@ class CamManifestResourceTest(unittest.TestCase):
                         existing_files={repo_path("dapps/example/cam/abi/Example.json")},
                         abi_documents={repo_path("dapps/example/cam/abi/Example.json"): []},
                     )
+                )
+
+        self.assertIsNone(
+            self.validate_local_abi_uri(
+                manifest,
+                "Example",
+                "./custom/Example.json",
+                existing_files={repo_path("dapps/example/cam/custom/Example.json")},
+                abi_documents={repo_path("dapps/example/cam/custom/Example.json"): []},
+            )
+        )
+
+        convention_rejected = [
+            ("WrongDirectory", "Example", "./custom/Example.json"),
+            ("WrongBasename", "Example", "./abi/Other.json"),
+        ]
+        for case_name, contract_name, abi_uri in convention_rejected:
+            with self.subTest(case_name=case_name):
+                self.assertIsNotNone(
+                    self.validate_generated_abi_uri_convention(manifest, contract_name, abi_uri)
                 )
 
         self.assertIsNotNone(
@@ -262,6 +336,30 @@ class CamManifestResourceTest(unittest.TestCase):
 
         return failures
 
+    def validate_generated_abi_uri_convention(
+        self,
+        manifest_path: Path,
+        contract_name: str,
+        abi_uri: object,
+    ) -> str | None:
+        path = f"contracts.{contract_name}.abiURI"
+        if not isinstance(abi_uri, str):
+            return f"{manifest_path}: {path} must be a string before generated ABI convention checks"
+
+        resolved = self.resolve_local_abi_path(manifest_path, abi_uri)
+        if resolved is None:
+            return None
+
+        cam_dir = manifest_path.parent.resolve()
+        abi_dir = cam_dir / "abi"
+        if resolved.parent != abi_dir:
+            return f"{manifest_path}: {path} must target a file directly under cam/abi: {abi_uri}"
+
+        if resolved.name != f"{contract_name}.json":
+            return f"{manifest_path}: {path} basename must match the contract name: {abi_uri}"
+
+        return None
+
     def validate_local_abi_uri(
         self,
         manifest_path: Path,
@@ -290,13 +388,6 @@ class CamManifestResourceTest(unittest.TestCase):
         cam_dir = manifest_path.parent.resolve()
         if resolved != cam_dir and cam_dir not in resolved.parents:
             return f"{manifest_path}: {path} escapes the CAM directory: {abi_uri}"
-
-        abi_dir = cam_dir / "abi"
-        if resolved.parent != abi_dir:
-            return f"{manifest_path}: {path} must target a file directly under cam/abi: {abi_uri}"
-
-        if resolved.name != f"{contract_name}.json":
-            return f"{manifest_path}: {path} basename must match the contract name: {abi_uri}"
 
         if existing_files is None:
             if not resolved.is_file():
