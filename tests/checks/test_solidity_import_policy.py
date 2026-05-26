@@ -68,7 +68,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
             OZ_PACKAGE: oz_version,
             FORGE_STD_PACKAGE: forge_std_version,
         }
-        source = repo_path("dapps/deposit/test/unit/HelloWorld/HelloWorld.t.sol")
+        source = repo_path("dapps/deposit/test/unit/DepositVault/DepositVault.t.sol")
 
         self.assertIsNone(
             self.validate_import(source, f"{OZ_PACKAGE}-{oz_version}/access/Ownable.sol", dependency_versions)
@@ -83,7 +83,7 @@ class SolidityImportPolicyTest(unittest.TestCase):
                 dependency_versions,
             )
         )
-        self.assertIsNone(self.validate_import(source, "../../../src/HelloWorld.sol", dependency_versions))
+        self.assertIsNone(self.validate_import(source, "../../../src/DepositVault.sol", dependency_versions))
         self.assertIsNone(self.validate_import(source, f"forge-std-{forge_std_version}/src/Test.sol", dependency_versions))
         self.assertIsNone(
             self.validate_import(
