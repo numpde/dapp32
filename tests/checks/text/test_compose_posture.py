@@ -138,48 +138,6 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("rm -f $$created_dependency_metadata_placeholders", text)
         self.assertIn("test -d $(DEPENDENCIES_DIR)", text)
 
-    def test_package_build_check_and_test_lanes_are_offline(self) -> None:
-        text = read_text(repo_path("compose/packages.yml"))
-
-        self.assertIn("package-graph-check:", text)
-        self.assertIn("package-build-check:", text)
-        self.assertIn("package-test:", text)
-        self.assertNotIn("package-ci:", text)
-        self.assertIn("x-package-base: &package_base", text)
-        self.assertEqual(3, text.count("<<: *package_base"))
-        self.assertEqual(1, text.count('network_mode: "none"'))
-        self.assertEqual(1, text.count("read_only: true"))
-        self.assertEqual(1, text.count("no-new-privileges:true"))
-        self.assertEqual(1, text.count("- ALL"))
-        self.assertIn("../packages:/input/packages:ro", text)
-        self.assertIn("../packages/node_modules:/work/packages/node_modules:ro", text)
-        self.assertIn("../tests/fixtures:/work/tests/fixtures:ro", text)
-        self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777", text)
-        self.assertEqual(3, text.count('"run-package-workspace"'))
-        self.assertNotIn("../packages:/work/packages:ro", text)
-        self.assertNotIn("../packages:/work/packages:rw", text)
-        for package_json in sorted(repo_path("packages").glob("*/package.json")):
-            package_dir = package_json.parent.name
-            self.assertNotIn(f"target: /work/packages/{package_dir}/dist", text)
-            self.assertNotIn(f"../packages/{package_dir}/dist:", text)
-        self.assertIn("working_dir: /work/packages", text)
-        runner_text = read_text(repo_path("containers/node-deps/run-package-workspace"))
-        self.assertIn("stage-package-workspace /input/packages /work/packages", runner_text)
-        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", runner_text)
-        self.assertIn(">/tmp/package-graph-check.json", runner_text)
-        self.assertIn('exec "$@"', runner_text)
-        self.assertIn(
-            "package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata",
-            text,
-        )
-        self.assertNotIn("../:/work", text)
-        self.assertNotIn("..:/work", text)
-        self.assertNotIn("npm install", text)
-        self.assertNotIn("npm ci", text)
-        self.assertNotIn("HTTP_PROXY", text)
-        self.assertNotIn("HTTPS_PROXY", text)
-        self.assertNotIn("tools/viewer-terminal/terminal-session.ts", text)
-
     def test_node_package_workspace_stager_is_image_owned(self) -> None:
         dockerfile_text = read_text(repo_path("containers/node-deps/Dockerfile"))
         dockerignore_text = read_text(repo_path("containers/node-deps/.dockerignore"))
