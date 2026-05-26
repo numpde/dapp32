@@ -15,11 +15,11 @@ type InertRecord = {
   readonly [key: string]: InertValue
 }
 
-export function isInertValue(value: unknown): value is InertValue {
+function isInertValue(value: unknown): value is InertValue {
   return validateInertValue(value) === undefined
 }
 
-export function assertInertValue(value: unknown): asserts value is InertValue {
+function assertInertValue(value: unknown): asserts value is InertValue {
   const error = validateInertValue(value)
 
   if (error !== undefined) {
@@ -29,10 +29,6 @@ export function assertInertValue(value: unknown): asserts value is InertValue {
 
 export function toInertValue(value: unknown): InertValue {
   assertInertValue(value)
-  return cloneInertValue(value)
-}
-
-export function cloneInertValue(value: InertValue): InertValue {
   return cloneValidatedInertValue(value)
 }
 

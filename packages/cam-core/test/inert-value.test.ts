@@ -3,13 +3,8 @@ import test from "node:test"
 
 import {
   CamError,
-} from "../src/index.ts"
-import {
-  assertInertValue,
-  cloneInertValue,
-  isInertValue,
   toInertValue,
-} from "../src/inert-value.ts"
+} from "../src/index.ts"
 
 test("accepts inert scalar, array, and record values", () => {
   const value = {
@@ -25,8 +20,11 @@ test("accepts inert scalar, array, and record values", () => {
     ],
   }
 
-  assert.equal(isInertValue(value), true)
-  assert.doesNotThrow(() => assertInertValue(value))
+  const clone = toInertValue(value) as Record<string, unknown>
+  assert.equal(clone.text, "ABC123")
+  assert.equal(clone.count, 42)
+  assert.equal(clone.enabled, true)
+  assert.equal(clone.missing, null)
 })
 
 test("rejects values with behavior, host identity, or non-JSON scalar semantics", () => {
@@ -44,9 +42,8 @@ test("rejects values with behavior, host identity, or non-JSON scalar semantics"
     Object.create({ inherited: true }),
   ]) {
     withInertRejection(value, () => {
-      assert.equal(isInertValue(value), false)
       assert.throws(
-        () => assertInertValue(value),
+        () => toInertValue(value),
         (error) => error instanceof CamError
           && error.code === "CAM_INVALID_FIELD"
           && error.path === undefined,
@@ -57,7 +54,7 @@ test("rejects values with behavior, host identity, or non-JSON scalar semantics"
 
 test("rejects nested non-inert values with a precise path", () => {
   assert.throws(
-    () => assertInertValue({ route: { params: [new Date(0)] } }),
+    () => toInertValue({ route: { params: [new Date(0)] } }),
     (error) => error instanceof CamError
       && error.code === "CAM_INVALID_FIELD"
       && error.path === "route.params.0",
@@ -68,9 +65,8 @@ test("rejects cyclic arrays and records", () => {
   const cyclicRecord: Record<string, unknown> = {}
   cyclicRecord.self = cyclicRecord
 
-  assert.equal(isInertValue(cyclicRecord), false)
   assert.throws(
-    () => assertInertValue(cyclicRecord),
+    () => toInertValue(cyclicRecord),
     (error) => error instanceof CamError
       && error.code === "CAM_INVALID_FIELD"
       && error.path === "self",
@@ -79,9 +75,8 @@ test("rejects cyclic arrays and records", () => {
   const cyclicArray: unknown[] = []
   cyclicArray.push(cyclicArray)
 
-  assert.equal(isInertValue(cyclicArray), false)
   assert.throws(
-    () => assertInertValue(cyclicArray),
+    () => toInertValue(cyclicArray),
     (error) => error instanceof CamError
       && error.code === "CAM_INVALID_FIELD"
       && error.path === "0",
@@ -90,14 +85,14 @@ test("rejects cyclic arrays and records", () => {
 
 test("accepts repeated references but rejects sparse arrays", () => {
   const shared = { value: "same data" }
-  assert.equal(isInertValue({ left: shared, right: shared }), true)
+  const clone = toInertValue({ left: shared, right: shared }) as Record<string, unknown>
+  assert.deepEqual(clone.left, clone.right)
 
   const sparse = ["present", "missing"] as unknown[]
   delete sparse[1]
 
-  assert.equal(isInertValue(sparse), false)
   assert.throws(
-    () => assertInertValue(sparse),
+    () => toInertValue(sparse),
     (error) => error instanceof CamError
       && error.code === "CAM_INVALID_FIELD"
       && error.path === "1",
@@ -117,7 +112,6 @@ test("toInertValue validates unknown input and returns an isolated prototype-neu
   }
 
   const clone = toInertValue(source)
-  assert.equal(isInertValue(clone), true)
   assert.equal(Object.getPrototypeOf(clone), null)
 
   const cloneRecord = clone as Record<string, unknown>
@@ -142,24 +136,6 @@ test("toInertValue rejects unsupported input instead of returning live reference
       && error.code === "CAM_INVALID_FIELD"
       && error.path === "date",
   )
-})
-
-test("cloneInertValue clones already-valid inert values", () => {
-  const source = toInertValue({
-    nested: {
-      value: "before",
-    },
-  })
-  const clone = cloneInertValue(source)
-
-  const sourceRecord = source as Record<string, unknown>
-  const cloneRecord = clone as Record<string, unknown>
-  const sourceNested = sourceRecord.nested as Record<string, unknown>
-  const cloneNested = cloneRecord.nested as Record<string, unknown>
-
-  assert.notEqual(clone, source)
-  assert.notEqual(cloneNested, sourceNested)
-  assert.equal(cloneNested.value, "before")
 })
 
 function withInertRejection(value: unknown, assertion: () => void): void {
