@@ -3,6 +3,7 @@ import test from "node:test"
 import { TextEncoder } from "node:util"
 
 import { CamEvmError } from "@cam/evm-viem"
+import { toInertValue } from "@cam/core"
 import type { InertValue } from "@cam/core"
 
 import * as camViewer from "../src/index.ts"
@@ -63,13 +64,13 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
   assert.equal(snapshot.screenURI, entryScreenURI)
   assert.equal(snapshot.resolvedScreen?.title, "Entry")
-  assert.deepEqual(snapshot.values, [
+  assert.deepEqual(snapshot.values, inert([
     {
       account: userAddress,
       canRegister: true,
       accountInfo: "Mock registrar account",
     },
-  ])
+  ]))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
     "camURI",
     "camHash",
@@ -122,7 +123,7 @@ test("navigate accepts explicit empty route params", async () => {
 
   const snapshot = await session.navigate(BIKE_ROUTE_ENTRY, {})
 
-  assert.deepEqual(snapshot.params, {})
+  assert.deepEqual(snapshot.params, inert({}))
   assert.deepEqual(publicClient.calls.at(-1)?.args, [userAddress])
 })
 
@@ -175,12 +176,12 @@ test("setState re-resolves current screen actions with updated state", async () 
     serialNumber: BIKE_SERIAL_NUMBER,
   })
 
-  assert.deepEqual(snapshot.resolvedScreen?.elements[0], {
+  assert.deepEqual(snapshot.resolvedScreen?.elements[0], inert({
     type: "input",
     name: "serialNumber",
     label: "Serial number",
-  })
-  assert.deepEqual(snapshot.resolvedScreen?.elements[1], {
+  }))
+  assert.deepEqual(snapshot.resolvedScreen?.elements[1], inert({
     type: "button",
     label: "Look up",
     action: {
@@ -189,7 +190,7 @@ test("setState re-resolves current screen actions with updated state", async () 
         serialNumber: BIKE_SERIAL_NUMBER,
       },
     },
-  })
+  }))
 })
 
 test("snapshot returns isolated copies of nested route and resolved screen data", async () => {
@@ -450,6 +451,10 @@ function mutableRecord(value: unknown): Record<string, unknown> {
   assert.notEqual(value, null)
   assert.equal(Array.isArray(value), false)
   return value as Record<string, unknown>
+}
+
+function inert(value: unknown): InertValue {
+  return toInertValue(value)
 }
 
 const entryScreen = {
