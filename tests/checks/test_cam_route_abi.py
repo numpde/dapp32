@@ -95,6 +95,8 @@ class CamRouteAbiTest(unittest.TestCase):
             "elements": [
                 {"type": "status", "value": "$values.0.exists"},
                 {"type": "status", "value": "$values.1"},
+                {"type": "address", "address": "$values.0.owner"},
+                {"type": "group", "visibleWhen": "$values.0.exists", "elements": []},
             ],
         }
         route_function = AbiRouteFunction(
@@ -105,7 +107,10 @@ class CamRouteAbiTest(unittest.TestCase):
                 {
                     "name": "component",
                     "type": "tuple",
-                    "components": [{"name": "exists", "type": "bool"}],
+                    "components": [
+                        {"name": "exists", "type": "bool"},
+                        {"name": "owner", "type": "address"},
+                    ],
                 },
                 {"name": "count", "type": "uint256"},
             ),
@@ -129,6 +134,8 @@ class CamRouteAbiTest(unittest.TestCase):
                 {"type": "status", "value": "$values.0.missing"},
                 {"type": "status", "value": "$values.1.count"},
                 {"type": "status", "value": "$values.2"},
+                {"type": "address", "address": "$values.1"},
+                {"type": "group", "visibleWhen": "$values.1", "elements": []},
             ],
         }
         failures = validate_screen_values_references(
@@ -140,4 +147,6 @@ class CamRouteAbiTest(unittest.TestCase):
             "viewEntry",
             route_function,
         )
-        self.assertEqual(len(failures), 3)
+        self.assertEqual(len(failures), 5)
+        self.assertTrue(any("ABI output type 'uint256' where 'address' is required" in failure for failure in failures))
+        self.assertTrue(any("ABI output type 'uint256' where 'bool' is required" in failure for failure in failures))

@@ -26,12 +26,14 @@ class ValuesReference:
     path: str
     output_index: int
     segments: tuple[str, ...]
+    expected_abi_type: str | None
 
 
 VALUES_EXPRESSION_RE = re.compile(
     r"^\$values\.(0|[1-9][0-9]*)(\.(?:[A-Za-z][A-Za-z0-9_]*|0|[1-9][0-9]*))*$"
 )
 READ_ROUTE_MUTABILITY = frozenset({"view", "pure"})
+SCREEN_ELEMENT_TYPES = frozenset({"text", "input", "address", "button", "status", "nft", "group"})
 
 
 def abi_route_functions(abi: list[object]) -> dict[str, AbiRouteFunction | None]:
@@ -129,7 +131,15 @@ def validate_screen_values_references(
             )
             continue
 
-        error = validate_abi_output_path(output, reference.segments)
+        output_path, path_error = resolve_abi_output_path(output, reference.segments)
+        if path_error is not None:
+            failures.append(
+                f"{manifest_path}: {route_path} screen references {path_error} in "
+                f"{contract_name}.{function_name} output at {location}: {reference.expression}"
+            )
+            continue
+
+        error = validate_expected_abi_type(output_path, reference.expected_abi_type)
         if error is not None:
             failures.append(
                 f"{manifest_path}: {route_path} screen references {error} in "
@@ -143,24 +153,38 @@ def route_value_output(function: AbiRouteFunction, output_index: int) -> object 
     return function.value_outputs[output_index] if output_index < len(function.value_outputs) else None
 
 
-def validate_abi_output_path(output: object, segments: tuple[str, ...]) -> str | None:
+def resolve_abi_output_path(output: object, segments: tuple[str, ...]) -> tuple[object | None, str | None]:
     current = output
     for segment in segments:
         if not isinstance(current, dict):
-            return f"non-object ABI output segment: {segment}"
+            return None, f"non-object ABI output segment: {segment}"
 
         output_type = current.get("type")
         components = current.get("components")
         if output_type != "tuple" or not isinstance(components, list):
-            return f"field on non-tuple ABI output: {segment}"
+            return None, f"field on non-tuple ABI output: {segment}"
 
         next_output = abi_component_by_name(components, segment)
         if next_output is None:
-            return f"unknown ABI output field: {segment}"
+            return None, f"unknown ABI output field: {segment}"
 
         current = next_output
 
-    return None
+    return current, None
+
+
+def validate_expected_abi_type(output: object, expected_type: str | None) -> str | None:
+    if expected_type is None:
+        return None
+
+    if not isinstance(output, dict):
+        return f"non-object ABI output where {expected_type} is required"
+
+    output_type = output.get("type")
+    if output_type == expected_type:
+        return None
+
+    return f"ABI output type {output_type!r} where {expected_type!r} is required"
 
 
 def abi_component_by_name(components: list[object], name: str) -> object | None:
@@ -171,26 +195,26 @@ def abi_component_by_name(components: list[object], name: str) -> object | None:
     return None
 
 
-def values_references(value: object, path: str = "") -> list[ValuesReference]:
+def values_references(value: object, path: str = "", parent: object | None = None) -> list[ValuesReference]:
     references: list[ValuesReference] = []
 
     if isinstance(value, str):
-        reference = values_reference(value, path)
+        reference = values_reference(value, path, parent)
         return [] if reference is None else [reference]
 
     if isinstance(value, list):
         for index, item in enumerate(value):
-            references.extend(values_references(item, join_json_path(path, str(index))))
+            references.extend(values_references(item, join_json_path(path, str(index)), value))
         return references
 
     if isinstance(value, dict):
         for key, item in value.items():
-            references.extend(values_references(item, join_json_path(path, str(key))))
+            references.extend(values_references(item, join_json_path(path, str(key)), value))
 
     return references
 
 
-def values_reference(value: str, path: str) -> ValuesReference | None:
+def values_reference(value: str, path: str, parent: object | None) -> ValuesReference | None:
     match = VALUES_EXPRESSION_RE.match(value)
     if match is None:
         return None
@@ -201,7 +225,24 @@ def values_reference(value: str, path: str) -> ValuesReference | None:
         path=path,
         output_index=int(match.group(1)),
         segments=() if suffix == "" else tuple(suffix.removeprefix(".").split(".")),
+        expected_abi_type=expected_abi_type_for_screen_field(path, parent),
     )
+
+
+def expected_abi_type_for_screen_field(path: str, parent: object | None) -> str | None:
+    if not isinstance(parent, dict):
+        return None
+
+    if parent.get("type") in SCREEN_ELEMENT_TYPES and path.endswith(".visibleWhen"):
+        return "bool"
+
+    if parent.get("type") == "address" and path.endswith(".address"):
+        return "address"
+
+    if parent.get("type") == "nft" and path.endswith(".contractAddress"):
+        return "address"
+
+    return None
 
 
 def join_json_path(parent: str, key: str) -> str:
