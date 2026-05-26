@@ -446,6 +446,8 @@ function createPublicClient({
   readonly camURI?: string
   readonly camHash?: Hex
   readonly addresses?: Record<string, Address>
+  // TODO(inert-values): these mocked ABI return values should use the same
+  // route-output inert-value type as RouteResult.values.
   readonly routeResults?: Record<string, unknown>
 }) {
   const calls: Array<{

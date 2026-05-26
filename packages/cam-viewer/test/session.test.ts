@@ -347,6 +347,8 @@ function createPublicClient({
 }: {
   readonly camHash?: Hex
   readonly addresses?: Record<string, Address>
+  // TODO(inert-values): viewer tests mock the EVM route boundary here; keep it
+  // aligned with the eventual readonly InertValue[] route output.
   readonly routeResults?: Record<string, unknown>
 } = {}) {
   const calls: Array<{

@@ -45,6 +45,8 @@ type DebugEvent =
     readonly step: number
     readonly kind: "contract-read"
     readonly functionName: string
+    // TODO(inert-values): trace entries should record the same inert route
+    // args/results that the viewer will expose after the protocol migration.
     readonly args: readonly unknown[]
     readonly result: unknown
   }
@@ -172,6 +174,8 @@ function handleSet(session: CamViewerSession, args: readonly string[]): void {
     throw new Error("usage: set <name> <value>")
   }
 
+  // TODO(inert-values): terminal input becomes screen state. Once viewer state
+  // uses InertValue, this command should pass through toInertValue explicitly.
   session.setState({
     [name]: valueParts.join(" "),
   })
@@ -268,6 +272,8 @@ function createMockPublicClient(events: DebugEvent[]): PublicClient {
   return {
     async readContract(request: {
       readonly functionName: string
+      // TODO(inert-values): this mock receives resolved route args from core;
+      // keep the shape aligned with the future inert route-call argument type.
       readonly args?: readonly unknown[]
     }): Promise<unknown> {
       const args = request.args ?? []
@@ -284,6 +290,9 @@ function createMockPublicClient(events: DebugEvent[]): PublicClient {
   } as PublicClient
 }
 
+// TODO(inert-values): mocked contract returns are the local stand-in for
+// viem-decoded ABI values. They should eventually be normalized before screen
+// resolution in the same way as real route results.
 function mockReadContract(functionName: string, args: readonly unknown[]): unknown {
   switch (functionName) {
     case "camURI":
