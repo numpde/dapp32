@@ -4,13 +4,17 @@ import { TextEncoder } from "node:util"
 
 import { CamEvmError, ZERO_HASH } from "@cam/evm-viem"
 import { toInertValue } from "@cam/core"
-import type { Abi, Address, Hex } from "viem"
 
 import {
   CamViewerError,
   createCamViewerSession,
 } from "../src/index.ts"
-import type { CamHost } from "@cam/evm-viem"
+import type {
+  CamHost,
+  LoadedCam,
+  LoadCamFromHostOptions,
+  ResolvedCamContract,
+} from "@cam/evm-viem"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camURI,
@@ -36,6 +40,9 @@ import {
 } from "../../../tests/fixtures/cam/bike.ts"
 
 const host: CamHost = bikeHost
+type MockAddress = CamHost["address"]
+type MockAbi = ResolvedCamContract["abi"]
+type MockHash = LoadedCam["camHash"]
 
 test("load resolves host CAM, entry route, and entry screen", async () => {
   const publicClient = createPublicClient()
@@ -352,29 +359,23 @@ function createPublicClient({
   addresses = bikeContractAddresses,
   routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER),
 }: {
-  readonly camHash?: Hex
-  readonly addresses?: Record<string, Address>
+  readonly camHash?: MockHash
+  readonly addresses?: Record<string, MockAddress>
   // This fake models raw viem return values before @cam/evm-viem normalizes
   // them to RouteResult.values.
   readonly routeResults?: Record<string, unknown>
 } = {}) {
   const calls: Array<{
-    readonly address: Address
-    readonly abi?: Abi
+    readonly address: MockAddress
+    readonly abi?: MockAbi
     readonly functionName: string
     readonly args?: readonly unknown[]
-    readonly account?: Address
+    readonly account?: MockAddress
   }> = []
 
   return {
     calls,
-    async readContract(request: {
-      readonly address: Address
-      readonly abi?: Abi
-      readonly functionName: string
-      readonly args?: readonly unknown[]
-      readonly account?: Address
-    }): Promise<unknown> {
+    async readContract(request: Parameters<LoadCamFromHostOptions["publicClient"]["readContract"]>[0]): Promise<unknown> {
       calls.push(request)
 
       if (request.functionName === "camURI") {
