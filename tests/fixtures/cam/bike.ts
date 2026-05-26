@@ -1,3 +1,5 @@
+import type { InertValue } from "../../../packages/cam-core/src/index.ts"
+
 export const BIKE_HOST_CHAIN_ID = "eip155:31337"
 export const BIKE_HOST_ADDRESS = "0x0000000000000000000000000000000000000001"
 export const BIKE_ACCOUNT_ADDRESS = "0x0000000000000000000000000000000000000002"
@@ -117,12 +119,9 @@ export function bikeAddressForContract(name: string): string {
     : "0x0000000000000000000000000000000000000000"
 }
 
-// TODO(inert-values): fixture route results should mirror the production
-// adapter boundary and return readonly InertValue[] once EVM values are
-// normalized above viem.
 // TODO(silent-defaults): the default serial number keeps tests terse, but
 // callers that care about route input should pass the serial explicitly.
-export function bikeRouteResults(serialNumber = BIKE_SERIAL_NUMBER): Record<string, readonly unknown[]> {
+export function bikeRouteResults(serialNumber = BIKE_SERIAL_NUMBER): Record<string, readonly InertValue[]> {
   return {
     [BIKE_VIEW_ENTRY]: bikeEntryRouteResult(),
     [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber),
@@ -130,11 +129,9 @@ export function bikeRouteResults(serialNumber = BIKE_SERIAL_NUMBER): Record<stri
   }
 }
 
-// TODO(inert-values): this mocked ABI return crosses into screen/viewer tests;
-// keep it aligned with the eventual RouteResult.values inert-value type.
 // TODO(silent-defaults): entry account defaults are fixture convenience, not a
 // protocol rule; tests for account-sensitive behavior should pass it explicitly.
-export function bikeEntryRouteResult(account = BIKE_ACCOUNT_ADDRESS): readonly unknown[] {
+export function bikeEntryRouteResult(account = BIKE_ACCOUNT_ADDRESS): readonly InertValue[] {
   return [
     BIKE_RELATIVE_ENTRY_SCREEN_URI,
     {
@@ -145,11 +142,9 @@ export function bikeEntryRouteResult(account = BIKE_ACCOUNT_ADDRESS): readonly u
   ]
 }
 
-// TODO(inert-values): component view data is currently plain fixture data, but
-// should be typed as inert route output when the route boundary is migrated.
 // TODO(silent-defaults): component route tests should pass the serial number
 // explicitly when the input matters.
-export function bikeComponentRouteResult(serialNumber = BIKE_SERIAL_NUMBER): readonly unknown[] {
+export function bikeComponentRouteResult(serialNumber = BIKE_SERIAL_NUMBER): readonly InertValue[] {
   return [
     BIKE_RELATIVE_COMPONENT_SCREEN_URI,
     {
@@ -182,11 +177,9 @@ export function bikeComponentRouteResult(serialNumber = BIKE_SERIAL_NUMBER): rea
   ]
 }
 
-// TODO(inert-values): register view data follows the same route-output
-// boundary as the real UI helper contract.
 // TODO(silent-defaults): register route tests should pass the serial number
 // explicitly when the input matters.
-export function bikeRegisterRouteResult(serialNumber = BIKE_SERIAL_NUMBER): readonly unknown[] {
+export function bikeRegisterRouteResult(serialNumber = BIKE_SERIAL_NUMBER): readonly InertValue[] {
   return [
     BIKE_RELATIVE_REGISTER_SCREEN_URI,
     {

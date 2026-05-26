@@ -8,6 +8,7 @@ import {
   parseCam,
   resolveResourceURI,
   resolveRouteCall,
+  toInertValue,
 } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS,
@@ -161,7 +162,7 @@ test("copies nested runtime context records", () => {
       component: {
         serialNumber: "ABC123",
       },
-      count: BigInt(1),
+      count: 1,
     },
   }
 
@@ -180,7 +181,7 @@ test("copies nested runtime context records", () => {
     },
   })
 
-  assert.deepEqual(resolveRouteCall(cam, "entry", context).args, ["ABC123", BigInt(1)])
+  assert.deepEqual(resolveRouteCall(cam, "entry", context).args, ["ABC123", 1])
 })
 
 test("rejects unsupported runtime context values", () => {
@@ -362,7 +363,7 @@ test("copies route args out of the input document", () => {
 
   input.routes.entry.args[0].value = "$params.changed"
 
-  assert.deepEqual(cam.routes.entry.args, [{ value: "$params.serialNumber" }])
+  assert.deepEqual(cam.routes.entry.args, [toInertValue({ value: "$params.serialNumber" })])
 })
 
 test("keeps contract and route map keys prototype-neutral", () => {

@@ -1,15 +1,16 @@
+import { CamError, toInertValue } from "@cam/core"
 import { parseAction } from "./actions.ts"
 import { SCREEN_VERSION } from "./constants.ts"
 import { ScreenError } from "./errors.ts"
 import { validateExpressionValue } from "./expressions.ts"
 import {
-  cloneJsonValue,
   requiredArray,
   requiredNonEmptyString,
   requiredRecord,
   rejectUnknownFields,
 } from "./guards.ts"
 import type { ScreenDocument, ScreenElement } from "./types.ts"
+import type { InertValue } from "@cam/core"
 
 const TOP_LEVEL_KEYS = new Set(["screen", "title", "elements"])
 const TEXT_KEYS = new Set(["type", "text"])
@@ -75,17 +76,12 @@ function parseTextElement(source: Record<string, unknown>, path: string): Screen
 
 function parseInputElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, INPUT_KEYS, path)
-  if (source.value !== undefined) {
-    // TODO(inert-values): input defaults are screen data. Validate/clone them
-    // with toInertValue once screen payloads use the shared inert type.
-    validateExpressionValue(source.value, `${path}.value`)
-  }
 
   return {
     type: "input",
     name: requiredNonEmptyString(source.name, `${path}.name`),
     label: parseExpressionString(source.label, `${path}.label`),
-    ...(source.value === undefined ? {} : { value: cloneJsonValue(source.value) }),
+    ...(source.value === undefined ? {} : { value: parseExpressionPayload(source.value, `${path}.value`) }),
   }
 }
 
@@ -110,27 +106,21 @@ function parseButtonElement(source: Record<string, unknown>, path: string): Scre
 
 function parseStatusElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, STATUS_KEYS, path)
-  // TODO(inert-values): status values are declarative display data and should
-  // be parsed as expression-bearing inert values.
-  validateExpressionValue(source.value, `${path}.value`)
 
   return {
     type: "status",
     ...(source.label === undefined ? {} : { label: parseExpressionString(source.label, `${path}.label`) }),
-    value: cloneJsonValue(source.value),
+    value: parseExpressionPayload(source.value, `${path}.value`),
   }
 }
 
 function parseNftElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, NFT_KEYS, path)
-  // TODO(inert-values): tokenId is a screen data payload, not an arbitrary host
-  // object. Keep it under the inert-value boundary.
-  validateExpressionValue(source.tokenId, `${path}.tokenId`)
 
   return {
     type: "nft",
     contractAddress: parseExpressionString(source.contractAddress, `${path}.contractAddress`),
-    tokenId: cloneJsonValue(source.tokenId),
+    tokenId: parseExpressionPayload(source.tokenId, `${path}.tokenId`),
   }
 }
 
@@ -138,6 +128,19 @@ function parseExpressionString(value: unknown, path: string): string {
   const string = requiredNonEmptyString(value, path)
   validateExpressionValue(string, path)
   return string
+}
+
+function parseExpressionPayload(value: unknown, path: string): InertValue {
+  validateExpressionValue(value, path)
+  try {
+    return toInertValue(value)
+  } catch (error) {
+    if (error instanceof CamError) {
+      throw new ScreenError("SCREEN_INVALID_FIELD", error.message, error.path === undefined ? path : `${path}.${error.path}`)
+    }
+
+    throw error
+  }
 }
 
 function rejectUnknownScreenFields(

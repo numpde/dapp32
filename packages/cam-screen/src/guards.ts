@@ -64,22 +64,6 @@ export function rejectUnknownFields(
   }
 }
 
-export function cloneJsonValue(value: unknown): unknown {
-  // TODO(inert-values): screen documents and actions should use
-  // toInertValue/cloneInertValue instead of this package-local JSON clone.
-  if (Array.isArray(value)) {
-    return value.map((item) => cloneJsonValue(item))
-  }
-
-  if (isRecordObject(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, cloneJsonValue(item)]),
-    )
-  }
-
-  return value
-}
-
 function joinPath(parent: string, key: string): string {
   // The empty parent is the internal root path. Do not emit a leading dot for
   // first-level fields; public paths should read "elements", not ".elements".

@@ -195,7 +195,7 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
   const cam = parseCam(camJson)
   const publicClient = createPublicClient({
     routeResults: {
-      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, BigInt(7)],
+      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, 7],
     },
   })
 
@@ -219,7 +219,7 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
   })
 
   assert.equal(result.screenURI, BIKE_ENTRY_SCREEN_URI)
-  assert.deepEqual(result.values, [BIKE_RELATIVE_ENTRY_SCREEN_URI, BigInt(7)])
+  assert.deepEqual(result.values, [BIKE_RELATIVE_ENTRY_SCREEN_URI, 7])
 
   assert.deepEqual(publicClient.calls.at(-1), {
     address: uiAddress,
@@ -449,8 +449,8 @@ function createPublicClient({
   readonly camURI?: string
   readonly camHash?: Hex
   readonly addresses?: Record<string, Address>
-  // TODO(inert-values): these mocked ABI return values should use the same
-  // route-output inert-value type as RouteResult.values.
+  // This fake models raw viem return values before callCamRoute normalizes
+  // them to RouteResult.values.
   readonly routeResults?: Record<string, unknown>
 }) {
   const calls: Array<{

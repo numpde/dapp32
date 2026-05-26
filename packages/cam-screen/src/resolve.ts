@@ -32,8 +32,6 @@ function resolveElement(
         type: "input",
         name: element.name,
         label: resolveStringField(element.label, context, `${path}.label`),
-        // TODO(inert-values): resolved input values should be InertValue
-        // before a renderer receives them.
         ...(element.value === undefined ? {} : { value: resolveValueAtPath(element.value, context, `${path}.value`) }),
       }
     case "address":
@@ -52,16 +50,12 @@ function resolveElement(
       return {
         type: "status",
         ...(element.label === undefined ? {} : { label: resolveStringField(element.label, context, `${path}.label`) }),
-        // TODO(inert-values): resolved status payloads should be inert display
-        // values, not arbitrary objects from the host/runtime context.
         value: resolveValueAtPath(element.value, context, `${path}.value`),
       }
     case "nft":
       return {
         type: "nft",
         contractAddress: resolveStringField(element.contractAddress, context, `${path}.contractAddress`),
-        // TODO(inert-values): resolved tokenId should remain within the inert
-        // data model until a renderer chooses how to display it.
         tokenId: resolveValueAtPath(element.tokenId, context, `${path}.tokenId`),
       }
   }

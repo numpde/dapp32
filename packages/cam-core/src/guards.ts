@@ -1,7 +1,6 @@
 import { CamError } from "./errors.ts"
 import { isRecordObject, joinPath } from "./internal/json.ts"
 export {
-  cloneJsonValue,
   createStringMap,
   hasOwn,
   isRecordObject,

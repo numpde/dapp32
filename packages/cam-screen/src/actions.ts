@@ -1,6 +1,6 @@
+import { CamError, toInertValue } from "@cam/core"
 import { ScreenError } from "./errors.ts"
 import {
-  cloneJsonValue,
   createStringMap,
   hasOwn,
   isRecordObject,
@@ -10,6 +10,7 @@ import {
   rejectUnknownFields,
 } from "./guards.ts"
 import { resolveValueAtPath, validateExpressionValue } from "./expressions.ts"
+import type { InertValue } from "@cam/core"
 import type {
   ContractCallAction,
   NavigateAction,
@@ -82,32 +83,27 @@ function parseContractCallAction(source: Record<string, unknown>, path: string):
   )
 
   const args = requiredArray(source.args, `${path}.args`)
-  // TODO(inert-values): contract-call args are declarative screen data. They
-  // should use the same expression-aware inert validation as navigation params.
   validateExpressionValue(args, `${path}.args`)
 
   return {
     contract: requiredNonEmptyString(source.contract, `${path}.contract`),
     function: requiredNonEmptyString(source.function, `${path}.function`),
-    args: args.map((arg) => cloneJsonValue(arg)),
+    args: args.map((arg, index) => parseExpressionPayload(arg, `${path}.args.${index}`)),
     ...(source.onSuccess === undefined
       ? {}
       : { onSuccess: parseOnSuccessAction(source.onSuccess, `${path}.onSuccess`) }),
   }
 }
 
-function parseParams(source: Record<string, unknown>, path: string): Record<string, unknown> {
-  // TODO(inert-values): parsed action params should be stored as
-  // Record<string, InertValue> once screen depends on the shared inert type.
-  const params = createStringMap<unknown>()
+function parseParams(source: Record<string, unknown>, path: string): Record<string, InertValue> {
+  const params = createStringMap<InertValue>()
 
   for (const [key, value] of Object.entries(source)) {
     if (key.length === 0) {
       throw new ScreenError("SCREEN_INVALID_FIELD", "parameter name must not be empty", path)
     }
 
-    validateExpressionValue(value, `${path}.${key}`)
-    params[key] = cloneJsonValue(value)
+    params[key] = parseExpressionPayload(value, `${path}.${key}`)
   }
 
   return params
@@ -138,16 +134,31 @@ function parseOnSuccessAction(input: unknown, path: string): NavigateAction {
 }
 
 function resolveParams(
-  params: Record<string, unknown>,
+  params: Record<string, InertValue>,
   context: ScreenRuntimeContext,
   path: string,
-): Record<string, unknown> {
-  // TODO(inert-values): resolved params should be re-normalized to inert data
-  // before a viewer passes them into the next CAM route.
+): Record<string, InertValue> {
   const resolved = resolveValueAtPath(params, context, path)
   if (!isRecordObject(resolved)) {
     throw new ScreenError("SCREEN_INVALID_FIELD", "expected resolved parameters object", path)
   }
 
-  return resolved
+  return resolved as Record<string, InertValue>
+}
+
+function parseExpressionPayload(value: unknown, path: string): InertValue {
+  validateExpressionValue(value, path)
+  try {
+    return toInertValue(value)
+  } catch (error) {
+    if (error instanceof CamError) {
+      throw new ScreenError(
+        "SCREEN_INVALID_FIELD",
+        error.message,
+        error.path === undefined ? path : `${path}.${error.path}`,
+      )
+    }
+
+    throw error
+  }
 }

@@ -2,13 +2,13 @@ import { CamError } from "./errors.ts"
 import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import { hasOwn, isRecordObject } from "./guards.ts"
 import { isJsonScalar } from "./internal/json.ts"
+import { toInertValue } from "./inert-value.ts"
 import type { CamRuntimeContext } from "./types.ts"
+import type { InertValue } from "./inert-value.ts"
 
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/
 
-export function resolveValue(value: unknown, context: CamRuntimeContext): unknown {
-  // TODO(inert-values): expression resolution should return InertValue once
-  // context params and route args are typed as inert values.
+export function resolveValue(value: InertValue, context: CamRuntimeContext): InertValue {
   if (typeof value === "string") {
     return resolveString(value, context)
   }
@@ -26,15 +26,13 @@ export function resolveValue(value: unknown, context: CamRuntimeContext): unknow
   return value
 }
 
-export function resolveArgs(args: readonly unknown[], context: CamRuntimeContext): unknown[] {
-  // TODO(inert-values): resolved route-call args should be readonly
-  // InertValue[], preserving the route argument data boundary.
+export function resolveArgs(args: readonly InertValue[], context: CamRuntimeContext): readonly InertValue[] {
   return args.map((arg, index) => resolveValueAtPath(arg, context, `args.${index}`))
 }
 
 export function validateExpressionValue(value: unknown, path: string): void {
-  // TODO(inert-values): this validator is the predecessor to inert-value
-  // validation for expression-bearing JSON data.
+  // Expressions are encoded as inert strings, but their "$..." grammar still
+  // needs validation before the payload is normalized with toInertValue().
   if (typeof value === "string") {
     validateExpressionString(value, path)
     return
@@ -66,7 +64,7 @@ function validateJsonLiteral(value: unknown, path: string): void {
   throw new CamError("CAM_INVALID_FIELD", "expected a JSON value", path)
 }
 
-function resolveValueAtPath(value: unknown, context: CamRuntimeContext, path: string): unknown {
+function resolveValueAtPath(value: InertValue, context: CamRuntimeContext, path: string): InertValue {
   try {
     return resolveValue(value, context)
   } catch (error) {
@@ -80,7 +78,7 @@ function resolveValueAtPath(value: unknown, context: CamRuntimeContext, path: st
   }
 }
 
-function resolveString(value: string, context: CamRuntimeContext): unknown {
+function resolveString(value: string, context: CamRuntimeContext): InertValue {
   // Only the exact $root.path grammar is an expression. Other strings remain
   // literals so CAM V1 does not grow implicit templating or interpolation.
   if (!value.startsWith("$")) {
@@ -105,7 +103,7 @@ function resolveString(value: string, context: CamRuntimeContext): unknown {
     throw new CamError("CAM_UNRESOLVED_VALUE", `unresolved expression: ${value}`)
   }
 
-  return current
+  return toInertValue(current)
 }
 
 function validateExpressionString(value: string, path?: string): void {

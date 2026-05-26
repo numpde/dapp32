@@ -2,13 +2,14 @@ import { CamError } from "./errors.ts"
 import {
   createStringMap,
   hasOwn,
-  isRecordObject,
   rejectUnknownFields,
   requiredNonEmptyString,
   requiredRecord,
 } from "./guards.ts"
+import { toInertValue } from "./inert-value.ts"
 import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import type { CamRuntimeContext } from "./types.ts"
+import type { InertValue } from "./inert-value.ts"
 
 export function createContext(input: unknown): CamRuntimeContext {
   const source = requiredRecord(input, "")
@@ -46,39 +47,25 @@ function rejectUnknownContextFields(source: Record<string, unknown>): void {
   )
 }
 
-function cloneContextRecord(value: unknown, path: string): Record<string, unknown> {
-  // TODO(inert-values): createContext should eventually call toInertValue for
-  // params instead of maintaining a parallel runtime-context validator here.
+function cloneContextRecord(value: unknown, path: string): Record<string, InertValue> {
   const source = requiredRecord(value, path)
-  const clone = createStringMap<unknown>()
+  const clone = createStringMap<InertValue>()
 
   for (const [key, item] of Object.entries(source)) {
-    clone[key] = cloneContextValue(item, `${path}.${key}`)
+    clone[key] = toInertContextValue(item, `${path}.${key}`)
   }
 
   return clone
 }
 
-function cloneContextValue(value: unknown, path: string): unknown {
-  if (value === undefined || typeof value === "function" || typeof value === "symbol") {
-    throw new CamError("CAM_INVALID_FIELD", "expected runtime context data", path)
-  }
+function toInertContextValue(value: unknown, path: string): InertValue {
+  try {
+    return toInertValue(value)
+  } catch (error) {
+    if (error instanceof CamError) {
+      throw new CamError(error.code, error.message, error.path === undefined ? path : `${path}.${error.path}`)
+    }
 
-  if (typeof value === "number" && !Number.isFinite(value)) {
-    throw new CamError("CAM_INVALID_FIELD", "expected a finite number", path)
+    throw error
   }
-
-  if (Array.isArray(value)) {
-    return value.map((item, index) => cloneContextValue(item, `${path}.${index}`))
-  }
-
-  if (isRecordObject(value)) {
-    return cloneContextRecord(value, path)
-  }
-
-  if (value !== null && typeof value === "object") {
-    throw new CamError("CAM_INVALID_FIELD", "expected runtime context data", path)
-  }
-
-  return value
 }

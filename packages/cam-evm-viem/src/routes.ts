@@ -1,4 +1,5 @@
-import { resolveResourceURI, resolveRouteCall } from "@cam/core"
+import { resolveResourceURI, resolveRouteCall, toInertValue } from "@cam/core"
+import type { InertValue } from "@cam/core"
 import type { Abi, AbiFunction, Address } from "viem"
 
 import { CamEvmError } from "./errors.ts"
@@ -36,9 +37,6 @@ export async function callCamRoute({
     throw new CamEvmError("CAM_ROUTE_CALL_FAILED", `failed to call CAM route: ${route}`, cause)
   }
 
-  // TODO(inert-values): ABI-decoded return values cross from viem into CAM
-  // screen/viewer code here. Normalize this array to inert values, or define a
-  // deliberate EVM value extension for types such as bigint/address.
   const values = Array.isArray(raw) ? raw : [raw]
   const screenURI = values[0]
 
@@ -52,8 +50,22 @@ export async function callCamRoute({
 
   return {
     screenURI: resolveResourceURI(camURI, screenURI),
-    values,
+    values: normalizeRouteValues(values, route),
   }
+}
+
+function normalizeRouteValues(values: readonly unknown[], route: string): readonly InertValue[] {
+  return values.map((value, index) => {
+    try {
+      return toInertValue(value)
+    } catch (cause) {
+      throw new CamEvmError(
+        "CAM_ROUTE_INVALID_RESULT",
+        `CAM route returned a non-inert value at ${route}[${index}]`,
+        cause,
+      )
+    }
+  })
 }
 
 function assertLocalScreenURI(screenURI: string, route: string): void {

@@ -3,6 +3,7 @@ import test from "node:test"
 import { TextEncoder } from "node:util"
 
 import { CamEvmError, ZERO_HASH } from "@cam/evm-viem"
+import { toInertValue } from "@cam/core"
 import type { Abi, Address, Hex } from "viem"
 
 import {
@@ -49,11 +50,11 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
   assert.equal(snapshot.resolvedScreen?.title, "Entry")
   assert.deepEqual(snapshot.values, [
     BIKE_RELATIVE_ENTRY_SCREEN_URI,
-    {
+    toInertValue({
       account: userAddress,
       canRegister: true,
       accountInfo: "Mock registrar account",
-    },
+    }),
   ])
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
     "camURI",
@@ -353,8 +354,8 @@ function createPublicClient({
 }: {
   readonly camHash?: Hex
   readonly addresses?: Record<string, Address>
-  // TODO(inert-values): viewer tests mock the EVM route boundary here; keep it
-  // aligned with the eventual readonly InertValue[] route output.
+  // This fake models raw viem return values before @cam/evm-viem normalizes
+  // them to RouteResult.values.
   readonly routeResults?: Record<string, unknown>
 } = {}) {
   const calls: Array<{

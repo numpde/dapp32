@@ -1,4 +1,4 @@
-import type { CamDocument } from "@cam/core"
+import type { CamDocument, InertValue } from "@cam/core"
 import type {
   CamHost,
   ResolvedCamContract,
@@ -21,26 +21,20 @@ export type CreateCamViewerSessionOptions = {
   readonly host: CamHost
   readonly loadResource: ResourceLoader
   readonly account?: CamViewerAccount
-  // TODO(inert-values): initial params/state are untrusted host inputs. Use
-  // Record<string, InertValue> once the package graph exposes that type.
-  readonly params?: Record<string, unknown>
-  readonly state?: Record<string, unknown>
+  readonly params?: Record<string, InertValue>
+  readonly state?: Record<string, InertValue>
 }
 
 export type CamViewerSnapshot = {
   readonly loaded: boolean
   readonly route?: string
-  // TODO(inert-values): snapshots should expose inert copies so renderers
-  // cannot mutate session-owned data or receive live host objects.
-  readonly params: Record<string, unknown>
-  readonly state: Record<string, unknown>
+  readonly params: Record<string, InertValue>
+  readonly state: Record<string, InertValue>
   readonly account?: CamViewerAccount
   readonly screenURI?: string
   readonly screen?: ScreenDocument
   readonly resolvedScreen?: ResolvedScreen
-  // TODO(inert-values): route values should be frozen at the protocol boundary
-  // as readonly InertValue[] before snapshot exposure.
-  readonly values?: readonly unknown[]
+  readonly values?: readonly InertValue[]
 }
 
 export type CamViewerSession = {
@@ -48,13 +42,10 @@ export type CamViewerSession = {
   readonly load: () => Promise<CamViewerSnapshot>
   readonly navigate: (
     route: string,
-    // TODO(inert-values): navigation params are caller-provided route input.
-    params?: Record<string, unknown>,
+    params?: Record<string, InertValue>,
   ) => Promise<CamViewerSnapshot>
   readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerSnapshot>
-  // TODO(inert-values): screen state patches are renderer input and should be
-  // validated through toInertValue before storage.
-  readonly setState: (patch: Record<string, unknown>) => CamViewerSnapshot
+  readonly setState: (patch: Record<string, InertValue>) => CamViewerSnapshot
   readonly dispatchAction: (action: ResolvedScreenAction) => Promise<CamViewerActionResult>
 }
 

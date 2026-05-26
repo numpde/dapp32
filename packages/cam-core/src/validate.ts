@@ -1,7 +1,6 @@
 import { CamError } from "./errors.ts"
 import { validateExpressionValue } from "./expressions.ts"
 import {
-  cloneJsonValue,
   createStringMap,
   hasOwn,
   requiredArray,
@@ -9,8 +8,10 @@ import {
   requiredRecord,
   rejectUnknownFields,
 } from "./guards.ts"
+import { toInertValue } from "./inert-value.ts"
 import { CAM_VERSION } from "./constants.ts"
 import type { CamContract, CamDocument, CamRoute } from "./types.ts"
+import type { InertValue } from "./inert-value.ts"
 
 const TOP_LEVEL_KEYS = new Set(["cam", "entry", "contracts", "routes"])
 const CONTRACT_KEYS = new Set(["abiURI"])
@@ -87,15 +88,12 @@ function parseRoutes(
 
     const functionName = requiredNonEmptyString(route.function, `${path}.function`)
     const args = requiredArray(route.args, `${path}.args`)
-    // TODO(inert-values): route args are the CAM document's main data payload.
-    // Validate/clone them through toInertValue instead of the older
-    // JSON-literal expression validator.
     validateExpressionValue(args, `${path}.args`)
 
     routes[name] = {
       contract,
       function: functionName,
-      args: args.map((arg) => cloneJsonValue(arg)),
+      args: args.map((arg) => toInertValue(arg)) as readonly InertValue[],
     }
   }
 

@@ -1,3 +1,5 @@
+import type { InertValue } from "./inert-value.ts"
+
 export type CamDocument = {
   readonly cam: string
   readonly entry: string
@@ -12,9 +14,7 @@ export type CamContract = {
 export type CamRoute = {
   readonly contract: string
   readonly function: string
-  // TODO(inert-values): CAM route arguments are manifest data and should be
-  // typed as readonly InertValue[] once the core public API is migrated.
-  readonly args: readonly unknown[]
+  readonly args: readonly InertValue[]
 }
 
 export type CamRuntimeContext = {
@@ -25,15 +25,11 @@ export type CamRuntimeContext = {
   readonly account?: {
     readonly address: string
   }
-  // TODO(inert-values): runtime params are untrusted host input and should be
-  // Record<string, InertValue>, not arbitrary unknown values.
-  readonly params: Record<string, unknown>
+  readonly params: Record<string, InertValue>
 }
 
 export type CamRouteCall = {
   readonly contract: string
   readonly function: string
-  // TODO(inert-values): resolved route arguments should preserve the same
-  // inert-value boundary before the EVM adapter ABI-encodes them.
-  readonly args: readonly unknown[]
+  readonly args: readonly InertValue[]
 }

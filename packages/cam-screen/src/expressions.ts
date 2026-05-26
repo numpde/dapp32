@@ -1,13 +1,15 @@
+import { toInertValue } from "@cam/core"
 import { SCREEN_CONTEXT_KEYS } from "./constants.ts"
 import { ScreenError } from "./errors.ts"
 import { hasOwn, isRecordObject } from "./guards.ts"
 import type { ScreenRuntimeContext } from "./types.ts"
+import type { InertValue } from "@cam/core"
 
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.(?:[A-Za-z][A-Za-z0-9_]*|0|[1-9][0-9]*))*$/
 
 export function validateExpressionValue(value: unknown, path: string): void {
-  // TODO(inert-values): screen expressions are embedded in inert screen data;
-  // this should become the expression-aware inert-value validator.
+  // Expressions are encoded as inert strings, but their "$..." grammar still
+  // needs validation before the payload is normalized with toInertValue().
   if (typeof value === "string") {
     validateExpressionString(value, path)
     return
@@ -28,9 +30,7 @@ export function validateExpressionValue(value: unknown, path: string): void {
   validateJsonLiteral(value, path)
 }
 
-export function resolveValueAtPath(value: unknown, context: ScreenRuntimeContext, path: string): unknown {
-  // TODO(inert-values): resolved screen values should remain inert after
-  // substituting params/state/route values into screen documents.
+export function resolveValueAtPath(value: InertValue, context: ScreenRuntimeContext, path: string): InertValue {
   if (typeof value === "string") {
     return resolveString(value, context, path)
   }
@@ -60,7 +60,7 @@ function validateJsonLiteral(value: unknown, path: string): void {
   throw new ScreenError("SCREEN_INVALID_FIELD", "expected a JSON value", path)
 }
 
-function resolveString(value: string, context: ScreenRuntimeContext, path: string): unknown {
+function resolveString(value: string, context: ScreenRuntimeContext, path: string): InertValue {
   // Only a leading "$" opts into screen expression resolution. Strings such
   // as "Price: $5" remain ordinary literals; malformed "$..." values fail
   // during validation instead of becoming implicit templates.
@@ -81,7 +81,7 @@ function resolveString(value: string, context: ScreenRuntimeContext, path: strin
     throw new ScreenError("SCREEN_UNRESOLVED_VALUE", `unresolved expression: ${value}`, path)
   }
 
-  return current
+  return toInertValue(current)
 }
 
 function readSegment(source: unknown, segment: string, expression: string, path: string): unknown {

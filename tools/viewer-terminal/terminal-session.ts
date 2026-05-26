@@ -9,11 +9,15 @@ import type {
   PublicClient,
 } from "viem"
 
-import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
+import {
+  createCamViewerSession,
+} from "../../packages/cam-viewer/dist/index.js"
 import type {
   CamViewerSession,
   CamViewerSnapshot,
 } from "../../packages/cam-viewer/dist/index.js"
+import { toInertValue } from "../../packages/cam-core/dist/index.js"
+import type { InertValue } from "../../packages/cam-core/dist/index.js"
 import type {
   ResolvedScreenElement,
 } from "@cam/screen"
@@ -45,10 +49,8 @@ type DebugEvent =
     readonly step: number
     readonly kind: "contract-read"
     readonly functionName: string
-    // TODO(inert-values): trace entries should record the same inert route
-    // args/results that the viewer will expose after the protocol migration.
-    readonly args: readonly unknown[]
-    readonly result: unknown
+    readonly args: readonly InertValue[]
+    readonly result: InertValue
   }
   | {
     readonly step: number
@@ -177,10 +179,8 @@ function handleSet(session: CamViewerSession, args: readonly string[]): void {
     throw new Error("usage: set <name> <value>")
   }
 
-  // TODO(inert-values): terminal input becomes screen state. Once viewer state
-  // uses InertValue, this command should pass through toInertValue explicitly.
   session.setState({
-    [name]: valueParts.join(" "),
+    [name]: toInertValue(valueParts.join(" ")),
   })
 }
 
@@ -284,13 +284,11 @@ function createMockPublicClient(events: DebugEvent[]): PublicClient {
   return {
     async readContract(request: {
       readonly functionName: string
-      // TODO(inert-values): this mock receives resolved route args from core;
-      // keep the shape aligned with the future inert route-call argument type.
       readonly args?: readonly unknown[]
     }): Promise<unknown> {
       // TODO(silent-defaults): optional args come from the broad viem shape, but
       // CAM route calls should know whether a function expected arguments.
-      const args = request.args ?? []
+      const args = (request.args ?? []).map((arg) => toInertValue(arg))
       const result = mockReadContract(request.functionName, args)
       events.push({
         step: events.length + 1,
@@ -304,10 +302,7 @@ function createMockPublicClient(events: DebugEvent[]): PublicClient {
   } as PublicClient
 }
 
-// TODO(inert-values): mocked contract returns are the local stand-in for
-// viem-decoded ABI values. They should eventually be normalized before screen
-// resolution in the same way as real route results.
-function mockReadContract(functionName: string, args: readonly unknown[]): unknown {
+function mockReadContract(functionName: string, args: readonly InertValue[]): InertValue {
   switch (functionName) {
     case "camURI":
       return MOCK_CAM_URI

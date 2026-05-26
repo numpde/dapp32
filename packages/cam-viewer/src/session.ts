@@ -4,6 +4,9 @@ import {
   resolveCamContracts,
 } from "@cam/evm-viem"
 import {
+  toInertValue,
+} from "@cam/core"
+import {
   parseScreen,
   resolveScreen,
 } from "@cam/screen"
@@ -13,6 +16,7 @@ import type {
   ScreenDocument,
   ScreenElement,
 } from "@cam/screen"
+import type { InertValue } from "@cam/core"
 
 import { CamViewerError } from "./errors.ts"
 import type {
@@ -43,7 +47,7 @@ export function createCamViewerSession({
   let screenURI: string | undefined
   let screen: CamViewerSnapshot["screen"]
   let resolvedScreen: CamViewerSnapshot["resolvedScreen"]
-  let values: readonly unknown[] | undefined
+  let values: readonly InertValue[] | undefined
 
   function snapshot(): CamViewerSnapshot {
     return {
@@ -85,7 +89,10 @@ export function createCamViewerSession({
     return await navigateLoaded(loadedCam.cam.entry, params)
   }
 
-  async function navigate(nextRoute: string, nextParams: Record<string, unknown> = params): Promise<CamViewerSnapshot> {
+  async function navigate(
+    nextRoute: string,
+    nextParams: Record<string, InertValue> = params,
+  ): Promise<CamViewerSnapshot> {
     // TODO(silent-defaults): defaulting to the current params makes route
     // changes concise, but can accidentally carry stale params across routes.
     // Revisit when route params are explicit protocol data.
@@ -103,7 +110,7 @@ export function createCamViewerSession({
     return await navigateLoaded(route, params)
   }
 
-  function setState(patch: Record<string, unknown>): CamViewerSnapshot {
+  function setState(patch: Record<string, InertValue>): CamViewerSnapshot {
     state = {
       ...state,
       ...cloneRecord(patch, "state"),
@@ -142,7 +149,10 @@ export function createCamViewerSession({
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "unsupported CAM viewer action")
   }
 
-  async function navigateLoaded(nextRoute: string, nextParams: Record<string, unknown>): Promise<CamViewerSnapshot> {
+  async function navigateLoaded(
+    nextRoute: string,
+    nextParams: Record<string, InertValue>,
+  ): Promise<CamViewerSnapshot> {
     const current = assertLoaded()
     const routeParams = cloneRecord(nextParams, "params")
 
@@ -161,15 +171,14 @@ export function createCamViewerSession({
 
     const screenBytes = await loadScreenBytes(routeResult.screenURI)
     const parsedScreen = parseScreenBytes(screenBytes, routeResult.screenURI)
+    const routeValues = normalizeRouteValues(routeResult.values)
     state = seedInputState(parsedScreen, state)
     const nextResolvedScreen = resolveScreen(parsedScreen, {
       host,
       ...(account === undefined ? {} : { account }),
       params: routeParams,
       state,
-      // TODO(inert-values): routeResult.values is the adapter-to-screen data
-      // boundary. Normalize it before screen resolution, not after rendering.
-      values: routeResult.values,
+      values: routeValues,
     })
 
     route = nextRoute
@@ -177,9 +186,7 @@ export function createCamViewerSession({
     screenURI = routeResult.screenURI
     screen = parsedScreen
     resolvedScreen = nextResolvedScreen
-    // TODO(inert-values): keep stored route values on the same inert boundary
-    // as the snapshot copy and screen runtime context.
-    values = routeResult.values
+    values = routeValues
 
     return snapshot()
   }
@@ -230,26 +237,49 @@ function cloneAccount(source: CamViewerAccount): CamViewerAccount {
   return { address: source.address }
 }
 
-function cloneRecord(source: Record<string, unknown>, path: string): Record<string, unknown> {
-  // TODO(inert-values): this is a local copy of the inert-value boundary.
-  // Replace it with toInertValue/cloneInertValue once viewer types use
-  // InertValue instead of unknown.
+function cloneRecord(source: Record<string, InertValue>, path: string): Record<string, InertValue> {
   return Object.fromEntries(
-    Object.entries(source).map(([key, value]) => [key, cloneValue(value, `${path}.${key}`)]),
+    Object.entries(source).map(([key, value]) => [key, cloneViewerInertValue(value, `${path}.${key}`)]),
   )
 }
 
-function cloneArray(source: readonly unknown[], path: string): readonly unknown[] {
-  return source.map((value, index) => cloneValue(value, `${path}.${index}`))
+function cloneArray(source: readonly InertValue[], path: string): readonly InertValue[] {
+  return source.map((value, index) => cloneViewerInertValue(value, `${path}.${index}`))
+}
+
+function cloneViewerInertValue(value: InertValue, path: string): InertValue {
+  try {
+    return toInertValue(value)
+  } catch (cause) {
+    throw new CamViewerError(
+      "CAM_VIEWER_INVALID_SNAPSHOT",
+      `CAM viewer data is not safely cloneable: ${path}`,
+      { cause },
+    )
+  }
+}
+
+function normalizeRouteValues(source: readonly unknown[]): readonly InertValue[] {
+  return source.map((value, index) => {
+    try {
+      return toInertValue(value)
+    } catch (cause) {
+      throw new CamViewerError(
+        "CAM_VIEWER_INVALID_SNAPSHOT",
+        `CAM route value is not safely cloneable: values.${index}`,
+        { cause },
+      )
+    }
+  })
 }
 
 function cloneValue(value: unknown, path: string): unknown {
   if (Array.isArray(value)) {
-    return cloneArray(value, path)
+    return cloneUnknownArray(value, path)
   }
 
   if (isPlainRecord(value)) {
-    return cloneRecord(value, path)
+    return clonePlainRecord(value, path)
   }
 
   if (
@@ -265,9 +295,17 @@ function cloneValue(value: unknown, path: string): unknown {
   return value
 }
 
-function seedInputState(screen: ScreenDocument, currentState: Record<string, unknown>): Record<string, unknown> {
-  // TODO(inert-values): seeded input state is renderer-editable screen state.
-  // It should be constructed as Record<string, InertValue>.
+function cloneUnknownArray(source: readonly unknown[], path: string): readonly unknown[] {
+  return source.map((value, index) => cloneValue(value, `${path}.${index}`))
+}
+
+function clonePlainRecord(source: Record<string, unknown>, path: string): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(source).map(([key, value]) => [key, cloneValue(value, `${path}.${key}`)]),
+  )
+}
+
+function seedInputState(screen: ScreenDocument, currentState: Record<string, InertValue>): Record<string, InertValue> {
   const nextState = { ...currentState }
   for (const element of screen.elements) {
     seedInputElementState(element, nextState)
@@ -276,7 +314,7 @@ function seedInputState(screen: ScreenDocument, currentState: Record<string, unk
   return nextState
 }
 
-function seedInputElementState(element: ScreenElement, state: Record<string, unknown>): void {
+function seedInputElementState(element: ScreenElement, state: Record<string, InertValue>): void {
   if (element.type !== "input" || Object.hasOwn(state, element.name)) {
     return
   }
@@ -289,7 +327,7 @@ function seedInputElementState(element: ScreenElement, state: Record<string, unk
     : ""
 }
 
-function isNavigateAction(action: unknown): action is { readonly route: string; readonly params: Record<string, unknown> } {
+function isNavigateAction(action: unknown): action is { readonly route: string; readonly params: Record<string, InertValue> } {
   return isRecord(action)
     && typeof action.route === "string"
     && isRecord(action.params)
