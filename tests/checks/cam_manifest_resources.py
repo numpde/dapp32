@@ -52,6 +52,14 @@ SCREEN_ELEMENT_KEYS = {
     "nft": SCREEN_COMMON_ELEMENT_KEYS | {"contractAddress", "tokenId"},
     "group": SCREEN_COMMON_ELEMENT_KEYS | {"elements"},
 }
+SCREEN_ELEMENT_FIELD_RULES = {
+    "text": (("text", "expression_string"),),
+    "input": (("name", "string"), ("label", "expression_string"), ("value", "expression_payload?")),
+    "address": (("label", "expression_string?"), ("address", "expression_string")),
+    "button": (("label", "expression_string"),),
+    "status": (("label", "expression_string?"), ("value", "expression_payload")),
+    "nft": (("contractAddress", "expression_string"), ("tokenId", "expression_payload")),
+}
 NAVIGATE_ACTION_KEYS = frozenset({"route", "params"})
 CONTRACT_CALL_ACTION_KEYS = frozenset({"contract", "function", "args", "onSuccess"})
 READ_ROUTE_MUTABILITY = frozenset({"view", "pure"})
@@ -254,36 +262,43 @@ class CamManifestResourceValidator:
         if "visibleWhen" in element:
             failures.extend(self.validate_expression_payload(screen_path, f"{path}.visibleWhen", element.get("visibleWhen")))
 
-        match element_type:
-            case "text":
-                failures.extend(self.validate_expression_string(screen_path, f"{path}.text", element.get("text")))
-            case "input":
-                failures.extend(self.validate_non_empty_string(screen_path, f"{path}.name", element.get("name")))
-                failures.extend(self.validate_expression_string(screen_path, f"{path}.label", element.get("label")))
-                if "value" in element:
-                    failures.extend(self.validate_expression_payload(screen_path, f"{path}.value", element.get("value")))
-            case "address":
-                if "label" in element:
-                    failures.extend(self.validate_expression_string(screen_path, f"{path}.label", element.get("label")))
-                failures.extend(self.validate_expression_string(screen_path, f"{path}.address", element.get("address")))
-            case "button":
-                failures.extend(self.validate_expression_string(screen_path, f"{path}.label", element.get("label")))
-                failures.extend(self.validate_screen_action(screen_path, f"{path}.action", element.get("action")))
-            case "status":
-                if "label" in element:
-                    failures.extend(self.validate_expression_string(screen_path, f"{path}.label", element.get("label")))
-                failures.extend(self.validate_expression_payload(screen_path, f"{path}.value", element.get("value")))
-            case "nft":
-                failures.extend(self.validate_expression_string(screen_path, f"{path}.contractAddress", element.get("contractAddress")))
-                failures.extend(self.validate_expression_payload(screen_path, f"{path}.tokenId", element.get("tokenId")))
-            case "group":
-                children = element.get("elements")
-                if isinstance(children, list):
-                    failures.extend(self.validate_screen_elements(screen_path, f"{path}.elements", children))
-                else:
-                    failures.append(f"{screen_path}: {path}.elements must be an array")
+        for field, rule in SCREEN_ELEMENT_FIELD_RULES.get(element_type, ()):
+            failures.extend(self.validate_screen_field(screen_path, f"{path}.{field}", element, field, rule))
+
+        if element_type == "button":
+            failures.extend(self.validate_screen_action(screen_path, f"{path}.action", element.get("action")))
+
+        if element_type == "group":
+            children = element.get("elements")
+            if isinstance(children, list):
+                failures.extend(self.validate_screen_elements(screen_path, f"{path}.elements", children))
+            else:
+                failures.append(f"{screen_path}: {path}.elements must be an array")
 
         return failures
+
+    def validate_screen_field(
+        self,
+        screen_path: Path,
+        path: str,
+        source: dict[object, object],
+        field: str,
+        rule: str,
+    ) -> list[str]:
+        optional = rule.endswith("?")
+        if optional and field not in source:
+            return []
+
+        value = source.get(field)
+        match rule.removesuffix("?"):
+            case "string":
+                return self.validate_non_empty_string(screen_path, path, value)
+            case "expression_string":
+                return self.validate_expression_string(screen_path, path, value)
+            case "expression_payload":
+                return self.validate_expression_payload(screen_path, path, value)
+            case _:
+                raise AssertionError(f"unknown screen field rule: {rule}")
 
     def validate_screen_action(self, screen_path: Path, path: str, action: object) -> list[str]:
         if not isinstance(action, dict):
