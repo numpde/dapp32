@@ -1,5 +1,6 @@
 export type {
   CamHost,
+  CamPublicClient,
   LoadedCam,
   ResolvedCamContract,
   ResourceLoader,

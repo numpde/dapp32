@@ -1,12 +1,12 @@
 import { parseCam } from "@cam/core"
-import type { Hex, PublicClient } from "viem"
+import type { Hex } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi } from "./abi.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamHash } from "./hash.ts"
 import { parseJsonBytes } from "./json.ts"
 import { loadResourceBytes } from "./resources.ts"
-import type { CamHost, LoadedCam, ResourceLoader } from "./types.ts"
+import type { CamHost, CamPublicClient, LoadedCam, ResourceLoader } from "./types.ts"
 
 export async function loadCamFromHost({
   publicClient,
@@ -54,7 +54,7 @@ export async function loadCamFromHost({
 }
 
 type LoadCamFromHostOptions = {
-  readonly publicClient: PublicClient
+  readonly publicClient: CamPublicClient
   readonly host: CamHost
   readonly loadResource: ResourceLoader
 }
