@@ -58,6 +58,8 @@ function validateInertValue(
       return inertError("inert values must not contain cycles", path)
     }
 
+    // `seen` is the active recursion stack. Remove the array on exit so
+    // repeated references are allowed while true cycles are still rejected.
     seen.add(value)
     try {
       for (let index = 0; index < value.length; index++) {
@@ -83,6 +85,8 @@ function validateInertValue(
       return inertError("inert values must not contain cycles", path)
     }
 
+    // `seen` is the active recursion stack. Remove the record on exit so
+    // repeated references are allowed while true cycles are still rejected.
     seen.add(value)
     try {
       for (const [key, item] of Object.entries(value)) {
@@ -107,6 +111,8 @@ function cloneValidatedInertValue(value: InertValue): InertValue {
     return value.map((item) => cloneValidatedInertValue(item))
   }
 
+  // Even after validation, use the same plain-record predicate for cloning so
+  // runtime branching stays aligned with the inert value invariant.
   if (isRecordObject(value)) {
     const record = Object.create(null) as Record<string, InertValue>
 
