@@ -4,12 +4,14 @@ import test from "node:test"
 import * as camProtocol from "../src/index.ts"
 import {
   createExpressionRuntime,
+  createJsonGuards,
   createStringMap,
 } from "../src/index.ts"
 
 test("keeps the public API to protocol support primitives", () => {
   assert.deepEqual(Object.keys(camProtocol).sort(), [
     "createExpressionRuntime",
+    "createJsonGuards",
     "createStringMap",
     "hasOwn",
     "isJsonScalar",
@@ -48,6 +50,25 @@ test("resolves expression payloads with caller-owned normalization and errors", 
       "field",
     ),
     expected,
+  )
+})
+
+test("creates parser guards with caller-owned error policy", () => {
+  const guards = createJsonGuards({
+    requireExplicitArrays: true,
+    error(kind, message, path) {
+      return new Error(`${kind}:${path ?? ""}:${message}`)
+    },
+  })
+
+  assert.throws(
+    () => guards.requiredArray(undefined, "routes.entry.args"),
+    /invalidField:routes\.entry\.args:expected an explicit array/,
+  )
+
+  assert.throws(
+    () => guards.requiredRecord(null, ""),
+    /notObject::expected an object/,
   )
 })
 
