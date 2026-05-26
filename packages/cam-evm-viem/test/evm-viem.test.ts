@@ -470,12 +470,8 @@ function createPublicClient({
       }
 
       if (request.functionName === CAM_ROOT_FUNCTIONS.contractAddress) {
-        // TODO(silent-defaults): missing contract-name args are treated as an
-        // unbound contract in this fake. Real viem calls should fail earlier.
-        // This default should disappear when test route/host calls are typed
-        // tightly enough to require their expected arguments.
-        const [name] = request.args ?? []
-        return typeof name === "string" && addresses[name] !== undefined
+        const name = requireContractName(request.args)
+        return addresses[name] !== undefined
           ? addresses[name]
           : ZERO_ADDRESS
       }
@@ -487,6 +483,14 @@ function createPublicClient({
       throw new Error(`unexpected readContract call: ${request.functionName}`)
     },
   }
+}
+
+function requireContractName(args: readonly unknown[] | undefined): string {
+  if (args?.length !== 1 || typeof args[0] !== "string") {
+    throw new Error("contractAddress expected one string argument")
+  }
+
+  return args[0]
 }
 
 function createResourceLoader(resources: Record<string, Uint8Array>): ResourceLoader {

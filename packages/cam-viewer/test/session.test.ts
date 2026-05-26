@@ -405,12 +405,8 @@ function createPublicClient({
       }
 
       if (request.functionName === "contractAddress") {
-        // TODO(silent-defaults): missing contract-name args become address(0)
-        // in this fake. Real contract reads should fail before this point.
-        // This default should disappear when mocked contract reads are typed
-        // tightly enough to require their expected arguments.
-        const [name] = request.args ?? []
-        return typeof name === "string" && addresses[name] !== undefined
+        const name = requireContractName(request.args)
+        return addresses[name] !== undefined
           ? addresses[name]
           : "0x0000000000000000000000000000000000000000"
       }
@@ -422,6 +418,14 @@ function createPublicClient({
       throw new Error(`unexpected readContract call: ${request.functionName}`)
     },
   }
+}
+
+function requireContractName(args: readonly unknown[] | undefined): string {
+  if (args?.length !== 1 || typeof args[0] !== "string") {
+    throw new Error("contractAddress expected one string argument")
+  }
+
+  return args[0]
 }
 
 function createResourceLoader(resources: Record<string, Uint8Array>) {
