@@ -118,12 +118,11 @@ export const bikeManagerAbi = [
 ] as const
 
 export function bikeAddressForContract(name: string): string {
-  // TODO(silent-defaults): address(0) mirrors CamRoot's "unbound contract"
-  // sentinel for adapter tests. Do not use this helper in tests that should
-  // reject unknown fixture contract names before the EVM boundary.
-  return Object.hasOwn(bikeContractAddresses, name)
-    ? bikeContractAddresses[name as keyof typeof bikeContractAddresses]
-    : "0x0000000000000000000000000000000000000000"
+  if (!Object.hasOwn(bikeContractAddresses, name)) {
+    throw new Error(`unknown bike fixture contract: ${name}`)
+  }
+
+  return bikeContractAddresses[name as keyof typeof bikeContractAddresses]
 }
 
 export function bikeRouteResults(
