@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { toInertValue } from "@cam/core"
+import type { InertValue } from "@cam/core"
 import * as camScreen from "../src/index.ts"
 import {
   parseScreen,
@@ -324,9 +326,9 @@ test("resolveScreen resolves navigation action params", () => {
     label: "Look up",
     action: {
       route: "component",
-      params: {
+      params: inert({
         serialNumber: "XYZ789",
-      },
+      }),
     },
   })
 })
@@ -362,9 +364,9 @@ test("resolveScreen resolves contract-call args and success navigation", () => {
       args: ["ABC123", "0x0000000000000000000000000000000000000002"],
       onSuccess: {
         route: "component",
-        params: {
+        params: inert({
           serialNumber: "ABC123",
-        },
+        }),
       },
     },
   })
@@ -384,6 +386,10 @@ test("parseScreen rejects unsupported expression roots", () => {
     (error) => error instanceof ScreenError && error.code === "SCREEN_INVALID_EXPRESSION",
   )
 })
+
+function inert(value: unknown): InertValue {
+  return toInertValue(value)
+}
 
 test("resolveScreen reports the exact field path for unresolved expressions", () => {
   const screen = parseScreen({

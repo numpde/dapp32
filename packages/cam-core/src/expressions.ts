@@ -1,6 +1,6 @@
 import { CamError } from "./errors.ts"
 import { CAM_CONTEXT_KEYS } from "./constants.ts"
-import { hasOwn, isJsonScalar, isRecordObject } from "./internal/json.ts"
+import { createStringMap, hasOwn, isJsonScalar, isRecordObject } from "./internal/json.ts"
 import { toInertValue } from "./inert-value.ts"
 import type { CamRuntimeContext } from "./types.ts"
 import type { InertValue } from "./inert-value.ts"
@@ -17,9 +17,11 @@ function resolveValue(value: InertValue, context: CamRuntimeContext): InertValue
   }
 
   if (isRecordObject(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, resolveValue(item, context)]),
-    )
+    const resolved = createStringMap<InertValue>()
+    for (const [key, item] of Object.entries(value)) {
+      resolved[key] = resolveValue(item, context)
+    }
+    return resolved
   }
 
   return value

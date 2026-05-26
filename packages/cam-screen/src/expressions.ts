@@ -1,7 +1,7 @@
 import { CamError, toInertValue } from "@cam/core"
 import { SCREEN_CONTEXT_KEYS } from "./constants.ts"
 import { ScreenError } from "./errors.ts"
-import { hasOwn, isRecordObject, joinPath } from "./guards.ts"
+import { createStringMap, hasOwn, isRecordObject, joinPath } from "./guards.ts"
 import type { ScreenRuntimeContext } from "./types.ts"
 import type { InertValue } from "@cam/core"
 
@@ -64,9 +64,11 @@ export function resolveValueAtPath(value: InertValue, context: ScreenRuntimeCont
   }
 
   if (isRecordObject(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, resolveValueAtPath(item, context, joinPath(path, key))]),
-    )
+    const resolved = createStringMap<InertValue>()
+    for (const [key, item] of Object.entries(value)) {
+      resolved[key] = resolveValueAtPath(item, context, joinPath(path, key))
+    }
+    return resolved
   }
 
   return value
