@@ -21,7 +21,6 @@ import {
   BIKE_COMPONENT_SCREEN_URI as componentScreenURI,
   BIKE_ENTRY_SCREEN_URI as entryScreenURI,
   BIKE_MARK_MISSING,
-  BIKE_MANAGER_ABI_URI as managerAbiURI,
   BIKE_MANAGER_CONTRACT,
   BIKE_REGISTER_SCREEN_URI as registerScreenURI,
   BIKE_RELATIVE_ENTRY_SCREEN_URI,
@@ -30,17 +29,14 @@ import {
   BIKE_ROUTE_REGISTER,
   BIKE_SERIAL_NUMBER,
   BIKE_UNSIGNED_CAM_HASH,
-  BIKE_UI_ABI_URI as uiAbiURI,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
-  bikeCamJson as camJson,
   bikeContractAddresses,
   bikeHost,
-  bikeManagerAbi as managerAbi,
   bikeRouteResults,
-  bikeUiAbi as uiAbi,
 } from "../../../tests/fixtures/cam/bike.mts"
 import {
+  bikeResourceBytes,
   createMockCamPublicClient,
   createMockResourceLoader as createResourceLoader,
   encodeJson,
@@ -368,15 +364,7 @@ function createSession({
     account: { address: userAddress },
     params: {},
     state,
-    loadResource: createResourceLoader({
-      [camURI]: encodeJson(camJson),
-      [uiAbiURI]: encodeJson(uiAbi),
-      [managerAbiURI]: encodeJson(managerAbi),
-      [entryScreenURI]: encodeJson(entryScreen),
-      [componentScreenURI]: encodeJson(componentScreen),
-      [registerScreenURI]: encodeJson(registerScreen),
-      ...resources,
-    }),
+    loadResource: createResourceLoader(bikeResourceBytes(resources)),
   })
 }
 
@@ -411,40 +399,4 @@ function mutableRecord(value: unknown): Record<string, unknown> {
 
 function inert(value: unknown): InertValue {
   return toInertValue(value)
-}
-
-const entryScreen = {
-  screen: "1.0.0",
-  title: "Entry",
-  elements: [
-    {
-      type: "status",
-      label: "Can register",
-      value: "$values.0.canRegister",
-    },
-  ],
-}
-
-const componentScreen = {
-  screen: "1.0.0",
-  title: "Component",
-  elements: [
-    {
-      type: "status",
-      label: "Serial number",
-      value: "$values.0.serialNumber",
-    },
-  ],
-}
-
-const registerScreen = {
-  screen: "1.0.0",
-  title: "Register",
-  elements: [
-    {
-      type: "status",
-      label: "Can register",
-      value: "$values.0.canRegister",
-    },
-  ],
 }

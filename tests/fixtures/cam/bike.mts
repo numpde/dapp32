@@ -164,6 +164,42 @@ export const bikeManagerAbi = [
   },
 ] as const
 
+export const bikeEntryScreen = {
+  screen: "1.0.0",
+  title: "Entry",
+  elements: [
+    {
+      type: "status",
+      label: "Can register",
+      value: "$values.0.canRegister",
+    },
+  ],
+} as const
+
+export const bikeComponentScreen = {
+  screen: "1.0.0",
+  title: "Component",
+  elements: [
+    {
+      type: "status",
+      label: "Serial number",
+      value: "$values.0.serialNumber",
+    },
+  ],
+} as const
+
+export const bikeRegisterScreen = {
+  screen: "1.0.0",
+  title: "Register",
+  elements: [
+    {
+      type: "status",
+      label: "Can register",
+      value: "$values.0.canRegister",
+    },
+  ],
+} as const
+
 export function bikeAddressForContract(name: string): string {
   if (!Object.hasOwn(bikeContractAddresses, name)) {
     throw new Error(`unknown bike fixture contract: ${name}`)
