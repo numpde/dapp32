@@ -7,7 +7,7 @@ import {
   ScreenError,
 } from "../src/index.ts"
 import { resolveAction } from "../src/actions.ts"
-import type { ScreenAction, ScreenRuntimeContext } from "../src/index.ts"
+import type { ScreenAction, ScreenRuntimeContext } from "../src/types.ts"
 
 const context: ScreenRuntimeContext = {
   host: {

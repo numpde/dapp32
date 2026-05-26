@@ -5,10 +5,11 @@ import type {
   ResourceLoader,
 } from "@cam/evm-viem"
 import type {
-  ContractCallAction,
   ResolvedScreen,
   ResolvedScreenAction,
 } from "@cam/screen"
+
+type ResolvedContractCallAction = Extract<ResolvedScreenAction, { readonly contract: string }>
 
 export type CamViewerAccount = {
   readonly address: CamHost["address"]
@@ -47,4 +48,4 @@ export type CamViewerSession = {
 
 export type CamViewerActionResult =
   | { readonly type: "navigated"; readonly snapshot: CamViewerSnapshot }
-  | { readonly type: "contractCall"; readonly action: ContractCallAction }
+  | { readonly type: "contractCall"; readonly action: ResolvedContractCallAction }

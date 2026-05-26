@@ -1,10 +1,7 @@
 export type {
-  ContractCallAction,
-  NavigateAction,
   ResolvedScreen,
   ResolvedScreenAction,
   ResolvedScreenElement,
-  ScreenAction,
   ScreenDocument,
   ScreenElement,
   ScreenRuntimeContext,
