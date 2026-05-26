@@ -15,6 +15,7 @@ export {
   assertInertValue,
   cloneInertValue,
   isInertValue,
+  toInertValue,
 } from "./inert-value.ts"
 
 export { parseCam } from "./validate.ts"

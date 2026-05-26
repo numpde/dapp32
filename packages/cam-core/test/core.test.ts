@@ -30,6 +30,7 @@ test("keeps the public API to the CAM core boundary", () => {
     "parseCam",
     "resolveResourceURI",
     "resolveRouteCall",
+    "toInertValue",
   ])
 })
 
