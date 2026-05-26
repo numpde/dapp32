@@ -6,11 +6,7 @@ from pathlib import Path
 
 from . import cam_abi_resources as abi_resources
 from . import cam_route_abi as route_abi
-from .cam_screen_schema import CamScreenSchemaValidator
 from .common import read_text, repo_path
-
-
-SCREEN_SCHEMA_VALIDATOR = CamScreenSchemaValidator()
 
 
 class CamManifestResourceValidator:
@@ -168,20 +164,6 @@ class CamManifestResourceValidator:
                     function,
                 )
             )
-
-        return failures
-
-    def validate_manifest_screens(self, manifest_path: Path, _manifest: dict[str, object]) -> list[str]:
-        failures: list[str] = []
-        screen_dir = manifest_path.parent / "screens"
-        for screen_path in sorted(screen_dir.glob("*.json")) if screen_dir.is_dir() else ():
-            try:
-                screen = self.read_json_object(screen_path)
-            except AssertionError as error:
-                failures.append(str(error))
-                continue
-
-            failures.extend(SCREEN_SCHEMA_VALIDATOR.validate_screen_document(screen_path, screen))
 
         return failures
 

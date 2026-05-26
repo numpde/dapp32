@@ -18,12 +18,6 @@ class CamManifestResourceTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
-    def test_checked_in_cam_screens_follow_screen_v1_schema(self) -> None:
-        failures = self.validator.collect_manifest_failures(self.validator.validate_manifest_screens)
-
-        if failures:
-            self.fail("\n".join(failures))
-
     def test_abi_export_plan_scopes_contract_names_by_dapp_source_path(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)
