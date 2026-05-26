@@ -193,7 +193,7 @@ export function createCamViewerSession({
       throw new CamViewerError(
         "CAM_VIEWER_SCREEN_LOAD_FAILED",
         `failed to load CAM screen resource: ${uri}`,
-        { cause },
+        cause,
       )
     }
   }
@@ -205,7 +205,7 @@ export function createCamViewerSession({
       throw new CamViewerError(
         "CAM_VIEWER_SCREEN_PARSE_FAILED",
         `failed to parse CAM screen resource: ${uri}`,
-        { cause },
+        cause,
       )
     }
   }
@@ -239,7 +239,7 @@ function cloneViewerData<T>(value: T, path: string): T {
     throw new CamViewerError(
       "CAM_VIEWER_INVALID_INERT_VALUE",
       `CAM viewer data is not safely cloneable: ${path}`,
-      { cause },
+      cause,
     )
   }
 }

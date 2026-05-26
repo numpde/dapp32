@@ -9,10 +9,10 @@ export class CamViewerError extends Error {
   readonly code: CamViewerErrorCode
   readonly cause: unknown
 
-  constructor(code: CamViewerErrorCode, message: string, options?: { readonly cause?: unknown }) {
+  constructor(code: CamViewerErrorCode, message: string, cause?: unknown) {
     super(message)
     this.name = "CamViewerError"
     this.code = code
-    this.cause = options?.cause
+    this.cause = cause
   }
 }
