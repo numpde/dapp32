@@ -62,7 +62,6 @@ test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned 
   })
 
   assert.equal(loaded.camURI, camDocumentURI)
-  assert.equal(loaded.camHash, ZERO_HASH)
   assert.deepEqual(loaded.cam, parseCam(camJson))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
     CAM_ROOT_FUNCTIONS.camURI,

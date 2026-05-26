@@ -1,4 +1,5 @@
 import { parseCam } from "@cam/core"
+import type { Hex } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi } from "./abi.ts"
 import { CamEvmError } from "./errors.ts"
@@ -13,7 +14,7 @@ export async function loadCamFromHost({
   loadResource,
 }: LoadCamFromHostOptions): Promise<LoadedCam> {
   let camURI: string
-  let camHash: LoadedCam["camHash"]
+  let camHash: Hex
   try {
     [camURI, camHash] = await Promise.all([
       publicClient.readContract({
@@ -47,7 +48,6 @@ export async function loadCamFromHost({
 
   return {
     camURI,
-    camHash,
     cam,
   }
 }

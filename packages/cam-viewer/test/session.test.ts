@@ -12,10 +12,10 @@ import {
 } from "../src/index.ts"
 import type {
   CamHost,
-  LoadedCam,
   LoadCamFromHostOptions,
   ResolvedCamContract,
 } from "@cam/evm-viem"
+import type { Hex } from "viem"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camURI,
@@ -43,7 +43,7 @@ import {
 const host: CamHost = bikeHost
 type MockAddress = CamHost["address"]
 type MockAbi = ResolvedCamContract["abi"]
-type MockHash = LoadedCam["camHash"]
+type MockHash = Hex
 
 test("load resolves host CAM, entry route, and entry screen", async () => {
   const publicClient = createPublicClient()
