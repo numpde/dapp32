@@ -39,16 +39,20 @@
       "address": "$values.0.defaultComponents"
     },
     {
-      "type": "status",
-      "label": "Serial hash",
+      "type": "group",
       "visibleWhen": "$values.0.exists",
-      "value": "$values.0.serialHash"
-    },
-    {
-      "type": "status",
-      "label": "Token ID",
-      "visibleWhen": "$values.0.exists",
-      "value": "$values.0.tokenId"
+      "elements": [
+        {
+          "type": "status",
+          "label": "Serial hash",
+          "value": "$values.0.serialHash"
+        },
+        {
+          "type": "status",
+          "label": "Token ID",
+          "value": "$values.0.tokenId"
+        }
+      ]
     },
     {
       "type": "status",

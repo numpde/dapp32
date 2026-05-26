@@ -29,70 +29,65 @@
       "value": "$values.0.exists"
     },
     {
-      "type": "status",
-      "label": "Status",
+      "type": "group",
       "visibleWhen": "$values.0.exists",
-      "value": "$values.0.status"
-    },
-    {
-      "type": "address",
-      "label": "Owner",
-      "visibleWhen": "$values.0.exists",
-      "address": "$values.0.owner"
-    },
-    {
-      "type": "status",
-      "label": "Owner info",
-      "visibleWhen": "$values.0.exists",
-      "value": "$values.0.ownerInfo"
-    },
-    {
-      "type": "address",
-      "label": "Token contract",
-      "visibleWhen": "$values.0.exists",
-      "address": "$values.0.tokenContract"
-    },
-    {
-      "type": "status",
-      "label": "Token ID",
-      "visibleWhen": "$values.0.exists",
-      "value": "$values.0.tokenId"
-    },
-    {
-      "type": "status",
-      "label": "Token URI",
-      "visibleWhen": "$values.0.exists",
-      "value": "$values.0.tokenURI"
-    },
-    {
-      "type": "status",
-      "label": "Serial hash",
-      "visibleWhen": "$values.0.exists",
-      "value": "$values.0.serialHash"
-    },
-    {
-      "type": "status",
-      "label": "Can update metadata",
-      "visibleWhen": "$values.0.exists",
-      "value": "$values.0.canUpdateMetadata"
-    },
-    {
-      "type": "status",
-      "label": "Can mark missing",
-      "visibleWhen": "$values.0.exists",
-      "value": "$values.0.canMarkMissing"
-    },
-    {
-      "type": "status",
-      "label": "Can clear missing",
-      "visibleWhen": "$values.0.exists",
-      "value": "$values.0.canClearMissing"
-    },
-    {
-      "type": "status",
-      "label": "Can retire",
-      "visibleWhen": "$values.0.exists",
-      "value": "$values.0.canRetire"
+      "elements": [
+        {
+          "type": "status",
+          "label": "Status",
+          "value": "$values.0.status"
+        },
+        {
+          "type": "address",
+          "label": "Owner",
+          "address": "$values.0.owner"
+        },
+        {
+          "type": "status",
+          "label": "Owner info",
+          "value": "$values.0.ownerInfo"
+        },
+        {
+          "type": "address",
+          "label": "Token contract",
+          "address": "$values.0.tokenContract"
+        },
+        {
+          "type": "status",
+          "label": "Token ID",
+          "value": "$values.0.tokenId"
+        },
+        {
+          "type": "status",
+          "label": "Token URI",
+          "value": "$values.0.tokenURI"
+        },
+        {
+          "type": "status",
+          "label": "Serial hash",
+          "value": "$values.0.serialHash"
+        },
+        {
+          "type": "status",
+          "label": "Can update metadata",
+          "value": "$values.0.canUpdateMetadata"
+        },
+        {
+          "type": "status",
+          "label": "Can mark missing",
+          "value": "$values.0.canMarkMissing"
+        },
+        {
+          "type": "status",
+          "label": "Can clear missing",
+          "value": "$values.0.canClearMissing"
+        },
+        {
+          "type": "status",
+          "label": "Can retire",
+          "value": "$values.0.canRetire"
+        }
+      ]
     },
     {
       "type": "button",
