@@ -1,7 +1,6 @@
-import type { CamDocument, InertValue } from "@cam/core"
+import type { InertValue } from "@cam/core"
 import type {
   CamHost,
-  ResolvedCamContract,
   ResourceLoader,
 } from "@cam/evm-viem"
 import type {
@@ -52,9 +51,3 @@ export type CamViewerSession = {
 export type CamViewerActionResult =
   | { readonly type: "navigated"; readonly snapshot: CamViewerSnapshot }
   | { readonly type: "contractCall"; readonly action: ContractCallAction }
-
-export type CamViewerLoadedState = {
-  readonly cam: CamDocument
-  readonly camURI: string
-  readonly contracts: Record<string, ResolvedCamContract>
-}

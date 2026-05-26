@@ -6,27 +6,33 @@ import {
 import {
   toInertValue,
 } from "@cam/core"
+import type { CamDocument, InertValue } from "@cam/core"
 import {
   parseScreen,
   resolveScreen,
 } from "@cam/screen"
+import type { ResolvedCamContract } from "@cam/evm-viem"
 import type {
   ResolvedScreen,
   ResolvedScreenAction,
   ScreenDocument,
   ScreenElement,
 } from "@cam/screen"
-import type { InertValue } from "@cam/core"
 
 import { CamViewerError } from "./errors.ts"
 import type {
   CamViewerAccount,
   CamViewerActionResult,
-  CamViewerLoadedState,
   CamViewerSession,
   CamViewerSnapshot,
   CreateCamViewerSessionOptions,
 } from "./types.ts"
+
+type CamViewerLoadedState = {
+  readonly cam: CamDocument
+  readonly camURI: string
+  readonly contracts: Record<string, ResolvedCamContract>
+}
 
 export function createCamViewerSession({
   publicClient,
