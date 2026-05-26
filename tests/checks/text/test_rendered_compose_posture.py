@@ -10,11 +10,36 @@ def service(config: dict[str, Any], name: str) -> dict[str, Any]:
     return config["services"][name]
 
 
+def optional_mapping(config_service: dict[str, Any], field: str) -> dict[str, Any]:
+    # TODO(silent-defaults): use this only for absence checks, where a missing
+    # rendered Compose mapping means "nothing to reject". Required mappings
+    # should be read with direct key access so missing posture fails loudly.
+    value = config_service.get(field, {})
+    if not isinstance(value, dict):
+        raise AssertionError(f"{field} must render as a mapping")
+    return value
+
+
+def optional_sequence(config_service: dict[str, Any], field: str) -> list[Any]:
+    # TODO(silent-defaults): use this only for membership/sweep assertions,
+    # where an omitted rendered Compose list should fail as a missing expected
+    # item or produce no broad-sweep findings. Exact posture should use direct
+    # key access.
+    value = config_service.get(field, [])
+    if not isinstance(value, list):
+        raise AssertionError(f"{field} must render as a list")
+    return value
+
+
+def command_text(config_service: dict[str, Any]) -> str:
+    return " ".join(str(item) for item in optional_sequence(config_service, "command"))
+
+
 def volume_for(config_service: dict[str, Any], target: str) -> dict[str, Any]:
     # TODO(silent-defaults): missing volumes are treated as an empty list for
-    # concise assertions. If this helper starts validating required mounts, use
-    # direct key access so missing Compose fields fail loudly.
-    for volume in config_service.get("volumes", []):
+    # concise lookup failure. This helper raises below, so absent volumes still
+    # fail the caller as "missing volume target".
+    for volume in optional_sequence(config_service, "volumes"):
         if volume["target"] == target:
             return volume
     raise AssertionError(f"missing volume target: {target}")
@@ -23,10 +48,7 @@ def volume_for(config_service: dict[str, Any], target: str) -> dict[str, Any]:
 class RenderedComposePostureTest(unittest.TestCase):
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service.get("read_only"))
-        # TODO(silent-defaults): these get(..., []) fallbacks make missing
-        # posture fields fail as membership/equality errors. A stricter helper
-        # should distinguish "missing field" from "wrong value".
-        self.assertIn("no-new-privileges:true", config_service.get("security_opt", []))
+        self.assertIn("no-new-privileges:true", optional_sequence(config_service, "security_opt"))
         self.assertEqual(["ALL"], config_service.get("cap_drop"))
         self.assertNotEqual("0:0", config_service.get("user"))
         self.assertIn("pids_limit", config_service)
@@ -53,7 +75,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         repo_mount = volume_for(deploy, "/work")
         self.assertEqual(True, repo_mount.get("read_only"))
-        self.assertNotIn("PRIVATE_KEY", deploy.get("environment", {}))
+        self.assertNotIn("PRIVATE_KEY", optional_mapping(deploy, "environment"))
         self.assertEqual("/tmp/bike-nft-private-key", config["secrets"]["bike_nft_private_key"]["file"])
         source_text = read_text(repo_path("compose/bike-nft-local.yml"))
         self.assertIn('export PRIVATE_KEY="$(cat /run/secrets/bike_nft_private_key)"', source_text)
@@ -67,14 +89,17 @@ class RenderedComposePostureTest(unittest.TestCase):
                 self.assert_hardened(config_service)
                 self.assertEqual("none", config_service.get("network_mode"))
 
-        self.assertIn("*/script", " ".join(service(config, "forge-fmt")["command"]))
+        self.assertIn("*/script", command_text(service(config, "forge-fmt")))
         self.assertIn("forge-script-build", config["services"])
         forge_abi = service(config, "forge-abi")
         self.assertEqual(True, volume_for(forge_abi, "/work/dapps").get("read_only"))
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
                 abi_mount = volume_for(forge_abi, f"/work/dapps/{dapp_dir.name}/cam/abi")
-                self.assertNotEqual(True, abi_mount.get("read_only", False))
+                # TODO(silent-defaults): Docker bind mounts are writable when
+                # read_only is omitted. Treat both false and absent as the
+                # explicit ABI materialization boundary this test is checking.
+                self.assertIsNot(abi_mount.get("read_only"), True)
 
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
@@ -132,8 +157,12 @@ class RenderedComposePostureTest(unittest.TestCase):
                 },
             )
             for service_name, config_service in config["services"].items():
-                for volume in config_service.get("volumes", []):
-                    if volume.get("type") == "bind" and not volume.get("read_only", False):
+                for volume in optional_sequence(config_service, "volumes"):
+                    # TODO(silent-defaults): rendered bind mounts without an
+                    # explicit read_only flag are Docker-writable by default,
+                    # so missing read_only is intentionally classified here as
+                    # a writable host bind.
+                    if volume.get("type") == "bind" and volume.get("read_only") is not True:
                         actual.add((compose_file, service_name, volume["source"], volume["target"]))
 
         self.assertEqual(expected, actual)
@@ -148,8 +177,8 @@ class RenderedComposePostureTest(unittest.TestCase):
         for config_service in [verify, build, test]:
             self.assert_hardened(config_service)
             self.assertEqual("none", config_service.get("network_mode"))
-            self.assertNotIn("HTTP_PROXY", config_service.get("environment", {}))
-            self.assertNotIn("HTTPS_PROXY", config_service.get("environment", {}))
+            self.assertNotIn("HTTP_PROXY", optional_mapping(config_service, "environment"))
+            self.assertNotIn("HTTPS_PROXY", optional_mapping(config_service, "environment"))
 
         self.assertEqual("/work/packages", verify.get("working_dir"))
         self.assertEqual("/work/packages", build.get("working_dir"))
@@ -157,8 +186,11 @@ class RenderedComposePostureTest(unittest.TestCase):
         for config_service in [verify, build, test]:
             self.assertEqual(True, volume_for(config_service, "/input/packages").get("read_only"))
             self.assertEqual(True, volume_for(config_service, "/work/packages/node_modules").get("read_only"))
-            self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777", config_service.get("tmpfs", []))
-            command = " ".join(config_service.get("command", []))
+            self.assertIn(
+                "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
+                optional_sequence(config_service, "tmpfs"),
+            )
+            command = command_text(config_service)
             self.assertIn("stage-package-workspace /input/packages /work/packages", command)
             self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", command)
 
@@ -180,11 +212,13 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("none", check.get("network_mode"))
         self.assertEqual(True, viewer.get("stdin_open"))
         self.assertEqual(True, viewer.get("tty"))
-        self.assertIn("npm run build:packages", " ".join(viewer.get("command", [])))
-        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", " ".join(viewer.get("command", [])))
-        self.assertIn("npm run build:packages", " ".join(check.get("command", [])))
-        self.assertIn("tsc -p ../tools/viewer-terminal/tsconfig.json", " ".join(check.get("command", [])))
-        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", " ".join(check.get("command", [])))
+        viewer_command = command_text(viewer)
+        check_command = command_text(check)
+        self.assertIn("npm run build:packages", viewer_command)
+        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", viewer_command)
+        self.assertIn("npm run build:packages", check_command)
+        self.assertIn("tsc -p ../tools/viewer-terminal/tsconfig.json", check_command)
+        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", check_command)
         for target in ["/work/dapps", "/work/tests/fixtures", "/work/tools"]:
             self.assertEqual(True, volume_for(viewer, target).get("read_only"))
             self.assertEqual(True, volume_for(check, target).get("read_only"))
@@ -192,9 +226,15 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual(True, volume_for(check, "/input/packages").get("read_only"))
         self.assertEqual(True, volume_for(viewer, "/work/packages/node_modules").get("read_only"))
         self.assertEqual(True, volume_for(check, "/work/packages/node_modules").get("read_only"))
-        self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777", viewer.get("tmpfs", []))
-        self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777", check.get("tmpfs", []))
-        self.assertIn("stage-package-workspace /input/packages /work/packages", " ".join(viewer.get("command", [])))
-        self.assertIn("stage-package-workspace /input/packages /work/packages", " ".join(check.get("command", [])))
-        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", " ".join(viewer.get("command", [])))
-        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", " ".join(check.get("command", [])))
+        self.assertIn(
+            "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
+            optional_sequence(viewer, "tmpfs"),
+        )
+        self.assertIn(
+            "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
+            optional_sequence(check, "tmpfs"),
+        )
+        self.assertIn("stage-package-workspace /input/packages /work/packages", viewer_command)
+        self.assertIn("stage-package-workspace /input/packages /work/packages", check_command)
+        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", viewer_command)
+        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", check_command)

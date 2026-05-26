@@ -113,6 +113,9 @@ class AnvilComposePostureTest(unittest.TestCase):
         )
 
         for service_config in self.all_profiles["services"].values():
+            # TODO(silent-defaults): services without ports render as an empty
+            # list here. The host service has an explicit assertion above; keep
+            # this fallback only as a broad "no wildcard bind" sweep.
             for port in service_config.get("ports", []):
                 self.assertNotEqual(port.get("host_ip"), "0.0.0.0")
 
