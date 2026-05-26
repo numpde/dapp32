@@ -68,72 +68,70 @@ function parseElement(input: unknown, path: string): ScreenElement {
 
 function parseTextElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, TEXT_KEYS, path)
-  return {
+  return withVisibility(source, path, {
     type: "text",
-    ...parseVisibility(source, path),
     text: parseExpressionString(source.text, `${path}.text`),
-  }
+  })
 }
 
 function parseInputElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, INPUT_KEYS, path)
 
-  return {
+  return withVisibility(source, path, {
     type: "input",
-    ...parseVisibility(source, path),
     name: requiredNonEmptyString(source.name, `${path}.name`),
     label: parseExpressionString(source.label, `${path}.label`),
     ...(source.value === undefined ? {} : { value: parseExpressionPayload(source.value, `${path}.value`) }),
-  }
+  })
 }
 
 function parseAddressElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, ADDRESS_KEYS, path)
-  return {
+  return withVisibility(source, path, {
     type: "address",
-    ...parseVisibility(source, path),
     ...(source.label === undefined ? {} : { label: parseExpressionString(source.label, `${path}.label`) }),
     address: parseExpressionString(source.address, `${path}.address`),
-  }
+  })
 }
 
 function parseButtonElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, BUTTON_KEYS, path)
 
-  return {
+  return withVisibility(source, path, {
     type: "button",
-    ...parseVisibility(source, path),
     label: parseExpressionString(source.label, `${path}.label`),
     action: parseAction(source.action, `${path}.action`),
-  }
+  })
 }
 
 function parseStatusElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, STATUS_KEYS, path)
 
-  return {
+  return withVisibility(source, path, {
     type: "status",
-    ...parseVisibility(source, path),
     ...(source.label === undefined ? {} : { label: parseExpressionString(source.label, `${path}.label`) }),
     value: parseExpressionPayload(source.value, `${path}.value`),
-  }
+  })
 }
 
 function parseNftElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, NFT_KEYS, path)
 
-  return {
+  return withVisibility(source, path, {
     type: "nft",
-    ...parseVisibility(source, path),
     contractAddress: parseExpressionString(source.contractAddress, `${path}.contractAddress`),
     tokenId: parseExpressionPayload(source.tokenId, `${path}.tokenId`),
-  }
+  })
 }
 
-function parseVisibility(source: Record<string, unknown>, path: string): { readonly visibleWhen?: InertValue } {
+function withVisibility<T extends object>(
+  source: Record<string, unknown>,
+  path: string,
+  element: T,
+): T & { readonly visibleWhen?: InertValue } {
   return source.visibleWhen === undefined
-    ? {}
-    : { visibleWhen: parseExpressionPayload(source.visibleWhen, `${path}.visibleWhen`) }
+    ? element
+    : { ...element, visibleWhen: parseExpressionPayload(source.visibleWhen, `${path}.visibleWhen`) }
 }
 
 function parseExpressionString(value: unknown, path: string): string {

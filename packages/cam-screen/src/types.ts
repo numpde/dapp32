@@ -78,5 +78,12 @@ export type ResolvedScreen = {
   readonly elements: readonly ResolvedScreenElement[]
 }
 
-export type ResolvedScreenElement = ScreenElement
+export type ResolvedScreenElement =
+  | Omit<TextElement, "visibleWhen">
+  | Omit<InputElement, "visibleWhen">
+  | Omit<AddressElement, "visibleWhen">
+  | Omit<ButtonElement, "visibleWhen">
+  | Omit<StatusElement, "visibleWhen">
+  | Omit<NftElement, "visibleWhen">
+
 export type ResolvedScreenAction = ScreenAction
