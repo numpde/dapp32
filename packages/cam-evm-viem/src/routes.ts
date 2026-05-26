@@ -37,8 +37,21 @@ export async function callCamRoute({
     throw new CamEvmError("CAM_ROUTE_CALL_FAILED", `failed to call CAM route: ${route}`, cause)
   }
 
-  const values = Array.isArray(raw) ? raw : [raw]
-  const screenURI = values[0]
+  return normalizeRouteResult(raw, camURI, route)
+}
+
+type CallCamRouteOptions = {
+  readonly publicClient: CamPublicClient
+  readonly cam: CamDocument
+  readonly camURI: string
+  readonly contracts: Record<string, ResolvedCamContract>
+  readonly route: string
+  readonly context: CamRuntimeContext
+}
+
+function normalizeRouteResult(raw: unknown, camURI: string, route: string): RouteResult {
+  const outputs = Array.isArray(raw) ? raw : [raw]
+  const screenURI = outputs[0]
 
   if (typeof screenURI !== "string" || screenURI.length === 0) {
     throw new CamEvmError(
@@ -50,17 +63,8 @@ export async function callCamRoute({
 
   return {
     screenURI: resolveResourceURI(camURI, screenURI),
-    values: normalizeRouteValues(values.slice(1), route),
+    values: normalizeRouteValues(outputs.slice(1), route),
   }
-}
-
-type CallCamRouteOptions = {
-  readonly publicClient: CamPublicClient
-  readonly cam: CamDocument
-  readonly camURI: string
-  readonly contracts: Record<string, ResolvedCamContract>
-  readonly route: string
-  readonly context: CamRuntimeContext
 }
 
 function normalizeRouteValues(values: readonly unknown[], route: string): readonly InertValue[] {
