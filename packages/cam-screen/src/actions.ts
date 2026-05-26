@@ -8,7 +8,7 @@ import {
   requiredRecord,
   rejectUnknownFields,
 } from "./guards.ts"
-import { parseExpressionPayload, resolveValueAtPath, validateExpressionValue } from "./expressions.ts"
+import { parseExpressionPayload, resolveValueAtPath } from "./expressions.ts"
 import type { InertValue } from "@cam/core"
 import type {
   ContractCallAction,
@@ -78,7 +78,6 @@ function parseContractCallAction(source: Record<string, unknown>, path: string):
   )
 
   const args = requiredArray(source.args, `${path}.args`)
-  validateExpressionValue(args, `${path}.args`)
 
   return {
     contract: requiredNonEmptyString(source.contract, `${path}.contract`),
