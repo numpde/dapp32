@@ -33,7 +33,7 @@ import {
   bikeRegisterRouteResult,
 } from "../../tests/fixtures/cam/bike.ts"
 
-type ResolvedButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
+type TerminalButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
 type MockAddress = CamHost["address"]
 type MockPublicClient = CreateCamViewerSessionOptions["publicClient"]
 
@@ -229,7 +229,7 @@ function render(snapshot: CamViewerSnapshot): void {
     return
   }
 
-  const buttons: ResolvedButtonElement[] = []
+  const buttons: TerminalButtonElement[] = []
   for (const element of snapshot.resolvedScreen.elements) {
     renderElement(element, snapshot, buttons)
   }
@@ -247,7 +247,7 @@ function render(snapshot: CamViewerSnapshot): void {
 function renderElement(
   element: ResolvedScreenElement,
   snapshot: CamViewerSnapshot,
-  buttons: ResolvedButtonElement[],
+  buttons: TerminalButtonElement[],
 ): void {
   switch (element.type) {
     case "text":
@@ -271,13 +271,13 @@ function renderElement(
   }
 }
 
-function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonElement[] {
+function buttonsOf(snapshot: CamViewerSnapshot): readonly TerminalButtonElement[] {
   if (snapshot.resolvedScreen === undefined) {
     throw new Error("viewer has no resolved screen")
   }
 
   return snapshot.resolvedScreen.elements.filter(
-    (element): element is ResolvedButtonElement => element.type === "button",
+    (element): element is TerminalButtonElement => element.type === "button",
   )
 }
 
