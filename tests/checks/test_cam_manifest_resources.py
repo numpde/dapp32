@@ -2,10 +2,17 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from .common import read_text, repo_path
+
+
+@dataclass(frozen=True)
+class AbiRouteFunction:
+    input_count: int
+    outputs: list[object]
 
 
 class CamManifestResourceTest(unittest.TestCase):
@@ -85,7 +92,7 @@ class CamManifestResourceTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
-    def test_cam_route_functions_exist_in_declared_abis(self) -> None:
+    def test_cam_route_functions_match_declared_abis(self) -> None:
         failures: list[str] = []
 
         for manifest_path in self.cam_manifests():
@@ -164,7 +171,7 @@ class CamManifestResourceTest(unittest.TestCase):
         )
 
         self.assertEqual(
-            self.abi_function_inputs(
+            self.abi_route_functions(
                 [
                     {"type": "function", "name": "viewEntry", "inputs": [{"type": "address"}]},
                     {"type": "event", "name": "Ignored", "inputs": []},
@@ -173,10 +180,47 @@ class CamManifestResourceTest(unittest.TestCase):
                 ]
             ),
             {
-                "viewEntry": 1,
+                "viewEntry": AbiRouteFunction(input_count=1, outputs=[]),
                 "overloaded": None,
             },
         )
+
+        self.assertEqual(
+            self.validate_route_output_shape(
+                manifest,
+                "routes.entry",
+                "Example",
+                "viewEntry",
+                AbiRouteFunction(
+                    input_count=1,
+                    outputs=[
+                        {
+                            "name": "screenURI",
+                            "type": "string",
+                        }
+                    ],
+                ),
+            ),
+            [],
+        )
+
+        bad_outputs = [
+            ("MissingOutputs", []),
+            ("WrongName", [{"name": "uri", "type": "string"}]),
+            ("WrongType", [{"name": "screenURI", "type": "bytes32"}]),
+            ("MalformedOutput", ["screenURI"]),
+        ]
+        for case_name, outputs in bad_outputs:
+            with self.subTest(case_name=case_name):
+                self.assertTrue(
+                    self.validate_route_output_shape(
+                        manifest,
+                        "routes.entry",
+                        "Example",
+                        "viewEntry",
+                        AbiRouteFunction(input_count=1, outputs=outputs),
+                    )
+                )
 
         self.assertEqual(
             self.validate_no_orphan_abi_files(
@@ -216,26 +260,7 @@ class CamManifestResourceTest(unittest.TestCase):
         if not isinstance(contracts, dict) or not isinstance(routes, dict):
             return []
 
-        abi_functions_by_contract: dict[str, dict[str, int | None]] = {}
-        for contract_name, contract in contracts.items():
-            if not isinstance(contract_name, str) or not isinstance(contract, dict):
-                continue
-
-            abi_uri = contract.get("abiURI")
-            if not isinstance(abi_uri, str):
-                continue
-
-            abi_path = self.resolve_local_abi_path(manifest_path, abi_uri)
-            if abi_path is None or not abi_path.is_file():
-                continue
-
-            try:
-                abi = json.loads(read_text(abi_path))
-            except json.JSONDecodeError:
-                continue
-
-            if isinstance(abi, list):
-                abi_functions_by_contract[contract_name] = self.abi_function_inputs(abi)
+        abi_functions_by_contract = self.abi_route_functions_by_contract(manifest_path, contracts)
 
         failures: list[str] = []
         for route_name, route in routes.items():
@@ -258,14 +283,14 @@ class CamManifestResourceTest(unittest.TestCase):
             if functions is None:
                 continue
 
+            function = functions.get(function_name)
             if function_name not in functions:
                 failures.append(
                     f"{manifest_path}: {path}.function is not present in {contract_name} ABI: {function_name}"
                 )
                 continue
 
-            expected_arg_count = functions[function_name]
-            if expected_arg_count is None:
+            if function is None:
                 failures.append(
                     f"{manifest_path}: {path}.function is overloaded in {contract_name} ABI: {function_name}"
                 )
@@ -276,16 +301,83 @@ class CamManifestResourceTest(unittest.TestCase):
                 failures.append(f"{manifest_path}: {path}.args must be an array")
                 continue
 
-            if len(args) != expected_arg_count:
+            if len(args) != function.input_count:
                 failures.append(
                     f"{manifest_path}: {path}.args has {len(args)} item(s), "
-                    f"but {contract_name}.{function_name} expects {expected_arg_count}"
+                    f"but {contract_name}.{function_name} expects {function.input_count}"
                 )
+
+            failures.extend(self.validate_route_output_shape(manifest_path, path, contract_name, function_name, function))
 
         return failures
 
-    def abi_function_inputs(self, abi: list[object]) -> dict[str, int | None]:
-        inputs_by_name: dict[str, int | None] = {}
+    def validate_route_output_shape(
+        self,
+        manifest_path: Path,
+        route_path: str,
+        contract_name: str,
+        function_name: str,
+        function: AbiRouteFunction,
+    ) -> list[str]:
+        outputs = function.outputs
+        if not outputs:
+            return [
+                f"{manifest_path}: {route_path}.function must return screenURI as its first output: "
+                f"{contract_name}.{function_name}"
+            ]
+
+        first_output = outputs[0]
+        if not isinstance(first_output, dict):
+            return [
+                f"{manifest_path}: {route_path}.function first output must be an ABI object: "
+                f"{contract_name}.{function_name}"
+            ]
+
+        failures: list[str] = []
+        if first_output.get("name") != "screenURI":
+            failures.append(
+                f"{manifest_path}: {route_path}.function first output must be named screenURI: "
+                f"{contract_name}.{function_name}"
+            )
+
+        if first_output.get("type") != "string":
+            failures.append(
+                f"{manifest_path}: {route_path}.function first output must have ABI type string: "
+                f"{contract_name}.{function_name}"
+            )
+
+        return failures
+
+    def abi_route_functions_by_contract(
+        self,
+        manifest_path: Path,
+        contracts: dict[object, object],
+    ) -> dict[str, dict[str, AbiRouteFunction | None]]:
+        abi_functions_by_contract: dict[str, dict[str, AbiRouteFunction | None]] = {}
+        for contract_name, contract in contracts.items():
+            if not isinstance(contract_name, str) or not isinstance(contract, dict):
+                continue
+
+            abi_uri = contract.get("abiURI")
+            if not isinstance(abi_uri, str):
+                continue
+
+            abi_path = self.resolve_local_abi_path(manifest_path, abi_uri)
+            if abi_path is None or not abi_path.is_file():
+                continue
+
+            try:
+                abi = json.loads(read_text(abi_path))
+            except json.JSONDecodeError:
+                continue
+
+            if isinstance(abi, list):
+                abi_functions_by_contract[contract_name] = self.abi_route_functions(abi)
+
+        return abi_functions_by_contract
+
+    def abi_route_functions(self, abi: list[object]) -> dict[str, AbiRouteFunction | None]:
+        functions_by_name: dict[str, AbiRouteFunction | None] = {}
         for item in abi:
             if not isinstance(item, dict):
                 continue
@@ -294,8 +386,13 @@ class CamManifestResourceTest(unittest.TestCase):
             name = item.get("name")
             inputs = item.get("inputs")
             if isinstance(name, str) and isinstance(inputs, list):
-                inputs_by_name[name] = None if name in inputs_by_name else len(inputs)
-        return inputs_by_name
+                outputs = item.get("outputs")
+                functions_by_name[name] = (
+                    None
+                    if name in functions_by_name
+                    else AbiRouteFunction(input_count=len(inputs), outputs=outputs if isinstance(outputs, list) else [])
+                )
+        return functions_by_name
 
     def validate_no_orphan_abi_files(
         self,
