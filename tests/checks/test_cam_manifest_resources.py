@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -17,92 +18,25 @@ class AbiRouteFunction:
 
 class CamManifestResourceTest(unittest.TestCase):
     def test_local_cam_contract_abi_uris_resolve_to_checked_in_abi_arrays(self) -> None:
-        failures: list[str] = []
-
-        for manifest_path in self.cam_manifests():
-            try:
-                manifest = self.read_json_object(manifest_path)
-            except AssertionError as error:
-                failures.append(str(error))
-                continue
-
-            contracts = manifest.get("contracts")
-            if not isinstance(contracts, dict):
-                failures.append(f"{manifest_path}: contracts must be an object")
-                continue
-
-            for contract_name, contract in contracts.items():
-                if not isinstance(contract_name, str) or contract_name == "":
-                    failures.append(f"{manifest_path}: contract names must be non-empty strings")
-                    continue
-
-                if not isinstance(contract, dict):
-                    failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
-                    continue
-
-                abi_uri = contract.get("abiURI")
-                error = self.validate_local_abi_uri(manifest_path, contract_name, abi_uri)
-                if error is not None:
-                    failures.append(error)
+        failures = self.collect_manifest_failures(self.validate_manifest_abi_uris)
 
         if failures:
             self.fail("\n".join(failures))
 
     def test_cam_contract_abi_uris_follow_generated_resource_convention(self) -> None:
-        failures: list[str] = []
-
-        for manifest_path in self.cam_manifests():
-            try:
-                manifest = self.read_json_object(manifest_path)
-            except AssertionError as error:
-                failures.append(str(error))
-                continue
-
-            contracts = manifest.get("contracts")
-            if not isinstance(contracts, dict):
-                continue
-
-            for contract_name, contract in contracts.items():
-                if not isinstance(contract_name, str) or not isinstance(contract, dict):
-                    continue
-
-                error = self.validate_generated_abi_uri_convention(
-                    manifest_path,
-                    contract_name,
-                    contract.get("abiURI"),
-                )
-                if error is not None:
-                    failures.append(error)
+        failures = self.collect_manifest_failures(self.validate_generated_abi_uri_conventions)
 
         if failures:
             self.fail("\n".join(failures))
 
     def test_cam_abi_directories_contain_only_manifest_referenced_files(self) -> None:
-        failures: list[str] = []
-
-        for manifest_path in self.cam_manifests():
-            try:
-                manifest = self.read_json_object(manifest_path)
-            except AssertionError as error:
-                failures.append(str(error))
-                continue
-
-            failures.extend(self.validate_no_orphan_abi_files(manifest_path, manifest))
+        failures = self.collect_manifest_failures(self.validate_no_orphan_abi_files)
 
         if failures:
             self.fail("\n".join(failures))
 
     def test_cam_route_functions_match_declared_abis(self) -> None:
-        failures: list[str] = []
-
-        for manifest_path in self.cam_manifests():
-            try:
-                manifest = self.read_json_object(manifest_path)
-            except AssertionError as error:
-                failures.append(str(error))
-                continue
-
-            failures.extend(self.validate_route_functions_match_declared_abis(manifest_path, manifest))
+        failures = self.collect_manifest_failures(self.validate_route_functions_match_declared_abis)
 
         if failures:
             self.fail("\n".join(failures))
@@ -241,6 +175,23 @@ class CamManifestResourceTest(unittest.TestCase):
     def cam_manifests(self) -> list[Path]:
         return sorted(repo_path("dapps").glob("*/cam/main.json"))
 
+    def collect_manifest_failures(
+        self,
+        validate: Callable[[Path, dict[str, object]], list[str]],
+    ) -> list[str]:
+        failures: list[str] = []
+
+        for manifest_path in self.cam_manifests():
+            try:
+                manifest = self.read_json_object(manifest_path)
+            except AssertionError as error:
+                failures.append(str(error))
+                continue
+
+            failures.extend(validate(manifest_path, manifest))
+
+        return failures
+
     def read_json_object(self, path: Path) -> dict[str, object]:
         try:
             document = json.loads(read_text(path))
@@ -251,6 +202,48 @@ class CamManifestResourceTest(unittest.TestCase):
             raise AssertionError(f"{path}: CAM manifest must be a JSON object")
 
         return document
+
+    def validate_manifest_abi_uris(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        contracts = manifest.get("contracts")
+        if not isinstance(contracts, dict):
+            return [f"{manifest_path}: contracts must be an object"]
+
+        failures: list[str] = []
+        for contract_name, contract in contracts.items():
+            if not isinstance(contract_name, str) or contract_name == "":
+                failures.append(f"{manifest_path}: contract names must be non-empty strings")
+                continue
+
+            if not isinstance(contract, dict):
+                failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
+                continue
+
+            abi_uri = contract.get("abiURI")
+            error = self.validate_local_abi_uri(manifest_path, contract_name, abi_uri)
+            if error is not None:
+                failures.append(error)
+
+        return failures
+
+    def validate_generated_abi_uri_conventions(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        contracts = manifest.get("contracts")
+        if not isinstance(contracts, dict):
+            return []
+
+        failures: list[str] = []
+        for contract_name, contract in contracts.items():
+            if not isinstance(contract_name, str) or not isinstance(contract, dict):
+                continue
+
+            error = self.validate_generated_abi_uri_convention(
+                manifest_path,
+                contract_name,
+                contract.get("abiURI"),
+            )
+            if error is not None:
+                failures.append(error)
+
+        return failures
 
     def validate_route_functions_match_declared_abis(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         contracts = manifest.get("contracts")
