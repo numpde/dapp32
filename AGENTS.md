@@ -112,6 +112,10 @@ Keep the project small, explicit, and protocol-first.
 - Put text/repo-shape checks here, not in Solidity tests. Examples: compiler
   pragma consistency, forbidden names, secret patterns, Compose posture, and
   dependency metadata consistency.
+- Keep brittle text/config mirroring checks under `tests/checks/text/`. They
+  are allowed when they protect an important operator or security contract that
+  is hard to assert semantically, but they are the first candidates for
+  replacement with rendered config, parsed data, or a narrower invariant.
 - Keep Solidity tests focused on contract behavior.
 - Do not add Python package dependencies to the checks lane unless there is a
   clear, reviewed need. Prefer standard-library parsing for small repository
