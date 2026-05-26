@@ -15,41 +15,68 @@ export async function resolveCamContracts({
   loadResource,
 }: ResolveCamContractsOptions): Promise<Record<string, ResolvedCamContract>> {
   const entries = await Promise.all(
-    Object.entries(cam.contracts).map(async ([name, contract]) => {
-      let address: ResolvedCamContract["address"]
-      try {
-        address = await publicClient.readContract({
-          address: host.address,
-          abi: camRootAbi,
-          functionName: CAM_ROOT_FUNCTIONS.contractAddress,
-          args: [name],
-        })
-      } catch (cause) {
-        throw new CamEvmError("CAM_HOST_READ_FAILED", `failed to resolve CAM contract address: ${name}`, cause)
-      }
-
-      if (address.toLowerCase() === ZERO_ADDRESS) {
-        throw new CamEvmError("CAM_CONTRACT_UNBOUND", `CAM contract is unbound: ${name}`)
-      }
-
-      const abiURI = resolveResourceURI(camURI, contract.abiURI)
-      const abiBytes = await loadResourceBytes(
-        loadResource,
-        abiURI,
-        `failed to load CAM ABI resource: ${abiURI}`,
-      )
-
-      return [
+    Object.entries(cam.contracts).map(async ([name, contract]) => [
+      name,
+      await resolveContract({
+        publicClient,
+        host,
+        camURI,
         name,
-        {
-          address,
-          abi: parseAbiBytes(abiBytes, abiURI),
-        },
-      ] as const
-    }),
+        abiURI: contract.abiURI,
+        loadResource,
+      }),
+    ] as const),
   )
 
-  return Object.fromEntries(entries)
+  const contracts = Object.create(null) as Record<string, ResolvedCamContract>
+  for (const [name, contract] of entries) {
+    contracts[name] = contract
+  }
+  return contracts
+}
+
+async function resolveContract({
+  publicClient,
+  host,
+  camURI,
+  name,
+  abiURI: relativeAbiURI,
+  loadResource,
+}: {
+  readonly publicClient: CamPublicClient
+  readonly host: CamHost
+  readonly camURI: string
+  readonly name: string
+  readonly abiURI: string
+  readonly loadResource: ResourceLoader
+}): Promise<ResolvedCamContract> {
+  let address: ResolvedCamContract["address"]
+  try {
+    address = await publicClient.readContract({
+      address: host.address,
+      abi: camRootAbi,
+      functionName: CAM_ROOT_FUNCTIONS.contractAddress,
+      args: [name],
+    })
+  } catch (cause) {
+    throw new CamEvmError("CAM_HOST_READ_FAILED", `failed to resolve CAM contract address: ${name}`, cause)
+  }
+
+  if (address.toLowerCase() === ZERO_ADDRESS) {
+    throw new CamEvmError("CAM_CONTRACT_UNBOUND", `CAM contract is unbound: ${name}`)
+  }
+
+  const abiURI = resolveResourceURI(camURI, relativeAbiURI)
+  const abiBytes = await loadResourceBytes(
+    loadResource,
+    abiURI,
+    `failed to load CAM ABI resource: ${abiURI}`,
+  )
+
+  return {
+    address,
+    abi: parseAbiBytes(abiBytes, abiURI),
+  }
 }
 
 type ResolveCamContractsOptions = {
