@@ -41,6 +41,10 @@ ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host
 ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host
 LIVE_DEPS_EGRESS_COMPOSE_FILES := -f $(COMPOSE_DIR)/deps.yml -f $(COMPOSE_DIR)/check-live-deps-egress.yml
 NON_ROOT_GUARD := if [[ "$(ACTUAL_UID)" == "0" || "$(LOCAL_UID)" == "0" ]]; then printf '%s\n' 'Refusing to run Docker lanes as root or with LOCAL_UID=0. Run make as a non-root user.' >&2; exit 2; fi
+# TODO(silent-defaults): cleanup handlers intentionally ignore Compose teardown
+# failure so the user sees the primary lane failure. Do not use this outside
+# best-effort cleanup paths where the original status is preserved separately.
+COMPOSE_DOWN_CLEANUP := down --volumes --remove-orphans >/dev/null 2>&1 || true
 
 define compose_run
 @$(NON_ROOT_GUARD); \
@@ -104,7 +108,7 @@ deps:
 	@$(NON_ROOT_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	  $(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml $(COMPOSE_DOWN_CLEANUP); \
 	  if [[ "$$status" != "0" && -n "$${created_dependency_metadata_placeholders:-}" ]]; then \
 	    rm -f $$created_dependency_metadata_placeholders; \
 	  fi; \
@@ -160,7 +164,7 @@ deps:
 	mkdir -p $(DEPENDENCIES_DIR); \
 	test -d $(DEPENDENCIES_DIR); \
 	reject_unsafe_dependency_targets; \
-	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml $(COMPOSE_DOWN_CLEANUP); \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-stage; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify-stage; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm "$$apply_service"; \
@@ -174,7 +178,7 @@ package-deps:
 	cleanup() { \
 	  status="$$?"; \
 	  if [[ -n "$${package_input_dir:-}" ]]; then \
-	    $(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	    $(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml $(COMPOSE_DOWN_CLEANUP); \
 	    rm -rf "$$package_input_dir"; \
 	  fi; \
 	  if [[ "$$status" != "0" && "$${created_package_lock_placeholder:-0}" == "1" ]]; then \
@@ -226,7 +230,7 @@ package-deps:
 	  mkdir -p "$$package_input_dir/$$package_dir"; \
 	  cp "$$manifest" "$$package_input_dir/$$package_dir/package.json"; \
 	done < <(find $(PACKAGES_DIR) -mindepth 2 -maxdepth 2 -name package.json -type f | sort); \
-	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml $(COMPOSE_DOWN_CLEANUP); \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm package-stage; \
 	reject_unsafe_package_targets; \
 	mkdir -p "$(PACKAGE_NODE_MODULES_DIR)"; \
@@ -275,7 +279,7 @@ viewer-terminal-attach:
 
 viewer-terminal-down:
 	@$(NON_ROOT_GUARD); \
-	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml down --volumes --remove-orphans >/dev/null 2>&1 || true
+	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml $(COMPOSE_DOWN_CLEANUP)
 
 checks:
 	$(call compose_run,checks.yml,checks)
@@ -288,7 +292,7 @@ check-live-deps-egress:
 	@$(NON_ROOT_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
-	  $(LIVE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(LIVE_DEPS_EGRESS_COMPOSE_FILES) down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	  $(LIVE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(LIVE_DEPS_EGRESS_COMPOSE_FILES) $(COMPOSE_DOWN_CLEANUP); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
@@ -338,7 +342,7 @@ cast-rpc:
 	rpc_url_file="$$tmp_dir/rpc_url"; \
 	cleanup() { \
 	  status="$$?"; \
-	  $(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	  $(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml $(COMPOSE_DOWN_CLEANUP); \
 	  rm -rf "$$tmp_dir"; \
 	  exit "$$status"; \
 	}; \
@@ -390,7 +394,7 @@ bike-nft-local-deploy: deps-verify
 	fi; \
 	cleanup() { \
 	  status="$$?"; \
-	  $(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/bike-nft-local.yml down --volumes --remove-orphans >/dev/null 2>&1 || true; \
+	  $(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/bike-nft-local.yml $(COMPOSE_DOWN_CLEANUP); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
