@@ -3,11 +3,13 @@ import test from "node:test"
 
 import {
   CamError,
+} from "../src/index.ts"
+import {
   assertInertValue,
   cloneInertValue,
   isInertValue,
   toInertValue,
-} from "../src/index.ts"
+} from "../src/inert-value.ts"
 
 test("accepts inert scalar, array, and record values", () => {
   const value = {

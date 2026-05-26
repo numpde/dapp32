@@ -11,9 +11,6 @@ export { CamError } from "./errors.ts"
 export type { CamErrorCode } from "./errors.ts"
 
 export {
-  assertInertValue,
-  cloneInertValue,
-  isInertValue,
   toInertValue,
 } from "./inert-value.ts"
 
