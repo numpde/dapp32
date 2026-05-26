@@ -51,6 +51,8 @@ Keep the project small, explicit, and protocol-first.
   references, use the referenced package's exact local version so npm records a
   workspace link in `package-lock.json`. Generated package locks must resolve
   registry packages from `https://registry.npmjs.org/` with integrity metadata.
+- Shared npm toolchain dependencies, such as TypeScript, belong in
+  `packages/package.json`, not repeated in each private workspace package.
 - Keep npm install policy in `compose/package-deps.yml`; do not add repo
   `.npmrc` files.
 - Keep npm package execution in `compose/packages.yml`; package build/test lanes
