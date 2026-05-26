@@ -13,7 +13,6 @@ export type {
 export { CamEvmError } from "./errors.ts"
 export type { CamEvmErrorCode } from "./errors.ts"
 
-export { camRootAbi } from "./abi.ts"
 export { ZERO_HASH } from "./constants.ts"
 export { verifyCamHash } from "./hash.ts"
 export { loadCamFromHost } from "./host.ts"
