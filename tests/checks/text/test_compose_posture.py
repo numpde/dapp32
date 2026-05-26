@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import unittest
 
-from .common import iter_files, read_text, repo_path
+from ..common import iter_files, read_text, repo_path
 
 
 class ComposePostureTest(unittest.TestCase):

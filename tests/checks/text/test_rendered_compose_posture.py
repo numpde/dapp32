@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from .common import read_text, rendered_compose_config, repo_path
+from ..common import read_text, rendered_compose_config, repo_path
 
 
 def service(config: dict[str, Any], name: str) -> dict[str, Any]:
