@@ -374,7 +374,7 @@ function createPublicClient({
   // behavior is under scrutiny.
   camHash = ZERO_HASH,
   addresses = bikeContractAddresses,
-  routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER),
+  routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
 }: {
   readonly camHash?: MockHash
   readonly addresses?: Record<string, MockAddress>

@@ -298,7 +298,7 @@ test("callCamRoute accepts only CAM-local screen JSON resources", async () => {
 
 test("bike CAM routes resolve to the three route-level screens", async () => {
   const cam = parseCam(camJson)
-  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER)
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress)
 
   for (const [route, expectedScreenURI] of [
     [BIKE_ROUTE_ENTRY, BIKE_ENTRY_SCREEN_URI],

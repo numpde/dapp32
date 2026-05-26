@@ -119,19 +119,18 @@ export function bikeAddressForContract(name: string): string {
     : "0x0000000000000000000000000000000000000000"
 }
 
-// TODO(silent-defaults): the default serial number keeps tests terse, but
-// callers that care about route input should pass the serial explicitly.
-export function bikeRouteResults(serialNumber = BIKE_SERIAL_NUMBER): Record<string, readonly InertValue[]> {
+export function bikeRouteResults(
+  serialNumber: string,
+  account: string,
+): Record<string, readonly InertValue[]> {
   return {
-    [BIKE_VIEW_ENTRY]: bikeEntryRouteResult(),
+    [BIKE_VIEW_ENTRY]: bikeEntryRouteResult(account),
     [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber),
     [BIKE_VIEW_REGISTER]: bikeRegisterRouteResult(serialNumber),
   }
 }
 
-// TODO(silent-defaults): entry account defaults are fixture convenience, not a
-// protocol rule; tests for account-sensitive behavior should pass it explicitly.
-export function bikeEntryRouteResult(account = BIKE_ACCOUNT_ADDRESS): readonly InertValue[] {
+export function bikeEntryRouteResult(account: string): readonly InertValue[] {
   return [
     BIKE_RELATIVE_ENTRY_SCREEN_URI,
     {
@@ -142,9 +141,7 @@ export function bikeEntryRouteResult(account = BIKE_ACCOUNT_ADDRESS): readonly I
   ]
 }
 
-// TODO(silent-defaults): component route tests should pass the serial number
-// explicitly when the input matters.
-export function bikeComponentRouteResult(serialNumber = BIKE_SERIAL_NUMBER): readonly InertValue[] {
+export function bikeComponentRouteResult(serialNumber: string): readonly InertValue[] {
   return [
     BIKE_RELATIVE_COMPONENT_SCREEN_URI,
     {
@@ -177,9 +174,7 @@ export function bikeComponentRouteResult(serialNumber = BIKE_SERIAL_NUMBER): rea
   ]
 }
 
-// TODO(silent-defaults): register route tests should pass the serial number
-// explicitly when the input matters.
-export function bikeRegisterRouteResult(serialNumber = BIKE_SERIAL_NUMBER): readonly InertValue[] {
+export function bikeRegisterRouteResult(serialNumber: string): readonly InertValue[] {
   return [
     BIKE_RELATIVE_REGISTER_SCREEN_URI,
     {
