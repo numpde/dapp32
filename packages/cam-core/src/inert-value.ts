@@ -16,101 +16,90 @@ export type InertRecord = {
 }
 
 export function isInertValue(value: unknown): value is InertValue {
-  return isInertValueAtPath(value, new WeakSet<object>())
+  return validateInertValue(value) === undefined
 }
 
-export function assertInertValue(value: unknown, path = "value"): asserts value is InertValue {
-  assertInertValueAtPath(value, path, new WeakSet<object>())
+export function assertInertValue(value: unknown): asserts value is InertValue {
+  const error = validateInertValue(value)
+
+  if (error !== undefined) {
+    throw error
+  }
 }
 
-export function cloneInertValue(value: unknown, path = "value"): InertValue {
-  assertInertValue(value, path)
+export function toInertValue(value: unknown): InertValue {
+  assertInertValue(value)
+  return cloneInertValue(value)
+}
+
+export function cloneInertValue(value: InertValue): InertValue {
   return cloneValidatedInertValue(value)
 }
 
-function isInertValueAtPath(value: unknown, seen: WeakSet<object>): boolean {
-  if (isInertScalar(value)) {
-    return true
-  }
-
-  if (Array.isArray(value)) {
-    if (seen.has(value)) {
-      return false
-    }
-
-    seen.add(value)
-    for (let index = 0; index < value.length; index++) {
-      if (!(index in value) || !isInertValueAtPath(value[index], seen)) {
-        return false
-      }
-    }
-
-    seen.delete(value)
-    return true
-  }
-
-  if (isRecordObject(value)) {
-    if (seen.has(value)) {
-      return false
-    }
-
-    seen.add(value)
-    for (const item of Object.values(value)) {
-      if (!isInertValueAtPath(item, seen)) {
-        return false
-      }
-    }
-
-    seen.delete(value)
-    return true
-  }
-
-  return false
+function inertError(message: string, path: string): CamError {
+  return new CamError("CAM_INVALID_FIELD", message, path === "" ? undefined : path)
 }
 
-function assertInertValueAtPath(value: unknown, path: string, seen: WeakSet<object>): void {
+function validateInertValue(
+  value: unknown,
+  path: string = "",
+  seen: WeakSet<object> = new WeakSet<object>(),
+): CamError | undefined {
   if (isInertScalar(value)) {
-    return
+    return undefined
   }
 
   if (typeof value === "number") {
-    throw new CamError("CAM_INVALID_FIELD", "expected a finite number", path)
+    return inertError("expected a finite number", path)
   }
 
   if (Array.isArray(value)) {
     if (seen.has(value)) {
-      throw new CamError("CAM_INVALID_FIELD", "inert values must not contain cycles", path)
+      return inertError("inert values must not contain cycles", path)
     }
 
     seen.add(value)
-    for (let index = 0; index < value.length; index++) {
-      const itemPath = joinPath(path, String(index))
-      if (!(index in value)) {
-        throw new CamError("CAM_INVALID_FIELD", "expected an inert value", itemPath)
-      }
+    try {
+      for (let index = 0; index < value.length; index++) {
+        const itemPath = joinPath(path, String(index))
+        if (!(index in value)) {
+          return inertError("expected an inert value", itemPath)
+        }
 
-      assertInertValueAtPath(value[index], itemPath, seen)
+        const error = validateInertValue(value[index], itemPath, seen)
+        if (error !== undefined) {
+          return error
+        }
+      }
+    } finally {
+      seen.delete(value)
     }
 
-    seen.delete(value)
-    return
+    return undefined
   }
 
   if (isRecordObject(value)) {
     if (seen.has(value)) {
-      throw new CamError("CAM_INVALID_FIELD", "inert values must not contain cycles", path)
+      return inertError("inert values must not contain cycles", path)
     }
 
     seen.add(value)
-    for (const [key, item] of Object.entries(value)) {
-      assertInertValueAtPath(item, joinPath(path, key), seen)
+    try {
+      for (const [key, item] of Object.entries(value)) {
+        const error = validateInertValue(item, joinPath(path, key), seen)
+
+        if (error !== undefined) {
+          return error
+        }
+      }
+    } finally {
+      seen.delete(value)
     }
 
-    seen.delete(value)
-    return
+    return undefined
   }
 
-  throw new CamError("CAM_INVALID_FIELD", "expected an inert value", path)
+  return inertError("expected an inert value", path)
 }
 
 function cloneValidatedInertValue(value: InertValue): InertValue {
@@ -120,6 +109,7 @@ function cloneValidatedInertValue(value: InertValue): InertValue {
 
   if (isRecordObject(value)) {
     const record = Object.create(null) as Record<string, InertValue>
+
     for (const [key, item] of Object.entries(value)) {
       record[key] = cloneValidatedInertValue(item)
     }
