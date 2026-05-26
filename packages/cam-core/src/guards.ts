@@ -1,10 +1,5 @@
 import { CamError } from "./errors.ts"
 import { isRecordObject, joinPath } from "./internal/json.ts"
-export {
-  createStringMap,
-  hasOwn,
-  isRecordObject,
-} from "./internal/json.ts"
 
 export function requiredRecord(value: unknown, path: string): Record<string, unknown> {
   if (!isRecordObject(value)) {

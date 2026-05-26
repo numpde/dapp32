@@ -1,13 +1,12 @@
 import { CamError } from "./errors.ts"
 import { validateExpressionValue } from "./expressions.ts"
 import {
-  createStringMap,
-  hasOwn,
   requiredArray,
   requiredNonEmptyString,
   requiredRecord,
   rejectUnknownFields,
 } from "./guards.ts"
+import { createStringMap, hasOwn } from "./internal/json.ts"
 import { toInertValue } from "./inert-value.ts"
 import { CAM_VERSION } from "./constants.ts"
 import type { CamContract, CamDocument, CamRoute } from "./types.ts"

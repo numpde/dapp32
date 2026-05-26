@@ -1,6 +1,6 @@
 import { CamError } from "./errors.ts"
 import { resolveArgs } from "./expressions.ts"
-import { hasOwn } from "./guards.ts"
+import { hasOwn } from "./internal/json.ts"
 import type { CamDocument, CamRouteCall, CamRuntimeContext } from "./types.ts"
 
 export function resolveRouteCall(

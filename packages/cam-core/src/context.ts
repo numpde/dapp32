@@ -1,11 +1,10 @@
 import { CamError } from "./errors.ts"
 import {
-  createStringMap,
-  hasOwn,
   rejectUnknownFields,
   requiredNonEmptyString,
   requiredRecord,
 } from "./guards.ts"
+import { createStringMap, hasOwn } from "./internal/json.ts"
 import { toInertValue } from "./inert-value.ts"
 import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import type { CamRuntimeContext } from "./types.ts"
