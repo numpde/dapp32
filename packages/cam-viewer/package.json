@@ -22,8 +22,5 @@
     "@cam/evm-viem": "0.1.0",
     "@cam/screen": "0.1.0",
     "viem": "2.50.4"
-  },
-  "devDependencies": {
-    "typescript": "6.0.3"
   }
 }
