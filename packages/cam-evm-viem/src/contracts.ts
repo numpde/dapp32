@@ -1,5 +1,4 @@
 import { resolveResourceURI } from "@cam/core"
-import type { Address } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi, parseAbiBytes } from "./abi.ts"
 import { ZERO_ADDRESS } from "./constants.ts"
@@ -16,14 +15,14 @@ export async function resolveCamContracts({
 }: ResolveCamContractsOptions): Promise<Record<string, ResolvedCamContract>> {
   const entries = await Promise.all(
     Object.entries(cam.contracts).map(async ([name, contract]) => {
-      let address: Address
+      let address: ResolvedCamContract["address"]
       try {
         address = await publicClient.readContract({
           address: host.address,
           abi: camRootAbi,
           functionName: CAM_ROOT_FUNCTIONS.contractAddress,
           args: [name],
-        }) as Address
+        })
       } catch (cause) {
         throw new CamEvmError("CAM_HOST_READ_FAILED", `failed to resolve CAM contract address: ${name}`, cause)
       }

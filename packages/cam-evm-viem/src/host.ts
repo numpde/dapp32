@@ -1,5 +1,4 @@
 import { parseCam } from "@cam/core"
-import type { Hex } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi } from "./abi.ts"
 import { CamEvmError } from "./errors.ts"
@@ -13,9 +12,10 @@ export async function loadCamFromHost({
   host,
   loadResource,
 }: LoadCamFromHostOptions): Promise<LoadedCam> {
-  let rootValues: readonly unknown[]
+  let camURI: string
+  let camHash: LoadedCam["camHash"]
   try {
-    rootValues = await Promise.all([
+    [camURI, camHash] = await Promise.all([
       publicClient.readContract({
         address: host.address,
         abi: camRootAbi,
@@ -30,8 +30,6 @@ export async function loadCamFromHost({
   } catch (cause) {
     throw new CamEvmError("CAM_HOST_READ_FAILED", `failed to read CAM host: ${host.address}`, cause)
   }
-
-  const [camURI, camHash] = rootValues as [string, Hex]
 
   const camBytes = await loadResourceBytes(
     loadResource,
