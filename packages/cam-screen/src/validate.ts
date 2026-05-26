@@ -76,6 +76,8 @@ function parseTextElement(source: Record<string, unknown>, path: string): Screen
 function parseInputElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, INPUT_KEYS, path)
   if (source.value !== undefined) {
+    // TODO(inert-values): input defaults are screen data. Validate/clone them
+    // with toInertValue once screen payloads use the shared inert type.
     validateExpressionValue(source.value, `${path}.value`)
   }
 
@@ -108,6 +110,8 @@ function parseButtonElement(source: Record<string, unknown>, path: string): Scre
 
 function parseStatusElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, STATUS_KEYS, path)
+  // TODO(inert-values): status values are declarative display data and should
+  // be parsed as expression-bearing inert values.
   validateExpressionValue(source.value, `${path}.value`)
 
   return {
@@ -119,6 +123,8 @@ function parseStatusElement(source: Record<string, unknown>, path: string): Scre
 
 function parseNftElement(source: Record<string, unknown>, path: string): ScreenElement {
   rejectUnknownScreenFields(source, NFT_KEYS, path)
+  // TODO(inert-values): tokenId is a screen data payload, not an arbitrary host
+  // object. Keep it under the inert-value boundary.
   validateExpressionValue(source.tokenId, `${path}.tokenId`)
 
   return {

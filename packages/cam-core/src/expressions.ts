@@ -7,6 +7,8 @@ import type { CamRuntimeContext } from "./types.ts"
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)*$/
 
 export function resolveValue(value: unknown, context: CamRuntimeContext): unknown {
+  // TODO(inert-values): expression resolution should return InertValue once
+  // context params and route args are typed as inert values.
   if (typeof value === "string") {
     return resolveString(value, context)
   }
@@ -25,10 +27,14 @@ export function resolveValue(value: unknown, context: CamRuntimeContext): unknow
 }
 
 export function resolveArgs(args: readonly unknown[], context: CamRuntimeContext): unknown[] {
+  // TODO(inert-values): resolved route-call args should be readonly
+  // InertValue[], preserving the route argument data boundary.
   return args.map((arg, index) => resolveValueAtPath(arg, context, `args.${index}`))
 }
 
 export function validateExpressionValue(value: unknown, path: string): void {
+  // TODO(inert-values): this validator is the predecessor to inert-value
+  // validation for expression-bearing JSON data.
   if (typeof value === "string") {
     validateExpressionString(value, path)
     return

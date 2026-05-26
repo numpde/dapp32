@@ -161,6 +161,8 @@ export function createCamViewerSession({
       ...(account === undefined ? {} : { account }),
       params: routeParams,
       state,
+      // TODO(inert-values): routeResult.values is the adapter-to-screen data
+      // boundary. Normalize it before screen resolution, not after rendering.
       values: routeResult.values,
     })
 
@@ -169,6 +171,8 @@ export function createCamViewerSession({
     screenURI = routeResult.screenURI
     screen = parsedScreen
     resolvedScreen = nextResolvedScreen
+    // TODO(inert-values): keep stored route values on the same inert boundary
+    // as the snapshot copy and screen runtime context.
     values = routeResult.values
 
     return snapshot()
@@ -256,6 +260,8 @@ function cloneValue(value: unknown, path: string): unknown {
 }
 
 function seedInputState(screen: ScreenDocument, currentState: Record<string, unknown>): Record<string, unknown> {
+  // TODO(inert-values): seeded input state is renderer-editable screen state.
+  // It should be constructed as Record<string, InertValue>.
   const nextState = { ...currentState }
   for (const element of screen.elements) {
     seedInputElementState(element, nextState)

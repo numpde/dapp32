@@ -82,6 +82,8 @@ function parseContractCallAction(source: Record<string, unknown>, path: string):
   )
 
   const args = requiredArray(source.args, `${path}.args`)
+  // TODO(inert-values): contract-call args are declarative screen data. They
+  // should use the same expression-aware inert validation as navigation params.
   validateExpressionValue(args, `${path}.args`)
 
   return {

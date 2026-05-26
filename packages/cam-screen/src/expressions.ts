@@ -6,6 +6,8 @@ import type { ScreenRuntimeContext } from "./types.ts"
 const EXPRESSION_RE = /^\$[A-Za-z][A-Za-z0-9_]*(\.(?:[A-Za-z][A-Za-z0-9_]*|0|[1-9][0-9]*))*$/
 
 export function validateExpressionValue(value: unknown, path: string): void {
+  // TODO(inert-values): screen expressions are embedded in inert screen data;
+  // this should become the expression-aware inert-value validator.
   if (typeof value === "string") {
     validateExpressionString(value, path)
     return
@@ -27,6 +29,8 @@ export function validateExpressionValue(value: unknown, path: string): void {
 }
 
 export function resolveValueAtPath(value: unknown, context: ScreenRuntimeContext, path: string): unknown {
+  // TODO(inert-values): resolved screen values should remain inert after
+  // substituting params/state/route values into screen documents.
   if (typeof value === "string") {
     return resolveString(value, context, path)
   }

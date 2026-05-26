@@ -87,6 +87,9 @@ function parseRoutes(
 
     const functionName = requiredNonEmptyString(route.function, `${path}.function`)
     const args = requiredArray(route.args, `${path}.args`)
+    // TODO(inert-values): route args are the CAM document's main data payload.
+    // Validate/clone them through toInertValue instead of the older
+    // JSON-literal expression validator.
     validateExpressionValue(args, `${path}.args`)
 
     routes[name] = {
