@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -eq 0 ]; then
+  printf '%s\n' 'run-package-workspace requires a command' >&2
+  exit 2
+fi
+
+stage-package-workspace /input/packages /work/packages
+cd /work/packages
+npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
+
+exec "$@"

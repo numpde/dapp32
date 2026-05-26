@@ -41,14 +41,10 @@ services:
     <<: *package_base
     volumes: *package_volumes
     command:
-      - "sh"
-      - "-eu"
-      - "-c"
-      - |
-        stage-package-workspace /input/packages /work/packages
-        cd /work/packages
-        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
-        printf '%s\n' 'package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata'
+      - "run-package-workspace"
+      - "printf"
+      - "%s\n"
+      - "package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata"
 
   # Package build-check validates compilation only. It does not export durable
   # artifacts; package dist/ outputs live only in container-local tmpfs mounts.
@@ -57,14 +53,10 @@ services:
     <<: *package_base
     volumes: *package_volumes
     command:
-      - "sh"
-      - "-eu"
-      - "-c"
-      - |
-        stage-package-workspace /input/packages /work/packages
-        cd /work/packages
-        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
-        npm run build:packages
+      - "run-package-workspace"
+      - "npm"
+      - "run"
+      - "build:packages"
 
   package-test:
     <<: *package_base
@@ -74,11 +66,7 @@ services:
       - ../packages/node_modules:/work/packages/node_modules:ro
       - ../tests/fixtures:/work/tests/fixtures:ro
     command:
-      - "sh"
-      - "-eu"
-      - "-c"
-      - |
-        stage-package-workspace /input/packages /work/packages
-        cd /work/packages
-        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
-        npm run test:packages
+      - "run-package-workspace"
+      - "npm"
+      - "run"
+      - "test:packages"

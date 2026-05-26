@@ -44,13 +44,11 @@ services:
     stdin_open: true
     tty: true
     command:
+      - "run-package-workspace"
       - "sh"
       - "-eu"
       - "-c"
       - |
-        stage-package-workspace /input/packages /work/packages
-        cd /work/packages
-        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
         npm run build:packages
         cd /work
         node --experimental-strip-types tools/viewer-terminal/terminal-session.ts
@@ -58,13 +56,11 @@ services:
   viewer-terminal-check:
     <<: *viewer_terminal_base
     command:
+      - "run-package-workspace"
       - "sh"
       - "-eu"
       - "-c"
       - |
-        stage-package-workspace /input/packages /work/packages
-        cd /work/packages
-        npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/package-graph-check.json
         npm run build:packages
         ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json
         cd /work

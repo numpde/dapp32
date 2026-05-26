@@ -189,8 +189,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 sequence(config_service, "tmpfs"),
             )
             command = command_text(config_service)
-            self.assertIn("stage-package-workspace /input/packages /work/packages", command)
-            self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", command)
+            self.assertIn("run-package-workspace", command)
 
         self.assertEqual(True, volume_for(test, "/work/dapps").get("read_only"))
         self.assertEqual(True, volume_for(test, "/work/tests/fixtures").get("read_only"))
@@ -232,7 +231,5 @@ class RenderedComposePostureTest(unittest.TestCase):
             "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
             sequence(check, "tmpfs"),
         )
-        self.assertIn("stage-package-workspace /input/packages /work/packages", viewer_command)
-        self.assertIn("stage-package-workspace /input/packages /work/packages", check_command)
-        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", viewer_command)
-        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", check_command)
+        self.assertIn("run-package-workspace", viewer_command)
+        self.assertIn("run-package-workspace", check_command)

@@ -99,9 +99,9 @@ class ComposePostureTest(unittest.TestCase):
 
         self.assertIn("stage-node-modules /out/node_modules /work/node_modules", compose_text)
         self.assertNotIn("find /work/node_modules", compose_text)
-        self.assertIn("COPY stage-node-modules stage-package-workspace /usr/local/bin/", dockerfile_text)
+        self.assertIn("COPY stage-node-modules stage-package-workspace run-package-workspace /usr/local/bin/", dockerfile_text)
         self.assertIn("chmod 1777 /out", dockerfile_text)
-        self.assertEqual("**\n!Dockerfile\n!stage-node-modules\n!stage-package-workspace\n", dockerignore_text)
+        self.assertEqual("**\n!Dockerfile\n!run-package-workspace\n!stage-node-modules\n!stage-package-workspace\n", dockerignore_text)
         self.assertIn('"$source_dir" != "/out/node_modules"', stager_text)
         self.assertIn('"$target_dir" != "/work/node_modules"', stager_text)
 
@@ -155,7 +155,7 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("../packages/node_modules:/work/packages/node_modules:ro", text)
         self.assertIn("../tests/fixtures:/work/tests/fixtures:ro", text)
         self.assertIn("/work/packages:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777", text)
-        self.assertIn("stage-package-workspace /input/packages /work/packages", text)
+        self.assertEqual(3, text.count('"run-package-workspace"'))
         self.assertNotIn("../packages:/work/packages:ro", text)
         self.assertNotIn("../packages:/work/packages:rw", text)
         for package_json in sorted(repo_path("packages").glob("*/package.json")):
@@ -163,15 +163,11 @@ class ComposePostureTest(unittest.TestCase):
             self.assertNotIn(f"target: /work/packages/{package_dir}/dist", text)
             self.assertNotIn(f"../packages/{package_dir}/dist:", text)
         self.assertIn("working_dir: /work/packages", text)
-        self.assertIn("npm", text)
-        self.assertIn("ls", text)
-        self.assertEqual(3, text.count("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json"))
-        self.assertIn("--all", text)
-        self.assertIn("--workspaces", text)
-        self.assertIn("--ignore-scripts", text)
-        self.assertIn("--offline", text)
-        self.assertIn("--omit=optional", text)
-        self.assertIn("--json >/tmp/package-graph-check.json", text)
+        runner_text = read_text(repo_path("containers/node-deps/run-package-workspace"))
+        self.assertIn("stage-package-workspace /input/packages /work/packages", runner_text)
+        self.assertIn("npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json", runner_text)
+        self.assertIn(">/tmp/package-graph-check.json", runner_text)
+        self.assertIn('exec "$@"', runner_text)
         self.assertIn(
             "package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata",
             text,
@@ -189,9 +185,11 @@ class ComposePostureTest(unittest.TestCase):
         dockerignore_text = read_text(repo_path("containers/node-deps/.dockerignore"))
         stager_text = read_text(repo_path("containers/node-deps/stage-package-workspace"))
 
-        self.assertIn("COPY stage-node-modules stage-package-workspace /usr/local/bin/", dockerfile_text)
+        self.assertIn("COPY stage-node-modules stage-package-workspace run-package-workspace /usr/local/bin/", dockerfile_text)
         self.assertIn("chmod 0755 /usr/local/bin/stage-package-workspace", dockerfile_text)
+        self.assertIn("chmod 0755 /usr/local/bin/run-package-workspace", dockerfile_text)
         self.assertIn("!stage-package-workspace", dockerignore_text)
+        self.assertIn("!run-package-workspace", dockerignore_text)
         self.assertIn('"$source_dir" != "/input/packages"', stager_text)
         self.assertIn('"$target_dir" != "/work/packages"', stager_text)
         self.assertIn("workspace_patterns=", stager_text)

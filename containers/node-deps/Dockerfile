@@ -8,11 +8,12 @@
 # package lanes reuse the same image utilities to stage source files into tmpfs.
 FROM docker.io/library/node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d
 
-COPY stage-node-modules stage-package-workspace /usr/local/bin/
+COPY stage-node-modules stage-package-workspace run-package-workspace /usr/local/bin/
 
 RUN set -eux; \
   chmod 0755 /usr/local/bin/stage-node-modules; \
   chmod 0755 /usr/local/bin/stage-package-workspace; \
+  chmod 0755 /usr/local/bin/run-package-workspace; \
   mkdir -p /input /out /work; \
   chmod 1777 /out
 
