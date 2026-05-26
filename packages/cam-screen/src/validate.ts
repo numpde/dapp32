@@ -13,12 +13,12 @@ import type { ScreenDocument, ScreenElement } from "./types.ts"
 import type { InertValue } from "@cam/core"
 
 const TOP_LEVEL_KEYS = new Set(["screen", "title", "elements"])
-const TEXT_KEYS = new Set(["type", "text"])
-const INPUT_KEYS = new Set(["type", "name", "label", "value"])
-const ADDRESS_KEYS = new Set(["type", "label", "address"])
-const BUTTON_KEYS = new Set(["type", "label", "action"])
-const STATUS_KEYS = new Set(["type", "label", "value"])
-const NFT_KEYS = new Set(["type", "contractAddress", "tokenId"])
+const TEXT_KEYS = elementKeys("text")
+const INPUT_KEYS = elementKeys("name", "label", "value")
+const ADDRESS_KEYS = elementKeys("label", "address")
+const BUTTON_KEYS = elementKeys("label", "action")
+const STATUS_KEYS = elementKeys("label", "value")
+const NFT_KEYS = elementKeys("contractAddress", "tokenId")
 
 export function parseScreen(input: unknown): ScreenDocument {
   const source = requiredRecord(input, "")
@@ -70,6 +70,7 @@ function parseTextElement(source: Record<string, unknown>, path: string): Screen
   rejectUnknownScreenFields(source, TEXT_KEYS, path)
   return {
     type: "text",
+    ...parseVisibility(source, path),
     text: parseExpressionString(source.text, `${path}.text`),
   }
 }
@@ -79,6 +80,7 @@ function parseInputElement(source: Record<string, unknown>, path: string): Scree
 
   return {
     type: "input",
+    ...parseVisibility(source, path),
     name: requiredNonEmptyString(source.name, `${path}.name`),
     label: parseExpressionString(source.label, `${path}.label`),
     ...(source.value === undefined ? {} : { value: parseExpressionPayload(source.value, `${path}.value`) }),
@@ -89,6 +91,7 @@ function parseAddressElement(source: Record<string, unknown>, path: string): Scr
   rejectUnknownScreenFields(source, ADDRESS_KEYS, path)
   return {
     type: "address",
+    ...parseVisibility(source, path),
     ...(source.label === undefined ? {} : { label: parseExpressionString(source.label, `${path}.label`) }),
     address: parseExpressionString(source.address, `${path}.address`),
   }
@@ -99,6 +102,7 @@ function parseButtonElement(source: Record<string, unknown>, path: string): Scre
 
   return {
     type: "button",
+    ...parseVisibility(source, path),
     label: parseExpressionString(source.label, `${path}.label`),
     action: parseAction(source.action, `${path}.action`),
   }
@@ -109,6 +113,7 @@ function parseStatusElement(source: Record<string, unknown>, path: string): Scre
 
   return {
     type: "status",
+    ...parseVisibility(source, path),
     ...(source.label === undefined ? {} : { label: parseExpressionString(source.label, `${path}.label`) }),
     value: parseExpressionPayload(source.value, `${path}.value`),
   }
@@ -119,9 +124,16 @@ function parseNftElement(source: Record<string, unknown>, path: string): ScreenE
 
   return {
     type: "nft",
+    ...parseVisibility(source, path),
     contractAddress: parseExpressionString(source.contractAddress, `${path}.contractAddress`),
     tokenId: parseExpressionPayload(source.tokenId, `${path}.tokenId`),
   }
+}
+
+function parseVisibility(source: Record<string, unknown>, path: string): { readonly visibleWhen?: InertValue } {
+  return source.visibleWhen === undefined
+    ? {}
+    : { visibleWhen: parseExpressionPayload(source.visibleWhen, `${path}.visibleWhen`) }
 }
 
 function parseExpressionString(value: unknown, path: string): string {
@@ -149,4 +161,8 @@ function rejectUnknownScreenFields(
   path: string,
 ): void {
   rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in screen ${SCREEN_VERSION}: ${key}`)
+}
+
+function elementKeys(...keys: string[]): ReadonlySet<string> {
+  return new Set(["type", "visibleWhen", ...keys])
 }

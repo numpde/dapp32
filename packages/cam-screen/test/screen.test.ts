@@ -205,6 +205,65 @@ test("resolveScreen resolves params, state, and route values", () => {
   ])
 })
 
+test("resolveScreen filters elements with false visibility guards", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "status",
+        label: "Registered",
+        value: "$values.0.exists",
+      },
+      {
+        type: "address",
+        label: "Owner",
+        visibleWhen: "$values.0.exists",
+        address: "$values.0.owner",
+      },
+      {
+        type: "status",
+        label: "Hidden unresolved value",
+        visibleWhen: false,
+        value: "$state.missing",
+      },
+    ],
+  })
+
+  assert.deepEqual(resolveScreen(screen, context).elements, [
+    {
+      type: "status",
+      label: "Registered",
+      value: true,
+    },
+    {
+      type: "address",
+      label: "Owner",
+      address: "0x0000000000000000000000000000000000000003",
+    },
+  ])
+})
+
+test("resolveScreen requires visibility guards to resolve to booleans", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "status",
+        visibleWhen: "$params.serialNumber",
+        value: true,
+      },
+    ],
+  })
+
+  assert.throws(
+    () => resolveScreen(screen, context),
+    (error) =>
+      error instanceof ScreenError
+      && error.code === "SCREEN_INVALID_FIELD"
+      && error.path === "elements.0.visibleWhen",
+  )
+})
+
 test("resolveScreen resolves navigation action params", () => {
   const screen = parseScreen({
     screen: "1.0.0",

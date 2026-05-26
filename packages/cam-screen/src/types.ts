@@ -14,37 +14,41 @@ export type ScreenElement =
   | StatusElement
   | NftElement
 
-export type TextElement = {
+type ElementVisibility = {
+  readonly visibleWhen?: InertValue
+}
+
+export type TextElement = ElementVisibility & {
   readonly type: "text"
   readonly text: string
 }
 
-export type InputElement = {
+export type InputElement = ElementVisibility & {
   readonly type: "input"
   readonly name: string
   readonly label: string
   readonly value?: InertValue
 }
 
-export type AddressElement = {
+export type AddressElement = ElementVisibility & {
   readonly type: "address"
   readonly label?: string
   readonly address: string
 }
 
-export type ButtonElement = {
+export type ButtonElement = ElementVisibility & {
   readonly type: "button"
   readonly label: string
   readonly action: ScreenAction
 }
 
-export type StatusElement = {
+export type StatusElement = ElementVisibility & {
   readonly type: "status"
   readonly label?: string
   readonly value: InertValue
 }
 
-export type NftElement = {
+export type NftElement = ElementVisibility & {
   readonly type: "nft"
   readonly contractAddress: string
   readonly tokenId: InertValue

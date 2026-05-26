@@ -12,8 +12,24 @@ import type {
 export function resolveScreen(screen: ScreenDocument, context: ScreenRuntimeContext): ResolvedScreen {
   return {
     ...(screen.title === undefined ? {} : { title: resolveStringField(screen.title, context, "title") }),
-    elements: screen.elements.map((element, index) => resolveElement(element, context, `elements.${index}`)),
+    elements: screen.elements.flatMap((element, index) => {
+      const path = `elements.${index}`
+      return isElementVisible(element, context, path) ? [resolveElement(element, context, path)] : []
+    }),
   }
+}
+
+function isElementVisible(element: ScreenElement, context: ScreenRuntimeContext, path: string): boolean {
+  if (element.visibleWhen === undefined) {
+    return true
+  }
+
+  const visible = resolveValueAtPath(element.visibleWhen, context, `${path}.visibleWhen`)
+  if (typeof visible !== "boolean") {
+    throw new ScreenError("SCREEN_INVALID_FIELD", "expected resolved boolean", `${path}.visibleWhen`)
+  }
+
+  return visible
 }
 
 function resolveElement(
