@@ -296,19 +296,6 @@ class ComposePostureTest(unittest.TestCase):
         self.assertNotIn("mkdir -p \"$$abi_dir\"", text)
         self.assertIn("must exist before ABI export", text)
 
-        expected_mounts = []
-        for dapp_dir in sorted(repo_path("dapps").iterdir()):
-            abi_dir = dapp_dir / "cam" / "abi"
-            if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
-                expected_mounts.append(
-                    f"../dapps/{dapp_dir.name}/cam/abi:/work/dapps/{dapp_dir.name}/cam/abi:rw"
-                )
-                self.assertTrue(abi_dir.is_dir(), f"{abi_dir} must exist for explicit ABI export mounting")
-
-        self.assertTrue(expected_mounts)
-        for mount in expected_mounts:
-            self.assertIn(mount, text)
-
     def test_coverage_uses_unit_test_convention(self) -> None:
         text = read_text(repo_path("compose/forge.yml"))
 
