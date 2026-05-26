@@ -349,9 +349,8 @@ test("load leaves route call failures as EVM adapter errors", async () => {
 })
 
 function createSession({
-  // TODO(silent-defaults): this helper builds a complete happy-path session by
-  // default. Tests for missing resources or client behavior should pass the
-  // dependency explicitly so the fixture does not hide setup.
+  // This helper builds a complete happy-path session by default. Tests for
+  // missing resources or client behavior pass the dependency explicitly.
   publicClient = createPublicClient(),
   resources = {},
   state = {},
@@ -379,9 +378,8 @@ function createSession({
 }
 
 function createPublicClient({
-  // TODO(silent-defaults): these are viewer test defaults, not protocol
-  // defaults. Override them in tests where hash, binding, or route output
-  // behavior is under scrutiny.
+  // These are viewer test defaults, not protocol defaults. Tests override them
+  // when hash, binding, or route output behavior is under scrutiny.
   camHash = BIKE_UNSIGNED_CAM_HASH,
   addresses = bikeContractAddresses,
   routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),

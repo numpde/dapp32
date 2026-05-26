@@ -448,9 +448,8 @@ test("callCamRoute rejects overloaded route function names in CAM V1", async () 
 })
 
 function createPublicClient({
-  // TODO(silent-defaults): these defaults are test fixture conveniences. Tests
-  // exercising host metadata, bindings, or route returns should override the
-  // relevant field explicitly.
+  // These defaults are fixture conveniences. Tests exercising host metadata,
+  // bindings, or route returns override the relevant field explicitly.
   camURI = camDocumentURI,
   camHash = BIKE_UNSIGNED_CAM_HASH,
   addresses = bikeContractAddresses,
