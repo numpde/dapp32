@@ -79,6 +79,8 @@ Keep the project small, explicit, and protocol-first.
   stage only source/manifests into container-local tmpfs, mount
   `packages/node_modules/` read-only, and leave `dist/` outputs in tmpfs unless
   an explicit artifact export lane is added.
+- Package tests must run `tsc -p tsconfig.test.json` before `node --test`;
+  strip-types execution is runtime convenience, not semantic typechecking.
 - `package-build-check` is compile validation only. Do not add `package-build`
   unless there is a deliberate durable artifact-export lane.
 - `package-ci` is a Make aggregation over package tests and package-backed tool

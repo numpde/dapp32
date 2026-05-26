@@ -19,7 +19,7 @@ import {
   BIKE_UI_CONTRACT,
   BIKE_VIEW_COMPONENT,
   bikeCamJson as mainJson,
-} from "../../../tests/fixtures/cam/bike.ts"
+} from "../../../tests/fixtures/cam/bike.mts"
 
 test("keeps the public API to the CAM core boundary", () => {
   assert.deepEqual(Object.keys(camCore).sort(), [
@@ -121,7 +121,7 @@ test("rejects missing required context records", () => {
   }
 
   for (const field of ["params"] as const) {
-    const input = { ...base }
+    const input: Partial<typeof base> = { ...base }
     delete input[field]
 
     assert.throws(

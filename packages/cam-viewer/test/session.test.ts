@@ -41,7 +41,7 @@ import {
   bikeManagerAbi as managerAbi,
   bikeRouteResults,
   bikeUiAbi as uiAbi,
-} from "../../../tests/fixtures/cam/bike.ts"
+} from "../../../tests/fixtures/cam/bike.mts"
 
 const host: CamHost = bikeHost
 type MockAddress = CamHost["address"]
@@ -93,6 +93,9 @@ test("dispatchAction executes navigation actions", async () => {
   })
 
   assert.equal(result.type, "navigated")
+  if (result.type !== "navigated") {
+    assert.fail("expected navigation action result")
+  }
   assert.equal(result.snapshot.route, BIKE_ROUTE_COMPONENT)
   assert.equal(result.snapshot.params.serialNumber, BIKE_SERIAL_NUMBER)
   assert.equal(result.snapshot.screenURI, componentScreenURI)
@@ -256,7 +259,7 @@ test("setState rejects unsupported mutable object values instead of storing live
   await session.load()
 
   assert.throws(
-    () => session.setState({ date: new Date(0) }),
+    () => session.setState({ date: new Date(0) as unknown as InertValue }),
     (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_INVALID_INERT_VALUE",
   )
 })
@@ -398,32 +401,55 @@ function createPublicClient({
     readonly account?: MockAddress
   }> = []
 
+  type MockReadContractRequest = {
+    readonly address?: MockAddress
+    readonly abi?: MockAbi
+    readonly functionName: string
+    readonly args?: readonly unknown[]
+    readonly account?: MockAddress
+  }
+
+  async function readContract(request: MockReadContractRequest): Promise<unknown> {
+    const call: {
+      address: MockAddress
+      abi?: MockAbi
+      functionName: string
+      args?: readonly unknown[]
+      account?: MockAddress
+    } = {
+      address: request.address ?? host.address,
+      functionName: request.functionName,
+    }
+    if (request.abi !== undefined) call.abi = request.abi
+    if (request.args !== undefined) call.args = request.args
+    if (request.account !== undefined) call.account = request.account
+    calls.push(call)
+
+    if (request.functionName === "camURI") {
+      return camURI
+    }
+
+    if (request.functionName === "camHash") {
+      return camHash
+    }
+
+    if (request.functionName === "contractAddress") {
+      const name = requireContractName(request.args)
+      return addresses[name] !== undefined
+        ? addresses[name]
+        : "0x0000000000000000000000000000000000000000"
+    }
+
+    if (Object.hasOwn(routeResults, request.functionName)) {
+      return routeResults[request.functionName]
+    }
+
+    throw new Error(`unexpected readContract call: ${request.functionName}`)
+  }
+
   return {
     calls,
-    async readContract(request: Parameters<CreateCamViewerSessionOptions["publicClient"]["readContract"]>[0]): Promise<unknown> {
-      calls.push(request)
-
-      if (request.functionName === "camURI") {
-        return camURI
-      }
-
-      if (request.functionName === "camHash") {
-        return camHash
-      }
-
-      if (request.functionName === "contractAddress") {
-        const name = requireContractName(request.args)
-        return addresses[name] !== undefined
-          ? addresses[name]
-          : "0x0000000000000000000000000000000000000000"
-      }
-
-      if (Object.hasOwn(routeResults, request.functionName)) {
-        return routeResults[request.functionName]
-      }
-
-      throw new Error(`unexpected readContract call: ${request.functionName}`)
-    },
+    readContract: readContract as CreateCamViewerSessionOptions["publicClient"]["readContract"],
   }
 }
 

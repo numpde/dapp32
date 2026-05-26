@@ -374,7 +374,7 @@
               <td>Build checks and tests copy source/manifests from read-only <code>/input/packages</code> into writable tmpfs at <code>/work/packages</code>, with <code>node_modules</code> mounted read-only into that workspace. Package <code>dist/</code> output is discarded with the container. No target exports durable JS artifacts.</td>
               <td>None.</td>
               <td>One-shot <code>docker compose run --rm</code>.</td>
-              <td>Validate and test TypeScript packages by staging the package workspace, checking the installed dependency graph inside that execution tree, then running package scripts offline.</td>
+              <td>Validate and test TypeScript packages by staging the package workspace, checking the installed dependency graph inside that execution tree, then building packages and typechecking package tests before running them offline.</td>
             </tr>
             <tr>
               <td><code>viewer-terminal</code>, <code>viewer-terminal-check</code></td>

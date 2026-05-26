@@ -13,7 +13,7 @@ import {
   resolveCamContracts,
   verifyCamHash,
 } from "../src/index.ts"
-import type { CamHost, ResourceLoader } from "../src/index.ts"
+import type { CamHost, CamPublicClient, ResourceLoader } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
@@ -40,7 +40,7 @@ import {
   bikeManagerAbi as managerAbi,
   bikeRouteResults,
   bikeUiAbi as uiAbi,
-} from "../../../tests/fixtures/cam/bike.ts"
+} from "../../../tests/fixtures/cam/bike.mts"
 
 const host: CamHost = bikeHost
 const ROOT_CAM_URI = "camURI"
@@ -224,7 +224,6 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
     contracts: {
       [BIKE_UI_CONTRACT]: {
         address: uiAddress,
-        abiURI: uiAbiURI,
         abi: uiAbi,
       },
     },
@@ -264,7 +263,6 @@ test("callCamRoute requires the first route return value to be a non-empty scree
       contracts: {
         [BIKE_UI_CONTRACT]: {
           address: uiAddress,
-          abiURI: uiAbiURI,
           abi: uiAbi,
         },
       },
@@ -294,7 +292,6 @@ test("callCamRoute validates account addresses before calling viem", async () =>
       contracts: {
         [BIKE_UI_CONTRACT]: {
           address: uiAddress,
-          abiURI: uiAbiURI,
           abi: uiAbi,
         },
       },
@@ -334,7 +331,6 @@ test("callCamRoute accepts only CAM-local screen JSON resources", async () => {
         contracts: {
           [BIKE_UI_CONTRACT]: {
             address: uiAddress,
-            abiURI: uiAbiURI,
             abi: uiAbi,
           },
         },
@@ -366,7 +362,6 @@ test("bike CAM routes resolve to the three route-level screens", async () => {
       contracts: {
         [BIKE_UI_CONTRACT]: {
           address: uiAddress,
-          abiURI: uiAbiURI,
           abi: uiAbi,
         },
       },
@@ -395,7 +390,6 @@ test("callCamRoute rejects route functions missing from the resolved ABI", async
       contracts: {
         [BIKE_UI_CONTRACT]: {
           address: uiAddress,
-          abiURI: uiAbiURI,
           abi: managerAbi,
         },
       },
@@ -430,7 +424,6 @@ test("callCamRoute rejects route functions that are not view or pure", async () 
       contracts: {
         [BIKE_UI_CONTRACT]: {
           address: uiAddress,
-          abiURI: uiAbiURI,
           abi: nonViewAbi,
         },
       },
@@ -466,7 +459,6 @@ test("callCamRoute rejects overloaded route function names in CAM V1", async () 
       contracts: {
         [BIKE_UI_CONTRACT]: {
           address: uiAddress,
-          abiURI: uiAbiURI,
           abi: overloadedAbi,
         },
       },
@@ -504,37 +496,40 @@ function createPublicClient({
     readonly account?: Address
   }> = []
 
+  async function readContract(request: {
+    readonly address: Address
+    readonly abi?: Abi
+    readonly functionName: string
+    readonly args?: readonly unknown[]
+    readonly account?: Address
+  }): Promise<unknown> {
+    calls.push(request)
+
+    if (request.functionName === ROOT_CAM_URI) {
+      return camURI
+    }
+
+    if (request.functionName === ROOT_CAM_HASH) {
+      return camHash
+    }
+
+    if (request.functionName === ROOT_CONTRACT_ADDRESS) {
+      const name = requireContractName(request.args)
+      return addresses[name] !== undefined
+        ? addresses[name]
+        : ZERO_ADDRESS
+    }
+
+    if (Object.hasOwn(routeResults, request.functionName)) {
+      return routeResults[request.functionName]
+    }
+
+    throw new Error(`unexpected readContract call: ${request.functionName}`)
+  }
+
   return {
     calls,
-    async readContract(request: {
-      readonly address: Address
-      readonly functionName: string
-      readonly args?: readonly unknown[]
-      readonly account?: Address
-    }): Promise<unknown> {
-      calls.push(request)
-
-      if (request.functionName === ROOT_CAM_URI) {
-        return camURI
-      }
-
-      if (request.functionName === ROOT_CAM_HASH) {
-        return camHash
-      }
-
-      if (request.functionName === ROOT_CONTRACT_ADDRESS) {
-        const name = requireContractName(request.args)
-        return addresses[name] !== undefined
-          ? addresses[name]
-          : ZERO_ADDRESS
-      }
-
-      if (Object.hasOwn(routeResults, request.functionName)) {
-        return routeResults[request.functionName]
-      }
-
-      throw new Error(`unexpected readContract call: ${request.functionName}`)
-    },
+    readContract: readContract as CamPublicClient["readContract"],
   }
 }
 

@@ -60,6 +60,7 @@ copy_file_if_present "$source_dir/package.json"
 copy_file_if_present "$source_dir/package-lock.json"
 copy_file_if_present "$source_dir/tsconfig.base.json"
 copy_file_if_present "$source_dir/tsconfig.package.json"
+copy_file_if_present "$source_dir/tsconfig.test.json"
 
 for pattern in $workspace_patterns; do
   case "$pattern" in

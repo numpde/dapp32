@@ -31,7 +31,7 @@ import {
   bikeComponentRouteResult,
   bikeEntryRouteResult,
   bikeRegisterRouteResult,
-} from "../../tests/fixtures/cam/bike.ts"
+} from "../../tests/fixtures/cam/bike.mts"
 
 type TerminalButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
 type MockAddress = CamHost["address"]

@@ -85,6 +85,22 @@ class PackageMetadataTest(unittest.TestCase):
                     self.assertIsInstance(export_path, str, f"{path}: export path must be a string")
                     self.assertNotIn("internal", export_path, f"{path}: internal modules must not be public exports")
 
+    def test_package_tests_are_semantically_typechecked(self) -> None:
+        self.assertTrue(repo_path("packages/tsconfig.test.json").is_file())
+        stager = read_text(repo_path("containers/node-deps/stage-package-workspace"))
+        self.assertIn('copy_file_if_present "$source_dir/tsconfig.test.json"', stager)
+
+        for path in sorted(repo_path("packages").glob("*/package.json")):
+            manifest = self.read_manifest(path)
+            scripts = manifest.get("scripts")
+            self.assertIsInstance(scripts, dict, f"{path}: scripts must be an object")
+            self.assertEqual("tsc -p tsconfig.test.json", scripts.get("typecheck"))
+            self.assertEqual(
+                "npm run typecheck && node --test --experimental-strip-types test/*.test.ts",
+                scripts.get("test"),
+            )
+            self.assertTrue((path.parent / "tsconfig.test.json").is_file(), f"{path.parent}: missing test tsconfig")
+
     def test_package_dependency_versions_are_exact(self) -> None:
         workspace_names = self.workspace_package_names()
 
