@@ -160,6 +160,76 @@ test("setState re-resolves current screen actions with updated state", async () 
   })
 })
 
+test("snapshot returns isolated copies of nested route and screen data", async () => {
+  const session = createSession({
+    resources: {
+      [entryScreenURI]: encodeJson({
+        screen: "1.0.0",
+        title: "Entry",
+        elements: [
+          {
+            type: "status",
+            label: "Account",
+            value: "$values.1",
+          },
+        ],
+      }),
+    },
+  })
+
+  const snapshot = await session.load()
+
+  mutableRecord(snapshot.values?.[1]).accountInfo = "mutated route value"
+  mutableRecord(mutableRecord(snapshot.resolvedScreen?.elements[0]).value).accountInfo = "mutated resolved value"
+  mutableRecord(snapshot.screen?.elements[0]).label = "Mutated label"
+
+  const nextSnapshot = session.snapshot()
+  assert.equal(mutableRecord(nextSnapshot.values?.[1]).accountInfo, "Mock registrar account")
+  assert.equal(
+    mutableRecord(mutableRecord(nextSnapshot.resolvedScreen?.elements[0]).value).accountInfo,
+    "Mock registrar account",
+  )
+  assert.equal(mutableRecord(nextSnapshot.screen?.elements[0]).label, "Account")
+})
+
+test("setState and navigate copy caller-owned nested input records", async () => {
+  const session = createSession()
+  await session.load()
+
+  const patch = {
+    nested: {
+      value: "before",
+    },
+  }
+  const stateSnapshot = session.setState(patch)
+  patch.nested.value = "after"
+  mutableRecord(stateSnapshot.state.nested).value = "snapshot mutation"
+
+  assert.equal(mutableRecord(session.snapshot().state.nested).value, "before")
+
+  const routeParams = {
+    serialNumber: BIKE_SERIAL_NUMBER,
+    nested: {
+      value: "before",
+    },
+  }
+  const routeSnapshot = await session.navigate(BIKE_ROUTE_COMPONENT, routeParams)
+  routeParams.nested.value = "after"
+  mutableRecord(routeSnapshot.params.nested).value = "snapshot mutation"
+
+  assert.equal(mutableRecord(session.snapshot().params.nested).value, "before")
+})
+
+test("setState rejects unsupported mutable object values instead of storing live references", async () => {
+  const session = createSession()
+  await session.load()
+
+  assert.throws(
+    () => session.setState({ date: new Date(0) }),
+    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_INVALID_SNAPSHOT",
+  )
+})
+
 test("dispatchAction surfaces contract calls without sending transactions", async () => {
   const publicClient = createPublicClient()
   const session = createSession({ publicClient })
@@ -331,6 +401,13 @@ function createResourceLoader(resources: Record<string, Uint8Array>) {
 
     return bytes
   }
+}
+
+function mutableRecord(value: unknown): Record<string, unknown> {
+  assert.equal(typeof value, "object")
+  assert.notEqual(value, null)
+  assert.equal(Array.isArray(value), false)
+  return value as Record<string, unknown>
 }
 
 const entryScreen = {

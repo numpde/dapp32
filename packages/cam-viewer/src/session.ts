@@ -9,6 +9,7 @@ import {
 } from "@cam/screen"
 import type {
   ContractCallAction,
+  ResolvedScreen,
   ScreenDocument,
   ScreenElement,
 } from "@cam/screen"
@@ -33,9 +34,9 @@ export function createCamViewerSession({
 }: CreateCamViewerSessionOptions): CamViewerSession {
   let loadedState: CamViewerLoadedState | undefined
   let route: string | undefined
-  let params = copyRecord(initialParams)
-  let state = copyRecord(initialState)
-  let account = initialAccount
+  let params = cloneRecord(initialParams, "params")
+  let state = cloneRecord(initialState, "state")
+  let account = initialAccount === undefined ? undefined : cloneAccount(initialAccount)
   let screenURI: string | undefined
   let screen: CamViewerSnapshot["screen"]
   let resolvedScreen: CamViewerSnapshot["resolvedScreen"]
@@ -45,13 +46,15 @@ export function createCamViewerSession({
     return {
       loaded: loadedState !== undefined,
       ...(route === undefined ? {} : { route }),
-      params: copyRecord(params),
-      state: copyRecord(state),
-      ...(account === undefined ? {} : { account }),
+      params: cloneRecord(params, "params"),
+      state: cloneRecord(state, "state"),
+      ...(account === undefined ? {} : { account: cloneAccount(account) }),
       ...(screenURI === undefined ? {} : { screenURI }),
-      ...(screen === undefined ? {} : { screen }),
-      ...(resolvedScreen === undefined ? {} : { resolvedScreen }),
-      ...(values === undefined ? {} : { values }),
+      ...(screen === undefined ? {} : { screen: cloneValue(screen, "screen") as ScreenDocument }),
+      ...(resolvedScreen === undefined
+        ? {}
+        : { resolvedScreen: cloneValue(resolvedScreen, "resolvedScreen") as ResolvedScreen }),
+      ...(values === undefined ? {} : { values: cloneArray(values, "values") }),
     }
   }
 
@@ -85,7 +88,7 @@ export function createCamViewerSession({
   }
 
   async function setAccount(nextAccount?: CamViewerAccount): Promise<CamViewerSnapshot> {
-    account = nextAccount
+    account = nextAccount === undefined ? undefined : cloneAccount(nextAccount)
 
     if (loadedState === undefined || route === undefined) {
       return snapshot()
@@ -97,7 +100,7 @@ export function createCamViewerSession({
   function setState(patch: Record<string, unknown>): CamViewerSnapshot {
     state = {
       ...state,
-      ...patch,
+      ...cloneRecord(patch, "state"),
     }
 
     if (screen !== undefined && values !== undefined) {
@@ -135,7 +138,7 @@ export function createCamViewerSession({
 
   async function navigateLoaded(nextRoute: string, nextParams: Record<string, unknown>): Promise<CamViewerSnapshot> {
     const current = assertLoaded()
-    const routeParams = copyRecord(nextParams)
+    const routeParams = cloneRecord(nextParams, "params")
 
     const routeResult = await callCamRoute({
       publicClient,
@@ -213,8 +216,40 @@ export function createCamViewerSession({
   }
 }
 
-function copyRecord(source: Record<string, unknown>): Record<string, unknown> {
-  return { ...source }
+function cloneAccount(source: CamViewerAccount): CamViewerAccount {
+  return { address: source.address }
+}
+
+function cloneRecord(source: Record<string, unknown>, path: string): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(source).map(([key, value]) => [key, cloneValue(value, `${path}.${key}`)]),
+  )
+}
+
+function cloneArray(source: readonly unknown[], path: string): readonly unknown[] {
+  return source.map((value, index) => cloneValue(value, `${path}.${index}`))
+}
+
+function cloneValue(value: unknown, path: string): unknown {
+  if (Array.isArray(value)) {
+    return cloneArray(value, path)
+  }
+
+  if (isPlainRecord(value)) {
+    return cloneRecord(value, path)
+  }
+
+  if (
+    value !== null
+    && typeof value === "object"
+  ) {
+    throw new CamViewerError(
+      "CAM_VIEWER_INVALID_SNAPSHOT",
+      `CAM viewer data is not safely cloneable: ${path}`,
+    )
+  }
+
+  return value
 }
 
 function seedInputState(screen: ScreenDocument, currentState: Record<string, unknown>): Record<string, unknown> {
@@ -250,5 +285,14 @@ function isContractCallAction(action: unknown): action is ContractCallAction {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
+  return isPlainRecord(value)
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return false
+  }
+
+  const prototype = Object.getPrototypeOf(value)
+  return prototype === Object.prototype || prototype === null
 }
