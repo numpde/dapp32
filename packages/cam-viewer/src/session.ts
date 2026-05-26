@@ -11,8 +11,8 @@ import {
   resolveScreen,
 } from "@cam/screen"
 import type {
-  ContractCallAction,
   ResolvedScreen,
+  ResolvedScreenAction,
   ScreenDocument,
   ScreenElement,
 } from "@cam/screen"
@@ -129,17 +129,17 @@ export function createCamViewerSession({
     return snapshot()
   }
 
-  async function dispatchAction(action: unknown): Promise<CamViewerActionResult> {
+  async function dispatchAction(action: ResolvedScreenAction): Promise<CamViewerActionResult> {
     assertLoaded()
 
-    if (isNavigateAction(action)) {
+    if ("route" in action && "params" in action) {
       return {
         type: "navigated",
         snapshot: await navigateLoaded(action.route, action.params),
       }
     }
 
-    if (isContractCallAction(action)) {
+    if ("contract" in action && "function" in action && "args" in action) {
       return {
         type: "contractCall",
         action,
@@ -310,23 +310,6 @@ function seedInputElementState(element: ScreenElement, state: Record<string, Ine
   state[element.name] = typeof element.value === "string" && !element.value.startsWith("$")
     ? element.value
     : ""
-}
-
-function isNavigateAction(action: unknown): action is { readonly route: string; readonly params: Record<string, InertValue> } {
-  return isRecord(action)
-    && typeof action.route === "string"
-    && isRecord(action.params)
-}
-
-function isContractCallAction(action: unknown): action is ContractCallAction {
-  return isRecord(action)
-    && typeof action.contract === "string"
-    && typeof action.function === "string"
-    && Array.isArray(action.args)
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return isPlainRecord(value)
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
