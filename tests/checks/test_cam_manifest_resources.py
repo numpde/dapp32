@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -13,7 +14,28 @@ from .common import read_text, repo_path
 @dataclass(frozen=True)
 class AbiRouteFunction:
     input_count: int
-    first_output: object | None
+    outputs: tuple[object, ...]
+
+    @property
+    def first_output(self) -> object | None:
+        return self.outputs[0] if self.outputs else None
+
+    @property
+    def value_outputs(self) -> tuple[object, ...]:
+        return self.outputs[1:]
+
+
+@dataclass(frozen=True)
+class ValuesReference:
+    expression: str
+    path: str
+    output_index: int
+    segments: tuple[str, ...]
+
+
+VALUES_EXPRESSION_RE = re.compile(
+    r"^\$values\.(0|[1-9][0-9]*)(\.(?:[A-Za-z][A-Za-z0-9_]*|0|[1-9][0-9]*))*$"
+)
 
 
 class CamManifestResourceTest(unittest.TestCase):
@@ -114,7 +136,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 ]
             ),
             {
-                "viewEntry": AbiRouteFunction(input_count=1, first_output=None),
+                "viewEntry": AbiRouteFunction(input_count=1, outputs=()),
                 "overloaded": None,
             },
         )
@@ -127,10 +149,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 "viewEntry",
                 AbiRouteFunction(
                     input_count=1,
-                    first_output={
-                        "name": "screenURI",
-                        "type": "string",
-                    },
+                    outputs=({"name": "screenURI", "type": "string"},),
                 ),
             ),
             [],
@@ -150,9 +169,60 @@ class CamManifestResourceTest(unittest.TestCase):
                         "routes.entry",
                         "Example",
                         "viewEntry",
-                        AbiRouteFunction(input_count=1, first_output=first_output),
+                        AbiRouteFunction(input_count=1, outputs=() if first_output is None else (first_output,)),
                     )
                 )
+
+        route_screen = {
+            "screen": "1.0.0",
+            "elements": [
+                {"type": "status", "value": "$values.0.exists"},
+                {"type": "status", "value": "$values.1"},
+            ],
+        }
+        route_function = AbiRouteFunction(
+            input_count=0,
+            outputs=(
+                {"name": "screenURI", "type": "string"},
+                {
+                    "name": "component",
+                    "type": "tuple",
+                    "components": [{"name": "exists", "type": "bool"}],
+                },
+                {"name": "count", "type": "uint256"},
+            ),
+        )
+        self.assertEqual(
+            self.validate_screen_values_references(
+                manifest,
+                "routes.entry",
+                manifest.parent / "screens" / "entry.json",
+                route_screen,
+                "Example",
+                "viewEntry",
+                route_function,
+            ),
+            [],
+        )
+
+        bad_screen = {
+            "screen": "1.0.0",
+            "elements": [
+                {"type": "status", "value": "$values.0.missing"},
+                {"type": "status", "value": "$values.1.count"},
+                {"type": "status", "value": "$values.2"},
+            ],
+        }
+        failures = self.validate_screen_values_references(
+            manifest,
+            "routes.entry",
+            manifest.parent / "screens" / "entry.json",
+            bad_screen,
+            "Example",
+            "viewEntry",
+            route_function,
+        )
+        self.assertEqual(len(failures), 3)
 
         self.assertEqual(
             self.validate_no_orphan_abi_files(
@@ -199,7 +269,7 @@ class CamManifestResourceTest(unittest.TestCase):
             raise AssertionError(f"{path}: invalid JSON: {error}") from error
 
         if not isinstance(document, dict):
-            raise AssertionError(f"{path}: CAM manifest must be a JSON object")
+            raise AssertionError(f"{path}: JSON document must be an object")
 
         return document
 
@@ -299,8 +369,139 @@ class CamManifestResourceTest(unittest.TestCase):
                 )
 
             failures.extend(self.validate_route_output_shape(manifest_path, path, contract_name, function_name, function))
+            failures.extend(
+                self.validate_route_screen_values_references(
+                    manifest_path,
+                    route_name,
+                    path,
+                    contract_name,
+                    function_name,
+                    function,
+                )
+            )
 
         return failures
+
+    def validate_route_screen_values_references(
+        self,
+        manifest_path: Path,
+        route_name: object,
+        route_path: str,
+        contract_name: str,
+        function_name: str,
+        function: AbiRouteFunction,
+    ) -> list[str]:
+        if not isinstance(route_name, str):
+            return []
+
+        screen_path = manifest_path.parent / "screens" / f"{route_name}.json"
+        try:
+            screen = self.read_json_object(screen_path)
+        except AssertionError as error:
+            return [str(error)]
+
+        return self.validate_screen_values_references(
+            manifest_path,
+            route_path,
+            screen_path,
+            screen,
+            contract_name,
+            function_name,
+            function,
+        )
+
+    def validate_screen_values_references(
+        self,
+        manifest_path: Path,
+        route_path: str,
+        screen_path: Path,
+        screen: object,
+        contract_name: str,
+        function_name: str,
+        function: AbiRouteFunction,
+    ) -> list[str]:
+        failures: list[str] = []
+        for reference in self.values_references(screen):
+            location = f"{screen_path}:{reference.path}" if reference.path else str(screen_path)
+            output = self.route_value_output(function, reference.output_index)
+            if output is None:
+                failures.append(
+                    f"{manifest_path}: {route_path} screen references missing route value output "
+                    f"$values.{reference.output_index} at {location}: {reference.expression}"
+                )
+                continue
+
+            error = self.validate_abi_output_path(output, reference.segments)
+            if error is not None:
+                failures.append(
+                    f"{manifest_path}: {route_path} screen references {error} in "
+                    f"{contract_name}.{function_name} output at {location}: {reference.expression}"
+                )
+
+        return failures
+
+    def route_value_output(self, function: AbiRouteFunction, output_index: int) -> object | None:
+        return function.value_outputs[output_index] if output_index < len(function.value_outputs) else None
+
+    def validate_abi_output_path(self, output: object, segments: tuple[str, ...]) -> str | None:
+        current = output
+        for segment in segments:
+            if not isinstance(current, dict):
+                return f"non-object ABI output segment: {segment}"
+
+            output_type = current.get("type")
+            components = current.get("components")
+            if output_type != "tuple" or not isinstance(components, list):
+                return f"field on non-tuple ABI output: {segment}"
+
+            next_output = self.abi_component_by_name(components, segment)
+            if next_output is None:
+                return f"unknown ABI output field: {segment}"
+
+            current = next_output
+
+        return None
+
+    def abi_component_by_name(self, components: list[object], name: str) -> object | None:
+        for component in components:
+            if isinstance(component, dict) and component.get("name") == name:
+                return component
+
+        return None
+
+    def values_references(self, value: object, path: str = "") -> list[ValuesReference]:
+        references: list[ValuesReference] = []
+
+        if isinstance(value, str):
+            reference = self.values_reference(value, path)
+            return [] if reference is None else [reference]
+
+        if isinstance(value, list):
+            for index, item in enumerate(value):
+                references.extend(self.values_references(item, self.join_json_path(path, str(index))))
+            return references
+
+        if isinstance(value, dict):
+            for key, item in value.items():
+                references.extend(self.values_references(item, self.join_json_path(path, str(key))))
+
+        return references
+
+    def values_reference(self, value: str, path: str) -> ValuesReference | None:
+        match = VALUES_EXPRESSION_RE.match(value)
+        if match is None:
+            return None
+
+        suffix = value.removeprefix(f"$values.{match.group(1)}")
+        return ValuesReference(
+            expression=value,
+            path=path,
+            output_index=int(match.group(1)),
+            segments=() if suffix == "" else tuple(suffix.removeprefix(".").split(".")),
+        )
+
+    def join_json_path(self, parent: str, key: str) -> str:
+        return key if parent == "" else f"{parent}.{key}"
 
     def validate_route_output_shape(
         self,
@@ -382,7 +583,7 @@ class CamManifestResourceTest(unittest.TestCase):
                     if name in functions_by_name
                     else AbiRouteFunction(
                         input_count=len(inputs),
-                        first_output=outputs[0] if isinstance(outputs, list) and outputs else None,
+                        outputs=tuple(outputs) if isinstance(outputs, list) else (),
                     )
                 )
         return functions_by_name
