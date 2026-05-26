@@ -41,11 +41,13 @@
     {
       "type": "status",
       "label": "Serial hash",
+      "visibleWhen": "$values.0.exists",
       "value": "$values.0.serialHash"
     },
     {
       "type": "status",
       "label": "Token ID",
+      "visibleWhen": "$values.0.exists",
       "value": "$values.0.tokenId"
     },
     {
