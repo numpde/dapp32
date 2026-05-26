@@ -19,6 +19,7 @@ const ADDRESS_KEYS = elementKeys("label", "address")
 const BUTTON_KEYS = elementKeys("label", "action")
 const STATUS_KEYS = elementKeys("label", "value")
 const NFT_KEYS = elementKeys("contractAddress", "tokenId")
+const GROUP_KEYS = elementKeys("elements")
 
 export function parseScreen(input: unknown): ScreenDocument {
   const source = requiredRecord(input, "")
@@ -61,6 +62,8 @@ function parseElement(input: unknown, path: string): ScreenElement {
       return parseStatusElement(source, path)
     case "nft":
       return parseNftElement(source, path)
+    case "group":
+      return parseGroupElement(source, path)
     default:
       throw new ScreenError("SCREEN_INVALID_FIELD", `unknown screen element type: ${type}`, `${path}.type`)
   }
@@ -121,6 +124,15 @@ function parseNftElement(source: Record<string, unknown>, path: string): ScreenE
     type: "nft",
     contractAddress: parseExpressionString(source.contractAddress, `${path}.contractAddress`),
     tokenId: parseExpressionPayload(source.tokenId, `${path}.tokenId`),
+  })
+}
+
+function parseGroupElement(source: Record<string, unknown>, path: string): ScreenElement {
+  rejectUnknownScreenFields(source, GROUP_KEYS, path)
+
+  return withVisibility(source, path, {
+    type: "group",
+    elements: parseElements(requiredArray(source.elements, `${path}.elements`)),
   })
 }
 

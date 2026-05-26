@@ -243,6 +243,44 @@ test("resolveScreen filters elements with false visibility guards", () => {
   ])
 })
 
+test("resolveScreen flattens visible groups and skips hidden groups", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "group",
+        visibleWhen: "$values.0.exists",
+        elements: [
+          {
+            type: "address",
+            label: "Owner",
+            address: "$values.0.owner",
+          },
+        ],
+      },
+      {
+        type: "group",
+        visibleWhen: false,
+        elements: [
+          {
+            type: "status",
+            label: "Hidden unresolved value",
+            value: "$state.missing",
+          },
+        ],
+      },
+    ],
+  })
+
+  assert.deepEqual(resolveScreen(screen, context).elements, [
+    {
+      type: "address",
+      label: "Owner",
+      address: "0x0000000000000000000000000000000000000003",
+    },
+  ])
+})
+
 test("resolveScreen requires visibility guards to resolve to booleans", () => {
   const screen = parseScreen({
     screen: "1.0.0",

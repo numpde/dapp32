@@ -13,6 +13,7 @@ export type ScreenElement =
   | ButtonElement
   | StatusElement
   | NftElement
+  | GroupElement
 
 type ElementVisibility = {
   readonly visibleWhen?: InertValue
@@ -52,6 +53,11 @@ export type NftElement = ElementVisibility & {
   readonly type: "nft"
   readonly contractAddress: string
   readonly tokenId: InertValue
+}
+
+export type GroupElement = ElementVisibility & {
+  readonly type: "group"
+  readonly elements: readonly ScreenElement[]
 }
 
 export type ScreenAction = NavigateAction | ContractCallAction
