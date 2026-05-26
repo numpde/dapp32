@@ -160,6 +160,9 @@ def tunnel(client: socket.socket, upstream: socket.socket) -> None:
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "https-egress-proxy"
+    # TODO(silent-defaults): blanking Python's default sys_version intentionally
+    # reduces response fingerprinting. Keep this local to the proxy handler so
+    # it is not mistaken for an unconfigured server version.
     sys_version = ""
 
     def do_GET(self) -> None:

@@ -105,6 +105,9 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
     return true
   }
 
+  // TODO(silent-defaults): line is known non-empty after trim(), so this
+  // fallback is only satisfying destructuring/typing. If command parsing grows,
+  // make empty command an explicit parser error instead of a default branch.
   const [command = "", ...args] = line.split(/\s+/)
 
   try {
@@ -221,6 +224,9 @@ function render(snapshot: CamViewerSnapshot): void {
   }
 
   const buttons: ResolvedButtonElement[] = []
+  // TODO(silent-defaults): an unloaded session renders as a screen with no
+  // elements. That is useful for the mock terminal, but a real UI should have
+  // an explicit loading/error state instead of an empty element list.
   for (const element of snapshot.resolvedScreen?.elements ?? []) {
     renderElement(element, snapshot, buttons)
   }
@@ -266,6 +272,9 @@ function renderElement(
 }
 
 function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonElement[] {
+  // TODO(silent-defaults): before load, this returns no buttons and `press`
+  // reports "button does not exist". A production controller should surface
+  // "viewer not loaded" as a distinct state.
   return (snapshot.resolvedScreen?.elements ?? []).filter(
     (element): element is ResolvedButtonElement => element.type === "button",
   )
@@ -391,6 +400,8 @@ function printPromptContext(snapshot: CamViewerSnapshot): void {
   output.write(`  account: ${snapshot.account?.address ?? "(none)"}\n`)
   output.write(`  params: ${formatValue(snapshot.params)}\n`)
   output.write(`  state: ${formatValue(snapshot.state)}\n`)
+  // TODO(silent-defaults): this keeps the prompt compact before the first route
+  // call, but it hides "not loaded" versus "loaded route returned no values".
   output.write(`  values: ${formatValue(snapshot.values ?? [])}\n`)
 }
 

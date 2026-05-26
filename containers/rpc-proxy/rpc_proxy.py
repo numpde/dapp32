@@ -162,6 +162,9 @@ def validate_rpc_request(raw_body, allowed_methods):
 
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "safe-rpc-proxy"
+    # TODO(silent-defaults): blanking Python's default sys_version intentionally
+    # reduces response fingerprinting. Keep this local to the proxy handler so
+    # it is not mistaken for an unconfigured server version.
     sys_version = ""
 
     def do_GET(self):
