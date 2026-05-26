@@ -46,8 +46,8 @@ class PackageMetadataTest(unittest.TestCase):
     def test_packages_workspace_layout_matches_package_lane_convention(self) -> None:
         root_manifest = self.read_manifest(repo_path("packages/package.json"))
 
-        self.assertIs(root_manifest.get("private"), True)
-        self.assertEqual(["cam-*"], root_manifest.get("workspaces"))
+        self.assertIs(root_manifest["private"], True)
+        self.assertEqual(["cam-*"], root_manifest["workspaces"])
 
     def test_package_manifests_follow_workspace_layout(self) -> None:
         expected_paths = set(self.package_manifest_paths())

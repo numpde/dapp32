@@ -45,5 +45,7 @@ export function isJsonScalar(value: unknown): boolean {
 }
 
 export function joinPath(parent: string, key: string): string {
+  // The empty parent is the internal root path. Do not emit a leading dot for
+  // first-level fields; public paths should read "owner", not ".owner".
   return parent === "" ? key : `${parent}.${key}`
 }

@@ -81,5 +81,7 @@ export function cloneJsonValue(value: unknown): unknown {
 }
 
 function joinPath(parent: string, key: string): string {
+  // The empty parent is the internal root path. Do not emit a leading dot for
+  // first-level fields; public paths should read "elements", not ".elements".
   return parent === "" ? key : `${parent}.${key}`
 }

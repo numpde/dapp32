@@ -44,6 +44,8 @@ function inertError(message: string, path: string): CamError {
 
 function validateInertValue(
   value: unknown,
+  // The empty path is a private recursion sentinel for "the root value"; it is
+  // converted to an absent public error path by inertError().
   path: string = "",
   seen: WeakSet<object> = new WeakSet<object>(),
 ): CamError | undefined {
