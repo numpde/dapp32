@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .common import read_text, repo_path
+from tools.cam_abi_plan import CamAbiPlanError, generated_abi_name
 
 
 @dataclass(frozen=True)
@@ -633,21 +634,10 @@ class CamManifestResourceTest(unittest.TestCase):
         contract_name: str,
         abi_uri: object,
     ) -> str | None:
-        path = f"contracts.{contract_name}.abiURI"
-        if not isinstance(abi_uri, str):
-            return f"{manifest_path}: {path} must be a string before generated ABI convention checks"
-
-        resolved = self.resolve_local_abi_path(manifest_path, abi_uri)
-        if resolved is None:
-            return None
-
-        cam_dir = manifest_path.parent.resolve()
-        abi_dir = cam_dir / "abi"
-        if resolved.parent != abi_dir:
-            return f"{manifest_path}: {path} must target a file directly under cam/abi: {abi_uri}"
-
-        if resolved.name != f"{contract_name}.json":
-            return f"{manifest_path}: {path} basename must match the contract name: {abi_uri}"
+        try:
+            generated_abi_name(manifest_path, contract_name, abi_uri)
+        except CamAbiPlanError as error:
+            return str(error)
 
         return None
 

@@ -348,6 +348,7 @@ class ComposePostureTest(unittest.TestCase):
         text = read_text(repo_path("compose/forge.yml"))
 
         self.assertIn("forge-abi-plan:", text)
+        self.assertIn("../tools/cam_abi_plan.py:/work/tools/cam_abi_plan.py:ro", text)
         self.assertIn("/work/tools/forge-abi-plan.py", text)
         self.assertNotIn("sed -nE", text)
         self.assertNotIn("src/$$contract.sol", text)

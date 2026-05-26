@@ -118,6 +118,7 @@ services:
     working_dir: /work
     volumes:
       - ../dapps:/work/dapps:ro
+      - ../tools/cam_abi_plan.py:/work/tools/cam_abi_plan.py:ro
       - ../tools/forge-abi-plan.py:/work/tools/forge-abi-plan.py:ro
       - ${ABI_PLAN_DIR:-/tmp/cam-abi-plan-unused}:/work/abi-plan:rw
     command:
