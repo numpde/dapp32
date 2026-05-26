@@ -3,9 +3,19 @@ export type {
   CamRouteCall,
   CamRuntimeContext,
 } from "./types.ts"
+export type {
+  InertRecord,
+  InertValue,
+} from "./inert-value.ts"
 
 export { CamError } from "./errors.ts"
 export type { CamErrorCode } from "./errors.ts"
+
+export {
+  assertInertValue,
+  cloneInertValue,
+  isInertValue,
+} from "./inert-value.ts"
 
 export { parseCam } from "./validate.ts"
 

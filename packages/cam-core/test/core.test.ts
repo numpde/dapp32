@@ -23,7 +23,10 @@ import {
 test("keeps the public API to the CAM core boundary", () => {
   assert.deepEqual(Object.keys(camCore).sort(), [
     "CamError",
+    "assertInertValue",
+    "cloneInertValue",
     "createContext",
+    "isInertValue",
     "parseCam",
     "resolveResourceURI",
     "resolveRouteCall",
