@@ -19,8 +19,8 @@ export type CreateCamViewerSessionOptions = {
   readonly host: CamHost
   readonly loadResource: ResourceLoader
   readonly account?: CamViewerAccount
-  readonly params?: Record<string, InertValue>
-  readonly state?: Record<string, InertValue>
+  readonly params: Record<string, InertValue>
+  readonly state: Record<string, InertValue>
 }
 
 export type CamViewerSnapshot = {

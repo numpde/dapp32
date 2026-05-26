@@ -350,6 +350,8 @@ function createSession({
     publicClient,
     host,
     account: { address: userAddress },
+    params: {},
+    state: {},
     loadResource: createResourceLoader({
       [camURI]: encodeJson(camJson),
       [uiAbiURI]: encodeJson(uiAbi),

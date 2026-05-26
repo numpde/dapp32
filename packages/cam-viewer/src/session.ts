@@ -39,11 +39,8 @@ export function createCamViewerSession({
   host,
   loadResource,
   account: initialAccount,
-  // TODO(silent-defaults): empty params/state are convenient for the entry
-  // route, but they also hide whether the host intentionally supplied context.
-  // Consider requiring explicit params/state once route schemas exist.
-  params: initialParams = {},
-  state: initialState = {},
+  params: initialParams,
+  state: initialState,
 }: CreateCamViewerSessionOptions): CamViewerSession {
   let loadedState: CamViewerLoadedState | undefined
   let route: string | undefined

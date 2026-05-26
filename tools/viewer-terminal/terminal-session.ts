@@ -171,6 +171,8 @@ function createMockSession(events: DebugEvent[]): CamViewerSession {
     account: {
       address: USER_ADDRESS,
     },
+    params: {},
+    state: {},
     loadResource: createMockResourceLoader(events),
   })
 }
