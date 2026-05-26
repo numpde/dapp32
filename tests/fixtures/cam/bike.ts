@@ -103,9 +103,15 @@ export const bikeUiAbi = [
   },
 ] as const
 
+// TODO(silent-defaults): this fixture is currently read-route-only, so manager
+// ABI contents are not exercised. Add the real ABI before testing screen
+// contract-call actions against BicycleComponentManager.
 export const bikeManagerAbi = [] as const
 
 export function bikeAddressForContract(name: string): string {
+  // TODO(silent-defaults): address(0) mirrors CamRoot's "unbound contract"
+  // sentinel for adapter tests. Do not use this helper in tests that should
+  // reject unknown fixture contract names before the EVM boundary.
   return Object.hasOwn(bikeContractAddresses, name)
     ? bikeContractAddresses[name as keyof typeof bikeContractAddresses]
     : "0x0000000000000000000000000000000000000000"
