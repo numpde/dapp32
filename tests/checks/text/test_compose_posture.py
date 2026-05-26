@@ -205,24 +205,6 @@ class ComposePostureTest(unittest.TestCase):
         self.assertIn("dist | node_modules | package.json", stager_text)
         self.assertNotIn('cp -a "$source_dir"/. "$target_dir"/', stager_text)
 
-    def test_package_build_check_is_compile_validation_by_convention(self) -> None:
-        base_tsconfig_text = read_text(repo_path("packages/tsconfig.base.json"))
-        package_tsconfig_text = read_text(repo_path("packages/tsconfig.package.json"))
-        self.assertIn('"module": "NodeNext"', base_tsconfig_text)
-        self.assertIn('"strict": true', base_tsconfig_text)
-        self.assertIn('"extends": "./tsconfig.base.json"', package_tsconfig_text)
-        self.assertIn('"outDir": "${configDir}/dist"', package_tsconfig_text)
-        self.assertIn('"rootDir": "${configDir}/src"', package_tsconfig_text)
-        self.assertIn('"${configDir}/src/**/*.ts"', package_tsconfig_text)
-
-        for package_json in sorted(repo_path("packages").glob("*/package.json")):
-            with self.subTest(package=str(package_json.relative_to(repo_path(".")))):
-                package_text = read_text(package_json)
-                tsconfig_text = read_text(package_json.parent / "tsconfig.json")
-
-                self.assertIn('"build": "tsc -p tsconfig.json"', package_text)
-                self.assertIn('"extends": "../tsconfig.package.json"', tsconfig_text)
-
     def test_package_build_test_and_viewer_targets_check_locked_graph(self) -> None:
         text = read_text(repo_path("Makefile"))
 

@@ -19,6 +19,17 @@ UNSUPPORTED_PACKAGE_MANAGER_FILES = (
     "pnpm-lock.yaml",
     "yarn.lock",
 )
+PACKAGE_EXPORTS = {
+    ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js",
+    },
+}
+PACKAGE_SCRIPTS = {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "npm run typecheck && node --test --experimental-strip-types test/*.test.ts",
+}
 
 
 class PackageMetadataTest(unittest.TestCase):
@@ -85,6 +96,37 @@ class PackageMetadataTest(unittest.TestCase):
                     self.assertIsInstance(export_path, str, f"{path}: export path must be a string")
                     self.assertNotIn("internal", export_path, f"{path}: internal modules must not be public exports")
 
+    def test_workspace_packages_use_the_common_build_shape(self) -> None:
+        package_tsconfig = self.read_manifest(repo_path("packages/tsconfig.package.json"))
+        base_tsconfig = self.read_manifest(repo_path("packages/tsconfig.base.json"))
+        compiler_options = package_tsconfig.get("compilerOptions")
+
+        self.assertEqual("./tsconfig.base.json", package_tsconfig.get("extends"))
+        self.assertIsInstance(compiler_options, dict, "packages/tsconfig.package.json: compilerOptions must be an object")
+        self.assertEqual("${configDir}/dist", compiler_options.get("outDir"))
+        self.assertEqual("${configDir}/src", compiler_options.get("rootDir"))
+        self.assertEqual(["${configDir}/src/**/*.ts"], package_tsconfig.get("include"))
+
+        base_options = base_tsconfig.get("compilerOptions")
+        self.assertIsInstance(base_options, dict, "packages/tsconfig.base.json: compilerOptions must be an object")
+        self.assertEqual("NodeNext", base_options.get("module"))
+        self.assertIs(base_options.get("strict"), True)
+
+        for path in sorted(repo_path("packages").glob("*/package.json")):
+            manifest = self.read_manifest(path)
+            with self.subTest(path=str(path)):
+                self.assertIs(manifest.get("private"), True)
+                self.assertEqual("module", manifest.get("type"))
+                self.assertIs(manifest.get("sideEffects"), False)
+                self.assertEqual(["dist"], manifest.get("files"))
+                self.assertEqual(PACKAGE_EXPORTS, manifest.get("exports"))
+                self.assertEqual(PACKAGE_SCRIPTS, manifest.get("scripts"))
+
+                tsconfig = self.read_manifest(path.parent / "tsconfig.json")
+                test_tsconfig = self.read_manifest(path.parent / "tsconfig.test.json")
+                self.assertEqual("../tsconfig.package.json", tsconfig.get("extends"))
+                self.assertEqual("../tsconfig.test.json", test_tsconfig.get("extends"))
+
     def test_package_tests_are_semantically_typechecked(self) -> None:
         self.assertTrue(repo_path("packages/tsconfig.test.json").is_file())
         stager = read_text(repo_path("containers/node-deps/stage-package-workspace"))
@@ -94,11 +136,8 @@ class PackageMetadataTest(unittest.TestCase):
             manifest = self.read_manifest(path)
             scripts = manifest.get("scripts")
             self.assertIsInstance(scripts, dict, f"{path}: scripts must be an object")
-            self.assertEqual("tsc -p tsconfig.test.json", scripts.get("typecheck"))
-            self.assertEqual(
-                "npm run typecheck && node --test --experimental-strip-types test/*.test.ts",
-                scripts.get("test"),
-            )
+            self.assertEqual(PACKAGE_SCRIPTS["typecheck"], scripts.get("typecheck"))
+            self.assertEqual(PACKAGE_SCRIPTS["test"], scripts.get("test"))
             self.assertTrue((path.parent / "tsconfig.test.json").is_file(), f"{path.parent}: missing test tsconfig")
 
     def test_package_dependency_versions_are_exact(self) -> None:
