@@ -3,13 +3,12 @@ import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
 import { fileURLToPath } from "node:url"
 
-import type {
-  Address,
-  PublicClient,
-} from "viem"
-
 import {
   ZERO_HASH,
+} from "../../packages/cam-evm-viem/dist/index.js"
+import type {
+  CamHost,
+  LoadCamFromHostOptions,
 } from "../../packages/cam-evm-viem/dist/index.js"
 import {
   createCamViewerSession,
@@ -22,7 +21,7 @@ import { toInertValue } from "../../packages/cam-core/dist/index.js"
 import type { InertValue } from "../../packages/cam-core/dist/index.js"
 import type {
   ResolvedScreenElement,
-} from "@cam/screen"
+} from "../../packages/cam-screen/dist/index.js"
 import {
   BIKE_ACCOUNT_ADDRESS as USER_ADDRESS,
   BIKE_HOST_ADDRESS as HOST_ADDRESS,
@@ -37,6 +36,8 @@ import {
 } from "../../tests/fixtures/cam/bike.ts"
 
 type ResolvedButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
+type MockAddress = CamHost["address"]
+type MockPublicClient = LoadCamFromHostOptions["publicClient"]
 
 const MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
 const MOCK_CAM_URI = new URL("main.json", MOCK_CAM_BASE_URI).href
@@ -281,7 +282,7 @@ function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonElement[
   )
 }
 
-function createMockPublicClient(events: DebugEvent[]): PublicClient {
+function createMockPublicClient(events: DebugEvent[]): MockPublicClient {
   return {
     async readContract(request: {
       readonly functionName: string
@@ -300,7 +301,7 @@ function createMockPublicClient(events: DebugEvent[]): PublicClient {
       })
       return result
     },
-  } as PublicClient
+  } as MockPublicClient
 }
 
 function mockReadContract(functionName: string, args: readonly InertValue[]): InertValue {
@@ -331,8 +332,8 @@ function mockReadContract(functionName: string, args: readonly InertValue[]): In
   }
 }
 
-function contractAddress(name: string): Address {
-  return bikeAddressForContract(name) as Address
+function contractAddress(name: string): MockAddress {
+  return bikeAddressForContract(name) as MockAddress
 }
 
 function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promise<Uint8Array> {
