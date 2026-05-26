@@ -74,18 +74,5 @@ export type ResolvedScreen = {
   readonly elements: readonly ResolvedScreenElement[]
 }
 
-export type ResolvedScreenElement =
-  | TextElement
-  | InputElement
-  | AddressElement
-  | ResolvedButtonElement
-  | StatusElement
-  | NftElement
-
-export type ResolvedButtonElement = {
-  readonly type: "button"
-  readonly label: string
-  readonly action: ResolvedScreenAction
-}
-
+export type ResolvedScreenElement = ScreenElement
 export type ResolvedScreenAction = ScreenAction
