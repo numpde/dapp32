@@ -104,6 +104,20 @@ test("navigate works for the register route", async () => {
   assert.equal(snapshot.resolvedScreen?.title, "Register")
 })
 
+test("navigate without params starts from empty route params", async () => {
+  const publicClient = createPublicClient()
+  const session = createSession({ publicClient })
+  await session.load()
+  await session.navigate(BIKE_ROUTE_COMPONENT, {
+    serialNumber: BIKE_SERIAL_NUMBER,
+  })
+
+  const snapshot = await session.navigate(BIKE_ROUTE_ENTRY)
+
+  assert.deepEqual(snapshot.params, {})
+  assert.deepEqual(publicClient.calls.at(-1)?.args, [userAddress])
+})
+
 test("setState updates local state without calling a route", async () => {
   const publicClient = createPublicClient()
   const session = createSession({ publicClient })

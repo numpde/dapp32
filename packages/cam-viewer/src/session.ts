@@ -96,11 +96,8 @@ export function createCamViewerSession({
 
   async function navigate(
     nextRoute: string,
-    nextParams: Record<string, InertValue> = params,
+    nextParams: Record<string, InertValue> = {},
   ): Promise<CamViewerSnapshot> {
-    // TODO(silent-defaults): defaulting to the current params makes route
-    // changes concise, but can accidentally carry stale params across routes.
-    // Revisit when route params are explicit protocol data.
     assertLoaded()
     return await navigateLoaded(nextRoute, nextParams)
   }
