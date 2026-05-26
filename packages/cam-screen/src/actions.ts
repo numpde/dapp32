@@ -3,6 +3,8 @@ import {
   createStringMap,
   hasOwn,
   isRecordObject,
+} from "@cam/protocol"
+import {
   requiredArray,
   requiredNonEmptyString,
   requiredRecord,

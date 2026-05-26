@@ -4,13 +4,6 @@ import {
 } from "@cam/protocol"
 import { ScreenError } from "./errors.ts"
 
-export {
-  createStringMap,
-  hasOwn,
-  isRecordObject,
-  joinPath,
-} from "@cam/protocol"
-
 export function requiredRecord(value: unknown, path: string): Record<string, unknown> {
   if (!isRecordObject(value)) {
     // The root path is represented as absent in public errors. Nested paths
