@@ -20,6 +20,9 @@ export function isRecordObject(value: unknown): value is Record<string, unknown>
 }
 
 export function cloneJsonValue(value: unknown): unknown {
+  // TODO(inert-values): this currently clones CAM manifest fragments after
+  // JSON-literal validation. Replace callers with cloneInertValue/toInertValue
+  // once route args are typed as inert values.
   if (Array.isArray(value)) {
     return value.map((item) => cloneJsonValue(item))
   }

@@ -95,6 +95,8 @@ function parseContractCallAction(source: Record<string, unknown>, path: string):
 }
 
 function parseParams(source: Record<string, unknown>, path: string): Record<string, unknown> {
+  // TODO(inert-values): parsed action params should be stored as
+  // Record<string, InertValue> once screen depends on the shared inert type.
   const params = createStringMap<unknown>()
 
   for (const [key, value] of Object.entries(source)) {
@@ -138,6 +140,8 @@ function resolveParams(
   context: ScreenRuntimeContext,
   path: string,
 ): Record<string, unknown> {
+  // TODO(inert-values): resolved params should be re-normalized to inert data
+  // before a viewer passes them into the next CAM route.
   const resolved = resolveValueAtPath(params, context, path)
   if (!isRecordObject(resolved)) {
     throw new ScreenError("SCREEN_INVALID_FIELD", "expected resolved parameters object", path)

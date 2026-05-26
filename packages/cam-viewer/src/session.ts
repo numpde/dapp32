@@ -221,6 +221,9 @@ function cloneAccount(source: CamViewerAccount): CamViewerAccount {
 }
 
 function cloneRecord(source: Record<string, unknown>, path: string): Record<string, unknown> {
+  // TODO(inert-values): this is a local copy of the inert-value boundary.
+  // Replace it with toInertValue/cloneInertValue once viewer types use
+  // InertValue instead of unknown.
   return Object.fromEntries(
     Object.entries(source).map(([key, value]) => [key, cloneValue(value, `${path}.${key}`)]),
   )

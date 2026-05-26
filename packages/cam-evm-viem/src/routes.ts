@@ -36,6 +36,9 @@ export async function callCamRoute({
     throw new CamEvmError("CAM_ROUTE_CALL_FAILED", `failed to call CAM route: ${route}`, cause)
   }
 
+  // TODO(inert-values): ABI-decoded return values cross from viem into CAM
+  // screen/viewer code here. Normalize this array to inert values, or define a
+  // deliberate EVM value extension for types such as bigint/address.
   const values = Array.isArray(raw) ? raw : [raw]
   const screenURI = values[0]
 

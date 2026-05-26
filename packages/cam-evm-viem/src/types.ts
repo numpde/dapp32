@@ -24,6 +24,9 @@ export type ResolvedCamContract = {
 
 export type RouteResult = {
   readonly screenURI: string
+  // TODO(inert-values): viem returns decoded ABI values as unknowns. Before
+  // handing them to screen/viewer code, normalize supported values to
+  // readonly InertValue[] or introduce an explicit EVM scalar extension.
   readonly values: readonly unknown[]
 }
 

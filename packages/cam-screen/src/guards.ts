@@ -63,6 +63,8 @@ export function rejectUnknownFields(
 }
 
 export function cloneJsonValue(value: unknown): unknown {
+  // TODO(inert-values): screen documents and actions should use
+  // toInertValue/cloneInertValue instead of this package-local JSON clone.
   if (Array.isArray(value)) {
     return value.map((item) => cloneJsonValue(item))
   }

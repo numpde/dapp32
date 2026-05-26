@@ -47,6 +47,8 @@ function rejectUnknownContextFields(source: Record<string, unknown>): void {
 }
 
 function cloneContextRecord(value: unknown, path: string): Record<string, unknown> {
+  // TODO(inert-values): createContext should eventually call toInertValue for
+  // params instead of maintaining a parallel runtime-context validator here.
   const source = requiredRecord(value, path)
   const clone = createStringMap<unknown>()
 
