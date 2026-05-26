@@ -36,6 +36,9 @@ class AnvilComposePostureTest(unittest.TestCase):
                 "ANVIL_HOST_PORT": host_port,
             }
         )
+        # TODO(silent-defaults): keep this in sync with tests/checks/common.py;
+        # rendered Compose posture should not silently inspect a different
+        # compose binary than Make uses.
         command = shlex.split(env.get("DOCKER_COMPOSE", "docker compose"))
         command.extend(["-f", "compose/anvil.yml", "config", "--format", "json"])
 

@@ -229,6 +229,10 @@ class DependencyVerifier:
             raise DependencyVerificationError(f"{record.key} lock URL must use Soldeer revisions: {record.url}")
         if parsed.params or parsed.query or parsed.fragment:
             raise DependencyVerificationError(f"{record.key} lock URL must not include params, query, or fragment: {record.url}")
+        # TODO(silent-defaults): unknown packages fall back to a permissive
+        # archive suffix. That is acceptable only while the dependency set is
+        # separately locked; future package additions should define suffix
+        # policy explicitly.
         suffix_re = SOLDEER_ARCHIVE_SUFFIX_RE.get(record.name, DEFAULT_SOLDEER_ARCHIVE_SUFFIX_RE)
         if re.fullmatch(rf"/{re.escape(record.name)}/{re.escape(expected_version_prefix)}_[^/]+_{suffix_re}\.zip", parsed.path) is None:
             raise DependencyVerificationError(

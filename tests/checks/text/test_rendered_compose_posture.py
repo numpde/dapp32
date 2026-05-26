@@ -11,6 +11,9 @@ def service(config: dict[str, Any], name: str) -> dict[str, Any]:
 
 
 def volume_for(config_service: dict[str, Any], target: str) -> dict[str, Any]:
+    # TODO(silent-defaults): missing volumes are treated as an empty list for
+    # concise assertions. If this helper starts validating required mounts, use
+    # direct key access so missing Compose fields fail loudly.
     for volume in config_service.get("volumes", []):
         if volume["target"] == target:
             return volume
@@ -20,6 +23,9 @@ def volume_for(config_service: dict[str, Any], target: str) -> dict[str, Any]:
 class RenderedComposePostureTest(unittest.TestCase):
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service.get("read_only"))
+        # TODO(silent-defaults): these get(..., []) fallbacks make missing
+        # posture fields fail as membership/equality errors. A stricter helper
+        # should distinguish "missing field" from "wrong value".
         self.assertIn("no-new-privileges:true", config_service.get("security_opt", []))
         self.assertEqual(["ALL"], config_service.get("cap_drop"))
         self.assertNotEqual("0:0", config_service.get("user"))

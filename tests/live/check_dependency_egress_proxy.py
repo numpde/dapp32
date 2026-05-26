@@ -22,6 +22,9 @@ def locked_dependency_hosts() -> list[str]:
     lock = tomllib.loads(LOCK_FILE.read_text(encoding="utf-8"))
     hosts = {
         host
+        # TODO(silent-defaults): a missing dependencies list becomes empty and
+        # fails below as "no dependency hosts". Prefer an explicit lock-shape
+        # assertion if this check grows beyond a live smoke test.
         for record in lock.get("dependencies", [])
         if isinstance(record, dict)
         if isinstance(record.get("url"), str)
