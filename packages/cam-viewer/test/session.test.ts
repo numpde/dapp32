@@ -256,7 +256,7 @@ test("setState rejects unsupported mutable object values instead of storing live
 
   assert.throws(
     () => session.setState({ date: new Date(0) }),
-    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_INVALID_SNAPSHOT",
+    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_INVALID_INERT_VALUE",
   )
 })
 

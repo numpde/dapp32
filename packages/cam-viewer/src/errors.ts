@@ -3,7 +3,7 @@ export type CamViewerErrorCode =
   | "CAM_VIEWER_SCREEN_LOAD_FAILED"
   | "CAM_VIEWER_SCREEN_PARSE_FAILED"
   | "CAM_VIEWER_ACTION_UNSUPPORTED"
-  | "CAM_VIEWER_INVALID_SNAPSHOT"
+  | "CAM_VIEWER_INVALID_INERT_VALUE"
 
 export class CamViewerError extends Error {
   readonly code: CamViewerErrorCode
