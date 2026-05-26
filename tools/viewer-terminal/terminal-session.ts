@@ -256,10 +256,7 @@ function renderElement(
       output.write(`\n${element.text}\n`)
       return
     case "input":
-      // TODO(silent-defaults): this render fallback collapses missing state,
-      // missing default value, and an intentional empty string. A real renderer
-      // should distinguish those states.
-      output.write(`${element.label}: ${formatValue(snapshot.state[element.name] ?? element.value ?? "")}\n`)
+      output.write(`${element.label}: ${formatInputValue(element, snapshot)}\n`)
       return
     case "address":
       output.write(`${element.label ?? "Address"}: ${element.address}\n`)
@@ -292,9 +289,9 @@ function createMockPublicClient(events: DebugEvent[]): MockPublicClient {
       readonly functionName: string
       readonly args?: readonly unknown[]
     }): Promise<unknown> {
-      // TODO(silent-defaults): optional args come from the broad viem shape, but
-      // CAM route calls should know whether a function expected arguments.
-      const args = (request.args ?? []).map((arg) => toInertValue(arg))
+      const args = request.args === undefined
+        ? []
+        : request.args.map((arg) => toInertValue(arg))
       const result = mockReadContract(request.functionName, args)
       events.push({
         step: events.length + 1,
@@ -306,6 +303,14 @@ function createMockPublicClient(events: DebugEvent[]): MockPublicClient {
       return result
     },
   } as MockPublicClient
+}
+
+function formatInputValue(element: Extract<ResolvedScreenElement, { readonly type: "input" }>, snapshot: CamViewerSnapshot): string {
+  const value = Object.hasOwn(snapshot.state, element.name)
+    ? snapshot.state[element.name]
+    : element.value
+
+  return value === undefined ? "(unset)" : formatValue(value)
 }
 
 function mockReadContract(functionName: string, args: readonly InertValue[]): InertValue {
