@@ -55,3 +55,20 @@ class CamScreenSchemaTest(unittest.TestCase):
             ),
             4,
         )
+
+    def test_screen_schema_rejects_non_finite_numbers(self) -> None:
+        screen_path = repo_path("dapps/example/cam/screens/entry.json")
+
+        for value in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(value=value):
+                failures = self.validator.validate_screen_document(
+                    screen_path,
+                    {
+                        "screen": "1.0.0",
+                        "elements": [
+                            {"type": "status", "label": "Bad number", "value": value},
+                        ],
+                    },
+                )
+
+                self.assertEqual(failures, [f"{screen_path}: elements.0.value must be a JSON value"])

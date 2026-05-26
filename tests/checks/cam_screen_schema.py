@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from pathlib import Path
 
@@ -205,7 +206,7 @@ class CamScreenSchemaValidator:
                     continue
                 failures.extend(self.validate_expression_payload(source_path, f"{path}.{key}", item))
             return failures
-        if value is None or isinstance(value, (bool, int, float)):
+        if is_screen_literal(value):
             return []
 
         return [f"{source_path}: {path} must be a JSON value"]
@@ -215,3 +216,10 @@ class CamScreenSchemaValidator:
             return []
 
         return [f"{source_path}: {path} has invalid screen expression: {value}"]
+
+
+def is_screen_literal(value: object) -> bool:
+    if value is None or isinstance(value, (bool, int, str)):
+        return True
+
+    return isinstance(value, float) and math.isfinite(value)
