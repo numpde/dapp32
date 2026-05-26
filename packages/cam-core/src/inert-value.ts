@@ -11,7 +11,7 @@ export type InertValue =
   | readonly InertValue[]
   | InertRecord
 
-export type InertRecord = {
+type InertRecord = {
   readonly [key: string]: InertValue
 }
 
