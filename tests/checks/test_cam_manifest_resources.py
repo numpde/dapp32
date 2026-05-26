@@ -37,6 +37,12 @@ class CamManifestResourceTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_checked_in_cam_screens_follow_screen_v1_schema(self) -> None:
+        failures = self.validator.collect_manifest_failures(self.validator.validate_manifest_screens)
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def test_cam_manifest_resource_checker_self_check(self) -> None:
         manifest = repo_path("dapps/example/cam/main.json")
 
@@ -103,14 +109,24 @@ class CamManifestResourceTest(unittest.TestCase):
         self.assertEqual(
             self.validator.abi_route_functions(
                 [
-                    {"type": "function", "name": "viewEntry", "inputs": [{"type": "address"}]},
+                    {
+                        "type": "function",
+                        "name": "viewEntry",
+                        "stateMutability": "view",
+                        "inputs": [{"type": "address"}],
+                    },
                     {"type": "event", "name": "Ignored", "inputs": []},
-                    {"type": "function", "name": "overloaded", "inputs": []},
-                    {"type": "function", "name": "overloaded", "inputs": [{"type": "string"}]},
+                    {"type": "function", "name": "overloaded", "stateMutability": "view", "inputs": []},
+                    {
+                        "type": "function",
+                        "name": "overloaded",
+                        "stateMutability": "view",
+                        "inputs": [{"type": "string"}],
+                    },
                 ]
             ),
             {
-                "viewEntry": AbiRouteFunction(input_count=1, outputs=()),
+                "viewEntry": AbiRouteFunction(input_count=1, state_mutability="view", outputs=()),
                 "overloaded": None,
             },
         )
@@ -123,10 +139,25 @@ class CamManifestResourceTest(unittest.TestCase):
                 "viewEntry",
                 AbiRouteFunction(
                     input_count=1,
+                    state_mutability="view",
                     outputs=({"name": "screenURI", "type": "string"},),
                 ),
             ),
             [],
+        )
+        self.assertEqual(
+            self.validator.validate_route_function_mutability(
+                manifest,
+                "routes.entry",
+                "Example",
+                "viewEntry",
+                AbiRouteFunction(
+                    input_count=1,
+                    state_mutability="nonpayable",
+                    outputs=({"name": "screenURI", "type": "string"},),
+                ),
+            ),
+            [f"{manifest}: routes.entry.function must be view or pure in Example ABI: viewEntry"],
         )
 
         bad_first_outputs = [
@@ -143,7 +174,11 @@ class CamManifestResourceTest(unittest.TestCase):
                         "routes.entry",
                         "Example",
                         "viewEntry",
-                        AbiRouteFunction(input_count=1, outputs=() if first_output is None else (first_output,)),
+                        AbiRouteFunction(
+                            input_count=1,
+                            state_mutability="view",
+                            outputs=() if first_output is None else (first_output,),
+                        ),
                     )
                 )
 
@@ -156,6 +191,7 @@ class CamManifestResourceTest(unittest.TestCase):
         }
         route_function = AbiRouteFunction(
             input_count=0,
+            state_mutability="view",
             outputs=(
                 {"name": "screenURI", "type": "string"},
                 {
@@ -197,6 +233,44 @@ class CamManifestResourceTest(unittest.TestCase):
             route_function,
         )
         self.assertEqual(len(failures), 3)
+
+        screen_path = manifest.parent / "screens" / "entry.json"
+        self.assertEqual(
+            self.validator.validate_screen_document(
+                screen_path,
+                {
+                    "screen": "1.0.0",
+                    "title": "$params.serialNumber",
+                    "elements": [
+                        {"type": "text", "text": "Component"},
+                        {"type": "input", "name": "serialNumber", "label": "Serial number", "value": "$state.serialNumber"},
+                        {
+                            "type": "button",
+                            "label": "Look up",
+                            "action": {"route": "component", "params": {"serialNumber": "$state.serialNumber"}},
+                        },
+                    ],
+                },
+            ),
+            [],
+        )
+        self.assertEqual(
+            len(
+                self.validator.validate_screen_document(
+                    screen_path,
+                    {
+                        "screen": "1.0.0",
+                        "layout": {},
+                        "elements": [
+                            {"type": "html", "html": "<b>unsafe</b>"},
+                            {"type": "button", "label": "Bad", "action": {"route": "x", "contract": "Y"}},
+                            {"type": "status", "value": "$bad.root"},
+                        ],
+                    },
+                )
+            ),
+            4,
+        )
 
         self.assertEqual(
             self.validator.validate_no_orphan_abi_files(

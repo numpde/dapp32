@@ -14,6 +14,7 @@ from tools.cam_abi_plan import CamAbiPlanError, generated_abi_name
 @dataclass(frozen=True)
 class AbiRouteFunction:
     input_count: int
+    state_mutability: str | None
     outputs: tuple[object, ...]
 
     @property
@@ -36,6 +37,24 @@ class ValuesReference:
 VALUES_EXPRESSION_RE = re.compile(
     r"^\$values\.(0|[1-9][0-9]*)(\.(?:[A-Za-z][A-Za-z0-9_]*|0|[1-9][0-9]*))*$"
 )
+SCREEN_EXPRESSION_RE = re.compile(
+    r"^\$(host|account|params|state|values)(\.(?:[A-Za-z][A-Za-z0-9_]*|0|[1-9][0-9]*))*$"
+)
+SCREEN_VERSION = "1.0.0"
+SCREEN_TOP_LEVEL_KEYS = frozenset({"screen", "title", "elements"})
+SCREEN_COMMON_ELEMENT_KEYS = frozenset({"type", "visibleWhen"})
+SCREEN_ELEMENT_KEYS = {
+    "text": SCREEN_COMMON_ELEMENT_KEYS | {"text"},
+    "input": SCREEN_COMMON_ELEMENT_KEYS | {"name", "label", "value"},
+    "address": SCREEN_COMMON_ELEMENT_KEYS | {"label", "address"},
+    "button": SCREEN_COMMON_ELEMENT_KEYS | {"label", "action"},
+    "status": SCREEN_COMMON_ELEMENT_KEYS | {"label", "value"},
+    "nft": SCREEN_COMMON_ELEMENT_KEYS | {"contractAddress", "tokenId"},
+    "group": SCREEN_COMMON_ELEMENT_KEYS | {"elements"},
+}
+NAVIGATE_ACTION_KEYS = frozenset({"route", "params"})
+CONTRACT_CALL_ACTION_KEYS = frozenset({"contract", "function", "args", "onSuccess"})
+READ_ROUTE_MUTABILITY = frozenset({"view", "pure"})
 
 
 class CamManifestResourceValidator:
@@ -165,6 +184,7 @@ class CamManifestResourceValidator:
                     f"but {contract_name}.{function_name} expects {function.input_count}"
                 )
 
+            failures.extend(self.validate_route_function_mutability(manifest_path, path, contract_name, function_name, function))
             failures.extend(self.validate_route_output_shape(manifest_path, path, contract_name, function_name, function))
             failures.extend(
                 self.validate_route_screen_values_references(
@@ -176,6 +196,145 @@ class CamManifestResourceValidator:
                     function,
                 )
             )
+
+        return failures
+
+    def validate_manifest_screens(self, manifest_path: Path, _manifest: dict[str, object]) -> list[str]:
+        failures: list[str] = []
+        screen_dir = manifest_path.parent / "screens"
+        for screen_path in sorted(screen_dir.glob("*.json")) if screen_dir.is_dir() else ():
+            try:
+                screen = self.read_json_object(screen_path)
+            except AssertionError as error:
+                failures.append(str(error))
+                continue
+
+            failures.extend(self.validate_screen_document(screen_path, screen))
+
+        return failures
+
+    def validate_screen_document(self, screen_path: Path, screen: dict[str, object]) -> list[str]:
+        failures = self.validate_known_fields(screen_path, "", screen, SCREEN_TOP_LEVEL_KEYS)
+
+        version = screen.get("screen")
+        if version != SCREEN_VERSION:
+            failures.append(f"{screen_path}: screen must equal {SCREEN_VERSION!r}")
+
+        if "title" in screen:
+            failures.extend(self.validate_expression_string(screen_path, "title", screen.get("title")))
+
+        elements = screen.get("elements")
+        if not isinstance(elements, list):
+            failures.append(f"{screen_path}: elements must be an array")
+            return failures
+
+        failures.extend(self.validate_screen_elements(screen_path, "elements", elements))
+        return failures
+
+    def validate_screen_elements(self, screen_path: Path, path: str, elements: list[object]) -> list[str]:
+        failures: list[str] = []
+        for index, element in enumerate(elements):
+            failures.extend(self.validate_screen_element(screen_path, f"{path}.{index}", element))
+
+        return failures
+
+    def validate_screen_element(self, screen_path: Path, path: str, element: object) -> list[str]:
+        if not isinstance(element, dict):
+            return [f"{screen_path}: {path} must be an object"]
+
+        element_type = element.get("type")
+        if not isinstance(element_type, str) or element_type == "":
+            return [f"{screen_path}: {path}.type must be a non-empty string"]
+
+        allowed_keys = SCREEN_ELEMENT_KEYS.get(element_type)
+        if allowed_keys is None:
+            return [f"{screen_path}: {path}.type is not a known screen element type: {element_type}"]
+
+        failures = self.validate_known_fields(screen_path, path, element, allowed_keys)
+        if "visibleWhen" in element:
+            failures.extend(self.validate_expression_payload(screen_path, f"{path}.visibleWhen", element.get("visibleWhen")))
+
+        match element_type:
+            case "text":
+                failures.extend(self.validate_expression_string(screen_path, f"{path}.text", element.get("text")))
+            case "input":
+                failures.extend(self.validate_non_empty_string(screen_path, f"{path}.name", element.get("name")))
+                failures.extend(self.validate_expression_string(screen_path, f"{path}.label", element.get("label")))
+                if "value" in element:
+                    failures.extend(self.validate_expression_payload(screen_path, f"{path}.value", element.get("value")))
+            case "address":
+                if "label" in element:
+                    failures.extend(self.validate_expression_string(screen_path, f"{path}.label", element.get("label")))
+                failures.extend(self.validate_expression_string(screen_path, f"{path}.address", element.get("address")))
+            case "button":
+                failures.extend(self.validate_expression_string(screen_path, f"{path}.label", element.get("label")))
+                failures.extend(self.validate_screen_action(screen_path, f"{path}.action", element.get("action")))
+            case "status":
+                if "label" in element:
+                    failures.extend(self.validate_expression_string(screen_path, f"{path}.label", element.get("label")))
+                failures.extend(self.validate_expression_payload(screen_path, f"{path}.value", element.get("value")))
+            case "nft":
+                failures.extend(self.validate_expression_string(screen_path, f"{path}.contractAddress", element.get("contractAddress")))
+                failures.extend(self.validate_expression_payload(screen_path, f"{path}.tokenId", element.get("tokenId")))
+            case "group":
+                children = element.get("elements")
+                if isinstance(children, list):
+                    failures.extend(self.validate_screen_elements(screen_path, f"{path}.elements", children))
+                else:
+                    failures.append(f"{screen_path}: {path}.elements must be an array")
+
+        return failures
+
+    def validate_screen_action(self, screen_path: Path, path: str, action: object) -> list[str]:
+        if not isinstance(action, dict):
+            return [f"{screen_path}: {path} must be an object"]
+
+        has_route = "route" in action
+        has_contract = "contract" in action or "function" in action
+        if has_route == has_contract:
+            return [f"{screen_path}: {path} must be either navigation or contract call action"]
+
+        return (
+            self.validate_navigation_action(screen_path, path, action)
+            if has_route
+            else self.validate_contract_call_action(screen_path, path, action)
+        )
+
+    def validate_navigation_action(self, screen_path: Path, path: str, action: dict[object, object]) -> list[str]:
+        failures = self.validate_known_fields(screen_path, path, action, NAVIGATE_ACTION_KEYS)
+        failures.extend(self.validate_non_empty_string(screen_path, f"{path}.route", action.get("route")))
+
+        params = action.get("params")
+        if not isinstance(params, dict):
+            failures.append(f"{screen_path}: {path}.params must be an object")
+            return failures
+
+        for name, value in params.items():
+            if not isinstance(name, str) or name == "":
+                failures.append(f"{screen_path}: {path}.params parameter names must be non-empty strings")
+                continue
+            failures.extend(self.validate_expression_payload(screen_path, f"{path}.params.{name}", value))
+
+        return failures
+
+    def validate_contract_call_action(self, screen_path: Path, path: str, action: dict[object, object]) -> list[str]:
+        failures = self.validate_known_fields(screen_path, path, action, CONTRACT_CALL_ACTION_KEYS)
+        failures.extend(self.validate_non_empty_string(screen_path, f"{path}.contract", action.get("contract")))
+        failures.extend(self.validate_non_empty_string(screen_path, f"{path}.function", action.get("function")))
+
+        args = action.get("args")
+        if isinstance(args, list):
+            for index, arg in enumerate(args):
+                failures.extend(self.validate_expression_payload(screen_path, f"{path}.args.{index}", arg))
+        else:
+            failures.append(f"{screen_path}: {path}.args must be an array")
+
+        if "onSuccess" in action:
+            on_success = action.get("onSuccess")
+            if not isinstance(on_success, dict) or "route" not in on_success or "contract" in on_success or "function" in on_success:
+                failures.append(f"{screen_path}: {path}.onSuccess must be a navigation action")
+            else:
+                failures.extend(self.validate_navigation_action(screen_path, f"{path}.onSuccess", on_success))
 
         return failures
 
@@ -300,6 +459,22 @@ class CamManifestResourceValidator:
     def join_json_path(self, parent: str, key: str) -> str:
         return key if parent == "" else f"{parent}.{key}"
 
+    def validate_route_function_mutability(
+        self,
+        manifest_path: Path,
+        route_path: str,
+        contract_name: str,
+        function_name: str,
+        function: AbiRouteFunction,
+    ) -> list[str]:
+        if function.state_mutability in READ_ROUTE_MUTABILITY:
+            return []
+
+        return [
+            f"{manifest_path}: {route_path}.function must be view or pure in {contract_name} ABI: "
+            f"{function_name}"
+        ]
+
     def validate_route_output_shape(
         self,
         manifest_path: Path,
@@ -380,10 +555,63 @@ class CamManifestResourceValidator:
                     if name in functions_by_name
                     else AbiRouteFunction(
                         input_count=len(inputs),
+                        state_mutability=item.get("stateMutability") if isinstance(item.get("stateMutability"), str) else None,
                         outputs=tuple(outputs) if isinstance(outputs, list) else (),
                     )
                 )
         return functions_by_name
+
+    def validate_known_fields(
+        self,
+        source_path: Path,
+        path: str,
+        source: dict[object, object],
+        allowed: frozenset[str],
+    ) -> list[str]:
+        failures: list[str] = []
+        for key in source:
+            if not isinstance(key, str) or key not in allowed:
+                location = f"{path}.{key}" if path and isinstance(key, str) else path
+                failures.append(f"{source_path}: {location} field is not allowed in screen {SCREEN_VERSION}: {key}")
+
+        return failures
+
+    def validate_non_empty_string(self, source_path: Path, path: str, value: object) -> list[str]:
+        return [] if isinstance(value, str) and value != "" else [f"{source_path}: {path} must be a non-empty string"]
+
+    def validate_expression_string(self, source_path: Path, path: str, value: object) -> list[str]:
+        failures = self.validate_non_empty_string(source_path, path, value)
+        if not failures and isinstance(value, str):
+            failures.extend(self.validate_expression_syntax(source_path, path, value))
+
+        return failures
+
+    def validate_expression_payload(self, source_path: Path, path: str, value: object) -> list[str]:
+        if isinstance(value, str):
+            return self.validate_expression_syntax(source_path, path, value)
+        if isinstance(value, list):
+            failures: list[str] = []
+            for index, item in enumerate(value):
+                failures.extend(self.validate_expression_payload(source_path, f"{path}.{index}", item))
+            return failures
+        if isinstance(value, dict):
+            failures = []
+            for key, item in value.items():
+                if not isinstance(key, str) or key == "":
+                    failures.append(f"{source_path}: {path} object keys must be non-empty strings")
+                    continue
+                failures.extend(self.validate_expression_payload(source_path, f"{path}.{key}", item))
+            return failures
+        if value is None or isinstance(value, (bool, int, float)):
+            return []
+
+        return [f"{source_path}: {path} must be a JSON value"]
+
+    def validate_expression_syntax(self, source_path: Path, path: str, value: str) -> list[str]:
+        if not value.startswith("$") or SCREEN_EXPRESSION_RE.match(value):
+            return []
+
+        return [f"{source_path}: {path} has invalid screen expression: {value}"]
 
     def validate_no_orphan_abi_files(
         self,
