@@ -1,5 +1,4 @@
 export type {
-  CamViewerAccount,
   CamViewerActionResult,
   CamViewerSession,
   CamViewerSnapshot,
