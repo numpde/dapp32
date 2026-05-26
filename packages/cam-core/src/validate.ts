@@ -1,5 +1,5 @@
 import { CamError } from "./errors.ts"
-import { validateExpressionValue } from "./expressions.ts"
+import { parseExpressionPayload } from "./expressions.ts"
 import {
   requiredArray,
   requiredNonEmptyString,
@@ -7,10 +7,8 @@ import {
   rejectUnknownFields,
 } from "./guards.ts"
 import { createStringMap, hasOwn } from "./internal/json.ts"
-import { toInertValue } from "./inert-value.ts"
 import { CAM_VERSION } from "./constants.ts"
 import type { CamContract, CamDocument, CamRoute } from "./types.ts"
-import type { InertValue } from "./inert-value.ts"
 
 const TOP_LEVEL_KEYS = new Set(["cam", "entry", "contracts", "routes"])
 const CONTRACT_KEYS = new Set(["abiURI"])
@@ -87,12 +85,11 @@ function parseRoutes(
 
     const functionName = requiredNonEmptyString(route.function, `${path}.function`)
     const args = requiredArray(route.args, `${path}.args`)
-    validateExpressionValue(args, `${path}.args`)
 
     routes[name] = {
       contract,
       function: functionName,
-      args: args.map((arg): InertValue => toInertValue(arg)),
+      args: args.map((arg, index) => parseExpressionPayload(arg, `${path}.args.${index}`)),
     }
   }
 

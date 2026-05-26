@@ -61,6 +61,19 @@ export function validateExpressionValue(value: unknown, path: string): void {
   validateJsonLiteral(value, path)
 }
 
+export function parseExpressionPayload(value: unknown, path: string): InertValue {
+  validateExpressionValue(value, path)
+  try {
+    return toInertValue(value)
+  } catch (error) {
+    if (error instanceof CamError) {
+      throw new CamError(error.code, error.message, error.path === undefined ? path : `${path}.${error.path}`)
+    }
+
+    throw error
+  }
+}
+
 function validateJsonLiteral(value: unknown, path: string): void {
   // CAM manifests may be supplied as already-parsed objects, so reject values
   // that JSON itself could not carry. That keeps route args portable across
