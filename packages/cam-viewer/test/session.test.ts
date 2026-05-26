@@ -3,7 +3,6 @@ import test from "node:test"
 import { TextEncoder } from "node:util"
 
 import { CamEvmError } from "@cam/evm-viem"
-import { toInertValue } from "@cam/core"
 import type { InertValue } from "@cam/core"
 
 import * as camViewer from "../src/index.ts"
@@ -65,11 +64,11 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
   assert.equal(snapshot.screenURI, entryScreenURI)
   assert.equal(snapshot.resolvedScreen?.title, "Entry")
   assert.deepEqual(snapshot.values, [
-    toInertValue({
+    {
       account: userAddress,
       canRegister: true,
       accountInfo: "Mock registrar account",
-    }),
+    },
   ])
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
     "camURI",
@@ -176,12 +175,12 @@ test("setState re-resolves current screen actions with updated state", async () 
     serialNumber: BIKE_SERIAL_NUMBER,
   })
 
-  assert.deepEqual(snapshot.resolvedScreen?.elements[0], toInertValue({
+  assert.deepEqual(snapshot.resolvedScreen?.elements[0], {
     type: "input",
     name: "serialNumber",
     label: "Serial number",
-  }))
-  assert.deepEqual(snapshot.resolvedScreen?.elements[1], toInertValue({
+  })
+  assert.deepEqual(snapshot.resolvedScreen?.elements[1], {
     type: "button",
     label: "Look up",
     action: {
@@ -190,7 +189,7 @@ test("setState re-resolves current screen actions with updated state", async () 
         serialNumber: BIKE_SERIAL_NUMBER,
       },
     },
-  }))
+  })
 })
 
 test("snapshot returns isolated copies of nested route and resolved screen data", async () => {

@@ -43,8 +43,8 @@ export function createCamViewerSession({
 }: CreateCamViewerSessionOptions): CamViewerSession {
   let loadedState: CamViewerLoadedState | undefined
   let route: string | undefined
-  let params = cloneRecord(initialParams, "params")
-  let state = cloneRecord(initialState, "state")
+  let params = cloneViewerData<Record<string, InertValue>>(initialParams, "params")
+  let state = cloneViewerData<Record<string, InertValue>>(initialState, "state")
   let account = initialAccount === undefined ? undefined : cloneAccount(initialAccount)
   let screenURI: string | undefined
   let screen: ScreenDocument | undefined
@@ -54,14 +54,14 @@ export function createCamViewerSession({
   function snapshot(): CamViewerSnapshot {
     return {
       ...(route === undefined ? {} : { route }),
-      params: cloneRecord(params, "params"),
-      state: cloneRecord(state, "state"),
+      params: cloneViewerData<Record<string, InertValue>>(params, "params"),
+      state: cloneViewerData<Record<string, InertValue>>(state, "state"),
       ...(account === undefined ? {} : { account: cloneAccount(account) }),
       ...(screenURI === undefined ? {} : { screenURI }),
       ...(resolvedScreen === undefined
         ? {}
-        : { resolvedScreen: cloneSnapshotData(resolvedScreen, "resolvedScreen") }),
-      ...(values === undefined ? {} : { values: cloneArray(values, "values") }),
+        : { resolvedScreen: cloneViewerData<ResolvedScreen>(resolvedScreen, "resolvedScreen") }),
+      ...(values === undefined ? {} : { values: cloneViewerData<readonly InertValue[]>(values, "values") }),
     }
   }
 
@@ -110,7 +110,7 @@ export function createCamViewerSession({
   function setState(patch: Record<string, InertValue>): CamViewerSnapshot {
     state = {
       ...state,
-      ...cloneRecord(patch, "state"),
+      ...cloneViewerData<Record<string, InertValue>>(patch, "state"),
     }
 
     if (screen !== undefined && values !== undefined) {
@@ -151,7 +151,7 @@ export function createCamViewerSession({
     nextParams: Record<string, InertValue>,
   ): Promise<CamViewerSnapshot> {
     const current = assertLoaded()
-    const routeParams = cloneRecord(nextParams, "params")
+    const routeParams = cloneViewerData<Record<string, InertValue>>(nextParams, "params")
 
     const routeResult = await callCamRoute({
       publicClient,
@@ -232,31 +232,9 @@ function cloneAccount(source: CamViewerAccount): CamViewerAccount {
   return { address: source.address }
 }
 
-function cloneRecord(source: Record<string, InertValue>, path: string): Record<string, InertValue> {
-  return Object.fromEntries(
-    Object.entries(source).map(([key, value]) => [key, cloneViewerInertValue(value, `${path}.${key}`)]),
-  )
-}
-
-function cloneArray(source: readonly InertValue[], path: string): readonly InertValue[] {
-  return source.map((value, index) => cloneViewerInertValue(value, `${path}.${index}`))
-}
-
-function cloneViewerInertValue(value: InertValue, path: string): InertValue {
+function cloneViewerData<T>(value: T, path: string): T {
   try {
-    return toInertValue(value)
-  } catch (cause) {
-    throw new CamViewerError(
-      "CAM_VIEWER_INVALID_SNAPSHOT",
-      `CAM viewer data is not safely cloneable: ${path}`,
-      { cause },
-    )
-  }
-}
-
-function cloneSnapshotData<T>(value: T, path: string): T {
-  try {
-    return toInertValue(value) as T
+    return structuredClone(toInertValue(value)) as T
   } catch (cause) {
     throw new CamViewerError(
       "CAM_VIEWER_INVALID_SNAPSHOT",
