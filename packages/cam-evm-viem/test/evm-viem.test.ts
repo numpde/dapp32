@@ -1,7 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { parseCam, toInertValue } from "@cam/core"
+import { parseCam } from "@cam/core"
+import { toInertValue } from "@cam/protocol"
 import type { Abi, Address, Hex } from "viem"
 
 import * as camEvmViem from "../src/index.ts"

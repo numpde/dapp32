@@ -1,4 +1,5 @@
-import type { InertRecord, InertValue } from "./inert-value.ts"
+import type { CamRuntimeContext, InertValue } from "@cam/protocol"
+export type { CamRuntimeContext } from "@cam/protocol"
 
 export type CamDocument = {
   readonly cam: string
@@ -15,17 +16,6 @@ export type CamRoute = {
   readonly contract: string
   readonly function: string
   readonly args: readonly InertValue[]
-}
-
-export type CamRuntimeContext = {
-  readonly host: {
-    readonly chainId: string
-    readonly address: string
-  }
-  readonly account?: {
-    readonly address: string
-  }
-  readonly params: InertRecord
 }
 
 export type CamRouteCall = {

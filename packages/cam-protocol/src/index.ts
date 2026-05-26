@@ -16,6 +16,10 @@ export type {
   InertValue,
 } from "./inert-value.ts"
 
+export type {
+  CamRuntimeContext,
+} from "./runtime-context.ts"
+
 export {
   createJsonGuards,
   createStringMap,

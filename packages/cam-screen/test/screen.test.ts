@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { toInertValue } from "@cam/core"
-import type { InertValue } from "@cam/core"
+import { toInertValue } from "@cam/protocol"
+import type { InertValue } from "@cam/protocol"
 import * as camScreen from "../src/index.ts"
 import {
   parseScreen,

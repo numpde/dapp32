@@ -19,7 +19,6 @@
     "test": "npm run typecheck && node --test --experimental-strip-types test/*.test.ts"
   },
   "dependencies": {
-    "@cam/core": "0.1.0",
     "@cam/protocol": "0.1.0"
   }
 }

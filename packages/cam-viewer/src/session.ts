@@ -7,8 +7,8 @@ import {
   parseJsonBytes,
   toInertValue,
 } from "@cam/protocol"
-import type { CamDocument, CamRuntimeContext } from "@cam/core"
-import type { InertRecord, InertValue } from "@cam/protocol"
+import type { CamDocument } from "@cam/core"
+import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 import {
   parseScreen,
   resolveScreen,

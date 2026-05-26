@@ -2,8 +2,8 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { CamEvmError } from "@cam/evm-viem"
-import { toInertValue } from "@cam/core"
-import type { InertValue } from "@cam/core"
+import { toInertValue } from "@cam/protocol"
+import type { InertValue } from "@cam/protocol"
 
 import * as camViewer from "../src/index.ts"
 import {
