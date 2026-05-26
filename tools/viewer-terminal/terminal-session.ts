@@ -5,10 +5,12 @@ import { fileURLToPath } from "node:url"
 
 import type {
   Address,
-  Hex,
   PublicClient,
 } from "viem"
 
+import {
+  ZERO_HASH,
+} from "../../packages/cam-evm-viem/dist/index.js"
 import {
   createCamViewerSession,
 } from "../../packages/cam-viewer/dist/index.js"
@@ -36,7 +38,6 @@ import {
 
 type ResolvedButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
 
-const ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000" as const
 const MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
 const MOCK_CAM_URI = new URL("main.json", MOCK_CAM_BASE_URI).href
 
@@ -307,7 +308,7 @@ function mockReadContract(functionName: string, args: readonly InertValue[]): In
     case "camURI":
       return MOCK_CAM_URI
     case "camHash":
-      return ZERO_HASH satisfies Hex
+      return ZERO_HASH
     case "contractAddress":
       // TODO(silent-defaults): this mock turns a missing contract-name arg into
       // "". Real readContract calls should fail loudly on malformed args.
