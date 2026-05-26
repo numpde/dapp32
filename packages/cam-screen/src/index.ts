@@ -1,10 +1,6 @@
 export type {
-  AddressElement,
-  ButtonElement,
   ContractCallAction,
-  InputElement,
   NavigateAction,
-  NftElement,
   ResolvedScreen,
   ResolvedScreenAction,
   ResolvedScreenElement,
@@ -12,8 +8,6 @@ export type {
   ScreenDocument,
   ScreenElement,
   ScreenRuntimeContext,
-  StatusElement,
-  TextElement,
 } from "./types.ts"
 
 export { ScreenError } from "./errors.ts"
