@@ -10,21 +10,21 @@ def service(config: dict[str, Any], name: str) -> dict[str, Any]:
     return config["services"][name]
 
 
-def optional_mapping(config_service: dict[str, Any], field: str) -> dict[str, Any]:
-    # TODO(silent-defaults): use this only for absence checks, where a missing
-    # rendered Compose mapping means "nothing to reject". Required mappings
-    # should be read with direct key access so missing posture fails loudly.
+def mapping_or_empty(config_service: dict[str, Any], field: str) -> dict[str, Any]:
     value = config_service.get(field, {})
     if not isinstance(value, dict):
         raise AssertionError(f"{field} must render as a mapping")
     return value
 
 
-def optional_sequence(config_service: dict[str, Any], field: str) -> list[Any]:
-    # TODO(silent-defaults): use this only for membership/sweep assertions,
-    # where an omitted rendered Compose list should fail as a missing expected
-    # item or produce no broad-sweep findings. Exact posture should use direct
-    # key access.
+def sequence(config_service: dict[str, Any], field: str) -> list[Any]:
+    value = config_service[field]
+    if not isinstance(value, list):
+        raise AssertionError(f"{field} must render as a list")
+    return value
+
+
+def sequence_or_empty(config_service: dict[str, Any], field: str) -> list[Any]:
     value = config_service.get(field, [])
     if not isinstance(value, list):
         raise AssertionError(f"{field} must render as a list")
@@ -32,14 +32,11 @@ def optional_sequence(config_service: dict[str, Any], field: str) -> list[Any]:
 
 
 def command_text(config_service: dict[str, Any]) -> str:
-    return " ".join(str(item) for item in optional_sequence(config_service, "command"))
+    return " ".join(str(item) for item in sequence(config_service, "command"))
 
 
 def volume_for(config_service: dict[str, Any], target: str) -> dict[str, Any]:
-    # TODO(silent-defaults): missing volumes are treated as an empty list for
-    # concise lookup failure. This helper raises below, so absent volumes still
-    # fail the caller as "missing volume target".
-    for volume in optional_sequence(config_service, "volumes"):
+    for volume in sequence(config_service, "volumes"):
         if volume["target"] == target:
             return volume
     raise AssertionError(f"missing volume target: {target}")
@@ -47,10 +44,10 @@ def volume_for(config_service: dict[str, Any], target: str) -> dict[str, Any]:
 
 class RenderedComposePostureTest(unittest.TestCase):
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
-        self.assertEqual(True, config_service.get("read_only"))
-        self.assertIn("no-new-privileges:true", optional_sequence(config_service, "security_opt"))
-        self.assertEqual(["ALL"], config_service.get("cap_drop"))
-        self.assertNotEqual("0:0", config_service.get("user"))
+        self.assertEqual(True, config_service["read_only"])
+        self.assertIn("no-new-privileges:true", sequence(config_service, "security_opt"))
+        self.assertEqual(["ALL"], config_service["cap_drop"])
+        self.assertNotEqual("0:0", config_service["user"])
         self.assertIn("pids_limit", config_service)
         self.assertIn("mem_limit", config_service)
 
@@ -75,7 +72,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         repo_mount = volume_for(deploy, "/work")
         self.assertEqual(True, repo_mount.get("read_only"))
-        self.assertNotIn("PRIVATE_KEY", optional_mapping(deploy, "environment"))
+        self.assertNotIn("PRIVATE_KEY", mapping_or_empty(deploy, "environment"))
         self.assertEqual("/tmp/bike-nft-private-key", config["secrets"]["bike_nft_private_key"]["file"])
         source_text = read_text(repo_path("compose/bike-nft-local.yml"))
         self.assertIn('export PRIVATE_KEY="$(cat /run/secrets/bike_nft_private_key)"', source_text)
@@ -157,7 +154,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 },
             )
             for service_name, config_service in config["services"].items():
-                for volume in optional_sequence(config_service, "volumes"):
+                for volume in sequence_or_empty(config_service, "volumes"):
                     # TODO(silent-defaults): rendered bind mounts without an
                     # explicit read_only flag are Docker-writable by default,
                     # so missing read_only is intentionally classified here as
@@ -177,8 +174,8 @@ class RenderedComposePostureTest(unittest.TestCase):
         for config_service in [verify, build, test]:
             self.assert_hardened(config_service)
             self.assertEqual("none", config_service.get("network_mode"))
-            self.assertNotIn("HTTP_PROXY", optional_mapping(config_service, "environment"))
-            self.assertNotIn("HTTPS_PROXY", optional_mapping(config_service, "environment"))
+            self.assertNotIn("HTTP_PROXY", mapping_or_empty(config_service, "environment"))
+            self.assertNotIn("HTTPS_PROXY", mapping_or_empty(config_service, "environment"))
 
         self.assertEqual("/work/packages", verify.get("working_dir"))
         self.assertEqual("/work/packages", build.get("working_dir"))
@@ -188,7 +185,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             self.assertEqual(True, volume_for(config_service, "/work/packages/node_modules").get("read_only"))
             self.assertIn(
                 "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
-                optional_sequence(config_service, "tmpfs"),
+                sequence(config_service, "tmpfs"),
             )
             command = command_text(config_service)
             self.assertIn("stage-package-workspace /input/packages /work/packages", command)
@@ -228,11 +225,11 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual(True, volume_for(check, "/work/packages/node_modules").get("read_only"))
         self.assertIn(
             "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
-            optional_sequence(viewer, "tmpfs"),
+            sequence(viewer, "tmpfs"),
         )
         self.assertIn(
             "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
-            optional_sequence(check, "tmpfs"),
+            sequence(check, "tmpfs"),
         )
         self.assertIn("stage-package-workspace /input/packages /work/packages", viewer_command)
         self.assertIn("stage-package-workspace /input/packages /work/packages", check_command)
