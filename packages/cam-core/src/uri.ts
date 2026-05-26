@@ -32,7 +32,7 @@ export function resolveResourceURI(baseURI: string, resourceURI: string): string
   const [resourcePath, resourceSuffix] = splitSuffix(resourceURI)
   const hierarchical = HIERARCHICAL_URI_RE.exec(baseWithoutQuery)
   if (hierarchical !== null) {
-    const [, prefix, basePath = ""] = hierarchical
+    const [, prefix, basePath] = hierarchical
     const baseDirectory = directoryOf(basePath || "/")
     const resolvedPath = normalizePath(resourcePath.startsWith("/") ? resourcePath : `${baseDirectory}${resourcePath}`)
     return `${prefix}${resolvedPath}${resourceSuffix}`
