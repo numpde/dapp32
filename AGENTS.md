@@ -84,8 +84,10 @@ Keep the project small, explicit, and protocol-first.
 - `package-ci` is a Make aggregation over package tests and package-backed tool
   checks. Do not duplicate a tool's smoke command inside `compose/packages.yml`;
   run the tool's own Compose check service instead.
-- ABI export must keep `dapps/` read-only and mount only explicit, pre-existing
-  `dapps/<name>/cam/abi/` directories writable.
+- ABI export must parse CAM manifests structurally, write a temporary export
+  plan outside the repo, then run Forge from that plan. It must keep `dapps/`
+  read-only and mount only explicit, pre-existing `dapps/<name>/cam/abi/`
+  directories writable.
 - CAM ABI files are generated resources whose source of truth is
   `dapps/<name>/cam/main.json`. `contracts.*.abiURI` must point directly to
   `cam/abi/<ContractName>.json`; unused `cam/abi/*.json` files are repository

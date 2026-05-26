@@ -100,6 +100,7 @@ def rendered_compose_config(compose_file: str, *, env: dict[str, str] | None = N
         {
             "LOCAL_UID": "1000",
             "LOCAL_GID": "1000",
+            "ABI_PLAN_DIR": "/tmp/abi-plan",
             "COMPOSE_PROJECT_NAME": "dapps-check",
         }
     )

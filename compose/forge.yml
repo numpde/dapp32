@@ -12,12 +12,7 @@
 # Keep ordinary source checks here. Split a service into another compose file
 # only when it needs a different trust boundary, such as RPC, browser access,
 # a writable mount, or a published port.
-x-forge-base: &forge_base
-  # All Forge check services use the repo-owned Foundry image definition in
-  # containers/foundry/Dockerfile. Compose owns runtime confinement below.
-  build:
-    context: ../containers/foundry
-    dockerfile: Dockerfile
+x-offline-hardened: &offline_hardened
   working_dir: /work/dapps
   user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
   read_only: true
@@ -37,6 +32,14 @@ x-forge-base: &forge_base
     FOUNDRY_BROADCAST: /tmp/foundry-broadcast
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=512m
+
+x-forge-base: &forge_base
+  <<: *offline_hardened
+  # All Forge check services use the repo-owned Foundry image definition in
+  # containers/foundry/Dockerfile. Compose owns runtime confinement above.
+  build:
+    context: ../containers/foundry
+    dockerfile: Dockerfile
   volumes:
     - ..:/work:ro
 
@@ -104,16 +107,35 @@ services:
         fi
         forge build --offline "$@"
 
+  # ABI export is split into a structured manifest-planning step and a Forge
+  # materialization step. Keep JSON parsing in Python instead of scraping CAM
+  # manifests with sed/awk inside the Forge shell.
+  forge-abi-plan:
+    <<: *offline_hardened
+    build:
+      context: ../containers/checks
+      dockerfile: Dockerfile
+    working_dir: /work
+    volumes:
+      - ../dapps:/work/dapps:ro
+      - ../tools/forge-abi-plan.py:/work/tools/forge-abi-plan.py:ro
+      - ${ABI_PLAN_DIR:?missing_ABI_PLAN_DIR}:/work/abi-plan:rw
+    command:
+      - "-I"
+      - "-B"
+      - "/work/tools/forge-abi-plan.py"
+      - "/work/dapps"
+      - "/work/abi-plan/manifest.tsv"
+
   # ABI export is the one routine Forge lane that writes into the dapp tree.
-  # Only dapps that already have src/, cam/main.json, and cam/abi/ participate.
-  # The CAM manifest is the source of truth: contracts.*.abiURI declares the ABI
-  # files that should exist, and no other cam/abi/*.json files are preserved.
-  # Outputs are staged in tmpfs first so a failed inspection does not erase the
-  # last good ABI set. Keep dapps/ read-only and mount each generated abi/
-  # directory as the only writable host path.
+  # Only dapps listed by forge-abi-plan participate. Outputs are staged in
+  # tmpfs first so a failed inspection does not erase the last good ABI set.
+  # Keep dapps/ read-only and mount each generated abi/ directory as the only
+  # writable host path.
   forge-abi:
     <<: *forge_base
     volumes:
+      - ${ABI_PLAN_DIR:?missing_ABI_PLAN_DIR}:/work/abi-plan:ro
       - ../dapps:/work/dapps:ro
       - ../dapps/bike-nft/cam/abi:/work/dapps/bike-nft/cam/abi:rw
     command:
@@ -121,57 +143,40 @@ services:
       - "-eu"
       - "-c"
       - |
-        found=0
+        plan="/work/abi-plan/manifest.tsv"
+        if [ ! -s "$$plan" ]; then
+          printf '%s\n' 'forge-abi: missing ABI export plan; run forge-abi-plan first' >&2
+          exit 2
+        fi
 
-        for dapp in *; do
-          if [ ! -d "$$dapp/src" ] || [ ! -f "$$dapp/cam/main.json" ]; then
-            continue
+        staged_root="$$(mktemp -d)"
+
+        while IFS="	" read -r dapp contract abi_name; do
+          if [ -z "$$dapp" ] || [ -z "$$contract" ] || [ -z "$$abi_name" ]; then
+            printf 'forge-abi: invalid ABI export plan row: %s %s %s\n' "$$dapp" "$$contract" "$$abi_name" >&2
+            exit 2
           fi
-
-          found=1
           abi_dir="$$dapp/cam/abi"
           if [ ! -d "$$abi_dir" ]; then
             printf 'forge-abi: %s must exist before ABI export; do not let Docker create bind targets\n' "$$abi_dir" >&2
             exit 2
           fi
-          staged_dir="$$(mktemp -d)"
-          generated=0
 
-          abi_names="$$(sed -nE 's/^[[:space:]]*"abiURI"[[:space:]]*:[[:space:]]*"\.\/abi\/([A-Za-z_][A-Za-z0-9_]*\.json)"[[:space:]]*,?[[:space:]]*$$/\1/p' "$$dapp/cam/main.json" | sort -u)"
-          if [ -z "$$abi_names" ]; then
-            printf 'forge-abi: %s declares no local ./abi/*.json contract ABI URIs\n' "$$dapp/cam/main.json" >&2
-            exit 2
+          mkdir -p "$$staged_root/$$dapp"
+          forge inspect --json "$$contract" abi > "$$staged_root/$$dapp/$$abi_name"
+        done < "$$plan"
+
+        while IFS="	" read -r dapp contract abi_name; do
+          abi_dir="$$dapp/cam/abi"
+
+          if [ ! -e "$$staged_root/$$dapp/.cleared" ]; then
+            touch "$$staged_root/$$dapp/.cleared"
+            find "$$abi_dir" -maxdepth 1 -type f -name '*.json' -delete
           fi
 
-          for abi_name in $$abi_names; do
-            contract="$${abi_name%.json}"
-            source="$$dapp/src/$$contract.sol"
-            if [ ! -f "$$source" ]; then
-              printf 'forge-abi: %s references %s, but %s is missing\n' "$$dapp/cam/main.json" "$$abi_name" "$$source" >&2
-              exit 2
-            fi
-
-            forge inspect --json "$$source:$$contract" abi > "$$staged_dir/$$contract.json"
-            generated=1
-          done
-
-          if [ "$$generated" -eq 0 ]; then
-            printf 'forge-abi: no manifest-declared ABI files were generated for %s\n' "$$dapp" >&2
-            exit 2
-          fi
-
-          find "$$abi_dir" -maxdepth 1 -type f -name '*.json' -delete
-          for abi in "$$staged_dir"/*.json; do
-            abi_name="$$(basename "$$abi")"
-            mv "$$abi" "$$abi_dir/$$abi_name"
-            printf 'forge-abi: wrote %s\n' "$$abi_dir/$$abi_name"
-          done
-        done
-
-        if [ "$$found" -eq 0 ]; then
-          printf '%s\n' 'forge-abi: no dapps with src/ and cam/main.json found' >&2
-          exit 2
-        fi
+          mv "$$staged_root/$$dapp/$$abi_name" "$$abi_dir/$$abi_name"
+          printf 'forge-abi: wrote %s\n' "$$abi_dir/$$abi_name"
+        done < "$$plan"
 
   # Routine unit tests for every dapp. Repository/source hygiene checks live in
   # tests/checks and are wired through `make test` before this Forge lane runs.

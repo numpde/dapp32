@@ -347,6 +347,10 @@ class ComposePostureTest(unittest.TestCase):
     def test_forge_abi_has_explicit_writable_abi_mounts_only(self) -> None:
         text = read_text(repo_path("compose/forge.yml"))
 
+        self.assertIn("forge-abi-plan:", text)
+        self.assertIn("/work/tools/forge-abi-plan.py", text)
+        self.assertNotIn("sed -nE", text)
+        self.assertNotIn("src/$$contract.sol", text)
         self.assertIn("../dapps:/work/dapps:ro", text)
         self.assertNotIn("../dapps:/work/dapps:rw", text)
         self.assertNotIn("mkdir -p \"$$abi_dir\"", text)

@@ -312,7 +312,18 @@ script-build: deps-verify
 	$(call compose_run,forge.yml,forge-script-build)
 
 abi: deps-verify
-	$(call compose_run,forge.yml,forge-abi)
+	@$(NON_ROOT_GUARD); \
+	abi_plan_dir="$$(mktemp -d)"; \
+	chmod 0700 "$$abi_plan_dir"; \
+	cleanup() { \
+	  status="$$?"; \
+	  $(COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/forge.yml $(COMPOSE_DOWN_CLEANUP); \
+	  rm -rf "$$abi_plan_dir"; \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/forge.yml run --build --rm forge-abi-plan; \
+	$(COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/forge.yml run --build --rm forge-abi
 
 test: deps-verify checks
 	$(call compose_run,forge.yml,forge-test)

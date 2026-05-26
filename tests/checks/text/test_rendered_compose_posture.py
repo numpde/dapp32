@@ -100,6 +100,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
+            ("compose/forge.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
             ("compose/deps.yml", "soldeer-apply-locked", str(repo_path("dapps/dependencies")), "/work/dependencies"),
             ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/dependencies")), "/work/dependencies"),
             ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/soldeer.lock")), "/work/soldeer.lock"),
