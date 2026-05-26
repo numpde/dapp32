@@ -3,10 +3,10 @@ import test from "node:test"
 
 import {
   parseScreen,
-  resolveAction,
   resolveScreen,
   ScreenError,
 } from "../src/index.ts"
+import { resolveAction } from "../src/actions.ts"
 import type { ScreenAction, ScreenRuntimeContext } from "../src/index.ts"
 
 const context: ScreenRuntimeContext = {

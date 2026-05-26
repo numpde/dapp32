@@ -21,4 +21,3 @@ export type { ScreenErrorCode } from "./errors.ts"
 
 export { parseScreen } from "./validate.ts"
 export { resolveScreen } from "./resolve.ts"
-export { resolveAction } from "./actions.ts"
