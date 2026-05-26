@@ -318,6 +318,9 @@ test("load leaves route call failures as EVM adapter errors", async () => {
 })
 
 function createSession({
+  // TODO(silent-defaults): this helper builds a complete happy-path session by
+  // default. Tests for missing resources or client behavior should pass the
+  // dependency explicitly so the fixture does not hide setup.
   publicClient = createPublicClient(),
   resources = {},
 }: {
@@ -341,6 +344,9 @@ function createSession({
 }
 
 function createPublicClient({
+  // TODO(silent-defaults): these are viewer test defaults, not protocol
+  // defaults. Override them in tests where hash, binding, or route output
+  // behavior is under scrutiny.
   camHash = ZERO_HASH,
   addresses = bikeContractAddresses,
   routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER),
@@ -379,6 +385,10 @@ function createPublicClient({
       }
 
       if (request.functionName === "contractAddress") {
+        // TODO(silent-defaults): missing contract-name args become address(0)
+        // in this fake. Real contract reads should fail before this point.
+        // This default should disappear when mocked contract reads are typed
+        // tightly enough to require their expected arguments.
         const [name] = request.args ?? []
         return typeof name === "string" && addresses[name] !== undefined
           ? addresses[name]

@@ -245,6 +245,9 @@ function renderElement(
       output.write(`\n${element.text}\n`)
       return
     case "input":
+      // TODO(silent-defaults): this render fallback collapses missing state,
+      // missing default value, and an intentional empty string. A real renderer
+      // should distinguish those states.
       output.write(`${element.label}: ${formatValue(snapshot.state[element.name] ?? element.value ?? "")}\n`)
       return
     case "address":
@@ -276,6 +279,8 @@ function createMockPublicClient(events: DebugEvent[]): PublicClient {
       // keep the shape aligned with the future inert route-call argument type.
       readonly args?: readonly unknown[]
     }): Promise<unknown> {
+      // TODO(silent-defaults): optional args come from the broad viem shape, but
+      // CAM route calls should know whether a function expected arguments.
       const args = request.args ?? []
       const result = mockReadContract(request.functionName, args)
       events.push({
@@ -300,12 +305,21 @@ function mockReadContract(functionName: string, args: readonly unknown[]): unkno
     case "camHash":
       return ZERO_HASH satisfies Hex
     case "contractAddress":
+      // TODO(silent-defaults): this mock turns a missing contract-name arg into
+      // "". Real readContract calls should fail loudly on malformed args.
       return contractAddress(String(args[0] ?? ""))
     case BIKE_VIEW_ENTRY:
+      // TODO(silent-defaults): this fallback makes manual terminal use easy,
+      // but it can mask a broken route arg resolver in the debug harness.
       return bikeEntryRouteResult(String(args[0] ?? USER_ADDRESS))
     case BIKE_VIEW_COMPONENT:
+      // TODO(silent-defaults): an absent serial number currently becomes the
+      // empty component route. That should be explicit if this grows beyond a
+      // mock terminal.
       return bikeComponentRouteResult(String(args[0] ?? ""))
     case BIKE_VIEW_REGISTER:
+      // TODO(silent-defaults): same empty-serial fallback as component; keep it
+      // visible because real viewers should pass explicit route params.
       return bikeRegisterRouteResult(String(args[0] ?? ""))
     default:
       throw new Error(`unexpected readContract call: ${functionName}`)
@@ -381,6 +395,8 @@ function printPromptContext(snapshot: CamViewerSnapshot): void {
 }
 
 function printValues(snapshot: CamViewerSnapshot): void {
+  // TODO(silent-defaults): printing [] for an unloaded route is convenient, but
+  // it hides the difference between "no values yet" and "route returned none".
   output.write(`${JSON.stringify(snapshot.values ?? [], jsonReplacer, 2)}\n`)
 }
 

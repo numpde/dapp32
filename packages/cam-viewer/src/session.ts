@@ -29,6 +29,9 @@ export function createCamViewerSession({
   host,
   loadResource,
   account: initialAccount,
+  // TODO(silent-defaults): empty params/state are convenient for the entry
+  // route, but they also hide whether the host intentionally supplied context.
+  // Consider requiring explicit params/state once route schemas exist.
   params: initialParams = {},
   state: initialState = {},
 }: CreateCamViewerSessionOptions): CamViewerSession {
@@ -83,6 +86,9 @@ export function createCamViewerSession({
   }
 
   async function navigate(nextRoute: string, nextParams: Record<string, unknown> = params): Promise<CamViewerSnapshot> {
+    // TODO(silent-defaults): defaulting to the current params makes route
+    // changes concise, but can accidentally carry stale params across routes.
+    // Revisit when route params are explicit protocol data.
     assertLoaded()
     return await navigateLoaded(nextRoute, nextParams)
   }
@@ -275,6 +281,9 @@ function seedInputElementState(element: ScreenElement, state: Record<string, unk
     return
   }
 
+  // TODO(silent-defaults): defaulting unresolved input values to "" is UI
+  // behavior embedded in the headless session. A renderer-owned state layer may
+  // be the better place for this default.
   state[element.name] = typeof element.value === "string" && !element.value.startsWith("$")
     ? element.value
     : ""
