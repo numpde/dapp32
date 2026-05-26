@@ -21,37 +21,37 @@
     {
       "type": "status",
       "label": "Serial number",
-      "value": "$values.1.serialNumber"
+      "value": "$values.0.serialNumber"
     },
     {
       "type": "status",
       "label": "Connected account can register",
-      "value": "$values.1.canRegister"
+      "value": "$values.0.canRegister"
     },
     {
       "type": "status",
       "label": "Component already exists",
-      "value": "$values.1.exists"
+      "value": "$values.0.exists"
     },
     {
       "type": "address",
       "label": "Default component contract",
-      "address": "$values.1.defaultComponents"
+      "address": "$values.0.defaultComponents"
     },
     {
       "type": "status",
       "label": "Serial hash",
-      "value": "$values.1.serialHash"
+      "value": "$values.0.serialHash"
     },
     {
       "type": "status",
       "label": "Token ID",
-      "value": "$values.1.tokenId"
+      "value": "$values.0.tokenId"
     },
     {
       "type": "status",
       "label": "Account info",
-      "value": "$values.1.accountInfo"
+      "value": "$values.0.accountInfo"
     },
     {
       "type": "button",

@@ -50,7 +50,7 @@ export async function callCamRoute({
 
   return {
     screenURI: resolveResourceURI(camURI, screenURI),
-    values: normalizeRouteValues(values, route),
+    values: normalizeRouteValues(values.slice(1), route),
   }
 }
 

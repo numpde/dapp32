@@ -14,7 +14,7 @@
     {
       "type": "status",
       "label": "Can register components",
-      "value": "$values.1.canRegister"
+      "value": "$values.0.canRegister"
     },
     {
       "type": "input",

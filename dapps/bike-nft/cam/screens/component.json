@@ -21,67 +21,67 @@
     {
       "type": "status",
       "label": "Current serial number",
-      "value": "$values.1.serialNumber"
+      "value": "$values.0.serialNumber"
     },
     {
       "type": "status",
       "label": "Registered",
-      "value": "$values.1.exists"
+      "value": "$values.0.exists"
     },
     {
       "type": "status",
       "label": "Status",
-      "value": "$values.1.status"
+      "value": "$values.0.status"
     },
     {
       "type": "address",
       "label": "Owner",
-      "address": "$values.1.owner"
+      "address": "$values.0.owner"
     },
     {
       "type": "status",
       "label": "Owner info",
-      "value": "$values.1.ownerInfo"
+      "value": "$values.0.ownerInfo"
     },
     {
       "type": "address",
       "label": "Token contract",
-      "address": "$values.1.tokenContract"
+      "address": "$values.0.tokenContract"
     },
     {
       "type": "status",
       "label": "Token ID",
-      "value": "$values.1.tokenId"
+      "value": "$values.0.tokenId"
     },
     {
       "type": "status",
       "label": "Token URI",
-      "value": "$values.1.tokenURI"
+      "value": "$values.0.tokenURI"
     },
     {
       "type": "status",
       "label": "Serial hash",
-      "value": "$values.1.serialHash"
+      "value": "$values.0.serialHash"
     },
     {
       "type": "status",
       "label": "Can update metadata",
-      "value": "$values.1.canUpdateMetadata"
+      "value": "$values.0.canUpdateMetadata"
     },
     {
       "type": "status",
       "label": "Can mark missing",
-      "value": "$values.1.canMarkMissing"
+      "value": "$values.0.canMarkMissing"
     },
     {
       "type": "status",
       "label": "Can clear missing",
-      "value": "$values.1.canClearMissing"
+      "value": "$values.0.canClearMissing"
     },
     {
       "type": "status",
       "label": "Can retire",
-      "value": "$values.1.canRetire"
+      "value": "$values.0.canRetire"
     },
     {
       "type": "button",

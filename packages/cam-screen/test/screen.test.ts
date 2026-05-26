@@ -24,7 +24,6 @@ const context: ScreenRuntimeContext = {
     serialNumber: "XYZ789",
   },
   values: [
-    "./screens/component.json",
     {
       exists: true,
       owner: "0x0000000000000000000000000000000000000003",
@@ -123,12 +122,12 @@ test("resolveScreen resolves params, state, and route values", () => {
       {
         type: "status",
         label: "Registered",
-        value: "$values.1.exists",
+        value: "$values.0.exists",
       },
       {
         type: "nft",
-        contractAddress: "$values.1.tokenContract",
-        tokenId: "$values.1.tokenId",
+        contractAddress: "$values.0.tokenContract",
+        tokenId: "$values.0.tokenId",
       },
     ],
   })

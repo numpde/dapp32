@@ -55,7 +55,6 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
   assert.equal(snapshot.screenURI, entryScreenURI)
   assert.equal(snapshot.resolvedScreen?.title, "Entry")
   assert.deepEqual(snapshot.values, [
-    BIKE_RELATIVE_ENTRY_SCREEN_URI,
     toInertValue({
       account: userAddress,
       canRegister: true,
@@ -194,7 +193,7 @@ test("snapshot returns isolated copies of nested route and resolved screen data"
           {
             type: "status",
             label: "Account",
-            value: "$values.1",
+            value: "$values.0",
           },
         ],
       }),
@@ -203,11 +202,11 @@ test("snapshot returns isolated copies of nested route and resolved screen data"
 
   const snapshot = await session.load()
 
-  mutableRecord(snapshot.values?.[1]).accountInfo = "mutated route value"
+  mutableRecord(snapshot.values?.[0]).accountInfo = "mutated route value"
   mutableRecord(mutableRecord(snapshot.resolvedScreen?.elements[0]).value).accountInfo = "mutated resolved value"
 
   const nextSnapshot = session.snapshot()
-  assert.equal(mutableRecord(nextSnapshot.values?.[1]).accountInfo, "Mock registrar account")
+  assert.equal(mutableRecord(nextSnapshot.values?.[0]).accountInfo, "Mock registrar account")
   assert.equal(
     mutableRecord(mutableRecord(nextSnapshot.resolvedScreen?.elements[0]).value).accountInfo,
     "Mock registrar account",
@@ -449,7 +448,7 @@ const entryScreen = {
     {
       type: "status",
       label: "Can register",
-      value: "$values.1.canRegister",
+      value: "$values.0.canRegister",
     },
   ],
 }
@@ -461,7 +460,7 @@ const componentScreen = {
     {
       type: "status",
       label: "Serial number",
-      value: "$values.1.serialNumber",
+      value: "$values.0.serialNumber",
     },
   ],
 }
@@ -473,7 +472,7 @@ const registerScreen = {
     {
       type: "status",
       label: "Can register",
-      value: "$values.1.canRegister",
+      value: "$values.0.canRegister",
     },
   ],
 }

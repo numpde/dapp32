@@ -216,7 +216,6 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
 
   assert.equal(result.screenURI, BIKE_ENTRY_SCREEN_URI)
   assert.deepEqual(result.values, [
-    BIKE_RELATIVE_ENTRY_SCREEN_URI,
     "7",
     toInertValue({ count: "8" }),
   ])
