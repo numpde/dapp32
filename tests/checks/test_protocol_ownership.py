@@ -1,12 +1,47 @@
 from __future__ import annotations
 
+import re
 import unittest
 from pathlib import Path
 
 from .common import iter_files, read_text, repo_path
 
 
+MODULE_SPECIFIER_RE = re.compile(
+    r"(?:import|export)\s+(?:type\s+)?(?:[^\"']*?\s+from\s+)?[\"']([^\"']+)[\"']"
+    r"|import\s*\(\s*[\"']([^\"']+)[\"']\s*\)"
+)
+PROTOCOL_VERSION_RE = re.compile(r"[\"']1\.0\.0[\"']")
+ABI_INSPECT_TARGET_RE = re.compile(r"^[A-Za-z0-9_-]+/src/[A-Za-z_][A-Za-z0-9_]*\.sol:[A-Za-z_][A-Za-z0-9_]*$")
+
+
 class ProtocolOwnershipTest(unittest.TestCase):
+    def test_package_source_uses_package_import_boundaries(self) -> None:
+        failures: list[str] = []
+
+        for path in self.package_source_files():
+            text = read_text(path)
+            for specifier, line_number in self.module_specifiers(text):
+                if specifier.startswith(".."):
+                    failures.append(f"{path}:{line_number}: package source must not import across packages by relative path")
+                if "/dist/" in specifier or specifier.endswith("/dist"):
+                    failures.append(f"{path}:{line_number}: package source must not import built dist output")
+                if specifier.startswith("@cam/") and len(specifier.split("/")) > 2:
+                    failures.append(f"{path}:{line_number}: @cam package imports must use the public package root")
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_protocol_versions_have_package_source_owners(self) -> None:
+        self.assert_literal_pattern_only_in_paths(
+            PROTOCOL_VERSION_RE,
+            roots=("packages",),
+            allowed_paths={
+                repo_path("packages/cam-core/src/constants.ts"),
+                repo_path("packages/cam-screen/src/constants.ts"),
+            },
+        )
+
     def test_package_code_uses_protocol_json_parser(self) -> None:
         self.assert_literal_only_in_paths(
             "JSON.parse",
@@ -63,6 +98,24 @@ class ProtocolOwnershipTest(unittest.TestCase):
             with self.subTest(literal=literal):
                 self.assert_literal_only_in_paths(literal, roots=("tests/checks",), allowed_paths=set())
 
+    def test_abi_export_consumes_path_qualified_inspect_targets(self) -> None:
+        compose = read_text(repo_path("compose/forge.yml"))
+        self.assertIn('while IFS="\t" read -r dapp inspect_target abi_name', compose)
+        self.assertIn('forge inspect --json "$$inspect_target" abi', compose)
+        self.assertNotRegex(compose, r"forge inspect\s+(?:--json\s+)?[\"']\$\$(?:contract|contract_name|abi_name)[\"']")
+
+    def test_abi_export_plan_targets_are_path_qualified(self) -> None:
+        from tools.cam_abi_plan import build_abi_plan_rows
+
+        failures = [
+            f"{row.dapp}: invalid Forge inspect target: {row.inspect_target}"
+            for row in build_abi_plan_rows(repo_path("dapps"))
+            if ABI_INSPECT_TARGET_RE.fullmatch(row.inspect_target) is None
+        ]
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def assert_literal_only_in_paths(
         self,
         literal: str,
@@ -85,3 +138,39 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
         if failures:
             self.fail("\n".join(failures))
+
+    def assert_literal_pattern_only_in_paths(
+        self,
+        pattern: re.Pattern[str],
+        *,
+        roots: tuple[str, ...],
+        allowed_paths: set[Path],
+    ) -> None:
+        failures: list[str] = []
+
+        for path in iter_files(*roots):
+            if path.suffix != ".ts" or "/src/" not in path.as_posix():
+                continue
+
+            if path in allowed_paths:
+                continue
+
+            for line_number, line in enumerate(read_text(path).splitlines(), start=1):
+                if pattern.search(line):
+                    failures.append(f"{path}:{line_number}: unexpected protocol version literal")
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def package_source_files(self) -> list[Path]:
+        return sorted(repo_path("packages").glob("*/src/**/*.ts"))
+
+    def module_specifiers(self, text: str) -> list[tuple[str, int]]:
+        specifiers: list[tuple[str, int]] = []
+        for match in MODULE_SPECIFIER_RE.finditer(text):
+            specifier = match.group(1) or match.group(2)
+            if specifier is None:
+                continue
+            specifiers.append((specifier, text.count("\n", 0, match.start()) + 1))
+
+        return specifiers
