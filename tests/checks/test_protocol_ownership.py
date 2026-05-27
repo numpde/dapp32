@@ -50,11 +50,14 @@ class ProtocolOwnershipTest(unittest.TestCase):
             },
         )
 
-    def test_package_code_uses_protocol_json_parser(self) -> None:
+    def test_javascript_code_uses_owned_json_parsers(self) -> None:
         self.assert_literal_only_in_paths(
-            "JSON.parse",
-            roots=("packages",),
-            allowed_paths={repo_path("packages/cam-protocol/src/json.ts")},
+            "JSON." + "parse",
+            roots=("containers", "packages", "tests", "tools"),
+            allowed_paths={
+                repo_path("containers/node-deps/stage-package-workspace"),
+                repo_path("packages/cam-protocol/src/json.ts"),
+            },
         )
 
     def test_python_json_parsing_is_explicitly_strict(self) -> None:
@@ -134,7 +137,7 @@ class ProtocolOwnershipTest(unittest.TestCase):
         failures: list[str] = []
 
         for path in iter_files(*roots):
-            if path.suffix not in {".py", ".ts", ".js", ".sh"} and path.name not in {"stage-package-workspace"}:
+            if path.suffix not in {".cts", ".js", ".mts", ".py", ".sh", ".ts"} and path.name not in {"stage-package-workspace"}:
                 continue
 
             if path in allowed_paths:
