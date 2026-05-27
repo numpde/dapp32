@@ -57,6 +57,10 @@ class RpcMethodRejected(Exception):
     pass
 
 
+def reject_json_constant(value):
+    raise RpcRequestMalformed(f"JSON-RPC request body contains non-standard JSON constant: {value}")
+
+
 class FixedIpHttpsConnection(http.client.HTTPSConnection):
     def __init__(self, host, port, target_ip, timeout):
         super().__init__(host, port=port, timeout=timeout, context=ssl.create_default_context())
@@ -142,7 +146,7 @@ def validate_rpc_request(raw_body, allowed_methods):
         raise RpcMethodRejected("RPC method allowlist is empty")
 
     try:
-        payload = json.loads(raw_body)
+        payload = json.loads(raw_body, parse_constant=reject_json_constant)
     except json.JSONDecodeError as exc:
         raise RpcRequestMalformed("invalid JSON-RPC request body") from exc
     except UnicodeDecodeError as exc:

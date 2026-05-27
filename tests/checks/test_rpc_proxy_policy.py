@@ -81,6 +81,18 @@ class RpcProxyPolicyTest(unittest.TestCase):
                 with self.assertRaises(self.rpc_proxy.RpcRequestMalformed):
                     self.rpc_proxy.validate_rpc_request(body, {"eth_blockNumber"})
 
+    def test_rpc_proxy_rejects_non_standard_json_constants(self) -> None:
+        bodies = [
+            b'{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[NaN]}',
+            b'{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[Infinity]}',
+            b'{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[-Infinity]}',
+        ]
+
+        for body in bodies:
+            with self.subTest(body=body):
+                with self.assertRaises(self.rpc_proxy.RpcRequestMalformed):
+                    self.rpc_proxy.validate_rpc_request(body, {"eth_blockNumber"})
+
     def test_rpc_proxy_rejects_empty_allowlist(self) -> None:
         with self.assertRaises(self.rpc_proxy.RpcMethodRejected):
             self.rpc_proxy.validate_rpc_request(
