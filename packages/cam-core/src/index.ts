@@ -6,14 +6,10 @@ export type {
 export type {
   InertRecord,
   InertValue,
-} from "./inert-value.ts"
+} from "@cam/protocol"
 
 export { CamError } from "./errors.ts"
 export type { CamErrorCode } from "./errors.ts"
-
-export {
-  toInertValue,
-} from "./inert-value.ts"
 
 export { parseCam } from "./validate.ts"
 

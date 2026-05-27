@@ -8,8 +8,8 @@ import {
   parseCam,
   resolveResourceURI,
   resolveRouteCall,
-  toInertValue,
 } from "../src/index.ts"
+import { toInertValue } from "@cam/protocol"
 import {
   BIKE_ACCOUNT_ADDRESS,
   BIKE_HOST_ADDRESS,
@@ -28,7 +28,6 @@ test("keeps the public API to the CAM core boundary", () => {
     "parseCam",
     "resolveResourceURI",
     "resolveRouteCall",
-    "toInertValue",
   ])
 })
 

@@ -1,9 +1,13 @@
 import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import { CamError } from "./errors.ts"
-import { createExpressionRuntime, joinPath } from "@cam/protocol"
-import { toInertValue } from "./inert-value.ts"
+import {
+  createExpressionRuntime,
+  InertValueError,
+  joinPath,
+  toInertValue,
+} from "@cam/protocol"
 import type { CamRuntimeContext } from "./types.ts"
-import type { InertValue } from "./inert-value.ts"
+import type { InertValue } from "@cam/protocol"
 
 const CAM_EXPRESSIONS = createExpressionRuntime({
   roots: CAM_CONTEXT_KEYS,
@@ -12,7 +16,7 @@ const CAM_EXPRESSIONS = createExpressionRuntime({
     try {
       return toInertValue(value)
     } catch (error) {
-      if (error instanceof CamError) {
+      if (error instanceof InertValueError) {
         throw new CamError(
           "CAM_INVALID_FIELD",
           error.message,

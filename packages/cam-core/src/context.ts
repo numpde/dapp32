@@ -4,11 +4,16 @@ import {
   requiredNonEmptyString,
   requiredRecord,
 } from "./guards.ts"
-import { createStringMap, hasOwn } from "@cam/protocol"
-import { toInertValue } from "./inert-value.ts"
+import {
+  createStringMap,
+  hasOwn,
+  InertValueError,
+  joinPath,
+  toInertValue,
+} from "@cam/protocol"
 import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import type { CamRuntimeContext } from "./types.ts"
-import type { InertRecord, InertValue } from "./inert-value.ts"
+import type { InertRecord, InertValue } from "@cam/protocol"
 
 export function createContext(input: unknown): CamRuntimeContext {
   const source = requiredRecord(input, "")
@@ -61,8 +66,12 @@ function toInertContextValue(value: unknown, path: string): InertValue {
   try {
     return toInertValue(value)
   } catch (error) {
-    if (error instanceof CamError) {
-      throw new CamError(error.code, error.message, error.path === undefined ? path : `${path}.${error.path}`)
+    if (error instanceof InertValueError) {
+      throw new CamError(
+        "CAM_INVALID_FIELD",
+        error.message,
+        error.path === undefined ? path : joinPath(path, error.path),
+      )
     }
 
     throw error
