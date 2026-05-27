@@ -95,7 +95,7 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def rendered_compose_config(compose_file: str, *, env: dict[str, str] | None = None) -> dict[str, Any]:
+def rendered_compose_config(compose_file: str | tuple[str, ...], *, env: dict[str, str] | None = None) -> dict[str, Any]:
     render_env = os.environ.copy()
     render_env.update(
         {
@@ -109,7 +109,10 @@ def rendered_compose_config(compose_file: str, *, env: dict[str, str] | None = N
         render_env.update(env)
 
     command = docker_compose_command(render_env)
-    command.extend(["-f", str(repo_path(compose_file)), "config", "--format", "json"])
+    compose_files = (compose_file,) if isinstance(compose_file, str) else compose_file
+    for file in compose_files:
+        command.extend(["-f", str(repo_path(file))])
+    command.extend(["config", "--format", "json"])
 
     result = subprocess.run(
         command,

@@ -243,3 +243,50 @@ class RenderedComposePostureTest(unittest.TestCase):
         )
         self.assertIn("run-package-workspace", viewer_command)
         self.assertIn("run-package-workspace", check_command)
+
+    def test_bike_nft_viewer_terminal_renders_as_internal_rpc_scenario(self) -> None:
+        config = rendered_compose_config(
+            ("compose/bike-nft-local.yml", "compose/bike-nft-viewer-terminal.yml"),
+            env={
+                "CAM_URI": "file:///work/dapps/bike-nft/cam/main.json",
+                "BIKE_NFT_PRIVATE_KEY_FILE": "/tmp/bike-nft-private-key",
+            },
+        )
+        viewer = service(config, "bike-nft-viewer-terminal")
+        deploy = service(config, "deploy-bike-nft-local")
+
+        self.assert_hardened(viewer)
+        self.assert_hardened(deploy)
+        self.assertNotIn("ports", viewer)
+        self.assertNotIn("ports", deploy)
+        self.assertEqual({"bike_nft_local": None}, viewer["networks"])
+        self.assertTrue(config["networks"]["bike_nft_local"]["internal"])
+        self.assertEqual("service_completed_successfully", viewer["depends_on"]["deploy-bike-nft-local"]["condition"])
+
+        environment = mapping_or_empty(viewer, "environment")
+        self.assertEqual("local-rpc", environment["CAM_VIEWER_BACKEND"])
+        self.assertEqual("http://bike-nft-anvil:8545", environment["CAM_VIEWER_RPC_URL"])
+        self.assertEqual(
+            "/out/foundry-broadcast/DeployBikeNftLocal.s.sol/31337/run-latest.json",
+            environment["CAM_VIEWER_BROADCAST_PATH"],
+        )
+        self.assertEqual("/work/dapps/bike-nft/cam", environment["CAM_VIEWER_FILE_ROOT"])
+        self.assertEqual("{}", environment["CAM_VIEWER_INITIAL_PARAMS_JSON"])
+        self.assertEqual('{"serialNumber":""}', environment["CAM_VIEWER_INITIAL_STATE_JSON"])
+        self.assertNotIn("PRIVATE_KEY", environment)
+
+        deploy_environment = mapping_or_empty(deploy, "environment")
+        self.assertEqual("/out/foundry-broadcast", deploy_environment["FOUNDRY_BROADCAST"])
+        self.assertNotIn("PRIVATE_KEY", deploy_environment)
+
+        self.assertEqual(True, volume_for(viewer, "/work/dapps").get("read_only"))
+        self.assertEqual(True, volume_for(viewer, "/input/packages").get("read_only"))
+        self.assertEqual(True, volume_for(viewer, "/work/packages/node_modules").get("read_only"))
+        self.assertEqual(True, volume_for(viewer, "/work/tools").get("read_only"))
+        self.assertEqual(True, volume_for(viewer, "/out").get("read_only"))
+        self.assertNotEqual("bind", volume_for(deploy, "/out").get("type"))
+
+        command = command_text(viewer)
+        self.assertIn("npm run build:packages", command)
+        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", command)
+        self.assertIn("run-package-workspace", command)
