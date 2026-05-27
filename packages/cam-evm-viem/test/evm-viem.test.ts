@@ -57,6 +57,7 @@ test("keeps the public API to the CAM EVM viem adapter boundary", () => {
   assert.deepEqual(Object.keys(camEvmViem).sort(), [
     "CamEvmError",
     "callCamRoute",
+    "createHttpCamPublicClient",
     "loadCamFromHost",
     "resolveCamContracts",
     "verifyCamHash",
