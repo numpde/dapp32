@@ -60,6 +60,21 @@ class ProtocolOwnershipTest(unittest.TestCase):
             },
         )
 
+    def test_viewer_terminal_entrypoint_is_backend_neutral(self) -> None:
+        entrypoint = repo_path("tools/viewer-terminal/terminal-session.ts")
+        text = read_text(entrypoint)
+
+        for forbidden in (
+            "bike",
+            "BIKE",
+            "mock",
+            "MOCK",
+            "tests/fixtures",
+            "file:///work/dapps",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, text, f"{entrypoint}: backend details belong under tools/viewer-terminal/backends/")
+
     def test_python_json_parsing_is_explicitly_strict(self) -> None:
         failures: list[str] = []
 

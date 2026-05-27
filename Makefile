@@ -74,12 +74,12 @@ help:
 	  '  make package-graph-check  Check installed npm dependency graph offline' \
 	  '  make package-build-check  Validate npm workspace package builds offline' \
 	  '  make package-test   Build and test npm workspace packages offline' \
-	  '  make package-ci     Run package tests and mock viewer terminal checks offline' \
-	  '  make viewer-terminal-check  Smoke-check the mock CAM viewer terminal offline' \
+	  '  make package-ci     Run package tests and viewer terminal checks offline' \
+	  '  make viewer-terminal-check  Smoke-check the CAM viewer terminal offline' \
 	  '  make viewer-terminal  Run the CAM viewer terminal offline; defaults to VIEWER_TERMINAL_BACKEND=mock VIEWER_TERMINAL_MOCK=bike-nft' \
-	  '  make viewer-terminal-status  Show mock viewer terminal Compose status' \
+	  '  make viewer-terminal-status  Show viewer terminal Compose status' \
 	  '  make viewer-terminal-attach  Attach if the mock viewer terminal is still running' \
-	  '  make viewer-terminal-down    Stop and clean up the mock viewer terminal Compose project' \
+	  '  make viewer-terminal-down    Stop and clean up the viewer terminal Compose project' \
 	  '  make checks       Run offline repository/source checks' \
 	  '  make check-runtime  Run local Docker-backed runtime checks' \
 	  '  make check-live    Run live checks that intentionally use external network' \
