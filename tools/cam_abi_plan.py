@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 from pathlib import Path
 import re
+
+from tools.json_policy import JsonPolicyError, read_strict_json
 
 
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -49,8 +50,8 @@ def build_abi_plan_rows(root: Path) -> list[AbiPlanRow]:
             )
 
         try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as error:
+            manifest = read_strict_json(manifest_path)
+        except JsonPolicyError as error:
             raise CamAbiPlanError(f"{manifest_path} is not valid JSON: {error}") from error
 
         if not isinstance(manifest, dict):

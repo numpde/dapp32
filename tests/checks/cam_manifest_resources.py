@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
 from pathlib import Path
 
 from . import cam_abi_resources as abi_resources
 from . import cam_route_abi as route_abi
 from .common import read_text, repo_path
+from tools.json_policy import JsonPolicyError, strict_json_loads
 
 
 class CamManifestResourceValidator:
@@ -32,8 +32,8 @@ class CamManifestResourceValidator:
 
     def read_json_object(self, path: Path) -> dict[str, object]:
         try:
-            document = json.loads(read_text(path))
-        except json.JSONDecodeError as error:
+            document = strict_json_loads(read_text(path))
+        except JsonPolicyError as error:
             raise AssertionError(f"{path}: invalid JSON: {error}") from error
 
         if not isinstance(document, dict):

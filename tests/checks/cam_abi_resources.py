@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from .common import read_text
 from tools.cam_abi_plan import CamAbiPlanError, generated_abi_name
+from tools.json_policy import JsonPolicyError, strict_json_loads
 
 
 def validate_no_orphan_abi_files(
@@ -107,8 +107,8 @@ def load_local_abi_array(
 
     assert resolved is not None
     try:
-        abi = abi_documents[resolved] if abi_documents is not None else json.loads(read_text(resolved))
-    except json.JSONDecodeError as error:
+        abi = abi_documents[resolved] if abi_documents is not None else strict_json_loads(read_text(resolved))
+    except JsonPolicyError as error:
         return None, f"{manifest_path}: contracts.{contract_name}.abiURI target is invalid JSON: {abi_uri}: {error}"
 
     if not isinstance(abi, list):

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import json
 import re
 import unittest
 from pathlib import Path
 from urllib.parse import urlparse
 
 from .common import iter_files, read_text, repo_path
+from tools.json_policy import strict_json_loads
 
 
 NPM_REGISTRY_HOST = "registry.npmjs.org"
@@ -263,7 +263,7 @@ class PackageMetadataTest(unittest.TestCase):
         return names
 
     def read_manifest(self, path: Path) -> dict[str, object]:
-        manifest = json.loads(read_text(path))
+        manifest = strict_json_loads(read_text(path))
         self.assertIsInstance(manifest, dict, f"{path}: package manifest must be a JSON object")
         return manifest
 

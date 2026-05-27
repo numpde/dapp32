@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 import re
 import shlex
 import subprocess
 from typing import Any
+
+from tools.json_policy import strict_json_loads
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -119,7 +120,11 @@ def rendered_compose_config(compose_file: str, *, env: dict[str, str] | None = N
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-    return json.loads(result.stdout)
+    config = strict_json_loads(result.stdout)
+    if not isinstance(config, dict):
+        raise AssertionError("rendered Compose config must be a JSON object")
+
+    return config
 
 
 def docker_compose_command(env: dict[str, str]) -> list[str]:
