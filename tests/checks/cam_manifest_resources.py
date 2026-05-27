@@ -222,26 +222,13 @@ class CamManifestResourceValidator:
                 failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
                 continue
 
-            abi_uri = contract.get("abiURI")
-            if not isinstance(abi_uri, str):
-                failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI must be a string")
+            abi, error = abi_resources.load_local_abi_array(manifest_path, contract_name, contract.get("abiURI"))
+            if error is not None:
+                failures.append(error)
                 continue
 
-            abi_path = abi_resources.resolve_local_abi_path(manifest_path, abi_uri)
-            if abi_path is None or not abi_path.is_file():
-                failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI target is not readable: {abi_uri}")
-                continue
-
-            try:
-                abi = json.loads(read_text(abi_path))
-            except json.JSONDecodeError as error:
-                failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI target is invalid JSON: {abi_uri}: {error}")
-                continue
-
-            if isinstance(abi, list):
-                abi_functions_by_contract[contract_name] = route_abi.abi_route_functions(abi)
-            else:
-                failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI target must be a JSON ABI array: {abi_uri}")
+            assert abi is not None
+            abi_functions_by_contract[contract_name] = route_abi.abi_route_functions(abi)
 
         return abi_functions_by_contract, failures
 

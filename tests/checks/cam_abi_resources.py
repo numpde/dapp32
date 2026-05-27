@@ -29,25 +29,17 @@ def validate_no_orphan_abi_files(
             failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
             continue
 
-        abi_uri = contract.get("abiURI")
-        if not isinstance(abi_uri, str):
-            failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI must be a string")
+        abi_path, error = checked_local_abi_path(
+            manifest_path,
+            contract_name,
+            contract.get("abiURI"),
+            existing_files=existing_files,
+        )
+        if error is not None:
+            failures.append(error)
             continue
 
-        abi_path = resolve_local_abi_path(manifest_path, abi_uri)
-        if abi_path is None:
-            failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI must be a local relative URI: {abi_uri}")
-            continue
-
-        cam_dir = manifest_path.parent.resolve()
-        if abi_path != cam_dir and cam_dir not in abi_path.parents:
-            failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI escapes the CAM directory: {abi_uri}")
-            continue
-
-        if existing_files is not None and abi_path not in existing_files:
-            failures.append(f"{manifest_path}: contracts.{contract_name}.abiURI target does not exist: {abi_uri}")
-            continue
-
+        assert abi_path is not None
         referenced.add(abi_path)
 
     if existing_files is None:
@@ -86,41 +78,79 @@ def validate_local_abi_uri(
     existing_files: set[Path] | None = None,
     abi_documents: dict[Path, object] | None = None,
 ) -> str | None:
+    _abi, error = load_local_abi_array(
+        manifest_path,
+        contract_name,
+        abi_uri,
+        existing_files=existing_files,
+        abi_documents=abi_documents,
+    )
+    return error
+
+
+def load_local_abi_array(
+    manifest_path: Path,
+    contract_name: str,
+    abi_uri: object,
+    *,
+    existing_files: set[Path] | None = None,
+    abi_documents: dict[Path, object] | None = None,
+) -> tuple[list[object] | None, str | None]:
+    resolved, error = checked_local_abi_path(
+        manifest_path,
+        contract_name,
+        abi_uri,
+        existing_files=existing_files,
+    )
+    if error is not None:
+        return None, error
+
+    assert resolved is not None
+    try:
+        abi = abi_documents[resolved] if abi_documents is not None else json.loads(read_text(resolved))
+    except json.JSONDecodeError as error:
+        return None, f"{manifest_path}: contracts.{contract_name}.abiURI target is invalid JSON: {abi_uri}: {error}"
+
+    if not isinstance(abi, list):
+        return None, f"{manifest_path}: contracts.{contract_name}.abiURI target must be a JSON ABI array: {abi_uri}"
+
+    return abi, None
+
+
+def checked_local_abi_path(
+    manifest_path: Path,
+    contract_name: str,
+    abi_uri: object,
+    *,
+    existing_files: set[Path] | None = None,
+) -> tuple[Path | None, str | None]:
     path = f"contracts.{contract_name}.abiURI"
     if not isinstance(abi_uri, str) or abi_uri == "":
-        return f"{manifest_path}: {path} must be a non-empty string"
+        return None, f"{manifest_path}: {path} must be a non-empty string"
 
     parsed = urlsplit(abi_uri)
     if parsed.scheme or parsed.netloc:
-        return f"{manifest_path}: {path} must be a local relative URI: {abi_uri}"
+        return None, f"{manifest_path}: {path} must be a local relative URI: {abi_uri}"
 
     if abi_uri.startswith("/") or any(part in {"", ".", ".."} for part in Path(abi_uri).parts):
-        return f"{manifest_path}: {path} must not be absolute or contain unsafe path segments: {abi_uri}"
+        return None, f"{manifest_path}: {path} must not be absolute or contain unsafe path segments: {abi_uri}"
 
     if not abi_uri.endswith(".json"):
-        return f"{manifest_path}: {path} must target a JSON ABI file: {abi_uri}"
+        return None, f"{manifest_path}: {path} must target a JSON ABI file: {abi_uri}"
 
     resolved = resolve_local_abi_path(manifest_path, abi_uri)
     assert resolved is not None
     cam_dir = manifest_path.parent.resolve()
     if resolved != cam_dir and cam_dir not in resolved.parents:
-        return f"{manifest_path}: {path} escapes the CAM directory: {abi_uri}"
+        return None, f"{manifest_path}: {path} escapes the CAM directory: {abi_uri}"
 
     if existing_files is None:
         if not resolved.is_file():
-            return f"{manifest_path}: {path} target does not exist: {abi_uri}"
+            return None, f"{manifest_path}: {path} target does not exist: {abi_uri}"
     elif resolved not in existing_files:
-        return f"{manifest_path}: {path} target does not exist: {abi_uri}"
+        return None, f"{manifest_path}: {path} target does not exist: {abi_uri}"
 
-    try:
-        abi = abi_documents[resolved] if abi_documents is not None else json.loads(read_text(resolved))
-    except json.JSONDecodeError as error:
-        return f"{manifest_path}: {path} target is invalid JSON: {abi_uri}: {error}"
-
-    if not isinstance(abi, list):
-        return f"{manifest_path}: {path} target must be a JSON ABI array: {abi_uri}"
-
-    return None
+    return resolved, None
 
 
 def resolve_local_abi_path(manifest_path: Path, abi_uri: str) -> Path | None:

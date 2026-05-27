@@ -48,7 +48,7 @@ class CamManifestResourceTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "dapps/example/cam/main.json: contracts.Example.abiURI target is not readable: ./abi/Missing.json",
+            "dapps/example/cam/main.json: contracts.Example.abiURI target does not exist: ./abi/Missing.json",
             failures,
         )
         self.assertIn(

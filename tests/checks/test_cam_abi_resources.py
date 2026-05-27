@@ -131,7 +131,7 @@ class CamAbiResourceTest(unittest.TestCase):
                 },
                 existing_files=set(),
             ),
-            [f"{self.manifest}: contracts.Broken.abiURI must be a string"],
+            [f"{self.manifest}: contracts.Broken.abiURI must be a non-empty string"],
         )
 
         self.assertEqual(
@@ -146,7 +146,10 @@ class CamAbiResourceTest(unittest.TestCase):
                 },
                 existing_files=set(),
             ),
-            [f"{self.manifest}: contracts.Escaped.abiURI escapes the CAM directory: ../abi/Escaped.json"],
+            [
+                f"{self.manifest}: contracts.Escaped.abiURI must not be absolute "
+                "or contain unsafe path segments: ../abi/Escaped.json"
+            ],
         )
 
         self.assertEqual(
