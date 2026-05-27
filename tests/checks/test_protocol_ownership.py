@@ -22,8 +22,8 @@ class ProtocolOwnershipTest(unittest.TestCase):
         for path in self.package_source_files():
             text = read_text(path)
             for specifier, line_number in self.module_specifiers(text):
-                if specifier.startswith(".."):
-                    failures.append(f"{path}:{line_number}: package source must not import across packages by relative path")
+                if specifier.startswith(".") and not self.relative_import_stays_in_package_src(path, specifier):
+                    failures.append(f"{path}:{line_number}: package source relative imports must stay inside package src")
                 if "/dist/" in specifier or specifier.endswith("/dist"):
                     failures.append(f"{path}:{line_number}: package source must not import built dist output")
                 if specifier.startswith("@cam/") and len(specifier.split("/")) > 2:
@@ -31,6 +31,14 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
         if failures:
             self.fail("\n".join(failures))
+
+    def test_package_relative_import_boundary_self_check(self) -> None:
+        importer = repo_path("packages/cam-core/src/nested/example.ts")
+
+        self.assertTrue(self.relative_import_stays_in_package_src(importer, "../errors.ts"))
+        self.assertTrue(self.relative_import_stays_in_package_src(importer, "./local.ts"))
+        self.assertFalse(self.relative_import_stays_in_package_src(importer, "../../package.json"))
+        self.assertFalse(self.relative_import_stays_in_package_src(importer, "../../../cam-screen/src/index.ts"))
 
     def test_protocol_versions_have_package_source_owners(self) -> None:
         self.assert_literal_pattern_only_in_paths(
@@ -164,6 +172,12 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def package_source_files(self) -> list[Path]:
         return sorted(repo_path("packages").glob("*/src/**/*.ts"))
+
+    def relative_import_stays_in_package_src(self, importer: Path, specifier: str) -> bool:
+        package_name = importer.relative_to(repo_path("packages")).parts[0]
+        package_src = repo_path("packages") / package_name / "src"
+        target = (importer.parent / specifier).resolve()
+        return target == package_src or package_src in target.parents
 
     def module_specifiers(self, text: str) -> list[tuple[str, int]]:
         specifiers: list[tuple[str, int]] = []
