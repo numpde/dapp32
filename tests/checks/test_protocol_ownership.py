@@ -11,7 +11,7 @@ MODULE_SPECIFIER_RE = re.compile(
     r"(?:import|export)\s+(?:type\s+)?(?:[^\"']*?\s+from\s+)?[\"']([^\"']+)[\"']"
     r"|import\s*\(\s*[\"']([^\"']+)[\"']\s*\)"
 )
-PROTOCOL_VERSION_RE = re.compile(r"[\"']1\.0\.0[\"']")
+PROTOCOL_VERSION_LITERAL_RE = re.compile(r"[\"'][0-9]+\.[0-9]+\.[0-9]+[\"']")
 ABI_INSPECT_TARGET_RE = re.compile(r"^[A-Za-z0-9_-]+/src/[A-Za-z_][A-Za-z0-9_]*\.sol:[A-Za-z_][A-Za-z0-9_]*$")
 
 
@@ -42,7 +42,7 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def test_protocol_versions_have_package_source_owners(self) -> None:
         self.assert_literal_pattern_only_in_paths(
-            PROTOCOL_VERSION_RE,
+            PROTOCOL_VERSION_LITERAL_RE,
             roots=("packages",),
             allowed_paths={
                 repo_path("packages/cam-core/src/constants.ts"),
