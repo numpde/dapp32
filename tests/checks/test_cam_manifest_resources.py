@@ -18,6 +18,36 @@ class CamManifestResourceTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_cam_route_screen_inventory_matches_routes(self) -> None:
+        failures = self.validator.collect_manifest_failures(self.validator.validate_route_screen_inventory)
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_cam_route_screen_inventory_checker_self_check(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "dapps/example/cam/main.json"
+            screen_dir = manifest.parent / "screens"
+            screen_dir.mkdir(parents=True)
+            (screen_dir / "entry.json").write_text("{}", encoding="utf-8")
+            (screen_dir / "orphan.json").write_text("{}", encoding="utf-8")
+
+            self.assertEqual(
+                self.validator.validate_route_screen_inventory(
+                    manifest,
+                    {
+                        "routes": {
+                            "entry": {},
+                            "component": {},
+                        }
+                    },
+                ),
+                [
+                    f"{manifest}: route has no matching CAM screen: screens/component.json",
+                    f"{manifest}: CAM screen has no matching route: screens/orphan.json",
+                ],
+            )
+
     def test_cam_route_function_checker_fails_closed_on_malformed_prerequisites(self) -> None:
         manifest = Path("dapps/example/cam/main.json")
 

@@ -178,6 +178,31 @@ class CamManifestResourceValidator:
 
         return failures
 
+    def validate_route_screen_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        routes = manifest.get("routes")
+        if not isinstance(routes, dict):
+            return [f"{manifest_path}: routes must be an object"]
+
+        failures: list[str] = []
+        expected_screen_names: set[str] = set()
+        for route_name in routes:
+            if not isinstance(route_name, str) or route_name == "":
+                failures.append(f"{manifest_path}: route names must be non-empty strings")
+                continue
+
+            expected_screen_names.add(f"{route_name}.json")
+
+        screen_dir = manifest_path.parent / "screens"
+        existing_screen_names = {path.name for path in screen_dir.glob("*.json")} if screen_dir.is_dir() else set()
+
+        for screen_name in sorted(expected_screen_names - existing_screen_names):
+            failures.append(f"{manifest_path}: route has no matching CAM screen: screens/{screen_name}")
+
+        for screen_name in sorted(existing_screen_names - expected_screen_names):
+            failures.append(f"{manifest_path}: CAM screen has no matching route: screens/{screen_name}")
+
+        return failures
+
     def validate_route_screen_values_references(
         self,
         manifest_path: Path,
