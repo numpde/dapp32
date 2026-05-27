@@ -1,80 +1,43 @@
-import { readFile } from "node:fs/promises"
 import { createInterface } from "node:readline/promises"
 import { stdin as input, stdout as output } from "node:process"
-import { fileURLToPath } from "node:url"
 
-import type {
-  CamHost,
-} from "../../packages/cam-evm-viem/dist/index.js"
-import {
-  createCamViewerSession,
-} from "../../packages/cam-viewer/dist/index.js"
 import type {
   CamViewerSession,
   CamViewerSnapshot,
-  CreateCamViewerSessionOptions,
 } from "../../packages/cam-viewer/dist/index.js"
 import {
   toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
-import type { InertValue } from "../../packages/cam-protocol/dist/index.js"
 import type {
   ResolvedScreenElement,
 } from "../../packages/cam-screen/dist/index.js"
-import {
-  BIKE_ACCOUNT_ADDRESS as USER_ADDRESS,
-  BIKE_HOST_ADDRESS as HOST_ADDRESS,
-  BIKE_HOST_CHAIN_ID as MOCK_CHAIN_ID,
-  BIKE_UNSIGNED_CAM_HASH,
-  BIKE_VIEW_COMPONENT,
-  BIKE_VIEW_ENTRY,
-  BIKE_VIEW_REGISTER,
-  bikeAddressForContract,
-  bikeComponentRouteResult,
-  bikeEntryRouteResult,
-  bikeRegisterRouteResult,
-} from "../../tests/fixtures/cam/bike.mts"
+
+import { createTerminalBackendFromEnv } from "./backends/index.ts"
+import type {
+  DebugEvent,
+  TerminalBackend,
+} from "./types.ts"
 
 type TerminalButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
-type MockAddress = CamHost["address"]
-type MockPublicClient = CreateCamViewerSessionOptions["publicClient"]
-
-const MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
-const MOCK_CAM_URI = new URL("main.json", MOCK_CAM_BASE_URI).href
-
-// This is an internal mock terminal harness for debugging the headless viewer.
-// It is intentionally not a general CAM runner: there is no RPC, no network,
-// and no environment-based target selection. All "chain" reads below are
-// deterministic in-process fakes for the checked-in bike NFT CAM files.
-type DebugEvent =
-  | {
-    readonly step: number
-    readonly kind: "contract-read"
-    readonly functionName: string
-    readonly args: readonly InertValue[]
-    readonly result: unknown
-  }
-  | {
-    readonly step: number
-    readonly kind: "resource-load"
-    readonly uri: string
-    readonly bytes: number
-  }
 
 type TerminalContext = {
+  readonly backend: TerminalBackend
   session: CamViewerSession
   readonly events: DebugEvent[]
 }
 
 async function main(): Promise<void> {
+  const backend = createTerminalBackendFromEnv(process.env)
   const events: DebugEvent[] = []
   const context = {
-    session: createMockSession(events),
+    backend,
+    session: backend.createSession(events),
     events,
   }
 
   await context.session.load()
   printHelp()
+  output.write(`Backend: ${backend.name} (${backend.description})\n`)
   render(context.session.snapshot())
 
   const terminal = createInterface({
@@ -85,7 +48,7 @@ async function main(): Promise<void> {
   const interactive = input.isTTY
 
   if (interactive) {
-    printPromptContext(context.session.snapshot())
+    printPromptContext(context)
     terminal.prompt()
   }
   for await (const line of terminal) {
@@ -95,7 +58,7 @@ async function main(): Promise<void> {
     }
 
     if (interactive) {
-      printPromptContext(context.session.snapshot())
+      printPromptContext(context)
       terminal.prompt()
     }
   }
@@ -158,24 +121,6 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
   }
 }
 
-function createMockSession(events: DebugEvent[]): CamViewerSession {
-  return createCamViewerSession({
-    publicClient: createMockPublicClient(events),
-    host: {
-      chainId: MOCK_CHAIN_ID,
-      address: HOST_ADDRESS,
-    },
-    account: {
-      address: USER_ADDRESS,
-    },
-    params: {},
-    state: {
-      serialNumber: "",
-    },
-    loadResource: createMockResourceLoader(events),
-  })
-}
-
 function handleSet(session: CamViewerSession, args: readonly string[]): void {
   const [name, ...valueParts] = args
   if (name === undefined || valueParts.length === 0) {
@@ -189,7 +134,7 @@ function handleSet(session: CamViewerSession, args: readonly string[]): void {
 
 async function handleRestart(context: TerminalContext): Promise<void> {
   context.events.length = 0
-  context.session = createMockSession(context.events)
+  context.session = context.backend.createSession(context.events)
   await context.session.load()
   render(context.session.snapshot())
 }
@@ -283,102 +228,12 @@ function buttonsOf(snapshot: CamViewerSnapshot): readonly TerminalButtonElement[
   )
 }
 
-function createMockPublicClient(events: DebugEvent[]): MockPublicClient {
-  return {
-    async readContract(request: {
-      readonly functionName: string
-      readonly args?: readonly unknown[]
-    }): Promise<unknown> {
-      const args = request.args === undefined
-        ? []
-        : request.args.map((arg) => toInertValue(arg))
-      const result = mockReadContract(request.functionName, args)
-      events.push({
-        step: events.length + 1,
-        kind: "contract-read",
-        functionName: request.functionName,
-        args,
-        result,
-      })
-      return result
-    },
-  } as MockPublicClient
-}
-
 function formatInputValue(element: Extract<ResolvedScreenElement, { readonly type: "input" }>, snapshot: CamViewerSnapshot): string {
   const value = Object.hasOwn(snapshot.state, element.name)
     ? snapshot.state[element.name]
     : element.value
 
   return value === undefined ? "(unset)" : formatValue(value)
-}
-
-function mockReadContract(functionName: string, args: readonly InertValue[]): unknown {
-  switch (functionName) {
-    case "camURI":
-      requireNoArgs(functionName, args)
-      return MOCK_CAM_URI
-    case "camHash":
-      requireNoArgs(functionName, args)
-      return BIKE_UNSIGNED_CAM_HASH
-    case "contractAddress":
-      return contractAddress(requireStringArgs(functionName, args, 1)[0])
-    case BIKE_VIEW_ENTRY:
-      return bikeEntryRouteResult(requireStringArgs(functionName, args, 1)[0])
-    case BIKE_VIEW_COMPONENT:
-      return bikeComponentRouteResult(requireStringArgs(functionName, args, 2)[0])
-    case BIKE_VIEW_REGISTER:
-      return bikeRegisterRouteResult(requireStringArgs(functionName, args, 2)[0])
-    default:
-      throw new Error(`unexpected readContract call: ${functionName}`)
-  }
-}
-
-function requireNoArgs(functionName: string, args: readonly InertValue[]): void {
-  if (args.length !== 0) {
-    throw new Error(`${functionName} expected no arguments, got ${args.length}`)
-  }
-}
-
-function requireStringArgs(
-  functionName: string,
-  args: readonly InertValue[],
-  length: number,
-): readonly string[] {
-  if (args.length !== length || args.some((arg) => typeof arg !== "string")) {
-    throw new Error(`${functionName} expected ${length} string argument(s), got ${formatValue(args)}`)
-  }
-
-  return args as readonly string[]
-}
-
-function contractAddress(name: string): MockAddress {
-  return bikeAddressForContract(name) as MockAddress
-}
-
-function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promise<Uint8Array> {
-  return async (uri: string): Promise<Uint8Array> => {
-    const resourceURI = new URL(uri)
-    if (resourceURI.protocol !== "file:") {
-      throw new Error(`mock terminal loads file resources only: ${resourceURI.protocol}`)
-    }
-
-    requireMockCamFileURI(resourceURI)
-    const bytes = await readFile(fileURLToPath(resourceURI))
-    events.push({
-      step: events.length + 1,
-      kind: "resource-load",
-      uri: resourceURI.href,
-      bytes: bytes.byteLength,
-    })
-    return bytes
-  }
-}
-
-function requireMockCamFileURI(uri: URL): void {
-  if (!uri.href.startsWith(MOCK_CAM_BASE_URI)) {
-    throw new Error(`mock terminal can only load checked-in bike CAM files: ${uri.href}`)
-  }
 }
 
 function formatValue(value: unknown): string {
@@ -411,9 +266,11 @@ function printState(snapshot: CamViewerSnapshot): void {
   }, jsonReplacer, 2)}\n`)
 }
 
-function printPromptContext(snapshot: CamViewerSnapshot): void {
+function printPromptContext(context: TerminalContext): void {
+  const snapshot = context.session.snapshot()
   output.write("Context before command:\n")
-  output.write(`  host: ${MOCK_CHAIN_ID} ${HOST_ADDRESS}\n`)
+  output.write(`  backend: ${context.backend.name}\n`)
+  output.write(`  host: ${context.backend.hostLabel}\n`)
   output.write(`  account: ${snapshot.account?.address ?? "(none)"}\n`)
   output.write(`  params: ${formatValue(snapshot.params)}\n`)
   output.write(`  state: ${formatValue(snapshot.state)}\n`)
@@ -463,9 +320,9 @@ function printHelp(): void {
     "  values                Print the current route return values.",
     "  actions               Print resolved button actions and their button numbers.",
     "  screen                Print the resolved screen document.",
-    "  trace                 Print mocked contract reads and resource loads.",
+    "  trace                 Print backend contract reads and resource loads.",
     "  trace clear           Clear the trace buffer.",
-    "  restart               Reset the mock session and reload the entry route.",
+    "  restart               Reset the backend session and reload the entry route.",
     "  set <name> <value>    Set local screen state and re-resolve actions.",
     "  press <n>             Dispatch a resolved button action.",
     "  help                  Print this help.",

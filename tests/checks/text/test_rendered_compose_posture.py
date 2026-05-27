@@ -151,6 +151,8 @@ class RenderedComposePostureTest(unittest.TestCase):
                     "BIKE_NFT_PRIVATE_KEY_FILE": "/tmp/bike-nft-private-key",
                     "PACKAGE_INPUT_DIR": "/tmp/package-input",
                     "RPC_URL_FILE": "/tmp/rpc-url",
+                    "CAM_VIEWER_BACKEND": "mock",
+                    "CAM_VIEWER_MOCK": "bike-nft",
                     "VIEWER_TERMINAL_CONTAINER_NAME": "dapps-viewer-terminal-session",
                 },
             )
@@ -197,7 +199,11 @@ class RenderedComposePostureTest(unittest.TestCase):
     def test_viewer_terminal_renders_as_offline_read_only_interactive_lane(self) -> None:
         config = rendered_compose_config(
             "compose/viewer-terminal.yml",
-            env={"VIEWER_TERMINAL_CONTAINER_NAME": "dapps-viewer-terminal-session"},
+            env={
+                "CAM_VIEWER_BACKEND": "mock",
+                "CAM_VIEWER_MOCK": "bike-nft",
+                "VIEWER_TERMINAL_CONTAINER_NAME": "dapps-viewer-terminal-session",
+            },
         )
         viewer = service(config, "viewer-terminal")
         check = service(config, "viewer-terminal-check")
@@ -207,6 +213,10 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("dapps-viewer-terminal-session", viewer.get("container_name"))
         self.assertEqual("none", viewer.get("network_mode"))
         self.assertEqual("none", check.get("network_mode"))
+        self.assertEqual("mock", mapping_or_empty(viewer, "environment").get("CAM_VIEWER_BACKEND"))
+        self.assertEqual("bike-nft", mapping_or_empty(viewer, "environment").get("CAM_VIEWER_MOCK"))
+        self.assertEqual("mock", mapping_or_empty(check, "environment").get("CAM_VIEWER_BACKEND"))
+        self.assertEqual("bike-nft", mapping_or_empty(check, "environment").get("CAM_VIEWER_MOCK"))
         self.assertEqual(True, viewer.get("stdin_open"))
         self.assertEqual(True, viewer.get("tty"))
         viewer_command = command_text(viewer)

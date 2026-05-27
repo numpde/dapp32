@@ -20,6 +20,6 @@
     "verbatimModuleSyntax": true
   },
   "include": [
-    "terminal-session.ts"
+    "**/*.ts"
   ]
 }
