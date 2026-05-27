@@ -153,6 +153,7 @@ test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relati
   assert.equal(contracts[BIKE_UI_CONTRACT].address, uiAddress)
   assert.deepEqual(contracts[BIKE_UI_CONTRACT].abi, uiAbi)
   assert.equal(contracts[BIKE_MANAGER_CONTRACT].address, managerAddress)
+  assert.equal(Object.getPrototypeOf(contracts), null)
 })
 
 test("resolveCamContracts rejects unbound contract names", async () => {

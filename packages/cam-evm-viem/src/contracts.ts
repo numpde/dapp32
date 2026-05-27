@@ -1,4 +1,5 @@
 import { resolveResourceURI } from "@cam/core"
+import { createStringMap } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi, parseAbiBytes } from "./abi.ts"
@@ -28,7 +29,7 @@ export async function resolveCamContracts({
     ] as const),
   )
 
-  const contracts = Object.create(null) as Record<string, ResolvedCamContract>
+  const contracts = createStringMap<ResolvedCamContract>()
   for (const [name, contract] of entries) {
     contracts[name] = contract
   }
