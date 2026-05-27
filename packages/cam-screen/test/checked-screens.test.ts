@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url"
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { parseJsonText } from "@cam/protocol"
 import { parseScreen } from "../src/index.ts"
 
 const dappsRoot = fileURLToPath(new URL("../../../dapps/", import.meta.url))
@@ -15,7 +16,7 @@ test("checked-in CAM screens parse with the runtime screen parser", async () => 
 
   for (const screenPath of screenPaths) {
     await test(relative(dappsRoot, screenPath), async () => {
-      const screen = JSON.parse(await readFile(screenPath, "utf8")) as unknown
+      const screen = parseJsonText(await readFile(screenPath, "utf8"))
       parseScreen(screen)
     })
   }

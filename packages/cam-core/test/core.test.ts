@@ -9,7 +9,10 @@ import {
   resolveResourceURI,
   resolveRouteCall,
 } from "../src/index.ts"
-import { toInertValue } from "@cam/protocol"
+import {
+  parseJsonText,
+  toInertValue,
+} from "@cam/protocol"
 import {
   BIKE_ACCOUNT_ADDRESS,
   BIKE_HOST_ADDRESS,
@@ -385,7 +388,7 @@ test("copies route args out of the input document", () => {
 })
 
 test("keeps contract and route map keys prototype-neutral", () => {
-  const cam = parseCam(JSON.parse(`{
+  const cam = parseCam(parseJsonText(`{
     "cam": "1.0.0",
     "entry": "__proto__",
     "contracts": {
