@@ -1,10 +1,12 @@
 export type {
   CamHost,
   CamPublicClient,
+  LoadCamFromHostOptions,
   LoadedCam,
   ResolvedCamContract,
   ResourceLoader,
   RouteResult,
+  VerifyCamHashOptions,
 } from "./types.ts"
 
 export { CamEvmError } from "./errors.ts"

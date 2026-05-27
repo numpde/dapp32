@@ -33,7 +33,8 @@ export const BIKE_COMPONENT_SCREEN_URI = "ipfs://example/screens/component.json"
 export const BIKE_REGISTER_SCREEN_URI = "ipfs://example/screens/register.json"
 
 export const BIKE_SERIAL_NUMBER = "ABC123"
-export const BIKE_UNSIGNED_CAM_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000"
+export const BIKE_ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
+export const BIKE_UNSIGNED_CAM_HASH = BIKE_ZERO_BYTES32
 
 export const bikeHost = {
   chainId: BIKE_HOST_CHAIN_ID,
@@ -169,6 +170,12 @@ export const bikeEntryScreen = {
   title: "Entry",
   elements: [
     {
+      type: "input",
+      name: "serialNumber",
+      label: "Serial number",
+      value: "",
+    },
+    {
       type: "status",
       label: "Can register",
       value: "$values.0.canRegister",
@@ -237,7 +244,7 @@ export function bikeComponentRouteResult(serialNumber: string): readonly unknown
       exists: serialNumber.length > 0,
       serialHash: serialNumber.length > 0
         ? "0x1111111111111111111111111111111111111111111111111111111111111111"
-        : "0x0000000000000000000000000000000000000000000000000000000000000000",
+        : BIKE_ZERO_BYTES32,
       tokenContract: BIKE_COMPONENTS_ADDRESS,
       tokenId: serialNumber.length > 0 ? 42 : 0,
       owner: BIKE_ACCOUNT_ADDRESS,
@@ -271,7 +278,7 @@ export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[
       exists: false,
       serialHash: serialNumber.length > 0
         ? "0x2222222222222222222222222222222222222222222222222222222222222222"
-        : "0x0000000000000000000000000000000000000000000000000000000000000000",
+        : BIKE_ZERO_BYTES32,
       tokenId: 0,
       defaultComponents: BIKE_COMPONENTS_ADDRESS,
       serialNumber,

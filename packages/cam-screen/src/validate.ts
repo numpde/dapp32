@@ -83,7 +83,7 @@ function parseInputElement(source: Record<string, unknown>, path: string): Scree
     type: "input",
     name: requiredNonEmptyString(source.name, `${path}.name`),
     label: parseExpressionString(source.label, `${path}.label`),
-    ...(source.value === undefined ? {} : { value: parseExpressionPayload(source.value, `${path}.value`) }),
+    value: parseExpressionPayload(source.value, `${path}.value`),
   })
 }
 

@@ -32,7 +32,7 @@ export type InputElement = ElementVisibility & {
   readonly type: "input"
   readonly name: string
   readonly label: string
-  readonly value?: InertValue
+  readonly value: InertValue
 }
 
 export type AddressElement = ElementVisibility & {
@@ -79,9 +79,11 @@ export type ContractCallAction = {
 }
 
 export type ScreenRuntimeContext = CamRuntimeContext & {
-  readonly state: InertRecord
+  readonly form: InertRecord
   readonly values: readonly InertValue[]
 }
+
+export type ScreenInitialContext = Omit<ScreenRuntimeContext, "form">
 
 export type ResolvedScreen = {
   readonly title?: string

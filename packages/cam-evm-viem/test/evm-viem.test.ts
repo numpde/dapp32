@@ -78,6 +78,7 @@ test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned 
     publicClient,
     host,
     loadResource: resources,
+    allowUnsignedCamHash: true,
   })
 
   assert.equal(loaded.camURI, camDocumentURI)
@@ -88,11 +89,29 @@ test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned 
   ])
 })
 
+test("loadCamFromHost rejects bytes32(0) unless unsigned CAMs are explicit", async () => {
+  await assert.rejects(
+    () => loadCamFromHost({
+      publicClient: createPublicClient({
+        camURI: camDocumentURI,
+        camHash: BIKE_UNSIGNED_CAM_HASH,
+      }),
+      host,
+      loadResource: createResourceLoader({
+        [camDocumentURI]: encodeJson(camJson),
+      }),
+      allowUnsignedCamHash: false,
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_HASH_UNSIGNED",
+  )
+})
+
 test("verifyCamHash rejects mismatched nonzero hashes", () => {
   assert.throws(
     () => verifyCamHash({
       bytes: encodeText("not this hash"),
       expectedHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
+      allowUnsigned: false,
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_HASH_MISMATCH",
   )
@@ -103,6 +122,7 @@ test("verifyCamHash requires explicit unsigned mode for bytes32(0)", () => {
     () => verifyCamHash({
       bytes: encodeText("unsigned CAM"),
       expectedHash: BIKE_UNSIGNED_CAM_HASH,
+      allowUnsigned: false,
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_HASH_UNSIGNED",
   )
@@ -125,6 +145,7 @@ test("loadCamFromHost wraps invalid CAM JSON in an adapter error", async () => {
       loadResource: createResourceLoader({
         [camDocumentURI]: encodeText("{not json"),
       }),
+      allowUnsignedCamHash: true,
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_DOCUMENT_INVALID",
   )

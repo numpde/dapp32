@@ -6,12 +6,13 @@ import { CAM_ROOT_FUNCTIONS, camRootAbi } from "./abi.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamHash } from "./hash.ts"
 import { loadResourceBytes } from "./resources.ts"
-import type { CamHost, CamPublicClient, LoadedCam, ResourceLoader } from "./types.ts"
+import type { LoadedCam, LoadCamFromHostOptions } from "./types.ts"
 
 export async function loadCamFromHost({
   publicClient,
   host,
   loadResource,
+  allowUnsignedCamHash,
 }: LoadCamFromHostOptions): Promise<LoadedCam> {
   let camURI: string
   let camHash: Hex
@@ -41,7 +42,7 @@ export async function loadCamFromHost({
   verifyCamHash({
     bytes: camBytes,
     expectedHash: camHash,
-    allowUnsigned: true,
+    allowUnsigned: allowUnsignedCamHash,
   })
 
   let camJson: unknown
@@ -56,10 +57,4 @@ export async function loadCamFromHost({
     camURI,
     cam,
   }
-}
-
-type LoadCamFromHostOptions = {
-  readonly publicClient: CamPublicClient
-  readonly host: CamHost
-  readonly loadResource: ResourceLoader
 }

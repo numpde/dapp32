@@ -1,14 +1,50 @@
 import { resolveActionAtPath } from "./actions.ts"
 import { ScreenError } from "./errors.ts"
 import { resolveValueAtPath } from "./expressions.ts"
+import {
+  createStringMap,
+  hasOwn,
+} from "@cam/protocol"
+import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
   ResolvedScreen,
   ResolvedScreenElement,
   LeafScreenElement,
   ScreenDocument,
   ScreenElement,
+  ScreenInitialContext,
   ScreenRuntimeContext,
 } from "./types.ts"
+
+export function resolveInitialScreen(
+  screen: ScreenDocument,
+  context: ScreenInitialContext,
+): {
+  readonly form: InertRecord
+  readonly resolvedScreen: ResolvedScreen
+} {
+  const form = createInitialForm(screen, context)
+
+  return {
+    form,
+    resolvedScreen: resolveScreen(screen, {
+      ...context,
+      form,
+    }),
+  }
+}
+
+function createInitialForm(screen: ScreenDocument, context: ScreenInitialContext): InertRecord {
+  const form = createStringMap<InertValue>()
+  // Input initializers run before the screen form exists. Resolving against an
+  // empty form makes $form references fail through the normal expression path.
+  const initializerContext = { ...context, form: createStringMap<InertValue>() }
+  // Form shape is the screen's declared input set, not the currently visible
+  // subset. That keeps conditional inputs addressable without changing the
+  // form contract as visibility changes.
+  appendInitialFormValues(screen.elements, initializerContext, "elements", form)
+  return form
+}
 
 export function resolveScreen(screen: ScreenDocument, context: ScreenRuntimeContext): ResolvedScreen {
   const elements: ResolvedScreenElement[] = []
@@ -17,6 +53,30 @@ export function resolveScreen(screen: ScreenDocument, context: ScreenRuntimeCont
   return {
     ...(screen.title === undefined ? {} : { title: resolveStringField(screen.title, context, "title") }),
     elements,
+  }
+}
+
+function appendInitialFormValues(
+  elements: readonly ScreenElement[],
+  context: ScreenRuntimeContext,
+  path: string,
+  target: Record<string, InertValue>,
+): void {
+  for (const [index, element] of elements.entries()) {
+    const elementPath = `${path}.${index}`
+
+    if (element.type === "group") {
+      appendInitialFormValues(element.elements, context, `${elementPath}.elements`, target)
+      continue
+    }
+
+    if (element.type === "input") {
+      if (hasOwn(target, element.name)) {
+        throw new ScreenError("SCREEN_INVALID_FIELD", "duplicate input name", `${elementPath}.name`)
+      }
+
+      target[element.name] = resolveValueAtPath(element.value, context, `${elementPath}.value`)
+    }
   }
 }
 
@@ -70,7 +130,7 @@ function resolveLeafElement(
         type: "input",
         name: element.name,
         label: resolveStringField(element.label, context, `${path}.label`),
-        ...(element.value === undefined ? {} : { value: resolveValueAtPath(element.value, context, `${path}.value`) }),
+        value: formValueForInput(element.name, context, `${path}.value`),
       }
     case "address":
       return {
@@ -97,6 +157,14 @@ function resolveLeafElement(
         tokenId: resolveValueAtPath(element.tokenId, context, `${path}.tokenId`),
       }
   }
+}
+
+function formValueForInput(name: string, context: ScreenRuntimeContext, path: string): InertValue {
+  if (!hasOwn(context.form, name)) {
+    throw new ScreenError("SCREEN_UNRESOLVED_VALUE", `missing form value for input: ${name}`, path)
+  }
+
+  return context.form[name]
 }
 
 function resolveStringField(value: string, context: ScreenRuntimeContext, path: string): string {

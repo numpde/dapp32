@@ -3,7 +3,7 @@ import test from "node:test"
 
 import { CamEvmError } from "@cam/evm-viem"
 import { toInertValue } from "@cam/protocol"
-import type { InertValue } from "@cam/protocol"
+import type { InertRecord, InertValue } from "@cam/protocol"
 
 import * as camViewer from "../src/index.ts"
 import {
@@ -126,25 +126,22 @@ test("navigate accepts explicit empty route params", async () => {
   assert.deepEqual(publicClient.calls.at(-1)?.args, [userAddress])
 })
 
-test("setState updates local state without calling a route", async () => {
+test("updateForm updates screen form without calling a route", async () => {
   const publicClient = createPublicClient()
   const session = createSession({ publicClient })
   await session.load()
   const callsBefore = publicClient.calls.length
 
-  const snapshot = session.setState({
+  const snapshot = session.updateForm({
     serialNumber: BIKE_SERIAL_NUMBER,
   })
 
-  assert.equal(snapshot.state.serialNumber, BIKE_SERIAL_NUMBER)
+  assert.equal(requireForm(snapshot).serialNumber, BIKE_SERIAL_NUMBER)
   assert.equal(publicClient.calls.length, callsBefore)
 })
 
-test("setState re-resolves current screen actions with updated state", async () => {
+test("updateForm re-resolves current screen actions with updated form", async () => {
   const session = createSession({
-    state: {
-      serialNumber: "",
-    },
     resources: {
       [entryScreenURI]: encodeJson({
         screen: "1.0.0",
@@ -154,6 +151,7 @@ test("setState re-resolves current screen actions with updated state", async () 
             type: "input",
             name: "serialNumber",
             label: "Serial number",
+            value: "",
           },
           {
             type: "button",
@@ -161,7 +159,7 @@ test("setState re-resolves current screen actions with updated state", async () 
             action: {
               route: BIKE_ROUTE_COMPONENT,
               params: {
-                serialNumber: "$state.serialNumber",
+                serialNumber: "$form.serialNumber",
               },
             },
           },
@@ -171,7 +169,7 @@ test("setState re-resolves current screen actions with updated state", async () 
   })
   await session.load()
 
-  const snapshot = session.setState({
+  const snapshot = session.updateForm({
     serialNumber: BIKE_SERIAL_NUMBER,
   })
 
@@ -179,6 +177,7 @@ test("setState re-resolves current screen actions with updated state", async () 
     type: "input",
     name: "serialNumber",
     label: "Serial number",
+    value: BIKE_SERIAL_NUMBER,
   }))
   assert.deepEqual(snapshot.resolvedScreen?.elements[1], inert({
     type: "button",
@@ -222,8 +221,24 @@ test("snapshot returns isolated copies of nested route and resolved screen data"
   )
 })
 
-test("setState and navigate copy caller-owned nested input records", async () => {
-  const session = createSession()
+test("updateForm and navigate copy caller-owned nested input records", async () => {
+  const session = createSession({
+    resources: {
+      [entryScreenURI]: encodeJson({
+        screen: "1.0.0",
+        elements: [
+          {
+            type: "input",
+            name: "nested",
+            label: "Nested",
+            value: {
+              value: "initial",
+            },
+          },
+        ],
+      }),
+    },
+  })
   await session.load()
 
   const patch = {
@@ -231,11 +246,11 @@ test("setState and navigate copy caller-owned nested input records", async () =>
       value: "before",
     },
   }
-  const stateSnapshot = session.setState(patch)
+  const formSnapshot = session.updateForm(patch)
   patch.nested.value = "after"
-  mutableRecord(stateSnapshot.state.nested).value = "snapshot mutation"
+  mutableRecord(requireForm(formSnapshot).nested).value = "snapshot mutation"
 
-  assert.equal(mutableRecord(session.snapshot().state.nested).value, "before")
+  assert.equal(mutableRecord(requireForm(session.snapshot()).nested).value, "before")
 
   const routeParams = {
     serialNumber: BIKE_SERIAL_NUMBER,
@@ -250,12 +265,22 @@ test("setState and navigate copy caller-owned nested input records", async () =>
   assert.equal(mutableRecord(session.snapshot().params.nested).value, "before")
 })
 
-test("setState rejects unsupported mutable object values instead of storing live references", async () => {
+test("updateForm rejects fields not declared by the current screen", async () => {
   const session = createSession()
   await session.load()
 
   assert.throws(
-    () => session.setState({ date: new Date(0) as unknown as InertValue }),
+    () => session.updateForm({ unknown: "value" }),
+    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_UNKNOWN_FORM_FIELD",
+  )
+})
+
+test("updateForm rejects unsupported mutable object values instead of storing live references", async () => {
+  const session = createSession()
+  await session.load()
+
+  assert.throws(
+    () => session.updateForm({ date: new Date(0) as unknown as InertValue }),
     (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_INVALID_INERT_VALUE",
   )
 })
@@ -285,6 +310,15 @@ test("navigate rejects before load", async () => {
 
   await assert.rejects(
     () => session.navigate(BIKE_ROUTE_ENTRY, {}),
+    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_NOT_LOADED",
+  )
+})
+
+test("updateForm rejects before a screen is loaded", () => {
+  const session = createSession()
+
+  assert.throws(
+    () => session.updateForm({ serialNumber: BIKE_SERIAL_NUMBER }),
     (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_NOT_LOADED",
   )
 })
@@ -352,18 +386,16 @@ function createSession({
   // missing resources or client behavior pass the dependency explicitly.
   publicClient = createPublicClient(),
   resources = {},
-  state = {},
 }: {
   readonly publicClient?: ReturnType<typeof createPublicClient>
   readonly resources?: Record<string, Uint8Array>
-  readonly state?: Record<string, InertValue>
 } = {}) {
   return createCamViewerSession({
     publicClient,
     host,
     account: { address: userAddress },
     params: {},
-    state,
+    allowUnsignedCamHash: true,
     loadResource: createResourceLoader(bikeResourceBytes(resources)),
   })
 }
@@ -399,4 +431,13 @@ function mutableRecord(value: unknown): Record<string, unknown> {
 
 function inert(value: unknown): InertValue {
   return toInertValue(value)
+}
+
+function requireForm(snapshot: { readonly form?: InertRecord }): InertRecord {
+  const form = snapshot.form
+  if (form === undefined) {
+    assert.fail("expected loaded viewer form")
+  }
+
+  return form
 }

@@ -19,7 +19,8 @@
     {
       "type": "input",
       "name": "serialNumber",
-      "label": "Serial number"
+      "label": "Serial number",
+      "value": ""
     },
     {
       "type": "button",
@@ -27,7 +28,7 @@
       "action": {
         "route": "component",
         "params": {
-          "serialNumber": "$state.serialNumber"
+          "serialNumber": "$form.serialNumber"
         }
       }
     },
@@ -37,7 +38,7 @@
       "action": {
         "route": "register",
         "params": {
-          "serialNumber": "$state.serialNumber"
+          "serialNumber": "$form.serialNumber"
         }
       }
     }

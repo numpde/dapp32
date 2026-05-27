@@ -4,6 +4,7 @@ import {
   resolveCamContracts,
 } from "@cam/evm-viem"
 import {
+  hasOwn,
   parseJsonBytes,
   toInertValue,
 } from "@cam/protocol"
@@ -11,12 +12,14 @@ import type { CamDocument } from "@cam/core"
 import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 import {
   parseScreen,
+  resolveInitialScreen,
   resolveScreen,
 } from "@cam/screen"
 import type { ResolvedCamContract } from "@cam/evm-viem"
 import type {
   ResolvedScreen,
   ResolvedScreenAction,
+  ScreenInitialContext,
   ScreenRuntimeContext,
   ScreenDocument,
 } from "@cam/screen"
@@ -36,35 +39,42 @@ type CamViewerLoadedState = {
   readonly contracts: Record<string, ResolvedCamContract>
 }
 
+type CurrentScreen = {
+  readonly route: string
+  readonly params: InertRecord
+  readonly screenURI: string
+  readonly screen: ScreenDocument
+  readonly form: InertRecord
+  readonly resolvedScreen: ResolvedScreen
+  readonly values: readonly InertValue[]
+}
+
 export function createCamViewerSession({
   publicClient,
   host,
   loadResource,
+  allowUnsignedCamHash,
   account: initialAccount,
   params: initialParams,
-  state: initialState,
 }: CreateCamViewerSessionOptions): CamViewerSession {
   let loadedState: CamViewerLoadedState | undefined
-  let route: string | undefined
-  let params = cloneViewerData<InertRecord>(initialParams, "params")
-  let state = cloneViewerData<InertRecord>(initialState, "state")
+  const initialRouteParams = cloneViewerData<InertRecord>(initialParams, "params")
   let account = initialAccount === undefined ? undefined : cloneAccount(initialAccount)
-  let screenURI: string | undefined
-  let screen: ScreenDocument | undefined
-  let resolvedScreen: CamViewerSnapshot["resolvedScreen"]
-  let values: readonly InertValue[] | undefined
+  let currentScreen: CurrentScreen | undefined
 
   function snapshot(): CamViewerSnapshot {
     return {
-      ...(route === undefined ? {} : { route }),
-      params: cloneViewerData<InertRecord>(params, "params"),
-      state: cloneViewerData<InertRecord>(state, "state"),
+      params: cloneViewerData<InertRecord>(currentScreen?.params ?? initialRouteParams, "params"),
       ...(account === undefined ? {} : { account: cloneAccount(account) }),
-      ...(screenURI === undefined ? {} : { screenURI }),
-      ...(resolvedScreen === undefined
+      ...(currentScreen === undefined
         ? {}
-        : { resolvedScreen: cloneViewerData<ResolvedScreen>(resolvedScreen, "resolvedScreen") }),
-      ...(values === undefined ? {} : { values: cloneViewerData<readonly InertValue[]>(values, "values") }),
+        : {
+            route: currentScreen.route,
+            form: cloneViewerData<InertRecord>(currentScreen.form, "form"),
+            screenURI: currentScreen.screenURI,
+            resolvedScreen: cloneViewerData<ResolvedScreen>(currentScreen.resolvedScreen, "resolvedScreen"),
+            values: cloneViewerData<readonly InertValue[]>(currentScreen.values, "values"),
+          }),
     }
   }
 
@@ -73,6 +83,7 @@ export function createCamViewerSession({
       publicClient,
       host,
       loadResource,
+      allowUnsignedCamHash,
     })
 
     const contracts = await resolveCamContracts({
@@ -89,7 +100,7 @@ export function createCamViewerSession({
       contracts,
     }
 
-    return await navigateLoaded(loadedCam.cam.entry, params)
+    return await navigateLoaded(loadedCam.cam.entry, initialRouteParams)
   }
 
   async function navigate(
@@ -103,21 +114,35 @@ export function createCamViewerSession({
   async function setAccount(nextAccount?: CamViewerAccount): Promise<CamViewerSnapshot> {
     account = nextAccount === undefined ? undefined : cloneAccount(nextAccount)
 
-    if (loadedState === undefined || route === undefined) {
+    if (loadedState === undefined || currentScreen === undefined) {
       return snapshot()
     }
 
-    return await navigateLoaded(route, params)
+    return await navigateLoaded(currentScreen.route, currentScreen.params)
   }
 
-  function setState(patch: InertRecord): CamViewerSnapshot {
-    state = {
-      ...state,
-      ...cloneViewerData<InertRecord>(patch, "state"),
+  function updateForm(patch: InertRecord): CamViewerSnapshot {
+    if (currentScreen === undefined) {
+      throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded screen form")
     }
 
-    if (screen !== undefined && values !== undefined) {
-      resolvedScreen = resolveScreen(screen, screenContext(params, values))
+    const formPatch = cloneViewerData<InertRecord>(patch, "form")
+    assertKnownFormFields(currentScreen.form, formPatch)
+    const form = cloneViewerData<InertRecord>(
+      {
+        ...currentScreen.form,
+        ...formPatch,
+      },
+      "form",
+    )
+    const resolvedScreen = resolveScreen(
+      currentScreen.screen,
+      screenContext(currentScreen.params, currentScreen.values, form),
+    )
+    currentScreen = {
+      ...currentScreen,
+      form,
+      resolvedScreen,
     }
 
     return snapshot()
@@ -161,14 +186,20 @@ export function createCamViewerSession({
 
     const screenBytes = await loadScreenBytes(routeResult.screenURI)
     const parsedScreen = parseScreenBytes(screenBytes, routeResult.screenURI)
-    const nextResolvedScreen = resolveScreen(parsedScreen, screenContext(routeParams, routeResult.values))
+    const initialScreen = resolveInitialScreen(
+      parsedScreen,
+      screenBaseContext(routeParams, routeResult.values),
+    )
 
-    route = nextRoute
-    params = routeParams
-    screenURI = routeResult.screenURI
-    screen = parsedScreen
-    resolvedScreen = nextResolvedScreen
-    values = routeResult.values
+    currentScreen = {
+      route: nextRoute,
+      params: routeParams,
+      screenURI: routeResult.screenURI,
+      screen: parsedScreen,
+      form: initialScreen.form,
+      resolvedScreen: initialScreen.resolvedScreen,
+      values: routeResult.values,
+    }
 
     return snapshot()
   }
@@ -216,10 +247,20 @@ export function createCamViewerSession({
   function screenContext(
     routeParams: InertRecord,
     routeValues: readonly InertValue[],
+    screenForm: InertRecord,
   ): ScreenRuntimeContext {
     return {
+      ...screenBaseContext(routeParams, routeValues),
+      form: screenForm,
+    }
+  }
+
+  function screenBaseContext(
+    routeParams: InertRecord,
+    routeValues: readonly InertValue[],
+  ): ScreenInitialContext {
+    return {
       ...routeContext(routeParams),
-      state,
       values: routeValues,
     }
   }
@@ -229,7 +270,7 @@ export function createCamViewerSession({
     load,
     navigate,
     setAccount,
-    setState,
+    updateForm,
     dispatchAction,
   }
 }
@@ -247,5 +288,13 @@ function cloneViewerData<T>(value: T, path: string): T {
       `CAM viewer data is not safely cloneable: ${path}`,
       cause,
     )
+  }
+}
+
+function assertKnownFormFields(form: InertRecord, patch: InertRecord): void {
+  for (const key of Object.keys(patch)) {
+    if (!hasOwn(form, key)) {
+      throw new CamViewerError("CAM_VIEWER_UNKNOWN_FORM_FIELD", `CAM screen form has no field named: ${key}`)
+    }
   }
 }

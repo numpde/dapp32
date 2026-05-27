@@ -14,7 +14,7 @@
       "action": {
         "route": "component",
         "params": {
-          "serialNumber": "$state.serialNumber"
+          "serialNumber": "$form.serialNumber"
         }
       }
     },
@@ -95,7 +95,7 @@
       "action": {
         "route": "register",
         "params": {
-          "serialNumber": "$state.serialNumber"
+          "serialNumber": "$form.serialNumber"
         }
       }
     }

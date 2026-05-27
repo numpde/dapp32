@@ -5,13 +5,14 @@ import { toInertValue } from "@cam/protocol"
 import type { InertValue } from "@cam/protocol"
 import * as camScreen from "../src/index.ts"
 import {
+  resolveInitialScreen,
   parseScreen,
   resolveScreen,
   ScreenError,
 } from "../src/index.ts"
 import type { ScreenRuntimeContext } from "../src/index.ts"
 
-const context: ScreenRuntimeContext = {
+const screenBaseContext = {
   host: {
     chainId: "eip155:31337",
     address: "0x0000000000000000000000000000000000000001",
@@ -21,9 +22,6 @@ const context: ScreenRuntimeContext = {
   },
   params: {
     serialNumber: "ABC123",
-  },
-  state: {
-    serialNumber: "XYZ789",
   },
   values: [
     {
@@ -35,10 +33,18 @@ const context: ScreenRuntimeContext = {
   ],
 }
 
+const context: ScreenRuntimeContext = {
+  ...screenBaseContext,
+  form: {
+    serialNumber: "XYZ789",
+  },
+}
+
 test("keeps the public API to the CAM screen boundary", () => {
   assert.deepEqual(Object.keys(camScreen).sort(), [
     "ScreenError",
     "parseScreen",
+    "resolveInitialScreen",
     "resolveScreen",
   ])
 })
@@ -58,7 +64,7 @@ test("parseScreen accepts a minimal text and button screen", () => {
         action: {
           route: "component",
           params: {
-            serialNumber: "$state.serialNumber",
+            serialNumber: "$form.serialNumber",
           },
         },
       },
@@ -93,6 +99,25 @@ test("parseScreen rejects unknown element types", () => {
       ],
     }),
     (error) => error instanceof ScreenError && error.code === "SCREEN_INVALID_FIELD",
+  )
+})
+
+test("parseScreen requires explicit input values", () => {
+  assert.throws(
+    () => parseScreen({
+      screen: "1.0.0",
+      elements: [
+        {
+          type: "input",
+          name: "serialNumber",
+          label: "Serial number",
+        },
+      ],
+    }),
+    (error) =>
+      error instanceof ScreenError
+      && error.code === "SCREEN_INVALID_FIELD"
+      && error.path === "elements.0.value",
   )
 })
 
@@ -160,7 +185,7 @@ test("parseScreen rejects sparse action arg arrays", () => {
   )
 })
 
-test("resolveScreen resolves params, state, and route values", () => {
+test("resolveScreen resolves params, form, and route values", () => {
   const screen = parseScreen({
     screen: "1.0.0",
     title: "$params.serialNumber",
@@ -192,7 +217,7 @@ test("resolveScreen resolves params, state, and route values", () => {
       type: "input",
       name: "serialNumber",
       label: "ABC123",
-      value: "ABC123",
+      value: "XYZ789",
     },
     {
       type: "status",
@@ -203,6 +228,177 @@ test("resolveScreen resolves params, state, and route values", () => {
       type: "nft",
       contractAddress: "0x0000000000000000000000000000000000000004",
       tokenId: "42",
+    },
+  ])
+})
+
+test("resolveScreen renders current input values from form", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "input",
+        name: "serialNumber",
+        label: "Serial number",
+        value: "$params.serialNumber",
+      },
+    ],
+  })
+
+  assert.deepEqual(resolveScreen(screen, context).elements, [
+    {
+      type: "input",
+      name: "serialNumber",
+      label: "Serial number",
+      value: "XYZ789",
+    },
+  ])
+})
+
+test("resolveScreen rejects input fields missing from the current form", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "input",
+        name: "missing",
+        label: "Missing",
+        value: "",
+      },
+    ],
+  })
+
+  assert.throws(
+    () => resolveScreen(screen, context),
+    (error) =>
+      error instanceof ScreenError
+      && error.code === "SCREEN_UNRESOLVED_VALUE"
+      && error.path === "elements.0.value",
+  )
+})
+
+test("resolveInitialScreen initializes current-screen form and resolves the screen", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "input",
+        name: "query",
+        label: "Query",
+        value: "$params.serialNumber",
+      },
+      {
+        type: "input",
+        name: "empty",
+        label: "Empty",
+        value: "",
+      },
+    ],
+  })
+
+  const initial = resolveInitialScreen(screen, screenBaseContext)
+
+  assert.deepEqual(initial.form, inert({
+    query: "ABC123",
+    empty: "",
+  }))
+  assert.deepEqual(initial.resolvedScreen.elements, [
+    {
+      type: "input",
+      name: "query",
+      label: "Query",
+      value: "ABC123",
+    },
+    {
+      type: "input",
+      name: "empty",
+      label: "Empty",
+      value: "",
+    },
+  ])
+})
+
+test("resolveInitialScreen rejects duplicate current-screen form initializers", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "input",
+        name: "serialNumber",
+        label: "First",
+        value: "",
+      },
+      {
+        type: "input",
+        name: "serialNumber",
+        label: "Second",
+        value: "",
+      },
+    ],
+  })
+
+  assert.throws(
+    () => resolveInitialScreen(screen, screenBaseContext),
+    (error) =>
+      error instanceof ScreenError
+      && error.code === "SCREEN_INVALID_FIELD"
+      && error.path === "elements.1.name",
+  )
+})
+
+test("resolveInitialScreen rejects form-dependent input values", () => {
+  const valueScreen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "input",
+        name: "copy",
+        label: "Copy",
+        value: "$form.serialNumber",
+      },
+    ],
+  })
+
+  assert.throws(
+    () => resolveInitialScreen(valueScreen, screenBaseContext),
+    (error) =>
+      error instanceof ScreenError
+      && error.code === "SCREEN_UNRESOLVED_VALUE"
+      && error.path === "elements.0.value",
+  )
+})
+
+test("resolveInitialScreen supports form-dependent visibility after initializing inputs", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    elements: [
+      {
+        type: "input",
+        name: "ready",
+        label: "Ready",
+        value: true,
+      },
+      {
+        type: "status",
+        visibleWhen: "$form.ready",
+        value: "Visible",
+      },
+    ],
+  })
+
+  const initial = resolveInitialScreen(screen, screenBaseContext)
+
+  assert.deepEqual(initial.form, inert({ ready: true }))
+  assert.deepEqual(initial.resolvedScreen.elements, [
+    {
+      type: "input",
+      name: "ready",
+      label: "Ready",
+      value: true,
+    },
+    {
+      type: "status",
+      value: "Visible",
     },
   ])
 })
@@ -226,7 +422,7 @@ test("resolveScreen filters elements with false visibility guards", () => {
         type: "status",
         label: "Hidden unresolved value",
         visibleWhen: false,
-        value: "$state.missing",
+        value: "$form.missing",
       },
     ],
   })
@@ -267,7 +463,7 @@ test("resolveScreen flattens visible groups and skips hidden groups", () => {
           {
             type: "status",
             label: "Hidden unresolved value",
-            value: "$state.missing",
+            value: "$form.missing",
           },
         ],
       },
@@ -314,7 +510,7 @@ test("resolveScreen resolves navigation action params", () => {
         action: {
           route: "component",
           params: {
-            serialNumber: "$state.serialNumber",
+            serialNumber: "$form.serialNumber",
           },
         },
       },
@@ -397,7 +593,7 @@ test("resolveScreen reports the exact field path for unresolved expressions", ()
     elements: [
       {
         type: "status",
-        value: "$state.missing",
+        value: "$form.missing",
       },
     ],
   })

@@ -19,15 +19,15 @@ export type CreateCamViewerSessionOptions = {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
   readonly loadResource: ResourceLoader
+  readonly allowUnsignedCamHash: boolean
   readonly account?: CamViewerAccount
   readonly params: InertRecord
-  readonly state: InertRecord
 }
 
 export type CamViewerSnapshot = {
   readonly route?: string
   readonly params: InertRecord
-  readonly state: InertRecord
+  readonly form?: InertRecord
   readonly account?: CamViewerAccount
   readonly screenURI?: string
   readonly resolvedScreen?: ResolvedScreen
@@ -42,7 +42,7 @@ export type CamViewerSession = {
     params: InertRecord,
   ) => Promise<CamViewerSnapshot>
   readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerSnapshot>
-  readonly setState: (patch: InertRecord) => CamViewerSnapshot
+  readonly updateForm: (patch: InertRecord) => CamViewerSnapshot
   readonly dispatchAction: (action: ResolvedScreenAction) => Promise<CamViewerActionResult>
 }
 
