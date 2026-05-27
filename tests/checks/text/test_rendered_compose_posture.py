@@ -6,6 +6,27 @@ from typing import Any
 from ..common import read_text, rendered_compose_config, repo_path
 
 
+BIKE_CAM_URI = "file:///work/dapps/bike-nft/cam/main.json"
+BIKE_PRIVATE_KEY_FILE = "/tmp/bike-nft-private-key"
+ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000"
+VIEWER_TERMINAL_CONTAINER_NAME = "dapps-viewer-terminal-session"
+
+
+def bike_fixture_env() -> dict[str, str]:
+    return {
+        "CAM_URI": BIKE_CAM_URI,
+        "CAM_HASH": ZERO_HASH,
+        "BIKE_NFT_PRIVATE_KEY_FILE": BIKE_PRIVATE_KEY_FILE,
+    }
+
+
+def mock_viewer_env() -> dict[str, str]:
+    return {
+        "CAM_VIEWER_MOCK": "bike-nft",
+        "VIEWER_TERMINAL_CONTAINER_NAME": VIEWER_TERMINAL_CONTAINER_NAME,
+    }
+
+
 def service(config: dict[str, Any], name: str) -> dict[str, Any]:
     return config["services"][name]
 
@@ -51,13 +72,30 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn("pids_limit", config_service)
         self.assertIn("mem_limit", config_service)
 
+    def assert_mock_viewer_environment(self, config_service: dict[str, Any]) -> None:
+        environment = mapping_or_empty(config_service, "environment")
+        self.assertEqual("mock", environment.get("CAM_VIEWER_BACKEND"))
+        self.assertEqual("bike-nft", environment.get("CAM_VIEWER_MOCK"))
+        self.assertEqual("true", environment.get("CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH"))
+        self.assertEqual("{}", environment.get("CAM_VIEWER_INITIAL_PARAMS_JSON"))
+
+    def assert_local_rpc_viewer_environment(self, config_service: dict[str, Any]) -> None:
+        environment = mapping_or_empty(config_service, "environment")
+        self.assertEqual("local-rpc", environment["CAM_VIEWER_BACKEND"])
+        self.assertEqual("true", environment["CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH"])
+        self.assertEqual("http://bike-nft-anvil:8545", environment["CAM_VIEWER_RPC_URL"])
+        self.assertEqual(
+            "/out/foundry-broadcast/DeployBikeNftLocal.s.sol/31337/run-latest.json",
+            environment["CAM_VIEWER_BROADCAST_PATH"],
+        )
+        self.assertEqual("/work/dapps/bike-nft/cam", environment["CAM_VIEWER_FILE_ROOT"])
+        self.assertEqual("{}", environment["CAM_VIEWER_INITIAL_PARAMS_JSON"])
+        self.assertNotIn("PRIVATE_KEY", environment)
+
     def test_bike_nft_local_deploy_lane_is_internal_and_secret_backed(self) -> None:
         config = rendered_compose_config(
             "compose/bike-nft-local.yml",
-            env={
-                "CAM_URI": "file:///work/dapps/bike-nft/cam/main.json",
-                "BIKE_NFT_PRIVATE_KEY_FILE": "/tmp/bike-nft-private-key",
-            },
+            env=bike_fixture_env(),
         )
         anvil = service(config, "bike-nft-anvil")
         deploy = service(config, "deploy-bike-nft-local")
@@ -73,7 +111,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         repo_mount = volume_for(deploy, "/work")
         self.assertEqual(True, repo_mount.get("read_only"))
         self.assertNotIn("PRIVATE_KEY", mapping_or_empty(deploy, "environment"))
-        self.assertEqual("/tmp/bike-nft-private-key", config["secrets"]["bike_nft_private_key"]["file"])
+        self.assertEqual(BIKE_PRIVATE_KEY_FILE, config["secrets"]["bike_nft_private_key"]["file"])
         source_text = read_text(repo_path("compose/bike-nft-local.yml"))
         self.assertIn('export PRIVATE_KEY="$(cat /run/secrets/bike_nft_private_key)"', source_text)
         self.assertNotIn("$$(cat", source_text)
@@ -147,13 +185,10 @@ class RenderedComposePostureTest(unittest.TestCase):
             config = rendered_compose_config(
                 compose_file,
                 env={
-                    "CAM_URI": "file:///work/dapps/bike-nft/cam/main.json",
-                    "BIKE_NFT_PRIVATE_KEY_FILE": "/tmp/bike-nft-private-key",
                     "PACKAGE_INPUT_DIR": "/tmp/package-input",
                     "RPC_URL_FILE": "/tmp/rpc-url",
-                    "CAM_VIEWER_BACKEND": "mock",
-                    "CAM_VIEWER_MOCK": "bike-nft",
-                    "VIEWER_TERMINAL_CONTAINER_NAME": "dapps-viewer-terminal-session",
+                    **bike_fixture_env(),
+                    **mock_viewer_env(),
                 },
             )
             for service_name, config_service in config["services"].items():
@@ -199,24 +234,18 @@ class RenderedComposePostureTest(unittest.TestCase):
     def test_viewer_terminal_renders_as_offline_read_only_interactive_lane(self) -> None:
         config = rendered_compose_config(
             "compose/viewer-terminal.yml",
-            env={
-                "CAM_VIEWER_BACKEND": "mock",
-                "CAM_VIEWER_MOCK": "bike-nft",
-                "VIEWER_TERMINAL_CONTAINER_NAME": "dapps-viewer-terminal-session",
-            },
+            env=mock_viewer_env(),
         )
         viewer = service(config, "viewer-terminal")
         check = service(config, "viewer-terminal-check")
 
         self.assert_hardened(viewer)
         self.assert_hardened(check)
-        self.assertEqual("dapps-viewer-terminal-session", viewer.get("container_name"))
+        self.assertEqual(VIEWER_TERMINAL_CONTAINER_NAME, viewer.get("container_name"))
         self.assertEqual("none", viewer.get("network_mode"))
         self.assertEqual("none", check.get("network_mode"))
-        self.assertEqual("mock", mapping_or_empty(viewer, "environment").get("CAM_VIEWER_BACKEND"))
-        self.assertEqual("bike-nft", mapping_or_empty(viewer, "environment").get("CAM_VIEWER_MOCK"))
-        self.assertEqual("mock", mapping_or_empty(check, "environment").get("CAM_VIEWER_BACKEND"))
-        self.assertEqual("bike-nft", mapping_or_empty(check, "environment").get("CAM_VIEWER_MOCK"))
+        self.assert_mock_viewer_environment(viewer)
+        self.assert_mock_viewer_environment(check)
         self.assertEqual(True, viewer.get("stdin_open"))
         self.assertEqual(True, viewer.get("tty"))
         viewer_command = command_text(viewer)
@@ -247,10 +276,7 @@ class RenderedComposePostureTest(unittest.TestCase):
     def test_bike_nft_viewer_terminal_renders_as_internal_rpc_scenario(self) -> None:
         config = rendered_compose_config(
             ("compose/bike-nft-local.yml", "compose/bike-nft-viewer-terminal.yml"),
-            env={
-                "CAM_URI": "file:///work/dapps/bike-nft/cam/main.json",
-                "BIKE_NFT_PRIVATE_KEY_FILE": "/tmp/bike-nft-private-key",
-            },
+            env=bike_fixture_env(),
         )
         viewer = service(config, "bike-nft-viewer-terminal")
         deploy = service(config, "deploy-bike-nft-local")
@@ -263,19 +289,10 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertTrue(config["networks"]["bike_nft_local"]["internal"])
         self.assertEqual("service_completed_successfully", viewer["depends_on"]["deploy-bike-nft-local"]["condition"])
 
-        environment = mapping_or_empty(viewer, "environment")
-        self.assertEqual("local-rpc", environment["CAM_VIEWER_BACKEND"])
-        self.assertEqual("http://bike-nft-anvil:8545", environment["CAM_VIEWER_RPC_URL"])
-        self.assertEqual(
-            "/out/foundry-broadcast/DeployBikeNftLocal.s.sol/31337/run-latest.json",
-            environment["CAM_VIEWER_BROADCAST_PATH"],
-        )
-        self.assertEqual("/work/dapps/bike-nft/cam", environment["CAM_VIEWER_FILE_ROOT"])
-        self.assertEqual("{}", environment["CAM_VIEWER_INITIAL_PARAMS_JSON"])
-        self.assertEqual('{"serialNumber":""}', environment["CAM_VIEWER_INITIAL_STATE_JSON"])
-        self.assertNotIn("PRIVATE_KEY", environment)
+        self.assert_local_rpc_viewer_environment(viewer)
 
         deploy_environment = mapping_or_empty(deploy, "environment")
+        self.assertEqual(ZERO_HASH, deploy_environment["CAM_HASH"])
         self.assertEqual("/out/foundry-broadcast", deploy_environment["FOUNDRY_BROADCAST"])
         self.assertNotIn("PRIVATE_KEY", deploy_environment)
 

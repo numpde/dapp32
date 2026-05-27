@@ -9,20 +9,15 @@ import {BikeNftLocalFixture} from "./BikeNftLocalFixture.sol";
 /// Required environment:
 /// - PRIVATE_KEY: deployer/admin private key used by Forge broadcast.
 /// - CAM_URI: exact CAM document URI to store in CamRoot.
-///
-/// Optional environment:
-/// - CAM_HASH: keccak256 hash of the CAM bytes. Defaults to bytes32(0) for
-///   intentionally unsigned local fixtures.
+/// - CAM_HASH: keccak256 hash of the CAM bytes, or bytes32(0) when the caller
+///   explicitly chooses an unsigned local fixture.
 contract DeployBikeNftLocal is Script, BikeNftLocalFixture {
     function run() external returns (Deployment memory deployment) {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address admin = vm.addr(deployerKey);
 
         string memory camURI = vm.envString("CAM_URI");
-        // Intentional default: bytes32(0) means "unsigned CAM". This is
-        // acceptable for a local fixture, but a real deploy lane should require
-        // the operator to choose signed or unsigned CAM mode explicitly.
-        bytes32 camHash = vm.envOr("CAM_HASH", bytes32(0));
+        bytes32 camHash = vm.envBytes32("CAM_HASH");
 
         vm.startBroadcast(deployerKey);
         deployment = deploySeededLocalFixture(admin, camURI, camHash);

@@ -82,8 +82,8 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
       case "show":
         render(context.session.snapshot())
         return true
-      case "state":
-        printState(context.session.snapshot())
+      case "form":
+        printForm(context.session.snapshot())
         return true
       case "values":
         printValues(context.session.snapshot())
@@ -127,7 +127,7 @@ function handleSet(session: CamViewerSession, args: readonly string[]): void {
     throw new Error("usage: set <name> <value>")
   }
 
-  session.setState({
+  session.updateForm({
     [name]: toInertValue(valueParts.join(" ")),
   })
 }
@@ -178,7 +178,7 @@ function render(snapshot: CamViewerSnapshot): void {
 
   const buttons: TerminalButtonElement[] = []
   for (const element of snapshot.resolvedScreen.elements) {
-    renderElement(element, snapshot, buttons)
+    renderElement(element, buttons)
   }
 
   if (buttons.length > 0) {
@@ -193,7 +193,6 @@ function render(snapshot: CamViewerSnapshot): void {
 
 function renderElement(
   element: ResolvedScreenElement,
-  snapshot: CamViewerSnapshot,
   buttons: TerminalButtonElement[],
 ): void {
   switch (element.type) {
@@ -201,7 +200,7 @@ function renderElement(
       output.write(`\n${element.text}\n`)
       return
     case "input":
-      output.write(`${element.label}: ${formatInputValue(element, snapshot)}\n`)
+      output.write(`${element.label}: ${formatValue(element.value)}\n`)
       return
     case "address":
       output.write(`${element.label ?? "Address"}: ${element.address}\n`)
@@ -228,14 +227,6 @@ function buttonsOf(snapshot: CamViewerSnapshot): readonly TerminalButtonElement[
   )
 }
 
-function formatInputValue(element: Extract<ResolvedScreenElement, { readonly type: "input" }>, snapshot: CamViewerSnapshot): string {
-  const value = Object.hasOwn(snapshot.state, element.name)
-    ? snapshot.state[element.name]
-    : element.value
-
-  return value === undefined ? "(unset)" : formatValue(value)
-}
-
 function formatValue(value: unknown): string {
   if (typeof value === "bigint") {
     return value.toString()
@@ -256,13 +247,13 @@ function formatError(error: unknown): string {
   return `Error: ${String(error)}\n`
 }
 
-function printState(snapshot: CamViewerSnapshot): void {
+function printForm(snapshot: CamViewerSnapshot): void {
   output.write(`${JSON.stringify({
     route: snapshot.route,
     screenURI: snapshot.screenURI,
     account: snapshot.account,
     params: snapshot.params,
-    state: snapshot.state,
+    form: snapshot.form ?? null,
   }, jsonReplacer, 2)}\n`)
 }
 
@@ -273,7 +264,7 @@ function printPromptContext(context: TerminalContext): void {
   output.write(`  host: ${context.backend.hostLabel}\n`)
   output.write(`  account: ${snapshot.account?.address ?? "(none)"}\n`)
   output.write(`  params: ${formatValue(snapshot.params)}\n`)
-  output.write(`  state: ${formatValue(snapshot.state)}\n`)
+  output.write(`  form: ${snapshot.form === undefined ? "(not loaded)" : formatValue(snapshot.form)}\n`)
   output.write(`  values: ${snapshot.values === undefined ? "(not loaded)" : formatValue(snapshot.values)}\n`)
 }
 
@@ -316,14 +307,14 @@ function printHelp(): void {
   output.write([
     "Commands:",
     "  show                  Render the current resolved screen.",
-    "  state                 Print route, screen URI, account, params, and local state.",
+    "  form                  Print route, screen URI, account, params, and screen form.",
     "  values                Print the current route return values.",
     "  actions               Print resolved button actions and their button numbers.",
     "  screen                Print the resolved screen document.",
     "  trace                 Print backend contract reads and resource loads.",
     "  trace clear           Clear the trace buffer.",
     "  restart               Reset the backend session and reload the entry route.",
-    "  set <name> <value>    Set local screen state and re-resolve actions.",
+    "  set <name> <value>    Update local screen form and re-resolve actions.",
     "  press <n>             Dispatch a resolved button action.",
     "  help                  Print this help.",
     "  quit                  Exit.",

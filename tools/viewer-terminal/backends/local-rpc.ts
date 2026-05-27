@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
-import { relative, resolve } from "node:path"
+import { isAbsolute, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type {
@@ -19,11 +19,11 @@ import {
   parseJsonText,
   toInertValue,
 } from "../../../packages/cam-protocol/dist/index.js"
-import type { InertRecord } from "../../../packages/cam-protocol/dist/index.js"
 
 import type {
   DebugEvent,
   TerminalBackend,
+  TerminalBackendOptions,
 } from "../types.ts"
 
 type BroadcastDeployment = {
@@ -32,11 +32,15 @@ type BroadcastDeployment = {
   readonly camRoot: CamHost["address"]
 }
 
-export function createLocalRpcBackend(env: NodeJS.ProcessEnv): TerminalBackend {
+export function createLocalRpcBackend(
+  env: NodeJS.ProcessEnv,
+  {
+    allowUnsignedCamHash,
+    initialParams,
+  }: TerminalBackendOptions,
+): TerminalBackend {
   const rpcURL = requiredEnv(env, "CAM_VIEWER_RPC_URL")
   const fileRoot = resolve(requiredEnv(env, "CAM_VIEWER_FILE_ROOT"))
-  const params = readInertRecordEnv(env, "CAM_VIEWER_INITIAL_PARAMS_JSON")
-  const state = readInertRecordEnv(env, "CAM_VIEWER_INITIAL_STATE_JSON")
   const deployment = readBroadcastDeployment(requiredEnv(env, "CAM_VIEWER_BROADCAST_PATH"))
 
   return {
@@ -53,8 +57,8 @@ export function createLocalRpcBackend(env: NodeJS.ProcessEnv): TerminalBackend {
         account: {
           address: deployment.account,
         },
-        params,
-        state,
+        params: initialParams,
+        allowUnsignedCamHash,
         loadResource: createLocalFileResourceLoader(fileRoot, events),
       })
     },
@@ -88,7 +92,7 @@ function createLocalFileResourceLoader(root: string, events: DebugEvent[]): (uri
     }
 
     const path = resolve(fileURLToPath(resourceURL))
-    if (path !== root && (relative(root, path).startsWith("..") || relative(root, path) === "")) {
+    if (!isWithinOrEqual(root, path)) {
       throw new Error(`local-rpc terminal file resource is outside CAM file root: ${resourceURL.href}`)
     }
 
@@ -101,6 +105,11 @@ function createLocalFileResourceLoader(root: string, events: DebugEvent[]): (uri
     })
     return bytes
   }
+}
+
+function isWithinOrEqual(root: string, path: string): boolean {
+  const relativePath = relative(root, path)
+  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))
 }
 
 function readBroadcastDeployment(path: string): BroadcastDeployment {
@@ -145,15 +154,6 @@ function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]
   if (value === undefined || value.length === 0) {
     throw new Error(`missing required environment variable: ${name}`)
-  }
-
-  return value
-}
-
-function readInertRecordEnv(env: NodeJS.ProcessEnv, name: string): InertRecord {
-  const value = toInertValue(parseJsonText(requiredEnv(env, name)))
-  if (!isRecordObject(value)) {
-    throw new Error(`${name}: expected a JSON object`)
   }
 
   return value

@@ -2,7 +2,7 @@ import type {
   CamViewerSession,
   CreateCamViewerSessionOptions,
 } from "../../packages/cam-viewer/dist/index.js"
-import type { InertValue } from "../../packages/cam-protocol/dist/index.js"
+import type { InertRecord, InertValue } from "../../packages/cam-protocol/dist/index.js"
 
 export type DebugEvent =
   | {
@@ -24,6 +24,11 @@ export type TerminalBackend = {
   readonly description: string
   readonly hostLabel: string
   readonly createSession: (events: DebugEvent[]) => CamViewerSession
+}
+
+export type TerminalBackendOptions = {
+  readonly allowUnsignedCamHash: boolean
+  readonly initialParams: InertRecord
 }
 
 export type TerminalPublicClient = CreateCamViewerSessionOptions["publicClient"]

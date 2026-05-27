@@ -70,10 +70,7 @@ services:
       FOUNDRY_OUT: /tmp/foundry-out
       FOUNDRY_BROADCAST: /tmp/foundry-broadcast
       CAM_URI: "${CAM_URI:?missing_CAM_URI}"
-      # Intentional default: empty CAM_HASH becomes an unset env var below,
-      # and the Forge script then uses bytes32(0). That is local-fixture
-      # convenience, not a production deploy default.
-      CAM_HASH: "${CAM_HASH:-}"
+      CAM_HASH: "${CAM_HASH:?missing_CAM_HASH}"
     secrets:
       - source: bike_nft_private_key
         target: bike_nft_private_key
@@ -89,9 +86,6 @@ services:
       - |
         set -euo pipefail
         export PRIVATE_KEY="$(cat /run/secrets/bike_nft_private_key)"
-        if [ -z "$${CAM_HASH:-}" ]; then
-          unset CAM_HASH
-        fi
         forge script --offline bike-nft/script/DeployBikeNftLocal.s.sol \
           --rpc-url http://bike-nft-anvil:8545 \
           --broadcast \

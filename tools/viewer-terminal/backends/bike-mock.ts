@@ -28,6 +28,7 @@ import {
 import type {
   DebugEvent,
   TerminalBackend,
+  TerminalBackendOptions,
   TerminalPublicClient,
 } from "../types.ts"
 
@@ -36,7 +37,10 @@ type MockAddress = CamHost["address"]
 const BIKE_MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
 const BIKE_MOCK_CAM_URI = new URL("main.json", BIKE_MOCK_CAM_BASE_URI).href
 
-export function createBikeMockBackend(): TerminalBackend {
+export function createBikeMockBackend({
+  allowUnsignedCamHash,
+  initialParams,
+}: TerminalBackendOptions): TerminalBackend {
   return {
     name: "mock:bike-nft",
     description: "offline bike NFT fixture",
@@ -51,10 +55,8 @@ export function createBikeMockBackend(): TerminalBackend {
         account: {
           address: BIKE_ACCOUNT_ADDRESS,
         },
-        params: {},
-        state: {
-          serialNumber: "",
-        },
+        params: initialParams,
+        allowUnsignedCamHash,
         loadResource: createMockResourceLoader(events),
       })
     },
