@@ -1,16 +1,21 @@
-import { createBikeMockBackend } from "./bike-mock.ts"
 import type { TerminalBackend } from "../types.ts"
 
-export function createTerminalBackendFromEnv(env: NodeJS.ProcessEnv): TerminalBackend {
+export async function createTerminalBackendFromEnv(env: NodeJS.ProcessEnv): Promise<TerminalBackend> {
   const backend = requiredEnv(env, "CAM_VIEWER_BACKEND")
 
   if (backend === "mock") {
     const mock = requiredEnv(env, "CAM_VIEWER_MOCK")
     if (mock === "bike-nft") {
+      const { createBikeMockBackend } = await import("./bike-mock.ts")
       return createBikeMockBackend()
     }
 
     throw new Error(`unsupported CAM_VIEWER_MOCK: ${mock}`)
+  }
+
+  if (backend === "local-rpc") {
+    const { createLocalRpcBackend } = await import("./local-rpc.ts")
+    return createLocalRpcBackend(env)
   }
 
   throw new Error(`unsupported CAM_VIEWER_BACKEND: ${backend}`)

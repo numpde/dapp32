@@ -27,7 +27,7 @@ type TerminalContext = {
 }
 
 async function main(): Promise<void> {
-  const backend = createTerminalBackendFromEnv(process.env)
+  const backend = await createTerminalBackendFromEnv(process.env)
   const events: DebugEvent[] = []
   const context = {
     backend,
