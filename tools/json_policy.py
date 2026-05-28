@@ -1,3 +1,11 @@
+"""Strict JSON helpers shared by repository tooling.
+
+Python's `json.loads` accepts non-standard constants such as `NaN` and
+`Infinity` unless told otherwise. Repository checks and planning tools use this
+module when reading protocol or dependency metadata so local validation matches
+the stricter JSON shape expected by runtime parsers.
+"""
+
 from __future__ import annotations
 
 import json

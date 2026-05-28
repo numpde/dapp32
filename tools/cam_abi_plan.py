@@ -1,3 +1,12 @@
+"""Build the checked-in ABI export plan from CAM manifests.
+
+This module is the source of truth for mapping each dapp's `cam/main.json`
+contract declarations to path-qualified Forge inspect targets. It deliberately
+derives ABIs only from manifest-declared `./abi/<Contract>.json` entries and
+requires matching `src/<Contract>.sol` files, so ABI export stays dapp-scoped
+and does not rely on globally unique contract names.
+"""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

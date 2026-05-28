@@ -1,3 +1,11 @@
+"""CLI wrapper for generating Forge ABI export plans.
+
+The Forge Compose lane calls this script before `forge inspect`. It keeps the
+shell lane simple: parse the dapps root, delegate manifest/source validation to
+`cam_abi_plan.py`, and write a TSV plan that the container can consume without
+scraping JSON or guessing contract names.
+"""
+
 from __future__ import annotations
 
 import importlib.util
