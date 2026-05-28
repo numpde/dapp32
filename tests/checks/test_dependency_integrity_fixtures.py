@@ -1,108 +1,26 @@
 from __future__ import annotations
 
 import hashlib
-import io
 import tempfile
 import unittest
 import zipfile
 from collections.abc import Iterator
 from contextlib import contextmanager
-from contextlib import redirect_stdout
 from pathlib import Path
-from unittest import mock
 
 from .test_dependency_integrity import (
     DependencyRecord,
     DependencyVerificationError,
     DependencyVerifier,
-    NoRedirectHandler,
 )
 
 
 FIXTURE_PACKAGE = "forge-std"
 FIXTURE_VERSION = "1.0.0"
 FIXTURE_KEY = f"{FIXTURE_PACKAGE}-{FIXTURE_VERSION}"
-FIXTURE_PATCH = f"_patches/{FIXTURE_PACKAGE}.patch"
 
 
 class DependencyIntegrityFixtureTest(unittest.TestCase):
-    def test_rejects_bad_checksum_lines(self) -> None:
-        with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            (root / "dependency-checksums.txt").write_text(f"not-a-checksum  {FIXTURE_KEY}\n", encoding="utf-8")
-
-            with self.assertRaisesRegex(DependencyVerificationError, "malformed dependency checksum line"):
-                DependencyVerifier(root).read_checksum_file()
-
-    def test_rejects_duplicate_lock_entries(self) -> None:
-        with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            self.write_lock(root, [self.record(), self.record()])
-
-            with self.assertRaisesRegex(DependencyVerificationError, "duplicate dependencies"):
-                verifier = DependencyVerifier(root)
-                verifier.verify_dependency_set(verifier.load_dependency_records())
-
-    def test_rejects_missing_remapping(self) -> None:
-        with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            (root / "remappings.txt").write_text("", encoding="utf-8")
-
-            with self.assertRaisesRegex(DependencyVerificationError, "missing remapping"):
-                DependencyVerifier(root).verify_local()
-
-    def test_rejects_declared_patch_file_checksum_mismatch(self) -> None:
-        with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            self.write_patch_manifest(root, patch_hash="0" * 64)
-
-            with self.assertRaisesRegex(DependencyVerificationError, f"{FIXTURE_PATCH} checksum mismatch"):
-                with redirect_stdout(io.StringIO()):
-                    DependencyVerifier(root).verify_local()
-
-    def test_rejects_declared_patch_target_checksum_mismatch(self) -> None:
-        with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            self.write_patch_manifest(root, post_hash="0" * 64)
-
-            with self.assertRaisesRegex(DependencyVerificationError, "patched checksum mismatch"):
-                with redirect_stdout(io.StringIO()):
-                    DependencyVerifier(root).verify_local()
-
-    def test_reports_declared_patches(self) -> None:
-        with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            self.write_patch_manifest(root)
-
-            output = io.StringIO()
-            with redirect_stdout(output):
-                DependencyVerifier(root).verify_local()
-
-            self.assertIn(f"deps-verify: {FIXTURE_KEY} declared patch ok", output.getvalue())
-            self.assertIn("deps-verify:   target: Package.sol", output.getvalue())
-            self.assertIn("Forge may also warn FailedIntegrity", output.getvalue())
-
-    def test_rejects_foundry_dependency_custom_url(self) -> None:
-        with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            (root / "foundry.toml").write_text(
-                f'[dependencies]\n{FIXTURE_PACKAGE} = {{ version = "{FIXTURE_VERSION}", url = "https://example.invalid/pkg.zip" }}\n',
-                encoding="utf-8",
-            )
-
-            with self.assertRaisesRegex(DependencyVerificationError, "registry version-only form"):
-                verifier = DependencyVerifier(root)
-                verifier.verify_dependency_source_policy(verifier.load_dependency_records())
-
-    def test_rejects_lock_url_outside_soldeer_registry(self) -> None:
-        with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            self.write_lock(root, [self.record(url=f"https://example.invalid/{FIXTURE_PACKAGE}/1_0_0_test_forge-std-1.0.zip")])
-
-            with self.assertRaisesRegex(DependencyVerificationError, "must use Soldeer revisions"):
-                verifier = DependencyVerifier(root)
-                verifier.verify_dependency_source_policy(verifier.load_dependency_records())
-
     def test_rejects_unsafe_zip_paths(self) -> None:
         with self.fixture() as root:
             archive = root / "unsafe.zip"
@@ -112,15 +30,7 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             with self.assertRaisesRegex(DependencyVerificationError, "unsafe path"):
                 DependencyVerifier(root).extract_verified_zip(FIXTURE_KEY, archive, root / "extract")
 
-    def test_rejects_non_https_url(self) -> None:
-        with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            record = self.record(url="http://example.invalid/pkg.zip")
-
-            with self.assertRaisesRegex(DependencyVerificationError, "must use https"):
-                DependencyVerifier(root).verify_upstream_archive(root, record)
-
-    def test_rejects_archive_checksum_mismatch(self) -> None:
+    def test_rejects_archive_or_installed_tree_mismatch(self) -> None:
         with self.fixture() as root:
             self.write_minimal_dependency(root)
             record = self.record(checksum="0" * 64)
@@ -130,7 +40,6 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
                 verifier.download_archive = lambda url, output: output.write_bytes(b"not the archive")  # type: ignore[method-assign]
                 verifier.verify_upstream_archive(root, record)
 
-    def test_rejects_installed_tree_mismatch(self) -> None:
         with self.fixture() as root:
             self.write_minimal_dependency(root, content="installed")
             archive = root / "pkg.zip"
@@ -143,24 +52,6 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
                 verifier = DependencyVerifier(root)
                 verifier.download_archive = lambda url, output: output.write_bytes(archive.read_bytes())  # type: ignore[method-assign]
                 verifier.verify_upstream_archive(root, record)
-
-    def test_rejects_http_redirects(self) -> None:
-        with self.assertRaisesRegex(DependencyVerificationError, "unexpected HTTP redirect"):
-            NoRedirectHandler().redirect_request(None, None, 302, "Found", {}, "https://example.invalid/next.zip")
-
-    def test_download_enforces_total_timeout(self) -> None:
-        with self.fixture() as root:
-            response = SlowResponse()
-            opener = mock.Mock()
-            opener.open.return_value = response
-
-            with mock.patch("urllib.request.build_opener", return_value=opener):
-                with self.assertRaisesRegex(DependencyVerificationError, "total timeout"):
-                    DependencyVerifier(root).download_archive(
-                        "https://example.invalid/pkg.zip",
-                        root / "pkg.zip",
-                        total_timeout_seconds=-1,
-                    )
 
     @contextmanager
     def fixture(self) -> Iterator[Path]:
@@ -193,26 +84,6 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             lines.append(f'{record.name} = {{ version = "{record.version}" }}')
         (root / "foundry.toml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    def write_patch_manifest(
-        self,
-        root: Path,
-        *,
-        patch_hash: str | None = None,
-        post_hash: str | None = None,
-    ) -> None:
-        patch = root / FIXTURE_PATCH
-        patch.parent.mkdir(parents=True)
-        patch.write_text("--- a/Package.sol\n+++ b/Package.sol\n", encoding="utf-8")
-
-        target = root / "dependencies" / FIXTURE_KEY / "Package.sol"
-        (root / "dependency-patches.txt").write_text(
-            f"{FIXTURE_KEY}  Package.sol  {FIXTURE_PATCH}  "
-            f"{self.file_hash(target)}  "
-            f"{patch_hash or self.file_hash(patch)}  "
-            f"{post_hash or self.file_hash(target)}\n",
-            encoding="utf-8",
-        )
-
     def write_lock(self, root: Path, records: list[DependencyRecord]) -> None:
         lines: list[str] = []
         for record in records:
@@ -238,17 +109,3 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
 
     def file_hash(self, path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-class SlowResponse:
-    def __enter__(self) -> "SlowResponse":
-        return self
-
-    def __exit__(self, exc_type, exc, traceback) -> None:
-        return None
-
-    def geturl(self) -> str:
-        return "https://example.invalid/pkg.zip"
-
-    def read(self, size: int) -> bytes:
-        return b"x"

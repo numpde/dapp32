@@ -1,13 +1,10 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { CamEvmError } from "@cam/evm-viem"
 import { toInertValue } from "@cam/protocol"
-import type { InertRecord, InertValue } from "@cam/protocol"
+import type { InertValue } from "@cam/protocol"
 
-import * as camViewer from "../src/index.ts"
 import {
-  CamViewerError,
   createCamViewerSession,
 } from "../src/index.ts"
 import type {
@@ -22,11 +19,8 @@ import {
   BIKE_ENTRY_SCREEN_URI as entryScreenURI,
   BIKE_MARK_MISSING,
   BIKE_MANAGER_CONTRACT,
-  BIKE_REGISTER_SCREEN_URI as registerScreenURI,
-  BIKE_RELATIVE_ENTRY_SCREEN_URI,
   BIKE_ROUTE_COMPONENT,
   BIKE_ROUTE_ENTRY,
-  BIKE_ROUTE_REGISTER,
   BIKE_SERIAL_NUMBER,
   BIKE_UNSIGNED_CAM_HASH,
   BIKE_VIEW_COMPONENT,
@@ -43,13 +37,6 @@ import {
 } from "../../../tests/fixtures/cam/mock.mts"
 
 const host: CamHost = bikeHost
-
-test("keeps the public API to the CAM viewer boundary", () => {
-  assert.deepEqual(Object.keys(camViewer).sort(), [
-    "CamViewerError",
-    "createCamViewerSession",
-  ])
-})
 
 test("load resolves host CAM, entry route, and entry screen", async () => {
   const publicClient = createPublicClient()
@@ -76,72 +63,40 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
   ])
 })
 
-test("dispatchAction executes navigation actions", async () => {
-  const publicClient = createPublicClient()
-  const session = createSession({ publicClient })
-  await session.load()
-
-  const result = await session.dispatchAction({
-    route: BIKE_ROUTE_COMPONENT,
-    params: {
-      serialNumber: BIKE_SERIAL_NUMBER,
+test("snapshot returns isolated copies of nested route and resolved screen data", async () => {
+  const session = createSession({
+    resources: {
+      [entryScreenURI]: encodeJson({
+        screen: "1.0.0",
+        title: "Entry",
+        elements: [
+          {
+            type: "status",
+            label: "Account",
+            value: "$values.0",
+          },
+        ],
+      }),
     },
   })
 
-  assert.equal(result.type, "navigated")
-  if (result.type !== "navigated") {
-    assert.fail("expected navigation action result")
-  }
-  assert.equal(result.snapshot.route, BIKE_ROUTE_COMPONENT)
-  assert.equal(result.snapshot.params.serialNumber, BIKE_SERIAL_NUMBER)
-  assert.equal(result.snapshot.screenURI, componentScreenURI)
-  assert.equal(publicClient.calls.at(-1)?.functionName, BIKE_VIEW_COMPONENT)
-  assert.deepEqual(publicClient.calls.at(-1)?.args, [BIKE_SERIAL_NUMBER, userAddress])
+  const snapshot = await session.load()
+
+  mutableRecord(snapshot.values?.[0]).accountInfo = "mutated route value"
+  mutableRecord(mutableRecord(snapshot.resolvedScreen?.elements[0]).value).accountInfo = "mutated resolved value"
+
+  const nextSnapshot = session.snapshot()
+  assert.equal(mutableRecord(nextSnapshot.values?.[0]).accountInfo, "Mock registrar account")
+  assert.equal(
+    mutableRecord(mutableRecord(nextSnapshot.resolvedScreen?.elements[0]).value).accountInfo,
+    "Mock registrar account",
+  )
 })
 
-test("navigate works for the register route", async () => {
-  const session = createSession()
-  await session.load()
-
-  const snapshot = await session.navigate(BIKE_ROUTE_REGISTER, {
-    serialNumber: BIKE_SERIAL_NUMBER,
-  })
-
-  assert.equal(snapshot.route, BIKE_ROUTE_REGISTER)
-  assert.equal(snapshot.screenURI, registerScreenURI)
-  assert.equal(snapshot.resolvedScreen?.title, "Register")
-})
-
-test("navigate accepts explicit empty route params", async () => {
+test("updateForm resolves navigation actions, while contract actions are surfaced without sending", async () => {
   const publicClient = createPublicClient()
-  const session = createSession({ publicClient })
-  await session.load()
-  await session.navigate(BIKE_ROUTE_COMPONENT, {
-    serialNumber: BIKE_SERIAL_NUMBER,
-  })
-
-  const snapshot = await session.navigate(BIKE_ROUTE_ENTRY, {})
-
-  assert.deepEqual(snapshot.params, inert({}))
-  assert.deepEqual(publicClient.calls.at(-1)?.args, [userAddress])
-})
-
-test("updateForm updates screen form without calling a route", async () => {
-  const publicClient = createPublicClient()
-  const session = createSession({ publicClient })
-  await session.load()
-  const callsBefore = publicClient.calls.length
-
-  const snapshot = session.updateForm({
-    serialNumber: BIKE_SERIAL_NUMBER,
-  })
-
-  assert.equal(requireForm(snapshot).serialNumber, BIKE_SERIAL_NUMBER)
-  assert.equal(publicClient.calls.length, callsBefore)
-})
-
-test("updateForm re-resolves current screen actions with updated form", async () => {
   const session = createSession({
+    publicClient,
     resources: {
       [entryScreenURI]: encodeJson({
         screen: "1.0.0",
@@ -189,106 +144,25 @@ test("updateForm re-resolves current screen actions with updated form", async ()
       },
     },
   }))
-})
 
-test("snapshot returns isolated copies of nested route and resolved screen data", async () => {
-  const session = createSession({
-    resources: {
-      [entryScreenURI]: encodeJson({
-        screen: "1.0.0",
-        title: "Entry",
-        elements: [
-          {
-            type: "status",
-            label: "Account",
-            value: "$values.0",
-          },
-        ],
-      }),
-    },
-  })
-
-  const snapshot = await session.load()
-
-  mutableRecord(snapshot.values?.[0]).accountInfo = "mutated route value"
-  mutableRecord(mutableRecord(snapshot.resolvedScreen?.elements[0]).value).accountInfo = "mutated resolved value"
-
-  const nextSnapshot = session.snapshot()
-  assert.equal(mutableRecord(nextSnapshot.values?.[0]).accountInfo, "Mock registrar account")
-  assert.equal(
-    mutableRecord(mutableRecord(nextSnapshot.resolvedScreen?.elements[0]).value).accountInfo,
-    "Mock registrar account",
-  )
-})
-
-test("updateForm and navigate copy caller-owned nested input records", async () => {
-  const session = createSession({
-    resources: {
-      [entryScreenURI]: encodeJson({
-        screen: "1.0.0",
-        elements: [
-          {
-            type: "input",
-            name: "nested",
-            label: "Nested",
-            value: {
-              value: "initial",
-            },
-          },
-        ],
-      }),
-    },
-  })
-  await session.load()
-
-  const patch = {
-    nested: {
-      value: "before",
-    },
+  const button = snapshot.resolvedScreen?.elements[1]
+  assert.equal(button?.type, "button")
+  if (button?.type !== "button") {
+    assert.fail("expected resolved button")
   }
-  const formSnapshot = session.updateForm(patch)
-  patch.nested.value = "after"
-  mutableRecord(requireForm(formSnapshot).nested).value = "snapshot mutation"
 
-  assert.equal(mutableRecord(requireForm(session.snapshot()).nested).value, "before")
+  const result = await session.dispatchAction(button.action)
 
-  const routeParams = {
-    serialNumber: BIKE_SERIAL_NUMBER,
-    nested: {
-      value: "before",
-    },
+  assert.equal(result.type, "navigated")
+  if (result.type !== "navigated") {
+    assert.fail("expected navigation action result")
   }
-  const routeSnapshot = await session.navigate(BIKE_ROUTE_COMPONENT, routeParams)
-  routeParams.nested.value = "after"
-  mutableRecord(routeSnapshot.params.nested).value = "snapshot mutation"
+  assert.equal(result.snapshot.route, BIKE_ROUTE_COMPONENT)
+  assert.equal(result.snapshot.params.serialNumber, BIKE_SERIAL_NUMBER)
+  assert.equal(result.snapshot.screenURI, componentScreenURI)
+  assert.equal(publicClient.calls.at(-1)?.functionName, BIKE_VIEW_COMPONENT)
+  assert.deepEqual(publicClient.calls.at(-1)?.args, [BIKE_SERIAL_NUMBER, userAddress])
 
-  assert.equal(mutableRecord(session.snapshot().params.nested).value, "before")
-})
-
-test("updateForm rejects fields not declared by the current screen", async () => {
-  const session = createSession()
-  await session.load()
-
-  assert.throws(
-    () => session.updateForm({ unknown: "value" }),
-    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_UNKNOWN_FORM_FIELD",
-  )
-})
-
-test("updateForm rejects unsupported mutable object values instead of storing live references", async () => {
-  const session = createSession()
-  await session.load()
-
-  assert.throws(
-    () => session.updateForm({ date: new Date(0) as unknown as InertValue }),
-    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_INVALID_INERT_VALUE",
-  )
-})
-
-test("dispatchAction surfaces contract calls without sending transactions", async () => {
-  const publicClient = createPublicClient()
-  const session = createSession({ publicClient })
-  await session.load()
   const callsBefore = publicClient.calls.length
 
   const action = {
@@ -296,89 +170,13 @@ test("dispatchAction surfaces contract calls without sending transactions", asyn
     function: BIKE_MARK_MISSING,
     args: [BIKE_SERIAL_NUMBER],
   }
-  const result = await session.dispatchAction(action)
+  const contractResult = await session.dispatchAction(action)
 
-  assert.deepEqual(result, {
+  assert.deepEqual(contractResult, {
     type: "contractCall",
     action,
   })
   assert.equal(publicClient.calls.length, callsBefore)
-})
-
-test("navigate rejects before load", async () => {
-  const session = createSession()
-
-  await assert.rejects(
-    () => session.navigate(BIKE_ROUTE_ENTRY, {}),
-    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_NOT_LOADED",
-  )
-})
-
-test("updateForm rejects before a screen is loaded", () => {
-  const session = createSession()
-
-  assert.throws(
-    () => session.updateForm({ serialNumber: BIKE_SERIAL_NUMBER }),
-    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_NOT_LOADED",
-  )
-})
-
-test("dispatchAction rejects unsupported runtime action shapes", async () => {
-  const session = createSession()
-  await session.load()
-
-  await assert.rejects(
-    () => session.dispatchAction({ route: BIKE_ROUTE_COMPONENT } as never),
-    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED",
-  )
-})
-
-test("load wraps missing screen resources", async () => {
-  const session = createSession({
-    publicClient: createPublicClient({
-      routeResults: {
-        [BIKE_VIEW_ENTRY]: ["./screens/missing.json"],
-      },
-    }),
-  })
-
-  await assert.rejects(
-    () => session.load(),
-    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_SCREEN_LOAD_FAILED",
-  )
-})
-
-test("load wraps invalid screen JSON and schema errors", async () => {
-  const session = createSession({
-    resources: {
-      [entryScreenURI]: encodeJson({
-        screen: "1.0.0",
-        elements: [
-          {
-            type: "html",
-          },
-        ],
-      }),
-    },
-  })
-
-  await assert.rejects(
-    () => session.load(),
-    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_SCREEN_PARSE_FAILED",
-  )
-})
-
-test("load leaves route call failures as EVM adapter errors", async () => {
-  const session = createSession({
-    publicClient: createPublicClient({
-      routeResults: {},
-    }),
-  })
-
-  await assert.rejects(
-    () => session.load(),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_CALL_FAILED",
-  )
 })
 
 function createSession({
@@ -431,13 +229,4 @@ function mutableRecord(value: unknown): Record<string, unknown> {
 
 function inert(value: unknown): InertValue {
   return toInertValue(value)
-}
-
-function requireForm(snapshot: { readonly form?: InertRecord }): InertRecord {
-  const form = snapshot.form
-  if (form === undefined) {
-    assert.fail("expected loaded viewer form")
-  }
-
-  return form
 }

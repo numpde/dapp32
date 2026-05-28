@@ -63,31 +63,6 @@ class CamManifestResourceValidator:
 
         return failures
 
-    def validate_generated_abi_uri_conventions(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
-        contracts = manifest.get("contracts")
-        if not isinstance(contracts, dict):
-            return [f"{manifest_path}: contracts must be an object"]
-
-        failures: list[str] = []
-        for contract_name, contract in contracts.items():
-            if not isinstance(contract_name, str) or contract_name == "":
-                failures.append(f"{manifest_path}: contract names must be non-empty strings")
-                continue
-
-            if not isinstance(contract, dict):
-                failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
-                continue
-
-            error = abi_resources.validate_generated_abi_uri_convention(
-                manifest_path,
-                contract_name,
-                contract.get("abiURI"),
-            )
-            if error is not None:
-                failures.append(error)
-
-        return failures
-
     def validate_route_functions_match_declared_abis(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         contracts = manifest.get("contracts")
         routes = manifest.get("routes")

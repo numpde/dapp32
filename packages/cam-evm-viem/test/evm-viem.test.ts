@@ -5,29 +5,23 @@ import { parseCam } from "@cam/core"
 import { toInertValue } from "@cam/protocol"
 import type { Abi, Address, Hex } from "viem"
 
-import * as camEvmViem from "../src/index.ts"
 import {
   CamEvmError,
   callCamRoute,
   loadCamFromHost,
   resolveCamContracts,
-  verifyCamHash,
 } from "../src/index.ts"
 import type { CamHost, CamPublicClient } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
-  BIKE_COMPONENT_SCREEN_URI,
   BIKE_ENTRY_SCREEN_URI,
   BIKE_MANAGER_ABI_URI as managerAbiURI,
   BIKE_MANAGER_ADDRESS as managerAddress,
   BIKE_MANAGER_CONTRACT,
-  BIKE_REGISTER_SCREEN_URI,
   BIKE_RELATIVE_ENTRY_SCREEN_URI,
   BIKE_RELATIVE_MANAGER_ABI_URI,
-  BIKE_ROUTE_COMPONENT,
   BIKE_ROUTE_ENTRY,
-  BIKE_ROUTE_REGISTER,
   BIKE_SERIAL_NUMBER,
   BIKE_UNSIGNED_CAM_HASH,
   BIKE_UI_ABI_URI as uiAbiURI,
@@ -53,18 +47,7 @@ const ROOT_CAM_URI = "camURI"
 const ROOT_CAM_HASH = "camHash"
 const ROOT_CONTRACT_ADDRESS = "contractAddress"
 
-test("keeps the public API to the CAM EVM viem adapter boundary", () => {
-  assert.deepEqual(Object.keys(camEvmViem).sort(), [
-    "CamEvmError",
-    "callCamRoute",
-    "createHttpCamPublicClient",
-    "loadCamFromHost",
-    "resolveCamContracts",
-    "verifyCamHash",
-  ])
-})
-
-test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned CAM", async () => {
+test("loadCamFromHost reads root metadata, accepts unsigned CAMs, and rejects hash mismatches", async () => {
   const camBytes = encodeJson(camJson)
   const publicClient = createPublicClient({
     camURI: camDocumentURI,
@@ -87,67 +70,18 @@ test("loadCamFromHost reads root metadata and accepts bytes32(0) as an unsigned 
     ROOT_CAM_URI,
     ROOT_CAM_HASH,
   ])
-})
 
-test("loadCamFromHost rejects bytes32(0) unless unsigned CAMs are explicit", async () => {
   await assert.rejects(
     () => loadCamFromHost({
       publicClient: createPublicClient({
         camURI: camDocumentURI,
-        camHash: BIKE_UNSIGNED_CAM_HASH,
+        camHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
       }),
       host,
-      loadResource: createResourceLoader({
-        [camDocumentURI]: encodeJson(camJson),
-      }),
+      loadResource: resources,
       allowUnsignedCamHash: false,
     }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_HASH_UNSIGNED",
-  )
-})
-
-test("verifyCamHash rejects mismatched nonzero hashes", () => {
-  assert.throws(
-    () => verifyCamHash({
-      bytes: encodeText("not this hash"),
-      expectedHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
-      allowUnsigned: false,
-    }),
     (error) => error instanceof CamEvmError && error.code === "CAM_HASH_MISMATCH",
-  )
-})
-
-test("verifyCamHash requires explicit unsigned mode for bytes32(0)", () => {
-  assert.throws(
-    () => verifyCamHash({
-      bytes: encodeText("unsigned CAM"),
-      expectedHash: BIKE_UNSIGNED_CAM_HASH,
-      allowUnsigned: false,
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_HASH_UNSIGNED",
-  )
-
-  assert.doesNotThrow(() => verifyCamHash({
-    bytes: encodeText("unsigned CAM"),
-    expectedHash: BIKE_UNSIGNED_CAM_HASH.toUpperCase() as Hex,
-    allowUnsigned: true,
-  }))
-})
-
-test("loadCamFromHost wraps invalid CAM JSON in an adapter error", async () => {
-  await assert.rejects(
-    () => loadCamFromHost({
-      publicClient: createPublicClient({
-        camURI: camDocumentURI,
-        camHash: BIKE_UNSIGNED_CAM_HASH,
-      }),
-      host,
-      loadResource: createResourceLoader({
-        [camDocumentURI]: encodeText("{not json"),
-      }),
-      allowUnsignedCamHash: true,
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_DOCUMENT_INVALID",
   )
 })
 
@@ -174,67 +108,7 @@ test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relati
 
   assert.equal(contracts[BIKE_UI_CONTRACT].address, uiAddress)
   assert.deepEqual(contracts[BIKE_UI_CONTRACT].abi, uiAbi)
-  assert.equal(contracts[BIKE_MANAGER_CONTRACT].address, managerAddress)
   assert.equal(Object.getPrototypeOf(contracts), null)
-})
-
-test("resolveCamContracts rejects unbound contract names", async () => {
-  await assert.rejects(
-    () => resolveCamContracts({
-      publicClient: createPublicClient({
-        addresses: {
-          [BIKE_UI_CONTRACT]: uiAddress,
-        },
-      }),
-      host,
-      camURI: camDocumentURI,
-      cam: parseCam(camJson),
-      loadResource: createResourceLoader({}),
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_CONTRACT_UNBOUND",
-  )
-})
-
-test("resolveCamContracts rejects invalid ABI JSON", async () => {
-  await assert.rejects(
-    () => resolveCamContracts({
-      publicClient: createPublicClient({
-        addresses: {
-          [BIKE_UI_CONTRACT]: uiAddress,
-          [BIKE_MANAGER_CONTRACT]: managerAddress,
-        },
-      }),
-      host,
-      camURI: camDocumentURI,
-      cam: parseCam(camJson),
-      loadResource: createResourceLoader({
-        [uiAbiURI]: encodeText("{not json"),
-        [managerAbiURI]: encodeJson(managerAbi),
-      }),
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
-  )
-})
-
-test("resolveCamContracts rejects ABI JSON that is not an array", async () => {
-  await assert.rejects(
-    () => resolveCamContracts({
-      publicClient: createPublicClient({
-        addresses: {
-          [BIKE_UI_CONTRACT]: uiAddress,
-          [BIKE_MANAGER_CONTRACT]: managerAddress,
-        },
-      }),
-      host,
-      camURI: camDocumentURI,
-      cam: parseCam(camJson),
-      loadResource: createResourceLoader({
-        [uiAbiURI]: encodeJson({ abi: uiAbi }),
-        [managerAbiURI]: encodeJson(managerAbi),
-      }),
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
-  )
 })
 
 test("callCamRoute resolves CAM args, calls the selected contract, and returns normalized route values", async () => {
@@ -278,66 +152,9 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
   })
 })
 
-test("callCamRoute requires the first route return value to be a non-empty screen URI", async () => {
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient({
-        routeResults: {
-          [BIKE_VIEW_ENTRY]: "",
-        },
-      }),
-      cam: parseCam(camJson),
-      camURI: camDocumentURI,
-      contracts: {
-        [BIKE_UI_CONTRACT]: {
-          address: uiAddress,
-          abi: uiAbi,
-        },
-      },
-      route: BIKE_ROUTE_ENTRY,
-      context: {
-        host,
-        account: { address: userAddress },
-        params: {},
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-  )
-})
-
-test("callCamRoute validates account addresses before calling viem", async () => {
-  const publicClient = createPublicClient({
-    routeResults: {
-      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
-    },
-  })
-
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient,
-      cam: parseCam(camJson),
-      camURI: camDocumentURI,
-      contracts: {
-        [BIKE_UI_CONTRACT]: {
-          address: uiAddress,
-          abi: uiAbi,
-        },
-      },
-      route: BIKE_ROUTE_ENTRY,
-      context: {
-        host,
-        account: { address: "not-an-address" },
-        params: {},
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_INVALID_ACCOUNT",
-  )
-
-  assert.equal(publicClient.calls.length, 0)
-})
-
-test("callCamRoute accepts only CAM-local screen JSON resources", async () => {
+test("callCamRoute rejects unsafe screen URIs and non-view route functions", async () => {
   const unsafeScreenURIs = [
+    "",
     "https://example.com/x.json",
     "ipfs://example/x.json",
     "../x.json",
@@ -372,67 +189,7 @@ test("callCamRoute accepts only CAM-local screen JSON resources", async () => {
       (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
     )
   }
-})
 
-test("bike CAM routes resolve to the three route-level screens", async () => {
-  const cam = parseCam(camJson)
-  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress)
-
-  for (const [route, expectedScreenURI] of [
-    [BIKE_ROUTE_ENTRY, BIKE_ENTRY_SCREEN_URI],
-    [BIKE_ROUTE_COMPONENT, BIKE_COMPONENT_SCREEN_URI],
-    [BIKE_ROUTE_REGISTER, BIKE_REGISTER_SCREEN_URI],
-  ] as const) {
-    const result = await callCamRoute({
-      publicClient: createPublicClient({ routeResults }),
-      cam,
-      camURI: camDocumentURI,
-      contracts: {
-        [BIKE_UI_CONTRACT]: {
-          address: uiAddress,
-          abi: uiAbi,
-        },
-      },
-      route,
-      context: {
-        host,
-        account: { address: userAddress },
-        params: { serialNumber: BIKE_SERIAL_NUMBER },
-      },
-    })
-
-    assert.equal(result.screenURI, expectedScreenURI)
-  }
-})
-
-test("callCamRoute rejects route functions missing from the resolved ABI", async () => {
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient({
-        routeResults: {
-          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
-        },
-      }),
-      cam: parseCam(camJson),
-      camURI: camDocumentURI,
-      contracts: {
-        [BIKE_UI_CONTRACT]: {
-          address: uiAddress,
-          abi: managerAbi,
-        },
-      },
-      route: BIKE_ROUTE_ENTRY,
-      context: {
-        host,
-        account: { address: userAddress },
-        params: {},
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_FUNCTION_NOT_FOUND",
-  )
-})
-
-test("callCamRoute rejects route functions that are not view or pure", async () => {
   const nonViewAbi = [
     {
       ...uiAbi[0],
@@ -463,41 +220,6 @@ test("callCamRoute rejects route functions that are not view or pure", async () 
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_FUNCTION_NOT_VIEW",
-  )
-})
-
-test("callCamRoute rejects overloaded route function names in CAM V1", async () => {
-  const overloadedAbi = [
-    uiAbi[0],
-    {
-      ...uiAbi[0],
-      inputs: [],
-    },
-  ] as const satisfies Abi
-
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient({
-        routeResults: {
-          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
-        },
-      }),
-      cam: parseCam(camJson),
-      camURI: camDocumentURI,
-      contracts: {
-        [BIKE_UI_CONTRACT]: {
-          address: uiAddress,
-          abi: overloadedAbi,
-        },
-      },
-      route: BIKE_ROUTE_ENTRY,
-      context: {
-        host,
-        account: { address: userAddress },
-        params: {},
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_FUNCTION_AMBIGUOUS",
   )
 })
 

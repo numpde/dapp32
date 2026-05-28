@@ -33,9 +33,13 @@ contract BicycleComponentManagerTest is Test {
         manager.grantRole(manager.STATUS_ATTESTER_ROLE(), statusAttester);
     }
 
-    function test_registrarRegistersComponentAndManagerViewsReflectTokenState() external {
+    function test_registrationRequiresRegistrarAndManagerViewsReflectTokenState() external {
         uint256 expectedTokenId = manager.tokenIdOf(SERIAL);
         bytes32 expectedSerialHash = manager.serialHashOf(SERIAL);
+
+        vm.prank(stranger);
+        vm.expectRevert();
+        manager.registerComponent(owner, SERIAL, TOKEN_URI);
 
         vm.prank(registrar);
         (address tokenContract, uint256 tokenId) = manager.registerComponent(owner, SERIAL, TOKEN_URI);
@@ -56,15 +60,6 @@ contract BicycleComponentManagerTest is Test {
         assertEq(uint8(component.status), uint8(IBicycleComponentManagerView.ComponentStatus.Active), "status mismatch");
         assertEq(component.tokenURI, TOKEN_URI, "component view token URI mismatch");
         assertEq(component.serialNumber, SERIAL, "component view serial mismatch");
-    }
-
-    function test_onlyRegistrarCanRegisterAndSerialsCannotBeReused() external {
-        vm.prank(stranger);
-        vm.expectRevert();
-        manager.registerComponent(owner, SERIAL, TOKEN_URI);
-
-        vm.prank(registrar);
-        manager.registerComponent(owner, SERIAL, TOKEN_URI);
 
         vm.prank(registrar);
         vm.expectRevert(
@@ -75,11 +70,13 @@ contract BicycleComponentManagerTest is Test {
         manager.registerComponent(secondOwner, SERIAL, TOKEN_URI);
     }
 
-    function test_ownerAndDelegatesCanUpdateMetadataOnlyWhileAuthorized() external {
+    function test_ownerAndDelegatesCanUpdateMetadataOnlyWhileAuthorizedAndBeforeExpiryOrTransfer() external {
         registerDefaultComponent();
 
         bytes32 serialHash = manager.serialHashOf(SERIAL);
         uint64 updateMetadataCapability = manager.CAP_UPDATE_METADATA();
+        uint64 markMissingCapability = manager.CAP_MARK_MISSING();
+        uint48 validUntil = uint48(block.timestamp + 1 days);
 
         vm.prank(stranger);
         vm.expectRevert(
@@ -99,13 +96,6 @@ contract BicycleComponentManagerTest is Test {
         vm.prank(delegate);
         manager.setComponentMetadata(SERIAL, TOKEN_URI);
         assertEq(components.tokenURI(manager.tokenIdOf(SERIAL)), TOKEN_URI, "delegate metadata update failed");
-    }
-
-    function test_delegationExpiresAtValidUntilAndAfterTransfer() external {
-        registerDefaultComponent();
-
-        uint64 markMissingCapability = manager.CAP_MARK_MISSING();
-        uint48 validUntil = uint48(block.timestamp + 1 days);
 
         vm.prank(owner);
         manager.setComponentDelegate(SERIAL, delegate, markMissingCapability, validUntil);

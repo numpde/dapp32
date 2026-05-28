@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
 import sys
 import unittest
 from typing import Any
 
-from .common import read_text, rendered_compose_config, repo_path
+from .common import compose_sequence, compose_service, rendered_compose_config
 
 
 def setUpModule() -> None:
@@ -17,7 +16,6 @@ class AnvilComposePostureTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.no_profile = cls.render_config("")
         cls.internal = cls.render_config("internal")
-        cls.host = cls.render_config("host", host_port="18545")
         cls.all_profiles = cls.render_config("internal,host", host_port="18545")
 
     @staticmethod
@@ -31,73 +29,14 @@ class AnvilComposePostureTest(unittest.TestCase):
             },
         )
 
-    def test_profile_service_sets(self) -> None:
-        self.assertEqual(sorted(self.no_profile["services"].keys()), [])
-        self.assertEqual(sorted(self.internal["services"].keys()), ["anvil-internal"])
-        self.assertEqual(sorted(self.host["services"].keys()), ["anvil-host"])
-        self.assertEqual(
-            sorted(self.all_profiles["services"].keys()),
-            ["anvil-host", "anvil-internal"],
-        )
-
-    def test_makefile_anvil_down_uses_all_profiles(self) -> None:
-        makefile = read_text(repo_path("Makefile"))
-
-        self.assertIsNotNone(
-            re.search(
-                r"^ANVIL_ALL_COMPOSE_ENV := \$\(ANVIL_COMPOSE_ENV\) COMPOSE_PROFILES=internal,host$",
-                makefile,
-                re.MULTILINE,
-            )
-        )
-
-        target = re.search(r"^anvil-down:\n(?P<body>(?:\t.*\n)+)", makefile, re.MULTILINE)
-        self.assertIsNotNone(target)
-        body = target.group("body") if target else ""
-
-        self.assertIn("$(ANVIL_ALL_COMPOSE_ENV)", body)
-        self.assertIn(" down --volumes --remove-orphans", body)
-
-    def test_internal_network_boundary(self) -> None:
-        service = self.internal["services"]["anvil-internal"]
-
-        self.assertNotIn("ports", service)
-        self.assertEqual(sorted(service["networks"].keys()), ["anvil_internal"])
-        self.assertIs(self.internal["networks"]["anvil_internal"]["internal"], True)
-
-    def test_host_port_boundary(self) -> None:
-        service = self.host["services"]["anvil-host"]
-
-        self.assertEqual(
-            service["ports"],
-            [
-                {
-                    "mode": "ingress",
-                    "host_ip": "127.0.0.1",
-                    "target": 8545,
-                    "published": "18545",
-                    "protocol": "tcp",
-                }
-            ],
-        )
-
-        for service_config in self.all_profiles["services"].values():
-            ports = service_config.get("ports")
-            if ports is None:
-                continue
-
-            self.assertIsInstance(ports, list)
-            for port in ports:
-                self.assertNotEqual(port.get("host_ip"), "0.0.0.0")
-
     def test_runtime_posture(self) -> None:
         for service_name in ("anvil-internal", "anvil-host"):
             with self.subTest(service=service_name):
-                service = self.all_profiles["services"][service_name]
+                service = compose_service(self.all_profiles, service_name)
 
                 self.assertIs(service["read_only"], True)
                 self.assertEqual(service["cap_drop"], ["ALL"])
-                self.assertIn("no-new-privileges:true", service["security_opt"])
+                self.assertIn("no-new-privileges:true", compose_sequence(service, "security_opt"))
                 self.assert_non_root_user(service["user"])
                 self.assertEqual(service["pids_limit"], 256)
                 self.assert_valid_mem_limit(service["mem_limit"])

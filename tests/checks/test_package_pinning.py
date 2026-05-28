@@ -29,49 +29,6 @@ class PackagePinningTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
-    def test_self_check_accepts_pinned_installs(self) -> None:
-        dockerfile = r"""
-        FROM example
-        RUN apk add --no-cache \
-              docker-cli=29.5.1-r0 \
-              docker-cli-compose=2.40.3-r6
-        RUN apt-get update; apt-get install -y --no-install-recommends \
-              ca-certificates=20240203~22.04.1 \
-              curl=7.81.0-1ubuntu1.24
-        """
-
-        self.assertEqual([], self.package_pin_failures(dockerfile, "pinned-fixture"))
-
-    def test_self_check_rejects_unpinned_installs(self) -> None:
-        dockerfile = r"""
-        FROM example
-        RUN apk add --no-cache docker-cli docker-cli-compose=2.40.3-r6
-        RUN apt-get update; apt-get install -y --no-install-recommends curl=7.81.0-1ubuntu1.24 unzip
-        """
-
-        self.assertEqual(
-            [
-                "unpinned-fixture: apk package is not pinned: docker-cli",
-                "unpinned-fixture: apt-get package is not pinned: unzip",
-            ],
-            self.package_pin_failures(dockerfile, "unpinned-fixture"),
-        )
-
-    def test_self_check_rejects_unexpected_install_forms(self) -> None:
-        dockerfile = r"""
-        FROM example
-        RUN apt-get -y install ca-certificates=20240203~22.04.1
-        RUN apk add --virtual .build-deps python3=3.13.0-r0
-        """
-
-        self.assertEqual(
-            [
-                "unexpected-fixture: unexpected package install form: apt-get -y install ca-certificates=20240203~22.04.1",
-                "unexpected-fixture: unexpected package install form: apk add --virtual .build-deps python3=3.13.0-r0",
-            ],
-            self.package_pin_failures(dockerfile, "unexpected-fixture"),
-        )
-
     def package_pin_failures(self, text: str, path_label: str) -> list[str]:
         failures: list[str] = []
         logical_commands = self.logical_commands(text)

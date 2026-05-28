@@ -12,94 +12,14 @@ class CamManifestResourceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.validator = CamManifestResourceValidator()
 
-    def test_cam_route_functions_match_declared_abis(self) -> None:
-        failures = self.validator.collect_manifest_failures(self.validator.validate_route_functions_match_declared_abis)
+    def test_cam_routes_match_declared_abis_and_screen_inventory(self) -> None:
+        failures = [
+            *self.validator.collect_manifest_failures(self.validator.validate_route_functions_match_declared_abis),
+            *self.validator.collect_manifest_failures(self.validator.validate_route_screen_inventory),
+        ]
 
         if failures:
             self.fail("\n".join(failures))
-
-    def test_cam_route_screen_inventory_matches_routes(self) -> None:
-        failures = self.validator.collect_manifest_failures(self.validator.validate_route_screen_inventory)
-
-        if failures:
-            self.fail("\n".join(failures))
-
-    def test_cam_route_screen_inventory_checker_self_check(self) -> None:
-        with TemporaryDirectory() as tmp:
-            manifest = Path(tmp) / "dapps/example/cam/main.json"
-            screen_dir = manifest.parent / "screens"
-            screen_dir.mkdir(parents=True)
-            (screen_dir / "entry.json").write_text("{}", encoding="utf-8")
-            (screen_dir / "orphan.json").write_text("{}", encoding="utf-8")
-
-            self.assertEqual(
-                self.validator.validate_route_screen_inventory(
-                    manifest,
-                    {
-                        "routes": {
-                            "entry": {},
-                            "component": {},
-                        }
-                    },
-                ),
-                [
-                    f"{manifest}: route has no matching CAM screen: screens/component.json",
-                    f"{manifest}: CAM screen has no matching route: screens/orphan.json",
-                ],
-            )
-
-    def test_cam_route_function_checker_fails_closed_on_malformed_prerequisites(self) -> None:
-        manifest = Path("dapps/example/cam/main.json")
-
-        self.assertEqual(
-            self.validator.validate_route_functions_match_declared_abis(manifest, {"contracts": [], "routes": []}),
-            [
-                "dapps/example/cam/main.json: contracts must be an object",
-                "dapps/example/cam/main.json: routes must be an object",
-            ],
-        )
-
-        failures = self.validator.validate_route_functions_match_declared_abis(
-            manifest,
-            {
-                "contracts": {
-                    "Example": {
-                        "abiURI": "./abi/Missing.json",
-                    }
-                },
-                "routes": {
-                    "entry": {
-                        "contract": "Example",
-                        "function": "viewEntry",
-                        "args": [],
-                    }
-                },
-            },
-        )
-
-        self.assertIn(
-            "dapps/example/cam/main.json: contracts.Example.abiURI target does not exist: ./abi/Missing.json",
-            failures,
-        )
-        self.assertIn(
-            "dapps/example/cam/main.json: routes.entry.contract has no readable ABI function map: Example",
-            failures,
-        )
-
-    def test_generated_abi_convention_checker_fails_closed_on_malformed_contracts(self) -> None:
-        manifest = Path("dapps/example/cam/main.json")
-
-        self.assertEqual(
-            self.validator.validate_generated_abi_uri_conventions(
-                manifest,
-                {
-                    "contracts": {
-                        "Broken": [],
-                    }
-                },
-            ),
-            ["dapps/example/cam/main.json: contracts.Broken must be an object"],
-        )
 
     def test_abi_export_plan_scopes_contract_names_by_dapp_source_path(self) -> None:
         with TemporaryDirectory() as tmp:

@@ -4,7 +4,6 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from .common import read_text
-from tools.cam_abi_plan import CamAbiPlanError, generated_abi_name
 from tools.json_policy import JsonPolicyError, strict_json_loads
 
 
@@ -55,19 +54,6 @@ def validate_no_orphan_abi_files(
         )
 
     return failures
-
-
-def validate_generated_abi_uri_convention(
-    manifest_path: Path,
-    contract_name: str,
-    abi_uri: object,
-) -> str | None:
-    try:
-        generated_abi_name(manifest_path, contract_name, abi_uri)
-    except CamAbiPlanError as error:
-        return str(error)
-
-    return None
 
 
 def validate_local_abi_uri(

@@ -16,7 +16,7 @@ contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
 }
 
 contract BikeNftLocalFixtureTest is Test {
-    function test_deployLocalFixture_keepsCleanFixtureReusable() external {
+    function test_localFixtureCanDeployCleanOrSeededDemoState() external {
         BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
 
         BikeNftLocalFixture.Deployment memory deployment = harness.deployCleanForTest();
@@ -30,12 +30,8 @@ contract BikeNftLocalFixtureTest is Test {
         assertFalse(
             deployment.manager.componentBySerial("DEMO-MOTOR-001").exists, "clean fixture should not seed motor"
         );
-    }
 
-    function test_deploySeededLocalFixture_seedsDemoComponentsThroughManager() external {
-        BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
-
-        BikeNftLocalFixture.Deployment memory deployment = harness.deploySeededForTest();
+        deployment = harness.deploySeededForTest();
 
         assertSeededComponent(
             deployment, address(harness), "DEMO-FRAME-001", "fixture://bike-nft/components/demo-frame-001.json"

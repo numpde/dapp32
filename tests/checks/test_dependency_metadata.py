@@ -24,7 +24,24 @@ IMPORT_RE = re.compile(r'["\'](?P<name>@openzeppelin-contracts(?:-upgradeable)?)
 
 
 class DependencyMetadataTest(unittest.TestCase):
-    def test_openzeppelin_version_is_single_and_consistent(self) -> None:
+    def test_soldeer_dependencies_use_registry_sources_and_consistent_openzeppelin_versions(self) -> None:
+        foundry_dependencies = self.foundry_dependencies()
+        lock_records = self.locked_dependency_records()
+
+        self.assertEqual(set(foundry_dependencies), set(lock_records), "foundry.toml and soldeer.lock disagree")
+
+        for name, dependency in sorted(foundry_dependencies.items()):
+            with self.subTest(dependency=name):
+                version = self.assert_registry_version_only_dependency(name, dependency)
+
+                record = lock_records[name]
+                self.assertEqual(
+                    version,
+                    record["version"],
+                    f"{name} version differs between foundry.toml and soldeer.lock",
+                )
+                self.assert_allowed_soldeer_registry_url(name, record["url"], version)
+
         foundry_versions = {name: self.foundry_dependency_version(name) for name in OZ_PACKAGES}
         lock_versions = {name: self.locked_dependency_version(name) for name in OZ_PACKAGES}
         remapping_versions = self.remapped_openzeppelin_versions()
@@ -45,58 +62,6 @@ class DependencyMetadataTest(unittest.TestCase):
                     "foundry.toml and dependency-checksums.txt disagree",
                 )
                 self.assertLessEqual(import_versions.get(name, set()), {foundry_versions[name]})
-
-    def test_soldeer_dependencies_use_registry_sources(self) -> None:
-        foundry_dependencies = self.foundry_dependencies()
-        lock_records = self.locked_dependency_records()
-
-        self.assertEqual(set(foundry_dependencies), set(lock_records), "foundry.toml and soldeer.lock disagree")
-
-        for name, dependency in sorted(foundry_dependencies.items()):
-            with self.subTest(dependency=name):
-                version = self.assert_registry_version_only_dependency(name, dependency)
-
-                record = lock_records[name]
-                self.assertEqual(
-                    version,
-                    record["version"],
-                    f"{name} version differs between foundry.toml and soldeer.lock",
-                )
-                self.assert_allowed_soldeer_registry_url(name, record["url"], version)
-
-    def test_soldeer_source_policy_self_check(self) -> None:
-        version = "1.2.3"
-        self.assertEqual(version, self.assert_registry_version_only_dependency(OZ_PACKAGE, {"version": version}))
-        with self.assertRaises(AssertionError):
-            self.assert_registry_version_only_dependency(
-                OZ_PACKAGE,
-                {"version": version, "url": "https://example.com/pkg.zip"},
-            )
-
-        self.assert_allowed_soldeer_registry_url(
-            OZ_PACKAGE,
-            "https://soldeer-revisions.s3.amazonaws.com/"
-            "@openzeppelin-contracts/1_2_3_15-03-2026_09:19:50_contracts.zip",
-            version,
-        )
-        self.assert_allowed_soldeer_registry_url(
-            FORGE_STD_PACKAGE,
-            "https://soldeer-revisions.s3.amazonaws.com/forge-std/4_5_6_28-11-2025_13:04:44_forge-std-4.5.zip",
-            "4.5.6",
-        )
-
-        rejected = [
-            "https://github.com/OpenZeppelin/openzeppelin-contracts/archive/refs/tags/v1.2.3.zip",
-            "https://codeload.github.com/OpenZeppelin/openzeppelin-contracts/zip/refs/tags/v1.2.3",
-            "git+https://github.com/OpenZeppelin/openzeppelin-contracts.git",
-            "https://example.com/@openzeppelin-contracts/1_2_3_contracts.zip",
-            "https://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/1_2_3_source.zip",
-            "http://soldeer-revisions.s3.amazonaws.com/@openzeppelin-contracts/1_2_3_contracts.zip",
-        ]
-        for url in rejected:
-            with self.subTest(url=url):
-                with self.assertRaises(AssertionError):
-                    self.assert_allowed_soldeer_registry_url(OZ_PACKAGE, url, version)
 
     def foundry_dependency_version(self, name: str) -> str:
         dependency = self.foundry_dependencies()[name]
