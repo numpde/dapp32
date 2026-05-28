@@ -1,0 +1,55 @@
+# Local bike NFT CAM HTTP fixture.
+#
+# Reusable CAM-resource server for local bike NFT scenarios.
+#
+# Compose this file with deploy.yml when a local consumer should
+# load the checked-in bike CAM over HTTP, matching how a real viewer obtains
+# CAM manifests, ABIs, and screens from a resource URI. Keeping HTTP separate
+# lets terminals, web viewers, and smoke tests share the same resource-serving
+# boundary without coupling it to any one consumer.
+
+services:
+  bike-nft-cam-http:
+    image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+    working_dir: /srv/cam
+    init: true
+    user: "65532:65532"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    volumes:
+      - ../../../dapps/bike-nft/cam:/srv/cam:ro
+    networks:
+      - bike_nft_local
+    command:
+      - "python3"
+      - "-I"
+      - "-B"
+      - "-m"
+      - "http.server"
+      - "8080"
+      - "--bind"
+      - "0.0.0.0"
+      - "--directory"
+      - "/srv/cam"
+    healthcheck:
+      test:
+        - "CMD"
+        - "python3"
+        - "-I"
+        - "-B"
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/main.json', timeout=2).close()"
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+networks:
+  bike_nft_local:
+    internal: true

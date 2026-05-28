@@ -3,20 +3,41 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from ..common import read_text, rendered_compose_config, repo_path
+from ..common import (
+    compose_command_text,
+    compose_mapping,
+    compose_sequence,
+    compose_sequence_or_empty,
+    compose_service,
+    compose_volume,
+    read_text,
+    rendered_compose_config,
+    repo_path,
+)
 
 
-BIKE_CAM_URI = "file:///work/dapps/bike-nft/cam/main.json"
-BIKE_PRIVATE_KEY_FILE = "/tmp/bike-nft-private-key"
+BIKE_CAM_HTTP_ORIGIN = "http://bike-nft-cam-http:8080"
+BIKE_CAM_URI = f"{BIKE_CAM_HTTP_ORIGIN}/main.json"
+STANDALONE_BIKE_CAM_URI = "https://example.test/bike-nft/main.json"
+ANVIL_DEV_PRIVATE_KEY = "0xbabababababababababababababababababababababababababababababababa"
+PYTHON_ALPINE_IMAGE = "docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc"
+PACKAGE_WORKSPACE_TMPFS = "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777"
 ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000"
 VIEWER_TERMINAL_CONTAINER_NAME = "dapps-viewer-terminal-session"
 
 
-def bike_fixture_env() -> dict[str, str]:
+def standalone_bike_fixture_env() -> dict[str, str]:
+    return {
+        "CAM_URI": STANDALONE_BIKE_CAM_URI,
+        "CAM_HASH": ZERO_HASH,
+    }
+
+
+def bike_viewer_fixture_env() -> dict[str, str]:
     return {
         "CAM_URI": BIKE_CAM_URI,
         "CAM_HASH": ZERO_HASH,
-        "BIKE_NFT_PRIVATE_KEY_FILE": BIKE_PRIVATE_KEY_FILE,
+        "CAM_VIEWER_RESOURCE_ORIGIN": BIKE_CAM_HTTP_ORIGIN,
     }
 
 
@@ -27,93 +48,82 @@ def mock_viewer_env() -> dict[str, str]:
     }
 
 
-def service(config: dict[str, Any], name: str) -> dict[str, Any]:
-    return config["services"][name]
-
-
-def mapping_or_empty(config_service: dict[str, Any], field: str) -> dict[str, Any]:
-    value = config_service.get(field, {})
-    if not isinstance(value, dict):
-        raise AssertionError(f"{field} must render as a mapping")
-    return value
-
-
-def sequence(config_service: dict[str, Any], field: str) -> list[Any]:
-    value = config_service[field]
-    if not isinstance(value, list):
-        raise AssertionError(f"{field} must render as a list")
-    return value
-
-
-def sequence_or_empty(config_service: dict[str, Any], field: str) -> list[Any]:
-    value = config_service.get(field, [])
-    if not isinstance(value, list):
-        raise AssertionError(f"{field} must render as a list")
-    return value
-
-
-def command_text(config_service: dict[str, Any]) -> str:
-    return " ".join(str(item) for item in sequence(config_service, "command"))
-
-
-def volume_for(config_service: dict[str, Any], target: str) -> dict[str, Any]:
-    for volume in sequence(config_service, "volumes"):
-        if volume["target"] == target:
-            return volume
-    raise AssertionError(f"missing volume target: {target}")
-
-
 class RenderedComposePostureTest(unittest.TestCase):
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service["read_only"])
-        self.assertIn("no-new-privileges:true", sequence(config_service, "security_opt"))
+        self.assertIn("no-new-privileges:true", compose_sequence(config_service, "security_opt"))
         self.assertEqual(["ALL"], config_service["cap_drop"])
         self.assertNotEqual("0:0", config_service["user"])
         self.assertIn("pids_limit", config_service)
         self.assertIn("mem_limit", config_service)
 
-    def assert_mock_viewer_environment(self, config_service: dict[str, Any]) -> None:
-        environment = mapping_or_empty(config_service, "environment")
-        self.assertEqual("mock", environment.get("CAM_VIEWER_BACKEND"))
-        self.assertEqual("bike-nft", environment.get("CAM_VIEWER_MOCK"))
-        self.assertEqual("true", environment.get("CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH"))
-        self.assertEqual("{}", environment.get("CAM_VIEWER_INITIAL_PARAMS_JSON"))
+    def assert_no_published_ports(self, *config_services: dict[str, Any]) -> None:
+        for config_service in config_services:
+            self.assertNotIn("ports", config_service)
+
+    def assert_internal_network(
+        self,
+        config: dict[str, Any],
+        network_name: str,
+        *config_services: dict[str, Any],
+    ) -> None:
+        self.assertTrue(config["networks"][network_name]["internal"])
+        for config_service in config_services:
+            self.assertEqual({network_name: None}, config_service["networks"])
+
+    def assert_no_volume_target(self, config_service: dict[str, Any], target: str) -> None:
+        self.assertNotIn(target, [volume["target"] for volume in compose_sequence_or_empty(config_service, "volumes")])
+
+    def assert_read_only_volumes(self, config_service: dict[str, Any], *targets: str) -> None:
+        for target in targets:
+            self.assertEqual(True, compose_volume(config_service, target).get("read_only"))
+
+    def assert_staged_package_workspace(self, config_service: dict[str, Any]) -> None:
+        self.assert_read_only_volumes(config_service, "/input/packages", "/work/packages/node_modules")
+        self.assertIn(PACKAGE_WORKSPACE_TMPFS, compose_sequence(config_service, "tmpfs"))
+        self.assertIn("run-package-workspace", compose_command_text(config_service))
 
     def assert_local_rpc_viewer_environment(self, config_service: dict[str, Any]) -> None:
-        environment = mapping_or_empty(config_service, "environment")
+        environment = compose_mapping(config_service, "environment")
         self.assertEqual("local-rpc", environment["CAM_VIEWER_BACKEND"])
         self.assertEqual("true", environment["CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH"])
         self.assertEqual("http://bike-nft-anvil:8545", environment["CAM_VIEWER_RPC_URL"])
         self.assertEqual(
-            "/out/foundry-broadcast/DeployBikeNftLocal.s.sol/31337/run-latest.json",
+            "/foundry-broadcast/DeployBikeNftLocal.s.sol/31337/run-latest.json",
             environment["CAM_VIEWER_BROADCAST_PATH"],
         )
-        self.assertEqual("/work/dapps/bike-nft/cam", environment["CAM_VIEWER_FILE_ROOT"])
+        self.assertEqual(BIKE_CAM_HTTP_ORIGIN, environment["CAM_VIEWER_RESOURCE_ORIGIN"])
         self.assertEqual("{}", environment["CAM_VIEWER_INITIAL_PARAMS_JSON"])
+        self.assertNotIn("CAM_VIEWER_FILE_ROOT", environment)
         self.assertNotIn("PRIVATE_KEY", environment)
 
-    def test_bike_nft_local_deploy_lane_is_internal_and_secret_backed(self) -> None:
+    def test_bike_nft_local_deploy_lane_is_internal_and_fixture_keyed(self) -> None:
         config = rendered_compose_config(
-            "compose/bike-nft-local.yml",
-            env=bike_fixture_env(),
+            "compose/bike-nft/local/deploy.yml",
+            env=standalone_bike_fixture_env(),
         )
-        anvil = service(config, "bike-nft-anvil")
-        deploy = service(config, "deploy-bike-nft-local")
+        anvil = compose_service(config, "bike-nft-anvil")
+        deploy = compose_service(config, "deploy-bike-nft-local")
 
         self.assert_hardened(anvil)
         self.assert_hardened(deploy)
-        self.assertNotIn("ports", anvil)
-        self.assertNotIn("ports", deploy)
-        self.assertEqual({"bike_nft_local": None}, anvil["networks"])
-        self.assertEqual({"bike_nft_local": None}, deploy["networks"])
-        self.assertTrue(config["networks"]["bike_nft_local"]["internal"])
+        self.assert_no_published_ports(anvil, deploy)
+        self.assert_internal_network(config, "bike_nft_local", anvil, deploy)
 
-        repo_mount = volume_for(deploy, "/work")
-        self.assertEqual(True, repo_mount.get("read_only"))
-        self.assertNotIn("PRIVATE_KEY", mapping_or_empty(deploy, "environment"))
-        self.assertEqual(BIKE_PRIVATE_KEY_FILE, config["secrets"]["bike_nft_private_key"]["file"])
-        source_text = read_text(repo_path("compose/bike-nft-local.yml"))
-        self.assertIn('export PRIVATE_KEY="$(cat /run/secrets/bike_nft_private_key)"', source_text)
+        for target in [
+            "/work/dapps/foundry.toml",
+            "/work/dapps/remappings.txt",
+            "/work/dapps/dependencies",
+            "/work/dapps/bike-nft",
+            "/work/dapps/cam",
+        ]:
+            self.assertEqual(True, compose_volume(deploy, target).get("read_only"))
+        self.assert_no_volume_target(deploy, "/work")
+        self.assertNotIn("secrets", config)
+        self.assertEqual(ANVIL_DEV_PRIVATE_KEY, compose_mapping(deploy, "environment")["PRIVATE_KEY"])
+        source_text = read_text(repo_path("compose/bike-nft/local/deploy.yml"))
+        self.assertIn("Public Anvil default account private key", source_text)
+        self.assertNotIn("/run/secrets", source_text)
         self.assertNotIn("$$(cat", source_text)
 
     def test_forge_lanes_render_as_offline_hardened_services(self) -> None:
@@ -124,13 +134,13 @@ class RenderedComposePostureTest(unittest.TestCase):
                 self.assert_hardened(config_service)
                 self.assertEqual("none", config_service.get("network_mode"))
 
-        self.assertIn("*/script", command_text(service(config, "forge-fmt")))
+        self.assertIn("*/script", compose_command_text(compose_service(config, "forge-fmt")))
         self.assertIn("forge-script-build", config["services"])
-        forge_abi = service(config, "forge-abi")
-        self.assertEqual(True, volume_for(forge_abi, "/work/dapps").get("read_only"))
+        forge_abi = compose_service(config, "forge-abi")
+        self.assertEqual(True, compose_volume(forge_abi, "/work/dapps").get("read_only"))
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
-                abi_mount = volume_for(forge_abi, f"/work/dapps/{dapp_dir.name}/cam/abi")
+                abi_mount = compose_volume(forge_abi, f"/work/dapps/{dapp_dir.name}/cam/abi")
                 # Intentional default: Docker bind mounts are writable when
                 # read_only is omitted. Treat both false and absent as the
                 # explicit ABI materialization boundary this test is checking.
@@ -173,7 +183,8 @@ class RenderedComposePostureTest(unittest.TestCase):
         actual = set()
         for compose_file in [
             "compose/anvil.yml",
-            "compose/bike-nft-local.yml",
+            "compose/bike-nft/local/deploy.yml",
+            "compose/bike-nft/local/http.yml",
             "compose/cast.yml",
             "compose/checks.yml",
             "compose/deps.yml",
@@ -187,12 +198,12 @@ class RenderedComposePostureTest(unittest.TestCase):
                 env={
                     "PACKAGE_INPUT_DIR": "/tmp/package-input",
                     "RPC_URL_FILE": "/tmp/rpc-url",
-                    **bike_fixture_env(),
+                    **bike_viewer_fixture_env(),
                     **mock_viewer_env(),
                 },
             )
             for service_name, config_service in config["services"].items():
-                for volume in sequence_or_empty(config_service, "volumes"):
+                for volume in compose_sequence_or_empty(config_service, "volumes"):
                     # Intentional default: rendered bind mounts without an
                     # explicit read_only flag are Docker-writable by default,
                     # so missing read_only is intentionally classified here as
@@ -202,108 +213,61 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         self.assertEqual(expected, actual)
 
-    def test_package_lanes_render_as_offline_hardened_services(self) -> None:
+    def test_package_and_viewer_lanes_render_as_offline_hardened_services(self) -> None:
         config = rendered_compose_config("compose/packages.yml")
 
-        verify = service(config, "package-graph-check")
-        build = service(config, "package-build-check")
-        test = service(config, "package-test")
+        verify = compose_service(config, "package-graph-check")
+        build = compose_service(config, "package-build-check")
+        test = compose_service(config, "package-test")
         self.assertNotIn("package-ci", config["services"])
         for config_service in [verify, build, test]:
             self.assert_hardened(config_service)
             self.assertEqual("none", config_service.get("network_mode"))
-            self.assertNotIn("HTTP_PROXY", mapping_or_empty(config_service, "environment"))
-            self.assertNotIn("HTTPS_PROXY", mapping_or_empty(config_service, "environment"))
+            self.assertEqual("/work/packages", config_service.get("working_dir"))
+            self.assertNotIn("HTTP_PROXY", compose_mapping(config_service, "environment"))
+            self.assertNotIn("HTTPS_PROXY", compose_mapping(config_service, "environment"))
+            self.assert_staged_package_workspace(config_service)
 
-        self.assertEqual("/work/packages", verify.get("working_dir"))
-        self.assertEqual("/work/packages", build.get("working_dir"))
-        self.assertEqual("/work/packages", test.get("working_dir"))
-        for config_service in [verify, build, test]:
-            self.assertEqual(True, volume_for(config_service, "/input/packages").get("read_only"))
-            self.assertEqual(True, volume_for(config_service, "/work/packages/node_modules").get("read_only"))
-            self.assertIn(
-                "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
-                sequence(config_service, "tmpfs"),
-            )
-            command = command_text(config_service)
-            self.assertIn("run-package-workspace", command)
+        self.assert_read_only_volumes(test, "/work/dapps", "/work/tests/fixtures")
 
-        self.assertEqual(True, volume_for(test, "/work/dapps").get("read_only"))
-        self.assertEqual(True, volume_for(test, "/work/tests/fixtures").get("read_only"))
-
-    def test_viewer_terminal_renders_as_offline_read_only_interactive_lane(self) -> None:
-        config = rendered_compose_config(
-            "compose/viewer-terminal.yml",
-            env=mock_viewer_env(),
+        viewer_config = rendered_compose_config(
+            (
+                "compose/bike-nft/local/deploy.yml",
+                "compose/bike-nft/local/http.yml",
+                "compose/bike-nft/local/viewer-terminal.yml",
+            ),
+            env=bike_viewer_fixture_env(),
         )
-        viewer = service(config, "viewer-terminal")
-        check = service(config, "viewer-terminal-check")
+        cam_http = compose_service(viewer_config, "bike-nft-cam-http")
+        viewer = compose_service(viewer_config, "bike-nft-viewer-terminal")
+        deploy = compose_service(viewer_config, "deploy-bike-nft-local")
 
-        self.assert_hardened(viewer)
-        self.assert_hardened(check)
-        self.assertEqual(VIEWER_TERMINAL_CONTAINER_NAME, viewer.get("container_name"))
-        self.assertEqual("none", viewer.get("network_mode"))
-        self.assertEqual("none", check.get("network_mode"))
-        self.assert_mock_viewer_environment(viewer)
-        self.assert_mock_viewer_environment(check)
-        self.assertEqual(True, viewer.get("stdin_open"))
-        self.assertEqual(True, viewer.get("tty"))
-        viewer_command = command_text(viewer)
-        check_command = command_text(check)
-        self.assertIn("npm run build:packages", viewer_command)
-        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", viewer_command)
-        self.assertIn("npm run build:packages", check_command)
-        self.assertIn("tsc -p ../tools/viewer-terminal/tsconfig.json", check_command)
-        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", check_command)
-        for target in ["/work/dapps", "/work/tests/fixtures", "/work/tools"]:
-            self.assertEqual(True, volume_for(viewer, target).get("read_only"))
-            self.assertEqual(True, volume_for(check, target).get("read_only"))
-        self.assertEqual(True, volume_for(viewer, "/input/packages").get("read_only"))
-        self.assertEqual(True, volume_for(check, "/input/packages").get("read_only"))
-        self.assertEqual(True, volume_for(viewer, "/work/packages/node_modules").get("read_only"))
-        self.assertEqual(True, volume_for(check, "/work/packages/node_modules").get("read_only"))
-        self.assertIn(
-            "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
-            sequence(viewer, "tmpfs"),
-        )
-        self.assertIn(
-            "/work/packages:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777",
-            sequence(check, "tmpfs"),
-        )
-        self.assertIn("run-package-workspace", viewer_command)
-        self.assertIn("run-package-workspace", check_command)
-
-    def test_bike_nft_viewer_terminal_renders_as_internal_rpc_scenario(self) -> None:
-        config = rendered_compose_config(
-            ("compose/bike-nft-local.yml", "compose/bike-nft-viewer-terminal.yml"),
-            env=bike_fixture_env(),
-        )
-        viewer = service(config, "bike-nft-viewer-terminal")
-        deploy = service(config, "deploy-bike-nft-local")
-
+        self.assert_hardened(cam_http)
         self.assert_hardened(viewer)
         self.assert_hardened(deploy)
-        self.assertNotIn("ports", viewer)
-        self.assertNotIn("ports", deploy)
-        self.assertEqual({"bike_nft_local": None}, viewer["networks"])
-        self.assertTrue(config["networks"]["bike_nft_local"]["internal"])
+        self.assertNotIn("build", cam_http)
+        self.assertEqual(PYTHON_ALPINE_IMAGE, cam_http["image"])
+        self.assert_no_published_ports(cam_http, viewer, deploy)
+        self.assert_internal_network(viewer_config, "bike_nft_local", cam_http, viewer)
         self.assertEqual("service_completed_successfully", viewer["depends_on"]["deploy-bike-nft-local"]["condition"])
+        self.assertEqual("service_healthy", viewer["depends_on"]["bike-nft-cam-http"]["condition"])
 
         self.assert_local_rpc_viewer_environment(viewer)
 
-        deploy_environment = mapping_or_empty(deploy, "environment")
+        deploy_environment = compose_mapping(deploy, "environment")
+        self.assertEqual(BIKE_CAM_URI, deploy_environment["CAM_URI"])
         self.assertEqual(ZERO_HASH, deploy_environment["CAM_HASH"])
-        self.assertEqual("/out/foundry-broadcast", deploy_environment["FOUNDRY_BROADCAST"])
-        self.assertNotIn("PRIVATE_KEY", deploy_environment)
+        self.assertEqual("/foundry-broadcast", deploy_environment["FOUNDRY_BROADCAST"])
+        self.assertEqual(ANVIL_DEV_PRIVATE_KEY, deploy_environment["PRIVATE_KEY"])
 
-        self.assertEqual(True, volume_for(viewer, "/work/dapps").get("read_only"))
-        self.assertEqual(True, volume_for(viewer, "/input/packages").get("read_only"))
-        self.assertEqual(True, volume_for(viewer, "/work/packages/node_modules").get("read_only"))
-        self.assertEqual(True, volume_for(viewer, "/work/tools").get("read_only"))
-        self.assertEqual(True, volume_for(viewer, "/out").get("read_only"))
-        self.assertNotEqual("bind", volume_for(deploy, "/out").get("type"))
+        self.assert_read_only_volumes(cam_http, "/srv/cam")
+        self.assertIn("python3 -I -B -m http.server", compose_command_text(cam_http))
+        self.assert_no_volume_target(viewer, "/work/dapps")
+        self.assert_no_volume_target(viewer, "/out")
+        self.assert_staged_package_workspace(viewer)
+        self.assert_read_only_volumes(viewer, "/work/tools", "/foundry-broadcast")
+        self.assertNotEqual("bind", compose_volume(deploy, "/foundry-broadcast").get("type"))
 
-        command = command_text(viewer)
+        command = compose_command_text(viewer)
         self.assertIn("npm run build:packages", command)
         self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", command)
-        self.assertIn("run-package-workspace", command)

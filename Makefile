@@ -32,6 +32,7 @@ VIEWER_TERMINAL_MOCK ?= bike-nft
 # Intentional fixture default: bytes32(0) means the local demo deploy is
 # unsigned. Pass BIKE_NFT_CAM_HASH to pin real CAM bytes.
 BIKE_NFT_CAM_HASH ?= 0x0000000000000000000000000000000000000000000000000000000000000000
+BIKE_NFT_CAM_HTTP_ORIGIN := http://bike-nft-cam-http:8080
 
 COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)
 DEPS_COMPOSE_ENV := $(COMPOSE_ENV) ALLOW_UPDATE=$(ALLOW_UPDATE)
@@ -40,7 +41,7 @@ RPC_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT
 ANVIL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(ANVIL_COMPOSE_PROJECT_NAME)
 LIVE_CHECK_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(LIVE_CHECK_COMPOSE_PROJECT_NAME)
 BIKE_NFT_LOCAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME) CAM_HASH=$(BIKE_NFT_CAM_HASH)
-BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) CAM_HASH=$(BIKE_NFT_CAM_HASH)
+BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_HASH=$(BIKE_NFT_CAM_HASH) CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN)
 VIEWER_TERMINAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) VIEWER_TERMINAL_CONTAINER_NAME=$(VIEWER_TERMINAL_CONTAINER_NAME) CAM_VIEWER_MOCK=$(VIEWER_TERMINAL_MOCK)
 ANVIL_INTERNAL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
 ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host
@@ -104,9 +105,9 @@ help:
 	  '  make anvil-internal  Start Docker-only Anvil with no host port' \
 	  '  make anvil-host      Start Anvil on 127.0.0.1:$${ANVIL_HOST_PORT:-8545}' \
 	  '  make anvil-down      Stop Anvil services and remove their network' \
-	  '  make bike-nft-local-deploy CAM_URI=... BIKE_NFT_PRIVATE_KEY_FILE=/path  Deploy the bike NFT fixture to an internal Anvil' \
+	  '  make bike-nft-local-deploy CAM_URI=...  Deploy the bike NFT fixture to an internal Anvil' \
 	  '                        Fixture default: BIKE_NFT_CAM_HASH=0x00..00; pass BIKE_NFT_CAM_HASH to pin CAM bytes' \
-	  '  make bike-nft-viewer-terminal CAM_URI=... BIKE_NFT_PRIVATE_KEY_FILE=/path  Deploy bike NFT locally and open the real-RPC viewer terminal' \
+	  '  make bike-nft-viewer-terminal  Deploy bike NFT locally and open the real-RPC viewer terminal' \
 	  '' \
 	  'Supported lanes are Docker/Compose-backed. Default check lanes are offline, read-only,' \
 	  'non-root, capability-free, and avoid writing build artifacts into the repo.' \
@@ -403,54 +404,37 @@ bike-nft-local-deploy: deps-verify
 	  printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; \
 	  exit 2; \
 	fi; \
-	if [[ -z "$${BIKE_NFT_PRIVATE_KEY_FILE:-}" ]]; then \
-	  printf '%s\n' 'Set BIKE_NFT_PRIVATE_KEY_FILE to a readable file containing the local deployer private key.' >&2; \
-	  exit 2; \
-	fi; \
-	if [[ ! -r "$$BIKE_NFT_PRIVATE_KEY_FILE" ]]; then \
-	  printf 'BIKE_NFT_PRIVATE_KEY_FILE is not readable: %s\n' "$$BIKE_NFT_PRIVATE_KEY_FILE" >&2; \
-	  exit 2; \
-	fi; \
 	cleanup() { \
 	  status="$$?"; \
-	  $(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/bike-nft-local.yml $(COMPOSE_DOWN_CLEANUP); \
+	  $(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml $(COMPOSE_DOWN_CLEANUP); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
-	$(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/bike-nft-local.yml up --build --abort-on-container-exit --exit-code-from deploy-bike-nft-local deploy-bike-nft-local
+	$(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml up --build --abort-on-container-exit --exit-code-from deploy-bike-nft-local deploy-bike-nft-local
 
 bike-nft-viewer-terminal: deps-verify
 	@$(NON_ROOT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	if [[ -z "$${CAM_URI:-}" ]]; then \
-	  printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; \
-	  exit 2; \
-	fi; \
-	if [[ -z "$${BIKE_NFT_PRIVATE_KEY_FILE:-}" ]]; then \
-	  printf '%s\n' 'Set BIKE_NFT_PRIVATE_KEY_FILE to a readable file containing the local deployer private key.' >&2; \
-	  exit 2; \
-	fi; \
-	if [[ ! -r "$$BIKE_NFT_PRIVATE_KEY_FILE" ]]; then \
-	  printf 'BIKE_NFT_PRIVATE_KEY_FILE is not readable: %s\n' "$$BIKE_NFT_PRIVATE_KEY_FILE" >&2; \
-	  exit 2; \
-	fi; \
 	cleanup() { \
 	  status="$$?"; \
 	  $(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	    -f $(COMPOSE_DIR)/bike-nft-local.yml \
-	    -f $(COMPOSE_DIR)/bike-nft-viewer-terminal.yml \
+	    -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml \
+	    -f $(COMPOSE_DIR)/bike-nft/local/http.yml \
+	    -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml \
 	    $(COMPOSE_DOWN_CLEANUP); \
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
 	$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	  -f $(COMPOSE_DIR)/bike-nft-local.yml \
-	  -f $(COMPOSE_DIR)/bike-nft-viewer-terminal.yml \
+	  -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml \
+	  -f $(COMPOSE_DIR)/bike-nft/local/http.yml \
+	  -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml \
 	  run --build --rm bike-nft-viewer-terminal
 
 bike-nft-viewer-terminal-down:
 	@$(NON_ROOT_GUARD); \
 	$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
-	  -f $(COMPOSE_DIR)/bike-nft-local.yml \
-	  -f $(COMPOSE_DIR)/bike-nft-viewer-terminal.yml \
+	  -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml \
+	  -f $(COMPOSE_DIR)/bike-nft/local/http.yml \
+	  -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml \
 	  $(COMPOSE_DOWN_CLEANUP)

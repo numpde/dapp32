@@ -422,14 +422,25 @@
             </tr>
             <tr>
               <td><code>bike-nft-local-deploy</code></td>
-              <td><code>compose/bike-nft-local.yml</code></td>
+              <td><code>compose/bike-nft/local/deploy.yml</code></td>
               <td><code>bike-nft-anvil</code>, <code>deploy-bike-nft-local</code></td>
               <td>Internal Compose network only; no host port.</td>
               <td>Host UID/GID; read-only rootfs; dropped capabilities; <code>no-new-privileges</code>; bounded PIDs/memory.</td>
               <td>None; broadcasts and cache go to tmpfs.</td>
-              <td>Private key file mounted as a Compose secret.</td>
+              <td>None. The fixture uses Anvil's public default development private key.</td>
               <td>Makefile runs Compose <code>down --volumes --remove-orphans</code> on exit.</td>
               <td>Deploy the local fixture without exposing RPC or writing sensitive broadcast material into the repo.</td>
+            </tr>
+            <tr>
+              <td><code>bike-nft-viewer-terminal</code></td>
+              <td><code>compose/bike-nft/local/deploy.yml</code>, <code>compose/bike-nft/local/http.yml</code>, <code>compose/bike-nft/local/viewer-terminal.yml</code></td>
+              <td><code>bike-nft-anvil</code>, <code>deploy-bike-nft-local</code>, <code>bike-nft-cam-http</code>, <code>bike-nft-viewer-terminal</code></td>
+              <td>Internal Compose network only; no host port.</td>
+              <td>Each service has a read-only rootfs, dropped capabilities, <code>no-new-privileges</code>, and bounded PIDs/memory. The HTTP service uses UID <code>65532</code>; deploy and terminal use host UID/GID.</td>
+              <td><code>deploy-bike-nft-local</code> writes Forge broadcast output into a named Docker volume; <code>bike-nft-viewer-terminal</code> reads that volume read-only.</td>
+              <td>None. The deploy service uses Anvil's public default development private key.</td>
+              <td>Makefile runs Compose <code>down --volumes --remove-orphans</code> on exit.</td>
+              <td>Run the real-RPC terminal against a local deployment while serving CAM resources over scenario-local HTTP.</td>
             </tr>
           </tbody>
         </table>
@@ -632,7 +643,7 @@
           <div class="facts">
             <div class="fact">
               <strong>Inputs</strong>
-              Requires <code>CAM_URI</code> and <code>BIKE_NFT_PRIVATE_KEY_FILE</code>.
+              Requires <code>CAM_URI</code>. The deployer key is Anvil's public default development key.
             </div>
             <div class="fact">
               <strong>Chain</strong>
@@ -643,8 +654,8 @@
               Runs <code>deploy-bike-nft-local</code> after Anvil is healthy.
             </div>
             <div class="fact">
-              <strong>Secret</strong>
-              Reads the private key from a Compose secret file, not from a checked-in file.
+              <strong>Fixture key</strong>
+              Uses Anvil's public default development key; this lane is for local chains only.
             </div>
             <div class="fact">
               <strong>Writes</strong>

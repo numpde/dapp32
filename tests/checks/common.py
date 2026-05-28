@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 from pathlib import Path
 import re
 import shlex
 import subprocess
+from types import ModuleType
 from typing import Any
 
 from tools.json_policy import strict_json_loads
@@ -95,6 +97,16 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def load_python_module(module_name: str, path: Path) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load {path}")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def rendered_compose_config(compose_file: str | tuple[str, ...], *, env: dict[str, str] | None = None) -> dict[str, Any]:
     render_env = os.environ.copy()
     render_env.update(
@@ -128,6 +140,42 @@ def rendered_compose_config(compose_file: str | tuple[str, ...], *, env: dict[st
         raise AssertionError("rendered Compose config must be a JSON object")
 
     return config
+
+
+def compose_service(config: dict[str, Any], name: str) -> dict[str, Any]:
+    return config["services"][name]
+
+
+def compose_mapping(config_service: dict[str, Any], field: str) -> dict[str, Any]:
+    value = config_service.get(field, {})
+    if not isinstance(value, dict):
+        raise AssertionError(f"{field} must render as a mapping")
+    return value
+
+
+def compose_sequence(config_service: dict[str, Any], field: str) -> list[Any]:
+    value = config_service[field]
+    if not isinstance(value, list):
+        raise AssertionError(f"{field} must render as a list")
+    return value
+
+
+def compose_sequence_or_empty(config_service: dict[str, Any], field: str) -> list[Any]:
+    value = config_service.get(field, [])
+    if not isinstance(value, list):
+        raise AssertionError(f"{field} must render as a list")
+    return value
+
+
+def compose_command_text(config_service: dict[str, Any]) -> str:
+    return " ".join(str(item) for item in compose_sequence(config_service, "command"))
+
+
+def compose_volume(config_service: dict[str, Any], target: str) -> dict[str, Any]:
+    for volume in compose_sequence(config_service, "volumes"):
+        if volume["target"] == target:
+            return volume
+    raise AssertionError(f"missing volume target: {target}")
 
 
 def docker_compose_command(env: dict[str, str]) -> list[str]:

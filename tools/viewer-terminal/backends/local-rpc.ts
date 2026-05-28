@@ -1,7 +1,4 @@
 import { readFileSync } from "node:fs"
-import { readFile } from "node:fs/promises"
-import { isAbsolute, relative, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
 
 import type {
   CamHost,
@@ -40,7 +37,7 @@ export function createLocalRpcBackend(
   }: TerminalBackendOptions,
 ): TerminalBackend {
   const rpcURL = requiredEnv(env, "CAM_VIEWER_RPC_URL")
-  const fileRoot = resolve(requiredEnv(env, "CAM_VIEWER_FILE_ROOT"))
+  const resourceOrigin = requiredResourceOrigin(env)
   const deployment = readBroadcastDeployment(requiredEnv(env, "CAM_VIEWER_BROADCAST_PATH"))
 
   return {
@@ -59,7 +56,7 @@ export function createLocalRpcBackend(
         },
         params: initialParams,
         allowUnsignedCamHash,
-        loadResource: createLocalFileResourceLoader(fileRoot, events),
+        loadResource: createHttpResourceLoader(resourceOrigin, events),
       })
     },
   }
@@ -84,19 +81,15 @@ function tracedPublicClient(publicClient: CamPublicClient, events: DebugEvent[])
   }
 }
 
-function createLocalFileResourceLoader(root: string, events: DebugEvent[]): (uri: string) => Promise<Uint8Array> {
+function createHttpResourceLoader(origin: string, events: DebugEvent[]): (uri: string) => Promise<Uint8Array> {
   return async (uri: string): Promise<Uint8Array> => {
-    const resourceURL = new URL(uri)
-    if (resourceURL.protocol !== "file:") {
-      throw new Error(`local-rpc terminal loads file resources only: ${resourceURL.protocol}`)
+    const resourceURL = requireSameHttpOrigin(uri, origin)
+    const response = await fetch(resourceURL, { redirect: "error" })
+    if (!response.ok) {
+      throw new Error(`local-rpc terminal failed to load CAM resource ${resourceURL.href}: HTTP ${response.status}`)
     }
 
-    const path = resolve(fileURLToPath(resourceURL))
-    if (!isWithinOrEqual(root, path)) {
-      throw new Error(`local-rpc terminal file resource is outside CAM file root: ${resourceURL.href}`)
-    }
-
-    const bytes = await readFile(path)
+    const bytes = new Uint8Array(await response.arrayBuffer())
     events.push({
       step: events.length + 1,
       kind: "resource-load",
@@ -105,11 +98,6 @@ function createLocalFileResourceLoader(root: string, events: DebugEvent[]): (uri
     })
     return bytes
   }
-}
-
-function isWithinOrEqual(root: string, path: string): boolean {
-  const relativePath = relative(root, path)
-  return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))
 }
 
 function readBroadcastDeployment(path: string): BroadcastDeployment {
@@ -157,6 +145,37 @@ function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
   }
 
   return value
+}
+
+function requiredResourceOrigin(env: NodeJS.ProcessEnv): string {
+  const originURL = requireHttpURL(requiredEnv(env, "CAM_VIEWER_RESOURCE_ORIGIN"), "CAM_VIEWER_RESOURCE_ORIGIN")
+  if (originURL.pathname !== "/" || originURL.search !== "" || originURL.hash !== "") {
+    throw new Error("CAM_VIEWER_RESOURCE_ORIGIN must be an HTTP(S) origin without path, query, or fragment")
+  }
+
+  return originURL.origin
+}
+
+function requireSameHttpOrigin(uri: string, origin: string): URL {
+  const resourceURL = requireHttpURL(uri, "CAM resource URI")
+  if (resourceURL.origin !== origin) {
+    throw new Error(`local-rpc terminal CAM resource is outside allowed origin: ${resourceURL.href}`)
+  }
+
+  return resourceURL
+}
+
+function requireHttpURL(value: string, label: string): URL {
+  const url = new URL(value)
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`${label}: expected http or https URL`)
+  }
+
+  if (url.username !== "" || url.password !== "") {
+    throw new Error(`${label}: credentials are not allowed`)
+  }
+
+  return url
 }
 
 function requiredRecord(value: unknown, path: string): Record<string, unknown> {

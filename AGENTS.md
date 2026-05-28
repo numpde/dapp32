@@ -79,6 +79,13 @@ Keep the project small, explicit, and protocol-first.
   stage only source/manifests into container-local tmpfs, mount
   `packages/node_modules/` read-only, and leave `dist/` outputs in tmpfs unless
   an explicit artifact export lane is added.
+- Local scenario fixtures must not mount the repository root by default. Mount
+  only the exact project files/directories the service needs, read-only, and let
+  tests assert those rendered mounts.
+- Hardcoded private keys are allowed only for local fixture chains when the key
+  is obviously non-secret and useless outside that fixture, such as a repeated
+  pattern key. Real RPC, live deployment, or operator-controlled lanes must use
+  file-backed secrets or another explicit secret boundary instead.
 - Package tests must run `tsc -p tsconfig.test.json` before `node --test`;
   strip-types execution is runtime convenience, not semantic typechecking.
 - `package-build-check` is compile validation only. Do not add `package-build`

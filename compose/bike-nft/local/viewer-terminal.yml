@@ -1,26 +1,37 @@
 # Local bike NFT viewer terminal scenario.
 #
-# Compose this file with compose/bike-nft-local.yml. The base scenario starts a
-# private Anvil and deploys the bike NFT fixture. This overlay shares Forge's
-# standard broadcast artifact through a scenario-local Docker volume with a Node
-# terminal that connects to the same internal Docker network. No host RPC port
-# is published, and `make bike-nft-viewer-terminal-down` removes the volume.
+# Terminal-viewer overlay for the reusable bike NFT local deployment fixture.
+#
+# Compose this file with deploy.yml and http.yml when the deployed fixture
+# should be driven through the headless viewer terminal. Keeping this as an
+# overlay lets deployment and CAM resource serving stay reusable for other
+# consumers, such as a future web viewer or smoke-test lane.
+#
+# The overlay redirects Forge broadcast output into a named volume and starts
+# the terminal against the deployed CamRoot discovered from Forge's broadcast
+# JSON. The separate HTTP overlay serves the CAM resources the terminal loads.
 
 services:
   deploy-bike-nft-local:
     environment:
-      FOUNDRY_BROADCAST: /out/foundry-broadcast
+      # Override the deploy fixture's tmpfs broadcast path so Forge writes the
+      # deployment receipt into the shared scenario volume below. The terminal
+      # reads run-latest.json from the same volume to discover CamRoot and the
+      # deployed dapp contract addresses.
+      FOUNDRY_BROADCAST: /foundry-broadcast
     volumes:
-      - bike_nft_runtime:/out
+      - bike_nft_runtime:/foundry-broadcast
 
   bike-nft-viewer-terminal:
     build:
-      context: ../containers/node-deps
+      context: ../../../containers/node-deps
       dockerfile: Dockerfile
     working_dir: /work
     depends_on:
       deploy-bike-nft-local:
         condition: service_completed_successfully
+      bike-nft-cam-http:
+        condition: service_healthy
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
     read_only: true
     security_opt:
@@ -41,8 +52,8 @@ services:
       # and require a nonzero content hash.
       CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH: "true"
       CAM_VIEWER_RPC_URL: http://bike-nft-anvil:8545
-      CAM_VIEWER_BROADCAST_PATH: /out/foundry-broadcast/DeployBikeNftLocal.s.sol/31337/run-latest.json
-      CAM_VIEWER_FILE_ROOT: /work/dapps/bike-nft/cam
+      CAM_VIEWER_BROADCAST_PATH: /foundry-broadcast/DeployBikeNftLocal.s.sol/31337/run-latest.json
+      CAM_VIEWER_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
       # The bike entry route takes the connected account only; route params are
       # explicit here so the backend does not invent an empty params default.
       CAM_VIEWER_INITIAL_PARAMS_JSON: "{}"
@@ -50,11 +61,10 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=256m
       - /work/packages:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
     volumes:
-      - ../dapps:/work/dapps:ro
-      - ../packages:/input/packages:ro
-      - ../packages/node_modules:/work/packages/node_modules:ro
-      - ../tools:/work/tools:ro
-      - bike_nft_runtime:/out:ro
+      - ../../../packages:/input/packages:ro
+      - ../../../packages/node_modules:/work/packages/node_modules:ro
+      - ../../../tools:/work/tools:ro
+      - bike_nft_runtime:/foundry-broadcast:ro
     networks:
       - bike_nft_local
     stdin_open: true
