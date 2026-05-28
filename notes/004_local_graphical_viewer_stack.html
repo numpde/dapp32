@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Local graphical viewer stack</title>
+  <title>Local Graphical Viewer Stack</title>
   <style>
     :root {
       color-scheme: light;
@@ -35,25 +35,22 @@
     }
 
     header {
-      padding: 52px 0 34px;
+      padding: 48px 0 32px;
       border-bottom: 1px solid var(--line);
-      background:
-        linear-gradient(120deg, rgba(23, 107, 95, 0.10), transparent 42%),
-        linear-gradient(270deg, rgba(154, 77, 46, 0.08), transparent 50%),
-        #fbfcfe;
+      background: #fbfcfe;
     }
 
     h1 {
-      max-width: 850px;
+      max-width: 860px;
       margin: 0;
-      font-size: clamp(2rem, 5.6vw, 4rem);
+      font-size: clamp(2rem, 5.4vw, 3.8rem);
       line-height: 1;
       letter-spacing: 0;
     }
 
     h2 {
       margin: 0 0 12px;
-      font-size: 1.36rem;
+      font-size: 1.34rem;
       letter-spacing: 0;
     }
 
@@ -74,19 +71,23 @@
       font-size: 0.92em;
     }
 
+    a {
+      color: var(--accent);
+    }
+
     main {
       padding: 34px 0 58px;
     }
 
     section {
-      margin-top: 36px;
+      margin-top: 34px;
     }
 
     .lede {
-      max-width: 830px;
+      max-width: 850px;
       margin: 18px 0 0;
       color: var(--muted);
-      font-size: clamp(1.04rem, 2vw, 1.22rem);
+      font-size: clamp(1.04rem, 2vw, 1.2rem);
     }
 
     .grid {
@@ -110,7 +111,7 @@
 
     .service {
       display: grid;
-      grid-template-columns: 190px 1fr;
+      grid-template-columns: 210px 1fr;
       overflow: hidden;
     }
 
@@ -137,7 +138,6 @@
     .step {
       display: grid;
       grid-template-columns: 40px 1fr;
-      align-items: start;
       gap: 12px;
       padding: 13px;
       border: 1px solid var(--line);
@@ -166,7 +166,7 @@
 
     table {
       width: 100%;
-      min-width: 940px;
+      min-width: 900px;
       border-collapse: collapse;
     }
 
@@ -250,13 +250,14 @@
 <body>
   <header>
     <div class="shell">
-      <h1>Local graphical viewer stack</h1>
+      <h1>Local Graphical Viewer Stack</h1>
       <p class="lede">
-        A real local viewer should use the same trust boundaries as production:
-        browser code talks to a browser-reachable RPC endpoint, fetches
-        browser-reachable CAM resources, and renders data returned by real local
-        contracts. Docker supplies the local infrastructure; it should not
-        become the runtime boundary the browser depends on.
+        Updated 2026-05-28. The GUI viewer should reuse the current local bike
+        fixture discipline: exact read-only mounts, local-only throwaway keys,
+        Docker-managed infrastructure, and protocol logic kept in CAM packages.
+        The main difference from the terminal viewer is that a browser cannot
+        use Docker-internal service names, so the GUI stack needs loopback-only
+        host endpoints.
       </p>
     </div>
   </header>
@@ -264,189 +265,252 @@
   <main class="shell">
     <section class="grid">
       <div class="panel">
-        <h2>Principle</h2>
+        <h2>Goal</h2>
         <p>
-          The graphical viewer is an app, not another protocol package. It
-          should consume <code>@cam/viewer</code>, <code>@cam/screen</code>, and
-          the EVM adapter. It should not reimplement CAM parsing, route
-          resolution, ABI loading, or screen semantics.
+          Add a graphical host for the same read-only protocol path already
+          proven by the terminal:
+          <code>CamRoot -&gt; CAM -&gt; route call -&gt; screen JSON -&gt; resolved screen</code>.
         </p>
         <p>
-          The local stack should be real-local rather than mock-local: Anvil is
-          the chain, contracts are deployed, CAM files are served over HTTP, and
-          the browser uses viem against the local RPC.
+          The GUI should be a consumer of <code>@cam/viewer</code>,
+          <code>@cam/screen</code>, <code>@cam/evm-viem</code>, and
+          <code>@cam/core</code>. It should not own protocol parsing,
+          expression resolution, route execution, or screen semantics.
         </p>
       </div>
 
       <div class="panel">
-        <h2>Critical boundary</h2>
+        <h2>Boundary</h2>
         <p>
-          The viewer JavaScript runs in the host browser. Any URI stored in
-          <code>CamRoot.camURI()</code> must be reachable from that browser.
+          The current terminal stack can stay Docker-internal because the
+          terminal process runs inside Docker. The GUI runs in a host browser.
+          Therefore, browser-facing RPC, CAM resources, and the Vite dev server
+          must bind only to host loopback addresses.
         </p>
         <p>
-          A Compose-only URI such as <code>http://cam-static:8080/main.json</code>
-          is wrong for this stack. The browser needs a loopback URI such as
-          <code>http://127.0.0.1:8090/bike-nft/cam/main.json</code>.
+          Use <code>127.0.0.1</code> ports, never wildcard host publishing, and
+          do not store Docker-only URLs such as
+          <code>http://bike-nft-cam-http:8080/main.json</code> in
+          <code>CamRoot</code> for the graphical scenario.
         </p>
       </div>
     </section>
 
     <section>
-      <h2>Recommended services</h2>
-      <div class="flow">
-        <div class="service">
-          <div class="service-name">anvil</div>
-          <div class="service-body">
-            <p>
-              Runs the local EVM chain. It publishes a host-loopback RPC port,
-              typically <code>127.0.0.1:8545</code>, because browser wallets and
-              browser viem clients run outside Docker.
-            </p>
-            <p class="muted">
-              Use the existing Foundry image. No repo mount, no secrets, no
-              Docker socket, no elevated capabilities.
-            </p>
-          </div>
-        </div>
-
-        <div class="service">
-          <div class="service-name">cam-static</div>
-          <div class="service-body">
-            <p>
-              Serves checked-in CAM resources and generated local deployment
-              metadata over host-loopback HTTP. It must serve CORS headers for
-              the viewer origin.
-            </p>
-            <p class="muted">
-              Mount <code>dapps/</code> and generated deployment metadata
-              read-only. Do not mount secrets.
-            </p>
-          </div>
-        </div>
-
-        <div class="service">
-          <div class="service-name">deploy</div>
-          <div class="service-body">
-            <p>
-              One-shot Foundry job. It waits for Anvil, deploys the local
-              fixture, stores the browser-reachable CAM URI in
-              <code>CamRoot</code>, and writes a generated deployment artifact
-              with the local <code>CamRoot</code> address.
-            </p>
-            <p class="muted">
-              It should use a known Anvil development key and a hardcoded local
-              RPC service URL. It should never accept a real operator private
-              key or arbitrary RPC URL for this scenario.
-            </p>
-          </div>
-        </div>
-
-        <div class="service">
-          <div class="service-name">viewer-web</div>
-          <div class="service-body">
-            <p>
-              Runs the Vite graphical viewer app. It loads runtime config from
-              the static server, creates a viem client for Anvil, loads
-              <code>@cam/viewer</code>, and renders the resolved screen tree.
-            </p>
-            <p class="muted">
-              No private keys, no transaction sending in the first slice, no
-              Docker socket, and no protocol logic duplicated in React.
-            </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <h2>Supply-chain lanes</h2>
-      <div class="panel">
-        <p>
-          Dependency acquisition is not part of the graphical viewer runtime
-          stack. It remains a separate, explicit operation with egress confined
-          to dedicated proxy-backed Compose lanes.
-        </p>
-        <p>
-          The viewer runtime should use already-materialized Solidity and npm
-          dependencies. It should not run <code>npm install</code>,
-          <code>forge soldeer install</code>, or any dependency update command
-          while serving the app.
-        </p>
-        <p>
-          The current npm lane is named <code>package-*</code> because the repo
-          root currently acts as the npm workspace root for
-          <code>packages/*</code>. That is not the target shape. Implementing
-          the graphical viewer should move npm state out of the repo root and
-          use the same repeated npm-project pattern for libraries and apps:
-          same verbs, same confinement model, separate project roots.
-        </p>
-      </div>
-
+      <h2>Current Building Blocks</h2>
       <div class="matrix">
         <table>
           <thead>
             <tr>
-              <th>Lane</th>
-              <th>Compose file</th>
-              <th>Networked service</th>
-              <th>Output</th>
-              <th>Runtime relation</th>
+              <th>File</th>
+              <th>Current job</th>
+              <th>GUI implication</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><code>make deps</code></td>
-              <td><code>compose/deps.yml</code></td>
-              <td><code>dependency-egress-proxy</code> plus Soldeer staging</td>
-              <td><code>dapps/dependencies/</code>, lock metadata, dependency checksums</td>
-              <td>Run before Solidity build/deploy lanes; routine Forge lanes verify with <code>deps-verify</code>.</td>
+              <td><code>compose/bike-nft/local/deploy.yml</code></td>
+              <td>Starts internal Anvil and deploys the local bike fixture with an obvious throwaway key.</td>
+              <td>Reusable, but the GUI scenario must pass a browser-reachable <code>CAM_URI</code>.</td>
             </tr>
             <tr>
-              <td><code>make npm-packages-deps</code></td>
-              <td><code>compose/npm-deps.yml</code></td>
-              <td>npm egress proxy plus npm staging</td>
-              <td><code>packages/node_modules/</code> and, only with <code>ALLOW_UPDATE=1</code>, <code>packages/package-lock.json</code></td>
-              <td>Library npm project for <code>packages/*</code>.</td>
+              <td><code>compose/bike-nft/local/http.yml</code></td>
+              <td>Serves <code>dapps/bike-nft/cam</code> internally for Docker consumers.</td>
+              <td>Reusable with a GUI overlay that publishes it on <code>127.0.0.1</code> and applies a narrow CORS policy.</td>
             </tr>
             <tr>
-              <td><code>make npm-cam-web-deps</code></td>
-              <td><code>compose/npm-deps.yml</code></td>
-              <td>npm egress proxy plus npm staging</td>
-              <td><code>apps/cam-web/node_modules/</code> and its app-local lockfile</td>
-              <td>App npm project for <code>apps/cam-web</code>.</td>
-            </tr>
-            <tr>
-              <td><code>make npm-&lt;project&gt;-graph-check</code></td>
-              <td><code>compose/npm-project.yml</code></td>
-              <td>None</td>
-              <td>No new dependency material</td>
-              <td>Checks the installed npm graph before that project runs; it is not a per-file integrity verifier.</td>
+              <td><code>compose/bike-nft/local/viewer-terminal.yml</code></td>
+              <td>Runs the real-RPC terminal inside Docker, reads Forge broadcast JSON from a named volume.</td>
+              <td>Do not mutate into a GUI file. Add a sibling GUI overlay with a separate service and port policy.</td>
             </tr>
           </tbody>
         </table>
       </div>
+    </section>
 
-      <div class="callout warn">
-        <h2>Keep runtime and acquisition separate</h2>
-        <ul>
-          <li>The graphical viewer stack should not have external package registry access.</li>
-          <li>The static server and viewer web server should not be allowed to update lockfiles.</li>
-          <li>The deploy job should depend on <code>deps-verify</code>, not run Soldeer itself.</li>
-          <li>The viewer web server should depend on its app-local offline npm build, not run npm install.</li>
-        </ul>
+    <section>
+      <h2>Recommended Services</h2>
+      <div class="flow">
+        <div class="service">
+          <div class="service-name">bike-nft-anvil</div>
+          <div class="service-body">
+            <p>
+              Runs the local EVM chain. For the GUI overlay only, publish RPC
+              on host loopback, for example <code>127.0.0.1:8545</code>.
+            </p>
+            <p class="muted">
+              No repo mount, no private operator key, no Docker socket, dropped
+              capabilities, read-only rootfs, bounded PIDs and memory.
+            </p>
+          </div>
+        </div>
+
+        <div class="service">
+          <div class="service-name">deploy-bike-nft-local</div>
+          <div class="service-body">
+            <p>
+              One-shot Foundry deploy job. It should keep the narrowed mounts
+              already used by <code>deploy.yml</code>:
+              <code>foundry.toml</code>, <code>remappings.txt</code>,
+              <code>dependencies/</code>, <code>bike-nft/</code>, and
+              <code>cam/</code>, all read-only.
+            </p>
+            <p class="muted">
+              Continue using the obvious <code>baba...</code> local fixture key.
+              The job must never accept a real private key or arbitrary live RPC
+              URL.
+            </p>
+          </div>
+        </div>
+
+        <div class="service">
+          <div class="service-name">bike-nft-cam-http</div>
+          <div class="service-body">
+            <p>
+              Serves checked-in CAM resources to the browser. For the GUI
+              overlay, publish only <code>127.0.0.1:8090</code> and make
+              <code>CamRoot.camURI()</code> point at that browser-reachable
+              origin.
+            </p>
+            <p class="muted">
+              Mount only <code>dapps/bike-nft/cam</code> read-only. Add CORS
+              only for the local viewer origin, not <code>*</code>.
+            </p>
+          </div>
+        </div>
+
+        <div class="service">
+          <div class="service-name">cam-web</div>
+          <div class="service-body">
+            <p>
+              Runs the graphical viewer app from <code>apps/cam-web</code>. In
+              local dev, expose Vite only on <code>127.0.0.1:5173</code>. Keep
+              Vite host checks enabled; do not use broad
+              <code>allowedHosts: true</code>.
+            </p>
+            <p class="muted">
+              No private keys, no transaction sending in the first slice, no
+              Docker socket, no protocol logic copied into React.
+            </p>
+          </div>
+        </div>
       </div>
     </section>
 
     <section>
-      <h2>Symmetric npm projects</h2>
+      <h2>What Talks To What</h2>
+      <div class="diagram">
+        <div class="box">
+          <h3>Browser</h3>
+          <p>Loads <code>cam-web</code> from <code>127.0.0.1:5173</code>.</p>
+        </div>
+        <div class="arrow">-&gt;</div>
+        <div class="box">
+          <h3>Anvil</h3>
+          <p>Receives JSON-RPC calls at <code>127.0.0.1:8545</code>.</p>
+        </div>
+        <div class="arrow">-&gt;</div>
+        <div class="box">
+          <h3>CAM HTTP</h3>
+          <p>Serves CAM, ABI, and screen JSON at <code>127.0.0.1:8090</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Runtime Flow</h2>
+      <div class="flow">
+        <div class="step">
+          <div class="number">1</div>
+          <div>
+            <strong>CAM HTTP starts.</strong>
+            It serves <code>main.json</code>, <code>abi/</code>, and
+            <code>screens/</code> from <code>dapps/bike-nft/cam</code>.
+          </div>
+        </div>
+        <div class="step">
+          <div class="number">2</div>
+          <div>
+            <strong>Anvil starts.</strong>
+            The GUI overlay publishes only the host-loopback RPC port needed by
+            the browser.
+          </div>
+        </div>
+        <div class="step">
+          <div class="number">3</div>
+          <div>
+            <strong>The deploy job runs.</strong>
+            It deploys <code>CamRoot</code> and app contracts, stores
+            <code>http://127.0.0.1:8090/main.json</code> as the local
+            <code>camURI</code>, and writes Forge broadcast output to a named
+            volume.
+          </div>
+        </div>
+        <div class="step">
+          <div class="number">4</div>
+          <div>
+            <strong>The GUI loads runtime config.</strong>
+            The app should fetch a small JSON config at startup, not bake local
+            contract addresses into a Vite build. The config can be generated
+            from Forge broadcast JSON by a small Docker-side helper.
+          </div>
+        </div>
+        <div class="step">
+          <div class="number">5</div>
+          <div>
+            <strong>The GUI follows the package path.</strong>
+            React renders the resolved screen tree returned by
+            <code>@cam/viewer</code>. It does not call route contracts directly
+            and does not parse CAM or screen documents itself.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Frontend Shape</h2>
+      <div class="grid">
+        <div class="callout">
+          <h2>Use Vite + React</h2>
+          <p>
+            This viewer is a static client-side tool, not a server-rendered
+            product. A small Vite + React app is the right first GUI. Keep it
+            app-local under <code>apps/cam-web</code> with its own lockfile and
+            <code>node_modules/</code>.
+          </p>
+          <p>
+            Vite environment variables are build-time client inputs. Use them
+            only for non-sensitive defaults. Local chain addresses and
+            deployment state should be fetched from runtime JSON.
+          </p>
+        </div>
+
+        <div class="callout">
+          <h2>Keep React Boring</h2>
+          <p>
+            React should own interaction state, form controls, and rendering.
+            CAM session state comes from <code>@cam/viewer</code>. Screen
+            semantics come from <code>@cam/screen</code>. EVM reads come from
+            <code>@cam/evm-viem</code>.
+          </p>
+          <p>
+            Wallet connection and transaction sending should wait until screen
+            action documents are stable. The first GUI remains read-only.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Supply Chain</h2>
       <div class="panel">
         <p>
-          Keep npm confinement by treating libraries and apps as separate npm
-          projects, not as one shared repo-root workspace. Each project has its
-          own dependency material and the same lifecycle verbs. The target shape
-          has no repo-root <code>package-lock.json</code> and no repo-root
-          <code>node_modules/</code>.
+          Runtime services must not install dependencies. Solidity dependency
+          acquisition stays in <code>make deps</code>. CAM package dependency
+          acquisition stays in <code>make package-deps</code>. The future
+          <code>apps/cam-web</code> app should get a separate Docker-backed
+          app-local npm lane with the same stage/apply discipline, not a
+          repo-root npm install and not reuse of <code>packages/node_modules</code>.
         </p>
       </div>
 
@@ -455,162 +519,70 @@
           <thead>
             <tr>
               <th>Project</th>
-              <th>Root</th>
               <th>Dependency state</th>
-              <th>Targets</th>
-              <th>Allowed write surface</th>
+              <th>Build/test boundary</th>
+              <th>Runtime relation</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><code>packages</code></td>
-              <td><code>packages/</code> workspace over package children</td>
+              <td><code>packages/</code></td>
               <td><code>packages/package-lock.json</code> and <code>packages/node_modules/</code></td>
-              <td><code>npm-packages-deps</code>, <code>npm-packages-graph-check</code>, <code>npm-packages-build</code>, <code>npm-packages-test</code></td>
-              <td><code>packages/*/dist</code> during build only</td>
+              <td>Existing <code>package-*</code> lanes.</td>
+              <td>Builds reusable CAM libraries.</td>
             </tr>
             <tr>
-              <td><code>cam-web</code></td>
-              <td><code>apps/cam-web</code></td>
-              <td>app-local <code>package-lock.json</code> and <code>node_modules/</code></td>
-              <td><code>npm-cam-web-deps</code>, <code>npm-cam-web-graph-check</code>, <code>npm-cam-web-build</code>, <code>npm-cam-web-test</code>, <code>npm-cam-web-dev</code></td>
-              <td><code>apps/cam-web/dist</code> during build; dev cache in tmpfs</td>
+              <td><code>apps/cam-web/</code></td>
+              <td>App-local <code>package-lock.json</code> and <code>node_modules/</code>.</td>
+              <td>Future <code>cam-web-*</code> lanes using the same confinement model.</td>
+              <td>Runs the graphical viewer and imports built CAM packages.</td>
             </tr>
           </tbody>
         </table>
       </div>
-
-      <div class="callout">
-        <h2>Shared implementation, isolated projects</h2>
-        <p>
-          The implementation should be symmetric too: prefer a reusable
-          parameterized npm Compose harness over copied per-app Compose files.
-          The Make targets pass a project root, manifest input, lockfile path,
-          node_modules path, and script name. The containers stay the same; the
-          mounted writable paths change by project.
-        </p>
-        <p>
-          This keeps the app's React/Vite dependency churn out of the protocol
-          package dependency graph, and it keeps npm lockfiles and
-          <code>node_modules</code> trees out of the repo root, while preserving
-          one familiar operational shape for every npm project.
-        </p>
-      </div>
     </section>
 
     <section>
-      <h2>Runtime flow</h2>
-      <div class="diagram">
-        <div class="box">
-          <h3>Host browser</h3>
-          <p>Loads the viewer app and wallet provider.</p>
-        </div>
-        <div class="arrow">-&gt;</div>
-        <div class="box">
-          <h3>Anvil RPC</h3>
-          <p>Serves real local contract reads.</p>
-        </div>
-        <div class="arrow">-&gt;</div>
-        <div class="box">
-          <h3>CAM HTTP</h3>
-          <p>Serves CAM, ABI, screen, and deployment JSON.</p>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <h2>What calls what</h2>
-      <div class="flow">
-        <div class="step">
-          <div class="number">1</div>
-          <div>
-            <strong>Static server starts first.</strong>
-            It makes <code>dapps/bike-nft/cam/main.json</code>,
-            <code>abi/</code>, <code>screens/</code>, and generated deployment
-            metadata reachable from the host browser. The server can start
-            before deployment; the deployment JSON appears once the deploy job
-            writes it.
-          </div>
-        </div>
-        <div class="step">
-          <div class="number">2</div>
-          <div>
-            <strong>Anvil starts with a host-loopback RPC port.</strong>
-            The port is intentionally host-visible because browser wallets and
-            the graphical viewer cannot call Docker-internal service names.
-          </div>
-        </div>
-        <div class="step">
-          <div class="number">3</div>
-          <div>
-            <strong>The deploy job writes the local contract registry.</strong>
-            It deploys <code>CamRoot</code> and app contracts to Anvil, seeds
-            local demonstration state, and writes
-            <code>var/deployments/bike-nft/anvil.json</code>.
-          </div>
-        </div>
-        <div class="step">
-          <div class="number">4</div>
-          <div>
-            <strong>The viewer loads runtime config.</strong>
-            It fetches the deployment artifact from the static server instead of
-            baking local addresses into a build-time environment file.
-          </div>
-        </div>
-        <div class="step">
-          <div class="number">5</div>
-          <div>
-            <strong>The viewer follows the protocol path.</strong>
-            It reads <code>CamRoot.camURI()</code> and
-            <code>CamRoot.camHash()</code>, fetches the CAM document, verifies
-            the hash when nonzero, resolves contract addresses and ABIs, calls a
-            route, fetches the returned screen, and renders the resolved screen.
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section>
-      <h2>Privileges and mounts</h2>
+      <h2>Privileges And Mounts</h2>
       <div class="matrix">
         <table>
           <thead>
             <tr>
               <th>Service</th>
               <th>Network</th>
+              <th>Mounts</th>
               <th>Writable state</th>
               <th>Secrets</th>
-              <th>Why</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td><code>anvil</code></td>
-              <td>Host-loopback RPC only</td>
-              <td>Container memory/tmpfs</td>
-              <td>None</td>
-              <td>The browser and wallet need a real local RPC endpoint.</td>
+              <td><code>bike-nft-anvil</code></td>
+              <td>Internal network plus <code>127.0.0.1:8545</code> in GUI overlay.</td>
+              <td>None.</td>
+              <td>Container tmpfs only.</td>
+              <td>None.</td>
             </tr>
             <tr>
-              <td><code>cam-static</code></td>
-              <td>Host-loopback HTTP only</td>
-              <td>None</td>
-              <td>None</td>
-              <td>The browser needs normal HTTP resources and CORS.</td>
+              <td><code>deploy-bike-nft-local</code></td>
+              <td>Internal network to Anvil.</td>
+              <td>Exact Foundry inputs read-only.</td>
+              <td>Forge cache/out/broadcast in tmpfs or named scenario volume.</td>
+              <td>None; obvious throwaway local key only.</td>
             </tr>
             <tr>
-              <td><code>deploy</code></td>
-              <td>Compose network to Anvil</td>
-              <td><code>var/deployments/</code> or a narrow generated artifact mount</td>
-              <td>None; known Anvil development key only</td>
-              <td>The viewer needs the local <code>CamRoot</code> address after deployment.</td>
+              <td><code>bike-nft-cam-http</code></td>
+              <td>Internal network plus <code>127.0.0.1:8090</code> in GUI overlay.</td>
+              <td><code>dapps/bike-nft/cam</code> read-only.</td>
+              <td>None.</td>
+              <td>None.</td>
             </tr>
             <tr>
-              <td><code>viewer-web</code></td>
-              <td>Host-loopback dev server</td>
-              <td>None for runtime; npm build output only in normal workspace lanes</td>
-              <td>None</td>
-              <td>The browser app should contain no private material.</td>
+              <td><code>cam-web</code></td>
+              <td><code>127.0.0.1:5173</code> for dev server.</td>
+              <td>App source read-only, app <code>node_modules</code> read-only, tmpfs workspace for dev/build.</td>
+              <td>Vite cache and build output in tmpfs unless an explicit artifact-export lane is added.</td>
+              <td>None.</td>
             </tr>
           </tbody>
         </table>
@@ -619,69 +591,55 @@
 
     <section class="grid">
       <div class="callout">
-        <h2>Runtime config</h2>
+        <h2>First Compose Draft</h2>
         <p>
-          Prefer a generated deployment artifact over build-time Vite constants.
-          The viewer can fetch:
+          Add a sibling overlay, not a mutation of the terminal overlay:
+          <code>compose/bike-nft/local/viewer-gui.yml</code>.
         </p>
         <p>
-          <code>http://127.0.0.1:8090/deployments/bike-nft/anvil.json</code>
-        </p>
-        <p>
-          That artifact should contain the chain id, RPC URL, local
-          <code>CamRoot</code> address, and browser-reachable CAM URI.
-        </p>
-        <p>
-          Keep it runtime-loaded, not bundled into the app:
-          <code>{"chainId":31337,"rpcUrl":"http://127.0.0.1:8545","camRoot":"0x...","camURI":"http://127.0.0.1:8090/bike-nft/cam/main.json"}</code>
+          It should compose with <code>deploy.yml</code> and <code>http.yml</code>,
+          publish only loopback ports, redirect Forge broadcast output into the
+          same scenario volume, run a runtime-config helper, then run
+          <code>apps/cam-web</code>.
         </p>
       </div>
 
       <div class="callout warn">
-        <h2>Rejected shortcuts</h2>
+        <h2>Rejected Shortcuts</h2>
         <ul>
-          <li>Do not use Compose-only service names in on-chain CAM URIs.</li>
-          <li>Do not put mock contract reads in the graphical viewer.</li>
-          <li>Do not give the viewer or static server private keys.</li>
-          <li>Do not mount the Docker socket.</li>
-          <li>Do not duplicate CAM or screen protocol logic in React.</li>
+          <li>Do not mount the repository root into GUI runtime services.</li>
+          <li>Do not use Docker service names in browser-facing URIs.</li>
+          <li>Do not use <code>allowedHosts: true</code> for Vite.</li>
+          <li>Do not expose Anvil or CAM HTTP on <code>0.0.0.0</code>.</li>
+          <li>Do not put mock contract reads in the GUI.</li>
+          <li>Do not add wallet sending before screen actions are specified.</li>
         </ul>
       </div>
     </section>
 
     <section>
-      <h2>First Make target shape</h2>
+      <h2>Definition Of Done</h2>
       <div class="panel">
-        <p>
-          The first local graphical target should be separate from the mock
-          terminal:
-        </p>
-        <p>
-          <code>make bike-nft-viewer-local</code>
-        </p>
-        <p>
-          It should depend on the relevant isolated npm-project gates:
-          <code>npm-packages-build</code> for the CAM libraries,
-          <code>npm-cam-web-build</code> for the app, and
-          <code>deps-verify</code> before any Foundry compile/deploy work. Then
-          it should start Anvil and the static server, run the local deploy job,
-          and start the viewer web server. A matching
-          <code>make bike-nft-viewer-local-down</code> should stop the stack and
-          remove only this scenario's containers and generated volumes.
-        </p>
+        <ul>
+          <li><code>apps/cam-web</code> exists as an app-local Vite + React project.</li>
+          <li>The GUI stack starts with loopback-only ports for Vite, Anvil, and CAM HTTP.</li>
+          <li><code>CamRoot.camURI()</code> is browser-reachable in the GUI scenario.</li>
+          <li>The viewer loads runtime config rather than bundled deployment addresses.</li>
+          <li>The GUI renders screens through <code>@cam/viewer</code> and <code>@cam/screen</code>.</li>
+          <li>No GUI runtime service has secrets, repo-root mounts, Docker socket access, or dependency-install authority.</li>
+          <li>Rendered Compose posture tests assert the GUI ports, mounts, and no-secret boundary.</li>
+        </ul>
       </div>
     </section>
 
     <section>
-      <h2>Definition of done</h2>
+      <h2>References</h2>
       <div class="panel">
         <ul>
-          <li>The browser loads the viewer from a loopback dev server.</li>
-          <li>The browser reads real local contracts through Anvil.</li>
-          <li>The CAM URI stored in <code>CamRoot</code> is browser-reachable.</li>
-          <li>CAM, ABI, screen, and deployment JSON are served by a local static service.</li>
-          <li>The viewer renders route screens through <code>@cam/viewer</code> and <code>@cam/screen</code>.</li>
-          <li>The first slice remains read-only: no wallet transaction sending yet.</li>
+          <li><a href="https://vite.dev/config/server-options.html">Vite server options</a>: host binding and <code>allowedHosts</code>.</li>
+          <li><a href="https://vite.dev/guide/env-and-mode">Vite env and modes</a>: client-exposed <code>VITE_</code> variables are build-time inputs.</li>
+          <li><a href="https://react.dev/learn/start-a-new-react-project">React project guidance</a>: use a framework when its constraints fit; a small static viewer can stay intentionally minimal.</li>
+          <li><a href="https://docs.docker.com/compose/how-tos/startup-order/">Docker Compose startup order</a>: use health and completion conditions for dependent services.</li>
         </ul>
       </div>
     </section>
