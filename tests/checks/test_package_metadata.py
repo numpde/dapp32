@@ -13,6 +13,7 @@ NPM_REGISTRY_HOST = "registry.npmjs.org"
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 ROOT_OWNED_TOOLCHAIN_DEPENDENCIES = {"typescript"}
+DEV_ONLY_DEPENDENCIES = {"@vitejs/plugin-react", "vite"}
 
 
 class PackageMetadataTest(unittest.TestCase):
@@ -31,6 +32,12 @@ class PackageMetadataTest(unittest.TestCase):
                 for name, version in sorted(dependencies.items()):
                     with self.subTest(path=str(path), field=field, dependency=name):
                         self.assertIsInstance(version, str, f"{path}: {field}.{name} must be a string")
+                        if field == "dependencies":
+                            self.assertNotIn(
+                                name,
+                                DEV_ONLY_DEPENDENCIES,
+                                f"{path}: dependencies.{name} is a build/dev tool; use devDependencies",
+                            )
                         if path != repo_path("js/package.json"):
                             self.assertNotIn(
                                 name,
