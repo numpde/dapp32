@@ -166,13 +166,13 @@ export function App(): ReactElement {
     setSending(true)
     setNotice(undefined)
     try {
-      const startup = requireOptions(options)
-      await ensureInjectedWalletChain(startup)
       await simulateCamContractCall({
         publicClient: requirePublicClient(publicClientRef.current),
         account: wallet.address,
         call,
       })
+      const startup = requireOptions(options)
+      await ensureInjectedWalletChain(startup)
       const walletClient = createInjectedWalletClient(wallet.address)
       const txHash = await sendCamContractCall({ walletClient, call })
       setNotice(`Transaction sent: ${txHash}`)
