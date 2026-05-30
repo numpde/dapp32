@@ -139,6 +139,20 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertNotIn("CAM_VIEWER_FILE_ROOT", environment)
         self.assertNotIn("PRIVATE_KEY", environment)
 
+    def assert_bike_broadcast_volume_shared(
+        self,
+        config: dict[str, Any],
+        writer_service: dict[str, Any],
+        reader_service: dict[str, Any],
+    ) -> None:
+        writer_broadcast = compose_volume(writer_service, BIKE_NFT_BROADCAST_DIR)
+        reader_broadcast = compose_volume(reader_service, BIKE_NFT_BROADCAST_DIR)
+        self.assertEqual("volume", writer_broadcast["type"])
+        self.assertEqual("volume", reader_broadcast["type"])
+        self.assertEqual("bike_nft_broadcast", writer_broadcast["source"])
+        self.assertEqual("bike_nft_broadcast", reader_broadcast["source"])
+        self.assertFalse(config["volumes"]["bike_nft_broadcast"].get("external", False))
+
     def test_bike_nft_local_deploy_lane_is_internal_and_fixture_keyed(self) -> None:
         config = rendered_compose_config(
             "compose/bike-nft/local/deploy.yml",
@@ -306,14 +320,8 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_no_volume_target(viewer, "/work/dapps")
         self.assert_no_volume_target(viewer, "/out")
         self.assert_staged_package_workspace(viewer)
-        self.assert_read_only_volumes(viewer, "/foundry-broadcast")
-        deploy_broadcast = compose_volume(deploy, "/foundry-broadcast")
-        viewer_broadcast = compose_volume(viewer, "/foundry-broadcast")
-        self.assertEqual("volume", deploy_broadcast["type"])
-        self.assertEqual("volume", viewer_broadcast["type"])
-        self.assertEqual("bike_nft_broadcast", deploy_broadcast["source"])
-        self.assertEqual("bike_nft_broadcast", viewer_broadcast["source"])
-        self.assertFalse(viewer_config["volumes"]["bike_nft_broadcast"].get("external", False))
+        self.assert_read_only_volumes(viewer, BIKE_NFT_BROADCAST_DIR)
+        self.assert_bike_broadcast_volume_shared(viewer_config, deploy, viewer)
 
         command = compose_command_text(viewer)
         self.assertIn("npm run build:packages", command)
@@ -355,10 +363,8 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_no_volume_target(cam_web, "/foundry-broadcast")
         self.assertNotIn("PRIVATE_KEY", compose_mapping(cam_web, "environment"))
         self.assertNotIn("CAM_VIEWER_BROADCAST_PATH", compose_mapping(cam_web, "environment"))
-        self.assertEqual("volume", compose_volume(deploy, "/foundry-broadcast")["type"])
-        self.assertEqual("volume", compose_volume(viewer_url, "/foundry-broadcast")["type"])
-        self.assert_read_only_volumes(viewer_url, "/foundry-broadcast")
-        self.assertFalse(config["volumes"]["bike_nft_broadcast"].get("external", False))
+        self.assert_read_only_volumes(viewer_url, BIKE_NFT_BROADCAST_DIR)
+        self.assert_bike_broadcast_volume_shared(config, deploy, viewer_url)
         self.assertIn("run-js-workspace", compose_command_text(cam_web))
         self.assertIn("npm run build:packages", compose_command_text(cam_web))
         self.assertIn("npm run dev -w cam-web", compose_command_text(cam_web))
