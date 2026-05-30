@@ -39,9 +39,6 @@ function createInitialForm(screen: ScreenDocument, context: ScreenInitialContext
   // Input initializers run before the screen form exists. Resolving against an
   // empty form makes $form references fail through the normal expression path.
   const initializerContext = { ...context, form: createStringMap<InertValue>() }
-  // Form shape is the screen's declared input set, not the currently visible
-  // subset. That keeps conditional inputs addressable without changing the
-  // form contract as visibility changes.
   appendInitialFormValues(screen.elements, initializerContext, "elements", form)
   return form
 }
@@ -88,9 +85,6 @@ function appendResolvedElements(
 ): void {
   for (const [index, element] of elements.entries()) {
     const elementPath = `${path}.${index}`
-    if (!isElementVisible(element, context, elementPath)) {
-      continue
-    }
 
     if (element.type === "group") {
       appendResolvedElements(element.elements, context, `${elementPath}.elements`, target)
@@ -99,19 +93,6 @@ function appendResolvedElements(
 
     target.push(resolveLeafElement(element, context, elementPath))
   }
-}
-
-function isElementVisible(element: ScreenElement, context: ScreenRuntimeContext, path: string): boolean {
-  if (element.visibleWhen === undefined) {
-    return true
-  }
-
-  const visible = resolveValueAtPath(element.visibleWhen, context, `${path}.visibleWhen`)
-  if (typeof visible !== "boolean") {
-    throw new ScreenError("SCREEN_INVALID_FIELD", "expected resolved boolean", `${path}.visibleWhen`)
-  }
-
-  return visible
 }
 
 function resolveLeafElement(

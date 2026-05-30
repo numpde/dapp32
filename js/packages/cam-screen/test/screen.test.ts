@@ -179,6 +179,22 @@ test("parseScreen requires explicit action types", () => {
   )
 })
 
+test("parseScreen rejects element control logic", () => {
+  assert.throws(
+    () => parseScreen({
+      screen: "1.0.0",
+      elements: [
+        {
+          type: "text",
+          text: "Registered",
+          visibleWhen: "$values.0.exists",
+        },
+      ],
+    }),
+    /elements\.0\.visibleWhen/,
+  )
+})
+
 function inert(value: unknown): InertValue {
   return toInertValue(value)
 }

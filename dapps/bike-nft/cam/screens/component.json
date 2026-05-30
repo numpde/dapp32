@@ -31,7 +31,6 @@
     },
     {
       "type": "group",
-      "visibleWhen": "$values.0.exists",
       "elements": [
         {
           "type": "status",
@@ -90,7 +89,6 @@
         },
         {
           "type": "button",
-          "visibleWhen": "$values.0.canMarkMissing",
           "label": "Prepare mark missing",
           "action": {
             "type": "contract-call",
@@ -110,7 +108,6 @@
         },
         {
           "type": "button",
-          "visibleWhen": "$values.0.canClearMissing",
           "label": "Prepare clear missing",
           "action": {
             "type": "contract-call",
@@ -130,7 +127,6 @@
         },
         {
           "type": "button",
-          "visibleWhen": "$values.0.canRetire",
           "label": "Prepare retirement",
           "action": {
             "type": "contract-call",

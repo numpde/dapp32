@@ -47,7 +47,6 @@
     },
     {
       "type": "group",
-      "visibleWhen": "$values.0.exists",
       "elements": [
         {
           "type": "status",
@@ -79,7 +78,6 @@
     },
     {
       "type": "button",
-      "visibleWhen": "$values.0.canRegister",
       "label": "Prepare registration",
       "action": {
         "type": "contract-call",

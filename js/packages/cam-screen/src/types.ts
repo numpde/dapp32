@@ -17,49 +17,43 @@ export type ScreenElement =
 
 export type LeafScreenElement = Exclude<ScreenElement, GroupElement>
 
-type ResolvedLeaf<T> = T extends ElementVisibility ? Omit<T, "visibleWhen"> : never
-
-type ElementVisibility = {
-  readonly visibleWhen?: InertValue
-}
-
-export type TextElement = ElementVisibility & {
+export type TextElement = {
   readonly type: "text"
   readonly text: string
 }
 
-export type InputElement = ElementVisibility & {
+export type InputElement = {
   readonly type: "input"
   readonly name: string
   readonly label: string
   readonly value: InertValue
 }
 
-export type AddressElement = ElementVisibility & {
+export type AddressElement = {
   readonly type: "address"
   readonly label?: string
   readonly address: string
 }
 
-export type ButtonElement = ElementVisibility & {
+export type ButtonElement = {
   readonly type: "button"
   readonly label: string
   readonly action: ScreenAction
 }
 
-export type StatusElement = ElementVisibility & {
+export type StatusElement = {
   readonly type: "status"
   readonly label?: string
   readonly value: InertValue
 }
 
-export type NftElement = ElementVisibility & {
+export type NftElement = {
   readonly type: "nft"
   readonly contractAddress: string
   readonly tokenId: InertValue
 }
 
-export type GroupElement = ElementVisibility & {
+export type GroupElement = {
   readonly type: "group"
   readonly elements: readonly ScreenElement[]
 }
@@ -92,6 +86,6 @@ export type ResolvedScreen = {
   readonly elements: readonly ResolvedScreenElement[]
 }
 
-export type ResolvedScreenElement = ResolvedLeaf<LeafScreenElement>
+export type ResolvedScreenElement = LeafScreenElement
 
 export type ResolvedScreenAction = ScreenAction

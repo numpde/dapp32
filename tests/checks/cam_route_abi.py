@@ -233,9 +233,6 @@ def expected_abi_type_for_screen_field(path: str, parent: object | None) -> str 
     if not isinstance(parent, dict):
         return None
 
-    if parent.get("type") in SCREEN_ELEMENT_TYPES and path.endswith(".visibleWhen"):
-        return "bool"
-
     if parent.get("type") == "address" and path.endswith(".address"):
         return "address"
 
