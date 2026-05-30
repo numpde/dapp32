@@ -65,5 +65,5 @@ services:
       - "-eu"
       - "-c"
       - |
-        npm run build:packages
+        npm run build:workspace
         node --experimental-strip-types tools/viewer-terminal/terminal-session.ts

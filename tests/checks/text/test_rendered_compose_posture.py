@@ -340,7 +340,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_bike_broadcast_volume_shared(viewer_config, deploy, viewer)
 
         command = compose_command_text(viewer)
-        self.assertIn("npm run build:packages", command)
+        self.assertIn("npm run build:workspace", command)
         self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", command)
 
     def test_bike_nft_local_gui_viewer_is_gatewayed_and_read_only(self) -> None:
@@ -382,7 +382,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_read_only_volumes(viewer_url, BIKE_NFT_BROADCAST_DIR)
         self.assert_bike_broadcast_volume_shared(config, deploy, viewer_url)
         self.assertIn("run-js-workspace", compose_command_text(cam_web))
-        self.assertIn("npm run build:packages", compose_command_text(cam_web))
+        self.assertIn("npm run build:workspace", compose_command_text(cam_web))
         self.assertIn("npm run dev -w cam-web", compose_command_text(cam_web))
         gateway_command = compose_command_text(gateway)
         self.assertIn("proxy_pass http://cam-web:5173", gateway_command)

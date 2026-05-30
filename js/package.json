@@ -12,9 +12,7 @@
   ],
   "scripts": {
     "build:workspace": "npm run build --workspaces --if-present",
-    "test:workspace": "npm run build:workspace && npm test --workspaces --if-present",
-    "build:packages": "npm run build:workspace",
-    "test:packages": "npm run test:workspace"
+    "test:workspace": "npm run build:workspace && npm test --workspaces --if-present"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

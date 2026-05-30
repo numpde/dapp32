@@ -53,7 +53,7 @@ services:
       - "-eu"
       - "-c"
       - |
-        npm run build:packages
+        npm run build:workspace
         node --experimental-strip-types tools/viewer-terminal/terminal-session.ts
 
   viewer-terminal-check:
@@ -64,6 +64,6 @@ services:
       - "-eu"
       - "-c"
       - |
-        npm run build:packages
+        npm run build:workspace
         ./node_modules/.bin/tsc -p tools/viewer-terminal/tsconfig.json
         printf "set serialNumber ABC123\npress 1\npress 2\nquit\n" | node --experimental-strip-types tools/viewer-terminal/terminal-session.ts >/dev/null

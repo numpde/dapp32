@@ -56,7 +56,7 @@ services:
       - "run-js-workspace"
       - "npm"
       - "run"
-      - "build:packages"
+      - "build:workspace"
 
   package-test:
     <<: *package_base
@@ -69,4 +69,4 @@ services:
       - "run-js-workspace"
       - "npm"
       - "run"
-      - "test:packages"
+      - "test:workspace"

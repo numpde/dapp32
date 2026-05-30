@@ -57,7 +57,7 @@ services:
       - "-eu"
       - "-c"
       - |
-        npm run build:packages
+        npm run build:workspace
         npm run dev -w cam-web -- --host 0.0.0.0 --port 5173 --strictPort
 
   bike-nft-browser-gateway:
