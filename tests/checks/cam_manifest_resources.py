@@ -159,24 +159,48 @@ class CamManifestResourceValidator:
             return [f"{manifest_path}: routes must be an object"]
 
         failures: list[str] = []
-        expected_screen_names: set[str] = set()
+        route_names: set[str] = set()
         for route_name in routes:
             if not isinstance(route_name, str) or route_name == "":
                 failures.append(f"{manifest_path}: route names must be non-empty strings")
                 continue
 
-            expected_screen_names.add(f"{route_name}.json")
+            route_names.add(route_name)
 
         screen_dir = manifest_path.parent / "screens"
         existing_screen_names = {path.name for path in screen_dir.glob("*.json")} if screen_dir.is_dir() else set()
 
-        for screen_name in sorted(expected_screen_names - existing_screen_names):
-            failures.append(f"{manifest_path}: route has no matching CAM screen: screens/{screen_name}")
+        for route_name in sorted(route_names):
+            if not self.route_screen_paths(manifest_path, route_name):
+                failures.append(f"{manifest_path}: route has no matching CAM screen: screens/{route_name}[.*].json")
 
-        for screen_name in sorted(existing_screen_names - expected_screen_names):
-            failures.append(f"{manifest_path}: CAM screen has no matching route: screens/{screen_name}")
+        for screen_name in sorted(existing_screen_names):
+            if not any(self.is_route_screen_name(route_name, screen_name) for route_name in route_names):
+                failures.append(f"{manifest_path}: CAM screen has no matching route: screens/{screen_name}")
 
         return failures
+
+    def route_screen_paths(self, manifest_path: Path, route_name: str) -> list[Path]:
+        screen_dir = manifest_path.parent / "screens"
+        if not screen_dir.is_dir():
+            return []
+
+        return [
+            path
+            for path in sorted(screen_dir.glob("*.json"))
+            if self.is_route_screen_name(route_name, path.name)
+        ]
+
+    def is_route_screen_name(self, route_name: str, screen_name: str) -> bool:
+        if not screen_name.endswith(".json"):
+            return False
+
+        screen_stem = screen_name[:-len(".json")]
+        if screen_stem == route_name:
+            return True
+
+        prefix = f"{route_name}."
+        return screen_stem.startswith(prefix) and screen_stem != prefix
 
     def validate_route_screen_values_references(
         self,
@@ -190,21 +214,31 @@ class CamManifestResourceValidator:
         if not isinstance(route_name, str):
             return []
 
-        screen_path = manifest_path.parent / "screens" / f"{route_name}.json"
-        try:
-            screen = self.read_json_object(screen_path)
-        except AssertionError as error:
-            return [str(error)]
+        failures: list[str] = []
+        screen_paths = self.route_screen_paths(manifest_path, route_name)
+        if not screen_paths:
+            return [f"{manifest_path}: {route_path} has no matching CAM screen: screens/{route_name}[.*].json"]
 
-        return route_abi.validate_screen_values_references(
-            manifest_path,
-            route_path,
-            screen_path,
-            screen,
-            contract_name,
-            function_name,
-            function,
-        )
+        for screen_path in screen_paths:
+            try:
+                screen = self.read_json_object(screen_path)
+            except AssertionError as error:
+                failures.append(str(error))
+                continue
+
+            failures.extend(
+                route_abi.validate_screen_values_references(
+                    manifest_path,
+                    route_path,
+                    screen_path,
+                    screen,
+                    contract_name,
+                    function_name,
+                    function,
+                )
+            )
+
+        return failures
 
     def abi_route_functions_by_contract(
         self,
