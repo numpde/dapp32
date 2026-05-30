@@ -7,7 +7,7 @@ import {
 import type { CamDocument } from "@cam/core"
 import type { CamRuntimeContext, InertValue } from "@cam/protocol"
 import { isAddress } from "viem"
-import type { Abi, Address } from "viem"
+import type { Abi, AbiFunction, AbiParameter, Address } from "viem"
 
 import { findUniqueAbiFunction } from "./abi-functions.ts"
 import { CamEvmError } from "./errors.ts"
@@ -30,7 +30,7 @@ export async function callCamRoute({
       `CAM route references unresolved contract: ${routeCall.contract}`,
     )
   }
-  assertRouteFunctionAbi(contract.abi, routeCall.function)
+  const routeFunction = assertRouteFunctionAbi(contract.abi, routeCall.function)
 
   const account = routeAccount(context)
   let raw: unknown
@@ -46,7 +46,7 @@ export async function callCamRoute({
     throw new CamEvmError("CAM_ROUTE_CALL_FAILED", `failed to call CAM route: ${route}`, cause)
   }
 
-  return normalizeRouteResult(raw, camURI, route)
+  return normalizeRouteResult(raw, camURI, route, routeFunction)
 }
 
 type CallCamRouteOptions = {
@@ -71,7 +71,7 @@ function routeAccount(context: CamRuntimeContext): Address | undefined {
   return address
 }
 
-function normalizeRouteResult(raw: unknown, camURI: string, route: string): RouteResult {
+function normalizeRouteResult(raw: unknown, camURI: string, route: string, routeFunction: AbiFunction): RouteResult {
   const outputs = Array.isArray(raw) ? raw : [raw]
   const screenURI = outputs[0]
 
@@ -85,12 +85,72 @@ function normalizeRouteResult(raw: unknown, camURI: string, route: string): Rout
 
   return {
     screenURI: resolveResourceURI(camURI, screenURI),
-    values: normalizeRouteValues(outputs.slice(1), route),
+    values: normalizeRouteValues(outputs.slice(1), routeFunction.outputs.slice(1), route),
   }
 }
 
-function normalizeRouteValues(values: readonly unknown[], route: string): readonly InertValue[] {
-  return values.map((value, index) => normalizeRouteValue(value, `${route}.${index}`))
+function normalizeRouteValues(
+  values: readonly unknown[],
+  outputs: readonly AbiParameter[],
+  route: string,
+): readonly InertValue[] {
+  return values.map((value, index) => normalizeAbiValue(value, outputs[index], `${route}.${index}`))
+}
+
+function normalizeAbiValue(value: unknown, parameter: AbiParameter | undefined, path: string): InertValue {
+  if (isTupleParameter(parameter)) {
+    return normalizeTupleValue(value, parameter, path)
+  }
+
+  if (parameter?.type === "tuple") {
+    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI tuple has no components at ${path}`)
+  }
+
+  return normalizeRouteValue(value, path)
+}
+
+type AbiTupleParameter = AbiParameter & {
+  readonly type: "tuple"
+  readonly components: readonly AbiParameter[]
+}
+
+function isTupleParameter(parameter: AbiParameter | undefined): parameter is AbiTupleParameter {
+  if (parameter?.type !== "tuple") {
+    return false
+  }
+
+  return Array.isArray((parameter as { readonly components?: unknown }).components)
+}
+
+function normalizeTupleValue(value: unknown, parameter: AbiTupleParameter, path: string): InertValue {
+  const record = createStringMap<InertValue>()
+  parameter.components.forEach((component, index) => {
+    const name = component.name
+    if (name === undefined || name.length === 0) {
+      throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI tuple component is unnamed at ${path}.${index}`)
+    }
+
+    const componentValue = readTupleComponent(value, name, index)
+    if (componentValue === undefined) {
+      throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route tuple is missing component ${name} at ${path}`)
+    }
+
+    record[name] = normalizeAbiValue(componentValue, component, `${path}.${name}`)
+  })
+
+  return record
+}
+
+function readTupleComponent(value: unknown, name: string, index: number): unknown {
+  if (isRecordObject(value) && Object.hasOwn(value, name)) {
+    return value[name]
+  }
+
+  if (Array.isArray(value) && index in value) {
+    return value[index]
+  }
+
+  return undefined
 }
 
 function normalizeRouteValue(value: unknown, path: string): InertValue {
@@ -130,7 +190,7 @@ function assertLocalScreenURI(screenURI: string, route: string): void {
   }
 }
 
-function assertRouteFunctionAbi(abi: Abi, functionName: string): void {
+function assertRouteFunctionAbi(abi: Abi, functionName: string): AbiFunction {
   const fn = findUniqueAbiFunction({
     abi,
     functionName,
@@ -141,4 +201,6 @@ function assertRouteFunctionAbi(abi: Abi, functionName: string): void {
   if (fn.stateMutability !== "view" && fn.stateMutability !== "pure") {
     throw new CamEvmError("CAM_ROUTE_FUNCTION_NOT_VIEW", `CAM route function must be view or pure: ${functionName}`)
   }
+
+  return fn
 }

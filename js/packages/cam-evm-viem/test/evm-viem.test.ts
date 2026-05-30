@@ -17,13 +17,16 @@ import type { CamHost, CamPublicClient, CamSimulationClient, CamWalletClient } f
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
+  BIKE_COMPONENTS_ADDRESS,
   BIKE_ENTRY_SCREEN_URI,
   BIKE_MANAGER_ABI_URI as managerAbiURI,
   BIKE_MANAGER_ADDRESS as managerAddress,
   BIKE_MANAGER_CONTRACT,
   BIKE_RELATIVE_ENTRY_SCREEN_URI,
   BIKE_RELATIVE_MANAGER_ABI_URI,
+  BIKE_RELATIVE_REGISTER_READY_SCREEN_URI,
   BIKE_ROUTE_ENTRY,
+  BIKE_ROUTE_REGISTER,
   BIKE_SERIAL_NUMBER,
   BIKE_UNSIGNED_CAM_HASH,
   BIKE_MARK_MISSING,
@@ -31,6 +34,7 @@ import {
   BIKE_UI_ADDRESS as uiAddress,
   BIKE_UI_CONTRACT,
   BIKE_VIEW_ENTRY,
+  BIKE_VIEW_REGISTER,
   bikeCamJson as camJson,
   bikeContractAddresses,
   bikeHost,
@@ -118,7 +122,7 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
   const cam = parseCam(camJson)
   const publicClient = createPublicClient({
     routeResults: {
-      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, 7n, { count: 8n }],
+      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, [userAddress, true, "Mock registrar account"]],
     },
   })
 
@@ -142,8 +146,11 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
 
   assert.equal(result.screenURI, BIKE_ENTRY_SCREEN_URI)
   assert.deepEqual(result.values, [
-    "7",
-    toInertValue({ count: "8" }),
+    toInertValue({
+      account: userAddress,
+      canRegister: true,
+      accountInfo: "Mock registrar account",
+    }),
   ])
 
   assert.deepEqual(publicClient.calls.at(-1), {
@@ -153,6 +160,68 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
     args: [userAddress],
     account: userAddress,
   })
+})
+
+test("callCamRoute maps positional ABI tuples to named route values", async () => {
+  const cam = parseCam(camJson)
+  const publicClient = createPublicClient({
+    routeResults: {
+      [BIKE_VIEW_REGISTER]: [
+        BIKE_RELATIVE_REGISTER_READY_SCREEN_URI,
+        [
+          true,
+          false,
+          "0x2222222222222222222222222222222222222222222222222222222222222222",
+          0n,
+          BIKE_COMPONENTS_ADDRESS,
+          BIKE_SERIAL_NUMBER,
+          "Mock registrar account",
+        ],
+        [
+          userAddress,
+          true,
+          "Mock registrar account",
+        ],
+      ],
+    },
+  })
+
+  const result = await callCamRoute({
+    publicClient,
+    cam,
+    camURI: camDocumentURI,
+    contracts: {
+      [BIKE_UI_CONTRACT]: {
+        address: uiAddress,
+        abi: uiAbi,
+      },
+    },
+    route: BIKE_ROUTE_REGISTER,
+    context: {
+      host,
+      account: { address: userAddress },
+      params: {
+        serialNumber: BIKE_SERIAL_NUMBER,
+      },
+    },
+  })
+
+  assert.deepEqual(result.values, [
+    toInertValue({
+      canRegister: true,
+      exists: false,
+      serialHash: "0x2222222222222222222222222222222222222222222222222222222222222222",
+      tokenId: "0",
+      componentsAddress: BIKE_COMPONENTS_ADDRESS,
+      serialNumber: BIKE_SERIAL_NUMBER,
+      accountInfo: "Mock registrar account",
+    }),
+    toInertValue({
+      account: userAddress,
+      canRegister: true,
+      accountInfo: "Mock registrar account",
+    }),
+  ])
 })
 
 test("callCamRoute rejects unsafe screen URIs and non-view route functions", async () => {
