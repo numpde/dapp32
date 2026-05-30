@@ -89,7 +89,7 @@ help:
 	  '  make package-deps ALLOW_UPDATE=1  Allow package-lock.json updates' \
 	  '  make package-graph-check  Check installed npm dependency graph offline' \
 	  '  make package-build-check  Validate npm workspace package builds offline' \
-	  '  make package-test   Build and test npm workspace packages offline' \
+	  '  make package-test   Build and test npm workspace packages/apps offline' \
 	  '  make package-ci     Run package tests and viewer terminal checks offline' \
 	  '  make viewer-terminal-check  Smoke-check the CAM viewer terminal offline' \
 	  '  make viewer-terminal  Run the CAM viewer terminal offline; defaults to VIEWER_TERMINAL_MOCK=bike-nft' \

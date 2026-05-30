@@ -35,7 +35,7 @@ services:
   # This is an offline dependency-graph check, not a file-integrity verifier.
   # npm's lockfile pins tarball integrity, but npm does not provide a committed
   # per-file checksum manifest for node_modules/. The practical gate before
-  # package code runs is therefore `npm ls`: check that the installed workspace
+  # JS workspace code runs is therefore `npm ls`: check that the installed workspace
   # dependency graph is present and consistent with package.json/package-lock.json.
   package-graph-check:
     <<: *package_base
@@ -46,8 +46,8 @@ services:
       - "%s\n"
       - "package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata"
 
-  # Package build-check validates compilation only. It does not export durable
-  # artifacts; package dist/ outputs live only in container-local tmpfs mounts.
+  # package-build-check validates compilation only. It does not export durable
+  # artifacts; JS dist/ outputs live only in container-local tmpfs mounts.
   # Add a separate artifact-export lane if host-visible JS output is ever needed.
   package-build-check:
     <<: *package_base
