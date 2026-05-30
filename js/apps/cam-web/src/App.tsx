@@ -130,13 +130,23 @@ export function App(): ReactElement {
         return
       }
 
+      await preflightPreparedCall(result.call)
       setPreparedCall(result.call)
       setNotice(wallet.status === "connected"
-        ? "Prepared contract call. Review it before sending."
-        : "Prepared contract call. Connect a wallet to send it.")
+        ? "Prepared contract call. Simulation passed; review it before sending."
+        : "Prepared contract call. Simulation passed; connect a wallet to send it.")
     } catch (error) {
       setNotice(errorMessage(error))
     }
+  }
+
+  async function preflightPreparedCall(call: PreparedWalletCall): Promise<void> {
+    const startup = requireOptions(options)
+    await simulateCamContractCall({
+      publicClient: requirePublicClient(publicClientRef.current),
+      account: wallet.status === "connected" ? wallet.address : currentViewerAccount(loadState, startup.account),
+      call,
+    })
   }
 
   async function connectWallet(): Promise<void> {
