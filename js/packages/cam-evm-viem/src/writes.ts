@@ -12,7 +12,14 @@ import type { InertValue } from "@cam/protocol"
 
 import { findUniqueAbiFunction } from "./abi-functions.ts"
 import { CamEvmError } from "./errors.ts"
-import type { SendCamContractCallOptions, SimulateCamContractCallOptions } from "./types.ts"
+import type { CamContractCall, SendCamContractCallOptions, SimulateCamContractCallOptions } from "./types.ts"
+
+type WriteRequest = {
+  readonly address: CamContractCall["address"]
+  readonly abi: CamContractCall["abi"]
+  readonly functionName: string
+  readonly args: readonly unknown[]
+}
 
 export async function sendCamContractCall({
   walletClient,
@@ -47,12 +54,7 @@ export async function simulateCamContractCall({
   }
 }
 
-function writeRequest(call: SendCamContractCallOptions["call"]): {
-  readonly address: SendCamContractCallOptions["call"]["address"]
-  readonly abi: SendCamContractCallOptions["call"]["abi"]
-  readonly functionName: string
-  readonly args: readonly unknown[]
-} {
+function writeRequest(call: CamContractCall): WriteRequest {
   const fn = findUniqueAbiFunction({
     abi: call.abi,
     functionName: call.function,

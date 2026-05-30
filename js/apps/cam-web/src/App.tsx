@@ -166,8 +166,9 @@ export function App(): ReactElement {
     setSending(true)
     setNotice(undefined)
     try {
+      const publicClient = requirePublicClient(publicClientRef.current)
       await simulateCamContractCall({
-        publicClient: requirePublicClient(publicClientRef.current),
+        publicClient,
         account: wallet.address,
         call,
       })
@@ -177,7 +178,7 @@ export function App(): ReactElement {
       const txHash = await sendCamContractCall({ walletClient, call })
       setNotice(`Transaction sent: ${txHash}`)
 
-      const receipt = await requirePublicClient(publicClientRef.current).waitForTransactionReceipt({
+      const receipt = await publicClient.waitForTransactionReceipt({
         hash: txHash,
       })
       if (receipt.status !== "success") {
