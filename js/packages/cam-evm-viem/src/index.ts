@@ -2,6 +2,7 @@ export type {
   CamHost,
   CamContractCall,
   CamPublicClient,
+  CamSimulationClient,
   CamWalletClient,
   LoadCamFromHostOptions,
   LoadedCam,
@@ -9,6 +10,7 @@ export type {
   ResourceLoader,
   RouteResult,
   SendCamContractCallOptions,
+  SimulateCamContractCallOptions,
   VerifyCamHashOptions,
 } from "./types.ts"
 
@@ -21,4 +23,4 @@ export type { CreateHttpCamPublicClientOptions } from "./client.ts"
 export { loadCamFromHost } from "./host.ts"
 export { resolveCamContracts } from "./contracts.ts"
 export { callCamRoute } from "./routes.ts"
-export { sendCamContractCall } from "./writes.ts"
+export { sendCamContractCall, simulateCamContractCall } from "./writes.ts"

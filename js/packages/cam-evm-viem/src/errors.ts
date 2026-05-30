@@ -17,6 +17,7 @@ export type CamEvmErrorCode =
   | "CAM_WRITE_FUNCTION_AMBIGUOUS"
   | "CAM_WRITE_FUNCTION_NOT_MUTABLE"
   | "CAM_WRITE_INVALID_ARGUMENT"
+  | "CAM_WRITE_SIMULATION_FAILED"
   | "CAM_WRITE_FAILED"
 
 export class CamEvmError extends Error {

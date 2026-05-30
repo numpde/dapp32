@@ -12,12 +12,47 @@ import type { InertValue } from "@cam/protocol"
 
 import { findUniqueAbiFunction } from "./abi-functions.ts"
 import { CamEvmError } from "./errors.ts"
-import type { SendCamContractCallOptions } from "./types.ts"
+import type { SendCamContractCallOptions, SimulateCamContractCallOptions } from "./types.ts"
 
 export async function sendCamContractCall({
   walletClient,
   call,
 }: SendCamContractCallOptions): Promise<Hex> {
+  const request = writeRequest(call)
+
+  try {
+    return await walletClient.writeContract({
+      ...request,
+      chain: null,
+    })
+  } catch (cause) {
+    throw new CamEvmError("CAM_WRITE_FAILED", `failed to send CAM contract call: ${call.function}`, cause)
+  }
+}
+
+export async function simulateCamContractCall({
+  publicClient,
+  account,
+  call,
+}: SimulateCamContractCallOptions): Promise<void> {
+  const request = writeRequest(call)
+
+  try {
+    await publicClient.simulateContract({
+      ...request,
+      account,
+    })
+  } catch (cause) {
+    throw new CamEvmError("CAM_WRITE_SIMULATION_FAILED", `CAM write simulation failed: ${call.function}`, cause)
+  }
+}
+
+function writeRequest(call: SendCamContractCallOptions["call"]): {
+  readonly address: SendCamContractCallOptions["call"]["address"]
+  readonly abi: SendCamContractCallOptions["call"]["abi"]
+  readonly functionName: string
+  readonly args: readonly unknown[]
+} {
   const fn = findUniqueAbiFunction({
     abi: call.abi,
     functionName: call.function,
@@ -30,18 +65,11 @@ export async function sendCamContractCall({
     throw new CamEvmError("CAM_WRITE_FUNCTION_NOT_MUTABLE", `CAM write function must be payable or nonpayable: ${call.function}`)
   }
 
-  const args = normalizeWriteArgs(fn.inputs ?? [], call.args, call.function)
-
-  try {
-    return await walletClient.writeContract({
-      address: call.address,
-      abi: call.abi,
-      functionName: call.function,
-      args,
-      chain: null,
-    })
-  } catch (cause) {
-    throw new CamEvmError("CAM_WRITE_FAILED", `failed to send CAM contract call: ${call.function}`, cause)
+  return {
+    address: call.address,
+    abi: call.abi,
+    functionName: call.function,
+    args: normalizeWriteArgs(fn.inputs ?? [], call.args, call.function),
   }
 }
 

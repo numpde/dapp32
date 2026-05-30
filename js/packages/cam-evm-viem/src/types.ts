@@ -56,6 +56,22 @@ export type CamWalletClient = {
   }) => Promise<Hex>
 }
 
+export type CamSimulationClient = {
+  readonly simulateContract: (request: {
+    readonly address: Address
+    readonly abi: Abi
+    readonly functionName: string
+    readonly args?: readonly unknown[]
+    readonly account: Address
+  }) => Promise<unknown>
+}
+
+export type SimulateCamContractCallOptions = {
+  readonly publicClient: CamSimulationClient
+  readonly account: Address
+  readonly call: CamContractCall
+}
+
 export type SendCamContractCallOptions = {
   readonly walletClient: CamWalletClient
   readonly call: CamContractCall

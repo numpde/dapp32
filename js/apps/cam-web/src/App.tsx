@@ -7,6 +7,7 @@ import type { ReactElement } from "react"
 
 import {
   sendCamContractCall,
+  simulateCamContractCall,
 } from "@cam/evm-viem"
 import type {
   CamHost,
@@ -167,6 +168,11 @@ export function App(): ReactElement {
     try {
       const startup = requireOptions(options)
       await ensureInjectedWalletChain(startup)
+      await simulateCamContractCall({
+        publicClient: requirePublicClient(publicClientRef.current),
+        account: wallet.address,
+        call,
+      })
       const walletClient = createInjectedWalletClient(wallet.address)
       const txHash = await sendCamContractCall({ walletClient, call })
       setNotice(`Transaction sent: ${txHash}`)
@@ -521,5 +527,15 @@ function currentViewerAccount(loadState: LoadState, fallback: CamHost["address"]
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  if (!(error instanceof Error)) {
+    return String(error)
+  }
+
+  const cause = error.cause
+  if (cause === undefined) {
+    return error.message
+  }
+
+  const causeMessage = cause instanceof Error ? cause.message : String(cause)
+  return `${error.message}: ${causeMessage}`
 }

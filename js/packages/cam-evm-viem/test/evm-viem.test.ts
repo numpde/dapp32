@@ -11,8 +11,9 @@ import {
   loadCamFromHost,
   resolveCamContracts,
   sendCamContractCall,
+  simulateCamContractCall,
 } from "../src/index.ts"
-import type { CamHost, CamPublicClient, CamWalletClient } from "../src/index.ts"
+import type { CamHost, CamPublicClient, CamSimulationClient, CamWalletClient } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
@@ -301,6 +302,47 @@ test("sendCamContractCall validates mutable ABI functions and submits through th
   )
 })
 
+test("simulateCamContractCall validates and simulates with the selected account", async () => {
+  const publicClient = createSimulationClient()
+
+  await simulateCamContractCall({
+    publicClient,
+    account: userAddress,
+    call: {
+      address: managerAddress,
+      abi: managerAbi,
+      function: BIKE_MARK_MISSING,
+      args: [BIKE_SERIAL_NUMBER],
+    },
+  })
+
+  assert.deepEqual(publicClient.calls, [
+    {
+      address: managerAddress,
+      abi: managerAbi,
+      functionName: BIKE_MARK_MISSING,
+      args: [BIKE_SERIAL_NUMBER],
+      account: userAddress,
+    },
+  ])
+
+  const failingClient = createSimulationClient(new Error("EmptySerialNumber()"))
+
+  await assert.rejects(
+    () => simulateCamContractCall({
+      publicClient: failingClient,
+      account: userAddress,
+      call: {
+        address: managerAddress,
+        abi: managerAbi,
+        function: BIKE_MARK_MISSING,
+        args: [BIKE_SERIAL_NUMBER],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_SIMULATION_FAILED",
+  )
+})
+
 function createPublicClient({
   // These defaults are fixture conveniences. Tests exercising host metadata,
   // bindings, or route returns override the relevant field explicitly.
@@ -323,6 +365,34 @@ function createPublicClient({
     routeResults,
     hostAddress: host.address,
   })
+}
+
+function createSimulationClient(failure?: Error): CamSimulationClient & {
+  readonly calls: Array<{
+    readonly address: Address
+    readonly abi: Abi
+    readonly functionName: string
+    readonly args?: readonly unknown[]
+    readonly account: Address
+  }>
+} {
+  const calls: Array<{
+    readonly address: Address
+    readonly abi: Abi
+    readonly functionName: string
+    readonly args?: readonly unknown[]
+    readonly account: Address
+  }> = []
+
+  return {
+    calls,
+    async simulateContract(request) {
+      calls.push(request)
+      if (failure !== undefined) {
+        throw failure
+      }
+    },
+  }
 }
 
 function createWalletClient(): CamWalletClient & {
