@@ -12,6 +12,7 @@ from tools.json_policy import strict_json_loads
 NPM_REGISTRY_HOST = "registry.npmjs.org"
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
+ROOT_OWNED_TOOLCHAIN_DEPENDENCIES = {"typescript"}
 
 
 class PackageMetadataTest(unittest.TestCase):
@@ -30,6 +31,12 @@ class PackageMetadataTest(unittest.TestCase):
                 for name, version in sorted(dependencies.items()):
                     with self.subTest(path=str(path), field=field, dependency=name):
                         self.assertIsInstance(version, str, f"{path}: {field}.{name} must be a string")
+                        if path != repo_path("js/package.json"):
+                            self.assertNotIn(
+                                name,
+                                ROOT_OWNED_TOOLCHAIN_DEPENDENCIES,
+                                f"{path}: {field}.{name} belongs in js/package.json",
+                            )
                         if name in workspace_names:
                             self.assertEqual(
                                 workspace_names[name],
