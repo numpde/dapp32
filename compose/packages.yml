@@ -1,13 +1,13 @@
-# Offline npm workspace build/test lanes.
+# Offline JS workspace build/test lanes.
 #
 # This file deliberately does not install dependencies and has no network. Run
-# make package-deps first to materialize packages/node_modules/ from the
-# committed packages/package-lock.json through compose/package-deps.yml.
+# make package-deps first to materialize js/node_modules/ from the committed
+# js/package-lock.json through compose/package-deps.yml.
 x-package-base: &package_base
   build:
     context: ../containers/node-deps
     dockerfile: Dockerfile
-  working_dir: /work/packages
+  working_dir: /work/js
   user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
   read_only: true
   network_mode: "none"
@@ -25,11 +25,11 @@ x-package-base: &package_base
     npm_config_update_notifier: "false"
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=512m
-    - /work/packages:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
+    - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
 
 x-package-volumes: &package_volumes
-  - ../packages:/input/packages:ro
-  - ../packages/node_modules:/work/packages/node_modules:ro
+  - ../js:/input/js:ro
+  - ../js/node_modules:/work/js/node_modules:ro
 
 services:
   # This is an offline dependency-graph check, not a file-integrity verifier.
@@ -41,7 +41,7 @@ services:
     <<: *package_base
     volumes: *package_volumes
     command:
-      - "run-package-workspace"
+      - "run-js-workspace"
       - "printf"
       - "%s\n"
       - "package-graph-check: installed npm dependency graph is consistent with package manifests and lock metadata"
@@ -53,7 +53,7 @@ services:
     <<: *package_base
     volumes: *package_volumes
     command:
-      - "run-package-workspace"
+      - "run-js-workspace"
       - "npm"
       - "run"
       - "build:packages"
@@ -62,11 +62,11 @@ services:
     <<: *package_base
     volumes:
       - ../dapps:/work/dapps:ro
-      - ../packages:/input/packages:ro
-      - ../packages/node_modules:/work/packages/node_modules:ro
+      - ../js:/input/js:ro
+      - ../js/node_modules:/work/js/node_modules:ro
       - ../tests/fixtures:/work/tests/fixtures:ro
     command:
-      - "run-package-workspace"
+      - "run-js-workspace"
       - "npm"
       - "run"
       - "test:packages"

@@ -12,6 +12,7 @@
       "type": "button",
       "label": "Look up component",
       "action": {
+        "type": "navigate",
         "route": "component",
         "params": {
           "serialNumber": "$form.serialNumber"
@@ -86,6 +87,66 @@
           "type": "status",
           "label": "Can retire",
           "value": "$values.0.canRetire"
+        },
+        {
+          "type": "button",
+          "visibleWhen": "$values.0.canMarkMissing",
+          "label": "Prepare mark missing",
+          "action": {
+            "type": "contract-call",
+            "contract": "BicycleComponentManager",
+            "function": "markMissing",
+            "args": [
+              "$form.serialNumber"
+            ],
+            "onSuccess": {
+              "type": "navigate",
+              "route": "component",
+              "params": {
+                "serialNumber": "$form.serialNumber"
+              }
+            }
+          }
+        },
+        {
+          "type": "button",
+          "visibleWhen": "$values.0.canClearMissing",
+          "label": "Prepare clear missing",
+          "action": {
+            "type": "contract-call",
+            "contract": "BicycleComponentManager",
+            "function": "clearMissing",
+            "args": [
+              "$form.serialNumber"
+            ],
+            "onSuccess": {
+              "type": "navigate",
+              "route": "component",
+              "params": {
+                "serialNumber": "$form.serialNumber"
+              }
+            }
+          }
+        },
+        {
+          "type": "button",
+          "visibleWhen": "$values.0.canRetire",
+          "label": "Prepare retirement",
+          "action": {
+            "type": "contract-call",
+            "contract": "BicycleComponentManager",
+            "function": "retireComponent",
+            "args": [
+              "$form.serialNumber"
+            ],
+            "onSuccess": {
+              "type": "navigate",
+              "route": "component",
+              "params": {
+                "serialNumber": "$form.serialNumber"
+              }
+            }
+          }
         }
       ]
     },
@@ -93,6 +154,7 @@
       "type": "button",
       "label": "Open registration",
       "action": {
+        "type": "navigate",
         "route": "register",
         "params": {
           "serialNumber": "$form.serialNumber"

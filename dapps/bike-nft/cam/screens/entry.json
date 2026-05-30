@@ -26,6 +26,7 @@
       "type": "button",
       "label": "Look up component",
       "action": {
+        "type": "navigate",
         "route": "component",
         "params": {
           "serialNumber": "$form.serialNumber"
@@ -36,6 +37,7 @@
       "type": "button",
       "label": "Register component",
       "action": {
+        "type": "navigate",
         "route": "register",
         "params": {
           "serialNumber": "$form.serialNumber"

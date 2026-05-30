@@ -22,11 +22,13 @@ out/
 broadcast/
 reports/
 dist/
-packages/*/dist/
+js/packages/*/dist/
+js/apps/*/dist/
 .cache/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+__pycache__/
 .venv/
 
 # Package manager installs and local Solidity dependency materialization are

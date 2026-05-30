@@ -7,10 +7,10 @@
 # overlays can compose with this fixture for terminals, web viewers, or smoke
 # tests without baking those UI/debug concerns into the base deployment.
 #
-# The deploy service uses Anvil's public default development private key,
-# mounts only the checked-in Foundry project inputs it needs read-only, and
-# writes Forge build/cache/broadcast material inside container-local temporary
-# storage unless an overlay redirects the broadcast directory.
+# The deploy service uses an obvious local-only fixture private key, mounts
+# only the checked-in Foundry project inputs it needs read-only, and writes
+# Forge's broadcast receipt to a scenario-scoped Docker volume. Consumers can
+# read that receipt without host writes or direct access to deployment internals.
 services:
   bike-nft-anvil:
     build:
@@ -72,7 +72,7 @@ services:
       FOUNDRY_CACHE_PATH: /tmp/foundry-cache
       FOUNDRY_CONFIG: /work/dapps/foundry.toml
       FOUNDRY_OUT: /tmp/foundry-out
-      FOUNDRY_BROADCAST: /tmp/foundry-broadcast
+      FOUNDRY_BROADCAST: "${BIKE_NFT_BROADCAST_DIR:?missing_BIKE_NFT_BROADCAST_DIR}"
       CAM_URI: "${CAM_URI:?missing_CAM_URI}"
       CAM_HASH: "${CAM_HASH:?missing_CAM_HASH}"
       # Public Anvil default account private key. This is a local fixture key,
@@ -86,6 +86,7 @@ services:
       - ../../../dapps/dependencies:/work/dapps/dependencies:ro
       - ../../../dapps/bike-nft:/work/dapps/bike-nft:ro
       - ../../../dapps/cam:/work/dapps/cam:ro
+      - "bike_nft_broadcast:${BIKE_NFT_BROADCAST_DIR:?missing_BIKE_NFT_BROADCAST_DIR}"
     networks:
       - bike_nft_local
     command:
@@ -93,6 +94,11 @@ services:
       - "-lc"
       - |
         set -euo pipefail
+        # The fixture key is intentionally obvious and not one of Anvil's
+        # default funded accounts, so fund it explicitly on this local chain.
+        fixture_deployer="$(cast wallet address --private-key "$${PRIVATE_KEY}")"
+        cast rpc anvil_setBalance "$${fixture_deployer}" 0x3635C9ADC5DEA00000 \
+          --rpc-url http://bike-nft-anvil:8545 >/dev/null
         forge script --offline bike-nft/script/DeployBikeNftLocal.s.sol \
           --rpc-url http://bike-nft-anvil:8545 \
           --broadcast \
@@ -101,3 +107,6 @@ services:
 networks:
   bike_nft_local:
     internal: true
+
+volumes:
+  bike_nft_broadcast:

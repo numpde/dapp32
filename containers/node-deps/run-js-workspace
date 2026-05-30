@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+if [ "$#" -eq 0 ]; then
+  printf '%s\n' 'run-js-workspace requires a command' >&2
+  exit 2
+fi
+
+stage-js-workspace /input/js /work/js
+cd /work/js
+npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >/tmp/js-graph-check.json
+
+exec "$@"

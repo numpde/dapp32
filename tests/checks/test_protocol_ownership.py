@@ -28,25 +28,25 @@ class ProtocolOwnershipTest(unittest.TestCase):
                     failures.append(f"{path}:{line_number}: @cam package imports must use the public package root")
 
         forbidden_paths = [
-            repo_path("packages/cam-core/src/inert-value.ts"),
-            repo_path("packages/cam-screen/src/inert-value.ts"),
-            repo_path("packages/cam-viewer/src/inert-value.ts"),
+            repo_path("js/packages/cam-core/src/inert-value.ts"),
+            repo_path("js/packages/cam-screen/src/inert-value.ts"),
+            repo_path("js/packages/cam-viewer/src/inert-value.ts"),
         ]
 
         existing = [str(path) for path in forbidden_paths if path.exists()]
 
         if existing:
-            failures.append("inert value must live in packages/cam-protocol only:\n" + "\n".join(existing))
+            failures.append("inert value must live in js/packages/cam-protocol only:\n" + "\n".join(existing))
 
         if failures:
             self.fail("\n".join(failures))
 
     def package_source_files(self) -> list[Path]:
-        return sorted(repo_path("packages").glob("*/src/**/*.ts"))
+        return sorted(repo_path("js/packages").glob("*/src/**/*.ts"))
 
     def relative_import_stays_in_package_src(self, importer: Path, specifier: str) -> bool:
-        package_name = importer.relative_to(repo_path("packages")).parts[0]
-        package_src = repo_path("packages") / package_name / "src"
+        package_name = importer.relative_to(repo_path("js/packages")).parts[0]
+        package_src = repo_path("js/packages") / package_name / "src"
         target = (importer.parent / specifier).resolve()
         return target == package_src or package_src in target.parents
 

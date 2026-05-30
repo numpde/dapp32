@@ -52,32 +52,32 @@ Keep the project small, explicit, and protocol-first.
   workspace link in `package-lock.json`. Generated package locks must resolve
   registry packages from `https://registry.npmjs.org/` with integrity metadata.
 - Shared npm toolchain dependencies, such as TypeScript, belong in
-  `packages/package.json`, not repeated in each private workspace package.
+  `js/package.json`, not repeated in each private workspace package or app.
 - Keep npm install policy in `compose/package-deps.yml`; do not add repo
   `.npmrc` files.
-- Keep npm package execution in `compose/packages.yml`; package build/test lanes
-  are offline consumers of the locked `node_modules/` tree, mounted read-only
-  into a staged tmpfs source workspace. Package-backed tool checks with a
-  distinct runtime boundary belong in their own Compose file.
-- Use `packages/package-lock.json` as the only package lock source for the
-  current package workspace; do not add repo-root locks, yarn, pnpm, bun,
-  nested app package-lock, or npm-shrinkwrap locks unless the dependency lane is
+- Keep npm workspace execution in `compose/packages.yml`; package/app build and
+  test lanes are offline consumers of the locked `node_modules/` tree, mounted
+  read-only into a staged tmpfs source workspace. Package-backed tool checks
+  with a distinct runtime boundary belong in their own Compose file.
+- Use `js/package-lock.json` as the only package lock source for the current JS
+  workspace under `js/`; do not add repo-root locks, yarn, pnpm, bun, nested app
+  package-lock, or npm-shrinkwrap locks unless the dependency lane is
   deliberately redesigned.
 - Do not give networked dependency tools repo-root read/write mounts. In this
   repo, the dapps package owns the expected dependency outputs:
   `dapps/dependencies/`, `dapps/soldeer.lock`,
   `dapps/remappings.txt`, and `dapps/dependency-checksums.txt`. Npm workspace
-  dependency materialization owns only `packages/node_modules/` and
-  `packages/package-lock.json`.
+  dependency materialization owns only `js/node_modules/` and
+  `js/package-lock.json`.
 - Dependency materialization lanes may pre-create only their guarded host bind
   targets, after rejecting symlinks and wrong-type paths, so Docker never creates
   repository paths implicitly.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
   dependency contents before compiling or executing package code.
 - Package build/test lanes must not create host-side package build directories as
-  preflight. Package lanes should mount the host package workspace read-only,
-  stage only source/manifests into container-local tmpfs, mount
-  `packages/node_modules/` read-only, and leave `dist/` outputs in tmpfs unless
+  preflight. JS lanes should mount the host JS workspace read-only, stage only
+  source/manifests into container-local tmpfs, mount
+  `js/node_modules/` read-only, and leave `dist/` outputs in tmpfs unless
   an explicit artifact export lane is added.
 - Local scenario fixtures must not mount the repository root by default. Mount
   only the exact project files/directories the service needs, read-only, and let

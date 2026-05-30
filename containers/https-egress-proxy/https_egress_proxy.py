@@ -4,6 +4,7 @@ from __future__ import annotations
 import http.server
 import ipaddress
 import os
+import select
 import selectors
 import socket
 import sys
@@ -121,6 +122,31 @@ def connect_first(addresses: list[str], port: int) -> socket.socket:
     raise ProxyRejected(f"CONNECT target connection failed: {last_error}")
 
 
+def forward_bytes(destination: socket.socket, data: bytes, deadline: float) -> float | None:
+    view = memoryview(data)
+
+    while view:
+        timeout = max(0.0, deadline - time.monotonic())
+        if timeout == 0.0:
+            return None
+
+        _readable, writable, _errors = select.select([], [destination], [], timeout)
+        if not writable:
+            return None
+
+        try:
+            sent = destination.send(view)
+        except OSError:
+            return None
+        if sent <= 0:
+            return None
+
+        view = view[sent:]
+        deadline = time.monotonic() + TUNNEL_IDLE_TIMEOUT_SECONDS
+
+    return deadline
+
+
 def tunnel(client: socket.socket, upstream: socket.socket) -> None:
     selector = selectors.DefaultSelector()
     client.setblocking(False)
@@ -148,11 +174,10 @@ def tunnel(client: socket.socket, upstream: socket.socket) -> None:
                     return
                 if not data:
                     return
-                try:
-                    destination.sendall(data)
-                except OSError:
+                next_deadline = forward_bytes(destination, data, deadline)
+                if next_deadline is None:
                     return
-                deadline = time.monotonic() + TUNNEL_IDLE_TIMEOUT_SECONDS
+                deadline = next_deadline
     finally:
         selector.close()
 
@@ -188,13 +213,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         self.send_response(200, "Connection established")
-        self.send_header("connection", "close")
         self.end_headers()
-        self.close_connection = True
 
         try:
             tunnel(self.connection, upstream)
         finally:
+            self.close_connection = True
             try:
                 upstream.close()
             except Exception:

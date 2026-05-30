@@ -1,0 +1,196 @@
+# Local bike NFT graphical viewer scenario.
+#
+# Compose this file with deploy.yml and http.yml after make package-deps has
+# materialized js/node_modules for the JS workspace.
+# Unlike the terminal overlay, this scenario is browser-facing. A single
+# unprivileged HTTP gateway publishes host loopback and routes browser requests
+# to Docker-internal services:
+#
+#   /      -> cam-web
+#   /rpc   -> local Anvil JSON-RPC
+#   /cam/  -> checked-in CAM resources
+#
+# Docker-internal service names must not be written into CamRoot for this lane;
+# CAM_URI should be browser-reachable through the gateway, for example:
+#
+#   CAM_URI=http://127.0.0.1:5173/cam/main.json
+#
+# This scenario keeps the GUI read-only. The Make target runs deployment first,
+# asks bike-nft-viewer-url to print the browser URL, then runs cam-web and the
+# gateway in the foreground so runtime failures remain visible. The browser
+# starts from ordinary viewer inputs and does not read Forge broadcast output.
+
+services:
+  cam-web:
+    build:
+      context: ../../../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /work/js
+    depends_on:
+      bike-nft-cam-http:
+        condition: service_healthy
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 384
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      npm_config_cache: /tmp/npm-cache
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+      - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
+    volumes:
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+    networks:
+      - bike_nft_local
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:packages
+        npm run dev -w cam-web -- --host 0.0.0.0 --port 5173 --strictPort
+
+  bike-nft-browser-gateway:
+    image: ghcr.io/nginx/nginx-unprivileged:1.31.1-alpine3.23@sha256:8122337ed6c475bb486bc9340da453d4599f225e6b920ff0d92ca2267486b9b5
+    depends_on:
+      bike-nft-anvil:
+        condition: service_healthy
+      bike-nft-cam-http:
+        condition: service_healthy
+      cam-web:
+        condition: service_started
+    user: "101:101"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 128m
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=32m
+    networks:
+      - bike_nft_local
+      - bike_nft_browser
+    ports:
+      - "127.0.0.1:${BIKE_NFT_GUI_PORT:-5173}:8080"
+    command:
+      - "/bin/sh"
+      - "-eu"
+      - "-c"
+      - |
+        cat >/tmp/nginx.conf <<'NGINX'
+        pid /tmp/nginx.pid;
+        worker_processes 1;
+
+        events {
+          worker_connections 256;
+        }
+
+        http {
+          access_log /dev/stdout;
+          error_log /dev/stderr info;
+          client_body_temp_path /tmp/client_body;
+          fastcgi_temp_path /tmp/fastcgi;
+          proxy_temp_path /tmp/proxy;
+          scgi_temp_path /tmp/scgi;
+          uwsgi_temp_path /tmp/uwsgi;
+
+          server {
+            listen 8080;
+
+            location = /rpc {
+              proxy_pass http://bike-nft-anvil:8545/;
+            }
+
+            location /rpc/ {
+              rewrite ^/rpc/(.*)$ /$1 break;
+              proxy_pass http://bike-nft-anvil:8545;
+            }
+
+            location /cam/ {
+              proxy_pass http://bike-nft-cam-http:8080/;
+            }
+
+            location / {
+              proxy_http_version 1.1;
+              proxy_set_header Host $$host;
+              proxy_set_header Upgrade $$http_upgrade;
+              proxy_set_header Connection "upgrade";
+              proxy_pass http://cam-web:5173;
+            }
+          }
+        }
+        NGINX
+        exec nginx -c /tmp/nginx.conf -g 'daemon off;'
+
+  bike-nft-viewer-url:
+    image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    environment:
+      GUI_URL: "http://127.0.0.1:${BIKE_NFT_GUI_PORT:-5173}/"
+      RPC_URL: "http://127.0.0.1:${BIKE_NFT_GUI_PORT:-5173}/rpc"
+      CHAIN_ID: "eip155:31337"
+      # Address derived from the obvious local-only 0xbaba... fixture key in
+      # deploy.yml. It is display/session identity, not a browser wallet.
+      ACCOUNT: "0xfe7854bc8ca79fbe9dc94dfdaf8c10e5c6decab7"
+      ALLOW_UNSIGNED_CAM_HASH: "true"
+      BROADCAST_PATH: "${BIKE_NFT_BROADCAST_PATH:?missing_BIKE_NFT_BROADCAST_PATH}"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=32m
+    volumes:
+      - "bike_nft_broadcast:${BIKE_NFT_BROADCAST_DIR:?missing_BIKE_NFT_BROADCAST_DIR}:ro"
+    command:
+      - "python3"
+      - "-I"
+      - "-B"
+      - "-c"
+      - |
+        import json
+        import os
+        from urllib.parse import urlencode
+
+        with open(os.environ["BROADCAST_PATH"], "r", encoding="utf-8") as handle:
+            broadcast = json.load(handle)
+
+        host = None
+        for tx in broadcast.get("transactions", []):
+            if tx.get("contractName") == "CamRoot":
+                host = tx.get("contractAddress")
+                break
+
+        if not isinstance(host, str) or not host.startswith("0x") or len(host) != 42:
+            raise SystemExit("CamRoot contractAddress not found in Forge broadcast output")
+
+        query = urlencode({
+            "chainId": os.environ["CHAIN_ID"],
+            "host": host,
+            "account": os.environ["ACCOUNT"],
+            "rpcUrl": os.environ["RPC_URL"],
+            "allowUnsignedCamHash": os.environ["ALLOW_UNSIGNED_CAM_HASH"],
+        })
+        print(f"{os.environ['GUI_URL']}?{query}")
+
+networks:
+  bike_nft_local:
+    internal: true
+  bike_nft_browser:

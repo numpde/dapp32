@@ -1,0 +1,140 @@
+#!/bin/sh
+set -eu
+
+source_dir="${1:?missing source JS workspace directory}"
+target_dir="${2:?missing target JS workspace directory}"
+
+if [ "$source_dir" != "/input/js" ] || [ "$target_dir" != "/work/js" ]; then
+  printf '%s\n' "stage-js-workspace only supports /input/js -> /work/js" >&2
+  exit 2
+fi
+
+test -d "$source_dir"
+test -d "$target_dir"
+find "$target_dir" -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +
+
+reject_symlink() {
+  path="${1:?missing path}"
+  if [ -L "$path" ]; then
+    printf 'stage-js-workspace refuses symlink input: %s\n' "$path" >&2
+    exit 2
+  fi
+}
+
+reject_tree_symlinks() {
+  path="${1:?missing path}"
+  # `cp -a` preserves symlinks. Reject them before copying a directory so the
+  # staged tmpfs tree cannot contain hidden links back into the read-only input
+  # mount or elsewhere on the container filesystem.
+  if find "$path" -type l -print -quit | grep -q .; then
+    printf 'stage-js-workspace refuses symlink under input directory: %s\n' "$path" >&2
+    exit 2
+  fi
+}
+
+copy_file_if_present() {
+  path="${1:?missing source file}"
+  name="${path##*/}"
+
+  if [ -e "$path" ]; then
+    reject_symlink "$path"
+    if [ ! -f "$path" ]; then
+      printf 'stage-js-workspace expected a file: %s\n' "$path" >&2
+      exit 2
+    fi
+    cp -a "$path" "$target_dir/$name"
+  fi
+}
+
+workspace_patterns="$(
+  node -e '
+    const fs = require("node:fs");
+    const manifest = JSON.parse(fs.readFileSync("/input/js/package.json", "utf8"));
+    const workspaces = Array.isArray(manifest.workspaces)
+      ? manifest.workspaces
+      : manifest.workspaces && Array.isArray(manifest.workspaces.packages)
+        ? manifest.workspaces.packages
+        : null;
+    if (!workspaces) process.exit(2);
+    for (const workspace of workspaces) {
+      if (typeof workspace !== "string") process.exit(2);
+      console.log(workspace);
+    }
+  '
+)" || {
+  printf '%s\n' 'stage-js-workspace could not read npm workspaces from /input/js/package.json' >&2
+  exit 2
+}
+
+reject_symlink "$source_dir/package.json"
+copy_file_if_present "$source_dir/package.json"
+copy_file_if_present "$source_dir/package-lock.json"
+copy_file_if_present "$source_dir/tsconfig.base.json"
+copy_file_if_present "$source_dir/tsconfig.dom.json"
+copy_file_if_present "$source_dir/tsconfig.dom.test.json"
+copy_file_if_present "$source_dir/tsconfig.package.json"
+copy_file_if_present "$source_dir/tsconfig.test.json"
+
+if [ -e "$source_dir/tools" ]; then
+  reject_symlink "$source_dir/tools"
+  if [ ! -d "$source_dir/tools" ]; then
+    printf 'stage-js-workspace expected a tools directory: %s\n' "$source_dir/tools" >&2
+    exit 2
+  fi
+  reject_tree_symlinks "$source_dir/tools"
+
+  rm -rf "$target_dir/tools"
+  mkdir "$target_dir/tools"
+  for child in "$source_dir/tools"/*; do
+    [ -e "$child" ] || continue
+    reject_symlink "$child"
+    cp -a "$child" "$target_dir/tools/${child##*/}"
+  done
+fi
+
+for pattern in $workspace_patterns; do
+  case "$pattern" in
+    *"**"* | "!"* | *"!"* | /* | ./* | ../* | */../* | */..)
+      printf 'stage-js-workspace supports only positive relative workspace globs: %s\n' "$pattern" >&2
+      exit 2
+      ;;
+  esac
+
+  matched=0
+  for workspace_dir in "$source_dir"/$pattern; do
+    [ -d "$workspace_dir" ] || continue
+    matched=1
+    workspace_path="${workspace_dir#"$source_dir"/}"
+    manifest="$workspace_dir/package.json"
+    target_workspace_dir="$target_dir/$workspace_path"
+
+    reject_symlink "$workspace_dir"
+    reject_symlink "$manifest"
+    if [ ! -f "$manifest" ]; then
+      printf 'stage-js-workspace expected a workspace manifest: %s\n' "$manifest" >&2
+      exit 2
+    fi
+    reject_tree_symlinks "$workspace_dir"
+
+    rm -rf "$target_workspace_dir"
+    mkdir -p "$target_workspace_dir"
+    cp -a "$manifest" "$target_workspace_dir/package.json"
+
+    for child in "$workspace_dir"/*; do
+      [ -e "$child" ] || continue
+      child_name="${child##*/}"
+      case "$child_name" in
+        dist | node_modules | package.json)
+          continue
+          ;;
+      esac
+      reject_symlink "$child"
+      cp -a "$child" "$target_workspace_dir/$child_name"
+    done
+  done
+
+  if [ "$matched" != "1" ]; then
+    printf 'stage-js-workspace workspace matched no directories: %s\n' "$pattern" >&2
+    exit 2
+  fi
+done

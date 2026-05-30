@@ -6,9 +6,9 @@
 # - package-stage receives only a temporary manifest input directory, not the
 #   repository. It installs with lifecycle scripts disabled and writes only to a
 #   Docker volume.
-# - package-apply-locked has no network, writes only packages/node_modules/,
-#   and fails if packages/package-lock.json would change.
-# - package-apply-update has no network and may update packages/package-lock.json only
+# - package-apply-locked has no network, writes only js/node_modules/,
+#   and fails if js/package-lock.json would change.
+# - package-apply-update has no network and may update js/package-lock.json only
 #   when make package-deps is run with ALLOW_UPDATE=1.
 services:
   package-egress-proxy:
@@ -81,6 +81,7 @@ services:
       npm_config_fetch_retry_mintimeout: "1000"
       npm_config_fetch_retry_maxtimeout: "30000"
       npm_config_fetch_timeout: "300000"
+      npm_config_maxsockets: "1"
       ALLOW_UPDATE: "${ALLOW_UPDATE:-0}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=1024m
@@ -131,8 +132,8 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
       - package-out:/out:ro
-      - ../packages/node_modules:/work/node_modules:rw
-      - ../packages/package-lock.json:/work/package-lock.json:ro
+      - ../js/node_modules:/work/node_modules:rw
+      - ../js/package-lock.json:/work/package-lock.json:ro
     command:
       - "bash"
       - "-lc"
@@ -166,8 +167,8 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=64m
     volumes:
       - package-out:/out:ro
-      - ../packages/node_modules:/work/node_modules:rw
-      - ../packages/package-lock.json:/work/package-lock.json:rw
+      - ../js/node_modules:/work/node_modules:rw
+      - ../js/package-lock.json:/work/package-lock.json:rw
     command:
       - "bash"
       - "-lc"

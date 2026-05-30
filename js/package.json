@@ -1,0 +1,23 @@
+{
+  "name": "cam-js-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/cam-protocol",
+    "packages/cam-core",
+    "packages/cam-evm-viem",
+    "packages/cam-screen",
+    "packages/cam-viewer",
+    "apps/cam-web"
+  ],
+  "scripts": {
+    "build:workspace": "npm run build --workspaces --if-present",
+    "test:workspace": "npm run build:workspace && npm test --workspaces --if-present",
+    "build:packages": "npm run build:workspace",
+    "test:packages": "npm run test:workspace"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "6.0.3"
+  }
+}

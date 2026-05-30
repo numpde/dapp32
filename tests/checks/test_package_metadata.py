@@ -12,6 +12,8 @@ from tools.json_policy import strict_json_loads
 NPM_REGISTRY_HOST = "registry.npmjs.org"
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
+
+
 class PackageMetadataTest(unittest.TestCase):
     def test_package_manifests_and_lockfile_use_pinned_registry_dependencies(self) -> None:
         workspace_names = self.workspace_package_names()
@@ -41,7 +43,7 @@ class PackageMetadataTest(unittest.TestCase):
                                 f"{path}: {field}.{name} must use an exact version, not a range",
                             )
 
-        lock_path = repo_path("packages/package-lock.json")
+        lock_path = repo_path("js/package-lock.json")
         if not lock_path.exists():
             self.skipTest("package-lock.json has not been generated yet")
 
@@ -84,11 +86,11 @@ class PackageMetadataTest(unittest.TestCase):
                 )
 
     def package_manifest_paths(self) -> list[Path]:
-        return [repo_path("packages/package.json"), *sorted(repo_path("packages").glob("*/package.json"))]
+        return [repo_path("js/package.json"), *self.workspace_manifest_paths()]
 
     def workspace_package_names(self) -> dict[str, str]:
         names: dict[str, str] = {}
-        for path in sorted(repo_path("packages").glob("*/package.json")):
+        for path in self.workspace_manifest_paths():
             manifest = self.read_manifest(path)
             name = manifest.get("name")
             self.assertIsInstance(name, str, f"{path}: package name must be a string")
@@ -104,9 +106,32 @@ class PackageMetadataTest(unittest.TestCase):
         return manifest
 
     def workspace_lock_paths(self) -> set[str]:
-        root = repo_path("packages")
+        root = repo_path("js")
         return {
             manifest.parent.relative_to(root).as_posix()
             for manifest in self.package_manifest_paths()
-            if manifest != repo_path("packages/package.json")
+            if manifest != repo_path("js/package.json")
         }
+
+    def workspace_manifest_paths(self) -> list[Path]:
+        root = repo_path("js")
+        manifest = self.read_manifest(root / "package.json")
+        workspaces = manifest.get("workspaces")
+        self.assertIsInstance(workspaces, list, "js/package.json: workspaces must be an array")
+
+        paths: list[Path] = []
+        for workspace in workspaces:
+            self.assertIsInstance(workspace, str, "js/package.json: workspace entries must be strings")
+            self.assertFalse(workspace.startswith("/"), "js/package.json: workspaces must be relative")
+            self.assertFalse(workspace.startswith("./"), "js/package.json: workspaces must not use ./ prefixes")
+            self.assertFalse(workspace.startswith("../"), "js/package.json: workspaces must stay under js/")
+            self.assertFalse(workspace.startswith("!"), "js/package.json: workspaces must be positive globs")
+            self.assertNotIn("!", workspace, "js/package.json: workspaces must be positive globs")
+            self.assertNotIn("**", workspace, "js/package.json: workspaces must be simple relative globs")
+            self.assertNotIn("/../", workspace, "js/package.json: workspaces must stay under js/")
+            self.assertFalse(workspace.endswith("/.."), "js/package.json: workspaces must stay under js/")
+            matches = sorted(root.glob(f"{workspace}/package.json"))
+            self.assertTrue(matches, f"js/package.json: workspace matched no package manifests: {workspace}")
+            paths.extend(matches)
+
+        return paths

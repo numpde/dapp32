@@ -7,10 +7,9 @@
 
 x-viewer-terminal-volumes: &viewer_terminal_volumes
   - ../dapps:/work/dapps:ro
-  - ../packages:/input/packages:ro
-  - ../packages/node_modules:/work/packages/node_modules:ro
+  - ../js:/input/js:ro
+  - ../js/node_modules:/work/js/node_modules:ro
   - ../tests/fixtures:/work/tests/fixtures:ro
-  - ../tools:/work/tools:ro
 
 x-viewer-terminal-base: &viewer_terminal_base
   build:
@@ -39,7 +38,7 @@ x-viewer-terminal-base: &viewer_terminal_base
     CAM_VIEWER_INITIAL_PARAMS_JSON: "{}"
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=256m
-    - /work/packages:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
+    - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
   volumes: *viewer_terminal_volumes
 
 services:
@@ -49,24 +48,22 @@ services:
     stdin_open: true
     tty: true
     command:
-      - "run-package-workspace"
+      - "run-js-workspace"
       - "sh"
       - "-eu"
       - "-c"
       - |
         npm run build:packages
-        cd /work
         node --experimental-strip-types tools/viewer-terminal/terminal-session.ts
 
   viewer-terminal-check:
     <<: *viewer_terminal_base
     command:
-      - "run-package-workspace"
+      - "run-js-workspace"
       - "sh"
       - "-eu"
       - "-c"
       - |
         npm run build:packages
-        ./node_modules/.bin/tsc -p ../tools/viewer-terminal/tsconfig.json
-        cd /work
+        ./node_modules/.bin/tsc -p tools/viewer-terminal/tsconfig.json
         printf "set serialNumber ABC123\npress 1\npress 2\nquit\n" | node --experimental-strip-types tools/viewer-terminal/terminal-session.ts >/dev/null
