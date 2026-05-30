@@ -528,22 +528,56 @@ function currentViewerAccount(loadState: LoadState, fallback: CamHost["address"]
 }
 
 function errorMessage(error: unknown): string {
-  if (!(error instanceof Error)) {
-    return String(error)
+  const messages: string[] = []
+
+  for (let current: unknown = error; current !== undefined; current = errorCause(current)) {
+    const message = errorDisplayMessage(current)
+    if (!messages.includes(message)) messages.push(message)
   }
 
-  const cause = error.cause
-  if (cause === undefined) {
-    return errorDisplayMessage(error)
-  }
-
-  return `${errorDisplayMessage(error)}: ${errorDisplayMessage(cause)}`
+  return messages.length === 0 ? String(error) : messages.join(": ")
 }
 
 function errorDisplayMessage(error: unknown): string {
-  if (typeof error === "object" && error !== null && "shortMessage" in error && typeof error.shortMessage === "string") {
-    return error.shortMessage
+  const message = errorString(error, "shortMessage")
+    ?? (error instanceof Error ? error.message : String(error))
+  const detail = errorCustomRevert(error) ?? errorString(error, "reason") ?? errorString(error, "details")
+
+  return detail === undefined || message.includes(detail) ? message : `${message}: ${detail}`
+}
+
+function errorCause(error: unknown): unknown {
+  const cause = errorProperty(error, "cause")
+  return cause === null ? undefined : cause
+}
+
+function errorCustomRevert(error: unknown): string | undefined {
+  const data = errorProperty(error, "data")
+  const errorName = errorString(data, "errorName")
+  if (errorName === undefined) return undefined
+
+  const args = errorProperty(data, "args")
+  return Array.isArray(args)
+    ? `${errorName}(${args.map(formatErrorArgument).join(", ")})`
+    : `${errorName}()`
+}
+
+function errorString(error: unknown, key: string): string | undefined {
+  const value = errorProperty(error, key)
+  return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
+function errorProperty(error: unknown, key: string): unknown {
+  if (typeof error !== "object" || error === null || !(key in error)) {
+    return undefined
   }
 
-  return error instanceof Error ? error.message : String(error)
+  return (error as Record<string, unknown>)[key]
+}
+
+function formatErrorArgument(value: unknown): string {
+  if (typeof value === "bigint") return value.toString()
+  if (typeof value === "string") return JSON.stringify(value)
+  if (typeof value === "number" || typeof value === "boolean" || value === null) return String(value)
+  return JSON.stringify(value, (_, item: unknown) => typeof item === "bigint" ? item.toString() : item) ?? String(value)
 }
