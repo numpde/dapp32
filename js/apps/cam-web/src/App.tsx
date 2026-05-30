@@ -454,7 +454,10 @@ function createPinnedOriginResourceLoader(): ResourceLoader {
       throw new Error(`CAM resource escaped pinned origin: ${url.href}`)
     }
 
-    const response = await fetch(url, { redirect: "error" })
+    const response = await fetch(url, {
+      cache: "no-store",
+      redirect: "error",
+    })
     if (!response.ok) {
       throw new Error(`failed to load CAM resource ${url.href}: HTTP ${response.status}`)
     }
