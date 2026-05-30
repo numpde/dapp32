@@ -33,7 +33,6 @@ VALUES_EXPRESSION_RE = re.compile(
     r"^\$values\.(0|[1-9][0-9]*)(\.(?:[A-Za-z][A-Za-z0-9_]*|0|[1-9][0-9]*))*$"
 )
 READ_ROUTE_MUTABILITY = frozenset({"view", "pure"})
-SCREEN_ELEMENT_TYPES = frozenset({"text", "input", "address", "button", "status", "nft", "group"})
 
 
 def abi_route_functions(abi: list[object]) -> dict[str, AbiRouteFunction | None]:
