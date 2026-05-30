@@ -1,6 +1,6 @@
 pragma solidity 0.8.35;
 
-/// @notice Read-only manager surface consumed by CAM route helpers.
+/// @notice Read-only manager surface consumed by CAM route projections.
 /// @dev This interface is the shared source of truth for UI-facing manager
 /// views. It deliberately excludes write/admin functions.
 interface IBicycleComponentManagerView {

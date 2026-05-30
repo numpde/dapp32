@@ -27,7 +27,7 @@ This plan targets the current V1 architecture:
 | `CamRoot` | `Ownable2Step` | Owner should be a Safe or timelock. Controls CAM URI/hash and contract address bindings. |
 | `BicycleComponents` | `AccessControl` | Non-upgradeable. Admin grants minter/metadata/config/pause roles. |
 | `BicycleComponentManager` | `AccessControl` | Non-upgradeable V1. Admin manages registrars/config/status attesters. |
-| `BicycleComponentManagerUI` | Immutable constructor wiring | Read-only view helper. No roles on the manager. No write authority. |
+| `BicycleComponentManagerUI` | Immutable constructor wiring | Read-only route projection. No roles on the manager. No write authority. |
 
 ## `CamRoot` Permissions
 
@@ -94,7 +94,7 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 | ERC-5192 / transfer locks | Useful later, but not part of the simple V1 token. |
 | `upgradeToAndCall(...)` | V1 token and manager are non-upgradeable. |
 | AccessManager | Useful for larger multi-contract deployments, but overkill for V1. Safe/timelock + AccessControl is enough. |
-| UI write functions / UI role | UI contract is read-only route/view-model helper. |
+| UI write functions / UI role | UI contract is read-only route projection. |
 | Paymaster/relayer authorization | Gas sponsorship does not grant registry permissions. |
 
 ## Delegation Validity Rule
