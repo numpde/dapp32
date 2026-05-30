@@ -528,22 +528,40 @@ function currentViewerAccount(loadState: LoadState, fallback: CamHost["address"]
 }
 
 function errorMessage(error: unknown): string {
-  const messages: string[] = []
+  const chain = errorChain(error)
+  const summary = errorSummary(chain[0] ?? error)
+  const detail = errorDetail(chain)
 
-  for (let current: unknown = error; current !== undefined; current = errorCause(current)) {
-    const message = errorDisplayMessage(current)
-    if (!messages.includes(message)) messages.push(message)
-  }
-
-  return messages.length === 0 ? String(error) : messages.join(": ")
+  return detail === undefined || summary.includes(detail) ? summary : `${summary}: ${detail}`
 }
 
-function errorDisplayMessage(error: unknown): string {
-  const message = errorString(error, "shortMessage")
+function errorSummary(error: unknown): string {
+  return readableErrorString(error, "shortMessage")
     ?? (error instanceof Error ? error.message : String(error))
-  const detail = errorCustomRevert(error) ?? errorString(error, "reason") ?? errorString(error, "details")
+}
 
-  return detail === undefined || message.includes(detail) ? message : `${message}: ${detail}`
+function errorDetail(chain: readonly unknown[]): string | undefined {
+  for (const item of chain) {
+    const customError = errorCustomRevert(item)
+    if (customError !== undefined) return customError
+  }
+
+  for (const item of chain.slice(1)) {
+    const detail = readableErrorString(item, "reason")
+      ?? readableErrorString(item, "details")
+      ?? readableErrorString(item, "shortMessage")
+    if (detail !== undefined) return detail
+  }
+
+  return undefined
+}
+
+function errorChain(error: unknown): readonly unknown[] {
+  const chain: unknown[] = []
+  for (let current: unknown = error; current !== undefined; current = errorCause(current)) {
+    chain.push(current)
+  }
+  return chain
 }
 
 function errorCause(error: unknown): unknown {
@@ -553,7 +571,7 @@ function errorCause(error: unknown): unknown {
 
 function errorCustomRevert(error: unknown): string | undefined {
   const data = errorProperty(error, "data")
-  const errorName = errorString(data, "errorName")
+  const errorName = readableErrorString(data, "errorName")
   if (errorName === undefined) return undefined
 
   const args = errorProperty(data, "args")
@@ -562,9 +580,16 @@ function errorCustomRevert(error: unknown): string | undefined {
     : `${errorName}()`
 }
 
-function errorString(error: unknown, key: string): string | undefined {
+function readableErrorString(error: unknown, key: string): string | undefined {
   const value = errorProperty(error, key)
-  return typeof value === "string" && value.length > 0 ? value : undefined
+  return typeof value === "string" && isReadableErrorText(value) ? value : undefined
+}
+
+function isReadableErrorText(value: string): boolean {
+  const text = value.trim()
+  return text.length > 0
+    && text !== "[object Object]"
+    && !/[\u0000-\u001F\u007F]/u.test(text)
 }
 
 function errorProperty(error: unknown, key: string): unknown {
