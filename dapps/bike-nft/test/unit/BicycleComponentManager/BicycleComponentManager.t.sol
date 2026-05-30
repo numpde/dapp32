@@ -85,6 +85,9 @@ contract BicycleComponentManagerTest is Test {
         vm.expectRevert(BicycleComponentManager.ZeroAddress.selector);
         manager.setComponentsAddress(address(0));
 
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.ComponentsHasNoCode.selector, address(0xdead)));
+        manager.setComponentsAddress(address(0xdead));
+
         manager.setComponentsAddress(address(secondComponents));
         assertEq(manager.componentsAddress(), address(secondComponents), "component address mismatch");
 

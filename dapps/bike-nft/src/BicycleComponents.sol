@@ -23,8 +23,8 @@ import {IBicycleComponents} from "./IBicycleComponents.sol";
 ///   recovery/dispute state belong in BicycleComponentManager.
 ///
 /// The contract is intentionally not upgradeable. If token behavior needs to
-/// change later, deploy a new component-token contract and point the manager/CAM
-/// root at the new collection for future registrations.
+/// change later, deploy a new component-token contract and update the manager's
+/// configured component contract for future registrations.
 contract BicycleComponents is
     ERC721,
     ERC721URIStorage,
