@@ -533,9 +533,16 @@ function errorMessage(error: unknown): string {
 
   const cause = error.cause
   if (cause === undefined) {
-    return error.message
+    return errorDisplayMessage(error)
   }
 
-  const causeMessage = cause instanceof Error ? cause.message : String(cause)
-  return `${error.message}: ${causeMessage}`
+  return `${errorDisplayMessage(error)}: ${errorDisplayMessage(cause)}`
+}
+
+function errorDisplayMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "shortMessage" in error && typeof error.shortMessage === "string") {
+    return error.shortMessage
+  }
+
+  return error instanceof Error ? error.message : String(error)
 }
