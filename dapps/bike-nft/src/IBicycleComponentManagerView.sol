@@ -25,7 +25,7 @@ interface IBicycleComponentManagerView {
         string serialNumber;
     }
 
-    function defaultComponents() external view returns (address);
+    function componentsAddress() external view returns (address);
 
     function accountInfo(address account) external view returns (string memory);
 

@@ -13,7 +13,7 @@
         "internalType": "uint48"
       },
       {
-        "name": "defaultComponents_",
+        "name": "componentsAddress_",
         "type": "address",
         "internalType": "address"
       }
@@ -590,6 +590,19 @@
   },
   {
     "type": "function",
+    "name": "componentsAddress",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "defaultAdmin",
     "inputs": [],
     "outputs": [
@@ -623,19 +636,6 @@
         "name": "",
         "type": "uint48",
         "internalType": "uint48"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "defaultComponents",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -688,25 +688,6 @@
       },
       {
         "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "isComponentCollection",
-    "inputs": [
-      {
-        "name": "tokenContract",
         "type": "address",
         "internalType": "address"
       }
@@ -932,40 +913,6 @@
   },
   {
     "type": "function",
-    "name": "registerComponentIn",
-    "inputs": [
-      {
-        "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "tokenURI_",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "renounceRole",
     "inputs": [
       {
@@ -1072,24 +1019,6 @@
   },
   {
     "type": "function",
-    "name": "setComponentCollection",
-    "inputs": [
-      {
-        "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "allowed",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "setComponentDelegate",
     "inputs": [
       {
@@ -1136,7 +1065,7 @@
   },
   {
     "type": "function",
-    "name": "setDefaultComponents",
+    "name": "setComponentsAddress",
     "inputs": [
       {
         "name": "tokenContract",
@@ -1311,25 +1240,6 @@
         "type": "string",
         "indexed": false,
         "internalType": "string"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "ComponentCollectionSet",
-    "inputs": [
-      {
-        "name": "tokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "allowed",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
       }
     ],
     "anonymous": false
@@ -1520,6 +1430,25 @@
   },
   {
     "type": "event",
+    "name": "ComponentsAddressSet",
+    "inputs": [
+      {
+        "name": "oldTokenContract",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "newTokenContract",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "DefaultAdminDelayChangeCanceled",
     "inputs": [],
     "anonymous": false
@@ -1564,25 +1493,6 @@
         "type": "uint48",
         "indexed": false,
         "internalType": "uint48"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "DefaultComponentsSet",
-    "inputs": [
-      {
-        "name": "oldTokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newTokenContract",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -1790,17 +1700,6 @@
   },
   {
     "type": "error",
-    "name": "ComponentsNotAllowed",
-    "inputs": [
-      {
-        "name": "tokenContract",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
-  },
-  {
-    "type": "error",
     "name": "ComponentsUnsupported",
     "inputs": [
       {
@@ -1809,11 +1708,6 @@
         "internalType": "address"
       }
     ]
-  },
-  {
-    "type": "error",
-    "name": "DefaultComponentsUnset",
-    "inputs": []
   },
   {
     "type": "error",

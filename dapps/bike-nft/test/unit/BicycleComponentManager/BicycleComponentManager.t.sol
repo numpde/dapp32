@@ -19,6 +19,7 @@ contract BicycleComponentManagerTest is Test {
     address private stranger = address(0x4001);
 
     string private constant SERIAL = "BIKE-FRAME-001";
+    string private constant SECOND_SERIAL = "BIKE-WHEEL-002";
     string private constant TOKEN_URI = "fixture://bike-nft/components/frame-001.json";
     string private constant UPDATED_TOKEN_URI = "fixture://bike-nft/components/frame-001-updated.json";
 
@@ -44,7 +45,7 @@ contract BicycleComponentManagerTest is Test {
         vm.prank(registrar);
         (address tokenContract, uint256 tokenId) = manager.registerComponent(owner, SERIAL, TOKEN_URI);
 
-        assertEq(tokenContract, address(components), "default collection mismatch");
+        assertEq(tokenContract, address(components), "component contract mismatch");
         assertEq(tokenId, expectedTokenId, "token id must derive from serial hash");
         assertEq(components.ownerOf(tokenId), owner, "component token owner mismatch");
         assertEq(components.tokenURI(tokenId), TOKEN_URI, "component token URI mismatch");
@@ -68,6 +69,35 @@ contract BicycleComponentManagerTest is Test {
             )
         );
         manager.registerComponent(secondOwner, SERIAL, TOKEN_URI);
+    }
+
+    function test_configurerCanChangeComponentAddressForFutureRegistrationsOnly() external {
+        registerDefaultComponent();
+
+        BicycleComponents secondComponents = new BicycleComponents("Bike Components 2", "BIKE2", admin, 0, "", "");
+        secondComponents.grantRole(secondComponents.MINTER_ROLE(), address(manager));
+        secondComponents.grantRole(secondComponents.TOKEN_URI_SETTER_ROLE(), address(manager));
+
+        vm.prank(stranger);
+        vm.expectRevert();
+        manager.setComponentsAddress(address(secondComponents));
+
+        vm.expectRevert(BicycleComponentManager.ZeroAddress.selector);
+        manager.setComponentsAddress(address(0));
+
+        manager.setComponentsAddress(address(secondComponents));
+        assertEq(manager.componentsAddress(), address(secondComponents), "component address mismatch");
+
+        vm.prank(registrar);
+        (address tokenContract, uint256 tokenId) = manager.registerComponent(secondOwner, SECOND_SERIAL, TOKEN_URI);
+
+        assertEq(tokenContract, address(secondComponents), "future registration should use new component contract");
+        assertEq(secondComponents.ownerOf(tokenId), secondOwner, "new component owner mismatch");
+        assertEq(
+            manager.componentBySerial(SERIAL).tokenContract,
+            address(components),
+            "existing record should keep original component contract"
+        );
     }
 
     function test_emptySerialNumberIsRejectedAtManagerBoundary() external {

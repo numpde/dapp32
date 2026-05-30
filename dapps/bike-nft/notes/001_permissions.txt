@@ -58,7 +58,7 @@ This plan targets the current V1 architecture:
 | --- | --- | --- |
 | `DEFAULT_ADMIN_ROLE` | Grants/revokes manager roles | Safe or timelock |
 | `REGISTRAR_ROLE` | Creates verified component records | Shops, manufacturers, trusted operators |
-| `CONFIGURER_ROLE` | Configures default/allowed component token contracts | Safe or timelock |
+| `CONFIGURER_ROLE` | Configures the component token contract | Safe or timelock |
 | `PAUSER_ROLE` | Emergency pause of manager writes | Emergency Safe |
 | `STATUS_ATTESTER_ROLE` | Adds official attestations | Optional V1 role |
 
@@ -68,10 +68,8 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 
 | Function | Authorized actor | Notes |
 | --- | --- | --- |
-| `registerComponent(owner, serial, metadataURI)` | `REGISTRAR_ROLE` | Uses the configured default component-token contract. Creates a verified record. |
-| `registerComponentIn(tokenContract, owner, serial, metadataURI)` | `REGISTRAR_ROLE` and `tokenContract` must be allowed | Existing records store `tokenContract + tokenId`; changing defaults affects future records only. |
-| `setDefaultComponents(tokenContract)` | `CONFIGURER_ROLE` | Future registrations only. Does not reinterpret old records. |
-| `setComponentCollection(tokenContract, allowed)` | `CONFIGURER_ROLE` | Recommended if `registerComponentIn` exists. Prevents arbitrary token targets. |
+| `registerComponent(owner, serial, metadataURI)` | `REGISTRAR_ROLE` | Uses the configured component-token contract. Creates a verified record. |
+| `setComponentsAddress(tokenContract)` | `CONFIGURER_ROLE` | Future registrations only. Does not reinterpret old records. |
 | `setMaxDelegationDuration(duration)` | `CONFIGURER_ROLE` | Caps owner-granted delegation windows. |
 | `setComponentMetadata(serial, uri)` | Current ERC-721 owner or `CAP_UPDATE_METADATA` delegate | Manager calls token `setTokenURI` after authorization. |
 | `markMissing(serial)` | Current ERC-721 owner or `CAP_MARK_MISSING` delegate | Emits the reporter. V1 status only; does not block ERC-721 transfer unless token later enforces locks. |

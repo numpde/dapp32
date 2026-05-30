@@ -42,8 +42,8 @@
     },
     {
       "type": "address",
-      "label": "Default component contract",
-      "address": "$values.0.defaultComponents"
+      "label": "Component contract",
+      "address": "$values.0.componentsAddress"
     },
     {
       "type": "group",

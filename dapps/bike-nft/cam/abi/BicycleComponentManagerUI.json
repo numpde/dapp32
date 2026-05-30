@@ -262,7 +262,7 @@
             "internalType": "uint256"
           },
           {
-            "name": "defaultComponents",
+            "name": "componentsAddress",
             "type": "address",
             "internalType": "address"
           },

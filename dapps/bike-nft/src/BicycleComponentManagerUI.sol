@@ -56,7 +56,7 @@ contract BicycleComponentManagerUI {
         bool exists;
         bytes32 serialHash;
         uint256 tokenId;
-        address defaultComponents;
+        address componentsAddress;
         string serialNumber;
         string accountInfo;
     }
@@ -112,7 +112,7 @@ contract BicycleComponentManagerUI {
         screenURI = SCREEN_REGISTER;
         accountView = _accountView(account);
         registerView.canRegister = accountView.canRegister;
-        registerView.defaultComponents = manager.defaultComponents();
+        registerView.componentsAddress = manager.componentsAddress();
         registerView.serialNumber = serialNumber;
         registerView.accountInfo = accountView.accountInfo;
 

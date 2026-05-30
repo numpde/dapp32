@@ -54,7 +54,7 @@ contract BikeNftLocalFixtureTest is Test {
 
         assertTrue(component.exists, "seeded component should have a manager record");
         assertEq(
-            component.tokenContract, address(deployment.components), "seeded component should use default collection"
+            component.tokenContract, address(deployment.components), "seeded component should use configured contract"
         );
         assertEq(component.owner, owner, "seeded component owner mismatch");
         assertEq(component.registrar, owner, "seeded component registrar mismatch");

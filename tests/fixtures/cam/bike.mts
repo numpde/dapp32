@@ -119,7 +119,7 @@ const registerViewOutput = {
     { name: "exists", type: "bool" },
     { name: "serialHash", type: "bytes32" },
     { name: "tokenId", type: "uint256" },
-    { name: "defaultComponents", type: "address" },
+    { name: "componentsAddress", type: "address" },
     { name: "serialNumber", type: "string" },
     { name: "accountInfo", type: "string" },
   ],
@@ -280,7 +280,7 @@ export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[
         ? "0x2222222222222222222222222222222222222222222222222222222222222222"
         : BIKE_ZERO_BYTES32,
       tokenId: 0,
-      defaultComponents: BIKE_COMPONENTS_ADDRESS,
+      componentsAddress: BIKE_COMPONENTS_ADDRESS,
       serialNumber,
       accountInfo: "Mock registrar account",
     },

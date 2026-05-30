@@ -21,9 +21,9 @@ import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 /// - owner-granted delegates for registry actions;
 /// - account profile URIs and event-only attestations.
 ///
-/// The manager can use different component-token contracts over time. Each
-/// registered component stores its own `tokenContract`, so changing the default
-/// collection only affects future registrations.
+/// The manager has one configured component-token contract for new
+/// registrations. Each registered component stores its own `tokenContract`, so
+/// changing the configured contract only affects future registrations.
 contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IBicycleComponentManagerView {
     // ---------------------------------------------------------------------
     // Roles
@@ -75,10 +75,9 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     // Storage
     // ---------------------------------------------------------------------
 
-    address private _defaultComponents;
+    address private _componentsAddress;
     uint48 private _maxDelegationDuration;
 
-    mapping(address tokenContract => bool allowed) private _componentCollections;
     mapping(bytes32 serialHash => ComponentRecord record) private _componentRecords;
     mapping(bytes32 serialHash => mapping(address delegate => Delegation delegation)) private _delegations;
     mapping(address account => string infoURI) private _accountInfo;
@@ -91,8 +90,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     error EmptySerialNumber();
     error ComponentsHasNoCode(address tokenContract);
     error ComponentsUnsupported(address tokenContract);
-    error ComponentsNotAllowed(address tokenContract);
-    error DefaultComponentsUnset();
     error ComponentAlreadyRegistered(bytes32 serialHash);
     error ComponentNotRegistered(bytes32 serialHash);
     error Unauthorized(address actor, bytes32 serialHash, uint64 requiredCapability);
@@ -106,8 +103,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     // Events
     // ---------------------------------------------------------------------
 
-    event ComponentCollectionSet(address indexed tokenContract, bool allowed);
-    event DefaultComponentsSet(address indexed oldTokenContract, address indexed newTokenContract);
+    event ComponentsAddressSet(address indexed oldTokenContract, address indexed newTokenContract);
     event MaxDelegationDurationSet(uint48 oldDuration, uint48 newDuration);
     event AccountInfoSet(address indexed account, string infoURI);
 
@@ -165,8 +161,8 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
 
     /// @param admin Safe, timelock, governance executor, or other secured admin account.
     /// @param adminDelay Delay, in seconds, for future DEFAULT_ADMIN_ROLE transfers.
-    /// @param defaultComponents_ Optional default component-token contract for new registrations.
-    constructor(address admin, uint48 adminDelay, address defaultComponents_)
+    /// @param componentsAddress_ Component-token contract for new registrations.
+    constructor(address admin, uint48 adminDelay, address componentsAddress_)
         AccessControlDefaultAdminRules(adminDelay, admin)
     {
         _grantRole(PAUSER_ROLE, admin);
@@ -175,11 +171,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         _grantRole(STATUS_ATTESTER_ROLE, admin);
 
         _setMaxDelegationDuration(DEFAULT_MAX_DELEGATION_DURATION);
-
-        if (defaultComponents_ != address(0)) {
-            _setComponentCollection(defaultComponents_, true);
-            _setDefaultComponents(defaultComponents_);
-        }
+        _setComponentsAddress(componentsAddress_);
     }
 
     // ---------------------------------------------------------------------
@@ -194,34 +186,15 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         _unpause();
     }
 
-    /// @notice Default component-token contract used by `registerComponent`.
-    function defaultComponents() external view override returns (address) {
-        return _defaultComponents;
+    /// @notice Component-token contract used by `registerComponent`.
+    function componentsAddress() external view override returns (address) {
+        return _componentsAddress;
     }
 
-    /// @notice Returns whether a component-token contract is approved for registrations.
-    function isComponentCollection(address tokenContract) external view returns (bool) {
-        return _componentCollections[tokenContract];
-    }
-
-    /// @notice Allows or disallows a component-token contract for future registrations.
-    /// @dev Disallowing the current default clears the default. Existing records are unchanged.
-    function setComponentCollection(address tokenContract, bool allowed) external onlyRole(CONFIGURER_ROLE) {
-        _setComponentCollection(tokenContract, allowed);
-
-        if (!allowed && _defaultComponents == tokenContract) {
-            _setDefaultComponents(address(0));
-        }
-    }
-
-    /// @notice Sets the default component-token contract for future registrations.
-    /// @dev Passing address(0) clears the default.
-    function setDefaultComponents(address tokenContract) external onlyRole(CONFIGURER_ROLE) {
-        if (tokenContract != address(0) && !_componentCollections[tokenContract]) {
-            _setComponentCollection(tokenContract, true);
-        }
-
-        _setDefaultComponents(tokenContract);
+    /// @notice Sets the component-token contract for future registrations.
+    /// @dev Existing records keep their original token contract.
+    function setComponentsAddress(address tokenContract) external onlyRole(CONFIGURER_ROLE) {
+        _setComponentsAddress(tokenContract);
     }
 
     function maxDelegationDuration() external view returns (uint48) {
@@ -250,26 +223,14 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     // Registration
     // ---------------------------------------------------------------------
 
-    /// @notice Registers a component into the default component-token collection.
+    /// @notice Registers a component into the configured component-token contract.
     function registerComponent(address owner, string calldata serialNumber, string calldata tokenURI_)
         external
         onlyRole(REGISTRAR_ROLE)
         whenNotPaused
         returns (address tokenContract, uint256 tokenId)
     {
-        tokenContract = _defaultComponents;
-        if (tokenContract == address(0)) revert DefaultComponentsUnset();
-
-        tokenId = _registerComponent(tokenContract, owner, serialNumber, tokenURI_);
-    }
-
-    /// @notice Registers a component into a specific approved component-token collection.
-    function registerComponentIn(
-        address tokenContract,
-        address owner,
-        string calldata serialNumber,
-        string calldata tokenURI_
-    ) external onlyRole(REGISTRAR_ROLE) whenNotPaused returns (uint256 tokenId) {
+        tokenContract = _componentsAddress;
         tokenId = _registerComponent(tokenContract, owner, serialNumber, tokenURI_);
     }
 
@@ -580,7 +541,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         string calldata tokenURI_
     ) internal returns (uint256 tokenId) {
         if (owner == address(0)) revert ZeroAddress();
-        if (!_componentCollections[tokenContract]) revert ComponentsNotAllowed(tokenContract);
 
         bytes32 serialHash = _requireSerialNumber(serialNumber);
         if (_componentRecords[serialHash].status != ComponentStatus.None) {
@@ -692,21 +652,13 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     // Internal configuration/read helpers
     // ---------------------------------------------------------------------
 
-    function _setComponentCollection(address tokenContract, bool allowed) internal {
+    function _setComponentsAddress(address tokenContract) internal {
         if (tokenContract == address(0)) revert ZeroAddress();
+        _requireSupportedComponents(tokenContract);
 
-        if (allowed) {
-            _requireSupportedComponents(tokenContract);
-        }
-
-        _componentCollections[tokenContract] = allowed;
-        emit ComponentCollectionSet(tokenContract, allowed);
-    }
-
-    function _setDefaultComponents(address tokenContract) internal {
-        address oldTokenContract = _defaultComponents;
-        _defaultComponents = tokenContract;
-        emit DefaultComponentsSet(oldTokenContract, tokenContract);
+        address oldTokenContract = _componentsAddress;
+        _componentsAddress = tokenContract;
+        emit ComponentsAddressSet(oldTokenContract, tokenContract);
     }
 
     function _setMaxDelegationDuration(uint48 duration) internal {

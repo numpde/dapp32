@@ -43,7 +43,7 @@ contract BikeNftLocalFixture {
         });
 
         deployment.manager = new BicycleComponentManager({
-            admin: broadcasterAdmin, adminDelay: LOCAL_ADMIN_DELAY, defaultComponents_: address(deployment.components)
+            admin: broadcasterAdmin, adminDelay: LOCAL_ADMIN_DELAY, componentsAddress_: address(deployment.components)
         });
 
         deployment.ui = new BicycleComponentManagerUI(address(deployment.manager));
