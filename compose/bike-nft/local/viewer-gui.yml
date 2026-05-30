@@ -113,6 +113,7 @@ services:
 
           server {
             listen 8080;
+            add_header Cache-Control "no-store" always;
 
             location = /rpc {
               proxy_pass http://bike-nft-anvil:8545/;
