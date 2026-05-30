@@ -15,10 +15,11 @@
 #
 #   CAM_URI=http://127.0.0.1:5173/cam/main.json
 #
-# This scenario keeps the GUI read-only. The Make target runs deployment first,
-# asks bike-nft-viewer-url to print the browser URL, then runs cam-web and the
-# gateway in the foreground so runtime failures remain visible. The browser
-# starts from ordinary viewer inputs and does not read Forge broadcast output.
+# The Make target runs deployment first, asks bike-nft-viewer-url to print the
+# browser URL, then runs cam-web and the gateway in the foreground so runtime
+# failures remain visible. The browser starts from ordinary viewer inputs and
+# does not read Forge broadcast output. Any write transaction is sent only by an
+# injected browser wallet connected by the operator.
 
 services:
   cam-web:

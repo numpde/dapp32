@@ -146,6 +146,7 @@ export function App(): ReactElement {
 
       setWallet({ status: "connected", address })
       setLoadState({ status: "ready", snapshot })
+      setPreparedCall(undefined)
       setNotice(address.toLowerCase() === startup.account.toLowerCase()
         ? "Wallet connected."
         : "Wallet connected. It differs from the initial account URL parameter.")
@@ -192,6 +193,7 @@ export function App(): ReactElement {
   function updateInput(name: string, value: string): void {
     const session = requireSession(sessionRef.current)
     try {
+      setPreparedCall(undefined)
       setLoadState({
         status: "ready",
         snapshot: session.updateForm({ [name]: toInertValue(value) } satisfies InertRecord),

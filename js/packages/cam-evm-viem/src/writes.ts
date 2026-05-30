@@ -86,17 +86,18 @@ function normalizeWriteArg(value: InertValue, parameter: AbiParameter, path: str
     return value
   }
 
-  if (/^uint[0-9]*$/.test(type)) {
-    return normalizeInteger(value, path, false)
+  const integerType = parseIntegerType(type, path)
+  if (integerType !== undefined) {
+    return normalizeInteger(value, path, integerType.signed)
   }
 
-  if (/^int[0-9]*$/.test(type)) {
-    return normalizeInteger(value, path, true)
-  }
-
-  if (/^bytes([1-9]|[1-2][0-9]|3[0-2])?$/.test(type)) {
+  const fixedBytesLength = parseFixedBytesLength(type, path)
+  if (type === "bytes" || fixedBytesLength !== undefined) {
     if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) {
       throw invalidArg(path, `expected hex bytes for ${type}`)
+    }
+    if (fixedBytesLength !== undefined && (value.length - 2) / 2 !== fixedBytesLength) {
+      throw invalidArg(path, `expected ${fixedBytesLength} byte hex value for ${type}`)
     }
     return value
   }
@@ -136,6 +137,30 @@ function requireIntegerSign(value: bigint, path: string, signed: boolean): bigin
   }
 
   return value
+}
+
+function parseIntegerType(type: string, path: string): { readonly signed: boolean } | undefined {
+  const match = /^(u?)int([0-9]*)$/.exec(type)
+  if (match === null) return undefined
+
+  const bits = match[2] === "" ? 256 : Number(match[2])
+  if (!Number.isInteger(bits) || bits < 8 || bits > 256 || bits % 8 !== 0) {
+    throw invalidArg(path, `unsupported ABI integer type: ${type}`)
+  }
+
+  return { signed: match[1] === "" }
+}
+
+function parseFixedBytesLength(type: string, path: string): number | undefined {
+  const match = /^bytes([0-9]+)$/.exec(type)
+  if (match === null) return undefined
+
+  const bytes = Number(match[1])
+  if (!Number.isInteger(bytes) || bytes < 1 || bytes > 32) {
+    throw invalidArg(path, `unsupported ABI bytes type: ${type}`)
+  }
+
+  return bytes
 }
 
 function tupleComponents(parameter: AbiParameter, path: string): readonly AbiParameter[] {

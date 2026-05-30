@@ -280,6 +280,25 @@ test("sendCamContractCall validates mutable ABI functions and submits through th
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
   )
+
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      call: {
+        address: managerAddress,
+        abi: [{
+          type: "function",
+          name: "setTag",
+          stateMutability: "nonpayable",
+          inputs: [{ name: "tag", type: "bytes4" }],
+          outputs: [],
+        }],
+        function: "setTag",
+        args: ["0x123456"],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
+  )
 })
 
 function createPublicClient({

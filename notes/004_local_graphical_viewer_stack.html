@@ -267,8 +267,8 @@
       <div class="panel">
         <h2>Goal</h2>
         <p>
-          Add a graphical host for the same read-only protocol path already
-          proven by the terminal:
+          Add a graphical host for the protocol path first proven by the
+          terminal:
           <code>CamRoot -&gt; CAM -&gt; route call -&gt; screen JSON -&gt; resolved screen</code>.
         </p>
         <p>
@@ -390,8 +390,9 @@
               <code>allowedHosts: true</code>.
             </p>
             <p class="muted">
-              No private keys, no transaction sending in the first slice, no
-              Docker socket, no protocol logic copied into React.
+              No private keys, no Docker socket, no protocol logic copied into
+              React. Transaction sending must go through an injected browser
+              wallet.
             </p>
           </div>
         </div>
@@ -511,8 +512,9 @@
             <code>@cam/evm-viem</code>.
           </p>
           <p>
-            Wallet connection and transaction sending should wait until screen
-            action documents are stable. The first GUI remains read-only.
+            Wallet connection belongs at the app edge. React can ask
+            <code>@cam/viewer</code> for a prepared contract call, but the
+            injected wallet remains the only sender.
           </p>
         </div>
       </div>
@@ -628,7 +630,7 @@
           <li>Do not use <code>allowedHosts: true</code> for Vite.</li>
           <li>Do not expose Anvil or CAM HTTP on <code>0.0.0.0</code>.</li>
           <li>Do not put mock contract reads in the GUI.</li>
-          <li>Do not add wallet sending before screen actions are specified.</li>
+          <li>Do not send transactions from Docker services or CAM packages; use the injected browser wallet boundary.</li>
         </ul>
       </div>
     </section>
