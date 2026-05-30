@@ -174,6 +174,9 @@ export function App(): ReactElement {
       const receipt = await requirePublicClient(publicClientRef.current).waitForTransactionReceipt({
         hash: txHash,
       })
+      if (receipt.status !== "success") {
+        throw new Error(`Transaction reverted: ${txHash}`)
+      }
       setNotice(`Transaction confirmed in block ${receipt.blockNumber.toString()}.`)
       setPreparedCall(undefined)
 
