@@ -34,6 +34,7 @@ def main(argv: list[str]) -> int:
 
 def load_helper():
     helper_path = Path(__file__).with_name("cam_abi_plan.py")
+    sys.path.insert(0, str(helper_path.parent.parent))
     spec = importlib.util.spec_from_file_location("cam_abi_plan", helper_path)
     if spec is None or spec.loader is None:
         fail(f"could not load ABI plan helper: {helper_path}")
