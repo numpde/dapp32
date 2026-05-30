@@ -18,6 +18,7 @@ from ..common import (
 
 BIKE_CAM_HTTP_ORIGIN = "http://bike-nft-cam-http:8080"
 BIKE_CAM_URI = f"{BIKE_CAM_HTTP_ORIGIN}/main.json"
+BIKE_NFT_GUI_ORIGIN = "http://127.0.0.1:5173"
 STANDALONE_BIKE_CAM_URI = "https://example.test/bike-nft/main.json"
 ANVIL_DEV_PRIVATE_KEY = "0xbabababababababababababababababababababababababababababababababa"
 PYTHON_ALPINE_IMAGE = "docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc"
@@ -331,7 +332,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         config = rendered_compose_config(
             BIKE_NFT_VIEWER_GUI_COMPOSE,
             env={
-                "CAM_URI": "http://127.0.0.1:5173/cam/main.json",
+                "CAM_URI": f"{BIKE_NFT_GUI_ORIGIN}/cam/main.json",
                 "CAM_HASH": ZERO_HASH,
                 "BIKE_NFT_BROADCAST_DIR": BIKE_NFT_BROADCAST_DIR,
                 "BIKE_NFT_BROADCAST_PATH": BIKE_NFT_BROADCAST_PATH,
@@ -360,7 +361,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         self.assert_staged_package_workspace(cam_web)
         self.assert_no_volume_target(cam_web, "/work/dapps")
-        self.assert_no_volume_target(cam_web, "/foundry-broadcast")
+        self.assert_no_volume_target(cam_web, BIKE_NFT_BROADCAST_DIR)
         self.assertNotIn("PRIVATE_KEY", compose_mapping(cam_web, "environment"))
         self.assertNotIn("CAM_VIEWER_BROADCAST_PATH", compose_mapping(cam_web, "environment"))
         self.assert_read_only_volumes(viewer_url, BIKE_NFT_BROADCAST_DIR)
@@ -372,4 +373,4 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn("proxy_pass http://cam-web:5173", gateway_command)
         self.assertIn("proxy_pass http://bike-nft-anvil:8545", gateway_command)
         self.assertIn("proxy_pass http://bike-nft-cam-http:8080", gateway_command)
-        self.assertIn("http://127.0.0.1:5173/rpc", compose_mapping(viewer_url, "environment")["RPC_URL"])
+        self.assertEqual(f"{BIKE_NFT_GUI_ORIGIN}/rpc", compose_mapping(viewer_url, "environment")["RPC_URL"])
