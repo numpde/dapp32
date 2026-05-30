@@ -18,6 +18,7 @@ import {
   BIKE_COMPONENT_SCREEN_URI as componentScreenURI,
   BIKE_ENTRY_SCREEN_URI as entryScreenURI,
   BIKE_MARK_MISSING,
+  BIKE_MANAGER_ADDRESS as managerAddress,
   BIKE_MANAGER_CONTRACT,
   BIKE_ROUTE_COMPONENT,
   BIKE_ROUTE_ENTRY,
@@ -27,6 +28,7 @@ import {
   BIKE_VIEW_ENTRY,
   bikeContractAddresses,
   bikeHost,
+  bikeManagerAbi,
   bikeRouteResults,
 } from "../../../../tests/fixtures/cam/bike.mts"
 import {
@@ -175,10 +177,12 @@ test("updateForm resolves navigation actions, while contract actions are surface
   } as const
   const contractResult = await session.dispatchAction(action)
 
-  assert.deepEqual(contractResult, {
-    type: "contractCall",
-    action,
-  })
+  assert.equal(contractResult.type, "contractCall")
+  assert.equal(contractResult.call.contract, BIKE_MANAGER_CONTRACT)
+  assert.equal(contractResult.call.address, managerAddress)
+  assert.equal(contractResult.call.function, BIKE_MARK_MISSING)
+  assert.deepEqual(contractResult.call.abi, toInertValue(bikeManagerAbi))
+  assert.deepEqual(contractResult.call.args, [BIKE_SERIAL_NUMBER])
   assert.equal(publicClient.calls.length, callsBefore)
 })
 

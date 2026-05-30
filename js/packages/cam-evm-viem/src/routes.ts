@@ -7,8 +7,9 @@ import {
 import type { CamDocument } from "@cam/core"
 import type { CamRuntimeContext, InertValue } from "@cam/protocol"
 import { isAddress } from "viem"
-import type { Abi, AbiFunction, Address } from "viem"
+import type { Abi, Address } from "viem"
 
+import { findUniqueAbiFunction } from "./abi-functions.ts"
 import { CamEvmError } from "./errors.ts"
 import type { CamPublicClient, ResolvedCamContract, RouteResult } from "./types.ts"
 
@@ -130,22 +131,13 @@ function assertLocalScreenURI(screenURI: string, route: string): void {
 }
 
 function assertRouteFunctionAbi(abi: Abi, functionName: string): void {
-  const matches = abi.filter(
-    (item): item is AbiFunction => item.type === "function" && item.name === functionName,
-  )
-
-  if (matches.length === 0) {
-    throw new CamEvmError("CAM_ROUTE_FUNCTION_NOT_FOUND", `CAM route function not found in ABI: ${functionName}`)
-  }
-
-  if (matches.length > 1) {
-    throw new CamEvmError(
-      "CAM_ROUTE_FUNCTION_AMBIGUOUS",
-      `CAM route function is overloaded and not supported in CAM V1: ${functionName}`,
-    )
-  }
-
-  const [fn] = matches
+  const fn = findUniqueAbiFunction({
+    abi,
+    functionName,
+    notFoundCode: "CAM_ROUTE_FUNCTION_NOT_FOUND",
+    ambiguousCode: "CAM_ROUTE_FUNCTION_AMBIGUOUS",
+    purpose: "route",
+  })
   if (fn.stateMutability !== "view" && fn.stateMutability !== "pure") {
     throw new CamEvmError("CAM_ROUTE_FUNCTION_NOT_VIEW", `CAM route function must be view or pure: ${functionName}`)
   }

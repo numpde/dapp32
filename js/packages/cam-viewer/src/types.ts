@@ -1,5 +1,6 @@
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
+  CamContractCall,
   CamHost,
   CamPublicClient,
   ResourceLoader,
@@ -8,6 +9,7 @@ import type {
   ResolvedScreen,
   ResolvedScreenAction,
 } from "@cam/screen"
+import type { NavigateAction } from "@cam/screen"
 
 type ResolvedContractCallAction = Extract<ResolvedScreenAction, { readonly type: "contract-call" }>
 
@@ -48,4 +50,9 @@ export type CamViewerSession = {
 
 export type CamViewerActionResult =
   | { readonly type: "navigated"; readonly snapshot: CamViewerSnapshot }
-  | { readonly type: "contractCall"; readonly action: ResolvedContractCallAction }
+  | { readonly type: "contractCall"; readonly call: CamViewerPreparedContractCall }
+
+export type CamViewerPreparedContractCall = CamContractCall & {
+  readonly contract: ResolvedContractCallAction["contract"]
+  readonly onSuccess?: NavigateAction
+}

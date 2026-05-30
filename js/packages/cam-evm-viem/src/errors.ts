@@ -13,6 +13,11 @@ export type CamEvmErrorCode =
   | "CAM_ROUTE_FUNCTION_NOT_VIEW"
   | "CAM_ROUTE_CALL_FAILED"
   | "CAM_ROUTE_INVALID_RESULT"
+  | "CAM_WRITE_FUNCTION_NOT_FOUND"
+  | "CAM_WRITE_FUNCTION_AMBIGUOUS"
+  | "CAM_WRITE_FUNCTION_NOT_MUTABLE"
+  | "CAM_WRITE_INVALID_ARGUMENT"
+  | "CAM_WRITE_FAILED"
 
 export class CamEvmError extends Error {
   readonly code: CamEvmErrorCode

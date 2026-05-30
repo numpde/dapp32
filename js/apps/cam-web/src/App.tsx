@@ -6,7 +6,7 @@ import {
 import type { ReactElement } from "react"
 
 import {
-  createHttpCamPublicClient,
+  sendCamContractCall,
 } from "@cam/evm-viem"
 import type {
   CamHost,
@@ -20,7 +20,6 @@ import type {
   InertValue,
 } from "@cam/protocol"
 import type {
-  ContractCallAction,
   ResolvedScreenAction,
   ResolvedScreenElement,
 } from "@cam/screen"
@@ -28,9 +27,22 @@ import {
   createCamViewerSession,
 } from "@cam/viewer"
 import type {
+  CamViewerPreparedContractCall,
   CamViewerSession,
   CamViewerSnapshot,
 } from "@cam/viewer"
+import {
+  createPublicClient,
+  http,
+} from "viem"
+import {
+  connectInjectedWallet,
+  createInjectedWalletClient,
+  ensureInjectedWalletChain,
+  initialWalletState,
+  walletLabel,
+} from "./wallet"
+import type { WalletState } from "./wallet"
 
 type StartupOptions = {
   readonly chainId: string
@@ -45,14 +57,17 @@ type LoadState =
   | { readonly status: "ready"; readonly snapshot: CamViewerSnapshot }
   | { readonly status: "failed"; readonly message: string }
 
-type PreparedCall = ContractCallAction
+type PreparedWalletCall = CamViewerPreparedContractCall
 
 export function App(): ReactElement {
   const sessionRef = useRef<CamViewerSession | undefined>(undefined)
+  const publicClientRef = useRef<ReturnType<typeof createPublicClient> | undefined>(undefined)
   const [options, setOptions] = useState<StartupOptions | undefined>(undefined)
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
+  const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
   const [notice, setNotice] = useState<string | undefined>(undefined)
-  const [preparedCall, setPreparedCall] = useState<PreparedCall | undefined>(undefined)
+  const [preparedCall, setPreparedCall] = useState<PreparedWalletCall | undefined>(undefined)
+  const [sending, setSending] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -60,8 +75,11 @@ export function App(): ReactElement {
     async function load(): Promise<void> {
       try {
         const startup = parseStartupOptions(new URL(window.location.href))
+        const publicClient = createPublicClient({
+          transport: http(startup.rpcUrl),
+        })
         const session = createCamViewerSession({
-          publicClient: createHttpCamPublicClient({ rpcURL: startup.rpcUrl }),
+          publicClient,
           host: {
             chainId: startup.chainId,
             address: startup.host,
@@ -77,6 +95,7 @@ export function App(): ReactElement {
 
         if (!cancelled) {
           sessionRef.current = session
+          publicClientRef.current = publicClient
           setOptions(startup)
           setLoadState({ status: "ready", snapshot })
         }
@@ -109,10 +128,64 @@ export function App(): ReactElement {
         return
       }
 
-      setPreparedCall(result.action)
-      setNotice("Prepared contract call. No wallet sender is connected in this viewer.")
+      setPreparedCall(result.call)
+      setNotice(wallet.status === "connected"
+        ? "Prepared contract call. Review it before sending."
+        : "Prepared contract call. Connect a wallet to send it.")
     } catch (error) {
       setNotice(errorMessage(error))
+    }
+  }
+
+  async function connectWallet(): Promise<void> {
+    try {
+      const startup = requireOptions(options)
+      const address = await connectInjectedWallet(startup)
+      const session = requireSession(sessionRef.current)
+      const snapshot = await session.setAccount({ address })
+
+      setWallet({ status: "connected", address })
+      setLoadState({ status: "ready", snapshot })
+      setNotice(address.toLowerCase() === startup.account.toLowerCase()
+        ? "Wallet connected."
+        : "Wallet connected. It differs from the initial account URL parameter.")
+    } catch (error) {
+      setNotice(errorMessage(error))
+    }
+  }
+
+  async function sendPreparedCall(call: PreparedWalletCall): Promise<void> {
+    if (wallet.status !== "connected") {
+      setNotice("Connect a wallet before sending.")
+      return
+    }
+
+    setSending(true)
+    setNotice(undefined)
+    try {
+      const startup = requireOptions(options)
+      await ensureInjectedWalletChain(startup)
+      const walletClient = createInjectedWalletClient(wallet.address)
+      const txHash = await sendCamContractCall({ walletClient, call })
+      setNotice(`Transaction sent: ${txHash}`)
+
+      const receipt = await requirePublicClient(publicClientRef.current).waitForTransactionReceipt({
+        hash: txHash,
+      })
+      setNotice(`Transaction confirmed in block ${receipt.blockNumber.toString()}.`)
+      setPreparedCall(undefined)
+
+      if (call.onSuccess !== undefined) {
+        const session = requireSession(sessionRef.current)
+        const result = await session.dispatchAction(call.onSuccess)
+        if (result.type === "navigated") {
+          setLoadState({ status: "ready", snapshot: result.snapshot })
+        }
+      }
+    } catch (error) {
+      setNotice(errorMessage(error))
+    } finally {
+      setSending(false)
     }
   }
 
@@ -146,15 +219,34 @@ export function App(): ReactElement {
               <dd>{shorten(options.host)}</dd>
             </div>
             <div>
-              <dt>Account</dt>
-              <dd>{shorten(options.account)}</dd>
+              <dt>Viewer account</dt>
+              <dd>{shorten(currentViewerAccount(loadState, options.account))}</dd>
+            </div>
+            <div>
+              <dt>Wallet</dt>
+              <dd>{walletLabel(wallet)}</dd>
             </div>
           </dl>
         )}
       </header>
 
+      {wallet.status === "unavailable" ? (
+        <p className="notice">No injected wallet was detected.</p>
+      ) : (
+        <button className="wallet-button" type="button" onClick={() => { void connectWallet() }}>
+          {wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
+        </button>
+      )}
+
       {notice === undefined ? null : <p className="notice">{notice}</p>}
-      {preparedCall === undefined ? null : <PreparedCallView action={preparedCall} />}
+      {preparedCall === undefined ? null : (
+        <PreparedCallView
+          call={preparedCall}
+          canSend={wallet.status === "connected"}
+          sending={sending}
+          onSend={sendPreparedCall}
+        />
+      )}
 
       {loadState.status === "loading" ? (
         <section className="panel">Loading CAM session...</section>
@@ -194,19 +286,33 @@ export function App(): ReactElement {
 }
 
 function PreparedCallView({
-  action,
+  call,
+  canSend,
+  sending,
+  onSend,
 }: {
-  readonly action: PreparedCall
+  readonly call: PreparedWalletCall
+  readonly canSend: boolean
+  readonly sending: boolean
+  readonly onSend: (call: PreparedWalletCall) => Promise<void>
 }): ReactElement {
   return (
     <section className="panel prepared-call">
       <h2>Prepared contract call</h2>
-      <KeyValue label="Contract" value={action.contract} />
-      <KeyValue label="Function" value={action.function} />
-      <KeyValue label="Args" value={formatInertValue(action.args)} />
-      {action.onSuccess === undefined ? null : <KeyValue label="On success" value={`${action.onSuccess.route} ${formatInertValue(action.onSuccess.params)}`} />}
-      <button className="send-button" type="button" disabled>
-        Send unavailable
+      <KeyValue label="Contract" value={call.contract} />
+      <KeyValue label="Address" value={call.address} mono />
+      <KeyValue label="Function" value={call.function} />
+      <KeyValue label="Args" value={formatInertValue(call.args)} />
+      {call.onSuccess === undefined ? null : <KeyValue label="On success" value={`${call.onSuccess.route} ${formatInertValue(call.onSuccess.params)}`} />}
+      <button
+        className="send-button"
+        type="button"
+        disabled={!canSend || sending}
+        onClick={() => {
+          void onSend(call)
+        }}
+      >
+        {sending ? "Sending..." : "Send with wallet"}
       </button>
     </section>
   )
@@ -286,6 +392,22 @@ function parseStartupOptions(url: URL): StartupOptions {
     rpcUrl: requireHttpURL(requiredParam(params, "rpcUrl"), "rpcUrl").href,
     allowUnsignedCamHash: requiredBooleanParam(params, "allowUnsignedCamHash"),
   }
+}
+
+function requireOptions(options: StartupOptions | undefined): StartupOptions {
+  if (options === undefined) {
+    throw new Error("CAM viewer startup options are not loaded")
+  }
+
+  return options
+}
+
+function requirePublicClient(client: ReturnType<typeof createPublicClient> | undefined): ReturnType<typeof createPublicClient> {
+  if (client === undefined) {
+    throw new Error("CAM viewer public client is not loaded")
+  }
+
+  return client
 }
 
 function createPinnedOriginResourceLoader(): ResourceLoader {
@@ -374,6 +496,12 @@ function formatInertValue(value: InertValue): string {
 
 function shorten(address: string): string {
   return address.length > 14 ? `${address.slice(0, 6)}...${address.slice(-4)}` : address
+}
+
+function currentViewerAccount(loadState: LoadState, fallback: CamHost["address"]): CamHost["address"] {
+  return loadState.status === "ready" && loadState.snapshot.account !== undefined
+    ? loadState.snapshot.account.address
+    : fallback
 }
 
 function errorMessage(error: unknown): string {

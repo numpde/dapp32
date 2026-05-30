@@ -16,7 +16,8 @@
     "@cam/screen": "0.1.0",
     "@cam/viewer": "0.1.0",
     "react": "19.2.6",
-    "react-dom": "19.2.6"
+    "react-dom": "19.2.6",
+    "viem": "2.50.4"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "6.0.2",

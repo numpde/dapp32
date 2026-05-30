@@ -10,8 +10,9 @@ import {
   callCamRoute,
   loadCamFromHost,
   resolveCamContracts,
+  sendCamContractCall,
 } from "../src/index.ts"
-import type { CamHost, CamPublicClient } from "../src/index.ts"
+import type { CamHost, CamPublicClient, CamWalletClient } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
@@ -24,6 +25,7 @@ import {
   BIKE_ROUTE_ENTRY,
   BIKE_SERIAL_NUMBER,
   BIKE_UNSIGNED_CAM_HASH,
+  BIKE_MARK_MISSING,
   BIKE_UI_ABI_URI as uiAbiURI,
   BIKE_UI_ADDRESS as uiAddress,
   BIKE_UI_CONTRACT,
@@ -223,6 +225,63 @@ test("callCamRoute rejects unsafe screen URIs and non-view route functions", asy
   )
 })
 
+test("sendCamContractCall validates mutable ABI functions and submits through the wallet client", async () => {
+  const walletClient = createWalletClient()
+
+  const hash = await sendCamContractCall({
+    walletClient,
+    call: {
+      address: managerAddress,
+      abi: managerAbi,
+      function: BIKE_MARK_MISSING,
+      args: [BIKE_SERIAL_NUMBER],
+    },
+  })
+
+  assert.equal(hash, "0x1234")
+  assert.deepEqual(walletClient.calls, [
+    {
+      address: managerAddress,
+      abi: managerAbi,
+      functionName: BIKE_MARK_MISSING,
+      args: [BIKE_SERIAL_NUMBER],
+      chain: null,
+    },
+  ])
+
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      call: {
+        address: uiAddress,
+        abi: uiAbi,
+        function: BIKE_VIEW_ENTRY,
+        args: [userAddress],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_FUNCTION_NOT_MUTABLE",
+  )
+
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      call: {
+        address: managerAddress,
+        abi: [{
+          type: "function",
+          name: "setCount",
+          stateMutability: "nonpayable",
+          inputs: [{ name: "count", type: "uint256" }],
+          outputs: [],
+        }],
+        function: "setCount",
+        args: [-1],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
+  )
+})
+
 function createPublicClient({
   // These defaults are fixture conveniences. Tests exercising host metadata,
   // bindings, or route returns override the relevant field explicitly.
@@ -245,4 +304,30 @@ function createPublicClient({
     routeResults,
     hostAddress: host.address,
   })
+}
+
+function createWalletClient(): CamWalletClient & {
+  readonly calls: Array<{
+    readonly address: Address
+    readonly abi: Abi
+    readonly functionName: string
+    readonly args?: readonly unknown[]
+    readonly chain: null
+  }>
+} {
+  const calls: Array<{
+    readonly address: Address
+    readonly abi: Abi
+    readonly functionName: string
+    readonly args?: readonly unknown[]
+    readonly chain: null
+  }> = []
+
+  return {
+    calls,
+    async writeContract(request) {
+      calls.push(request)
+      return "0x1234"
+    },
+  }
 }

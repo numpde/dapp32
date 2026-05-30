@@ -28,6 +28,7 @@ import { CamViewerError } from "./errors.ts"
 import type {
   CamViewerAccount,
   CamViewerActionResult,
+  CamViewerPreparedContractCall,
   CamViewerSession,
   CamViewerSnapshot,
   CreateCamViewerSessionOptions,
@@ -161,7 +162,7 @@ export function createCamViewerSession({
     if (action.type === "contract-call") {
       return {
         type: "contractCall",
-        action,
+        call: prepareContractCall(action),
       }
     }
 
@@ -234,6 +235,25 @@ export function createCamViewerSession({
     }
 
     return loadedState
+  }
+
+  function prepareContractCall(action: Extract<ResolvedScreenAction, { readonly type: "contract-call" }>): CamViewerPreparedContractCall {
+    const current = assertLoaded()
+    const contract = current.contracts[action.contract]
+    if (contract === undefined) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action references unresolved contract: ${action.contract}`)
+    }
+
+    return {
+      contract: action.contract,
+      address: contract.address,
+      abi: cloneViewerData<ResolvedCamContract["abi"]>(contract.abi, "contract.abi"),
+      function: action.function,
+      args: cloneViewerData<readonly InertValue[]>(action.args, "action.args"),
+      ...(action.onSuccess === undefined
+        ? {}
+        : { onSuccess: cloneViewerData<NonNullable<typeof action.onSuccess>>(action.onSuccess, "action.onSuccess") }),
+    }
   }
 
   function routeContext(routeParams: InertRecord): CamRuntimeContext {

@@ -157,9 +157,10 @@ async function handlePress(session: CamViewerSession, args: readonly string[]): 
   }
 
   output.write("Contract call requested; no transaction was sent.\n")
-  output.write(`contract: ${result.action.contract}\n`)
-  output.write(`function: ${result.action.function}\n`)
-  output.write(`args: ${formatValue(result.action.args)}\n`)
+  output.write(`contract: ${result.call.contract}\n`)
+  output.write(`address: ${result.call.address}\n`)
+  output.write(`function: ${result.call.function}\n`)
+  output.write(`args: ${formatValue(result.call.args)}\n`)
 }
 
 function render(snapshot: CamViewerSnapshot): void {
