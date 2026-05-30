@@ -78,6 +78,7 @@ export function App(): ReactElement {
         const publicClient = createPublicClient({
           transport: http(startup.rpcUrl),
         })
+        await assertHostHasCode(publicClient, startup.host)
         const session = createCamViewerSession({
           publicClient,
           host: {
@@ -410,6 +411,16 @@ function requirePublicClient(client: ReturnType<typeof createPublicClient> | und
   }
 
   return client
+}
+
+async function assertHostHasCode(
+  publicClient: ReturnType<typeof createPublicClient>,
+  host: CamHost["address"],
+): Promise<void> {
+  const code = await publicClient.getCode({ address: host })
+  if (code === undefined || code === "0x") {
+    throw new Error(`CAM host has no contract code at ${host}. Check that the host URL parameter matches the currently running chain.`)
+  }
 }
 
 function createPinnedOriginResourceLoader(): ResourceLoader {
