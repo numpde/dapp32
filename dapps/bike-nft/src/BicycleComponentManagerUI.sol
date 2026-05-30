@@ -3,7 +3,7 @@ pragma solidity 0.8.35;
 import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 
 /// @title BicycleComponentManagerUI
-/// @notice Read-only CAM route helper for BicycleComponentManager.
+/// @notice Read-only CAM route projection for BicycleComponentManager.
 /// @dev
 /// This contract is intentionally not part of the authorization path:
 ///
@@ -77,7 +77,7 @@ contract BicycleComponentManagerUI {
         manager = IBicycleComponentManagerView(managerAddress);
     }
 
-    /// @notice Route helper for the application entry screen.
+    /// @notice Route projection for the application entry screen.
     /// @dev First return value is always the CAM screen URI.
     function viewEntry(address account)
         external
@@ -88,7 +88,7 @@ contract BicycleComponentManagerUI {
         screenURI = SCREEN_ENTRY;
     }
 
-    /// @notice Route helper for a component lookup/detail screen.
+    /// @notice Route projection for component lookup and detail screens.
     /// @dev First return value is always the CAM screen URI.
     function viewComponent(string calldata serialNumber, address account)
         external
@@ -107,7 +107,7 @@ contract BicycleComponentManagerUI {
         screenURI = component.exists ? SCREEN_COMPONENT_FOUND : SCREEN_COMPONENT_NOT_FOUND;
     }
 
-    /// @notice Route helper for the registration screen.
+    /// @notice Route projection for component registration screens.
     /// @dev First return value is always the CAM screen URI.
     function viewRegister(string calldata serialNumber, address account)
         external
@@ -163,9 +163,9 @@ contract BicycleComponentManagerUI {
         view_.updatedAt = component.updatedAt;
         view_.serialNumber = component.exists ? component.serialNumber : serialNumber;
 
-        // Intentional default: an unknown component returns a mostly default
-        // struct with only serialNumber populated. Screen/rendering code must
-        // branch on exists instead of trusting zero/empty fields.
+        // Intentional default: an unknown component returns only serialNumber
+        // and exists=false. The route chooses a not-found screen for that
+        // state, so zero/empty sentinel fields are not meant for display.
         if (!component.exists) {
             return view_;
         }

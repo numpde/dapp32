@@ -3,12 +3,14 @@ pragma solidity 0.8.35;
 import {Test} from "forge-std-1.12.0/src/Test.sol";
 
 import "../../../src/BicycleComponentManager.sol";
+import "../../../src/BicycleComponentManagerUI.sol";
 import "../../../src/BicycleComponents.sol";
 import "../../../src/IBicycleComponentManagerView.sol";
 
 contract BicycleComponentManagerTest is Test {
     BicycleComponents private components;
     BicycleComponentManager private manager;
+    BicycleComponentManagerUI private ui;
 
     address private admin = address(this);
     address private registrar = address(0x1001);
@@ -23,9 +25,17 @@ contract BicycleComponentManagerTest is Test {
     string private constant TOKEN_URI = "fixture://bike-nft/components/frame-001.json";
     string private constant UPDATED_TOKEN_URI = "fixture://bike-nft/components/frame-001-updated.json";
 
+    string private constant SCREEN_COMPONENT_EMPTY = "./screens/component.empty.json";
+    string private constant SCREEN_COMPONENT_FOUND = "./screens/component.found.json";
+    string private constant SCREEN_COMPONENT_NOT_FOUND = "./screens/component.not-found.json";
+    string private constant SCREEN_REGISTER_EMPTY = "./screens/register.empty.json";
+    string private constant SCREEN_REGISTER_READY = "./screens/register.ready.json";
+    string private constant SCREEN_REGISTER_BLOCKED = "./screens/register.blocked.json";
+
     function setUp() external {
         components = new BicycleComponents("Bike Components", "BIKE", admin, 0, "", "");
         manager = new BicycleComponentManager(admin, 0, address(components));
+        ui = new BicycleComponentManagerUI(address(manager));
 
         components.grantRole(components.MINTER_ROLE(), address(manager));
         components.grantRole(components.TOKEN_URI_SETTER_ROLE(), address(manager));
@@ -69,6 +79,31 @@ contract BicycleComponentManagerTest is Test {
             )
         );
         manager.registerComponent(secondOwner, SERIAL, TOKEN_URI);
+    }
+
+    function test_uiRouteProjectionSelectsStateScreens() external {
+        (string memory screenURI,,) = ui.viewComponent("", owner);
+        assertEq(screenURI, SCREEN_COMPONENT_EMPTY, "empty component route screen mismatch");
+
+        (screenURI,,) = ui.viewComponent(SERIAL, owner);
+        assertEq(screenURI, SCREEN_COMPONENT_NOT_FOUND, "missing component route screen mismatch");
+
+        (screenURI,,) = ui.viewRegister("", registrar);
+        assertEq(screenURI, SCREEN_REGISTER_EMPTY, "empty register route screen mismatch");
+
+        (screenURI,,) = ui.viewRegister(SERIAL, registrar);
+        assertEq(screenURI, SCREEN_REGISTER_READY, "ready register route screen mismatch");
+
+        (screenURI,,) = ui.viewRegister(SERIAL, stranger);
+        assertEq(screenURI, SCREEN_REGISTER_BLOCKED, "unauthorized register route screen mismatch");
+
+        registerDefaultComponent();
+
+        (screenURI,,) = ui.viewComponent(SERIAL, owner);
+        assertEq(screenURI, SCREEN_COMPONENT_FOUND, "found component route screen mismatch");
+
+        (screenURI,,) = ui.viewRegister(SERIAL, registrar);
+        assertEq(screenURI, SCREEN_REGISTER_BLOCKED, "registered component route screen mismatch");
     }
 
     function test_configurerCanChangeComponentAddressForFutureRegistrationsOnly() external {
