@@ -70,6 +70,21 @@ contract BicycleComponentManagerTest is Test {
         manager.registerComponent(secondOwner, SERIAL, TOKEN_URI);
     }
 
+    function test_emptySerialNumberIsRejectedAtManagerBoundary() external {
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.serialHashOf("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.tokenIdOf("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.componentBySerial("");
+
+        vm.prank(registrar);
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.registerComponent(owner, "", TOKEN_URI);
+    }
+
     function test_ownerAndDelegatesCanUpdateMetadataOnlyWhileAuthorizedAndBeforeExpiryOrTransfer() external {
         registerDefaultComponent();
 

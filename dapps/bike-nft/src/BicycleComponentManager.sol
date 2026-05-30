@@ -237,7 +237,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     // ---------------------------------------------------------------------
 
     function serialHashOf(string calldata serialNumber) public pure returns (bytes32) {
-        return keccak256(bytes(serialNumber));
+        return _requireSerialNumber(serialNumber);
     }
 
     /// @notice Deterministically maps a serial number to a token id.
