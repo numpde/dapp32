@@ -9,7 +9,6 @@ import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
   ResolvedScreen,
   ResolvedScreenElement,
-  LeafScreenElement,
   ScreenDocument,
   ScreenElement,
   ScreenInitialContext,
@@ -62,11 +61,6 @@ function appendInitialFormValues(
   for (const [index, element] of elements.entries()) {
     const elementPath = `${path}.${index}`
 
-    if (element.type === "group") {
-      appendInitialFormValues(element.elements, context, `${elementPath}.elements`, target)
-      continue
-    }
-
     if (element.type === "input") {
       if (hasOwn(target, element.name)) {
         throw new ScreenError("SCREEN_INVALID_FIELD", "duplicate input name", `${elementPath}.name`)
@@ -84,19 +78,12 @@ function appendResolvedElements(
   target: ResolvedScreenElement[],
 ): void {
   for (const [index, element] of elements.entries()) {
-    const elementPath = `${path}.${index}`
-
-    if (element.type === "group") {
-      appendResolvedElements(element.elements, context, `${elementPath}.elements`, target)
-      continue
-    }
-
-    target.push(resolveLeafElement(element, context, elementPath))
+    target.push(resolveElement(element, context, `${path}.${index}`))
   }
 }
 
-function resolveLeafElement(
-  element: LeafScreenElement,
+function resolveElement(
+  element: ScreenElement,
   context: ScreenRuntimeContext,
   path: string,
 ): ResolvedScreenElement {

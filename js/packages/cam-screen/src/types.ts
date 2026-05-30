@@ -13,9 +13,6 @@ export type ScreenElement =
   | ButtonElement
   | StatusElement
   | NftElement
-  | GroupElement
-
-export type LeafScreenElement = Exclude<ScreenElement, GroupElement>
 
 export type TextElement = {
   readonly type: "text"
@@ -53,11 +50,6 @@ export type NftElement = {
   readonly tokenId: InertValue
 }
 
-export type GroupElement = {
-  readonly type: "group"
-  readonly elements: readonly ScreenElement[]
-}
-
 export type ScreenAction = NavigateAction | ContractCallAction
 
 export type NavigateAction = {
@@ -86,6 +78,6 @@ export type ResolvedScreen = {
   readonly elements: readonly ResolvedScreenElement[]
 }
 
-export type ResolvedScreenElement = LeafScreenElement
+export type ResolvedScreenElement = ScreenElement
 
 export type ResolvedScreenAction = ScreenAction

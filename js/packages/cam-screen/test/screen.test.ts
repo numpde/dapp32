@@ -195,6 +195,21 @@ test("parseScreen rejects element control logic", () => {
   )
 })
 
+test("parseScreen rejects layout-only group elements", () => {
+  assert.throws(
+    () => parseScreen({
+      screen: "1.0.0",
+      elements: [
+        {
+          type: "group",
+          elements: [],
+        },
+      ],
+    }),
+    /elements\.0\.type/,
+  )
+})
+
 function inert(value: unknown): InertValue {
   return toInertValue(value)
 }
