@@ -1,0 +1,78 @@
+{
+  "screen": "1.0.0",
+  "title": "Component",
+  "elements": [
+    {
+      "type": "input",
+      "name": "serialNumber",
+      "label": "Serial number",
+      "value": "$values.0.serialNumber"
+    },
+    {
+      "type": "button",
+      "label": "Look up component",
+      "action": {
+        "type": "navigate",
+        "route": "component",
+        "params": {
+          "serialNumber": "$form.serialNumber"
+        }
+      }
+    },
+    {
+      "type": "status",
+      "label": "Status",
+      "value": "$values.0.status"
+    },
+    {
+      "type": "address",
+      "label": "Owner",
+      "address": "$values.0.owner"
+    },
+    {
+      "type": "status",
+      "label": "Owner info",
+      "value": "$values.0.ownerInfo"
+    },
+    {
+      "type": "address",
+      "label": "Token contract",
+      "address": "$values.0.tokenContract"
+    },
+    {
+      "type": "status",
+      "label": "Token ID",
+      "value": "$values.0.tokenId"
+    },
+    {
+      "type": "status",
+      "label": "Token URI",
+      "value": "$values.0.tokenURI"
+    },
+    {
+      "type": "status",
+      "label": "Serial hash",
+      "value": "$values.0.serialHash"
+    },
+    {
+      "type": "status",
+      "label": "Can update metadata",
+      "value": "$values.0.canUpdateMetadata"
+    },
+    {
+      "type": "status",
+      "label": "Can mark missing",
+      "value": "$values.0.canMarkMissing"
+    },
+    {
+      "type": "status",
+      "label": "Can clear missing",
+      "value": "$values.0.canClearMissing"
+    },
+    {
+      "type": "status",
+      "label": "Can retire",
+      "value": "$values.0.canRetire"
+    }
+  ]
+}

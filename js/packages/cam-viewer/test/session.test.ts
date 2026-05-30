@@ -15,7 +15,7 @@ import type { Address, Hex } from "viem"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camURI,
-  BIKE_COMPONENT_SCREEN_URI as componentScreenURI,
+  BIKE_COMPONENT_FOUND_SCREEN_URI as componentScreenURI,
   BIKE_ENTRY_SCREEN_URI as entryScreenURI,
   BIKE_MARK_MISSING,
   BIKE_MANAGER_ADDRESS as managerAddress,

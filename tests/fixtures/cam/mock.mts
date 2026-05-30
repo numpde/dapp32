@@ -2,11 +2,15 @@ import { TextEncoder } from "node:util"
 
 import {
   BIKE_CAM_URI,
-  BIKE_COMPONENT_SCREEN_URI,
+  BIKE_COMPONENT_EMPTY_SCREEN_URI,
+  BIKE_COMPONENT_FOUND_SCREEN_URI,
+  BIKE_COMPONENT_NOT_FOUND_SCREEN_URI,
   BIKE_ENTRY_SCREEN_URI,
   BIKE_HOST_ADDRESS,
   BIKE_MANAGER_ABI_URI,
-  BIKE_REGISTER_SCREEN_URI,
+  BIKE_REGISTER_BLOCKED_SCREEN_URI,
+  BIKE_REGISTER_EMPTY_SCREEN_URI,
+  BIKE_REGISTER_READY_SCREEN_URI,
   BIKE_UI_ABI_URI,
   BIKE_UNSIGNED_CAM_HASH,
   bikeCamJson,
@@ -123,8 +127,12 @@ export function bikeResourceBytes(
     [BIKE_UI_ABI_URI]: encodeJson(bikeUiAbi),
     [BIKE_MANAGER_ABI_URI]: encodeJson(bikeManagerAbi),
     [BIKE_ENTRY_SCREEN_URI]: encodeJson(bikeEntryScreen),
-    [BIKE_COMPONENT_SCREEN_URI]: encodeJson(bikeComponentScreen),
-    [BIKE_REGISTER_SCREEN_URI]: encodeJson(bikeRegisterScreen),
+    [BIKE_COMPONENT_EMPTY_SCREEN_URI]: encodeJson(bikeComponentScreen),
+    [BIKE_COMPONENT_FOUND_SCREEN_URI]: encodeJson(bikeComponentScreen),
+    [BIKE_COMPONENT_NOT_FOUND_SCREEN_URI]: encodeJson(bikeComponentScreen),
+    [BIKE_REGISTER_BLOCKED_SCREEN_URI]: encodeJson(bikeRegisterScreen),
+    [BIKE_REGISTER_EMPTY_SCREEN_URI]: encodeJson(bikeRegisterScreen),
+    [BIKE_REGISTER_READY_SCREEN_URI]: encodeJson(bikeRegisterScreen),
     ...overrides,
   }
 }

@@ -6,7 +6,7 @@
       "type": "input",
       "name": "serialNumber",
       "label": "Serial number",
-      "value": "$params.serialNumber"
+      "value": "$values.0.serialNumber"
     },
     {
       "type": "input",
@@ -26,55 +26,14 @@
       }
     },
     {
-      "type": "status",
-      "label": "Serial number",
-      "value": "$values.0.serialNumber"
-    },
-    {
-      "type": "status",
-      "label": "Connected account can register",
-      "value": "$values.0.canRegister"
-    },
-    {
-      "type": "status",
-      "label": "Component already exists",
-      "value": "$values.0.exists"
-    },
-    {
       "type": "address",
       "label": "Component contract",
       "address": "$values.0.componentsAddress"
     },
     {
-      "type": "group",
-      "elements": [
-        {
-          "type": "status",
-          "label": "Serial hash",
-          "value": "$values.0.serialHash"
-        },
-        {
-          "type": "status",
-          "label": "Token ID",
-          "value": "$values.0.tokenId"
-        }
-      ]
-    },
-    {
       "type": "status",
       "label": "Account info",
       "value": "$values.0.accountInfo"
-    },
-    {
-      "type": "button",
-      "label": "Open component",
-      "action": {
-        "type": "navigate",
-        "route": "component",
-        "params": {
-          "serialNumber": "$form.serialNumber"
-        }
-      }
     },
     {
       "type": "button",
@@ -94,6 +53,17 @@
           "params": {
             "serialNumber": "$form.serialNumber"
           }
+        }
+      }
+    },
+    {
+      "type": "button",
+      "label": "Open component",
+      "action": {
+        "type": "navigate",
+        "route": "component",
+        "params": {
+          "serialNumber": "$form.serialNumber"
         }
       }
     }

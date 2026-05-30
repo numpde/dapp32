@@ -21,8 +21,12 @@ contract BicycleComponentManagerUI {
     IBicycleComponentManagerView public immutable manager;
 
     string private constant SCREEN_ENTRY = "./screens/entry.json";
-    string private constant SCREEN_COMPONENT = "./screens/component.json";
-    string private constant SCREEN_REGISTER = "./screens/register.json";
+    string private constant SCREEN_COMPONENT_EMPTY = "./screens/component.empty.json";
+    string private constant SCREEN_COMPONENT_FOUND = "./screens/component.found.json";
+    string private constant SCREEN_COMPONENT_NOT_FOUND = "./screens/component.not-found.json";
+    string private constant SCREEN_REGISTER_EMPTY = "./screens/register.empty.json";
+    string private constant SCREEN_REGISTER_READY = "./screens/register.ready.json";
+    string private constant SCREEN_REGISTER_BLOCKED = "./screens/register.blocked.json";
 
     struct AccountView {
         address account;
@@ -91,15 +95,16 @@ contract BicycleComponentManagerUI {
         view
         returns (string memory screenURI, ComponentScreenView memory component, AccountView memory accountView)
     {
-        screenURI = SCREEN_COMPONENT;
         accountView = _accountView(account);
 
         if (_isEmpty(serialNumber)) {
+            screenURI = SCREEN_COMPONENT_EMPTY;
             component.serialNumber = serialNumber;
             return (screenURI, component, accountView);
         }
 
         component = _componentView(serialNumber, account);
+        screenURI = component.exists ? SCREEN_COMPONENT_FOUND : SCREEN_COMPONENT_NOT_FOUND;
     }
 
     /// @notice Route helper for the registration screen.
@@ -109,7 +114,6 @@ contract BicycleComponentManagerUI {
         view
         returns (string memory screenURI, RegisterScreenView memory registerView, AccountView memory accountView)
     {
-        screenURI = SCREEN_REGISTER;
         accountView = _accountView(account);
         registerView.canRegister = accountView.canRegister;
         registerView.componentsAddress = manager.componentsAddress();
@@ -117,6 +121,7 @@ contract BicycleComponentManagerUI {
         registerView.accountInfo = accountView.accountInfo;
 
         if (_isEmpty(serialNumber)) {
+            screenURI = SCREEN_REGISTER_EMPTY;
             return (screenURI, registerView, accountView);
         }
 
@@ -124,6 +129,7 @@ contract BicycleComponentManagerUI {
         registerView.exists = component.exists;
         registerView.serialHash = component.serialHash;
         registerView.tokenId = component.tokenId;
+        screenURI = registerView.canRegister && !registerView.exists ? SCREEN_REGISTER_READY : SCREEN_REGISTER_BLOCKED;
     }
 
     function _accountView(address account) internal view returns (AccountView memory view_) {

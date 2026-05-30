@@ -25,12 +25,20 @@ export const BIKE_RELATIVE_UI_ABI_URI = "./abi/BicycleComponentManagerUI.json"
 export const BIKE_RELATIVE_MANAGER_ABI_URI = "./abi/BicycleComponentManager.json"
 
 export const BIKE_RELATIVE_ENTRY_SCREEN_URI = "./screens/entry.json"
-export const BIKE_RELATIVE_COMPONENT_SCREEN_URI = "./screens/component.json"
-export const BIKE_RELATIVE_REGISTER_SCREEN_URI = "./screens/register.json"
+export const BIKE_RELATIVE_COMPONENT_EMPTY_SCREEN_URI = "./screens/component.empty.json"
+export const BIKE_RELATIVE_COMPONENT_FOUND_SCREEN_URI = "./screens/component.found.json"
+export const BIKE_RELATIVE_COMPONENT_NOT_FOUND_SCREEN_URI = "./screens/component.not-found.json"
+export const BIKE_RELATIVE_REGISTER_EMPTY_SCREEN_URI = "./screens/register.empty.json"
+export const BIKE_RELATIVE_REGISTER_READY_SCREEN_URI = "./screens/register.ready.json"
+export const BIKE_RELATIVE_REGISTER_BLOCKED_SCREEN_URI = "./screens/register.blocked.json"
 
 export const BIKE_ENTRY_SCREEN_URI = "ipfs://example/screens/entry.json"
-export const BIKE_COMPONENT_SCREEN_URI = "ipfs://example/screens/component.json"
-export const BIKE_REGISTER_SCREEN_URI = "ipfs://example/screens/register.json"
+export const BIKE_COMPONENT_EMPTY_SCREEN_URI = "ipfs://example/screens/component.empty.json"
+export const BIKE_COMPONENT_FOUND_SCREEN_URI = "ipfs://example/screens/component.found.json"
+export const BIKE_COMPONENT_NOT_FOUND_SCREEN_URI = "ipfs://example/screens/component.not-found.json"
+export const BIKE_REGISTER_EMPTY_SCREEN_URI = "ipfs://example/screens/register.empty.json"
+export const BIKE_REGISTER_READY_SCREEN_URI = "ipfs://example/screens/register.ready.json"
+export const BIKE_REGISTER_BLOCKED_SCREEN_URI = "ipfs://example/screens/register.blocked.json"
 
 export const BIKE_SERIAL_NUMBER = "ABC123"
 export const BIKE_ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
@@ -238,8 +246,12 @@ export function bikeEntryRouteResult(account: string): readonly unknown[] {
 }
 
 export function bikeComponentRouteResult(serialNumber: string): readonly unknown[] {
+  const screenURI = serialNumber.length > 0
+    ? BIKE_RELATIVE_COMPONENT_FOUND_SCREEN_URI
+    : BIKE_RELATIVE_COMPONENT_EMPTY_SCREEN_URI
+
   return [
-    BIKE_RELATIVE_COMPONENT_SCREEN_URI,
+    screenURI,
     {
       exists: serialNumber.length > 0,
       serialHash: serialNumber.length > 0
@@ -271,8 +283,12 @@ export function bikeComponentRouteResult(serialNumber: string): readonly unknown
 }
 
 export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[] {
+  const screenURI = serialNumber.length > 0
+    ? BIKE_RELATIVE_REGISTER_READY_SCREEN_URI
+    : BIKE_RELATIVE_REGISTER_EMPTY_SCREEN_URI
+
   return [
-    BIKE_RELATIVE_REGISTER_SCREEN_URI,
+    screenURI,
     {
       canRegister: true,
       exists: false,
