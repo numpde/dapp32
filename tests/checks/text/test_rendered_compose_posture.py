@@ -18,6 +18,7 @@ from ..common import (
 
 BIKE_CAM_HTTP_ORIGIN = "http://bike-nft-cam-http:8080"
 BIKE_CAM_URI = f"{BIKE_CAM_HTTP_ORIGIN}/main.json"
+BIKE_NFT_GUI_BIND_HOST = "127.0.0.1"
 BIKE_NFT_GUI_ORIGIN = "http://127.0.0.1:5173"
 STANDALONE_BIKE_CAM_URI = "https://example.test/bike-nft/main.json"
 ANVIL_DEV_PRIVATE_KEY = "0xbabababababababababababababababababababababababababababababababa"
@@ -79,12 +80,19 @@ class RenderedComposePostureTest(unittest.TestCase):
         for config_service in config_services:
             self.assertNotIn("ports", config_service)
 
-    def assert_loopback_port(self, config_service: dict[str, Any], target: int, published: str) -> None:
+    def assert_published_port(
+        self,
+        config_service: dict[str, Any],
+        *,
+        host_ip: str,
+        target: int,
+        published: str,
+    ) -> None:
         ports = compose_sequence(config_service, "ports")
         self.assertIn(
             {
                 "mode": "ingress",
-                "host_ip": "127.0.0.1",
+                "host_ip": host_ip,
                 "target": target,
                 "published": published,
                 "protocol": "tcp",
@@ -349,6 +357,8 @@ class RenderedComposePostureTest(unittest.TestCase):
             env={
                 "CAM_URI": f"{BIKE_NFT_GUI_ORIGIN}/cam/main.json",
                 "CAM_HASH": ZERO_HASH,
+                "BIKE_NFT_GUI_BIND_HOST": BIKE_NFT_GUI_BIND_HOST,
+                "BIKE_NFT_GUI_ORIGIN": BIKE_NFT_GUI_ORIGIN,
                 "BIKE_NFT_BROADCAST_DIR": BIKE_NFT_BROADCAST_DIR,
                 "BIKE_NFT_BROADCAST_PATH": BIKE_NFT_BROADCAST_PATH,
             },
@@ -372,7 +382,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_networks(gateway, "bike_nft_browser", "bike_nft_local")
         self.assertEqual("none", viewer_url["network_mode"])
         self.assert_no_published_ports(anvil, cam_http, cam_web, deploy, viewer_url)
-        self.assert_loopback_port(gateway, 8080, "5173")
+        self.assert_published_port(gateway, host_ip=BIKE_NFT_GUI_BIND_HOST, target=8080, published="5173")
 
         self.assert_staged_package_workspace(cam_web)
         self.assert_no_volume_target(cam_web, "/work/dapps")
@@ -388,4 +398,5 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn("proxy_pass http://cam-web:5173", gateway_command)
         self.assertIn("proxy_pass http://bike-nft-anvil:8545", gateway_command)
         self.assertIn("proxy_pass http://bike-nft-cam-http:8080", gateway_command)
+        self.assertEqual(f"{BIKE_NFT_GUI_ORIGIN}/", compose_mapping(viewer_url, "environment")["GUI_URL"])
         self.assertEqual(f"{BIKE_NFT_GUI_ORIGIN}/rpc", compose_mapping(viewer_url, "environment")["RPC_URL"])

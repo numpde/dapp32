@@ -285,11 +285,12 @@
           The current terminal stack can stay Docker-internal because the
           terminal process runs inside Docker. The GUI runs in a host browser.
           Therefore, browser-facing RPC, CAM resources, and the Vite dev server
-          should be reached through one host-loopback gateway.
+          should be reached through one configured browser origin.
         </p>
         <p>
-          Use <code>127.0.0.1</code> ports, never wildcard host publishing, and
-          do not store Docker-only URLs such as
+          Default to <code>127.0.0.1</code> port publishing. If the browser runs
+          elsewhere, set the bind host and browser origin deliberately. Do not
+          store Docker-only URLs such as
           <code>http://bike-nft-cam-http:8080/main.json</code> in
           <code>CamRoot</code> for the graphical scenario.
         </p>
@@ -385,8 +386,8 @@
           <div class="service-body">
             <p>
               Runs the graphical viewer app from <code>js/apps/cam-web</code>. In
-              local dev, keep Vite Docker-internal and expose the gateway on
-              <code>127.0.0.1:5173</code>. Keep Vite host checks enabled; do not use broad
+              local dev, keep Vite Docker-internal and expose only the gateway.
+              Keep Vite host checks enabled; do not use broad
               <code>allowedHosts: true</code>.
             </p>
             <p class="muted">
@@ -400,7 +401,7 @@
           <div class="service-name">bike-nft-browser-gateway</div>
           <div class="service-body">
             <p>
-              Publishes the only browser-facing host port:
+              Publishes the only browser-facing host port, defaulting to
               <code>127.0.0.1:5173</code>. Routes <code>/</code> to Vite,
               <code>/rpc</code> to Anvil, and <code>/cam/</code> to the CAM
               resource server.
@@ -419,7 +420,7 @@
       <div class="diagram">
         <div class="box">
           <h3>Browser</h3>
-          <p>Talks only to <code>127.0.0.1:5173</code>.</p>
+          <p>Talks only to the configured GUI origin.</p>
         </div>
         <div class="arrow">-&gt;</div>
         <div class="box">
@@ -458,7 +459,7 @@
           <div>
             <strong>The deploy job runs.</strong>
             It deploys <code>CamRoot</code> and app contracts, stores
-            <code>http://127.0.0.1:5173/cam/main.json</code> as the local
+            <code>BIKE_NFT_GUI_ORIGIN/cam/main.json</code> as the local
             <code>camURI</code>, and writes Forge broadcast output to a named
             volume.
           </div>
@@ -602,6 +603,13 @@
               <td>Vite cache and build output in tmpfs unless an explicit artifact-export lane is added.</td>
               <td>None.</td>
             </tr>
+            <tr>
+              <td><code>bike-nft-browser-gateway</code></td>
+              <td>The configured GUI bind/origin and the internal fixture network.</td>
+              <td>None.</td>
+              <td>Temporary nginx config/cache in tmpfs.</td>
+              <td>None.</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -616,7 +624,7 @@
         </p>
         <p>
           It should compose with <code>deploy.yml</code> and <code>http.yml</code>,
-          publish one loopback gateway port, make <code>CamRoot.camURI()</code>
+          publish one configured gateway port, make <code>CamRoot.camURI()</code>
           browser-reachable, then run
           <code>js/apps/cam-web</code> through the staged JS workspace.
         </p>
@@ -640,7 +648,7 @@
       <div class="panel">
         <ul>
           <li><code>js/apps/cam-web</code> exists as a Vite + React workspace app.</li>
-          <li>The GUI stack starts with one loopback-only gateway port.</li>
+          <li>The GUI stack starts with one configured gateway port, loopback by default.</li>
           <li><code>CamRoot.camURI()</code> is browser-reachable in the GUI scenario.</li>
           <li>The viewer reads URL startup parameters rather than bundled deployment addresses.</li>
           <li>The GUI renders screens through <code>@cam/viewer</code> and <code>@cam/screen</code>.</li>
@@ -664,10 +672,3 @@
   </main>
 </body>
 </html>
-            <tr>
-              <td><code>bike-nft-browser-gateway</code></td>
-              <td><code>127.0.0.1:5173</code> and the internal fixture network.</td>
-              <td>None.</td>
-              <td>Temporary nginx config/cache in tmpfs.</td>
-              <td>None.</td>
-            </tr>

@@ -3,8 +3,8 @@
 # Compose this file with deploy.yml and http.yml after make package-deps has
 # materialized js/node_modules for the JS workspace.
 # Unlike the terminal overlay, this scenario is browser-facing. A single
-# unprivileged HTTP gateway publishes host loopback and routes browser requests
-# to Docker-internal services:
+# unprivileged HTTP gateway publishes the configured host interface and routes
+# browser requests to Docker-internal services:
 #
 #   /      -> cam-web
 #   /rpc   -> local Anvil JSON-RPC
@@ -13,7 +13,11 @@
 # Docker-internal service names must not be written into CamRoot for this lane;
 # CAM_URI should be browser-reachable through the gateway, for example:
 #
-#   CAM_URI=http://127.0.0.1:5173/cam/main.json
+#   BIKE_NFT_GUI_ORIGIN=http://127.0.0.1:5173
+#
+# Keep the default loopback bind for local use. If the browser runs elsewhere,
+# set both BIKE_NFT_GUI_BIND_HOST and BIKE_NFT_GUI_ORIGIN explicitly so the
+# deployed CamRoot and printed URL use the browser-reachable origin.
 #
 # The Make target runs deployment first, asks bike-nft-viewer-url to print the
 # browser URL, then runs cam-web and the gateway in the foreground so runtime
@@ -84,7 +88,7 @@ services:
       - bike_nft_local
       - bike_nft_browser
     ports:
-      - "127.0.0.1:${BIKE_NFT_GUI_PORT:-5173}:8080"
+      - "${BIKE_NFT_GUI_BIND_HOST:-127.0.0.1}:${BIKE_NFT_GUI_PORT:-5173}:8080"
     command:
       - "/bin/sh"
       - "-eu"
@@ -148,8 +152,8 @@ services:
     pids_limit: 64
     mem_limit: 128m
     environment:
-      GUI_URL: "http://127.0.0.1:${BIKE_NFT_GUI_PORT:-5173}/"
-      RPC_URL: "http://127.0.0.1:${BIKE_NFT_GUI_PORT:-5173}/rpc"
+      GUI_URL: "${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}/"
+      RPC_URL: "${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}/rpc"
       CHAIN_ID: "eip155:31337"
       # Address derived from the obvious local-only 0xbaba... fixture key in
       # deploy.yml. It is display/session identity, not a browser wallet.
