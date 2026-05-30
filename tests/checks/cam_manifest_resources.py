@@ -175,8 +175,14 @@ class CamManifestResourceValidator:
                 failures.append(f"{manifest_path}: route has no matching CAM screen: screens/{route_name}[.*].json")
 
         for screen_name in sorted(existing_screen_names):
-            if not any(self.is_route_screen_name(route_name, screen_name) for route_name in route_names):
+            matching_routes = self.matching_screen_routes(route_names, screen_name)
+            if not matching_routes:
                 failures.append(f"{manifest_path}: CAM screen has no matching route: screens/{screen_name}")
+            elif len(matching_routes) > 1:
+                failures.append(
+                    f"{manifest_path}: CAM screen matches multiple routes: screens/{screen_name} -> "
+                    f"{', '.join(matching_routes)}"
+                )
 
         return failures
 
@@ -201,6 +207,9 @@ class CamManifestResourceValidator:
 
         prefix = f"{route_name}."
         return screen_stem.startswith(prefix) and screen_stem != prefix
+
+    def matching_screen_routes(self, route_names: set[str], screen_name: str) -> list[str]:
+        return sorted(route_name for route_name in route_names if self.is_route_screen_name(route_name, screen_name))
 
     def validate_route_screen_values_references(
         self,
