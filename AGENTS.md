@@ -73,8 +73,8 @@ Keep the project small, explicit, and protocol-first.
   targets, after rejecting symlinks and wrong-type paths, so Docker never creates
   repository paths implicitly.
 - Offline build, test, fuzz, invariant, and coverage lanes must verify installed
-  dependency contents before compiling or executing package code.
-- Package build/test lanes must not create host-side package build directories as
+  dependency contents before compiling or executing code.
+- JS build/test lanes must not create host-side package build directories as
   preflight. JS lanes should mount the host JS workspace read-only, stage only
   source/manifests into container-local tmpfs, mount
   `js/node_modules/` read-only, and leave `dist/` outputs in tmpfs unless
@@ -86,11 +86,12 @@ Keep the project small, explicit, and protocol-first.
   is obviously non-secret and useless outside that fixture, such as a repeated
   pattern key. Real RPC, live deployment, or operator-controlled lanes must use
   file-backed secrets or another explicit secret boundary instead.
-- Package tests must run `tsc -p tsconfig.test.json` before `node --test`;
-  strip-types execution is runtime convenience, not semantic typechecking.
+- Workspace package tests must run `tsc -p tsconfig.test.json` before
+  `node --test`; strip-types execution is runtime convenience, not semantic
+  typechecking.
 - `package-build-check` is compile validation only. Do not add `package-build`
   unless there is a deliberate durable artifact-export lane.
-- `package-ci` is a Make aggregation over package tests and package-backed tool
+- `package-ci` is a Make aggregation over JS workspace tests and package-backed tool
   checks. Do not duplicate a tool's smoke command inside `compose/packages.yml`;
   run the tool's own Compose check service instead.
 - ABI export must parse CAM manifests structurally, write a temporary export

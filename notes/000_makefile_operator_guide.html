@@ -242,7 +242,7 @@
         </p>
         <p>
           Deviations are intentional: dependency staging gets network, dependency materialization pre-creates guarded host bind targets,
-          ABI generation writes CAM ABI files, package lanes copy source/manifests into container-local tmpfs and mount <code>node_modules</code> read-only before writing <code>dist/</code>,
+          ABI generation writes CAM ABI files, JS lanes copy source/manifests into container-local tmpfs and mount <code>node_modules</code> read-only before writing <code>dist/</code>,
           and local scenario deploys can broadcast to an internal Anvil.
         </p>
       </div>
@@ -513,7 +513,7 @@
             </div>
             <div class="fact">
               <strong>Graph check before use</strong>
-              Package build/test/viewer targets run the same offline graph check inside their staged execution workspace before package scripts.
+              JS build/test/viewer targets run the same offline graph check inside their staged execution workspace before npm scripts.
             </div>
             <div class="fact">
               <strong>Guards</strong>
