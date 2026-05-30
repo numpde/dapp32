@@ -34,7 +34,7 @@ import type {
 
 type MockAddress = CamHost["address"]
 
-const BIKE_MOCK_CAM_BASE_URI = "file:///work/dapps/bike-nft/cam/"
+const BIKE_MOCK_CAM_BASE_URI = "file:///work/cam/bike-nft/"
 const BIKE_MOCK_CAM_URI = new URL("main.json", BIKE_MOCK_CAM_BASE_URI).href
 
 export function createBikeMockBackend({

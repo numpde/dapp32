@@ -25,6 +25,7 @@ PYTHON_ALPINE_IMAGE = "docker.io/library/python:3.13-alpine@sha256:420cd0bf0f399
 PACKAGE_WORKSPACE_TMPFS = "/work/js:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777"
 ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000"
 VIEWER_TERMINAL_CONTAINER_NAME = "dapps-viewer-terminal-session"
+BIKE_MOCK_CAM_MOUNT = "/work/cam/bike-nft"
 BIKE_NFT_BROADCAST_DIR = "/foundry-broadcast"
 BIKE_NFT_BROADCAST_PATH = f"{BIKE_NFT_BROADCAST_DIR}/DeployBikeNftLocal.s.sol/31337/run-latest.json"
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE = (
@@ -125,6 +126,13 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_read_only_volumes(config_service, "/input/js", "/work/js/node_modules")
         self.assertIn(PACKAGE_WORKSPACE_TMPFS, compose_sequence(config_service, "tmpfs"))
         self.assertIn("run-js-workspace", compose_command_text(config_service))
+
+    def assert_mock_viewer_terminal(self, config_service: dict[str, Any]) -> None:
+        self.assert_hardened(config_service)
+        self.assertEqual("none", config_service.get("network_mode"))
+        self.assert_staged_package_workspace(config_service)
+        self.assert_read_only_volumes(config_service, BIKE_MOCK_CAM_MOUNT, "/work/tests/fixtures")
+        self.assert_no_volume_target(config_service, "/work/dapps")
 
     def assert_local_rpc_viewer_environment(self, config_service: dict[str, Any]) -> None:
         environment = compose_mapping(config_service, "environment")
@@ -287,6 +295,13 @@ class RenderedComposePostureTest(unittest.TestCase):
             self.assert_staged_package_workspace(config_service)
 
         self.assert_read_only_volumes(test, "/work/dapps", "/work/tests/fixtures")
+
+        mock_config = rendered_compose_config(
+            "compose/viewer-terminal.yml",
+            env=mock_viewer_env(),
+        )
+        self.assert_mock_viewer_terminal(compose_service(mock_config, "viewer-terminal"))
+        self.assert_mock_viewer_terminal(compose_service(mock_config, "viewer-terminal-check"))
 
         viewer_config = rendered_compose_config(
             BIKE_NFT_VIEWER_TERMINAL_COMPOSE,

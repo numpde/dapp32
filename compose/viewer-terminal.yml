@@ -6,7 +6,7 @@
 # than weakening this offline lane.
 
 x-viewer-terminal-volumes: &viewer_terminal_volumes
-  - ../dapps:/work/dapps:ro
+  - ../dapps/bike-nft/cam:/work/cam/bike-nft:ro
   - ../js:/input/js:ro
   - ../js/node_modules:/work/js/node_modules:ro
   - ../tests/fixtures:/work/tests/fixtures:ro
