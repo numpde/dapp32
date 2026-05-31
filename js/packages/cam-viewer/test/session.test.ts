@@ -7,6 +7,7 @@ import type { InertValue } from "@cam/protocol"
 import {
   createCamViewerSession,
 } from "../src/index.ts"
+import { CamViewerError } from "../src/errors.ts"
 import type {
   CamHost,
 } from "@cam/evm-viem"
@@ -39,6 +40,7 @@ import {
 } from "../../../../tests/fixtures/cam/mock.mts"
 
 const host: CamHost = bikeHost
+const otherUserAddress = "0x0000000000000000000000000000000000000099"
 
 test("load resolves host CAM, entry route, and entry screen", async () => {
   const publicClient = createPublicClient()
@@ -93,6 +95,17 @@ test("snapshot returns isolated copies of nested route and resolved screen data"
     mutableRecord(mutableRecord(nextSnapshot.resolvedScreen?.elements[0]).value).accountInfo,
     "Mock registrar account",
   )
+})
+
+test("setAccount before load fails without mutating the session", async () => {
+  const session = createSession()
+
+  await assert.rejects(
+    () => session.setAccount({ address: otherUserAddress }),
+    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_NOT_LOADED",
+  )
+
+  assert.deepEqual(session.snapshot().account, { address: userAddress })
 })
 
 test("updateForm resolves navigation actions, while contract actions are surfaced without sending", async () => {

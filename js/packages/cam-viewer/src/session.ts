@@ -124,13 +124,13 @@ export function createCamViewerSession({
   }
 
   async function setAccount(nextAccount?: CamViewerAccount): Promise<CamViewerLoadedSnapshot> {
-    account = nextAccount === undefined ? undefined : cloneAccount(nextAccount)
-
-    if (currentScreen === undefined) {
+    const screen = currentScreen
+    if (screen === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded screen")
     }
 
-    return await navigateLoaded(currentScreen.route, currentScreen.params)
+    account = nextAccount === undefined ? undefined : cloneAccount(nextAccount)
+    return await navigateLoaded(screen.route, screen.params)
   }
 
   function updateForm(patch: InertRecord): CamViewerLoadedSnapshot {
