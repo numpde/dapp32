@@ -2,6 +2,7 @@ import {
   isAddress,
 } from "viem"
 import type {
+  AbiFunction,
   AbiParameter,
   Hex,
 } from "viem"
@@ -71,8 +72,16 @@ function writeRequest(call: CamContractCall): WriteRequest {
     address: call.address,
     abi: call.abi,
     functionName: call.function,
-    args: normalizeWriteArgs(fn.inputs ?? [], call.args, call.function),
+    args: normalizeWriteArgs(writeFunctionInputs(fn), call.args, call.function),
   }
+}
+
+function writeFunctionInputs(fn: AbiFunction): readonly AbiParameter[] {
+  if (!Array.isArray(fn.inputs)) {
+    throw new CamEvmError("CAM_WRITE_INVALID_ARGUMENT", `CAM write function ABI is missing inputs: ${fn.name}`)
+  }
+
+  return fn.inputs
 }
 
 function normalizeWriteArgs(
