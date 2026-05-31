@@ -6,16 +6,13 @@ import {
   BIKE_COMPONENT_FOUND_SCREEN_URI,
   BIKE_COMPONENT_NOT_FOUND_SCREEN_URI,
   BIKE_ENTRY_SCREEN_URI,
-  BIKE_HOST_ADDRESS,
   BIKE_MANAGER_ABI_URI,
   BIKE_REGISTER_BLOCKED_SCREEN_URI,
   BIKE_REGISTER_EMPTY_SCREEN_URI,
   BIKE_REGISTER_READY_SCREEN_URI,
   BIKE_UI_ABI_URI,
-  BIKE_UNSIGNED_CAM_HASH,
   bikeCamJson,
   bikeComponentScreen,
-  bikeContractAddresses,
   bikeEntryScreen,
   bikeManagerAbi,
   bikeRegisterScreen,
@@ -37,7 +34,7 @@ export type MockReadContractCall = {
 }
 
 type MockReadContractRequest = {
-  readonly address?: MockAddress
+  readonly address: MockAddress
   readonly abi?: MockAbi
   readonly functionName: string
   readonly args?: readonly unknown[]
@@ -45,20 +42,18 @@ type MockReadContractRequest = {
 }
 
 type MockPublicClientOptions = {
-  readonly camURI?: string
-  readonly camHash?: MockHash
-  readonly addresses?: Readonly<Record<string, MockAddress>>
-  readonly routeResults?: Readonly<Record<string, unknown>>
-  readonly hostAddress?: MockAddress
+  readonly camURI: string
+  readonly camHash: MockHash
+  readonly addresses: Readonly<Record<string, MockAddress>>
+  readonly routeResults: Readonly<Record<string, unknown>>
 }
 
 export function createMockCamPublicClient<ReadContract = (request: MockReadContractRequest) => Promise<unknown>>({
-  camURI = BIKE_CAM_URI,
-  camHash = BIKE_UNSIGNED_CAM_HASH,
-  addresses = bikeContractAddresses,
-  routeResults = {},
-  hostAddress = BIKE_HOST_ADDRESS,
-}: MockPublicClientOptions = {}): {
+  camURI,
+  camHash,
+  addresses,
+  routeResults,
+}: MockPublicClientOptions): {
   readonly calls: MockReadContractCall[]
   readonly readContract: ReadContract
 } {
@@ -72,7 +67,7 @@ export function createMockCamPublicClient<ReadContract = (request: MockReadContr
       args?: readonly unknown[]
       account?: MockAddress
     } = {
-      address: request.address ?? hostAddress,
+      address: request.address,
       functionName: request.functionName,
     }
     if (request.abi !== undefined) call.abi = request.abi

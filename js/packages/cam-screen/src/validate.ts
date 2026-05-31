@@ -24,7 +24,7 @@ export function parseScreen(input: unknown): ScreenDocument {
 
   return {
     screen: parseScreenVersion(source.screen),
-    ...(source.title === undefined ? {} : { title: parseExpressionString(source.title, "title") }),
+    title: parseExpressionString(source.title, "title"),
     elements: parseElements(requiredArray(source.elements, "elements")),
   }
 }
@@ -87,7 +87,7 @@ function parseAddressElement(source: Record<string, unknown>, path: string): Scr
   rejectUnknownScreenFields(source, ADDRESS_KEYS, path)
   return {
     type: "address",
-    ...(source.label === undefined ? {} : { label: parseExpressionString(source.label, `${path}.label`) }),
+    label: parseExpressionString(source.label, `${path}.label`),
     address: parseExpressionString(source.address, `${path}.address`),
   }
 }
@@ -107,7 +107,7 @@ function parseStatusElement(source: Record<string, unknown>, path: string): Scre
 
   return {
     type: "status",
-    ...(source.label === undefined ? {} : { label: parseExpressionString(source.label, `${path}.label`) }),
+    label: parseExpressionString(source.label, `${path}.label`),
     value: parseExpressionPayload(source.value, `${path}.value`),
   }
 }

@@ -73,52 +73,55 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
   }
 
   const [command, ...args] = line.split(/\s+/)
+  let keepRunning = true
 
   try {
     switch (command) {
       case "help":
         printHelp()
-        return true
+        break
       case "show":
         render(context.session.snapshot())
-        return true
+        break
       case "form":
         printForm(context.session.snapshot())
-        return true
+        break
       case "values":
         printValues(context.session.snapshot())
-        return true
+        break
       case "actions":
         printActions(context.session.snapshot())
-        return true
+        break
       case "screen":
         printScreen(context.session.snapshot())
-        return true
+        break
       case "trace":
         handleTrace(context, args)
-        return true
+        break
       case "restart":
         await handleRestart(context)
-        return true
+        break
       case "set":
         handleSet(context.session, args)
         render(context.session.snapshot())
-        return true
+        break
       case "press":
         await handlePress(context.session, args)
-        return true
+        break
       case "quit":
       case "exit":
-        return false
+        keepRunning = false
+        break
       default:
         output.write(`Unknown command: ${command}\n`)
         output.write("Type help for available commands.\n")
-        return true
+        break
     }
   } catch (error) {
     output.write(formatError(error))
-    return true
   }
+
+  return keepRunning
 }
 
 function handleSet(session: CamViewerSession, args: readonly string[]): void {
@@ -165,8 +168,8 @@ async function handlePress(session: CamViewerSession, args: readonly string[]): 
 
 function render(snapshot: CamViewerSnapshot): void {
   output.write("\n")
-  output.write(`route: ${snapshot.route ?? "(not loaded)"}\n`)
-  output.write(`screen: ${snapshot.screenURI ?? "(none)"}\n`)
+  output.write(`route: ${loadedText(snapshot.route)}\n`)
+  output.write(`screen: ${presentText(snapshot.screenURI)}\n`)
 
   if (snapshot.resolvedScreen?.title !== undefined) {
     output.write(`\n${snapshot.resolvedScreen.title}\n`)
@@ -204,10 +207,10 @@ function renderElement(
       output.write(`${element.label}: ${formatValue(element.value)}\n`)
       return
     case "address":
-      output.write(`${element.label ?? "Address"}: ${element.address}\n`)
+      output.write(`${element.label}: ${element.address}\n`)
       return
     case "status":
-      output.write(`${element.label ?? "Status"}: ${formatValue(element.value)}\n`)
+      output.write(`${element.label}: ${formatValue(element.value)}\n`)
       return
     case "nft":
       output.write(`NFT: ${element.contractAddress} #${formatValue(element.tokenId)}\n`)
@@ -249,12 +252,17 @@ function formatError(error: unknown): string {
 }
 
 function printForm(snapshot: CamViewerSnapshot): void {
+  let form: unknown = null
+  if (snapshot.form !== undefined) {
+    form = snapshot.form
+  }
+
   output.write(`${JSON.stringify({
     route: snapshot.route,
     screenURI: snapshot.screenURI,
     account: snapshot.account,
     params: snapshot.params,
-    form: snapshot.form ?? null,
+    form,
   }, jsonReplacer, 2)}\n`)
 }
 
@@ -263,7 +271,7 @@ function printPromptContext(context: TerminalContext): void {
   output.write("Context before command:\n")
   output.write(`  backend: ${context.backend.name}\n`)
   output.write(`  host: ${context.backend.hostLabel}\n`)
-  output.write(`  account: ${snapshot.account?.address ?? "(none)"}\n`)
+  output.write(`  account: ${accountText(snapshot.account)}\n`)
   output.write(`  params: ${formatValue(snapshot.params)}\n`)
   output.write(`  form: ${snapshot.form === undefined ? "(not loaded)" : formatValue(snapshot.form)}\n`)
   output.write(`  values: ${snapshot.values === undefined ? "(not loaded)" : formatValue(snapshot.values)}\n`)
@@ -287,7 +295,36 @@ function printActions(snapshot: CamViewerSnapshot): void {
 }
 
 function printScreen(snapshot: CamViewerSnapshot): void {
-  output.write(`${JSON.stringify(snapshot.resolvedScreen ?? null, jsonReplacer, 2)}\n`)
+  let screen: unknown = null
+  if (snapshot.resolvedScreen !== undefined) {
+    screen = snapshot.resolvedScreen
+  }
+
+  output.write(`${JSON.stringify(screen, jsonReplacer, 2)}\n`)
+}
+
+function loadedText(value: string | undefined): string {
+  if (value === undefined) {
+    return "(not loaded)"
+  }
+
+  return value
+}
+
+function presentText(value: string | undefined): string {
+  if (value === undefined) {
+    return "(none)"
+  }
+
+  return value
+}
+
+function accountText(account: CamViewerSnapshot["account"]): string {
+  if (account === undefined) {
+    return "(none)"
+  }
+
+  return account.address
 }
 
 function handleTrace(context: TerminalContext, args: readonly string[]): void {

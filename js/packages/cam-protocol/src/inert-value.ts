@@ -45,10 +45,16 @@ function inertError(message: string, path: string): InertValueError {
 
 function validateInertValue(
   value: unknown,
+): InertValueError | undefined {
+  return validateInertValueAtPath(value, "", new WeakSet<object>())
+}
+
+function validateInertValueAtPath(
+  value: unknown,
   // The empty path is a private recursion sentinel for "the root value"; it is
   // converted to an absent public error path by inertError().
-  path: string = "",
-  seen: WeakSet<object> = new WeakSet<object>(),
+  path: string,
+  seen: WeakSet<object>,
 ): InertValueError | undefined {
   if (isInertScalar(value)) {
     return undefined
@@ -73,7 +79,7 @@ function validateInertValue(
           return inertError("expected an inert value", itemPath)
         }
 
-        const error = validateInertValue(value[index], itemPath, seen)
+        const error = validateInertValueAtPath(value[index], itemPath, seen)
         if (error !== undefined) {
           return error
         }
@@ -95,7 +101,7 @@ function validateInertValue(
     seen.add(value)
     try {
       for (const [key, item] of Object.entries(value)) {
-        const error = validateInertValue(item, joinPath(path, key), seen)
+        const error = validateInertValueAtPath(item, joinPath(path, key), seen)
 
         if (error !== undefined) {
           return error

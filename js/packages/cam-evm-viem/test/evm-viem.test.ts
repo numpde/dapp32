@@ -608,7 +608,6 @@ function createPublicClient({
     camHash,
     addresses,
     routeResults,
-    hostAddress: host.address,
   })
 }
 

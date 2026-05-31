@@ -164,6 +164,7 @@ test("parseScreen requires explicit action types", () => {
   assert.throws(
     () => parseScreen({
       screen: "1.0.0",
+      title: "Invalid action",
       elements: [
         {
           type: "button",
@@ -183,6 +184,7 @@ test("parseScreen rejects element control logic", () => {
   assert.throws(
     () => parseScreen({
       screen: "1.0.0",
+      title: "Invalid control",
       elements: [
         {
           type: "text",
@@ -199,6 +201,7 @@ test("parseScreen rejects layout-only group elements", () => {
   assert.throws(
     () => parseScreen({
       screen: "1.0.0",
+      title: "Invalid layout",
       elements: [
         {
           type: "group",

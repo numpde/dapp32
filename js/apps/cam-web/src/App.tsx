@@ -226,7 +226,7 @@ export function App(): ReactElement {
       <header className="topbar">
         <div>
           <p className="eyebrow">CAM viewer</p>
-          <h1>{loadState.status === "ready" ? loadState.snapshot.resolvedScreen?.title ?? "Untitled screen" : "Loading"}</h1>
+          <h1>{headerTitle(loadState)}</h1>
         </div>
         {loadState.status !== "ready" ? null : (
           <ConnectionSummary
@@ -276,6 +276,14 @@ export function App(): ReactElement {
       ) : null}
     </main>
   )
+}
+
+function headerTitle(loadState: LoadState): string {
+  if (loadState.status !== "ready") {
+    return "Loading"
+  }
+
+  return loadState.snapshot.resolvedScreen.title
 }
 
 function requireReadyState(loadState: LoadState): Extract<LoadState, { readonly status: "ready" }> {

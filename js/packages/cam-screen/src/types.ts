@@ -2,7 +2,7 @@ import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 
 export type ScreenDocument = {
   readonly screen: string
-  readonly title?: string
+  readonly title: string
   readonly elements: readonly ScreenElement[]
 }
 
@@ -28,7 +28,7 @@ export type InputElement = {
 
 export type AddressElement = {
   readonly type: "address"
-  readonly label?: string
+  readonly label: string
   readonly address: string
 }
 
@@ -40,7 +40,7 @@ export type ButtonElement = {
 
 export type StatusElement = {
   readonly type: "status"
-  readonly label?: string
+  readonly label: string
   readonly value: InertValue
 }
 
@@ -74,7 +74,7 @@ export type ScreenRuntimeContext = CamRuntimeContext & {
 export type ScreenInitialContext = Omit<ScreenRuntimeContext, "form">
 
 export type ResolvedScreen = {
-  readonly title?: string
+  readonly title: string
   readonly elements: readonly ResolvedScreenElement[]
 }
 

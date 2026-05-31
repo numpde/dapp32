@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs"
 import { readdir, readFile } from "node:fs/promises"
 import { join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -43,15 +44,18 @@ async function checkedInScreenPaths(): Promise<string[]> {
 }
 
 async function readdirIfExists(path: string) {
+  let entries: Dirent[]
   try {
-    return await readdir(path, { withFileTypes: true })
+    entries = await readdir(path, { withFileTypes: true })
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
-      return []
+      entries = []
+    } else {
+      throw error
     }
-
-    throw error
   }
+
+  return entries
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

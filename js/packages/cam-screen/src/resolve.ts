@@ -47,7 +47,7 @@ export function resolveScreen(screen: ScreenDocument, context: ScreenRuntimeCont
   appendResolvedElements(screen.elements, context, "elements", elements)
 
   return {
-    ...(screen.title === undefined ? {} : { title: resolveStringField(screen.title, context, "title") }),
+    title: resolveStringField(screen.title, context, "title"),
     elements,
   }
 }
@@ -103,7 +103,7 @@ function resolveElement(
     case "address":
       return {
         type: "address",
-        ...(element.label === undefined ? {} : { label: resolveStringField(element.label, context, `${path}.label`) }),
+        label: resolveStringField(element.label, context, `${path}.label`),
         address: resolveStringField(element.address, context, `${path}.address`),
       }
     case "button":
@@ -115,7 +115,7 @@ function resolveElement(
     case "status":
       return {
         type: "status",
-        ...(element.label === undefined ? {} : { label: resolveStringField(element.label, context, `${path}.label`) }),
+        label: resolveStringField(element.label, context, `${path}.label`),
         value: resolveValueAtPath(element.value, context, `${path}.value`),
       }
     case "nft":

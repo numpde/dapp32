@@ -33,7 +33,7 @@ export function resolveResourceURI(baseURI: string, resourceURI: string): string
   const hierarchical = HIERARCHICAL_URI_RE.exec(baseWithoutQuery)
   if (hierarchical !== null) {
     const [, prefix, basePath] = hierarchical
-    const baseDirectory = directoryOf(basePath || "/")
+    const baseDirectory = directoryOf(hierarchicalBasePath(basePath))
     const resolvedPath = normalizePath(resourcePath.startsWith("/") ? resourcePath : `${baseDirectory}${resourcePath}`)
     return `${prefix}${resolvedPath}${resourceSuffix}`
   }
@@ -75,6 +75,14 @@ function splitSuffix(uri: string): [string, string] {
   }
 
   return [uri.slice(0, suffixIndex), uri.slice(suffixIndex)]
+}
+
+function hierarchicalBasePath(basePath: string): string {
+  if (basePath === "") {
+    return "/"
+  }
+
+  return basePath
 }
 
 function directoryOf(path: string): string {

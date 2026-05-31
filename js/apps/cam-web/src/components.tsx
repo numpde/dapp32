@@ -132,9 +132,9 @@ function ScreenElementView({
         </label>
       )
     case "address":
-      return <KeyValue label={element.label ?? "Address"} value={element.address} mono />
+      return <KeyValue label={element.label} value={element.address} mono />
     case "status":
-      return <KeyValue label={element.label ?? "Status"} value={formatInertValue(element.value)} />
+      return <KeyValue label={element.label} value={formatInertValue(element.value)} />
     case "nft":
       return (
         <div className="nft-row">
