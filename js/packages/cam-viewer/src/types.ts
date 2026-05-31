@@ -36,7 +36,7 @@ export type CamViewerSnapshot = {
   readonly values?: readonly InertValue[]
 }
 
-export type CamViewerLoadedSnapshot = CamViewerSnapshot & {
+export type CamViewerLoadedSnapshot = Omit<CamViewerSnapshot, "form" | "resolvedScreen" | "route" | "screenURI" | "values"> & {
   readonly route: string
   readonly form: InertRecord
   readonly screenURI: string

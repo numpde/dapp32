@@ -65,18 +65,28 @@ export function createCamViewerSession({
   let currentScreen: CurrentScreen | undefined
 
   function snapshot(): CamViewerSnapshot {
+    if (currentScreen === undefined) {
+      return sessionSnapshot(initialRouteParams)
+    }
+
+    return loadedSnapshot(currentScreen)
+  }
+
+  function sessionSnapshot(params: InertRecord): CamViewerSnapshot {
     return {
-      params: cloneViewerData<InertRecord>(currentScreen?.params ?? initialRouteParams, "params"),
+      params: cloneViewerData<InertRecord>(params, "params"),
       ...(account === undefined ? {} : { account: cloneAccount(account) }),
-      ...(currentScreen === undefined
-        ? {}
-        : {
-            route: currentScreen.route,
-            form: cloneViewerData<InertRecord>(currentScreen.form, "form"),
-            screenURI: currentScreen.screenURI,
-            resolvedScreen: cloneViewerData<ResolvedScreen>(currentScreen.resolvedScreen, "resolvedScreen"),
-            values: cloneViewerData<readonly InertValue[]>(currentScreen.values, "values"),
-          }),
+    }
+  }
+
+  function loadedSnapshot(screen: CurrentScreen): CamViewerLoadedSnapshot {
+    return {
+      ...sessionSnapshot(screen.params),
+      route: screen.route,
+      form: cloneViewerData<InertRecord>(screen.form, "form"),
+      screenURI: screen.screenURI,
+      resolvedScreen: cloneViewerData<ResolvedScreen>(screen.resolvedScreen, "resolvedScreen"),
+      values: cloneViewerData<readonly InertValue[]>(screen.values, "values"),
     }
   }
 
@@ -147,7 +157,7 @@ export function createCamViewerSession({
       resolvedScreen,
     }
 
-    return loadedSnapshot()
+    return loadedSnapshot(currentScreen)
   }
 
   async function dispatchAction(action: ResolvedScreenAction): Promise<CamViewerActionResult> {
@@ -203,7 +213,7 @@ export function createCamViewerSession({
       values: routeResult.values,
     }
 
-    return loadedSnapshot()
+    return loadedSnapshot(currentScreen)
   }
 
   async function loadScreenBytes(uri: string): Promise<Uint8Array> {
@@ -236,28 +246,6 @@ export function createCamViewerSession({
     }
 
     return loadedState
-  }
-
-  function loadedSnapshot(): CamViewerLoadedSnapshot {
-    const value = snapshot()
-    if (
-      value.route === undefined
-      || value.form === undefined
-      || value.screenURI === undefined
-      || value.resolvedScreen === undefined
-      || value.values === undefined
-    ) {
-      throw new CamViewerError("CAM_VIEWER_INVALID_SNAPSHOT", "CAM viewer expected a loaded screen snapshot")
-    }
-
-    return {
-      ...value,
-      route: value.route,
-      form: value.form,
-      screenURI: value.screenURI,
-      resolvedScreen: value.resolvedScreen,
-      values: value.values,
-    }
   }
 
   function prepareContractCall(action: Extract<ResolvedScreenAction, { readonly type: "contract-call" }>): CamViewerPreparedContractCall {

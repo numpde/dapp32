@@ -48,7 +48,7 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
 
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
   assert.equal(snapshot.screenURI, entryScreenURI)
-  assert.equal(snapshot.resolvedScreen?.title, "Entry")
+  assert.equal(snapshot.resolvedScreen.title, "Entry")
   assert.deepEqual(snapshot.values, inert([
     {
       account: userAddress,
@@ -84,8 +84,8 @@ test("snapshot returns isolated copies of nested route and resolved screen data"
 
   const snapshot = await session.load()
 
-  mutableRecord(snapshot.values?.[0]).accountInfo = "mutated route value"
-  mutableRecord(mutableRecord(snapshot.resolvedScreen?.elements[0]).value).accountInfo = "mutated resolved value"
+  mutableRecord(snapshot.values[0]).accountInfo = "mutated route value"
+  mutableRecord(mutableRecord(snapshot.resolvedScreen.elements[0]).value).accountInfo = "mutated resolved value"
 
   const nextSnapshot = session.snapshot()
   assert.equal(mutableRecord(nextSnapshot.values?.[0]).accountInfo, "Mock registrar account")
@@ -131,13 +131,13 @@ test("updateForm resolves navigation actions, while contract actions are surface
     serialNumber: BIKE_SERIAL_NUMBER,
   })
 
-  assert.deepEqual(snapshot.resolvedScreen?.elements[0], inert({
+  assert.deepEqual(snapshot.resolvedScreen.elements[0], inert({
     type: "input",
     name: "serialNumber",
     label: "Serial number",
     value: BIKE_SERIAL_NUMBER,
   }))
-  assert.deepEqual(snapshot.resolvedScreen?.elements[1], inert({
+  assert.deepEqual(snapshot.resolvedScreen.elements[1], inert({
     type: "button",
     label: "Look up",
     action: {
@@ -149,9 +149,9 @@ test("updateForm resolves navigation actions, while contract actions are surface
     },
   }))
 
-  const button = snapshot.resolvedScreen?.elements[1]
-  assert.equal(button?.type, "button")
-  if (button?.type !== "button") {
+  const button = snapshot.resolvedScreen.elements[1]
+  assert.equal(button.type, "button")
+  if (button.type !== "button") {
     assert.fail("expected resolved button")
   }
 
