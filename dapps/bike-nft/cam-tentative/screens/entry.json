@@ -11,55 +11,38 @@
     },
     "children": [
       {
-        "type": "Region",
+        "type": "Text",
         "props": {
-          "name": "main"
-        },
-        "children": [
-          {
-            "type": "Text",
-            "props": {
-              "text": "Look up a component by the serial number stamped on the bicycle."
-            }
-          },
-          {
-            "type": "Address",
-            "props": {
-              "label": "Connected account",
-              "address": "$account.address"
-            }
-          },
-          {
-            "type": "Status",
-            "props": {
-              "label": "Can register components",
-              "value": "$values.0.canRegister"
-            }
-          },
-          {
-            "type": "Input",
-            "props": {
-              "name": "serialNumber",
-              "label": "Serial number",
-              "value": ""
-            }
-          }
-        ]
+          "text": "Look up a component by the serial number stamped on the bicycle."
+        }
       },
       {
-        "type": "Region",
+        "type": "Address",
         "props": {
-          "name": "actions"
-        },
-        "children": [
-          {
-            "type": "Include",
-            "from": "navigationActions",
-            "select": ["lookupComponent", "openRegister"]
-          }
-        ]
+          "label": "Connected account",
+          "address": "$account.address"
+        }
+      },
+      {
+        "type": "Status",
+        "props": {
+          "label": "Can register components",
+          "value": "$values.0.canRegister"
+        }
+      },
+      {
+        "type": "Input",
+        "props": {
+          "name": "serialNumber",
+          "label": "Serial number",
+          "value": ""
+        }
+      },
+      {
+        "type": "Include",
+        "from": "navigationActions",
+        "select": ["lookupComponent", "openRegister"]
       }
     ]
   }
 }
-

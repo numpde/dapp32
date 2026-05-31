@@ -5,7 +5,7 @@ wired to the current runtime parser.
 
 The useful idea is a catalog-resolved component tree:
 
-- A screen arranges regions and fixed nodes.
+- A screen is a flat component tree.
 - Catalogs map semantic IDs to renderable node fragments.
 - `Include` expands one or more selected catalog IDs at that point in the tree.
 - Contracts return semantic view/action IDs, not CAM file paths.

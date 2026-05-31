@@ -13,38 +13,21 @@
     },
     "children": [
       {
-        "type": "Region",
-        "props": {
-          "name": "main"
-        },
-        "children": [
-          {
-            "type": "Include",
-            "from": "componentViews",
-            "select": "$values.0.view"
-          }
-        ]
+        "type": "Include",
+        "from": "componentViews",
+        "select": "$values.0.view"
       },
       {
-        "type": "Region",
-        "props": {
-          "name": "actions"
-        },
-        "children": [
-          {
-            "type": "Include",
-            "from": "componentActions",
-            "select": "$values.0.actions",
-            "order": ["updateMetadata", "markMissing", "clearMissing", "retire"]
-          },
-          {
-            "type": "Include",
-            "from": "navigationActions",
-            "select": ["lookupComponent", "openRegister"]
-          }
-        ]
+        "type": "Include",
+        "from": "componentActions",
+        "select": "$values.0.actions",
+        "order": ["updateMetadata", "markMissing", "clearMissing", "retire"]
+      },
+      {
+        "type": "Include",
+        "from": "navigationActions",
+        "select": ["lookupComponent", "openRegister"]
       }
     ]
   }
 }
-
