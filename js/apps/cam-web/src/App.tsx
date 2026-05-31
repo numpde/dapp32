@@ -257,7 +257,7 @@ export function App(): ReactElement {
         <p className="notice">No injected wallet was detected.</p>
       ) : (
         <button className="wallet-button" type="button" onClick={() => { void connectWallet() }}>
-          {wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
+          {wallet.status === "connected" ? "Switch wallet" : "Connect wallet"}
         </button>
       )}
 
@@ -279,10 +279,6 @@ export function App(): ReactElement {
         <section className="panel error">
           <h2>Cannot load viewer</h2>
           <p>{loadState.message}</p>
-          <p className="hint">
-            Required URL params: <code>chainId</code>, <code>host</code>, <code>account</code>, <code>rpcUrl</code>,{" "}
-            <code>allowUnsignedCamHash</code>.
-          </p>
         </section>
       ) : null}
 
