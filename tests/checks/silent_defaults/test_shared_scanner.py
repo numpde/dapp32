@@ -1,0 +1,65 @@
+from __future__ import annotations
+
+import re
+import unittest
+from pathlib import Path
+
+from ..common import ROOT, is_skipped
+
+
+SELF_PARTS = ("tests", "checks", "silent_defaults")
+SCANNER_TEST_MARKER = "active"
+# SCANNER_TEST_MARKER = "comment"
+
+
+def repo_files(patterns: tuple[str, ...]) -> list[Path]:
+    paths: set[Path] = set()
+    for pattern in patterns:
+        paths.update(ROOT.glob(pattern))
+    return sorted(path for path in paths if path.is_file() and not excluded(path))
+
+
+def excluded(path: Path) -> bool:
+    relative = path.relative_to(ROOT)
+    return is_skipped(path) or relative.parts[: len(SELF_PARTS)] == SELF_PARTS
+
+
+def line_findings(
+    paths: list[Path],
+    matcher: re.Pattern[str],
+    label: str,
+    *,
+    skip_comments: bool = True,
+) -> list[str]:
+    findings: list[str] = []
+    for path in paths:
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if skip_comments and line.lstrip().startswith("#"):
+                continue
+            for match in matcher.finditer(line):
+                findings.append(f"{path.relative_to(ROOT)}:{line_number}: {label}: {match.group(0).strip()}")
+    return findings
+
+
+class SharedScannerTest(unittest.TestCase):
+    def test_repo_files_excludes_this_check_package(self) -> None:
+        self.assertEqual([], repo_files(("tests/checks/silent_defaults/*.py",)))
+
+    def test_repo_files_excludes_skipped_dependency_material(self) -> None:
+        self.assertEqual([], repo_files(("js/node_modules/**/*.ts",)))
+
+    def test_line_findings_reports_relative_paths_and_skips_comments(self) -> None:
+        path = Path(__file__).resolve()
+        findings = line_findings([path], re.compile(r"^SCANNER_TEST_MARKER = "), "marker")
+
+        self.assertEqual(
+            [
+                "tests/checks/silent_defaults/test_shared_scanner.py:11: "
+                "marker: SCANNER_TEST_MARKER ="
+            ],
+            findings,
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
