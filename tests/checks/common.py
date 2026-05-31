@@ -114,6 +114,10 @@ def rendered_compose_config(compose_file: str | tuple[str, ...], *, env: dict[st
             "LOCAL_UID": "1000",
             "LOCAL_GID": "1000",
             "ABI_PLAN_DIR": "/tmp/abi-plan",
+            "ALLOW_UPDATE": "0",
+            "ANVIL_HOST_PORT": "8545",
+            "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
+            "BIKE_NFT_GUI_PORT": "5173",
             "COMPOSE_PROJECT_NAME": "dapps-check",
         }
     )
@@ -147,7 +151,7 @@ def compose_service(config: dict[str, Any], name: str) -> dict[str, Any]:
 
 
 def compose_mapping(config_service: dict[str, Any], field: str) -> dict[str, Any]:
-    value = config_service.get(field, {})
+    value = config_service[field]
     if not isinstance(value, dict):
         raise AssertionError(f"{field} must render as a mapping")
     return value
@@ -161,7 +165,9 @@ def compose_sequence(config_service: dict[str, Any], field: str) -> list[Any]:
 
 
 def compose_sequence_or_empty(config_service: dict[str, Any], field: str) -> list[Any]:
-    value = config_service.get(field, [])
+    if field not in config_service:
+        return []
+    value = config_service[field]
     if not isinstance(value, list):
         raise AssertionError(f"{field} must render as a list")
     return value

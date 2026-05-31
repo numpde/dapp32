@@ -16,10 +16,14 @@ class AnvilComposePostureTest(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.no_profile = cls.render_config("")
         cls.internal = cls.render_config("internal")
-        cls.all_profiles = cls.render_config("internal,host", host_port="18545")
+        cls.all_profiles = cls.render_config_with_host_port("internal,host", "18545")
 
     @staticmethod
-    def render_config(profiles: str, *, host_port: str = "8545") -> dict[str, Any]:
+    def render_config(profiles: str) -> dict[str, Any]:
+        return AnvilComposePostureTest.render_config_with_host_port(profiles, "8545")
+
+    @staticmethod
+    def render_config_with_host_port(profiles: str, host_port: str) -> dict[str, Any]:
         return rendered_compose_config(
             "compose/anvil.yml",
             env={

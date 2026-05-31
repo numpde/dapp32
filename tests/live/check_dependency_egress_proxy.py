@@ -8,27 +8,33 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-# Intentional default: these defaults describe the current live-check Compose
-# topology. If the check is reused elsewhere, require explicit env so it cannot
-# accidentally test the wrong proxy or lock file.
-PROXY_HOST = os.environ.get("DEPENDENCY_EGRESS_PROXY_HOST", "dependency-egress-proxy")
-PROXY_PORT = int(os.environ.get("DEPENDENCY_EGRESS_PROXY_PORT", "8080"))
-LOCK_FILE = Path(os.environ.get("DEPENDENCY_EGRESS_LOCK_FILE", "/input/soldeer.lock"))
-DENIED_HOST = os.environ.get("DEPENDENCY_EGRESS_DENIED_HOST", "example.com")
-CONNECT_TIMEOUT_SECONDS = float(os.environ.get("DEPENDENCY_EGRESS_CONNECT_TIMEOUT_SECONDS", "10"))
+def required_env(name: str) -> str:
+    value = os.environ[name].strip()
+    if not value:
+        raise RuntimeError(f"missing required environment variable: {name}")
+    return value
+
+
+PROXY_HOST = required_env("DEPENDENCY_EGRESS_PROXY_HOST")
+PROXY_PORT = int(required_env("DEPENDENCY_EGRESS_PROXY_PORT"))
+LOCK_FILE = Path(required_env("DEPENDENCY_EGRESS_LOCK_FILE"))
+DENIED_HOST = required_env("DEPENDENCY_EGRESS_DENIED_HOST")
+CONNECT_TIMEOUT_SECONDS = float(required_env("DEPENDENCY_EGRESS_CONNECT_TIMEOUT_SECONDS"))
 
 
 def locked_dependency_hosts() -> list[str]:
     lock = tomllib.loads(LOCK_FILE.read_text(encoding="utf-8"))
+    dependencies = lock["dependencies"]
+    if not isinstance(dependencies, list):
+        raise RuntimeError(f"{LOCK_FILE}: dependencies must be a list")
+
     hosts = {
         host
-        # Intentional default: a missing dependencies list becomes empty and
-        # fails below as "no dependency hosts". Prefer an explicit lock-shape
-        # assertion if this check grows beyond a live smoke test.
-        for record in lock.get("dependencies", [])
+        for record in dependencies
         if isinstance(record, dict)
         if isinstance(record.get("url"), str)
-        if (host := (urlparse(record["url"]).hostname or "").lower().rstrip("."))
+        if (hostname := urlparse(record["url"]).hostname) is not None
+        if (host := hostname.lower().rstrip("."))
     }
     if not hosts:
         raise RuntimeError(f"no dependency hosts found in {LOCK_FILE}")

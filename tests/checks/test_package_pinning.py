@@ -49,8 +49,12 @@ class PackagePinningTest(unittest.TestCase):
                 return [f"{path_label}: unexpected package install form: {command}"]
             return []
 
-        manager = apt_match.group("manager") if apt_match is not None else "apk"
-        body = apt_match.group("body") if apt_match is not None else apk_match.group("body")
+        if apt_match is not None:
+            manager = apt_match.group("manager")
+            body = apt_match.group("body")
+        else:
+            manager = "apk"
+            body = apk_match.group("body")
         tokens = body.split()
 
         if any(token.startswith("-") and token not in ALLOWED_INSTALL_OPTIONS[manager] for token in tokens):

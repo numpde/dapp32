@@ -11,18 +11,19 @@ import sys
 import time
 
 
-# Intentional default: these listener defaults assume a confined Compose
-# network. If this proxy is run directly, require explicit host/port instead of
-# silently binding all interfaces on 8080.
-LISTEN_HOST = os.environ.get("HTTPS_EGRESS_PROXY_HOST", "0.0.0.0")
-LISTEN_PORT = int(os.environ.get("HTTPS_EGRESS_PROXY_PORT", "8080"))
+def required_env(name: str) -> str:
+    value = os.environ[name].strip()
+    if not value:
+        raise RuntimeError(f"missing required environment variable: {name}")
+    return value
 
-# Intentional default: these are part of the dependency-egress policy. Keep
-# them explicit in Compose before this proxy is reused outside the current lane.
-CONNECT_TIMEOUT_SECONDS = float(os.environ.get("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS", "10"))
-TUNNEL_IDLE_TIMEOUT_SECONDS = float(os.environ.get("HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS", "300"))
-MAX_HOST_BYTES = int(os.environ.get("HTTPS_EGRESS_PROXY_MAX_HOST_BYTES", "255"))
-BUFFER_BYTES = int(os.environ.get("HTTPS_EGRESS_PROXY_BUFFER_BYTES", "65536"))
+
+LISTEN_HOST = required_env("HTTPS_EGRESS_PROXY_HOST")
+LISTEN_PORT = int(required_env("HTTPS_EGRESS_PROXY_PORT"))
+CONNECT_TIMEOUT_SECONDS = float(required_env("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS"))
+TUNNEL_IDLE_TIMEOUT_SECONDS = float(required_env("HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS"))
+MAX_HOST_BYTES = int(required_env("HTTPS_EGRESS_PROXY_MAX_HOST_BYTES"))
+BUFFER_BYTES = int(required_env("HTTPS_EGRESS_PROXY_BUFFER_BYTES"))
 ALLOWED_HOSTS = frozenset()
 
 
@@ -219,10 +220,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             tunnel(self.connection, upstream)
         finally:
             self.close_connection = True
-            try:
-                upstream.close()
-            except Exception:
-                pass
+            upstream.close()
 
     def do_DELETE(self) -> None:
         self.send_error(405, "method not allowed")
@@ -248,10 +246,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 def main() -> int:
     global ALLOWED_HOSTS
-    # Intentional default: the empty default fails closed, but it can also
-    # hide a missing allowlist until runtime. Prefer explicit configuration for
-    # any non-test deployment of this proxy.
-    ALLOWED_HOSTS = parse_allowed_hosts(os.environ.get("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS", ""))
+    ALLOWED_HOSTS = parse_allowed_hosts(required_env("HTTPS_EGRESS_PROXY_ALLOWED_HOSTS"))
 
     server = http.server.ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     server.daemon_threads = True

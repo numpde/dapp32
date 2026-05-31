@@ -10,26 +10,23 @@ import sys
 from urllib.parse import urlsplit
 
 
-# Intentional default: these defaults match the current Compose service, but
-# running the proxy outside Compose would silently bind all interfaces and read
-# the standard secret path. Consider requiring explicit env once the proxy is
-# reused outside this controlled lane.
-LISTEN_HOST = os.environ.get("RPC_PROXY_HOST", "0.0.0.0")
-LISTEN_PORT = int(os.environ.get("RPC_PROXY_PORT", "8080"))
-UPSTREAM_FILE = os.environ.get("RPC_UPSTREAM_FILE", "/run/secrets/rpc_url")
+def required_env(name):
+    value = os.environ[name].strip()
+    if not value:
+        raise RuntimeError(f"missing required environment variable: {name}")
+    return value
 
-# Intentional default: these caps are security policy, not incidental tuning.
-# If the proxy becomes reusable, move them into explicit Compose/env settings so
-# callers cannot inherit stale limits silently.
-MAX_REQUEST_BYTES = int(os.environ.get("RPC_PROXY_MAX_REQUEST_BYTES", str(1024 * 1024)))
-MAX_RESPONSE_BYTES = int(os.environ.get("RPC_PROXY_MAX_RESPONSE_BYTES", str(4 * 1024 * 1024)))
-MAX_UPSTREAM_URL_BYTES = int(os.environ.get("RPC_PROXY_MAX_UPSTREAM_URL_BYTES", "4096"))
-CONNECT_TIMEOUT_SECONDS = float(os.environ.get("RPC_PROXY_CONNECT_TIMEOUT_SECONDS", "10"))
-# Intentional default: defaulting to eth_blockNumber is intentionally narrow,
-# but still grants one RPC method if Compose forgets RPC_ALLOWED_METHODS.
+
+LISTEN_HOST = required_env("RPC_PROXY_HOST")
+LISTEN_PORT = int(required_env("RPC_PROXY_PORT"))
+UPSTREAM_FILE = required_env("RPC_UPSTREAM_FILE")
+MAX_REQUEST_BYTES = int(required_env("RPC_PROXY_MAX_REQUEST_BYTES"))
+MAX_RESPONSE_BYTES = int(required_env("RPC_PROXY_MAX_RESPONSE_BYTES"))
+MAX_UPSTREAM_URL_BYTES = int(required_env("RPC_PROXY_MAX_UPSTREAM_URL_BYTES"))
+CONNECT_TIMEOUT_SECONDS = float(required_env("RPC_PROXY_CONNECT_TIMEOUT_SECONDS"))
 ALLOWED_METHODS = frozenset(
     method
-    for method in os.environ.get("RPC_ALLOWED_METHODS", "eth_blockNumber").replace(",", " ").split()
+    for method in required_env("RPC_ALLOWED_METHODS").replace(",", " ").split()
     if method
 )
 
@@ -98,11 +95,15 @@ def read_upstream():
     if parsed.fragment:
         raise UpstreamRejected("RPC upstream must not include a fragment")
 
-    port = parsed.port or 443
+    port = 443
+    if parsed.port is not None:
+        port = parsed.port
     if port != 443:
         raise UpstreamRejected("RPC upstream must use the default https port")
 
-    path = parsed.path or "/"
+    path = parsed.path
+    if path == "":
+        path = "/"
     if parsed.query:
         path = f"{path}?{parsed.query}"
 
@@ -203,11 +204,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
             host, port, path = read_upstream()
             target_ip = resolve_global_ip(host, port)
             conn = FixedIpHttpsConnection(host, port, target_ip, CONNECT_TIMEOUT_SECONDS)
-            headers = {
-                "accept": self.headers.get("accept", "application/json"),
-                "content-type": self.headers.get("content-type", "application/json"),
-                "host": host,
-            }
+            accept = self.headers.get("accept")
+            if accept is None:
+                accept = "application/json"
+            content_type = self.headers.get("content-type")
+            if content_type is None:
+                content_type = "application/json"
+
+            headers = {"accept": accept, "content-type": content_type, "host": host}
             conn.request("POST", path, body=request_body, headers=headers)
             response = conn.getresponse()
             response_body = response.read(MAX_RESPONSE_BYTES + 1)
@@ -225,10 +229,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         finally:
             if conn is not None:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+                conn.close()
 
         if len(response_body) > MAX_RESPONSE_BYTES:
             self.send_error(502, "RPC upstream response too large")
