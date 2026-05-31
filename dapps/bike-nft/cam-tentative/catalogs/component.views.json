@@ -1,0 +1,109 @@
+{
+  "catalog": "1.0.0-tentative",
+  "role": "views",
+  "items": {
+    "empty": {
+      "type": "Fragment",
+      "children": [
+        {
+          "type": "Text",
+          "props": {
+            "text": "Enter a bicycle component serial number."
+          }
+        },
+        {
+          "type": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$params.serialNumber"
+          }
+        }
+      ]
+    },
+    "notFound": {
+      "type": "Fragment",
+      "children": [
+        {
+          "type": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$values.0.serialNumber"
+          }
+        },
+        {
+          "type": "Status",
+          "props": {
+            "label": "Registered",
+            "value": false
+          }
+        }
+      ]
+    },
+    "found": {
+      "type": "Fragment",
+      "children": [
+        {
+          "type": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$values.0.serialNumber"
+          }
+        },
+        {
+          "type": "Status",
+          "props": {
+            "label": "Status",
+            "value": "$values.0.status"
+          }
+        },
+        {
+          "type": "Address",
+          "props": {
+            "label": "Owner",
+            "address": "$values.0.owner"
+          }
+        },
+        {
+          "type": "Status",
+          "props": {
+            "label": "Owner info",
+            "value": "$values.0.ownerInfo"
+          }
+        },
+        {
+          "type": "Nft",
+          "props": {
+            "contractAddress": "$values.0.tokenContract",
+            "tokenId": "$values.0.tokenId"
+          }
+        },
+        {
+          "type": "Status",
+          "props": {
+            "label": "Token URI",
+            "value": "$values.0.tokenURI"
+          }
+        },
+        {
+          "type": "Input",
+          "props": {
+            "name": "tokenURI",
+            "label": "New token URI",
+            "value": "$values.0.tokenURI"
+          }
+        },
+        {
+          "type": "Status",
+          "props": {
+            "label": "Serial hash",
+            "value": "$values.0.serialHash"
+          }
+        }
+      ]
+    }
+  }
+}
+

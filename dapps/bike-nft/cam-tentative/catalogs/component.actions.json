@@ -1,0 +1,83 @@
+{
+  "catalog": "1.0.0-tentative",
+  "role": "actions",
+  "items": {
+    "updateMetadata": {
+      "type": "Action",
+      "props": {
+        "label": "Prepare metadata update",
+        "action": {
+          "type": "contract-call",
+          "contract": "BicycleComponentManager",
+          "function": "setComponentMetadata",
+          "args": ["$form.serialNumber", "$form.tokenURI"],
+          "onSuccess": {
+            "type": "navigate",
+            "route": "component",
+            "params": {
+              "serialNumber": "$form.serialNumber"
+            }
+          }
+        }
+      }
+    },
+    "markMissing": {
+      "type": "Action",
+      "props": {
+        "label": "Prepare missing report",
+        "action": {
+          "type": "contract-call",
+          "contract": "BicycleComponentManager",
+          "function": "markMissing",
+          "args": ["$form.serialNumber"],
+          "onSuccess": {
+            "type": "navigate",
+            "route": "component",
+            "params": {
+              "serialNumber": "$form.serialNumber"
+            }
+          }
+        }
+      }
+    },
+    "clearMissing": {
+      "type": "Action",
+      "props": {
+        "label": "Prepare missing clear",
+        "action": {
+          "type": "contract-call",
+          "contract": "BicycleComponentManager",
+          "function": "clearMissing",
+          "args": ["$form.serialNumber"],
+          "onSuccess": {
+            "type": "navigate",
+            "route": "component",
+            "params": {
+              "serialNumber": "$form.serialNumber"
+            }
+          }
+        }
+      }
+    },
+    "retire": {
+      "type": "Action",
+      "props": {
+        "label": "Prepare retirement",
+        "action": {
+          "type": "contract-call",
+          "contract": "BicycleComponentManager",
+          "function": "retireComponent",
+          "args": ["$form.serialNumber"],
+          "onSuccess": {
+            "type": "navigate",
+            "route": "component",
+            "params": {
+              "serialNumber": "$form.serialNumber"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

@@ -1,0 +1,50 @@
+{
+  "screen": "1.0.0-tentative",
+  "title": "Register component",
+  "catalogs": {
+    "registerViews": "../catalogs/register.views.json",
+    "registerActions": "../catalogs/register.actions.json",
+    "navigationActions": "../catalogs/navigation.actions.json"
+  },
+  "tree": {
+    "type": "Screen",
+    "props": {
+      "title": "Register component"
+    },
+    "children": [
+      {
+        "type": "Region",
+        "props": {
+          "name": "main"
+        },
+        "children": [
+          {
+            "type": "Include",
+            "from": "registerViews",
+            "select": "$values.0.view"
+          }
+        ]
+      },
+      {
+        "type": "Region",
+        "props": {
+          "name": "actions"
+        },
+        "children": [
+          {
+            "type": "Include",
+            "from": "registerActions",
+            "select": "$values.0.actions",
+            "order": ["register"]
+          },
+          {
+            "type": "Include",
+            "from": "navigationActions",
+            "select": ["lookupComponent", "openComponent"]
+          }
+        ]
+      }
+    ]
+  }
+}
+
