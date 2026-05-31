@@ -52,6 +52,9 @@ Named UI nodes declare the arguments they read:
 `requires` covers direct reads, including values forwarded to children.
 Expanded nodes receive only the args their parent passes.
 
+Input `props.value` initializes `form[input.name]`; after that, the viewer owns
+the current form value and actions read it through `form`.
+
 `Include` is the expansion primitive:
 
 ```json
