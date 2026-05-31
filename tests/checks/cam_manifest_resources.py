@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import cam_abi_resources as abi_resources
 from . import cam_abi_usage as abi_usage
 from .common import read_text, repo_path
 from tools.json_policy import JsonPolicyError, strict_json_loads
+
+
+@dataclass(frozen=True)
+class RouteScreens:
+    paths: tuple[Path, ...]
+    documents: tuple[tuple[Path, dict[str, object]], ...]
 
 
 class CamManifestResourceValidator:
@@ -76,18 +83,21 @@ class CamManifestResourceValidator:
 
         abi_functions_by_contract, abi_failures = self.abi_functions_by_contract(manifest_path, contracts)
         failures.extend(abi_failures)
+        route_screens, screen_failures = self.route_screens(manifest_path, routes)
+        failures.extend(screen_failures)
 
         failures.extend(
             self.validate_route_functions_match_declared_abis(
                 manifest_path,
                 routes,
                 abi_functions_by_contract,
+                route_screens,
             )
         )
         failures.extend(
             self.validate_screen_contract_actions_match_declared_abis(
                 manifest_path,
-                routes,
+                route_screens,
                 abi_functions_by_contract,
             )
         )
@@ -98,6 +108,7 @@ class CamManifestResourceValidator:
         manifest_path: Path,
         routes: dict[object, object],
         abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]],
+        route_screens: dict[str, RouteScreens],
     ) -> list[str]:
         failures: list[str] = []
 
@@ -166,6 +177,7 @@ class CamManifestResourceValidator:
                     contract_name,
                     function_name,
                     function,
+                    route_screens.get(route_name, RouteScreens((), ())),
                 )
             )
 
@@ -174,22 +186,17 @@ class CamManifestResourceValidator:
     def validate_screen_contract_actions_match_declared_abis(
         self,
         manifest_path: Path,
-        routes: dict[object, object],
+        route_screens: dict[str, RouteScreens],
         abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]],
     ) -> list[str]:
         failures: list[str] = []
-        screen_paths: set[Path] = set()
-        for route_name in routes:
-            if isinstance(route_name, str):
-                screen_paths.update(self.route_screen_paths(manifest_path, route_name))
+        screen_documents = {
+            screen_path: screen
+            for screens in route_screens.values()
+            for screen_path, screen in screens.documents
+        }
 
-        for screen_path in sorted(screen_paths):
-            try:
-                screen = self.read_json_object(screen_path)
-            except AssertionError as error:
-                failures.append(str(error))
-                continue
-
+        for screen_path, screen in sorted(screen_documents.items()):
             for action in abi_usage.contract_action_references(screen):
                 location = f"{screen_path}:{action.path}" if action.path else str(screen_path)
                 if not isinstance(action.contract_name, str) or action.contract_name == "":
@@ -308,6 +315,35 @@ class CamManifestResourceValidator:
     def matching_screen_routes(self, route_names: set[str], screen_name: str) -> list[str]:
         return sorted(route_name for route_name in route_names if self.is_route_screen_name(route_name, screen_name))
 
+    def route_screens(
+        self,
+        manifest_path: Path,
+        routes: dict[object, object],
+    ) -> tuple[dict[str, RouteScreens], list[str]]:
+        screens_by_route: dict[str, RouteScreens] = {}
+        documents_by_path: dict[Path, dict[str, object]] = {}
+        failures: list[str] = []
+
+        for route_name in routes:
+            if not isinstance(route_name, str) or route_name == "":
+                continue
+
+            paths = tuple(self.route_screen_paths(manifest_path, route_name))
+            documents: list[tuple[Path, dict[str, object]]] = []
+            for screen_path in paths:
+                if screen_path not in documents_by_path:
+                    try:
+                        documents_by_path[screen_path] = self.read_json_object(screen_path)
+                    except AssertionError as error:
+                        failures.append(str(error))
+                        continue
+
+                documents.append((screen_path, documents_by_path[screen_path]))
+
+            screens_by_route[route_name] = RouteScreens(paths=paths, documents=tuple(documents))
+
+        return screens_by_route, failures
+
     def validate_route_screen_values_references(
         self,
         manifest_path: Path,
@@ -316,22 +352,16 @@ class CamManifestResourceValidator:
         contract_name: str,
         function_name: str,
         function: abi_usage.AbiFunction,
+        route_screens: RouteScreens,
     ) -> list[str]:
         if not isinstance(route_name, str):
             return []
 
         failures: list[str] = []
-        screen_paths = self.route_screen_paths(manifest_path, route_name)
-        if not screen_paths:
+        if not route_screens.paths:
             return [f"{manifest_path}: {route_path} has no matching CAM screen: screens/{route_name}[.*].json"]
 
-        for screen_path in screen_paths:
-            try:
-                screen = self.read_json_object(screen_path)
-            except AssertionError as error:
-                failures.append(str(error))
-                continue
-
+        for screen_path, screen in route_screens.documents:
             failures.extend(
                 abi_usage.validate_screen_values_references(
                     manifest_path,
