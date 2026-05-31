@@ -125,7 +125,10 @@ def rendered_compose_config(compose_file: str | tuple[str, ...], *, env: dict[st
         render_env.update(env)
 
     command = docker_compose_command(render_env)
-    compose_files = (compose_file,) if isinstance(compose_file, str) else compose_file
+    if isinstance(compose_file, str):
+        compose_files = (compose_file,)
+    else:
+        compose_files = compose_file
     for file in compose_files:
         command.extend(["-f", str(repo_path(file))])
     command.extend(["config", "--format", "json"])

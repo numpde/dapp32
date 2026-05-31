@@ -218,10 +218,12 @@ class DependencyVerifier:
     def validate_soldeer_registry_url(self, record: DependencyRecord) -> None:
         parsed = urlparse(record.url)
         expected_version_prefix = record.version.replace(".", "_")
-        host = (parsed.hostname or "").lower().rstrip(".")
 
         if parsed.scheme != "https":
             raise DependencyVerificationError(f"{record.key} lock URL must use https: {record.url}")
+        if parsed.hostname is None:
+            raise DependencyVerificationError(f"{record.key} lock URL must include a host: {record.url}")
+        host = parsed.hostname.lower().rstrip(".")
         if parsed.username or parsed.password or parsed.port is not None:
             raise DependencyVerificationError(f"{record.key} lock URL must not include userinfo or port: {record.url}")
         if host != SOLDEER_REVISIONS_HOST:
@@ -375,7 +377,7 @@ class DependencyVerifier:
         archive = tmp_path / f"{record.key}.zip"
         extract_dir = tmp_path / "extract" / record.key
 
-        self.download_archive(record.url, archive)
+        self.download_archive(record.url, archive, total_timeout_seconds=DOWNLOAD_TOTAL_TIMEOUT_SECONDS)
         actual_archive_checksum = self.file_hash(archive)
         if actual_archive_checksum != record.checksum:
             raise DependencyVerificationError(
@@ -399,7 +401,7 @@ class DependencyVerifier:
         url: str,
         output: Path,
         *,
-        total_timeout_seconds: float = DOWNLOAD_TOTAL_TIMEOUT_SECONDS,
+        total_timeout_seconds: float,
     ) -> None:
         last_error: Exception | None = None
         for attempt in range(1, 4):
@@ -544,7 +546,7 @@ class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Verify installed Soldeer dependency integrity.")
-    parser.add_argument("root", nargs="?", default="/work")
+    parser.add_argument("root")
     parser.add_argument("--verify-upstream", action="store_true", help="verify upstream archives without writing checksums")
     parser.add_argument("--write-checksums", action="store_true", help="write checksums for the local dependency tree")
     args = parser.parse_args()
@@ -563,7 +565,7 @@ def main() -> int:
             verifier.verify_local()
     except DependencyVerificationError as exc:
         print(f"deps-verify: {exc}", file=sys.stderr)
-        return 1
+        raise SystemExit(1) from exc
 
     return 0
 

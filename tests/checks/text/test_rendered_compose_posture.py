@@ -116,7 +116,9 @@ class RenderedComposePostureTest(unittest.TestCase):
         network_name: str,
         *config_services: dict[str, Any],
     ) -> None:
-        self.assertFalse(config["networks"][network_name].get("internal", False))
+        network = config["networks"][network_name]
+        if "internal" in network:
+            self.assertFalse(network["internal"])
         for config_service in config_services:
             self.assertEqual({network_name: None}, config_service["networks"])
 
@@ -168,7 +170,9 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("volume", reader_broadcast["type"])
         self.assertEqual("bike_nft_broadcast", writer_broadcast["source"])
         self.assertEqual("bike_nft_broadcast", reader_broadcast["source"])
-        self.assertFalse(config["volumes"]["bike_nft_broadcast"].get("external", False))
+        broadcast_volume = config["volumes"]["bike_nft_broadcast"]
+        if "external" in broadcast_volume:
+            self.assertFalse(broadcast_volume["external"])
 
     def test_bike_nft_local_deploy_lane_is_internal_and_fixture_keyed(self) -> None:
         config = rendered_compose_config(

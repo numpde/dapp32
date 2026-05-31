@@ -14,7 +14,9 @@ class AbiFunction:
 
     @property
     def first_output(self) -> object | None:
-        return self.outputs[0] if self.outputs else None
+        if not self.outputs:
+            return None
+        return self.outputs[0]
 
     @property
     def value_outputs(self) -> tuple[object, ...]:
@@ -56,14 +58,22 @@ def abi_functions(abi: list[object]) -> dict[str, AbiFunction | None]:
         inputs = item.get("inputs")
         if isinstance(name, str) and isinstance(inputs, list):
             outputs = item.get("outputs")
-            functions_by_name[name] = (
-                None
-                if name in functions_by_name
-                else AbiFunction(
-                    input_count=len(inputs),
-                    state_mutability=item.get("stateMutability") if isinstance(item.get("stateMutability"), str) else None,
-                    outputs=tuple(outputs) if isinstance(outputs, list) else (),
-                )
+            if name in functions_by_name:
+                functions_by_name[name] = None
+                continue
+
+            state_mutability = item.get("stateMutability")
+            if not isinstance(state_mutability, str):
+                state_mutability = None
+
+            abi_outputs: tuple[object, ...] = ()
+            if isinstance(outputs, list):
+                abi_outputs = tuple(outputs)
+
+            functions_by_name[name] = AbiFunction(
+                input_count=len(inputs),
+                state_mutability=state_mutability,
+                outputs=abi_outputs,
             )
     return functions_by_name
 
@@ -189,12 +199,15 @@ def contract_action_references(value: object, path: str = "") -> list[ContractAc
     for action_path, item, _parent in walk_json(value, path):
         if isinstance(item, dict) and item.get("type") == "contract-call":
             args = item.get("args")
+            arg_count = None
+            if isinstance(args, list):
+                arg_count = len(args)
             references.append(
                 ContractActionReference(
                     path=action_path,
                     contract_name=item.get("contract"),
                     function_name=item.get("function"),
-                    arg_count=len(args) if isinstance(args, list) else None,
+                    arg_count=arg_count,
                 )
             )
 
@@ -202,7 +215,9 @@ def contract_action_references(value: object, path: str = "") -> list[ContractAc
 
 
 def route_value_output(function: AbiFunction, output_index: int) -> object | None:
-    return function.value_outputs[output_index] if output_index < len(function.value_outputs) else None
+    if output_index >= len(function.value_outputs):
+        return None
+    return function.value_outputs[output_index]
 
 
 def resolve_abi_output_path(output: object, segments: tuple[str, ...]) -> tuple[object | None, str | None]:
@@ -281,9 +296,15 @@ def values_reference(value: str, path: str, parent: object | None) -> ValuesRefe
         expression=value,
         path=path,
         output_index=int(match.group(1)),
-        segments=() if suffix == "" else tuple(suffix.removeprefix(".").split(".")),
+        segments=value_reference_segments(suffix),
         expected_abi_type=expected_abi_type_for_screen_field(path, parent),
     )
+
+
+def value_reference_segments(suffix: str) -> tuple[str, ...]:
+    if suffix == "":
+        return ()
+    return tuple(suffix.removeprefix(".").split("."))
 
 
 def expected_abi_type_for_screen_field(path: str, parent: object | None) -> str | None:

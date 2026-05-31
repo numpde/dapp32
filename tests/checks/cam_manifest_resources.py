@@ -177,11 +177,22 @@ class CamManifestResourceValidator:
                     contract_name,
                     function_name,
                     function,
-                    route_screens.get(route_name, RouteScreens((), ())),
+                    self.route_screens_for_route(route_screens, route_name),
                 )
             )
 
         return failures
+
+    def route_screens_for_route(
+        self,
+        route_screens: dict[str, RouteScreens],
+        route_name: object,
+    ) -> RouteScreens:
+        if not isinstance(route_name, str):
+            return RouteScreens(paths=(), documents=())
+        if route_name not in route_screens:
+            return RouteScreens(paths=(), documents=())
+        return route_screens[route_name]
 
     def validate_screen_contract_actions_match_declared_abis(
         self,

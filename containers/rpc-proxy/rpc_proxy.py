@@ -251,11 +251,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 def main():
-    try:
-        read_upstream()
-    except Exception as exc:
-        print(f"rpc-proxy: invalid upstream: {exc}", file=sys.stderr)
-        return 2
+    read_upstream()
 
     server = http.server.HTTPServer((LISTEN_HOST, LISTEN_PORT), Handler)
     server.serve_forever()
@@ -263,4 +259,8 @@ def main():
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(f"rpc-proxy: invalid upstream: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc

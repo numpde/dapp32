@@ -61,7 +61,7 @@ class DependencyMetadataTest(unittest.TestCase):
                     checksum_versions.get(name),
                     "foundry.toml and dependency-checksums.txt disagree",
                 )
-                self.assertLessEqual(import_versions.get(name, set()), {foundry_versions[name]})
+                self.assertLessEqual(import_versions[name], {foundry_versions[name]})
 
     def foundry_dependency_version(self, name: str) -> str:
         dependency = self.foundry_dependencies()[name]
