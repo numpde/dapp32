@@ -126,7 +126,7 @@ function ScreenElementView({
         <label className="field">
           <span>{element.label}</span>
           <input
-            value={inertToInputValue(element.value)}
+            value={element.value}
             onChange={(event) => onInput(element.name, event.currentTarget.value)}
           />
         </label>
@@ -172,11 +172,6 @@ function KeyValue({
       <span className={mono ? "mono" : undefined}>{value}</span>
     </div>
   )
-}
-
-function inertToInputValue(value: InertValue): string {
-  if (value === null) return ""
-  return typeof value === "string" ? value : formatInertValue(value)
 }
 
 function formatInertValue(value: InertValue): string {

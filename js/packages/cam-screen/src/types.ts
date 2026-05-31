@@ -23,7 +23,7 @@ export type InputElement = {
   readonly type: "input"
   readonly name: string
   readonly label: string
-  readonly value: InertValue
+  readonly value: string
 }
 
 export type AddressElement = {

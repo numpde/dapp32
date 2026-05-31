@@ -66,7 +66,7 @@ function appendInitialFormValues(
         throw new ScreenError("SCREEN_INVALID_FIELD", "duplicate input name", `${elementPath}.name`)
       }
 
-      target[element.name] = resolveValueAtPath(element.value, context, `${elementPath}.value`)
+      target[element.name] = resolveStringField(element.value, context, `${elementPath}.value`)
     }
   }
 }
@@ -127,12 +127,17 @@ function resolveElement(
   }
 }
 
-function formValueForInput(name: string, context: ScreenRuntimeContext, path: string): InertValue {
+function formValueForInput(name: string, context: ScreenRuntimeContext, path: string): string {
   if (!hasOwn(context.form, name)) {
     throw new ScreenError("SCREEN_UNRESOLVED_VALUE", `missing form value for input: ${name}`, path)
   }
 
-  return context.form[name]
+  const value = context.form[name]
+  if (typeof value !== "string") {
+    throw new ScreenError("SCREEN_INVALID_FIELD", `input form value must be a string: ${name}`, path)
+  }
+
+  return value
 }
 
 function resolveStringField(value: string, context: ScreenRuntimeContext, path: string): string {

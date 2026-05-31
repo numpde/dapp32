@@ -213,6 +213,36 @@ test("parseScreen rejects layout-only group elements", () => {
   )
 })
 
+test("input values must resolve to strings", () => {
+  const screen = parseScreen({
+    screen: "1.0.0",
+    title: "Invalid input",
+    elements: [
+      {
+        type: "input",
+        name: "serialNumber",
+        label: "Serial number",
+        value: "$values.0.exists",
+      },
+    ],
+  })
+
+  assert.throws(
+    () => resolveInitialScreen(screen, screenBaseContext),
+    /elements\.0\.value/,
+  )
+
+  assert.throws(
+    () => resolveScreen(screen, {
+      ...screenBaseContext,
+      form: {
+        serialNumber: true,
+      },
+    }),
+    /input form value must be a string/,
+  )
+})
+
 function inert(value: unknown): InertValue {
   return toInertValue(value)
 }

@@ -79,7 +79,7 @@ function parseInputElement(source: Record<string, unknown>, path: string): Scree
     type: "input",
     name: requiredNonEmptyString(source.name, `${path}.name`),
     label: parseExpressionString(source.label, `${path}.label`),
-    value: parseExpressionPayload(source.value, `${path}.value`),
+    value: parseInputValue(source.value, `${path}.value`),
   }
 }
 
@@ -126,6 +126,15 @@ function parseExpressionString(value: unknown, path: string): string {
   const string = requiredNonEmptyString(value, path)
   validateExpressionValue(string, path)
   return string
+}
+
+function parseInputValue(value: unknown, path: string): string {
+  if (typeof value !== "string") {
+    throw new ScreenError("SCREEN_INVALID_FIELD", "expected a string", path)
+  }
+
+  validateExpressionValue(value, path)
+  return value
 }
 
 function rejectUnknownScreenFields(
