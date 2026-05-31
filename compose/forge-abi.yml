@@ -1,0 +1,103 @@
+# CAM ABI export lanes.
+#
+# ABI export has a different boundary from normal Forge checks: it consumes a
+# temporary manifest plan and writes only generated cam/abi files. Keep it out of
+# compose/forge.yml so routine build/test/fuzz lanes do not need ABI_PLAN_DIR.
+x-offline-hardened: &offline_hardened
+  working_dir: /work/dapps
+  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+  read_only: true
+  network_mode: "none"
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  pids_limit: 256
+  mem_limit: 1g
+  environment:
+    HOME: /tmp/home
+    XDG_DATA_HOME: /usr/local/share
+    FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+    FOUNDRY_CONFIG: /work/dapps/foundry.toml
+    FOUNDRY_OUT: /tmp/foundry-out
+    FOUNDRY_BROADCAST: /tmp/foundry-broadcast
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,noexec,size=512m
+
+x-forge-base: &forge_base
+  <<: *offline_hardened
+  build:
+    context: ../containers/foundry
+    dockerfile: Dockerfile
+  volumes:
+    - ..:/work:ro
+
+services:
+  # Structured planning keeps CAM JSON parsing in Python instead of scraping
+  # manifests with sed/awk inside a Forge shell.
+  forge-abi-plan:
+    <<: *offline_hardened
+    build:
+      context: ../containers/checks
+      dockerfile: Dockerfile
+    working_dir: /work
+    volumes:
+      - ../dapps:/work/dapps:ro
+      - ../tools/cam_abi_plan.py:/work/tools/cam_abi_plan.py:ro
+      - ../tools/forge-abi-plan.py:/work/tools/forge-abi-plan.py:ro
+      - ../tools/json_policy.py:/work/tools/json_policy.py:ro
+      - ${ABI_PLAN_DIR:?missing_ABI_PLAN_DIR}:/work/abi-plan:rw
+    command:
+      - "-I"
+      - "-B"
+      - "/work/tools/forge-abi-plan.py"
+      - "/work/dapps"
+      - "/work/abi-plan/manifest.tsv"
+
+  # Only dapps listed by forge-abi-plan participate. Outputs are staged in tmpfs
+  # first so a failed inspection does not erase the last good ABI set.
+  forge-abi:
+    <<: *forge_base
+    volumes:
+      - ${ABI_PLAN_DIR:?missing_ABI_PLAN_DIR}:/work/abi-plan:ro
+      - ../dapps:/work/dapps:ro
+      - ../dapps/bike-nft/cam/abi:/work/dapps/bike-nft/cam/abi:rw
+    command:
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        plan="/work/abi-plan/manifest.tsv"
+        if [ ! -s "$$plan" ]; then
+          printf '%s\n' 'forge-abi: missing ABI export plan; run forge-abi-plan first' >&2
+          exit 2
+        fi
+
+        staged_root="$$(mktemp -d)"
+
+        while IFS="	" read -r dapp inspect_target abi_name; do
+          if [ -z "$$dapp" ] || [ -z "$$inspect_target" ] || [ -z "$$abi_name" ]; then
+            printf 'forge-abi: invalid ABI export plan row: %s %s %s\n' "$$dapp" "$$inspect_target" "$$abi_name" >&2
+            exit 2
+          fi
+          abi_dir="$$dapp/cam/abi"
+          if [ ! -d "$$abi_dir" ]; then
+            printf 'forge-abi: %s must exist before ABI export; do not let Docker create bind targets\n' "$$abi_dir" >&2
+            exit 2
+          fi
+
+          mkdir -p "$$staged_root/$$dapp"
+          forge inspect --json "$$inspect_target" abi > "$$staged_root/$$dapp/$$abi_name"
+        done < "$$plan"
+
+        while IFS="	" read -r dapp inspect_target abi_name; do
+          abi_dir="$$dapp/cam/abi"
+
+          if [ ! -e "$$staged_root/$$dapp/.cleared" ]; then
+            touch "$$staged_root/$$dapp/.cleared"
+            find "$$abi_dir" -maxdepth 1 -type f -name '*.json' -delete
+          fi
+
+          mv "$$staged_root/$$dapp/$$abi_name" "$$abi_dir/$$abi_name"
+          printf 'forge-abi: wrote %s\n' "$$abi_dir/$$abi_name"
+        done < "$$plan"

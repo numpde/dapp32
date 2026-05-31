@@ -213,7 +213,16 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         self.assertIn("*/script", compose_command_text(compose_service(config, "forge-fmt")))
         self.assertIn("forge-script-build", config["services"])
-        forge_abi = compose_service(config, "forge-abi")
+        self.assertNotIn("forge-abi-plan", config["services"])
+        self.assertNotIn("forge-abi", config["services"])
+
+        abi_config = rendered_compose_config("compose/forge-abi.yml")
+        for name, config_service in abi_config["services"].items():
+            with self.subTest(service=name):
+                self.assert_hardened(config_service)
+                self.assertEqual("none", config_service.get("network_mode"))
+
+        forge_abi = compose_service(abi_config, "forge-abi")
         self.assertEqual(True, compose_volume(forge_abi, "/work/dapps").get("read_only"))
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
@@ -225,7 +234,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
-            ("compose/forge.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
+            ("compose/forge-abi.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
             ("compose/deps.yml", "soldeer-apply-locked", str(repo_path("dapps/dependencies")), "/work/dependencies"),
             ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/dependencies")), "/work/dependencies"),
             ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/soldeer.lock")), "/work/soldeer.lock"),
@@ -250,7 +259,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
                 expected.add(
                     (
-                        "compose/forge.yml",
+                        "compose/forge-abi.yml",
                         "forge-abi",
                         str(dapp_dir / "cam" / "abi"),
                         f"/work/dapps/{dapp_dir.name}/cam/abi",
@@ -266,6 +275,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             "compose/cast.yml",
             "compose/checks.yml",
             "compose/deps.yml",
+            "compose/forge-abi.yml",
             "compose/forge.yml",
             "compose/package-deps.yml",
             "compose/packages.yml",
