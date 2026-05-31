@@ -2,6 +2,10 @@ import type {
   CamHost,
   ResourceLoader,
 } from "@cam/evm-viem"
+import type {
+  Address,
+  Hex,
+} from "viem"
 
 import {
   requireAddress,
@@ -14,6 +18,10 @@ export type StartupOptions = {
   readonly account: CamHost["address"]
   readonly rpcUrl: string
   readonly allowUnsignedCamHash: boolean
+}
+
+type HostCodeClient = {
+  readonly getCode: (request: { readonly address: Address }) => Promise<Hex | undefined>
 }
 
 export function parseStartupOptions(url: URL): StartupOptions {
@@ -47,6 +55,16 @@ export function createPinnedOriginResourceLoader(): ResourceLoader {
     }
 
     return new Uint8Array(await response.arrayBuffer())
+  }
+}
+
+export async function assertHostHasCode(
+  publicClient: HostCodeClient,
+  host: StartupOptions["host"],
+): Promise<void> {
+  const code = await publicClient.getCode({ address: host })
+  if (code === undefined || code === "0x") {
+    throw new Error(`CAM host has no contract code at ${host}. Check that the host URL parameter matches the currently running chain.`)
   }
 }
 

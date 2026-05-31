@@ -41,6 +41,7 @@ import {
   shortenAddress,
 } from "./evm"
 import {
+  assertHostHasCode,
   createPinnedOriginResourceLoader,
   parseStartupOptions,
 } from "./startup"
@@ -407,16 +408,6 @@ function requirePublicClient(client: ReturnType<typeof createPublicClient> | und
   }
 
   return client
-}
-
-async function assertHostHasCode(
-  publicClient: ReturnType<typeof createPublicClient>,
-  host: StartupOptions["host"],
-): Promise<void> {
-  const code = await publicClient.getCode({ address: host })
-  if (code === undefined || code === "0x") {
-    throw new Error(`CAM host has no contract code at ${host}. Check that the host URL parameter matches the currently running chain.`)
-  }
 }
 
 function requireSession(session: CamViewerSession | undefined): CamViewerSession {
