@@ -470,6 +470,32 @@ test("sendCamContractCall validates mutable ABI functions and submits through th
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
   )
+
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      call: {
+        address: managerAddress,
+        abi: [{
+          type: "function",
+          name: "setComponent",
+          stateMutability: "nonpayable",
+          inputs: [{
+            name: "component",
+            type: "tuple",
+            components: [
+              { name: "serialNumber", type: "string" },
+              { name: "owner", type: "address" },
+            ],
+          }],
+          outputs: [],
+        }],
+        function: "setComponent",
+        args: [{ serialNumber: BIKE_SERIAL_NUMBER }],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
+  )
 })
 
 test("simulateCamContractCall validates and simulates with the selected account", async () => {

@@ -8,6 +8,7 @@ import type {
 } from "viem"
 import {
   isRecordObject,
+  toInertValue,
 } from "@cam/protocol"
 import type { InertValue } from "@cam/protocol"
 
@@ -150,7 +151,14 @@ function normalizeWriteArg(value: InertValue, parameter: AbiParameter, path: str
       if (componentName === undefined || componentName.length === 0) {
         throw invalidArg(path, "tuple components must be named")
       }
-      tuple[componentName] = normalizeWriteArg(value[componentName] as InertValue, component, `${path}.${componentName}`)
+      if (!Object.hasOwn(value, componentName)) {
+        throw invalidArg(path, `tuple is missing component: ${componentName}`)
+      }
+      tuple[componentName] = normalizeWriteArg(
+        toInertValue(value[componentName]),
+        component,
+        `${path}.${componentName}`,
+      )
     }
     return tuple
   }
