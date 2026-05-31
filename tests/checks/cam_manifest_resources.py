@@ -153,6 +153,79 @@ class CamManifestResourceValidator:
 
         return failures
 
+    def validate_screen_contract_actions_match_declared_abis(
+        self,
+        manifest_path: Path,
+        manifest: dict[str, object],
+    ) -> list[str]:
+        contracts = manifest.get("contracts")
+        routes = manifest.get("routes")
+        failures: list[str] = []
+        if not isinstance(contracts, dict):
+            failures.append(f"{manifest_path}: contracts must be an object")
+        if not isinstance(routes, dict):
+            failures.append(f"{manifest_path}: routes must be an object")
+        if failures:
+            return failures
+
+        abi_functions_by_contract, abi_failures = self.abi_route_functions_by_contract(manifest_path, contracts)
+        failures.extend(abi_failures)
+
+        screen_paths: set[Path] = set()
+        for route_name in routes:
+            if isinstance(route_name, str):
+                screen_paths.update(self.route_screen_paths(manifest_path, route_name))
+
+        for screen_path in sorted(screen_paths):
+            try:
+                screen = self.read_json_object(screen_path)
+            except AssertionError as error:
+                failures.append(str(error))
+                continue
+
+            for action in route_abi.contract_action_references(screen):
+                location = f"{screen_path}:{action.path}" if action.path else str(screen_path)
+                if not isinstance(action.contract_name, str) or action.contract_name == "":
+                    failures.append(f"{manifest_path}: contract-call action must declare a contract at {location}")
+                    continue
+                if not isinstance(action.function_name, str) or action.function_name == "":
+                    failures.append(f"{manifest_path}: contract-call action must declare a function at {location}")
+                    continue
+
+                functions = abi_functions_by_contract.get(action.contract_name)
+                if functions is None:
+                    failures.append(
+                        f"{manifest_path}: contract-call action references undeclared contract "
+                        f"at {location}: {action.contract_name}"
+                    )
+                    continue
+
+                function = functions.get(action.function_name)
+                if action.function_name not in functions:
+                    failures.append(
+                        f"{manifest_path}: contract-call action function is not present in "
+                        f"{action.contract_name} ABI at {location}: {action.function_name}"
+                    )
+                    continue
+
+                if function is None:
+                    failures.append(
+                        f"{manifest_path}: contract-call action function is overloaded in "
+                        f"{action.contract_name} ABI at {location}: {action.function_name}"
+                    )
+                    continue
+
+                failures.extend(
+                    route_abi.validate_contract_action_function(
+                        manifest_path,
+                        screen_path,
+                        action,
+                        function,
+                    )
+                )
+
+        return failures
+
     def validate_route_screen_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         routes = manifest.get("routes")
         if not isinstance(routes, dict):
@@ -218,7 +291,7 @@ class CamManifestResourceValidator:
         route_path: str,
         contract_name: str,
         function_name: str,
-        function: route_abi.AbiRouteFunction,
+        function: route_abi.AbiFunction,
     ) -> list[str]:
         if not isinstance(route_name, str):
             return []
@@ -253,8 +326,8 @@ class CamManifestResourceValidator:
         self,
         manifest_path: Path,
         contracts: dict[object, object],
-    ) -> tuple[dict[str, dict[str, route_abi.AbiRouteFunction | None]], list[str]]:
-        abi_functions_by_contract: dict[str, dict[str, route_abi.AbiRouteFunction | None]] = {}
+    ) -> tuple[dict[str, dict[str, route_abi.AbiFunction | None]], list[str]]:
+        abi_functions_by_contract: dict[str, dict[str, route_abi.AbiFunction | None]] = {}
         failures: list[str] = []
         for contract_name, contract in contracts.items():
             if not isinstance(contract_name, str) or contract_name == "":

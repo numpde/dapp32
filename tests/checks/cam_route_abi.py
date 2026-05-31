@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
-class AbiRouteFunction:
+class AbiFunction:
     input_count: int
     state_mutability: str | None
     outputs: tuple[object, ...]
@@ -29,14 +29,23 @@ class ValuesReference:
     expected_abi_type: str | None
 
 
+@dataclass(frozen=True)
+class ContractActionReference:
+    path: str
+    contract_name: object
+    function_name: object
+    arg_count: int | None
+
+
 VALUES_EXPRESSION_RE = re.compile(
     r"^\$values\.(0|[1-9][0-9]*)(\.(?:[A-Za-z][A-Za-z0-9_]*|0|[1-9][0-9]*))*$"
 )
 READ_ROUTE_MUTABILITY = frozenset({"view", "pure"})
+WRITE_ACTION_MUTABILITY = frozenset({"nonpayable", "payable"})
 
 
-def abi_route_functions(abi: list[object]) -> dict[str, AbiRouteFunction | None]:
-    functions_by_name: dict[str, AbiRouteFunction | None] = {}
+def abi_route_functions(abi: list[object]) -> dict[str, AbiFunction | None]:
+    functions_by_name: dict[str, AbiFunction | None] = {}
     for item in abi:
         if not isinstance(item, dict):
             continue
@@ -49,7 +58,7 @@ def abi_route_functions(abi: list[object]) -> dict[str, AbiRouteFunction | None]
             functions_by_name[name] = (
                 None
                 if name in functions_by_name
-                else AbiRouteFunction(
+                else AbiFunction(
                     input_count=len(inputs),
                     state_mutability=item.get("stateMutability") if isinstance(item.get("stateMutability"), str) else None,
                     outputs=tuple(outputs) if isinstance(outputs, list) else (),
@@ -63,7 +72,7 @@ def validate_route_function_mutability(
     route_path: str,
     contract_name: str,
     function_name: str,
-    function: AbiRouteFunction,
+    function: AbiFunction,
 ) -> list[str]:
     if function.state_mutability in READ_ROUTE_MUTABILITY:
         return []
@@ -79,7 +88,7 @@ def validate_route_output_shape(
     route_path: str,
     contract_name: str,
     function_name: str,
-    function: AbiRouteFunction,
+    function: AbiFunction,
 ) -> list[str]:
     first_output = function.first_output
     if first_output is None:
@@ -110,6 +119,32 @@ def validate_route_output_shape(
     return failures
 
 
+def validate_contract_action_function(
+    manifest_path: Path,
+    screen_path: Path,
+    action: ContractActionReference,
+    function: AbiFunction,
+) -> list[str]:
+    location = f"{screen_path}:{action.path}" if action.path else str(screen_path)
+    failures: list[str] = []
+
+    if function.state_mutability not in WRITE_ACTION_MUTABILITY:
+        failures.append(
+            f"{manifest_path}: contract-call action must target a payable or nonpayable ABI function "
+            f"at {location}: {action.contract_name}.{action.function_name}"
+        )
+
+    if action.arg_count is None:
+        failures.append(f"{manifest_path}: contract-call action args must be an array at {location}")
+    elif action.arg_count != function.input_count:
+        failures.append(
+            f"{manifest_path}: contract-call action has {action.arg_count} arg(s), "
+            f"but {action.contract_name}.{action.function_name} expects {function.input_count} at {location}"
+        )
+
+    return failures
+
+
 def validate_screen_values_references(
     manifest_path: Path,
     route_path: str,
@@ -117,7 +152,7 @@ def validate_screen_values_references(
     screen: object,
     contract_name: str,
     function_name: str,
-    function: AbiRouteFunction,
+    function: AbiFunction,
 ) -> list[str]:
     failures: list[str] = []
     for reference in values_references(screen):
@@ -148,7 +183,33 @@ def validate_screen_values_references(
     return failures
 
 
-def route_value_output(function: AbiRouteFunction, output_index: int) -> object | None:
+def contract_action_references(value: object, path: str = "") -> list[ContractActionReference]:
+    references: list[ContractActionReference] = []
+
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            references.extend(contract_action_references(item, join_json_path(path, str(index))))
+        return references
+
+    if isinstance(value, dict):
+        if value.get("type") == "contract-call":
+            args = value.get("args")
+            references.append(
+                ContractActionReference(
+                    path=path,
+                    contract_name=value.get("contract"),
+                    function_name=value.get("function"),
+                    arg_count=len(args) if isinstance(args, list) else None,
+                )
+            )
+
+        for key, item in value.items():
+            references.extend(contract_action_references(item, join_json_path(path, str(key))))
+
+    return references
+
+
+def route_value_output(function: AbiFunction, output_index: int) -> object | None:
     return function.value_outputs[output_index] if output_index < len(function.value_outputs) else None
 
 
