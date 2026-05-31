@@ -36,20 +36,28 @@ export type CamViewerSnapshot = {
   readonly values?: readonly InertValue[]
 }
 
+export type CamViewerLoadedSnapshot = CamViewerSnapshot & {
+  readonly route: string
+  readonly form: InertRecord
+  readonly screenURI: string
+  readonly resolvedScreen: ResolvedScreen
+  readonly values: readonly InertValue[]
+}
+
 export type CamViewerSession = {
   readonly snapshot: () => CamViewerSnapshot
-  readonly load: () => Promise<CamViewerSnapshot>
+  readonly load: () => Promise<CamViewerLoadedSnapshot>
   readonly navigate: (
     route: string,
     params: InertRecord,
-  ) => Promise<CamViewerSnapshot>
-  readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerSnapshot>
-  readonly updateForm: (patch: InertRecord) => CamViewerSnapshot
+  ) => Promise<CamViewerLoadedSnapshot>
+  readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerLoadedSnapshot>
+  readonly updateForm: (patch: InertRecord) => CamViewerLoadedSnapshot
   readonly dispatchAction: (action: ResolvedScreenAction) => Promise<CamViewerActionResult>
 }
 
 export type CamViewerActionResult =
-  | { readonly type: "navigated"; readonly snapshot: CamViewerSnapshot }
+  | { readonly type: "navigated"; readonly snapshot: CamViewerLoadedSnapshot }
   | { readonly type: "contractCall"; readonly call: CamViewerPreparedContractCall }
 
 export type CamViewerPreparedContractCall = CamContractCall & {

@@ -28,6 +28,7 @@ import { CamViewerError } from "./errors.ts"
 import type {
   CamViewerAccount,
   CamViewerActionResult,
+  CamViewerLoadedSnapshot,
   CamViewerPreparedContractCall,
   CamViewerSession,
   CamViewerSnapshot,
@@ -79,7 +80,7 @@ export function createCamViewerSession({
     }
   }
 
-  async function load(): Promise<CamViewerSnapshot> {
+  async function load(): Promise<CamViewerLoadedSnapshot> {
     const loadedCam = await loadCamFromHost({
       publicClient,
       host,
@@ -107,22 +108,22 @@ export function createCamViewerSession({
   async function navigate(
     nextRoute: string,
     nextParams: InertRecord,
-  ): Promise<CamViewerSnapshot> {
+  ): Promise<CamViewerLoadedSnapshot> {
     assertLoaded()
     return await navigateLoaded(nextRoute, nextParams)
   }
 
-  async function setAccount(nextAccount?: CamViewerAccount): Promise<CamViewerSnapshot> {
+  async function setAccount(nextAccount?: CamViewerAccount): Promise<CamViewerLoadedSnapshot> {
     account = nextAccount === undefined ? undefined : cloneAccount(nextAccount)
 
-    if (loadedState === undefined || currentScreen === undefined) {
-      return snapshot()
+    if (currentScreen === undefined) {
+      throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded screen")
     }
 
     return await navigateLoaded(currentScreen.route, currentScreen.params)
   }
 
-  function updateForm(patch: InertRecord): CamViewerSnapshot {
+  function updateForm(patch: InertRecord): CamViewerLoadedSnapshot {
     if (currentScreen === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded screen form")
     }
@@ -146,7 +147,7 @@ export function createCamViewerSession({
       resolvedScreen,
     }
 
-    return snapshot()
+    return loadedSnapshot()
   }
 
   async function dispatchAction(action: ResolvedScreenAction): Promise<CamViewerActionResult> {
@@ -172,7 +173,7 @@ export function createCamViewerSession({
   async function navigateLoaded(
     nextRoute: string,
     nextParams: InertRecord,
-  ): Promise<CamViewerSnapshot> {
+  ): Promise<CamViewerLoadedSnapshot> {
     const current = assertLoaded()
     const routeParams = cloneViewerData<InertRecord>(nextParams, "params")
 
@@ -202,7 +203,7 @@ export function createCamViewerSession({
       values: routeResult.values,
     }
 
-    return snapshot()
+    return loadedSnapshot()
   }
 
   async function loadScreenBytes(uri: string): Promise<Uint8Array> {
@@ -235,6 +236,28 @@ export function createCamViewerSession({
     }
 
     return loadedState
+  }
+
+  function loadedSnapshot(): CamViewerLoadedSnapshot {
+    const value = snapshot()
+    if (
+      value.route === undefined
+      || value.form === undefined
+      || value.screenURI === undefined
+      || value.resolvedScreen === undefined
+      || value.values === undefined
+    ) {
+      throw new CamViewerError("CAM_VIEWER_INVALID_SNAPSHOT", "CAM viewer expected a loaded screen snapshot")
+    }
+
+    return {
+      ...value,
+      route: value.route,
+      form: value.form,
+      screenURI: value.screenURI,
+      resolvedScreen: value.resolvedScreen,
+      values: value.values,
+    }
   }
 
   function prepareContractCall(action: Extract<ResolvedScreenAction, { readonly type: "contract-call" }>): CamViewerPreparedContractCall {

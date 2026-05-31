@@ -6,8 +6,8 @@ import type {
   ResolvedScreenElement,
 } from "@cam/screen"
 import type {
+  CamViewerLoadedSnapshot,
   CamViewerPreparedContractCall,
-  CamViewerSnapshot,
 } from "@cam/viewer"
 
 import {
@@ -52,7 +52,7 @@ export function ScreenView({
   onAction,
   onInput,
 }: {
-  readonly snapshot: CamViewerSnapshot
+  readonly snapshot: CamViewerLoadedSnapshot
   readonly onAction: (action: ResolvedScreenAction) => Promise<void>
   readonly onInput: (name: string, value: string) => void
 }): ReactElement {
@@ -63,7 +63,7 @@ export function ScreenView({
         <span>{snapshot.screenURI}</span>
       </div>
       <div className="elements">
-        {(snapshot.resolvedScreen?.elements ?? []).map((element, index) => (
+        {snapshot.resolvedScreen.elements.map((element, index) => (
           <ScreenElementView
             key={index}
             element={element}
@@ -109,7 +109,7 @@ export function PreparedCallView({
   )
 }
 
-export function ScreenElementView({
+function ScreenElementView({
   element,
   onAction,
   onInput,

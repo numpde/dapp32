@@ -15,9 +15,9 @@ import {
   createCamViewerSession,
 } from "@cam/viewer"
 import type {
+  CamViewerLoadedSnapshot,
   CamViewerPreparedContractCall,
   CamViewerSession,
-  CamViewerSnapshot,
 } from "@cam/viewer"
 import {
   createPublicClient,
@@ -46,7 +46,7 @@ import {
 
 type LoadState =
   | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly runtime: AppRuntime; readonly snapshot: CamViewerSnapshot }
+  | { readonly status: "ready"; readonly runtime: AppRuntime; readonly snapshot: CamViewerLoadedSnapshot }
   | { readonly status: "failed"; readonly message: string }
 
 type AppPublicClient = ReturnType<typeof createPublicClient>

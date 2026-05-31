@@ -1,5 +1,6 @@
 export type {
   CamViewerActionResult,
+  CamViewerLoadedSnapshot,
   CamViewerPreparedContractCall,
   CamViewerSession,
   CamViewerSnapshot,
