@@ -19,7 +19,7 @@ export type ExpressionRuntime<T> = {
   readonly validateString: (value: string, path?: string) => void
   readonly validateValue: (value: unknown, path: string) => void
   readonly parsePayload: (value: unknown, path: string) => T
-  readonly resolveValue: (value: T, context: Record<string, unknown>, path: string) => T
+  readonly resolveValue: (value: T, context: object, path: string) => T
 }
 
 const IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
@@ -80,11 +80,11 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
     return options.normalize(value, path)
   }
 
-  function resolveValue(value: T, context: Record<string, unknown>, path: string): T {
+  function resolveValue(value: T, context: object, path: string): T {
     return options.normalize(resolveNode(value, context, path), path)
   }
 
-  function resolveNode(value: unknown, context: Record<string, unknown>, path: string): unknown {
+  function resolveNode(value: unknown, context: object, path: string): unknown {
     if (typeof value === "string") {
       return resolveString(value, context, path)
     }
@@ -104,7 +104,7 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
     return value
   }
 
-  function resolveString(value: string, context: Record<string, unknown>, path: string): unknown {
+  function resolveString(value: string, context: object, path: string): unknown {
     if (!value.startsWith("$")) {
       return value
     }
@@ -112,7 +112,7 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
     validateString(value, path)
 
     const [root, ...segments] = value.slice(1).split(".")
-    let current: unknown = root === undefined ? undefined : context[root]
+    let current: unknown = root === undefined ? undefined : readExpressionSegment(context, root)
 
     for (const segment of segments) {
       current = readExpressionSegment(current, segment)

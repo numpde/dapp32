@@ -48,5 +48,5 @@ export function parseExpressionPayload(value: unknown, path: string): InertValue
 }
 
 export function resolveValueAtPath(value: InertValue, context: ScreenRuntimeContext, path: string): InertValue {
-  return SCREEN_EXPRESSIONS.resolveValue(value, context as unknown as Record<string, unknown>, path)
+  return SCREEN_EXPRESSIONS.resolveValue(value, context, path)
 }

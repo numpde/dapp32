@@ -40,9 +40,7 @@ const CAM_EXPRESSIONS = createExpressionRuntime({
 })
 
 export function resolveArgs(args: readonly InertValue[], context: CamRuntimeContext): readonly InertValue[] {
-  return args.map((arg, index) =>
-    CAM_EXPRESSIONS.resolveValue(arg, context as unknown as Record<string, unknown>, `args.${index}`),
-  )
+  return args.map((arg, index) => CAM_EXPRESSIONS.resolveValue(arg, context, `args.${index}`))
 }
 
 export function validateExpressionValue(value: unknown, path: string): void {
