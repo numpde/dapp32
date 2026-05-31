@@ -62,13 +62,13 @@ Named UI nodes declare the render context names they expect:
 {
   "app": {
     "type": "Screen",
-    "requires": ["account", "form", "input", "view"]
+    "requires": ["view"]
   }
 }
 ```
 
-Leaf nodes should list only the context names they read directly. The `app`
-shell lists the broader context needed by its dynamic descendants.
+`requires` lists only the context names a node reads directly. Dynamic
+descendants declare their own requirements.
 
 The root app shell is just another named UI node:
 

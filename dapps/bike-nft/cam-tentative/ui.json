@@ -2,7 +2,7 @@
   "ui": "1.0.0-tentative",
   "app": {
     "type": "Screen",
-    "requires": ["account", "form", "input", "view"],
+    "requires": ["view"],
     "props": {
       "title": "Bicycle component registry"
     },
