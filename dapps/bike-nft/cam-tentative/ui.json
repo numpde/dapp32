@@ -19,7 +19,6 @@
       {
         "type": "Include",
         "select": "$view.actions",
-        "enabled": "$view.enabledActions",
         "args": {
           "form": "$form"
         }

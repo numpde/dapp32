@@ -91,7 +91,6 @@ The generic expansion primitive is one node:
 {
   "type": "Include",
   "select": "$view.actions",
-  "enabled": "$view.enabledActions",
   "args": {
     "form": "$form"
   }
@@ -99,9 +98,9 @@ The generic expansion primitive is one node:
 ```
 
 `select` controls which top-level UI node IDs appear. If it resolves to an
-array, that array is presentation order. `enabled` controls which selected
-nodes are actionable. `args` is the complete context passed to each expanded
-node.
+array, that array is presentation order. For action nodes, the contract/view
+helper returns only currently valid actions. `args` is the complete context
+passed to each expanded node.
 
 Named UI nodes declare the argument names they expect:
 
@@ -186,7 +185,6 @@ helper should return IDs such as:
 {
   "view": "component.found",
   "actions": ["updateMetadata", "markMissing"],
-  "enabledActions": ["markMissing"],
   "serialNumber": "DEMO-FRAME-001"
 }
 ```
