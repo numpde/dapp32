@@ -57,6 +57,9 @@ operation.
 - `type: "routes"` calls a CAM route declared in `routes`.
 - `type: "ui"` calls a named UI node from the declared UI resource.
 
+Namespace declarations use `type` for namespace kind. UI nodes use `tag` for
+render element kind.
+
 Read targets pass their outputs into a UI call:
 
 ```json
@@ -92,7 +95,7 @@ The generic expansion primitive is one node:
 
 ```json
 {
-  "type": "Include",
+  "tag": "Include",
   "first": {
     "namespace": "ui",
     "function": "$view.actions",
@@ -113,7 +116,7 @@ Named UI nodes declare the argument names they expect:
 ```json
 {
   "app": {
-    "type": "Screen",
+    "tag": "Screen",
     "requires": ["account", "form", "input", "view"]
   }
 }
@@ -128,10 +131,10 @@ The root app shell is just another named UI node:
 ```json
 {
   "app": {
-    "type": "Screen",
+    "tag": "Screen",
     "children": [
       {
-        "type": "Include",
+        "tag": "Include",
         "first": {
           "namespace": "ui",
           "function": "$view.view",
@@ -151,7 +154,7 @@ Action nodes start routes. They do not name contracts directly:
 
 ```json
 {
-  "type": "Action",
+  "tag": "Action",
   "props": {
     "label": "Prepare registration"
   },

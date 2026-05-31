@@ -1,14 +1,14 @@
 {
   "ui": "1.0.0-tentative",
   "app": {
-    "type": "Screen",
+    "tag": "Screen",
     "requires": ["account", "form", "input", "view"],
     "props": {
       "title": "Bicycle component registry"
     },
     "children": [
       {
-        "type": "Include",
+        "tag": "Include",
         "first": {
           "namespace": "ui",
           "function": "$view.view",
@@ -20,7 +20,7 @@
         }
       },
       {
-        "type": "Include",
+        "tag": "Include",
         "first": {
           "namespace": "ui",
           "function": "$view.actions",
@@ -33,30 +33,30 @@
   },
   "entry": {
     "requires": ["account", "view"],
-    "type": "Fragment",
+    "tag": "Fragment",
     "children": [
       {
-        "type": "Text",
+        "tag": "Text",
         "props": {
           "text": "Look up a component by the serial number stamped on the bicycle."
         }
       },
       {
-        "type": "Address",
+        "tag": "Address",
         "props": {
           "label": "Connected account",
           "address": "$account.address"
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Can register components",
           "value": "$view.canRegister"
         }
       },
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
@@ -67,16 +67,16 @@
   },
   "component.empty": {
     "requires": ["input"],
-    "type": "Fragment",
+    "tag": "Fragment",
     "children": [
       {
-        "type": "Text",
+        "tag": "Text",
         "props": {
           "text": "Enter a bicycle component serial number."
         }
       },
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
@@ -87,10 +87,10 @@
   },
   "component.notFound": {
     "requires": ["view"],
-    "type": "Fragment",
+    "tag": "Fragment",
     "children": [
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
@@ -98,7 +98,7 @@
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Registered",
           "value": false
@@ -108,10 +108,10 @@
   },
   "component.found": {
     "requires": ["view"],
-    "type": "Fragment",
+    "tag": "Fragment",
     "children": [
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
@@ -119,42 +119,42 @@
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Status",
           "value": "$view.status"
         }
       },
       {
-        "type": "Address",
+        "tag": "Address",
         "props": {
           "label": "Owner",
           "address": "$view.owner"
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Owner info",
           "value": "$view.ownerInfo"
         }
       },
       {
-        "type": "Nft",
+        "tag": "Nft",
         "props": {
           "contractAddress": "$view.tokenContract",
           "tokenId": "$view.tokenId"
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Token URI",
           "value": "$view.tokenURI"
         }
       },
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "tokenURI",
           "label": "New token URI",
@@ -162,7 +162,7 @@
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Serial hash",
           "value": "$view.serialHash"
@@ -172,16 +172,16 @@
   },
   "register.empty": {
     "requires": ["input"],
-    "type": "Fragment",
+    "tag": "Fragment",
     "children": [
       {
-        "type": "Text",
+        "tag": "Text",
         "props": {
           "text": "Enter a serial number before preparing registration."
         }
       },
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
@@ -189,7 +189,7 @@
         }
       },
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "tokenURI",
           "label": "Token URI",
@@ -200,10 +200,10 @@
   },
   "register.ready": {
     "requires": ["view"],
-    "type": "Fragment",
+    "tag": "Fragment",
     "children": [
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
@@ -211,7 +211,7 @@
         }
       },
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "tokenURI",
           "label": "Token URI",
@@ -219,14 +219,14 @@
         }
       },
       {
-        "type": "Address",
+        "tag": "Address",
         "props": {
           "label": "Component contract",
           "address": "$view.componentsAddress"
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Account info",
           "value": "$view.accountInfo"
@@ -236,10 +236,10 @@
   },
   "register.blocked": {
     "requires": ["view"],
-    "type": "Fragment",
+    "tag": "Fragment",
     "children": [
       {
-        "type": "Input",
+        "tag": "Input",
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
@@ -247,21 +247,21 @@
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Connected account can register",
           "value": "$view.canRegister"
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Component already exists",
           "value": "$view.exists"
         }
       },
       {
-        "type": "Status",
+        "tag": "Status",
         "props": {
           "label": "Account info",
           "value": "$view.accountInfo"
@@ -271,7 +271,7 @@
   },
   "lookupComponent": {
     "requires": ["form"],
-    "type": "Action",
+    "tag": "Action",
     "props": {
       "label": "Look up component"
     },
@@ -285,7 +285,7 @@
   },
   "openRegister": {
     "requires": ["form"],
-    "type": "Action",
+    "tag": "Action",
     "props": {
       "label": "Register component"
     },
@@ -299,7 +299,7 @@
   },
   "register": {
     "requires": ["form"],
-    "type": "Action",
+    "tag": "Action",
     "props": {
       "label": "Prepare registration"
     },
@@ -314,7 +314,7 @@
   },
   "updateMetadata": {
     "requires": ["form"],
-    "type": "Action",
+    "tag": "Action",
     "props": {
       "label": "Prepare metadata update"
     },
@@ -329,7 +329,7 @@
   },
   "markMissing": {
     "requires": ["form"],
-    "type": "Action",
+    "tag": "Action",
     "props": {
       "label": "Prepare missing report"
     },
@@ -343,7 +343,7 @@
   },
   "clearMissing": {
     "requires": ["form"],
-    "type": "Action",
+    "tag": "Action",
     "props": {
       "label": "Prepare missing clear"
     },
@@ -357,7 +357,7 @@
   },
   "retire": {
     "requires": ["form"],
-    "type": "Action",
+    "tag": "Action",
     "props": {
       "label": "Prepare retirement"
     },
