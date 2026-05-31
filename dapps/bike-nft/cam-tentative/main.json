@@ -21,7 +21,7 @@
   "routes": {
     "entry": {
       "inputs": [],
-      "first": {
+      "call": {
         "namespace": "contracts.BicycleComponentManagerUI",
         "function": "viewEntry",
         "args": {
@@ -41,7 +41,7 @@
     },
     "component": {
       "inputs": ["serialNumber"],
-      "first": {
+      "call": {
         "namespace": "contracts.BicycleComponentManagerUI",
         "function": "viewComponent",
         "args": {
@@ -62,7 +62,7 @@
     },
     "register": {
       "inputs": ["serialNumber"],
-      "first": {
+      "call": {
         "namespace": "contracts.BicycleComponentManagerUI",
         "function": "viewRegister",
         "args": {
@@ -83,7 +83,7 @@
     },
     "registerComponent": {
       "inputs": ["serialNumber", "tokenURI"],
-      "first": {
+      "call": {
         "namespace": "contracts.BicycleComponentManager",
         "function": "registerComponent",
         "args": {
@@ -102,7 +102,7 @@
     },
     "updateComponentMetadata": {
       "inputs": ["serialNumber", "tokenURI"],
-      "first": {
+      "call": {
         "namespace": "contracts.BicycleComponentManager",
         "function": "setComponentMetadata",
         "args": {
@@ -120,7 +120,7 @@
     },
     "markComponentMissing": {
       "inputs": ["serialNumber"],
-      "first": {
+      "call": {
         "namespace": "contracts.BicycleComponentManager",
         "function": "markMissing",
         "args": {
@@ -137,7 +137,7 @@
     },
     "clearComponentMissing": {
       "inputs": ["serialNumber"],
-      "first": {
+      "call": {
         "namespace": "contracts.BicycleComponentManager",
         "function": "clearMissing",
         "args": {
@@ -154,7 +154,7 @@
     },
     "retireComponent": {
       "inputs": ["serialNumber"],
-      "first": {
+      "call": {
         "namespace": "contracts.BicycleComponentManager",
         "function": "retireComponent",
         "args": {

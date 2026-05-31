@@ -7,7 +7,7 @@ The useful idea is one app manifest plus one top-level UI node table:
 
 - `main.json` owns namespace declarations and route/write wiring.
 - `ui.json` owns named render/action nodes.
-- `Include` expands UI nodes through a `first` call.
+- `Include` expands UI nodes through a `call`.
 - Contracts return semantic view/action IDs, not CAM file paths.
 - Contract calls, route jumps, UI renders, and UI actions all use one call
   shape: namespace, function, and args.
@@ -48,7 +48,7 @@ The single call shape is:
 }
 ```
 
-Routes and UI nodes carry that shape in a `first` field when they perform an
+Routes and UI nodes carry that shape in a `call` field when they perform an
 operation.
 
 `namespace` is closed and protocol-owned:
@@ -96,7 +96,7 @@ The generic expansion primitive is one node:
 ```json
 {
   "tag": "Include",
-  "first": {
+  "call": {
     "namespace": "ui",
     "function": "$view.actions",
     "args": {
@@ -106,9 +106,9 @@ The generic expansion primitive is one node:
 }
 ```
 
-For `Include`, `first.function` controls which top-level UI node IDs appear. If
+For `Include`, `call.function` controls which top-level UI node IDs appear. If
 it resolves to an array, that array is presentation order. For action nodes,
-the contract/view helper returns only currently valid actions. `first.args` is
+the contract/view helper returns only currently valid actions. `call.args` is
 the complete context passed to each expanded node.
 
 Named UI nodes declare the argument names they expect:
@@ -123,7 +123,7 @@ Named UI nodes declare the argument names they expect:
 ```
 
 `requires` lists the context names a node reads directly, including values it
-forwards through `Include.first.args`. Expanded nodes must be satisfied only by
+forwards through `Include.call.args`. Expanded nodes must be satisfied only by
 the context their parent explicitly forwards.
 
 The root app shell is just another named UI node:
@@ -135,7 +135,7 @@ The root app shell is just another named UI node:
     "children": [
       {
         "tag": "Include",
-        "first": {
+        "call": {
           "namespace": "ui",
           "function": "$view.view",
           "args": {
@@ -158,7 +158,7 @@ Action nodes start routes. They do not name contracts directly:
   "props": {
     "label": "Prepare registration"
   },
-  "first": {
+  "call": {
     "namespace": "routes",
     "function": "registerComponent",
     "args": {
@@ -169,13 +169,13 @@ Action nodes start routes. They do not name contracts directly:
 }
 ```
 
-The target route in `main.json` declares its named `inputs`, its first contract
-call, and any follow-up route. Contract-call `args` are named by ABI input name,
-not by position:
+The target route in `main.json` declares its named `inputs`, its contract call,
+and any follow-up route. Contract-call `args` are named by ABI input name, not
+by position:
 
 ```json
 {
-  "first": {
+  "call": {
     "namespace": "contracts.BicycleComponentManager",
     "function": "registerComponent",
     "args": {
@@ -187,7 +187,7 @@ not by position:
 }
 ```
 
-The ABI decides whether the first call is a read or a write. `ui.json` does not
+The ABI decides whether the call is a read or a write. `ui.json` does not
 duplicate function mutability and does not contain nested post-success actions.
 
 The tentative route output shape is deliberately semantic. The contract/view

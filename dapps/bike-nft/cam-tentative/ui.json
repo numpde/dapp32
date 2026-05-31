@@ -9,7 +9,7 @@
     "children": [
       {
         "tag": "Include",
-        "first": {
+        "call": {
           "namespace": "ui",
           "function": "$view.view",
           "args": {
@@ -21,7 +21,7 @@
       },
       {
         "tag": "Include",
-        "first": {
+        "call": {
           "namespace": "ui",
           "function": "$view.actions",
           "args": {
@@ -275,7 +275,7 @@
     "props": {
       "label": "Look up component"
     },
-    "first": {
+    "call": {
       "namespace": "routes",
       "function": "component",
       "args": {
@@ -289,7 +289,7 @@
     "props": {
       "label": "Register component"
     },
-    "first": {
+    "call": {
       "namespace": "routes",
       "function": "register",
       "args": {
@@ -303,7 +303,7 @@
     "props": {
       "label": "Prepare registration"
     },
-    "first": {
+    "call": {
       "namespace": "routes",
       "function": "registerComponent",
       "args": {
@@ -318,7 +318,7 @@
     "props": {
       "label": "Prepare metadata update"
     },
-    "first": {
+    "call": {
       "namespace": "routes",
       "function": "updateComponentMetadata",
       "args": {
@@ -333,7 +333,7 @@
     "props": {
       "label": "Prepare missing report"
     },
-    "first": {
+    "call": {
       "namespace": "routes",
       "function": "markComponentMissing",
       "args": {
@@ -347,7 +347,7 @@
     "props": {
       "label": "Prepare missing clear"
     },
-    "first": {
+    "call": {
       "namespace": "routes",
       "function": "clearComponentMissing",
       "args": {
@@ -361,7 +361,7 @@
     "props": {
       "label": "Prepare retirement"
     },
-    "first": {
+    "call": {
       "namespace": "routes",
       "function": "retireComponent",
       "args": {
