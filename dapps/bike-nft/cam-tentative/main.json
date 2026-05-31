@@ -16,6 +16,14 @@
         "contract": "BicycleComponentManagerUI",
         "function": "viewEntry",
         "args": ["$account.address"]
+      },
+      "then": {
+        "render": "ui",
+        "select": "app",
+        "with": {
+          "inputs": "$inputs",
+          "values": "$outputs"
+        }
       }
     },
     "component": {
@@ -24,6 +32,14 @@
         "contract": "BicycleComponentManagerUI",
         "function": "viewComponent",
         "args": ["$inputs.serialNumber", "$account.address"]
+      },
+      "then": {
+        "render": "ui",
+        "select": "app",
+        "with": {
+          "inputs": "$inputs",
+          "values": "$outputs"
+        }
       }
     },
     "register": {
@@ -32,6 +48,14 @@
         "contract": "BicycleComponentManagerUI",
         "function": "viewRegister",
         "args": ["$inputs.serialNumber", "$account.address"]
+      },
+      "then": {
+        "render": "ui",
+        "select": "app",
+        "with": {
+          "inputs": "$inputs",
+          "values": "$outputs"
+        }
       }
     },
     "registerComponent": {
