@@ -53,13 +53,14 @@ const host: CamHost = bikeHost
 const ROOT_CAM_URI = "camURI"
 const ROOT_CAM_HASH = "camHash"
 const ROOT_CONTRACT_ADDRESS = "contractAddress"
+const NO_ROUTE_RESULTS = {}
 
 test("loadCamFromHost reads root metadata, accepts unsigned CAMs, and rejects hash mismatches", async () => {
   const camBytes = encodeJson(camJson)
-  const publicClient = createPublicClient({
+  const publicClient = createPublicClient(publicClientFixtureOptions({
     camURI: camDocumentURI,
     camHash: BIKE_UNSIGNED_CAM_HASH,
-  })
+  }))
   const resources = createResourceLoader({
     [camDocumentURI]: camBytes,
   })
@@ -80,10 +81,10 @@ test("loadCamFromHost reads root metadata, accepts unsigned CAMs, and rejects ha
 
   await assert.rejects(
     () => loadCamFromHost({
-      publicClient: createPublicClient({
+      publicClient: createPublicClient(publicClientFixtureOptions({
         camURI: camDocumentURI,
         camHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
-      }),
+      })),
       host,
       loadResource: resources,
       allowUnsignedCamHash: false,
@@ -94,12 +95,12 @@ test("loadCamFromHost reads root metadata, accepts unsigned CAMs, and rejects ha
 
 test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relative to the CAM", async () => {
   const cam = parseCam(camJson)
-  const publicClient = createPublicClient({
+  const publicClient = createPublicClient(publicClientFixtureOptions({
     addresses: {
       [BIKE_UI_CONTRACT]: uiAddress,
       [BIKE_MANAGER_CONTRACT]: managerAddress,
     },
-  })
+  }))
   const resources = createResourceLoader({
     [uiAbiURI]: encodeJson(uiAbi),
     [managerAbiURI]: encodeJson(managerAbi),
@@ -121,12 +122,12 @@ test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relati
 test("resolveCamContracts rejects invalid root contract bindings", async () => {
   await assert.rejects(
     () => resolveCamContracts({
-      publicClient: createPublicClient({
+      publicClient: createPublicClient(publicClientFixtureOptions({
         addresses: {
           [BIKE_UI_CONTRACT]: "not-an-address" as Address,
           [BIKE_MANAGER_CONTRACT]: managerAddress,
         },
-      }),
+      })),
       host,
       camURI: camDocumentURI,
       cam: parseCam(camJson),
@@ -148,12 +149,12 @@ test("resolveCamContracts rejects malformed ABI entries", async () => {
   for (const malformedAbi of cases) {
     await assert.rejects(
       () => resolveCamContracts({
-        publicClient: createPublicClient({
+        publicClient: createPublicClient(publicClientFixtureOptions({
           addresses: {
             [BIKE_UI_CONTRACT]: uiAddress,
             [BIKE_MANAGER_CONTRACT]: managerAddress,
           },
-        }),
+        })),
         host,
         camURI: camDocumentURI,
         cam: parseCam(camJson),
@@ -169,11 +170,11 @@ test("resolveCamContracts rejects malformed ABI entries", async () => {
 
 test("callCamRoute resolves CAM args, calls the selected contract, and returns normalized route values", async () => {
   const cam = parseCam(camJson)
-  const publicClient = createPublicClient({
+  const publicClient = createPublicClient(publicClientFixtureOptions({
     routeResults: {
       [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, [userAddress, true, "Mock registrar account"]],
     },
-  })
+  }))
 
   const result = await callCamRoute({
     publicClient,
@@ -213,7 +214,7 @@ test("callCamRoute resolves CAM args, calls the selected contract, and returns n
 
 test("callCamRoute maps positional ABI tuples to named route values", async () => {
   const cam = parseCam(camJson)
-  const publicClient = createPublicClient({
+  const publicClient = createPublicClient(publicClientFixtureOptions({
     routeResults: {
       [BIKE_VIEW_REGISTER]: [
         BIKE_RELATIVE_REGISTER_READY_SCREEN_URI,
@@ -233,7 +234,7 @@ test("callCamRoute maps positional ABI tuples to named route values", async () =
         ],
       ],
     },
-  })
+  }))
 
   const result = await callCamRoute({
     publicClient,
@@ -287,11 +288,11 @@ test("callCamRoute rejects unsafe screen URIs and non-view route functions", asy
   for (const unsafeScreenURI of unsafeScreenURIs) {
     await assert.rejects(
       () => callCamRoute({
-        publicClient: createPublicClient({
+        publicClient: createPublicClient(publicClientFixtureOptions({
           routeResults: {
             [BIKE_VIEW_ENTRY]: [unsafeScreenURI],
           },
-        }),
+        })),
         cam: parseCam(camJson),
         camURI: camDocumentURI,
         contracts: {
@@ -320,11 +321,11 @@ test("callCamRoute rejects unsafe screen URIs and non-view route functions", asy
 
   await assert.rejects(
     () => callCamRoute({
-      publicClient: createPublicClient({
+      publicClient: createPublicClient(publicClientFixtureOptions({
         routeResults: {
           [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
         },
-      }),
+      })),
       cam: parseCam(camJson),
       camURI: camDocumentURI,
       contracts: {
@@ -347,11 +348,11 @@ test("callCamRoute rejects unsafe screen URIs and non-view route functions", asy
 test("callCamRoute rejects route return values that do not match the ABI", async () => {
   await assert.rejects(
     () => callCamRoute({
-      publicClient: createPublicClient({
+      publicClient: createPublicClient(publicClientFixtureOptions({
         routeResults: {
           [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
         },
-      }),
+      })),
       cam: parseCam(camJson),
       camURI: camDocumentURI,
       contracts: {
@@ -372,11 +373,11 @@ test("callCamRoute rejects route return values that do not match the ABI", async
 
   await assert.rejects(
     () => callCamRoute({
-      publicClient: createPublicClient({
+      publicClient: createPublicClient(publicClientFixtureOptions({
         routeResults: {
           [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, [userAddress, true, ""], "extra"],
         },
-      }),
+      })),
       cam: parseCam(camJson),
       camURI: camDocumentURI,
       contracts: {
@@ -404,11 +405,11 @@ test("callCamRoute rejects route ABIs without screenURI as the first output", as
 
   await assert.rejects(
     () => callCamRoute({
-      publicClient: createPublicClient({
+      publicClient: createPublicClient(publicClientFixtureOptions({
         routeResults: {
           [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, [userAddress, true, ""]],
         },
-      }),
+      })),
       cam: parseCam(camJson),
       camURI: camDocumentURI,
       contracts: {
@@ -589,18 +590,11 @@ test("simulateCamContractCall validates and simulates with the selected account"
 })
 
 function createPublicClient({
-  // These defaults are fixture conveniences. Tests exercising host metadata,
-  // bindings, or route returns override the relevant field explicitly.
-  camURI = camDocumentURI,
-  camHash = BIKE_UNSIGNED_CAM_HASH,
-  addresses = bikeContractAddresses,
-  routeResults = {},
-}: {
-  readonly camURI?: string
-  readonly camHash?: Hex
-  readonly addresses?: Record<string, Address>
-  readonly routeResults?: Record<string, unknown>
-}) {
+  camURI,
+  camHash,
+  addresses,
+  routeResults,
+}: PublicClientFixtureOptions) {
   // This fake models raw viem return values before callCamRoute normalizes
   // them to RouteResult.values.
   return createMockCamPublicClient<CamPublicClient["readContract"]>({
@@ -609,6 +603,23 @@ function createPublicClient({
     addresses,
     routeResults,
   })
+}
+
+type PublicClientFixtureOptions = {
+  readonly camURI: string
+  readonly camHash: Hex
+  readonly addresses: Record<string, Address>
+  readonly routeResults: Record<string, unknown>
+}
+
+function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOptions>): PublicClientFixtureOptions {
+  return {
+    camURI: camDocumentURI,
+    camHash: BIKE_UNSIGNED_CAM_HASH,
+    addresses: bikeContractAddresses,
+    routeResults: NO_ROUTE_RESULTS,
+    ...overrides,
+  }
 }
 
 function createSimulationClient(failure?: Error): CamSimulationClient & {

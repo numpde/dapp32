@@ -115,7 +115,7 @@ export function createMockResourceLoader(resources: Readonly<Record<string, Uint
 }
 
 export function bikeResourceBytes(
-  overrides: Readonly<Record<string, Uint8Array>> = {},
+  overrides: Readonly<Record<string, Uint8Array>>,
 ): Record<string, Uint8Array> {
   return {
     [BIKE_CAM_URI]: encodeJson(bikeCamJson),

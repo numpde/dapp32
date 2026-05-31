@@ -41,10 +41,11 @@ import {
 
 const host: CamHost = bikeHost
 const otherUserAddress = "0x0000000000000000000000000000000000000099"
+const NO_RESOURCE_OVERRIDES = {}
 
 test("load resolves host CAM, entry route, and entry screen", async () => {
-  const publicClient = createPublicClient()
-  const session = createSession({ publicClient })
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const session = createSession(sessionFixtureOptions({ publicClient }))
 
   const snapshot = await session.load()
 
@@ -68,8 +69,8 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
 })
 
 test("snapshot returns isolated copies of nested route and resolved screen data", async () => {
-  const session = createSession({
-    resources: {
+  const session = createSession(sessionFixtureOptions({
+    loadResource: createResourceLoader(bikeResourceBytes({
       [entryScreenURI]: encodeJson({
         screen: "1.0.0",
         title: "Entry",
@@ -81,8 +82,8 @@ test("snapshot returns isolated copies of nested route and resolved screen data"
           },
         ],
       }),
-    },
-  })
+    })),
+  }))
 
   const snapshot = await session.load()
 
@@ -98,7 +99,7 @@ test("snapshot returns isolated copies of nested route and resolved screen data"
 })
 
 test("setAccount before load fails without mutating the session", async () => {
-  const session = createSession()
+  const session = createSession(sessionFixtureOptions({}))
 
   await assert.rejects(
     () => session.setAccount({ address: otherUserAddress }),
@@ -110,8 +111,8 @@ test("setAccount before load fails without mutating the session", async () => {
 
 test("setAccount reload failures preserve the previous loaded snapshot", async () => {
   let entryScreenLoads = 0
-  const resources = createResourceLoader(bikeResourceBytes())
-  const session = createSession({
+  const resources = createResourceLoader(bikeResourceBytes({}))
+  const session = createSession(sessionFixtureOptions({
     loadResource: async (uri) => {
       if (uri === entryScreenURI) {
         entryScreenLoads += 1
@@ -122,7 +123,7 @@ test("setAccount reload failures preserve the previous loaded snapshot", async (
 
       return await resources(uri)
     },
-  })
+  }))
 
   const before = await session.load()
 
@@ -135,10 +136,10 @@ test("setAccount reload failures preserve the previous loaded snapshot", async (
 })
 
 test("updateForm resolves navigation actions, while contract actions are surfaced without sending", async () => {
-  const publicClient = createPublicClient()
-  const session = createSession({
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const session = createSession(sessionFixtureOptions({
     publicClient,
-    resources: {
+    loadResource: createResourceLoader(bikeResourceBytes({
       [entryScreenURI]: encodeJson({
         screen: "1.0.0",
         title: "Entry",
@@ -162,8 +163,8 @@ test("updateForm resolves navigation actions, while contract actions are surface
           },
         ],
       }),
-    },
-  })
+    })),
+  }))
   await session.load()
 
   const snapshot = session.updateForm({
@@ -226,16 +227,9 @@ test("updateForm resolves navigation actions, while contract actions are surface
 })
 
 function createSession({
-  // This helper builds a complete happy-path session by default. Tests for
-  // missing resources or client behavior pass the dependency explicitly.
-  publicClient = createPublicClient(),
-  resources = {},
-  loadResource = createResourceLoader(bikeResourceBytes(resources)),
-}: {
-  readonly publicClient?: ReturnType<typeof createPublicClient>
-  readonly resources?: Record<string, Uint8Array>
-  readonly loadResource?: CreateCamViewerSessionOptions["loadResource"]
-} = {}) {
+  publicClient,
+  loadResource,
+}: SessionFixtureOptions) {
   return createCamViewerSession({
     publicClient,
     host,
@@ -247,16 +241,10 @@ function createSession({
 }
 
 function createPublicClient({
-  // These are viewer test defaults, not protocol defaults. Tests override them
-  // when hash, binding, or route output behavior is under scrutiny.
-  camHash = BIKE_UNSIGNED_CAM_HASH,
-  addresses = bikeContractAddresses,
-  routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
-}: {
-  readonly camHash?: Hex
-  readonly addresses?: Readonly<Record<string, Address>>
-  readonly routeResults?: Record<string, unknown>
-} = {}) {
+  camHash,
+  addresses,
+  routeResults,
+}: PublicClientFixtureOptions) {
   // This fake models raw viem return values before @cam/evm-viem normalizes
   // them to RouteResult.values.
   return createMockCamPublicClient<CreateCamViewerSessionOptions["publicClient"]["readContract"]>({
@@ -265,6 +253,34 @@ function createPublicClient({
     addresses,
     routeResults,
   })
+}
+
+type SessionFixtureOptions = {
+  readonly publicClient: ReturnType<typeof createPublicClient>
+  readonly loadResource: CreateCamViewerSessionOptions["loadResource"]
+}
+
+type PublicClientFixtureOptions = {
+  readonly camHash: Hex
+  readonly addresses: Readonly<Record<string, Address>>
+  readonly routeResults: Record<string, unknown>
+}
+
+function sessionFixtureOptions(overrides: Partial<SessionFixtureOptions>): SessionFixtureOptions {
+  return {
+    publicClient: createPublicClient(publicClientFixtureOptions({})),
+    loadResource: createResourceLoader(bikeResourceBytes(NO_RESOURCE_OVERRIDES)),
+    ...overrides,
+  }
+}
+
+function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOptions>): PublicClientFixtureOptions {
+  return {
+    camHash: BIKE_UNSIGNED_CAM_HASH,
+    addresses: bikeContractAddresses,
+    routeResults: bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
+    ...overrides,
+  }
 }
 
 function mutableRecord(value: unknown): Record<string, unknown> {

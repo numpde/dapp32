@@ -28,6 +28,9 @@ JS_DESTRUCTURING_DEFAULT_RE = re.compile(
     r"\b(?:const|let|var)\s+\{[^}\n]*\b[A-Za-z_][A-Za-z0-9_]*\s*=\s*"
     r"(?:[\"'`{\[]|\d|true|false|null|undefined)"
 )
+JS_PARAMETER_DESTRUCTURING_VALUE_RE = re.compile(
+    r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:[\"'`{\[]|\d|true|false|null|undefined|[A-Z_][A-Za-z0-9_]*)"
+)
 JS_OPTION_OBJECT_DEFAULT_RE = re.compile(
     r"(?:function\s+[A-Za-z0-9_]+\s*\([^)\n]*\{[^)\n]*\}\s*:\s*[A-Za-z0-9_<>, ]+\s*=\s*\{\}"
     r"|\([^)\n]*\{[^)\n]*\}\s*:\s*[A-Za-z0-9_<>, ]+\s*=\s*\{\}\)\s*=>"
@@ -75,6 +78,7 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
         self.assertRegex("return configuredPort || '8080'", JS_ASSIGNMENT_OR_RETURN_DEFAULT_RE)
         self.assertRegex("const port = configuredPort ? configuredPort : '8080'", JS_TERNARY_DEFAULT_RE)
         self.assertRegex("const { port = '8080' } = config", JS_DESTRUCTURING_DEFAULT_RE)
+        self.assertTrue(js_source_has_parameter_destructuring_default("function run({\n  port = DEFAULT_PORT,\n}: Options) {}"))
         self.assertRegex("function run({ port }: Options = {}) {}", JS_OPTION_OBJECT_DEFAULT_RE)
         self.assertRegex("}: MockPublicClientOptions = {}): {", JS_OPTION_OBJECT_DEFAULT_RE)
         self.assertRegex('function run(port = "8080") {}', JS_DEFAULT_PARAMETER_RE)
@@ -92,6 +96,7 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
         )
         findings.extend(line_findings(files, JS_TERNARY_DEFAULT_RE, "JS/TS ternary fallback", skip_comments=False))
         findings.extend(line_findings(files, JS_DESTRUCTURING_DEFAULT_RE, "JS/TS destructuring default", skip_comments=False))
+        findings.extend(js_parameter_destructuring_default_findings(files))
         findings.extend(line_findings(files, JS_OPTION_OBJECT_DEFAULT_RE, "JS/TS option object default", skip_comments=False))
         findings.extend(line_findings(files, JS_DEFAULT_PARAMETER_RE, "JS/TS default parameter", skip_comments=False))
         findings.extend(line_findings(files, JS_TYPED_PARAMETER_DEFAULT_RE, "JS/TS typed default parameter", skip_comments=False))
@@ -109,6 +114,34 @@ def js_exception_fallback_findings(paths: list[Path]) -> list[str]:
                 str(path.relative_to(ROOT)),
             )
         )
+    return findings
+
+
+def js_parameter_destructuring_default_findings(paths: list[Path]) -> list[str]:
+    findings: list[str] = []
+    for path in paths:
+        findings.extend(
+            js_parameter_destructuring_default_findings_for_source(
+                path.read_text(encoding="utf-8"),
+                str(path.relative_to(ROOT)),
+            )
+        )
+    return findings
+
+
+def js_parameter_destructuring_default_findings_for_source(source: str, label: str) -> list[str]:
+    findings: list[str] = []
+    in_parameter_object = False
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        if not in_parameter_object and re.search(r"\bfunction\b[^{\n]*\(\s*\{", line):
+            in_parameter_object = True
+
+        if in_parameter_object and JS_PARAMETER_DESTRUCTURING_VALUE_RE.search(line):
+            findings.append(f"{label}:{line_number}: JS/TS parameter destructuring default: {line.strip()}")
+
+        if in_parameter_object and re.search(r"^\s*\}\s*[:)]", line):
+            in_parameter_object = False
+
     return findings
 
 
@@ -135,6 +168,10 @@ def js_exception_fallback_findings_for_source(source: str, label: str) -> list[s
 
 def js_source_has_exception_fallback(source: str) -> bool:
     return bool(js_exception_fallback_findings_for_source(source, "<inline>"))
+
+
+def js_source_has_parameter_destructuring_default(source: str) -> bool:
+    return bool(js_parameter_destructuring_default_findings_for_source(source, "<inline>"))
 
 
 if __name__ == "__main__":

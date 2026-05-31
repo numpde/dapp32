@@ -90,11 +90,11 @@ export function PreparedCallView({
   return (
     <section className="panel prepared-call">
       <h2>Prepared contract call</h2>
-      <KeyValue label="Contract" value={call.contract} />
-      <KeyValue label="Address" value={call.address} mono />
-      <KeyValue label="Function" value={call.function} />
-      <KeyValue label="Args" value={formatInertValue(call.args)} />
-      {call.onSuccess === undefined ? null : <KeyValue label="On success" value={`${call.onSuccess.route} ${formatInertValue(call.onSuccess.params)}`} />}
+      <KeyValue label="Contract" value={call.contract} mono={false} />
+      <KeyValue label="Address" value={call.address} mono={true} />
+      <KeyValue label="Function" value={call.function} mono={false} />
+      <KeyValue label="Args" value={formatInertValue(call.args)} mono={false} />
+      {call.onSuccess === undefined ? null : <KeyValue label="On success" value={`${call.onSuccess.route} ${formatInertValue(call.onSuccess.params)}`} mono={false} />}
       <button
         className="send-button"
         type="button"
@@ -132,14 +132,14 @@ function ScreenElementView({
         </label>
       )
     case "address":
-      return <KeyValue label={element.label} value={element.address} mono />
+      return <KeyValue label={element.label} value={element.address} mono={true} />
     case "status":
-      return <KeyValue label={element.label} value={formatInertValue(element.value)} />
+      return <KeyValue label={element.label} value={formatInertValue(element.value)} mono={false} />
     case "nft":
       return (
         <div className="nft-row">
-          <KeyValue label="NFT contract" value={element.contractAddress} mono />
-          <KeyValue label="Token ID" value={formatInertValue(element.tokenId)} />
+          <KeyValue label="NFT contract" value={element.contractAddress} mono={true} />
+          <KeyValue label="Token ID" value={formatInertValue(element.tokenId)} mono={false} />
         </div>
       )
     case "button":
@@ -160,11 +160,11 @@ function ScreenElementView({
 function KeyValue({
   label,
   value,
-  mono = false,
+  mono,
 }: {
   readonly label: string
   readonly value: string
-  readonly mono?: boolean
+  readonly mono: boolean
 }): ReactElement {
   return (
     <div className="key-value">
