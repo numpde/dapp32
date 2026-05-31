@@ -9,18 +9,24 @@
     "children": [
       {
         "type": "Include",
-        "select": "$view.view",
-        "args": {
-          "account": "$account",
-          "input": "$input",
-          "view": "$view"
+        "first": {
+          "namespace": "ui",
+          "function": "$view.view",
+          "args": {
+            "account": "$account",
+            "input": "$input",
+            "view": "$view"
+          }
         }
       },
       {
         "type": "Include",
-        "select": "$view.actions",
-        "args": {
-          "form": "$form"
+        "first": {
+          "namespace": "ui",
+          "function": "$view.actions",
+          "args": {
+            "form": "$form"
+          }
         }
       }
     ]
@@ -267,13 +273,13 @@
     "requires": ["form"],
     "type": "Action",
     "props": {
-      "label": "Look up component",
-      "invoke": {
-        "namespace": "routes",
-        "function": "component",
-        "args": {
-          "serialNumber": "$form.serialNumber"
-        }
+      "label": "Look up component"
+    },
+    "first": {
+      "namespace": "routes",
+      "function": "component",
+      "args": {
+        "serialNumber": "$form.serialNumber"
       }
     }
   },
@@ -281,13 +287,13 @@
     "requires": ["form"],
     "type": "Action",
     "props": {
-      "label": "Register component",
-      "invoke": {
-        "namespace": "routes",
-        "function": "register",
-        "args": {
-          "serialNumber": "$form.serialNumber"
-        }
+      "label": "Register component"
+    },
+    "first": {
+      "namespace": "routes",
+      "function": "register",
+      "args": {
+        "serialNumber": "$form.serialNumber"
       }
     }
   },
@@ -295,14 +301,14 @@
     "requires": ["form"],
     "type": "Action",
     "props": {
-      "label": "Prepare registration",
-      "invoke": {
-        "namespace": "routes",
-        "function": "registerComponent",
-        "args": {
-          "serialNumber": "$form.serialNumber",
-          "tokenURI": "$form.tokenURI"
-        }
+      "label": "Prepare registration"
+    },
+    "first": {
+      "namespace": "routes",
+      "function": "registerComponent",
+      "args": {
+        "serialNumber": "$form.serialNumber",
+        "tokenURI": "$form.tokenURI"
       }
     }
   },
@@ -310,14 +316,14 @@
     "requires": ["form"],
     "type": "Action",
     "props": {
-      "label": "Prepare metadata update",
-      "invoke": {
-        "namespace": "routes",
-        "function": "updateComponentMetadata",
-        "args": {
-          "serialNumber": "$form.serialNumber",
-          "tokenURI": "$form.tokenURI"
-        }
+      "label": "Prepare metadata update"
+    },
+    "first": {
+      "namespace": "routes",
+      "function": "updateComponentMetadata",
+      "args": {
+        "serialNumber": "$form.serialNumber",
+        "tokenURI": "$form.tokenURI"
       }
     }
   },
@@ -325,13 +331,13 @@
     "requires": ["form"],
     "type": "Action",
     "props": {
-      "label": "Prepare missing report",
-      "invoke": {
-        "namespace": "routes",
-        "function": "markComponentMissing",
-        "args": {
-          "serialNumber": "$form.serialNumber"
-        }
+      "label": "Prepare missing report"
+    },
+    "first": {
+      "namespace": "routes",
+      "function": "markComponentMissing",
+      "args": {
+        "serialNumber": "$form.serialNumber"
       }
     }
   },
@@ -339,13 +345,13 @@
     "requires": ["form"],
     "type": "Action",
     "props": {
-      "label": "Prepare missing clear",
-      "invoke": {
-        "namespace": "routes",
-        "function": "clearComponentMissing",
-        "args": {
-          "serialNumber": "$form.serialNumber"
-        }
+      "label": "Prepare missing clear"
+    },
+    "first": {
+      "namespace": "routes",
+      "function": "clearComponentMissing",
+      "args": {
+        "serialNumber": "$form.serialNumber"
       }
     }
   },
@@ -353,13 +359,13 @@
     "requires": ["form"],
     "type": "Action",
     "props": {
-      "label": "Prepare retirement",
-      "invoke": {
-        "namespace": "routes",
-        "function": "retireComponent",
-        "args": {
-          "serialNumber": "$form.serialNumber"
-        }
+      "label": "Prepare retirement"
+    },
+    "first": {
+      "namespace": "routes",
+      "function": "retireComponent",
+      "args": {
+        "serialNumber": "$form.serialNumber"
       }
     }
   }

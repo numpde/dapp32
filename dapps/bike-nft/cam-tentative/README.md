@@ -7,16 +7,16 @@ The useful idea is one app manifest plus one top-level UI node table:
 
 - `main.json` owns namespace declarations and route/write wiring.
 - `ui.json` owns named render/action nodes.
-- `Include` expands selected top-level node IDs with explicit invocation args.
+- `Include` expands UI nodes through a `first` call.
 - Contracts return semantic view/action IDs, not CAM file paths.
-- Contract calls, route jumps, UI renders, and UI actions all use one invocation
+- Contract calls, route jumps, UI renders, and UI actions all use one call
   shape: namespace, function, and args.
 
 The root/app contract should point to `main.json`. It should not point directly
 to `ui.json`, because the viewer still needs namespace declarations and route
 wiring before it can execute the entry route.
 
-`main.json` declares every invocable namespace:
+`main.json` declares every callable namespace:
 
 ```json
 {
@@ -36,7 +36,7 @@ wiring before it can execute the entry route.
 }
 ```
 
-The single invocation shape is:
+The single call shape is:
 
 ```json
 {
@@ -48,13 +48,16 @@ The single invocation shape is:
 }
 ```
 
+Routes and UI nodes carry that shape in a `first` field when they perform an
+operation.
+
 `namespace` is closed and protocol-owned:
 
-- `type: "contract"` invokes an ABI-backed contract.
-- `type: "routes"` invokes a CAM route declared in `routes`.
-- `type: "ui"` invokes a named UI node from the declared UI resource.
+- `type: "contract"` calls an ABI-backed contract.
+- `type: "routes"` calls a CAM route declared in `routes`.
+- `type: "ui"` calls a named UI node from the declared UI resource.
 
-Read targets pass their outputs into a UI invocation:
+Read targets pass their outputs into a UI call:
 
 ```json
 {
@@ -90,17 +93,20 @@ The generic expansion primitive is one node:
 ```json
 {
   "type": "Include",
-  "select": "$view.actions",
-  "args": {
-    "form": "$form"
+  "first": {
+    "namespace": "ui",
+    "function": "$view.actions",
+    "args": {
+      "form": "$form"
+    }
   }
 }
 ```
 
-`select` controls which top-level UI node IDs appear. If it resolves to an
-array, that array is presentation order. For action nodes, the contract/view
-helper returns only currently valid actions. `args` is the complete context
-passed to each expanded node.
+For `Include`, `first.function` controls which top-level UI node IDs appear. If
+it resolves to an array, that array is presentation order. For action nodes,
+the contract/view helper returns only currently valid actions. `first.args` is
+the complete context passed to each expanded node.
 
 Named UI nodes declare the argument names they expect:
 
@@ -114,8 +120,8 @@ Named UI nodes declare the argument names they expect:
 ```
 
 `requires` lists the context names a node reads directly, including values it
-forwards through `Include.args`. Expanded nodes must be satisfied only by the
-context their parent explicitly forwards.
+forwards through `Include.first.args`. Expanded nodes must be satisfied only by
+the context their parent explicitly forwards.
 
 The root app shell is just another named UI node:
 
@@ -126,11 +132,14 @@ The root app shell is just another named UI node:
     "children": [
       {
         "type": "Include",
-        "select": "$view.view",
-        "args": {
-          "account": "$account",
-          "input": "$input",
-          "view": "$view"
+        "first": {
+          "namespace": "ui",
+          "function": "$view.view",
+          "args": {
+            "account": "$account",
+            "input": "$input",
+            "view": "$view"
+          }
         }
       }
     ]
@@ -138,20 +147,20 @@ The root app shell is just another named UI node:
 }
 ```
 
-Action nodes invoke routes. They do not name contracts directly:
+Action nodes start routes. They do not name contracts directly:
 
 ```json
 {
   "type": "Action",
   "props": {
-    "label": "Prepare registration",
-    "invoke": {
-      "namespace": "routes",
-      "function": "registerComponent",
-      "args": {
-        "serialNumber": "$form.serialNumber",
-        "tokenURI": "$form.tokenURI"
-      }
+    "label": "Prepare registration"
+  },
+  "first": {
+    "namespace": "routes",
+    "function": "registerComponent",
+    "args": {
+      "serialNumber": "$form.serialNumber",
+      "tokenURI": "$form.tokenURI"
     }
   }
 }
