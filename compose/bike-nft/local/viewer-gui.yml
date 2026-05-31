@@ -178,8 +178,13 @@ services:
         with open(os.environ["BROADCAST_PATH"], "r", encoding="utf-8") as handle:
             broadcast = json.load(handle)
 
+        if "transactions" not in broadcast or not isinstance(broadcast["transactions"], list):
+            raise SystemExit("Forge broadcast output must contain a transactions array")
+
         host = None
-        for tx in broadcast.get("transactions", []):
+        for tx in broadcast["transactions"]:
+            if not isinstance(tx, dict):
+                raise SystemExit("Forge broadcast transaction entry is not an object")
             if tx.get("contractName") == "CamRoot":
                 host = tx.get("contractAddress")
                 break
