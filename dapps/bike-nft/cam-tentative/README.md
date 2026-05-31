@@ -35,8 +35,9 @@ The generic primitive is one node:
 }
 ```
 
-`select` controls which catalog items appear. `enabled` controls which of those
-items are actionable. The action catalog owns presentation order.
+`select` controls which catalog entries appear. `enabled` controls which of
+those entries are actionable. Catalog member order is presentation order in this
+tentative shape.
 
 The UI title lives in the `Screen` node, not as a second top-level field. The
 tree is the presentation source of truth.
