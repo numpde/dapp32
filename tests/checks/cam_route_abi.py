@@ -122,11 +122,10 @@ def validate_route_output_shape(
 
 def validate_contract_action_function(
     manifest_path: Path,
-    screen_path: Path,
+    location: str,
     action: ContractActionReference,
     function: AbiFunction,
 ) -> list[str]:
-    location = f"{screen_path}:{action.path}" if action.path else str(screen_path)
     failures: list[str] = []
 
     if function.state_mutability not in WRITE_ACTION_MUTABILITY:

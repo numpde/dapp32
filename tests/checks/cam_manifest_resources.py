@@ -214,7 +214,7 @@ class CamManifestResourceValidator:
                 failures.extend(
                     route_abi.validate_contract_action_function(
                         manifest_path,
-                        screen_path,
+                        location,
                         action,
                         function,
                     )
