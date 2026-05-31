@@ -85,9 +85,7 @@ export function createMockCamPublicClient<ReadContract = (request: MockReadContr
 
     if (request.functionName === "contractAddress") {
       const name = requireContractName(request.args)
-      return addresses[name] !== undefined
-        ? addresses[name]
-        : ZERO_ADDRESS
+      return contractAddressForName(addresses, name)
     }
 
     if (Object.hasOwn(routeResults, request.functionName)) {
@@ -146,4 +144,15 @@ function requireContractName(args: readonly unknown[] | undefined): string {
   }
 
   return args[0]
+}
+
+function contractAddressForName(
+  addresses: Readonly<Record<string, MockAddress>>,
+  name: string,
+): MockAddress {
+  if (Object.hasOwn(addresses, name)) {
+    return addresses[name] as MockAddress
+  }
+
+  return ZERO_ADDRESS
 }
