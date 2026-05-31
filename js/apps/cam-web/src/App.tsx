@@ -13,11 +13,7 @@ import type {
   CamHost,
   ResourceLoader,
 } from "@cam/evm-viem"
-import {
-  toInertValue,
-} from "@cam/protocol"
 import type {
-  InertRecord,
   InertValue,
 } from "@cam/protocol"
 import type {
@@ -215,7 +211,7 @@ export function App(): ReactElement {
       setPreparedCall(undefined)
       setLoadState({
         status: "ready",
-        snapshot: session.updateForm({ [name]: toInertValue(value) } satisfies InertRecord),
+        snapshot: session.updateForm({ [name]: value }),
       })
     } catch (error) {
       setNotice(errorMessage(error))
