@@ -108,6 +108,32 @@ test("setAccount before load fails without mutating the session", async () => {
   assert.deepEqual(session.snapshot().account, { address: userAddress })
 })
 
+test("setAccount reload failures preserve the previous loaded snapshot", async () => {
+  let entryScreenLoads = 0
+  const resources = createResourceLoader(bikeResourceBytes())
+  const session = createSession({
+    loadResource: async (uri) => {
+      if (uri === entryScreenURI) {
+        entryScreenLoads += 1
+        if (entryScreenLoads > 1) {
+          throw new Error("entry reload failed")
+        }
+      }
+
+      return await resources(uri)
+    },
+  })
+
+  const before = await session.load()
+
+  await assert.rejects(
+    () => session.setAccount({ address: otherUserAddress }),
+    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_SCREEN_LOAD_FAILED",
+  )
+
+  assert.deepEqual(session.snapshot(), before)
+})
+
 test("updateForm resolves navigation actions, while contract actions are surfaced without sending", async () => {
   const publicClient = createPublicClient()
   const session = createSession({
@@ -204,9 +230,11 @@ function createSession({
   // missing resources or client behavior pass the dependency explicitly.
   publicClient = createPublicClient(),
   resources = {},
+  loadResource = createResourceLoader(bikeResourceBytes(resources)),
 }: {
   readonly publicClient?: ReturnType<typeof createPublicClient>
   readonly resources?: Record<string, Uint8Array>
+  readonly loadResource?: CreateCamViewerSessionOptions["loadResource"]
 } = {}) {
   return createCamViewerSession({
     publicClient,
@@ -214,7 +242,7 @@ function createSession({
     account: { address: userAddress },
     params: {},
     allowUnsignedCamHash: true,
-    loadResource: createResourceLoader(bikeResourceBytes(resources)),
+    loadResource,
   })
 }
 
