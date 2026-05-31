@@ -1,0 +1,36 @@
+{
+  "cam": "1.0.0-tentative",
+  "entry": "entry",
+  "contracts": {
+    "BicycleComponentManagerUI": {
+      "abiURI": "./abi/BicycleComponentManagerUI.json"
+    },
+    "BicycleComponentManager": {
+      "abiURI": "./abi/BicycleComponentManager.json"
+    }
+  },
+  "routes": {
+    "entry": {
+      "contract": "BicycleComponentManagerUI",
+      "function": "viewEntry",
+      "args": ["$account.address"]
+    },
+    "component": {
+      "contract": "BicycleComponentManagerUI",
+      "function": "viewComponent",
+      "args": ["$params.serialNumber", "$account.address"]
+    },
+    "register": {
+      "contract": "BicycleComponentManagerUI",
+      "function": "viewRegister",
+      "args": ["$params.serialNumber", "$account.address"]
+    }
+  },
+  "resources": {
+    "screens": {
+      "entry": "./screens/entry.json",
+      "component": "./screens/component.json",
+      "register": "./screens/register.json"
+    }
+  }
+}
