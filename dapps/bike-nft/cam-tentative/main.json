@@ -11,19 +11,82 @@
   },
   "routes": {
     "entry": {
+      "kind": "read",
       "contract": "BicycleComponentManagerUI",
       "function": "viewEntry",
       "args": ["$account.address"]
     },
     "component": {
+      "kind": "read",
       "contract": "BicycleComponentManagerUI",
       "function": "viewComponent",
       "args": ["$params.serialNumber", "$account.address"]
     },
     "register": {
+      "kind": "read",
       "contract": "BicycleComponentManagerUI",
       "function": "viewRegister",
       "args": ["$params.serialNumber", "$account.address"]
+    },
+    "registerComponent": {
+      "kind": "write",
+      "contract": "BicycleComponentManager",
+      "function": "registerComponent",
+      "args": ["$account.address", "$params.serialNumber", "$params.tokenURI"],
+      "then": {
+        "to": "component",
+        "params": {
+          "serialNumber": "$params.serialNumber"
+        }
+      }
+    },
+    "updateComponentMetadata": {
+      "kind": "write",
+      "contract": "BicycleComponentManager",
+      "function": "setComponentMetadata",
+      "args": ["$params.serialNumber", "$params.tokenURI"],
+      "then": {
+        "to": "component",
+        "params": {
+          "serialNumber": "$params.serialNumber"
+        }
+      }
+    },
+    "markComponentMissing": {
+      "kind": "write",
+      "contract": "BicycleComponentManager",
+      "function": "markMissing",
+      "args": ["$params.serialNumber"],
+      "then": {
+        "to": "component",
+        "params": {
+          "serialNumber": "$params.serialNumber"
+        }
+      }
+    },
+    "clearComponentMissing": {
+      "kind": "write",
+      "contract": "BicycleComponentManager",
+      "function": "clearMissing",
+      "args": ["$params.serialNumber"],
+      "then": {
+        "to": "component",
+        "params": {
+          "serialNumber": "$params.serialNumber"
+        }
+      }
+    },
+    "retireComponent": {
+      "kind": "write",
+      "contract": "BicycleComponentManager",
+      "function": "retireComponent",
+      "args": ["$params.serialNumber"],
+      "then": {
+        "to": "component",
+        "params": {
+          "serialNumber": "$params.serialNumber"
+        }
+      }
     }
   },
   "resources": {

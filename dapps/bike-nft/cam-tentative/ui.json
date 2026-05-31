@@ -258,12 +258,9 @@
         "type": "Action",
         "props": {
           "label": "Look up component",
-          "action": {
-            "type": "navigate",
-            "route": "component",
-            "params": {
-              "serialNumber": "$form.serialNumber"
-            }
+          "to": "component",
+          "params": {
+            "serialNumber": "$form.serialNumber"
           }
         }
       },
@@ -271,12 +268,9 @@
         "type": "Action",
         "props": {
           "label": "Register component",
-          "action": {
-            "type": "navigate",
-            "route": "register",
-            "params": {
-              "serialNumber": "$form.serialNumber"
-            }
+          "to": "register",
+          "params": {
+            "serialNumber": "$form.serialNumber"
           }
         }
       },
@@ -284,18 +278,10 @@
         "type": "Action",
         "props": {
           "label": "Prepare registration",
-          "action": {
-            "type": "contract-call",
-            "contract": "BicycleComponentManager",
-            "function": "registerComponent",
-            "args": ["$account.address", "$form.serialNumber", "$form.tokenURI"],
-            "onSuccess": {
-              "type": "navigate",
-              "route": "component",
-              "params": {
-                "serialNumber": "$form.serialNumber"
-              }
-            }
+          "to": "registerComponent",
+          "params": {
+            "serialNumber": "$form.serialNumber",
+            "tokenURI": "$form.tokenURI"
           }
         }
       },
@@ -303,18 +289,10 @@
         "type": "Action",
         "props": {
           "label": "Prepare metadata update",
-          "action": {
-            "type": "contract-call",
-            "contract": "BicycleComponentManager",
-            "function": "setComponentMetadata",
-            "args": ["$form.serialNumber", "$form.tokenURI"],
-            "onSuccess": {
-              "type": "navigate",
-              "route": "component",
-              "params": {
-                "serialNumber": "$form.serialNumber"
-              }
-            }
+          "to": "updateComponentMetadata",
+          "params": {
+            "serialNumber": "$form.serialNumber",
+            "tokenURI": "$form.tokenURI"
           }
         }
       },
@@ -322,18 +300,9 @@
         "type": "Action",
         "props": {
           "label": "Prepare missing report",
-          "action": {
-            "type": "contract-call",
-            "contract": "BicycleComponentManager",
-            "function": "markMissing",
-            "args": ["$form.serialNumber"],
-            "onSuccess": {
-              "type": "navigate",
-              "route": "component",
-              "params": {
-                "serialNumber": "$form.serialNumber"
-              }
-            }
+          "to": "markComponentMissing",
+          "params": {
+            "serialNumber": "$form.serialNumber"
           }
         }
       },
@@ -341,18 +310,9 @@
         "type": "Action",
         "props": {
           "label": "Prepare missing clear",
-          "action": {
-            "type": "contract-call",
-            "contract": "BicycleComponentManager",
-            "function": "clearMissing",
-            "args": ["$form.serialNumber"],
-            "onSuccess": {
-              "type": "navigate",
-              "route": "component",
-              "params": {
-                "serialNumber": "$form.serialNumber"
-              }
-            }
+          "to": "clearComponentMissing",
+          "params": {
+            "serialNumber": "$form.serialNumber"
           }
         }
       },
@@ -360,18 +320,9 @@
         "type": "Action",
         "props": {
           "label": "Prepare retirement",
-          "action": {
-            "type": "contract-call",
-            "contract": "BicycleComponentManager",
-            "function": "retireComponent",
-            "args": ["$form.serialNumber"],
-            "onSuccess": {
-              "type": "navigate",
-              "route": "component",
-              "params": {
-                "serialNumber": "$form.serialNumber"
-              }
-            }
+          "to": "retireComponent",
+          "params": {
+            "serialNumber": "$form.serialNumber"
           }
         }
       }
