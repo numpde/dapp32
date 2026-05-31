@@ -7,7 +7,7 @@ The useful idea is one app manifest plus one top-level UI node table:
 
 - `main.json` owns route/write wiring, ABI resources, and the UI resource.
 - `ui.json` owns named render/action nodes.
-- `Include` expands selected top-level node IDs at that point in the tree.
+- `Include` expands selected top-level node IDs with an explicit context map.
 - Contracts return semantic view/action IDs, not CAM file paths.
 - UI actions all have the same shape: label, target, and inputs.
 
@@ -48,13 +48,17 @@ The generic expansion primitive is one node:
 {
   "type": "Include",
   "select": "$view.actions",
-  "enabled": "$view.enabledActions"
+  "enabled": "$view.enabledActions",
+  "with": {
+    "form": "$form"
+  }
 }
 ```
 
 `select` controls which top-level UI node IDs appear. `enabled` controls which
-of those nodes are actionable. Top-level member order is presentation order in
-this tentative shape.
+of those nodes are actionable. `with` is the complete context passed to each
+expanded node. Top-level member order is presentation order in this tentative
+shape.
 
 Named UI nodes declare the render context names they expect:
 
@@ -62,13 +66,14 @@ Named UI nodes declare the render context names they expect:
 {
   "app": {
     "type": "Screen",
-    "requires": ["view"]
+    "requires": ["account", "form", "input", "view"]
   }
 }
 ```
 
-`requires` lists only the context names a node reads directly. Dynamic
-descendants declare their own requirements.
+`requires` lists the context names a node reads directly, including values it
+forwards through `Include.with`. Expanded nodes must be satisfied only by the
+context their parent explicitly forwards.
 
 The root app shell is just another named UI node:
 
@@ -76,7 +81,17 @@ The root app shell is just another named UI node:
 {
   "app": {
     "type": "Screen",
-    "children": []
+    "children": [
+      {
+        "type": "Include",
+        "select": "$view.view",
+        "with": {
+          "account": "$account",
+          "input": "$input",
+          "view": "$view"
+        }
+      }
+    ]
   }
 }
 ```

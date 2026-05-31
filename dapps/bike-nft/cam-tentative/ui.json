@@ -2,19 +2,27 @@
   "ui": "1.0.0-tentative",
   "app": {
     "type": "Screen",
-    "requires": ["view"],
+    "requires": ["account", "form", "input", "view"],
     "props": {
       "title": "Bicycle component registry"
     },
     "children": [
       {
         "type": "Include",
-        "select": "$view.view"
+        "select": "$view.view",
+        "with": {
+          "account": "$account",
+          "input": "$input",
+          "view": "$view"
+        }
       },
       {
         "type": "Include",
         "select": "$view.actions",
-        "enabled": "$view.enabledActions"
+        "enabled": "$view.enabledActions",
+        "with": {
+          "form": "$form"
+        }
       }
     ]
   },
