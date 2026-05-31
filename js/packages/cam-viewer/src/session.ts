@@ -15,7 +15,7 @@ import {
   resolveInitialScreen,
   resolveScreen,
 } from "@cam/screen"
-import type { ResolvedCamContract } from "@cam/evm-viem"
+import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type {
   ResolvedScreen,
   ResolvedScreenAction,
@@ -59,6 +59,7 @@ export function createCamViewerSession({
   account: initialAccount,
   params: initialParams,
 }: CreateCamViewerSessionOptions): CamViewerSession {
+  const sessionHost = cloneHost(host)
   let loadedState: CamViewerLoadedState | undefined
   const initialRouteParams = cloneViewerData<InertRecord>(initialParams, "params")
   let account = initialAccount === undefined ? undefined : cloneAccount(initialAccount)
@@ -93,14 +94,14 @@ export function createCamViewerSession({
   async function load(): Promise<CamViewerLoadedSnapshot> {
     const loadedCam = await loadCamFromHost({
       publicClient,
-      host,
+      host: sessionHost,
       loadResource,
       allowUnsignedCamHash,
     })
 
     const contracts = await resolveCamContracts({
       publicClient,
-      host,
+      host: sessionHost,
       camURI: loadedCam.camURI,
       cam: loadedCam.cam,
       loadResource,
@@ -275,7 +276,7 @@ export function createCamViewerSession({
 
   function routeContext(routeParams: InertRecord): CamRuntimeContext {
     return {
-      host,
+      host: sessionHost,
       ...(account === undefined ? {} : { account }),
       params: routeParams,
     }
@@ -314,6 +315,13 @@ export function createCamViewerSession({
 
 function cloneAccount(source: CamViewerAccount): CamViewerAccount {
   return { address: source.address }
+}
+
+function cloneHost(source: CamHost): CamHost {
+  return {
+    chainId: source.chainId,
+    address: source.address,
+  }
 }
 
 function cloneViewerData<T>(value: T, path: string): T {
