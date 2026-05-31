@@ -2,7 +2,7 @@
   "ui": "1.0.0-tentative",
   "app": {
     "tag": "Screen",
-    "requires": ["account", "form", "input", "view"],
+    "requires": ["form", "view"],
     "props": {
       "title": "Bicycle component registry"
     },
@@ -13,8 +13,6 @@
           "namespace": "ui",
           "function": "$view.view",
           "args": {
-            "account": "$account",
-            "input": "$input",
             "view": "$view"
           }
         }
@@ -32,7 +30,7 @@
     ]
   },
   "entry": {
-    "requires": ["account", "view"],
+    "requires": ["view"],
     "tag": "Fragment",
     "children": [
       {
@@ -45,7 +43,7 @@
         "tag": "Address",
         "props": {
           "label": "Connected account",
-          "address": "$account.address"
+          "address": "$view.account"
         }
       },
       {
@@ -66,7 +64,7 @@
     ]
   },
   "component.empty": {
-    "requires": ["input"],
+    "requires": ["view"],
     "tag": "Fragment",
     "children": [
       {
@@ -80,7 +78,7 @@
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
-          "value": "$input.serialNumber"
+          "value": "$view.serialNumber"
         }
       }
     ]
@@ -171,7 +169,7 @@
     ]
   },
   "register.empty": {
-    "requires": ["input"],
+    "requires": ["view"],
     "tag": "Fragment",
     "children": [
       {
@@ -185,7 +183,7 @@
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
-          "value": "$input.serialNumber"
+          "value": "$view.serialNumber"
         }
       },
       {
