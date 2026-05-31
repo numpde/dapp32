@@ -50,6 +50,12 @@
       "value": "$values.0.tokenURI"
     },
     {
+      "type": "input",
+      "name": "tokenURI",
+      "label": "New token URI",
+      "value": "$values.0.tokenURI"
+    },
+    {
       "type": "status",
       "label": "Serial hash",
       "value": "$values.0.serialHash"
@@ -73,6 +79,83 @@
       "type": "status",
       "label": "Can retire",
       "value": "$values.0.canRetire"
+    },
+    {
+      "type": "button",
+      "label": "Prepare metadata update",
+      "action": {
+        "type": "contract-call",
+        "contract": "BicycleComponentManager",
+        "function": "setComponentMetadata",
+        "args": [
+          "$form.serialNumber",
+          "$form.tokenURI"
+        ],
+        "onSuccess": {
+          "type": "navigate",
+          "route": "component",
+          "params": {
+            "serialNumber": "$form.serialNumber"
+          }
+        }
+      }
+    },
+    {
+      "type": "button",
+      "label": "Prepare missing report",
+      "action": {
+        "type": "contract-call",
+        "contract": "BicycleComponentManager",
+        "function": "markMissing",
+        "args": [
+          "$form.serialNumber"
+        ],
+        "onSuccess": {
+          "type": "navigate",
+          "route": "component",
+          "params": {
+            "serialNumber": "$form.serialNumber"
+          }
+        }
+      }
+    },
+    {
+      "type": "button",
+      "label": "Prepare missing clear",
+      "action": {
+        "type": "contract-call",
+        "contract": "BicycleComponentManager",
+        "function": "clearMissing",
+        "args": [
+          "$form.serialNumber"
+        ],
+        "onSuccess": {
+          "type": "navigate",
+          "route": "component",
+          "params": {
+            "serialNumber": "$form.serialNumber"
+          }
+        }
+      }
+    },
+    {
+      "type": "button",
+      "label": "Prepare retirement",
+      "action": {
+        "type": "contract-call",
+        "contract": "BicycleComponentManager",
+        "function": "retireComponent",
+        "args": [
+          "$form.serialNumber"
+        ],
+        "onSuccess": {
+          "type": "navigate",
+          "route": "component",
+          "params": {
+            "serialNumber": "$form.serialNumber"
+          }
+        }
+      }
     }
   ]
 }
