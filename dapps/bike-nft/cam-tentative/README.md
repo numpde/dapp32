@@ -7,9 +7,10 @@ The useful idea is one app manifest plus one top-level UI node table:
 
 - `main.json` owns route/write wiring, ABI resources, and the UI resource.
 - `ui.json` owns named render/action nodes.
-- `Include` expands selected top-level node IDs with an explicit context map.
+- `Include` expands selected top-level node IDs with explicit invocation args.
 - Contracts return semantic view/action IDs, not CAM file paths.
-- UI actions all have the same shape: label, target, and inputs.
+- Contract calls, route jumps, UI renders, and UI actions all use one invocation
+  shape: namespace, function, and args.
 
 The root/app contract should point to `main.json`. It should not point directly
 to `ui.json`, because the viewer still needs route wiring and ABI resources
@@ -25,18 +26,50 @@ before it can execute the entry route.
 }
 ```
 
-Read targets explicitly pass their outputs into a render continuation:
+The single invocation shape is:
+
+```json
+{
+  "namespace": "contracts.BicycleComponentManagerUI",
+  "function": "viewEntry",
+  "args": {
+    "account": "$account.address"
+  }
+}
+```
+
+`namespace` is closed and protocol-owned:
+
+- `contracts.<name>` invokes an ABI-backed contract declared in `contracts`.
+- `routes` invokes a CAM route declared in `routes`.
+- `ui` invokes a named UI node from the UI resource.
+
+Read targets pass their outputs into a UI invocation:
 
 ```json
 {
   "then": {
-    "render": "ui",
-    "select": "app",
-    "with": {
+    "namespace": "ui",
+    "function": "app",
+    "args": {
       "account": "$account",
       "form": "$form",
       "input": "$inputs",
       "view": "$outputs.0"
+    }
+  }
+}
+```
+
+Write targets can continue into another route with the same shape:
+
+```json
+{
+  "then": {
+    "namespace": "routes",
+    "function": "component",
+    "args": {
+      "serialNumber": "$inputs.serialNumber"
     }
   }
 }
@@ -49,18 +82,18 @@ The generic expansion primitive is one node:
   "type": "Include",
   "select": "$view.actions",
   "enabled": "$view.enabledActions",
-  "with": {
+  "args": {
     "form": "$form"
   }
 }
 ```
 
-`select` controls which top-level UI node IDs appear. `enabled` controls which
-of those nodes are actionable. `with` is the complete context passed to each
-expanded node. Top-level member order is presentation order in this tentative
-shape.
+`select` controls which top-level UI node IDs appear. If it resolves to an
+array, that array is presentation order. `enabled` controls which selected
+nodes are actionable. `args` is the complete context passed to each expanded
+node.
 
-Named UI nodes declare the render context names they expect:
+Named UI nodes declare the argument names they expect:
 
 ```json
 {
@@ -72,7 +105,7 @@ Named UI nodes declare the render context names they expect:
 ```
 
 `requires` lists the context names a node reads directly, including values it
-forwards through `Include.with`. Expanded nodes must be satisfied only by the
+forwards through `Include.args`. Expanded nodes must be satisfied only by the
 context their parent explicitly forwards.
 
 The root app shell is just another named UI node:
@@ -85,7 +118,7 @@ The root app shell is just another named UI node:
       {
         "type": "Include",
         "select": "$view.view",
-        "with": {
+        "args": {
           "account": "$account",
           "input": "$input",
           "view": "$view"
@@ -96,17 +129,20 @@ The root app shell is just another named UI node:
 }
 ```
 
-Action nodes do not name contracts or functions:
+Action nodes invoke routes. They do not name contracts directly:
 
 ```json
 {
   "type": "Action",
   "props": {
     "label": "Prepare registration",
-    "to": "registerComponent",
-    "inputs": {
-      "serialNumber": "$form.serialNumber",
-      "tokenURI": "$form.tokenURI"
+    "invoke": {
+      "namespace": "routes",
+      "function": "registerComponent",
+      "args": {
+        "serialNumber": "$form.serialNumber",
+        "tokenURI": "$form.tokenURI"
+      }
     }
   }
 }
@@ -119,7 +155,7 @@ not by position:
 ```json
 {
   "first": {
-    "contract": "BicycleComponentManager",
+    "namespace": "contracts.BicycleComponentManager",
     "function": "registerComponent",
     "args": {
       "owner": "$account.address",

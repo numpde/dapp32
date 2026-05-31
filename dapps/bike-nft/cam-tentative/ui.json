@@ -10,7 +10,7 @@
       {
         "type": "Include",
         "select": "$view.view",
-        "with": {
+        "args": {
           "account": "$account",
           "input": "$input",
           "view": "$view"
@@ -20,7 +20,7 @@
         "type": "Include",
         "select": "$view.actions",
         "enabled": "$view.enabledActions",
-        "with": {
+        "args": {
           "form": "$form"
         }
       }
@@ -269,9 +269,12 @@
     "type": "Action",
     "props": {
       "label": "Look up component",
-      "to": "component",
-      "inputs": {
-        "serialNumber": "$form.serialNumber"
+      "invoke": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
       }
     }
   },
@@ -280,9 +283,12 @@
     "type": "Action",
     "props": {
       "label": "Register component",
-      "to": "register",
-      "inputs": {
-        "serialNumber": "$form.serialNumber"
+      "invoke": {
+        "namespace": "routes",
+        "function": "register",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
       }
     }
   },
@@ -291,10 +297,13 @@
     "type": "Action",
     "props": {
       "label": "Prepare registration",
-      "to": "registerComponent",
-      "inputs": {
-        "serialNumber": "$form.serialNumber",
-        "tokenURI": "$form.tokenURI"
+      "invoke": {
+        "namespace": "routes",
+        "function": "registerComponent",
+        "args": {
+          "serialNumber": "$form.serialNumber",
+          "tokenURI": "$form.tokenURI"
+        }
       }
     }
   },
@@ -303,10 +312,13 @@
     "type": "Action",
     "props": {
       "label": "Prepare metadata update",
-      "to": "updateComponentMetadata",
-      "inputs": {
-        "serialNumber": "$form.serialNumber",
-        "tokenURI": "$form.tokenURI"
+      "invoke": {
+        "namespace": "routes",
+        "function": "updateComponentMetadata",
+        "args": {
+          "serialNumber": "$form.serialNumber",
+          "tokenURI": "$form.tokenURI"
+        }
       }
     }
   },
@@ -315,9 +327,12 @@
     "type": "Action",
     "props": {
       "label": "Prepare missing report",
-      "to": "markComponentMissing",
-      "inputs": {
-        "serialNumber": "$form.serialNumber"
+      "invoke": {
+        "namespace": "routes",
+        "function": "markComponentMissing",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
       }
     }
   },
@@ -326,9 +341,12 @@
     "type": "Action",
     "props": {
       "label": "Prepare missing clear",
-      "to": "clearComponentMissing",
-      "inputs": {
-        "serialNumber": "$form.serialNumber"
+      "invoke": {
+        "namespace": "routes",
+        "function": "clearComponentMissing",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
       }
     }
   },
@@ -337,9 +355,12 @@
     "type": "Action",
     "props": {
       "label": "Prepare retirement",
-      "to": "retireComponent",
-      "inputs": {
-        "serialNumber": "$form.serialNumber"
+      "invoke": {
+        "namespace": "routes",
+        "function": "retireComponent",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
       }
     }
   }

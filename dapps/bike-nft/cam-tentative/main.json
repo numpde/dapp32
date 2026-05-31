@@ -13,16 +13,16 @@
     "entry": {
       "inputs": [],
       "first": {
-        "contract": "BicycleComponentManagerUI",
+        "namespace": "contracts.BicycleComponentManagerUI",
         "function": "viewEntry",
         "args": {
           "account": "$account.address"
         }
       },
       "then": {
-        "render": "ui",
-        "select": "app",
-        "with": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
           "account": "$account",
           "form": "$form",
           "input": "$inputs",
@@ -33,7 +33,7 @@
     "component": {
       "inputs": ["serialNumber"],
       "first": {
-        "contract": "BicycleComponentManagerUI",
+        "namespace": "contracts.BicycleComponentManagerUI",
         "function": "viewComponent",
         "args": {
           "serialNumber": "$inputs.serialNumber",
@@ -41,9 +41,9 @@
         }
       },
       "then": {
-        "render": "ui",
-        "select": "app",
-        "with": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
           "account": "$account",
           "form": "$form",
           "input": "$inputs",
@@ -54,7 +54,7 @@
     "register": {
       "inputs": ["serialNumber"],
       "first": {
-        "contract": "BicycleComponentManagerUI",
+        "namespace": "contracts.BicycleComponentManagerUI",
         "function": "viewRegister",
         "args": {
           "serialNumber": "$inputs.serialNumber",
@@ -62,9 +62,9 @@
         }
       },
       "then": {
-        "render": "ui",
-        "select": "app",
-        "with": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
           "account": "$account",
           "form": "$form",
           "input": "$inputs",
@@ -75,7 +75,7 @@
     "registerComponent": {
       "inputs": ["serialNumber", "tokenURI"],
       "first": {
-        "contract": "BicycleComponentManager",
+        "namespace": "contracts.BicycleComponentManager",
         "function": "registerComponent",
         "args": {
           "owner": "$account.address",
@@ -84,8 +84,9 @@
         }
       },
       "then": {
-        "to": "component",
-        "inputs": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
           "serialNumber": "$inputs.serialNumber"
         }
       }
@@ -93,7 +94,7 @@
     "updateComponentMetadata": {
       "inputs": ["serialNumber", "tokenURI"],
       "first": {
-        "contract": "BicycleComponentManager",
+        "namespace": "contracts.BicycleComponentManager",
         "function": "setComponentMetadata",
         "args": {
           "serialNumber": "$inputs.serialNumber",
@@ -101,8 +102,9 @@
         }
       },
       "then": {
-        "to": "component",
-        "inputs": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
           "serialNumber": "$inputs.serialNumber"
         }
       }
@@ -110,15 +112,16 @@
     "markComponentMissing": {
       "inputs": ["serialNumber"],
       "first": {
-        "contract": "BicycleComponentManager",
+        "namespace": "contracts.BicycleComponentManager",
         "function": "markMissing",
         "args": {
           "serialNumber": "$inputs.serialNumber"
         }
       },
       "then": {
-        "to": "component",
-        "inputs": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
           "serialNumber": "$inputs.serialNumber"
         }
       }
@@ -126,15 +129,16 @@
     "clearComponentMissing": {
       "inputs": ["serialNumber"],
       "first": {
-        "contract": "BicycleComponentManager",
+        "namespace": "contracts.BicycleComponentManager",
         "function": "clearMissing",
         "args": {
           "serialNumber": "$inputs.serialNumber"
         }
       },
       "then": {
-        "to": "component",
-        "inputs": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
           "serialNumber": "$inputs.serialNumber"
         }
       }
@@ -142,15 +146,16 @@
     "retireComponent": {
       "inputs": ["serialNumber"],
       "first": {
-        "contract": "BicycleComponentManager",
+        "namespace": "contracts.BicycleComponentManager",
         "function": "retireComponent",
         "args": {
           "serialNumber": "$inputs.serialNumber"
         }
       },
       "then": {
-        "to": "component",
-        "inputs": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
           "serialNumber": "$inputs.serialNumber"
         }
       }
