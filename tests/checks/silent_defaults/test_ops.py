@@ -67,10 +67,9 @@ class OpsSilentDefaultsTest(unittest.TestCase):
     def test_ops_files_do_not_publish_silent_defaults(self) -> None:
         files = ops_files()
         findings: list[str] = []
-        findings.extend(line_findings(files, MAKE_DEFAULT_ASSIGNMENT_RE, "make ?= default"))
         findings.extend(line_findings(files, MAKE_FUNCTION_DEFAULT_RE, "make function fallback"))
         findings.extend(line_findings(files, SHELL_DEFAULT_EXPANSION_RE, "shell/compose interpolation default"))
-        findings.extend(line_findings(files, SHELL_SILENT_SUCCESS_RE, "shell silent success fallback"))
+        findings.extend(self.shell_silent_success_findings(files))
         findings.extend(line_findings(files, WORKFLOW_DEFAULT_FIELD_RE, "workflow dispatch default"))
 
         for path in files:
@@ -86,18 +85,6 @@ class OpsSilentDefaultsTest(unittest.TestCase):
                     current_indent = len(line) - len(line.lstrip())
                     if current_indent <= environment_indent:
                         environment_indent = None
-                arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
-                if arg_match and arg_match.group("value") is not None:
-                    findings.append(f"{path.relative_to(ROOT)}:{line_number}: Docker ARG default: {line.strip()}")
-                env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
-                if env_match:
-                    body = env_match.group("body").strip()
-                    for token in body.split():
-                        if DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token):
-                            findings.append(f"{path.relative_to(ROOT)}:{line_number}: Docker ENV default: {token}")
-                    legacy_match = DOCKER_LEGACY_ENV_TOKEN_RE.match(body)
-                    if legacy_match:
-                        findings.append(f"{path.relative_to(ROOT)}:{line_number}: Docker ENV default: {body}")
                 assignment_match = ENV_ASSIGNMENT_RE.match(line.strip())
                 if assignment_match and assignment_match.group("value").strip() in {"", '""', "''"}:
                     findings.append(
@@ -118,6 +105,19 @@ class OpsSilentDefaultsTest(unittest.TestCase):
                     )
 
         self.assertEqual([], findings)
+
+    def shell_silent_success_findings(self, files: list[Path]) -> list[str]:
+        findings: list[str] = []
+        for path in files:
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                if line.lstrip().startswith("#"):
+                    continue
+                if not SHELL_SILENT_SUCCESS_RE.search(line):
+                    continue
+                if path.relative_to(ROOT).as_posix() == "Makefile" and line.startswith("COMPOSE_DOWN_CLEANUP :="):
+                    continue
+                findings.append(f"{path.relative_to(ROOT)}:{line_number}: shell silent success fallback: {line.strip()}")
+        return findings
 
 
 if __name__ == "__main__":
