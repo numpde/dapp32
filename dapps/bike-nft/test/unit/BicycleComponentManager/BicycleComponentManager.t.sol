@@ -95,29 +95,29 @@ contract BicycleComponentManagerTest is Test {
         assertEq(view_.viewId, VIEW_ENTRY, "entry view mismatch");
         assertEq(view_.account, registrar, "entry account mismatch");
         assertTrue(view_.canRegister, "entry account should be allowed to register");
-        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
 
         view_ = ui.viewComponent("", owner);
         assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "empty component view mismatch");
-        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "missing component view mismatch");
         assertEq(view_.serialNumber, SERIAL, "missing component serial mismatch");
-        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
 
         view_ = ui.viewRegister("", registrar);
         assertEq(view_.viewId, VIEW_REGISTER_EMPTY, "empty register view mismatch");
-        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
 
         view_ = ui.viewRegister(SERIAL, registrar);
         assertEq(view_.viewId, VIEW_REGISTER_READY, "ready register view mismatch");
         assertEq(view_.componentsAddress, address(components), "register component address mismatch");
-        assertActions(view_.actions, actionSet(ACTION_REGISTER_COMPONENT, ACTION_LOOKUP_COMPONENT));
+        assertActions(view_.actions, expectedActions(ACTION_REGISTER_COMPONENT, ACTION_LOOKUP_COMPONENT));
 
         view_ = ui.viewRegister(SERIAL, stranger);
         assertEq(view_.viewId, VIEW_REGISTER_BLOCKED, "unauthorized register view mismatch");
-        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT));
+        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT));
 
         registerDefaultComponent();
 
@@ -126,7 +126,7 @@ contract BicycleComponentManagerTest is Test {
         assertEq(view_.tokenURI, TOKEN_URI, "found component token URI mismatch");
         assertActions(
             view_.actions,
-            actionSet(
+            expectedActions(
                 ACTION_LOOKUP_COMPONENT,
                 ACTION_UPDATE_COMPONENT_METADATA,
                 ACTION_MARK_COMPONENT_MISSING,
@@ -140,7 +140,7 @@ contract BicycleComponentManagerTest is Test {
         view_ = ui.viewComponent(SERIAL, owner);
         assertActions(
             view_.actions,
-            actionSet(
+            expectedActions(
                 ACTION_LOOKUP_COMPONENT,
                 ACTION_UPDATE_COMPONENT_METADATA,
                 ACTION_CLEAR_COMPONENT_MISSING,
@@ -150,7 +150,7 @@ contract BicycleComponentManagerTest is Test {
 
         view_ = ui.viewRegister(SERIAL, registrar);
         assertEq(view_.viewId, VIEW_REGISTER_BLOCKED, "registered component register view mismatch");
-        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT));
+        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT));
     }
 
     function test_configurerCanChangeComponentAddressForFutureRegistrationsOnly() external {
@@ -353,18 +353,18 @@ contract BicycleComponentManagerTest is Test {
         }
     }
 
-    function actionSet(string memory first) private pure returns (string[] memory actions) {
+    function expectedActions(string memory first) private pure returns (string[] memory actions) {
         actions = new string[](1);
         actions[0] = first;
     }
 
-    function actionSet(string memory first, string memory second) private pure returns (string[] memory actions) {
+    function expectedActions(string memory first, string memory second) private pure returns (string[] memory actions) {
         actions = new string[](2);
         actions[0] = first;
         actions[1] = second;
     }
 
-    function actionSet(string memory first, string memory second, string memory third, string memory fourth)
+    function expectedActions(string memory first, string memory second, string memory third, string memory fourth)
         private
         pure
         returns (string[] memory actions)

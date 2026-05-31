@@ -14,8 +14,8 @@ import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 /// - it never forwards user actions;
 /// - it only reads manager state and returns semantic UI view data.
 ///
-/// CAM screens should send state-changing transactions directly to
-/// BicycleComponentManager. The manager remains the source of truth for all
+/// CAM write actions should target BicycleComponentManager directly. The
+/// manager remains the source of truth for all
 /// permissions and state changes.
 contract BicycleComponentManagerUI {
     IBicycleComponentManagerView public immutable manager;
@@ -85,7 +85,7 @@ contract BicycleComponentManagerUI {
         _setAccountView(view_, account);
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
-        view_.actions = _entryActions();
+        view_.actions = _lookupAndRegisterActions();
     }
 
     /// @notice Route projection for component lookup and detail views.
@@ -95,13 +95,13 @@ contract BicycleComponentManagerUI {
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_COMPONENT_EMPTY;
             view_.serialNumber = serialNumber;
-            view_.actions = _entryActions();
+            view_.actions = _lookupAndRegisterActions();
             return view_;
         }
 
         _setComponentView(view_, serialNumber, account);
         view_.viewId = view_.exists ? VIEW_COMPONENT_FOUND : VIEW_COMPONENT_NOT_FOUND;
-        view_.actions = view_.exists ? _componentActions(view_) : _entryActions();
+        view_.actions = view_.exists ? _componentActions(view_) : _lookupAndRegisterActions();
     }
 
     /// @notice Route projection for component registration views.
@@ -113,7 +113,7 @@ contract BicycleComponentManagerUI {
 
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_REGISTER_EMPTY;
-            view_.actions = _entryActions();
+            view_.actions = _lookupAndRegisterActions();
             return view_;
         }
 
@@ -179,7 +179,7 @@ contract BicycleComponentManagerUI {
         }
     }
 
-    function _entryActions() internal pure returns (string[] memory actions) {
+    function _lookupAndRegisterActions() internal pure returns (string[] memory actions) {
         actions = new string[](2);
         actions[0] = ACTION_LOOKUP_COMPONENT;
         actions[1] = ACTION_OPEN_REGISTER;
