@@ -111,13 +111,6 @@ class CamManifestResourceTest(unittest.TestCase):
                 [
                     {
                         "type": "function",
-                        "name": "writeOne",
-                        "stateMutability": "nonpayable",
-                        "inputs": [{"name": "serialNumber", "type": "string"}],
-                        "outputs": [],
-                    },
-                    {
-                        "type": "function",
                         "name": "readOnly",
                         "stateMutability": "view",
                         "inputs": [],
