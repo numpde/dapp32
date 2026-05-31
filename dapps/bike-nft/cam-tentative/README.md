@@ -107,7 +107,7 @@ Contracts return semantic state, view IDs, and valid action IDs:
 }
 ```
 
-Contracts should not return UI resource paths or node pointers:
+Contracts should not return UI resource paths or fragment references:
 
 ```json
 {
