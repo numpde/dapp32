@@ -58,8 +58,6 @@ type LoadState =
   | { readonly status: "ready"; readonly snapshot: CamViewerSnapshot }
   | { readonly status: "failed"; readonly message: string }
 
-type PreparedWalletCall = CamViewerPreparedContractCall
-
 export function App(): ReactElement {
   const sessionRef = useRef<CamViewerSession | undefined>(undefined)
   const publicClientRef = useRef<ReturnType<typeof createPublicClient> | undefined>(undefined)
@@ -67,7 +65,7 @@ export function App(): ReactElement {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
   const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
   const [notice, setNotice] = useState<string | undefined>(undefined)
-  const [preparedCall, setPreparedCall] = useState<PreparedWalletCall | undefined>(undefined)
+  const [preparedCall, setPreparedCall] = useState<CamViewerPreparedContractCall | undefined>(undefined)
   const [sending, setSending] = useState(false)
 
   useEffect(() => {
@@ -140,7 +138,7 @@ export function App(): ReactElement {
     }
   }
 
-  async function preflightPreparedCall(call: PreparedWalletCall): Promise<void> {
+  async function preflightPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
     const startup = requireOptions(options)
     await simulateCamContractCall({
       publicClient: requirePublicClient(publicClientRef.current),
@@ -167,7 +165,7 @@ export function App(): ReactElement {
     }
   }
 
-  async function sendPreparedCall(call: PreparedWalletCall): Promise<void> {
+  async function sendPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
     if (wallet.status !== "connected") {
       setNotice("Connect a wallet before sending.")
       return
@@ -310,10 +308,10 @@ function PreparedCallView({
   sending,
   onSend,
 }: {
-  readonly call: PreparedWalletCall
+  readonly call: CamViewerPreparedContractCall
   readonly canSend: boolean
   readonly sending: boolean
-  readonly onSend: (call: PreparedWalletCall) => Promise<void>
+  readonly onSend: (call: CamViewerPreparedContractCall) => Promise<void>
 }): ReactElement {
   return (
     <section className="panel prepared-call">
