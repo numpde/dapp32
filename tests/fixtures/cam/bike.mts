@@ -18,11 +18,11 @@ export const BIKE_VIEW_REGISTER = "viewRegister"
 export const BIKE_MARK_MISSING = "markMissing"
 
 export const BIKE_CAM_URI = "ipfs://example/main.json"
-export const BIKE_UI_ABI_URI = "ipfs://example/abi/BicycleComponentManagerUI.json"
-export const BIKE_MANAGER_ABI_URI = "ipfs://example/abi/BicycleComponentManager.json"
 
 export const BIKE_RELATIVE_UI_ABI_URI = "./abi/BicycleComponentManagerUI.json"
 export const BIKE_RELATIVE_MANAGER_ABI_URI = "./abi/BicycleComponentManager.json"
+export const BIKE_UI_ABI_URI = bikeResourceURI(BIKE_RELATIVE_UI_ABI_URI)
+export const BIKE_MANAGER_ABI_URI = bikeResourceURI(BIKE_RELATIVE_MANAGER_ABI_URI)
 
 export const BIKE_RELATIVE_ENTRY_SCREEN_URI = "./screens/entry.json"
 export const BIKE_RELATIVE_COMPONENT_EMPTY_SCREEN_URI = "./screens/component.empty.json"
@@ -32,13 +32,13 @@ export const BIKE_RELATIVE_REGISTER_EMPTY_SCREEN_URI = "./screens/register.empty
 export const BIKE_RELATIVE_REGISTER_READY_SCREEN_URI = "./screens/register.ready.json"
 export const BIKE_RELATIVE_REGISTER_BLOCKED_SCREEN_URI = "./screens/register.blocked.json"
 
-export const BIKE_ENTRY_SCREEN_URI = "ipfs://example/screens/entry.json"
-export const BIKE_COMPONENT_EMPTY_SCREEN_URI = "ipfs://example/screens/component.empty.json"
-export const BIKE_COMPONENT_FOUND_SCREEN_URI = "ipfs://example/screens/component.found.json"
-export const BIKE_COMPONENT_NOT_FOUND_SCREEN_URI = "ipfs://example/screens/component.not-found.json"
-export const BIKE_REGISTER_EMPTY_SCREEN_URI = "ipfs://example/screens/register.empty.json"
-export const BIKE_REGISTER_READY_SCREEN_URI = "ipfs://example/screens/register.ready.json"
-export const BIKE_REGISTER_BLOCKED_SCREEN_URI = "ipfs://example/screens/register.blocked.json"
+export const BIKE_ENTRY_SCREEN_URI = bikeResourceURI(BIKE_RELATIVE_ENTRY_SCREEN_URI)
+export const BIKE_COMPONENT_EMPTY_SCREEN_URI = bikeResourceURI(BIKE_RELATIVE_COMPONENT_EMPTY_SCREEN_URI)
+export const BIKE_COMPONENT_FOUND_SCREEN_URI = bikeResourceURI(BIKE_RELATIVE_COMPONENT_FOUND_SCREEN_URI)
+export const BIKE_COMPONENT_NOT_FOUND_SCREEN_URI = bikeResourceURI(BIKE_RELATIVE_COMPONENT_NOT_FOUND_SCREEN_URI)
+export const BIKE_REGISTER_EMPTY_SCREEN_URI = bikeResourceURI(BIKE_RELATIVE_REGISTER_EMPTY_SCREEN_URI)
+export const BIKE_REGISTER_READY_SCREEN_URI = bikeResourceURI(BIKE_RELATIVE_REGISTER_READY_SCREEN_URI)
+export const BIKE_REGISTER_BLOCKED_SCREEN_URI = bikeResourceURI(BIKE_RELATIVE_REGISTER_BLOCKED_SCREEN_URI)
 
 export const BIKE_SERIAL_NUMBER = "ABC123"
 export const BIKE_ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
@@ -308,4 +308,8 @@ export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[
       accountInfo: "Mock registrar account",
     },
   ]
+}
+
+function bikeResourceURI(relativeURI: string): string {
+  return new URL(relativeURI, BIKE_CAM_URI).href
 }
