@@ -118,6 +118,27 @@ test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relati
   assert.equal(Object.getPrototypeOf(contracts), null)
 })
 
+test("resolveCamContracts rejects invalid root contract bindings", async () => {
+  await assert.rejects(
+    () => resolveCamContracts({
+      publicClient: createPublicClient({
+        addresses: {
+          [BIKE_UI_CONTRACT]: "not-an-address" as Address,
+          [BIKE_MANAGER_CONTRACT]: managerAddress,
+        },
+      }),
+      host,
+      camURI: camDocumentURI,
+      cam: parseCam(camJson),
+      loadResource: createResourceLoader({
+        [uiAbiURI]: encodeJson(uiAbi),
+        [managerAbiURI]: encodeJson(managerAbi),
+      }),
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_CONTRACT_INVALID",
+  )
+})
+
 test("callCamRoute resolves CAM args, calls the selected contract, and returns normalized route values", async () => {
   const cam = parseCam(camJson)
   const publicClient = createPublicClient({

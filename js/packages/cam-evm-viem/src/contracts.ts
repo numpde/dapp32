@@ -1,6 +1,7 @@
 import { resolveResourceURI } from "@cam/core"
 import { createStringMap } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
+import { isAddress } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi, parseAbiBytes } from "./abi.ts"
 import { ZERO_ADDRESS } from "./constants.ts"
@@ -65,6 +66,9 @@ async function resolveContract({
 
   if (address.toLowerCase() === ZERO_ADDRESS) {
     throw new CamEvmError("CAM_CONTRACT_UNBOUND", `CAM contract is unbound: ${name}`)
+  }
+  if (!isAddress(address)) {
+    throw new CamEvmError("CAM_CONTRACT_INVALID", `CAM contract address is invalid for ${name}: ${address}`)
   }
 
   const abiURI = resolveResourceURI(camURI, relativeAbiURI)
