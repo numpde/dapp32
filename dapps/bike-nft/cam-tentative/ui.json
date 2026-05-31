@@ -1,0 +1,410 @@
+{
+  "ui": "1.0.0-tentative",
+  "title": "Bicycle component registry",
+  "tree": {
+    "type": "Screen",
+    "props": {
+      "title": "Bicycle component registry"
+    },
+    "children": [
+      {
+        "type": "Include",
+        "from": "views",
+        "select": "$values.0.view"
+      },
+      {
+        "type": "Include",
+        "from": "actions",
+        "select": "$values.0.actions",
+        "enabled": "$values.0.enabledActions"
+      }
+    ]
+  },
+  "catalogs": {
+    "views": {
+      "role": "views",
+      "items": {
+        "entry": {
+          "type": "Fragment",
+          "children": [
+            {
+              "type": "Text",
+              "props": {
+                "text": "Look up a component by the serial number stamped on the bicycle."
+              }
+            },
+            {
+              "type": "Address",
+              "props": {
+                "label": "Connected account",
+                "address": "$account.address"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Can register components",
+                "value": "$values.0.canRegister"
+              }
+            },
+            {
+              "type": "Input",
+              "props": {
+                "name": "serialNumber",
+                "label": "Serial number",
+                "value": ""
+              }
+            }
+          ]
+        },
+        "component.empty": {
+          "type": "Fragment",
+          "children": [
+            {
+              "type": "Text",
+              "props": {
+                "text": "Enter a bicycle component serial number."
+              }
+            },
+            {
+              "type": "Input",
+              "props": {
+                "name": "serialNumber",
+                "label": "Serial number",
+                "value": "$params.serialNumber"
+              }
+            }
+          ]
+        },
+        "component.notFound": {
+          "type": "Fragment",
+          "children": [
+            {
+              "type": "Input",
+              "props": {
+                "name": "serialNumber",
+                "label": "Serial number",
+                "value": "$values.0.serialNumber"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Registered",
+                "value": false
+              }
+            }
+          ]
+        },
+        "component.found": {
+          "type": "Fragment",
+          "children": [
+            {
+              "type": "Input",
+              "props": {
+                "name": "serialNumber",
+                "label": "Serial number",
+                "value": "$values.0.serialNumber"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Status",
+                "value": "$values.0.status"
+              }
+            },
+            {
+              "type": "Address",
+              "props": {
+                "label": "Owner",
+                "address": "$values.0.owner"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Owner info",
+                "value": "$values.0.ownerInfo"
+              }
+            },
+            {
+              "type": "Nft",
+              "props": {
+                "contractAddress": "$values.0.tokenContract",
+                "tokenId": "$values.0.tokenId"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Token URI",
+                "value": "$values.0.tokenURI"
+              }
+            },
+            {
+              "type": "Input",
+              "props": {
+                "name": "tokenURI",
+                "label": "New token URI",
+                "value": "$values.0.tokenURI"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Serial hash",
+                "value": "$values.0.serialHash"
+              }
+            }
+          ]
+        },
+        "register.empty": {
+          "type": "Fragment",
+          "children": [
+            {
+              "type": "Text",
+              "props": {
+                "text": "Enter a serial number before preparing registration."
+              }
+            },
+            {
+              "type": "Input",
+              "props": {
+                "name": "serialNumber",
+                "label": "Serial number",
+                "value": "$params.serialNumber"
+              }
+            },
+            {
+              "type": "Input",
+              "props": {
+                "name": "tokenURI",
+                "label": "Token URI",
+                "value": ""
+              }
+            }
+          ]
+        },
+        "register.ready": {
+          "type": "Fragment",
+          "children": [
+            {
+              "type": "Input",
+              "props": {
+                "name": "serialNumber",
+                "label": "Serial number",
+                "value": "$values.0.serialNumber"
+              }
+            },
+            {
+              "type": "Input",
+              "props": {
+                "name": "tokenURI",
+                "label": "Token URI",
+                "value": ""
+              }
+            },
+            {
+              "type": "Address",
+              "props": {
+                "label": "Component contract",
+                "address": "$values.0.componentsAddress"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Account info",
+                "value": "$values.0.accountInfo"
+              }
+            }
+          ]
+        },
+        "register.blocked": {
+          "type": "Fragment",
+          "children": [
+            {
+              "type": "Input",
+              "props": {
+                "name": "serialNumber",
+                "label": "Serial number",
+                "value": "$values.0.serialNumber"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Connected account can register",
+                "value": "$values.0.canRegister"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Component already exists",
+                "value": "$values.0.exists"
+              }
+            },
+            {
+              "type": "Status",
+              "props": {
+                "label": "Account info",
+                "value": "$values.0.accountInfo"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "actions": {
+      "role": "actions",
+      "order": [
+        "lookupComponent",
+        "openComponent",
+        "openRegister",
+        "register",
+        "updateMetadata",
+        "markMissing",
+        "clearMissing",
+        "retire"
+      ],
+      "items": {
+        "lookupComponent": {
+          "type": "Action",
+          "props": {
+            "label": "Look up component",
+            "action": {
+              "type": "navigate",
+              "route": "component",
+              "params": {
+                "serialNumber": "$form.serialNumber"
+              }
+            }
+          }
+        },
+        "openComponent": {
+          "type": "Action",
+          "props": {
+            "label": "Open component",
+            "action": {
+              "type": "navigate",
+              "route": "component",
+              "params": {
+                "serialNumber": "$form.serialNumber"
+              }
+            }
+          }
+        },
+        "openRegister": {
+          "type": "Action",
+          "props": {
+            "label": "Register component",
+            "action": {
+              "type": "navigate",
+              "route": "register",
+              "params": {
+                "serialNumber": "$form.serialNumber"
+              }
+            }
+          }
+        },
+        "register": {
+          "type": "Action",
+          "props": {
+            "label": "Prepare registration",
+            "action": {
+              "type": "contract-call",
+              "contract": "BicycleComponentManager",
+              "function": "registerComponent",
+              "args": ["$account.address", "$form.serialNumber", "$form.tokenURI"],
+              "onSuccess": {
+                "type": "navigate",
+                "route": "component",
+                "params": {
+                  "serialNumber": "$form.serialNumber"
+                }
+              }
+            }
+          }
+        },
+        "updateMetadata": {
+          "type": "Action",
+          "props": {
+            "label": "Prepare metadata update",
+            "action": {
+              "type": "contract-call",
+              "contract": "BicycleComponentManager",
+              "function": "setComponentMetadata",
+              "args": ["$form.serialNumber", "$form.tokenURI"],
+              "onSuccess": {
+                "type": "navigate",
+                "route": "component",
+                "params": {
+                  "serialNumber": "$form.serialNumber"
+                }
+              }
+            }
+          }
+        },
+        "markMissing": {
+          "type": "Action",
+          "props": {
+            "label": "Prepare missing report",
+            "action": {
+              "type": "contract-call",
+              "contract": "BicycleComponentManager",
+              "function": "markMissing",
+              "args": ["$form.serialNumber"],
+              "onSuccess": {
+                "type": "navigate",
+                "route": "component",
+                "params": {
+                  "serialNumber": "$form.serialNumber"
+                }
+              }
+            }
+          }
+        },
+        "clearMissing": {
+          "type": "Action",
+          "props": {
+            "label": "Prepare missing clear",
+            "action": {
+              "type": "contract-call",
+              "contract": "BicycleComponentManager",
+              "function": "clearMissing",
+              "args": ["$form.serialNumber"],
+              "onSuccess": {
+                "type": "navigate",
+                "route": "component",
+                "params": {
+                  "serialNumber": "$form.serialNumber"
+                }
+              }
+            }
+          }
+        },
+        "retire": {
+          "type": "Action",
+          "props": {
+            "label": "Prepare retirement",
+            "action": {
+              "type": "contract-call",
+              "contract": "BicycleComponentManager",
+              "function": "retireComponent",
+              "args": ["$form.serialNumber"],
+              "onSuccess": {
+                "type": "navigate",
+                "route": "component",
+                "params": {
+                  "serialNumber": "$form.serialNumber"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

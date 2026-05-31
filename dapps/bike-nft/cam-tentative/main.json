@@ -27,10 +27,6 @@
     }
   },
   "resources": {
-    "screens": {
-      "entry": "./screens/entry.json",
-      "component": "./screens/component.json",
-      "register": "./screens/register.json"
-    }
+    "ui": "./ui.json"
   }
 }
