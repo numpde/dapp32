@@ -18,6 +18,9 @@ from .test_dependency_integrity import (
 FIXTURE_PACKAGE = "forge-std"
 FIXTURE_VERSION = "1.0.0"
 FIXTURE_KEY = f"{FIXTURE_PACKAGE}-{FIXTURE_VERSION}"
+FIXTURE_ARCHIVE_URL = f"https://soldeer-revisions.s3.amazonaws.com/{FIXTURE_PACKAGE}/1_0_0_test_forge-std-1.0.zip"
+FIXTURE_PLACEHOLDER_CHECKSUM = "1" * 64
+FIXTURE_CONTRACT_SOURCE = "contract"
 
 
 class DependencyIntegrityFixtureTest(unittest.TestCase):
@@ -32,12 +35,14 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
 
     def test_rejects_archive_or_installed_tree_mismatch(self) -> None:
         with self.fixture() as root:
-            self.write_minimal_dependency(root)
-            record = self.record(checksum="0" * 64)
+            self.write_minimal_dependency(root, content=FIXTURE_CONTRACT_SOURCE)
+            record = self.record(url=FIXTURE_ARCHIVE_URL, checksum="0" * 64)
 
             with self.assertRaisesRegex(DependencyVerificationError, "archive checksum mismatch"):
                 verifier = DependencyVerifier(root)
-                verifier.download_archive = lambda url, output: output.write_bytes(b"not the archive")  # type: ignore[method-assign]
+                verifier.download_archive = (
+                    lambda url, output, *, total_timeout_seconds: output.write_bytes(b"not the archive")
+                )  # type: ignore[method-assign]
                 verifier.verify_upstream_archive(root, record)
 
         with self.fixture() as root:
@@ -46,11 +51,13 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             with zipfile.ZipFile(archive, "w") as zip_file:
                 zip_file.writestr("Package.sol", "upstream")
 
-            record = self.record(checksum=self.file_hash(archive))
+            record = self.record(url=FIXTURE_ARCHIVE_URL, checksum=self.file_hash(archive))
 
             with self.assertRaisesRegex(DependencyVerificationError, "installed tree does not match"):
                 verifier = DependencyVerifier(root)
-                verifier.download_archive = lambda url, output: output.write_bytes(archive.read_bytes())  # type: ignore[method-assign]
+                verifier.download_archive = (
+                    lambda url, output, *, total_timeout_seconds: output.write_bytes(archive.read_bytes())
+                )  # type: ignore[method-assign]
                 verifier.verify_upstream_archive(root, record)
 
     @contextmanager
@@ -58,13 +65,13 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="dependency-integrity-test-") as root:
             yield Path(root)
 
-    def write_minimal_dependency(self, root_name: str | Path, *, content: str = "contract") -> Path:
+    def write_minimal_dependency(self, root_name: str | Path, *, content: str) -> Path:
         root = Path(root_name)
         dependency = root / "dependencies" / FIXTURE_KEY
         dependency.mkdir(parents=True)
         (dependency / "Package.sol").write_text(content, encoding="utf-8")
 
-        record = self.record()
+        record = self.record(url=FIXTURE_ARCHIVE_URL, checksum=FIXTURE_PLACEHOLDER_CHECKSUM)
         self.write_lock(root, [record])
         self.write_foundry(root, [record])
         (root / "remappings.txt").write_text(f"{FIXTURE_KEY}/=dependencies/{FIXTURE_KEY}/\n", encoding="utf-8")
@@ -102,8 +109,8 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
     def record(
         self,
         *,
-        url: str = f"https://soldeer-revisions.s3.amazonaws.com/{FIXTURE_PACKAGE}/1_0_0_test_forge-std-1.0.zip",
-        checksum: str = "1" * 64,
+            url: str,
+            checksum: str,
     ) -> DependencyRecord:
         return DependencyRecord(name=FIXTURE_PACKAGE, version=FIXTURE_VERSION, url=url, checksum=checksum)
 

@@ -92,10 +92,15 @@ def load_local_abi_array(
         return None, error
 
     assert resolved is not None
+    abi_error: JsonPolicyError | None = None
     try:
         abi = abi_documents[resolved] if abi_documents is not None else strict_json_loads(read_text(resolved))
     except JsonPolicyError as error:
-        return None, f"{manifest_path}: contracts.{contract_name}.abiURI target is invalid JSON: {abi_uri}: {error}"
+        abi = None
+        abi_error = error
+
+    if abi_error is not None:
+        return None, f"{manifest_path}: contracts.{contract_name}.abiURI target is invalid JSON: {abi_uri}: {abi_error}"
 
     if not isinstance(abi, list):
         return None, f"{manifest_path}: contracts.{contract_name}.abiURI target must be a JSON ABI array: {abi_uri}"
