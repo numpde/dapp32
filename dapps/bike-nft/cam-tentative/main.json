@@ -1,12 +1,21 @@
 {
   "cam": "1.0.0-tentative",
   "entry": "entry",
-  "contracts": {
-    "BicycleComponentManagerUI": {
+  "namespaces": {
+    "contracts.BicycleComponentManagerUI": {
+      "type": "contract",
       "abiURI": "./abi/BicycleComponentManagerUI.json"
     },
-    "BicycleComponentManager": {
+    "contracts.BicycleComponentManager": {
+      "type": "contract",
       "abiURI": "./abi/BicycleComponentManager.json"
+    },
+    "routes": {
+      "type": "routes"
+    },
+    "ui": {
+      "type": "ui",
+      "uri": "./ui.json"
     }
   },
   "routes": {
@@ -160,8 +169,5 @@
         }
       }
     }
-  },
-  "resources": {
-    "ui": "./ui.json"
   }
 }

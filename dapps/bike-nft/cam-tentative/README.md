@@ -5,7 +5,7 @@ wired to the current runtime parser.
 
 The useful idea is one app manifest plus one top-level UI node table:
 
-- `main.json` owns route/write wiring, ABI resources, and the UI resource.
+- `main.json` owns namespace declarations and route/write wiring.
 - `ui.json` owns named render/action nodes.
 - `Include` expands selected top-level node IDs with explicit invocation args.
 - Contracts return semantic view/action IDs, not CAM file paths.
@@ -13,15 +13,25 @@ The useful idea is one app manifest plus one top-level UI node table:
   shape: namespace, function, and args.
 
 The root/app contract should point to `main.json`. It should not point directly
-to `ui.json`, because the viewer still needs route wiring and ABI resources
-before it can execute the entry route.
+to `ui.json`, because the viewer still needs namespace declarations and route
+wiring before it can execute the entry route.
 
-`main.json` names the single UI resource:
+`main.json` declares every invocable namespace:
 
 ```json
 {
-  "resources": {
-    "ui": "./ui.json"
+  "namespaces": {
+    "contracts.BicycleComponentManagerUI": {
+      "type": "contract",
+      "abiURI": "./abi/BicycleComponentManagerUI.json"
+    },
+    "routes": {
+      "type": "routes"
+    },
+    "ui": {
+      "type": "ui",
+      "uri": "./ui.json"
+    }
   }
 }
 ```
@@ -40,9 +50,9 @@ The single invocation shape is:
 
 `namespace` is closed and protocol-owned:
 
-- `contracts.<name>` invokes an ABI-backed contract declared in `contracts`.
-- `routes` invokes a CAM route declared in `routes`.
-- `ui` invokes a named UI node from the UI resource.
+- `type: "contract"` invokes an ABI-backed contract.
+- `type: "routes"` invokes a CAM route declared in `routes`.
+- `type: "ui"` invokes a named UI node from the declared UI resource.
 
 Read targets pass their outputs into a UI invocation:
 
