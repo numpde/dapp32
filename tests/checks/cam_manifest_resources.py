@@ -93,22 +93,16 @@ class CamManifestResourceValidator:
                 failures.append(f"{manifest_path}: {path} must declare string contract and function fields")
                 continue
 
-            functions = abi_functions_by_contract.get(contract_name)
-            if functions is None:
-                failures.append(f"{manifest_path}: {path}.contract has no readable ABI function map: {contract_name}")
-                continue
-
-            function = functions.get(function_name)
-            if function_name not in functions:
-                failures.append(
-                    f"{manifest_path}: {path}.function is not present in {contract_name} ABI: {function_name}"
-                )
-                continue
-
+            function, reference_failures = self.declared_abi_function(
+                manifest_path,
+                abi_functions_by_contract,
+                path,
+                contract_name,
+                function_name,
+                "route",
+            )
+            failures.extend(reference_failures)
             if function is None:
-                failures.append(
-                    f"{manifest_path}: {path}.function is overloaded in {contract_name} ABI: {function_name}"
-                )
                 continue
 
             args = route.get("args")
@@ -192,27 +186,16 @@ class CamManifestResourceValidator:
                     failures.append(f"{manifest_path}: contract-call action must declare a function at {location}")
                     continue
 
-                functions = abi_functions_by_contract.get(action.contract_name)
-                if functions is None:
-                    failures.append(
-                        f"{manifest_path}: contract-call action references undeclared contract "
-                        f"at {location}: {action.contract_name}"
-                    )
-                    continue
-
-                function = functions.get(action.function_name)
-                if action.function_name not in functions:
-                    failures.append(
-                        f"{manifest_path}: contract-call action function is not present in "
-                        f"{action.contract_name} ABI at {location}: {action.function_name}"
-                    )
-                    continue
-
+                function, reference_failures = self.declared_abi_function(
+                    manifest_path,
+                    abi_functions_by_contract,
+                    location,
+                    action.contract_name,
+                    action.function_name,
+                    "contract-call action",
+                )
+                failures.extend(reference_failures)
                 if function is None:
-                    failures.append(
-                        f"{manifest_path}: contract-call action function is overloaded in "
-                        f"{action.contract_name} ABI at {location}: {action.function_name}"
-                    )
                     continue
 
                 failures.extend(
@@ -225,6 +208,34 @@ class CamManifestResourceValidator:
                 )
 
         return failures
+
+    def declared_abi_function(
+        self,
+        manifest_path: Path,
+        abi_functions_by_contract: dict[str, dict[str, route_abi.AbiFunction | None]],
+        location: str,
+        contract_name: str,
+        function_name: str,
+        purpose: str,
+    ) -> tuple[route_abi.AbiFunction | None, list[str]]:
+        functions = abi_functions_by_contract.get(contract_name)
+        if functions is None:
+            return None, [f"{manifest_path}: {purpose} references undeclared contract at {location}: {contract_name}"]
+
+        if function_name not in functions:
+            return None, [
+                f"{manifest_path}: {purpose} function is not present in {contract_name} ABI at {location}: "
+                f"{function_name}"
+            ]
+
+        function = functions[function_name]
+        if function is None:
+            return None, [
+                f"{manifest_path}: {purpose} function is overloaded in {contract_name} ABI at {location}: "
+                f"{function_name}"
+            ]
+
+        return function, []
 
     def validate_route_screen_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         routes = manifest.get("routes")
