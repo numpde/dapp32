@@ -99,7 +99,8 @@ Contracts return semantic state, view IDs, and valid action IDs:
   "view": "component.found",
   "actions": ["updateMetadata", "markMissing"],
   "account": "0x...",
-  "serialNumber": "DEMO-FRAME-001"
+  "serialNumber": "DEMO-FRAME-001",
+  "tokenURI": "fixture://bike-nft/components/demo-frame-001.json"
 }
 ```
 

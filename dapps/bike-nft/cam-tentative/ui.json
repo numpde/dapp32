@@ -58,7 +58,7 @@
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
-          "value": ""
+          "value": "$view.serialNumber"
         }
       }
     ]
@@ -191,7 +191,7 @@
         "props": {
           "name": "tokenURI",
           "label": "Token URI",
-          "value": ""
+          "value": "$view.tokenURI"
         }
       }
     ]
@@ -213,7 +213,7 @@
         "props": {
           "name": "tokenURI",
           "label": "Token URI",
-          "value": ""
+          "value": "$view.tokenURI"
         }
       },
       {
