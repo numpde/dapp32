@@ -9,7 +9,7 @@ The useful idea is one app manifest plus one catalog-resolved UI tree:
 - `ui.json` owns the presentation tree and inline view/action catalogs.
 - `Include` expands selected catalog IDs at that point in the tree.
 - Contracts return semantic view/action IDs, not CAM file paths.
-- UI actions all have the same shape: label, target, and params.
+- UI actions all have the same shape: label, target, and inputs.
 
 The root/app contract should point to `main.json`. It should not point directly
 to `ui.json`, because the viewer still needs route wiring and ABI resources
@@ -51,7 +51,7 @@ Action nodes do not name contracts or functions:
   "props": {
     "label": "Prepare registration",
     "to": "registerComponent",
-    "params": {
+    "inputs": {
       "serialNumber": "$form.serialNumber",
       "tokenURI": "$form.tokenURI"
     }
@@ -59,9 +59,10 @@ Action nodes do not name contracts or functions:
 }
 ```
 
-The target route in `main.json` decides whether that is a read or write. Write
-routes may declare a `then` route, but `ui.json` does not contain nested
-post-success actions.
+The target route in `main.json` declares its named `inputs`, its first contract
+call, and any follow-up route. The ABI decides whether the first call is a read
+or a write; `ui.json` does not duplicate function mutability and does not
+contain nested post-success actions.
 
 The tentative route output shape is deliberately semantic. The contract/view
 helper should return IDs such as:

@@ -68,7 +68,7 @@
             "props": {
               "name": "serialNumber",
               "label": "Serial number",
-              "value": "$params.serialNumber"
+              "value": "$inputs.serialNumber"
             }
           }
         ]
@@ -170,7 +170,7 @@
             "props": {
               "name": "serialNumber",
               "label": "Serial number",
-              "value": "$params.serialNumber"
+              "value": "$inputs.serialNumber"
             }
           },
           {
@@ -259,7 +259,7 @@
         "props": {
           "label": "Look up component",
           "to": "component",
-          "params": {
+          "inputs": {
             "serialNumber": "$form.serialNumber"
           }
         }
@@ -269,7 +269,7 @@
         "props": {
           "label": "Register component",
           "to": "register",
-          "params": {
+          "inputs": {
             "serialNumber": "$form.serialNumber"
           }
         }
@@ -279,7 +279,7 @@
         "props": {
           "label": "Prepare registration",
           "to": "registerComponent",
-          "params": {
+          "inputs": {
             "serialNumber": "$form.serialNumber",
             "tokenURI": "$form.tokenURI"
           }
@@ -290,7 +290,7 @@
         "props": {
           "label": "Prepare metadata update",
           "to": "updateComponentMetadata",
-          "params": {
+          "inputs": {
             "serialNumber": "$form.serialNumber",
             "tokenURI": "$form.tokenURI"
           }
@@ -301,7 +301,7 @@
         "props": {
           "label": "Prepare missing report",
           "to": "markComponentMissing",
-          "params": {
+          "inputs": {
             "serialNumber": "$form.serialNumber"
           }
         }
@@ -311,7 +311,7 @@
         "props": {
           "label": "Prepare missing clear",
           "to": "clearComponentMissing",
-          "params": {
+          "inputs": {
             "serialNumber": "$form.serialNumber"
           }
         }
@@ -321,7 +321,7 @@
         "props": {
           "label": "Prepare retirement",
           "to": "retireComponent",
-          "params": {
+          "inputs": {
             "serialNumber": "$form.serialNumber"
           }
         }
