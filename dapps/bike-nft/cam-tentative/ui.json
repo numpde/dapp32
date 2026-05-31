@@ -2,22 +2,24 @@
   "ui": "1.0.0-tentative",
   "app": {
     "type": "Screen",
+    "requires": ["account", "form", "input", "view"],
     "props": {
       "title": "Bicycle component registry"
     },
     "children": [
       {
         "type": "Include",
-        "select": "$values.0.view"
+        "select": "$view.view"
       },
       {
         "type": "Include",
-        "select": "$values.0.actions",
-        "enabled": "$values.0.enabledActions"
+        "select": "$view.actions",
+        "enabled": "$view.enabledActions"
       }
     ]
   },
   "entry": {
+    "requires": ["account", "view"],
     "type": "Fragment",
     "children": [
       {
@@ -37,7 +39,7 @@
         "type": "Status",
         "props": {
           "label": "Can register components",
-          "value": "$values.0.canRegister"
+          "value": "$view.canRegister"
         }
       },
       {
@@ -51,6 +53,7 @@
     ]
   },
   "component.empty": {
+    "requires": ["input"],
     "type": "Fragment",
     "children": [
       {
@@ -64,12 +67,13 @@
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
-          "value": "$inputs.serialNumber"
+          "value": "$input.serialNumber"
         }
       }
     ]
   },
   "component.notFound": {
+    "requires": ["view"],
     "type": "Fragment",
     "children": [
       {
@@ -77,7 +81,7 @@
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
-          "value": "$values.0.serialNumber"
+          "value": "$view.serialNumber"
         }
       },
       {
@@ -90,6 +94,7 @@
     ]
   },
   "component.found": {
+    "requires": ["view"],
     "type": "Fragment",
     "children": [
       {
@@ -97,42 +102,42 @@
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
-          "value": "$values.0.serialNumber"
+          "value": "$view.serialNumber"
         }
       },
       {
         "type": "Status",
         "props": {
           "label": "Status",
-          "value": "$values.0.status"
+          "value": "$view.status"
         }
       },
       {
         "type": "Address",
         "props": {
           "label": "Owner",
-          "address": "$values.0.owner"
+          "address": "$view.owner"
         }
       },
       {
         "type": "Status",
         "props": {
           "label": "Owner info",
-          "value": "$values.0.ownerInfo"
+          "value": "$view.ownerInfo"
         }
       },
       {
         "type": "Nft",
         "props": {
-          "contractAddress": "$values.0.tokenContract",
-          "tokenId": "$values.0.tokenId"
+          "contractAddress": "$view.tokenContract",
+          "tokenId": "$view.tokenId"
         }
       },
       {
         "type": "Status",
         "props": {
           "label": "Token URI",
-          "value": "$values.0.tokenURI"
+          "value": "$view.tokenURI"
         }
       },
       {
@@ -140,19 +145,20 @@
         "props": {
           "name": "tokenURI",
           "label": "New token URI",
-          "value": "$values.0.tokenURI"
+          "value": "$view.tokenURI"
         }
       },
       {
         "type": "Status",
         "props": {
           "label": "Serial hash",
-          "value": "$values.0.serialHash"
+          "value": "$view.serialHash"
         }
       }
     ]
   },
   "register.empty": {
+    "requires": ["input"],
     "type": "Fragment",
     "children": [
       {
@@ -166,7 +172,7 @@
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
-          "value": "$inputs.serialNumber"
+          "value": "$input.serialNumber"
         }
       },
       {
@@ -180,6 +186,7 @@
     ]
   },
   "register.ready": {
+    "requires": ["view"],
     "type": "Fragment",
     "children": [
       {
@@ -187,7 +194,7 @@
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
-          "value": "$values.0.serialNumber"
+          "value": "$view.serialNumber"
         }
       },
       {
@@ -202,19 +209,20 @@
         "type": "Address",
         "props": {
           "label": "Component contract",
-          "address": "$values.0.componentsAddress"
+          "address": "$view.componentsAddress"
         }
       },
       {
         "type": "Status",
         "props": {
           "label": "Account info",
-          "value": "$values.0.accountInfo"
+          "value": "$view.accountInfo"
         }
       }
     ]
   },
   "register.blocked": {
+    "requires": ["view"],
     "type": "Fragment",
     "children": [
       {
@@ -222,33 +230,34 @@
         "props": {
           "name": "serialNumber",
           "label": "Serial number",
-          "value": "$values.0.serialNumber"
+          "value": "$view.serialNumber"
         }
       },
       {
         "type": "Status",
         "props": {
           "label": "Connected account can register",
-          "value": "$values.0.canRegister"
+          "value": "$view.canRegister"
         }
       },
       {
         "type": "Status",
         "props": {
           "label": "Component already exists",
-          "value": "$values.0.exists"
+          "value": "$view.exists"
         }
       },
       {
         "type": "Status",
         "props": {
           "label": "Account info",
-          "value": "$values.0.accountInfo"
+          "value": "$view.accountInfo"
         }
       }
     ]
   },
   "lookupComponent": {
+    "requires": ["form"],
     "type": "Action",
     "props": {
       "label": "Look up component",
@@ -259,6 +268,7 @@
     }
   },
   "openRegister": {
+    "requires": ["form"],
     "type": "Action",
     "props": {
       "label": "Register component",
@@ -269,6 +279,7 @@
     }
   },
   "register": {
+    "requires": ["form"],
     "type": "Action",
     "props": {
       "label": "Prepare registration",
@@ -280,6 +291,7 @@
     }
   },
   "updateMetadata": {
+    "requires": ["form"],
     "type": "Action",
     "props": {
       "label": "Prepare metadata update",
@@ -291,6 +303,7 @@
     }
   },
   "markMissing": {
+    "requires": ["form"],
     "type": "Action",
     "props": {
       "label": "Prepare missing report",
@@ -301,6 +314,7 @@
     }
   },
   "clearMissing": {
+    "requires": ["form"],
     "type": "Action",
     "props": {
       "label": "Prepare missing clear",
@@ -311,6 +325,7 @@
     }
   },
   "retire": {
+    "requires": ["form"],
     "type": "Action",
     "props": {
       "label": "Prepare retirement",

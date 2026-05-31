@@ -33,8 +33,10 @@ Read targets explicitly pass their outputs into a render continuation:
     "render": "ui",
     "select": "app",
     "with": {
-      "inputs": "$inputs",
-      "values": "$outputs"
+      "account": "$account",
+      "form": "$form",
+      "input": "$inputs",
+      "view": "$outputs.0"
     }
   }
 }
@@ -45,14 +47,28 @@ The generic expansion primitive is one node:
 ```json
 {
   "type": "Include",
-  "select": "$values.0.actions",
-  "enabled": "$values.0.enabledActions"
+  "select": "$view.actions",
+  "enabled": "$view.enabledActions"
 }
 ```
 
 `select` controls which top-level UI node IDs appear. `enabled` controls which
 of those nodes are actionable. Top-level member order is presentation order in
 this tentative shape.
+
+Named UI nodes declare the render context names they expect:
+
+```json
+{
+  "app": {
+    "type": "Screen",
+    "requires": ["account", "form", "input", "view"]
+  }
+}
+```
+
+Leaf nodes should list only the context names they read directly. The `app`
+shell lists the broader context needed by its dynamic descendants.
 
 The root app shell is just another named UI node:
 

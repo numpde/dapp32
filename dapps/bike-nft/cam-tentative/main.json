@@ -21,8 +21,10 @@
         "render": "ui",
         "select": "app",
         "with": {
-          "inputs": "$inputs",
-          "values": "$outputs"
+          "account": "$account",
+          "form": "$form",
+          "input": "$inputs",
+          "view": "$outputs.0"
         }
       }
     },
@@ -37,8 +39,10 @@
         "render": "ui",
         "select": "app",
         "with": {
-          "inputs": "$inputs",
-          "values": "$outputs"
+          "account": "$account",
+          "form": "$form",
+          "input": "$inputs",
+          "view": "$outputs.0"
         }
       }
     },
@@ -53,8 +57,10 @@
         "render": "ui",
         "select": "app",
         "with": {
-          "inputs": "$inputs",
-          "values": "$outputs"
+          "account": "$account",
+          "form": "$form",
+          "input": "$inputs",
+          "view": "$outputs.0"
         }
       }
     },
