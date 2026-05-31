@@ -12,7 +12,7 @@ import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 /// - it has no write functions;
 /// - it never calls manager write functions;
 /// - it never forwards user actions;
-/// - it only reads manager state and returns route-level screen URIs.
+/// - it only reads manager state and returns semantic UI view data.
 ///
 /// CAM screens should send state-changing transactions directly to
 /// BicycleComponentManager. The manager remains the source of truth for all
@@ -20,21 +20,33 @@ import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 contract BicycleComponentManagerUI {
     IBicycleComponentManagerView public immutable manager;
 
-    string private constant SCREEN_ENTRY = "./screens/entry.json";
-    string private constant SCREEN_COMPONENT_EMPTY = "./screens/component.empty.json";
-    string private constant SCREEN_COMPONENT_FOUND = "./screens/component.found.json";
-    string private constant SCREEN_COMPONENT_NOT_FOUND = "./screens/component.not-found.json";
-    string private constant SCREEN_REGISTER_EMPTY = "./screens/register.empty.json";
-    string private constant SCREEN_REGISTER_READY = "./screens/register.ready.json";
-    string private constant SCREEN_REGISTER_BLOCKED = "./screens/register.blocked.json";
+    string private constant VIEW_ENTRY = "entry";
+    string private constant VIEW_COMPONENT_EMPTY = "component.empty";
+    string private constant VIEW_COMPONENT_FOUND = "component.found";
+    string private constant VIEW_COMPONENT_NOT_FOUND = "component.notFound";
+    string private constant VIEW_REGISTER_EMPTY = "register.empty";
+    string private constant VIEW_REGISTER_READY = "register.ready";
+    string private constant VIEW_REGISTER_BLOCKED = "register.blocked";
 
-    struct AccountView {
+    string private constant ACTION_LOOKUP_COMPONENT = "lookupComponent";
+    string private constant ACTION_OPEN_REGISTER = "openRegister";
+    string private constant ACTION_REGISTER_COMPONENT = "registerComponent";
+    string private constant ACTION_UPDATE_COMPONENT_METADATA = "updateComponentMetadata";
+    string private constant ACTION_MARK_COMPONENT_MISSING = "markComponentMissing";
+    string private constant ACTION_CLEAR_COMPONENT_MISSING = "clearComponentMissing";
+    string private constant ACTION_RETIRE_COMPONENT = "retireComponent";
+
+    /// @notice Semantic view state consumed by the CAM UI schema.
+    /// @dev
+    /// `viewId` selects a manifest-owned UI node. `actions` selects manifest-owned
+    /// action nodes that are valid for the returned onchain state. The contract
+    /// does not return UI resource paths or layout fragments.
+    struct AppView {
+        string viewId;
+        string[] actions;
         address account;
         bool canRegister;
         string accountInfo;
-    }
-
-    struct ComponentScreenView {
         bool exists;
         bytes32 serialHash;
         address tokenContract;
@@ -53,16 +65,7 @@ contract BicycleComponentManagerUI {
         bool canMarkMissing;
         bool canClearMissing;
         bool canRetire;
-    }
-
-    struct RegisterScreenView {
-        bool canRegister;
-        bool exists;
-        bytes32 serialHash;
-        uint256 tokenId;
         address componentsAddress;
-        string serialNumber;
-        string accountInfo;
     }
 
     error ZeroAddress();
@@ -77,62 +80,58 @@ contract BicycleComponentManagerUI {
         manager = IBicycleComponentManagerView(managerAddress);
     }
 
-    /// @notice Route projection for the application entry screen.
-    /// @dev First return value is always the CAM screen URI.
-    function viewEntry(address account)
-        external
-        view
-        returns (string memory screenURI, AccountView memory accountView)
-    {
-        accountView = _accountView(account);
-        screenURI = SCREEN_ENTRY;
+    /// @notice Route projection for the application entry view.
+    function viewEntry(address account) external view returns (AppView memory view_) {
+        _setAccountView(view_, account);
+        view_.viewId = VIEW_ENTRY;
+        view_.serialNumber = "";
+        view_.actions = _entryActions();
     }
 
-    /// @notice Route projection for component lookup and detail screens.
-    /// @dev First return value is always the CAM screen URI.
-    function viewComponent(string calldata serialNumber, address account)
-        external
-        view
-        returns (string memory screenURI, ComponentScreenView memory component, AccountView memory accountView)
-    {
-        accountView = _accountView(account);
+    /// @notice Route projection for component lookup and detail views.
+    function viewComponent(string calldata serialNumber, address account) external view returns (AppView memory view_) {
+        _setAccountView(view_, account);
 
         if (_isEmpty(serialNumber)) {
-            screenURI = SCREEN_COMPONENT_EMPTY;
-            component.serialNumber = serialNumber;
-            return (screenURI, component, accountView);
+            view_.viewId = VIEW_COMPONENT_EMPTY;
+            view_.serialNumber = serialNumber;
+            view_.actions = _entryActions();
+            return view_;
         }
 
-        component = _componentView(serialNumber, account);
-        screenURI = component.exists ? SCREEN_COMPONENT_FOUND : SCREEN_COMPONENT_NOT_FOUND;
+        _setComponentView(view_, serialNumber, account);
+        view_.viewId = view_.exists ? VIEW_COMPONENT_FOUND : VIEW_COMPONENT_NOT_FOUND;
+        view_.actions = view_.exists ? _componentActions(view_) : _entryActions();
     }
 
-    /// @notice Route projection for component registration screens.
-    /// @dev First return value is always the CAM screen URI.
-    function viewRegister(string calldata serialNumber, address account)
-        external
-        view
-        returns (string memory screenURI, RegisterScreenView memory registerView, AccountView memory accountView)
-    {
-        accountView = _accountView(account);
-        registerView.canRegister = accountView.canRegister;
-        registerView.componentsAddress = manager.componentsAddress();
-        registerView.serialNumber = serialNumber;
-        registerView.accountInfo = accountView.accountInfo;
+    /// @notice Route projection for component registration views.
+    function viewRegister(string calldata serialNumber, address account) external view returns (AppView memory view_) {
+        _setAccountView(view_, account);
+        view_.componentsAddress = manager.componentsAddress();
+        view_.serialNumber = serialNumber;
+        view_.tokenURI = "";
 
         if (_isEmpty(serialNumber)) {
-            screenURI = SCREEN_REGISTER_EMPTY;
-            return (screenURI, registerView, accountView);
+            view_.viewId = VIEW_REGISTER_EMPTY;
+            view_.actions = _entryActions();
+            return view_;
         }
 
         IBicycleComponentManagerView.ComponentView memory component = manager.componentBySerial(serialNumber);
-        registerView.exists = component.exists;
-        registerView.serialHash = component.serialHash;
-        registerView.tokenId = component.tokenId;
-        screenURI = registerView.canRegister && !registerView.exists ? SCREEN_REGISTER_READY : SCREEN_REGISTER_BLOCKED;
+        view_.exists = component.exists;
+        view_.serialHash = component.serialHash;
+        view_.tokenId = component.tokenId;
+
+        if (view_.canRegister && !view_.exists) {
+            view_.viewId = VIEW_REGISTER_READY;
+            view_.actions = _registerReadyActions();
+        } else {
+            view_.viewId = VIEW_REGISTER_BLOCKED;
+            view_.actions = _lookupOnlyActions();
+        }
     }
 
-    function _accountView(address account) internal view returns (AccountView memory view_) {
+    function _setAccountView(AppView memory view_, address account) internal view {
         view_.account = account;
 
         // Intentional default: address(0) leaves canRegister=false and
@@ -144,11 +143,7 @@ contract BicycleComponentManagerUI {
         }
     }
 
-    function _componentView(string calldata serialNumber, address account)
-        internal
-        view
-        returns (ComponentScreenView memory view_)
-    {
+    function _setComponentView(AppView memory view_, string calldata serialNumber, address account) internal view {
         IBicycleComponentManagerView.ComponentView memory component = manager.componentBySerial(serialNumber);
 
         view_.exists = component.exists;
@@ -167,7 +162,7 @@ contract BicycleComponentManagerUI {
         // and exists=false. The route chooses a not-found screen for that
         // state, so zero/empty sentinel fields are not meant for display.
         if (!component.exists) {
-            return view_;
+            return;
         }
 
         if (component.owner != address(0)) {
@@ -182,6 +177,40 @@ contract BicycleComponentManagerUI {
             view_.canClearMissing = manager.canClearMissing(account, serialNumber);
             view_.canRetire = manager.canRetire(account, serialNumber);
         }
+    }
+
+    function _entryActions() internal pure returns (string[] memory actions) {
+        actions = new string[](2);
+        actions[0] = ACTION_LOOKUP_COMPONENT;
+        actions[1] = ACTION_OPEN_REGISTER;
+    }
+
+    function _lookupOnlyActions() internal pure returns (string[] memory actions) {
+        actions = new string[](1);
+        actions[0] = ACTION_LOOKUP_COMPONENT;
+    }
+
+    function _registerReadyActions() internal pure returns (string[] memory actions) {
+        actions = new string[](2);
+        actions[0] = ACTION_REGISTER_COMPONENT;
+        actions[1] = ACTION_LOOKUP_COMPONENT;
+    }
+
+    function _componentActions(AppView memory view_) internal pure returns (string[] memory actions) {
+        uint256 count = 1;
+        if (view_.canUpdateMetadata) count++;
+        if (view_.canMarkMissing) count++;
+        if (view_.canClearMissing) count++;
+        if (view_.canRetire) count++;
+
+        actions = new string[](count);
+        uint256 index;
+
+        actions[index++] = ACTION_LOOKUP_COMPONENT;
+        if (view_.canUpdateMetadata) actions[index++] = ACTION_UPDATE_COMPONENT_METADATA;
+        if (view_.canMarkMissing) actions[index++] = ACTION_MARK_COMPONENT_MISSING;
+        if (view_.canClearMissing) actions[index++] = ACTION_CLEAR_COMPONENT_MISSING;
+        if (view_.canRetire) actions[index++] = ACTION_RETIRE_COMPONENT;
     }
 
     function _isEmpty(string calldata value) internal pure returns (bool) {

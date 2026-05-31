@@ -99,7 +99,7 @@ Contracts return semantic state, view IDs, and valid action IDs:
 
 ```json
 {
-  "view": "component.found",
+  "viewId": "component.found",
   "actions": ["updateComponentMetadata", "markComponentMissing"],
   "account": "0x...",
   "serialNumber": "DEMO-FRAME-001",

@@ -25,12 +25,21 @@ contract BicycleComponentManagerTest is Test {
     string private constant TOKEN_URI = "fixture://bike-nft/components/frame-001.json";
     string private constant UPDATED_TOKEN_URI = "fixture://bike-nft/components/frame-001-updated.json";
 
-    string private constant SCREEN_COMPONENT_EMPTY = "./screens/component.empty.json";
-    string private constant SCREEN_COMPONENT_FOUND = "./screens/component.found.json";
-    string private constant SCREEN_COMPONENT_NOT_FOUND = "./screens/component.not-found.json";
-    string private constant SCREEN_REGISTER_EMPTY = "./screens/register.empty.json";
-    string private constant SCREEN_REGISTER_READY = "./screens/register.ready.json";
-    string private constant SCREEN_REGISTER_BLOCKED = "./screens/register.blocked.json";
+    string private constant VIEW_ENTRY = "entry";
+    string private constant VIEW_COMPONENT_EMPTY = "component.empty";
+    string private constant VIEW_COMPONENT_FOUND = "component.found";
+    string private constant VIEW_COMPONENT_NOT_FOUND = "component.notFound";
+    string private constant VIEW_REGISTER_EMPTY = "register.empty";
+    string private constant VIEW_REGISTER_READY = "register.ready";
+    string private constant VIEW_REGISTER_BLOCKED = "register.blocked";
+
+    string private constant ACTION_LOOKUP_COMPONENT = "lookupComponent";
+    string private constant ACTION_OPEN_REGISTER = "openRegister";
+    string private constant ACTION_REGISTER_COMPONENT = "registerComponent";
+    string private constant ACTION_UPDATE_COMPONENT_METADATA = "updateComponentMetadata";
+    string private constant ACTION_MARK_COMPONENT_MISSING = "markComponentMissing";
+    string private constant ACTION_CLEAR_COMPONENT_MISSING = "clearComponentMissing";
+    string private constant ACTION_RETIRE_COMPONENT = "retireComponent";
 
     function setUp() external {
         components = new BicycleComponents("Bike Components", "BIKE", admin, 0, "", "");
@@ -81,29 +90,67 @@ contract BicycleComponentManagerTest is Test {
         manager.registerComponent(secondOwner, SERIAL, TOKEN_URI);
     }
 
-    function test_uiRouteProjectionSelectsStateScreens() external {
-        (string memory screenURI,,) = ui.viewComponent("", owner);
-        assertEq(screenURI, SCREEN_COMPONENT_EMPTY, "empty component route screen mismatch");
+    function test_uiRouteProjectionSelectsViewsAndValidActions() external {
+        BicycleComponentManagerUI.AppView memory view_ = ui.viewEntry(registrar);
+        assertEq(view_.viewId, VIEW_ENTRY, "entry view mismatch");
+        assertEq(view_.account, registrar, "entry account mismatch");
+        assertTrue(view_.canRegister, "entry account should be allowed to register");
+        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
 
-        (screenURI,,) = ui.viewComponent(SERIAL, owner);
-        assertEq(screenURI, SCREEN_COMPONENT_NOT_FOUND, "missing component route screen mismatch");
+        view_ = ui.viewComponent("", owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "empty component view mismatch");
+        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
 
-        (screenURI,,) = ui.viewRegister("", registrar);
-        assertEq(screenURI, SCREEN_REGISTER_EMPTY, "empty register route screen mismatch");
+        view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "missing component view mismatch");
+        assertEq(view_.serialNumber, SERIAL, "missing component serial mismatch");
+        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
 
-        (screenURI,,) = ui.viewRegister(SERIAL, registrar);
-        assertEq(screenURI, SCREEN_REGISTER_READY, "ready register route screen mismatch");
+        view_ = ui.viewRegister("", registrar);
+        assertEq(view_.viewId, VIEW_REGISTER_EMPTY, "empty register view mismatch");
+        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
 
-        (screenURI,,) = ui.viewRegister(SERIAL, stranger);
-        assertEq(screenURI, SCREEN_REGISTER_BLOCKED, "unauthorized register route screen mismatch");
+        view_ = ui.viewRegister(SERIAL, registrar);
+        assertEq(view_.viewId, VIEW_REGISTER_READY, "ready register view mismatch");
+        assertEq(view_.componentsAddress, address(components), "register component address mismatch");
+        assertActions(view_.actions, actionSet(ACTION_REGISTER_COMPONENT, ACTION_LOOKUP_COMPONENT));
+
+        view_ = ui.viewRegister(SERIAL, stranger);
+        assertEq(view_.viewId, VIEW_REGISTER_BLOCKED, "unauthorized register view mismatch");
+        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT));
 
         registerDefaultComponent();
 
-        (screenURI,,) = ui.viewComponent(SERIAL, owner);
-        assertEq(screenURI, SCREEN_COMPONENT_FOUND, "found component route screen mismatch");
+        view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "found component view mismatch");
+        assertEq(view_.tokenURI, TOKEN_URI, "found component token URI mismatch");
+        assertActions(
+            view_.actions,
+            actionSet(
+                ACTION_LOOKUP_COMPONENT,
+                ACTION_UPDATE_COMPONENT_METADATA,
+                ACTION_MARK_COMPONENT_MISSING,
+                ACTION_RETIRE_COMPONENT
+            )
+        );
 
-        (screenURI,,) = ui.viewRegister(SERIAL, registrar);
-        assertEq(screenURI, SCREEN_REGISTER_BLOCKED, "registered component route screen mismatch");
+        vm.prank(owner);
+        manager.markMissing(SERIAL);
+
+        view_ = ui.viewComponent(SERIAL, owner);
+        assertActions(
+            view_.actions,
+            actionSet(
+                ACTION_LOOKUP_COMPONENT,
+                ACTION_UPDATE_COMPONENT_METADATA,
+                ACTION_CLEAR_COMPONENT_MISSING,
+                ACTION_RETIRE_COMPONENT
+            )
+        );
+
+        view_ = ui.viewRegister(SERIAL, registrar);
+        assertEq(view_.viewId, VIEW_REGISTER_BLOCKED, "registered component register view mismatch");
+        assertActions(view_.actions, actionSet(ACTION_LOOKUP_COMPONENT));
     }
 
     function test_configurerCanChangeComponentAddressForFutureRegistrationsOnly() external {
@@ -296,6 +343,37 @@ contract BicycleComponentManagerTest is Test {
 
         vm.prank(statusAttester);
         manager.addComponentAttestation(SERIAL, attestationType, "fixture://attestations/status-attester.json");
+    }
+
+    function assertActions(string[] memory actual, string[] memory expected) private pure {
+        assertEq(actual.length, expected.length, "action count mismatch");
+
+        for (uint256 index; index < expected.length; index++) {
+            assertEq(actual[index], expected[index], "action mismatch");
+        }
+    }
+
+    function actionSet(string memory first) private pure returns (string[] memory actions) {
+        actions = new string[](1);
+        actions[0] = first;
+    }
+
+    function actionSet(string memory first, string memory second) private pure returns (string[] memory actions) {
+        actions = new string[](2);
+        actions[0] = first;
+        actions[1] = second;
+    }
+
+    function actionSet(string memory first, string memory second, string memory third, string memory fourth)
+        private
+        pure
+        returns (string[] memory actions)
+    {
+        actions = new string[](4);
+        actions[0] = first;
+        actions[1] = second;
+        actions[2] = third;
+        actions[3] = fourth;
     }
 
     function registerDefaultComponent() private {

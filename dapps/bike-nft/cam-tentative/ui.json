@@ -11,7 +11,7 @@
         "tag": "Include",
         "call": {
           "namespace": "ui",
-          "function": "$view.view",
+          "function": "$view.viewId",
           "args": {
             "view": "$view"
           }
