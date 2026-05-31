@@ -63,7 +63,7 @@ class CamManifestResourceValidator:
 
         return failures
 
-    def validate_route_functions_match_declared_abis(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+    def validate_declared_abi_usage(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         contracts = manifest.get("contracts")
         routes = manifest.get("routes")
         failures: list[str] = []
@@ -76,6 +76,30 @@ class CamManifestResourceValidator:
 
         abi_functions_by_contract, abi_failures = self.abi_route_functions_by_contract(manifest_path, contracts)
         failures.extend(abi_failures)
+
+        failures.extend(
+            self.validate_route_functions_match_declared_abis(
+                manifest_path,
+                routes,
+                abi_functions_by_contract,
+            )
+        )
+        failures.extend(
+            self.validate_screen_contract_actions_match_declared_abis(
+                manifest_path,
+                routes,
+                abi_functions_by_contract,
+            )
+        )
+        return failures
+
+    def validate_route_functions_match_declared_abis(
+        self,
+        manifest_path: Path,
+        routes: dict[object, object],
+        abi_functions_by_contract: dict[str, dict[str, route_abi.AbiFunction | None]],
+    ) -> list[str]:
+        failures: list[str] = []
 
         for route_name, route in routes.items():
             path = f"routes.{route_name}"
@@ -150,21 +174,10 @@ class CamManifestResourceValidator:
     def validate_screen_contract_actions_match_declared_abis(
         self,
         manifest_path: Path,
-        manifest: dict[str, object],
+        routes: dict[object, object],
+        abi_functions_by_contract: dict[str, dict[str, route_abi.AbiFunction | None]],
     ) -> list[str]:
-        contracts = manifest.get("contracts")
-        routes = manifest.get("routes")
         failures: list[str] = []
-        if not isinstance(contracts, dict):
-            failures.append(f"{manifest_path}: contracts must be an object")
-        if not isinstance(routes, dict):
-            failures.append(f"{manifest_path}: routes must be an object")
-        if failures:
-            return failures
-
-        abi_functions_by_contract, abi_failures = self.abi_route_functions_by_contract(manifest_path, contracts)
-        failures.extend(abi_failures)
-
         screen_paths: set[Path] = set()
         for route_name in routes:
             if isinstance(route_name, str):

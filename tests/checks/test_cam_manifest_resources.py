@@ -15,8 +15,7 @@ class CamManifestResourceTest(unittest.TestCase):
 
     def test_cam_manifests_match_declared_abis_and_screen_inventory(self) -> None:
         failures = [
-            *self.validator.collect_manifest_failures(self.validator.validate_route_functions_match_declared_abis),
-            *self.validator.collect_manifest_failures(self.validator.validate_screen_contract_actions_match_declared_abis),
+            *self.validator.collect_manifest_failures(self.validator.validate_declared_abi_usage),
             *self.validator.collect_manifest_failures(self.validator.validate_route_screen_inventory),
         ]
 
@@ -96,6 +95,18 @@ class CamManifestResourceTest(unittest.TestCase):
             abi_dir.mkdir(parents=True)
             screen_dir.mkdir()
             write_json(
+                abi_dir / "UI.json",
+                [
+                    {
+                        "type": "function",
+                        "name": "viewEntry",
+                        "stateMutability": "view",
+                        "inputs": [],
+                        "outputs": [{"name": "screenURI", "type": "string"}],
+                    },
+                ],
+            )
+            write_json(
                 abi_dir / "Manager.json",
                 [
                     {
@@ -143,16 +154,23 @@ class CamManifestResourceTest(unittest.TestCase):
                 },
             )
 
-            failures = self.validator.validate_screen_contract_actions_match_declared_abis(
+            failures = self.validator.validate_declared_abi_usage(
                 manifest_path,
                 {
                     "contracts": {
+                        "UI": {
+                            "abiURI": "./abi/UI.json",
+                        },
                         "Manager": {
                             "abiURI": "./abi/Manager.json",
                         },
                     },
                     "routes": {
-                        "entry": {},
+                        "entry": {
+                            "contract": "UI",
+                            "function": "viewEntry",
+                            "args": [],
+                        },
                     },
                 },
             )
