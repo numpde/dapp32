@@ -31,6 +31,7 @@ export async function callCamRoute({
     )
   }
   const routeFunction = assertRouteFunctionAbi(contract.abi, routeCall.function)
+  const routeOutputs = routeFunctionOutputs(routeFunction, route)
 
   const account = routeAccount(context)
   let raw: unknown
@@ -46,7 +47,7 @@ export async function callCamRoute({
     throw new CamEvmError("CAM_ROUTE_CALL_FAILED", `failed to call CAM route: ${route}`, cause)
   }
 
-  return normalizeRouteResult(raw, camURI, route, routeFunction)
+  return normalizeRouteResult(raw, camURI, route, routeOutputs)
 }
 
 type CallCamRouteOptions = {
@@ -71,12 +72,17 @@ function routeAccount(context: CamRuntimeContext): Address | undefined {
   return address
 }
 
-function normalizeRouteResult(raw: unknown, camURI: string, route: string, routeFunction: AbiFunction): RouteResult {
+function normalizeRouteResult(
+  raw: unknown,
+  camURI: string,
+  route: string,
+  routeOutputs: readonly AbiParameter[],
+): RouteResult {
   const outputs = Array.isArray(raw) ? raw : [raw]
-  if (outputs.length !== routeFunction.outputs.length) {
+  if (outputs.length !== routeOutputs.length) {
     throw new CamEvmError(
       "CAM_ROUTE_INVALID_RESULT",
-      `CAM route ${route} returned ${outputs.length} value(s), but its ABI declares ${routeFunction.outputs.length}`,
+      `CAM route ${route} returned ${outputs.length} value(s), but its ABI declares ${routeOutputs.length}`,
     )
   }
 
@@ -92,7 +98,7 @@ function normalizeRouteResult(raw: unknown, camURI: string, route: string, route
 
   return {
     screenURI: resolveResourceURI(camURI, screenURI),
-    values: normalizeRouteValues(outputs.slice(1), routeFunction.outputs.slice(1), route),
+    values: normalizeRouteValues(outputs.slice(1), routeOutputs.slice(1), route),
   }
 }
 
@@ -101,10 +107,17 @@ function normalizeRouteValues(
   outputs: readonly AbiParameter[],
   route: string,
 ): readonly InertValue[] {
-  return values.map((value, index) => normalizeAbiValue(value, outputs[index], `${route}.${index}`))
+  return values.map((value, index) => {
+    const output = outputs[index]
+    if (output === undefined) {
+      throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI is missing output metadata at ${route}.${index}`)
+    }
+
+    return normalizeAbiValue(value, output, `${route}.${index}`)
+  })
 }
 
-function normalizeAbiValue(value: unknown, parameter: AbiParameter | undefined, path: string): InertValue {
+function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string): InertValue {
   if (isTupleParameter(parameter)) {
     return normalizeTupleValue(value, parameter, path)
   }
@@ -121,8 +134,8 @@ type AbiTupleParameter = AbiParameter & {
   readonly components: readonly AbiParameter[]
 }
 
-function isTupleParameter(parameter: AbiParameter | undefined): parameter is AbiTupleParameter {
-  if (parameter?.type !== "tuple") {
+function isTupleParameter(parameter: AbiParameter): parameter is AbiTupleParameter {
+  if (parameter.type !== "tuple") {
     return false
   }
 
@@ -210,4 +223,20 @@ function assertRouteFunctionAbi(abi: Abi, functionName: string): AbiFunction {
   }
 
   return fn
+}
+
+function routeFunctionOutputs(fn: AbiFunction, route: string): readonly AbiParameter[] {
+  if (!Array.isArray(fn.outputs)) {
+    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI is missing outputs: ${route}`)
+  }
+
+  const screenOutput = fn.outputs[0]
+  if (screenOutput === undefined) {
+    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI must declare screenURI as first output: ${route}`)
+  }
+  if (screenOutput.name !== "screenURI" || screenOutput.type !== "string") {
+    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI first output must be screenURI: string for ${route}`)
+  }
+
+  return fn.outputs
 }

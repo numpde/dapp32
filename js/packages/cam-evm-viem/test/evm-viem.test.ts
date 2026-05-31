@@ -347,6 +347,38 @@ test("callCamRoute rejects route return values that do not match the ABI", async
   )
 })
 
+test("callCamRoute rejects route ABIs without screenURI as the first output", async () => {
+  const invalidRouteAbi = [{
+    ...uiAbi[0],
+    outputs: [{ name: "screen", type: "string" }, uiAbi[0].outputs[1]],
+  }] as unknown as Abi
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient({
+        routeResults: {
+          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, [userAddress, true, ""]],
+        },
+      }),
+      cam: parseCam(camJson),
+      camURI: camDocumentURI,
+      contracts: {
+        [BIKE_UI_CONTRACT]: {
+          address: uiAddress,
+          abi: invalidRouteAbi,
+        },
+      },
+      route: BIKE_ROUTE_ENTRY,
+      context: {
+        host,
+        account: { address: userAddress },
+        params: {},
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+  )
+})
+
 test("sendCamContractCall validates mutable ABI functions and submits through the wallet client", async () => {
   const walletClient = createWalletClient()
 
