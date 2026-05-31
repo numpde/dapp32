@@ -44,7 +44,7 @@ type MockReadContractRequest = {
 type MockPublicClientOptions = {
   readonly camURI: string
   readonly camHash: MockHash
-  readonly addresses: Readonly<Record<string, MockAddress>>
+  readonly addresses: Readonly<Partial<Record<string, MockAddress>>>
   readonly routeResults: Readonly<Record<string, unknown>>
 }
 
@@ -147,11 +147,12 @@ function requireContractName(args: readonly unknown[] | undefined): string {
 }
 
 function contractAddressForName(
-  addresses: Readonly<Record<string, MockAddress>>,
+  addresses: Readonly<Partial<Record<string, MockAddress>>>,
   name: string,
 ): MockAddress {
-  if (Object.hasOwn(addresses, name)) {
-    return addresses[name] as MockAddress
+  const address = addresses[name]
+  if (address !== undefined) {
+    return address
   }
 
   return ZERO_ADDRESS
