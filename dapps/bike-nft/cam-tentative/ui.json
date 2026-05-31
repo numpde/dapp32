@@ -295,7 +295,7 @@
       }
     }
   },
-  "register": {
+  "registerComponent": {
     "requires": ["form"],
     "tag": "Action",
     "props": {
@@ -310,7 +310,7 @@
       }
     }
   },
-  "updateMetadata": {
+  "updateComponentMetadata": {
     "requires": ["form"],
     "tag": "Action",
     "props": {
@@ -325,7 +325,7 @@
       }
     }
   },
-  "markMissing": {
+  "markComponentMissing": {
     "requires": ["form"],
     "tag": "Action",
     "props": {
@@ -339,7 +339,7 @@
       }
     }
   },
-  "clearMissing": {
+  "clearComponentMissing": {
     "requires": ["form"],
     "tag": "Action",
     "props": {
@@ -353,7 +353,7 @@
       }
     }
   },
-  "retire": {
+  "retireComponent": {
     "requires": ["form"],
     "tag": "Action",
     "props": {

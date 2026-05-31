@@ -97,7 +97,7 @@ Contracts return semantic state, view IDs, and valid action IDs:
 ```json
 {
   "view": "component.found",
-  "actions": ["updateMetadata", "markMissing"],
+  "actions": ["updateComponentMetadata", "markComponentMissing"],
   "account": "0x...",
   "serialNumber": "DEMO-FRAME-001",
   "tokenURI": "fixture://bike-nft/components/demo-frame-001.json"
