@@ -4,7 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from . import cam_abi_resources as abi_resources
-from . import cam_route_abi as route_abi
+from . import cam_abi_usage as abi_usage
 from .common import read_text, repo_path
 from tools.json_policy import JsonPolicyError, strict_json_loads
 
@@ -97,7 +97,7 @@ class CamManifestResourceValidator:
         self,
         manifest_path: Path,
         routes: dict[object, object],
-        abi_functions_by_contract: dict[str, dict[str, route_abi.AbiFunction | None]],
+        abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]],
     ) -> list[str]:
         failures: list[str] = []
 
@@ -141,7 +141,7 @@ class CamManifestResourceValidator:
             )
 
             failures.extend(
-                route_abi.validate_route_function_mutability(
+                abi_usage.validate_route_function_mutability(
                     manifest_path,
                     path,
                     contract_name,
@@ -150,7 +150,7 @@ class CamManifestResourceValidator:
                 )
             )
             failures.extend(
-                route_abi.validate_route_output_shape(
+                abi_usage.validate_route_output_shape(
                     manifest_path,
                     path,
                     contract_name,
@@ -175,7 +175,7 @@ class CamManifestResourceValidator:
         self,
         manifest_path: Path,
         routes: dict[object, object],
-        abi_functions_by_contract: dict[str, dict[str, route_abi.AbiFunction | None]],
+        abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]],
     ) -> list[str]:
         failures: list[str] = []
         screen_paths: set[Path] = set()
@@ -190,7 +190,7 @@ class CamManifestResourceValidator:
                 failures.append(str(error))
                 continue
 
-            for action in route_abi.contract_action_references(screen):
+            for action in abi_usage.contract_action_references(screen):
                 location = f"{screen_path}:{action.path}" if action.path else str(screen_path)
                 if not isinstance(action.contract_name, str) or action.contract_name == "":
                     failures.append(f"{manifest_path}: contract-call action must declare a contract at {location}")
@@ -212,7 +212,7 @@ class CamManifestResourceValidator:
                     continue
 
                 failures.extend(
-                    route_abi.validate_contract_action_function(
+                    abi_usage.validate_contract_action_function(
                         manifest_path,
                         location,
                         action,
@@ -225,12 +225,12 @@ class CamManifestResourceValidator:
     def declared_abi_function(
         self,
         manifest_path: Path,
-        abi_functions_by_contract: dict[str, dict[str, route_abi.AbiFunction | None]],
+        abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]],
         location: str,
         contract_name: str,
         function_name: str,
         purpose: str,
-    ) -> tuple[route_abi.AbiFunction | None, list[str]]:
+    ) -> tuple[abi_usage.AbiFunction | None, list[str]]:
         functions = abi_functions_by_contract.get(contract_name)
         if functions is None:
             return None, [f"{manifest_path}: {purpose} references undeclared contract at {location}: {contract_name}"]
@@ -315,7 +315,7 @@ class CamManifestResourceValidator:
         route_path: str,
         contract_name: str,
         function_name: str,
-        function: route_abi.AbiFunction,
+        function: abi_usage.AbiFunction,
     ) -> list[str]:
         if not isinstance(route_name, str):
             return []
@@ -333,7 +333,7 @@ class CamManifestResourceValidator:
                 continue
 
             failures.extend(
-                route_abi.validate_screen_values_references(
+                abi_usage.validate_screen_values_references(
                     manifest_path,
                     route_path,
                     screen_path,
@@ -350,8 +350,8 @@ class CamManifestResourceValidator:
         self,
         manifest_path: Path,
         contracts: dict[object, object],
-    ) -> tuple[dict[str, dict[str, route_abi.AbiFunction | None]], list[str]]:
-        abi_functions_by_contract: dict[str, dict[str, route_abi.AbiFunction | None]] = {}
+    ) -> tuple[dict[str, dict[str, abi_usage.AbiFunction | None]], list[str]]:
+        abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]] = {}
         failures: list[str] = []
         for contract_name, contract in contracts.items():
             if not isinstance(contract_name, str) or contract_name == "":
@@ -368,7 +368,7 @@ class CamManifestResourceValidator:
                 continue
 
             assert abi is not None
-            abi_functions_by_contract[contract_name] = route_abi.abi_functions(abi)
+            abi_functions_by_contract[contract_name] = abi_usage.abi_functions(abi)
 
         return abi_functions_by_contract, failures
 
