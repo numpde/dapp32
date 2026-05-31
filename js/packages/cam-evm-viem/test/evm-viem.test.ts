@@ -295,6 +295,58 @@ test("callCamRoute rejects unsafe screen URIs and non-view route functions", asy
   )
 })
 
+test("callCamRoute rejects route return values that do not match the ABI", async () => {
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient({
+        routeResults: {
+          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
+        },
+      }),
+      cam: parseCam(camJson),
+      camURI: camDocumentURI,
+      contracts: {
+        [BIKE_UI_CONTRACT]: {
+          address: uiAddress,
+          abi: uiAbi,
+        },
+      },
+      route: BIKE_ROUTE_ENTRY,
+      context: {
+        host,
+        account: { address: userAddress },
+        params: {},
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+  )
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient({
+        routeResults: {
+          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, [userAddress, true, ""], "extra"],
+        },
+      }),
+      cam: parseCam(camJson),
+      camURI: camDocumentURI,
+      contracts: {
+        [BIKE_UI_CONTRACT]: {
+          address: uiAddress,
+          abi: uiAbi,
+        },
+      },
+      route: BIKE_ROUTE_ENTRY,
+      context: {
+        host,
+        account: { address: userAddress },
+        params: {},
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+  )
+})
+
 test("sendCamContractCall validates mutable ABI functions and submits through the wallet client", async () => {
   const walletClient = createWalletClient()
 

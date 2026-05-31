@@ -73,6 +73,13 @@ function routeAccount(context: CamRuntimeContext): Address | undefined {
 
 function normalizeRouteResult(raw: unknown, camURI: string, route: string, routeFunction: AbiFunction): RouteResult {
   const outputs = Array.isArray(raw) ? raw : [raw]
+  if (outputs.length !== routeFunction.outputs.length) {
+    throw new CamEvmError(
+      "CAM_ROUTE_INVALID_RESULT",
+      `CAM route ${route} returned ${outputs.length} value(s), but its ABI declares ${routeFunction.outputs.length}`,
+    )
+  }
+
   const screenURI = outputs[0]
 
   if (typeof screenURI !== "string" || screenURI.length === 0) {
