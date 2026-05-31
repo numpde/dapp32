@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -186,25 +187,17 @@ def validate_screen_values_references(
 def contract_action_references(value: object, path: str = "") -> list[ContractActionReference]:
     references: list[ContractActionReference] = []
 
-    if isinstance(value, list):
-        for index, item in enumerate(value):
-            references.extend(contract_action_references(item, join_json_path(path, str(index))))
-        return references
-
-    if isinstance(value, dict):
-        if value.get("type") == "contract-call":
-            args = value.get("args")
+    for action_path, item, _parent in walk_json(value, path):
+        if isinstance(item, dict) and item.get("type") == "contract-call":
+            args = item.get("args")
             references.append(
                 ContractActionReference(
-                    path=path,
-                    contract_name=value.get("contract"),
-                    function_name=value.get("function"),
+                    path=action_path,
+                    contract_name=item.get("contract"),
+                    function_name=item.get("function"),
                     arg_count=len(args) if isinstance(args, list) else None,
                 )
             )
-
-        for key, item in value.items():
-            references.extend(contract_action_references(item, join_json_path(path, str(key))))
 
     return references
 
@@ -258,20 +251,25 @@ def abi_component_by_name(components: list[object], name: str) -> object | None:
 def values_references(value: object, path: str = "", parent: object | None = None) -> list[ValuesReference]:
     references: list[ValuesReference] = []
 
-    if isinstance(value, str):
-        reference = values_reference(value, path, parent)
-        return [] if reference is None else [reference]
+    for item_path, item, item_parent in walk_json(value, path, parent):
+        if isinstance(item, str):
+            reference = values_reference(item, item_path, item_parent)
+            if reference is not None:
+                references.append(reference)
+
+    return references
+
+
+def walk_json(value: object, path: str = "", parent: object | None = None) -> Iterator[tuple[str, object, object | None]]:
+    yield path, value, parent
 
     if isinstance(value, list):
         for index, item in enumerate(value):
-            references.extend(values_references(item, join_json_path(path, str(index)), value))
-        return references
+            yield from walk_json(item, join_json_path(path, str(index)), value)
 
     if isinstance(value, dict):
         for key, item in value.items():
-            references.extend(values_references(item, join_json_path(path, str(key)), value))
-
-    return references
+            yield from walk_json(item, join_json_path(path, str(key)), value)
 
 
 def values_reference(value: str, path: str, parent: object | None) -> ValuesReference | None:
