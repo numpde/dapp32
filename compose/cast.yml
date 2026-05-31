@@ -65,7 +65,13 @@ services:
     pids_limit: 64
     mem_limit: 128m
     environment:
+      RPC_PROXY_HOST: 0.0.0.0
+      RPC_PROXY_PORT: "8080"
       RPC_UPSTREAM_FILE: /run/secrets/rpc_url
+      RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "4194304"
+      RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
+      RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "10"
       RPC_ALLOWED_METHODS: eth_blockNumber
     secrets:
       - source: rpc_url
@@ -92,7 +98,7 @@ secrets:
     # Intentional default: /dev/null exists only so `docker compose config`
     # can render without a real secret. Runtime Make targets still require an
     # explicit RPC_URL/RPC_URL_FILE before starting cast-rpc.
-    file: "${RPC_URL_FILE:-/dev/null}"
+    file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
 
 networks:
   rpc_internal:

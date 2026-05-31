@@ -32,6 +32,7 @@ services:
       DEPENDENCY_EGRESS_PROXY_PORT: "8080"
       DEPENDENCY_EGRESS_LOCK_FILE: /input/soldeer.lock
       DEPENDENCY_EGRESS_DENIED_HOST: example.com
+      DEPENDENCY_EGRESS_CONNECT_TIMEOUT_SECONDS: "10"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=16m
     volumes:

@@ -31,6 +31,12 @@ services:
     pids_limit: 64
     mem_limit: 128m
     environment:
+      HTTPS_EGRESS_PROXY_HOST: 0.0.0.0
+      HTTPS_EGRESS_PROXY_PORT: "8080"
+      HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS: "10"
+      HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS: "300"
+      HTTPS_EGRESS_PROXY_MAX_HOST_BYTES: "255"
+      HTTPS_EGRESS_PROXY_BUFFER_BYTES: "65536"
       HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: api.soldeer.xyz,soldeer-revisions.s3.amazonaws.com
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=16m
@@ -78,7 +84,7 @@ services:
       XDG_DATA_HOME: /usr/local/share
       FOUNDRY_CACHE_PATH: /tmp/foundry-cache
       FOUNDRY_CONFIG: /tmp/soldeer-work/foundry.toml
-      ALLOW_UPDATE: "${ALLOW_UPDATE:-0}"
+      ALLOW_UPDATE: "${ALLOW_UPDATE:?missing_ALLOW_UPDATE}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=512m
     volumes:
@@ -154,10 +160,10 @@ services:
       - |
         apply_dependency_patches() {
           while read -r dependency target patch_file pre_hash patch_hash post_hash extra; do
-            case "$${dependency:-}" in
+            case "$$dependency" in
               ""|\#*) continue ;;
             esac
-            if [ -n "$${extra:-}" ]; then
+            if [ -n "$$extra" ]; then
               printf 'dependency-patches: malformed line for %s\n' "$$dependency" >&2
               exit 2
             fi

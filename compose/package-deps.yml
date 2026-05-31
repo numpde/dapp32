@@ -25,6 +25,12 @@ services:
     pids_limit: 64
     mem_limit: 128m
     environment:
+      HTTPS_EGRESS_PROXY_HOST: 0.0.0.0
+      HTTPS_EGRESS_PROXY_PORT: "8080"
+      HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS: "10"
+      HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS: "300"
+      HTTPS_EGRESS_PROXY_MAX_HOST_BYTES: "255"
+      HTTPS_EGRESS_PROXY_BUFFER_BYTES: "65536"
       HTTPS_EGRESS_PROXY_ALLOWED_HOSTS: registry.npmjs.org
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=16m
@@ -82,7 +88,7 @@ services:
       npm_config_fetch_retry_maxtimeout: "30000"
       npm_config_fetch_timeout: "300000"
       npm_config_maxsockets: "1"
-      ALLOW_UPDATE: "${ALLOW_UPDATE:-0}"
+      ALLOW_UPDATE: "${ALLOW_UPDATE:?missing_ALLOW_UPDATE}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=1024m
     volumes:

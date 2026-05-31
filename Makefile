@@ -23,6 +23,7 @@ ALLOW_UPDATE ?= 0
 
 RPC_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-cast-rpc
 ANVIL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-anvil
+ANVIL_HOST_PORT ?= 8545
 LIVE_CHECK_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-check-live
 BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-local
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-viewer-terminal
@@ -53,8 +54,8 @@ BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_
 BIKE_NFT_VIEWER_GUI_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_GUI_ORIGIN)/cam/main.json BIKE_NFT_GUI_PORT=$(BIKE_NFT_GUI_PORT) BIKE_NFT_GUI_BIND_HOST=$(BIKE_NFT_GUI_BIND_HOST) BIKE_NFT_GUI_ORIGIN=$(BIKE_NFT_GUI_ORIGIN)
 VIEWER_TERMINAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) VIEWER_TERMINAL_CONTAINER_NAME=$(VIEWER_TERMINAL_CONTAINER_NAME) CAM_VIEWER_MOCK=$(VIEWER_TERMINAL_MOCK)
 ANVIL_INTERNAL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
-ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host
-ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host
+ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host ANVIL_HOST_PORT=$(ANVIL_HOST_PORT)
+ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host ANVIL_HOST_PORT=$(ANVIL_HOST_PORT)
 LIVE_DEPS_EGRESS_COMPOSE_FILES := -f $(COMPOSE_DIR)/deps.yml -f $(COMPOSE_DIR)/check-live-deps-egress.yml
 BIKE_NFT_LOCAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml
@@ -115,12 +116,12 @@ help:
 	  '  make cast-rpc RPC_URL_FILE=/path  Read a block number through the RPC egress proxy' \
 	  '  RPC_URL=https://... make cast-rpc  Same, using a temporary secret file' \
 	  '  make anvil-internal  Start Docker-only Anvil with no host port' \
-	  '  make anvil-host      Start Anvil on 127.0.0.1:$${ANVIL_HOST_PORT:-8545}' \
+	  '  make anvil-host      Start Anvil on 127.0.0.1:$${ANVIL_HOST_PORT}' \
 	  '  make anvil-down      Stop Anvil services and remove their network' \
 	  '  make bike-nft-local-deploy CAM_URI=...  Deploy the bike NFT fixture to an internal Anvil' \
 	  '                        Fixture default: BIKE_NFT_CAM_HASH=0x00..00; pass BIKE_NFT_CAM_HASH to pin CAM bytes' \
 	  '  make bike-nft-viewer-terminal  Deploy bike NFT locally and open the real-RPC viewer terminal' \
-	  '  make bike-nft-viewer-gui       Deploy bike NFT locally and run the browser GUI on $${BIKE_NFT_GUI_ORIGIN:-http://127.0.0.1:$${BIKE_NFT_GUI_PORT:-5173}}' \
+	  '  make bike-nft-viewer-gui       Deploy bike NFT locally and run the browser GUI on $${BIKE_NFT_GUI_ORIGIN}' \
 	  '  BIKE_NFT_GUI_BIND_HOST=0.0.0.0 BIKE_NFT_GUI_ORIGIN=http://host:5173 make bike-nft-viewer-gui  Expose the local GUI to another browser host' \
 	  '' \
 	  'Supported lanes are Docker/Compose-backed. Default check lanes are offline, read-only,' \
@@ -129,10 +130,11 @@ help:
 
 deps:
 	@$(NON_ROOT_GUARD); \
+	created_dependency_metadata_placeholders=""; \
 	cleanup() { \
 	  status="$$?"; \
 	  $(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml $(COMPOSE_DOWN_CLEANUP); \
-	  if [[ "$$status" != "0" && -n "$${created_dependency_metadata_placeholders:-}" ]]; then \
+	  if [[ "$$status" != "0" && -n "$$created_dependency_metadata_placeholders" ]]; then \
 	    rm -f $$created_dependency_metadata_placeholders; \
 	  fi; \
 	  exit "$$status"; \
@@ -178,7 +180,7 @@ deps:
 	    for file in $(DEPENDENCY_METADATA_FILES); do \
 	      if [[ ! -e "$$file" ]]; then \
 	        touch "$$file"; \
-	        created_dependency_metadata_placeholders="$${created_dependency_metadata_placeholders:-} $$file"; \
+	        created_dependency_metadata_placeholders="$$created_dependency_metadata_placeholders $$file"; \
 	      fi; \
 	    done ;; \
 	  *) printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2 ;; \
@@ -198,13 +200,15 @@ deps-verify:
 
 package-deps:
 	@$(NON_ROOT_GUARD); \
+	package_input_dir=""; \
+	created_package_lock_placeholder="0"; \
 	cleanup() { \
 	  status="$$?"; \
-	  if [[ -n "$${package_input_dir:-}" ]]; then \
+	  if [[ -n "$$package_input_dir" ]]; then \
 	    $(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml $(COMPOSE_DOWN_CLEANUP); \
 	    rm -rf "$$package_input_dir"; \
 	  fi; \
-	  if [[ "$$status" != "0" && "$${created_package_lock_placeholder:-0}" == "1" ]]; then \
+	  if [[ "$$status" != "0" && "$$created_package_lock_placeholder" == "1" ]]; then \
 	    rm -f "$(PACKAGE_LOCK_FILE)"; \
 	  fi; \
 	  exit "$$status"; \
@@ -367,7 +371,7 @@ cast-offline:
 
 cast-rpc:
 	@$(NON_ROOT_GUARD); \
-	if [[ -n "$${RPC_URL:-}" && -n "$${RPC_URL_FILE:-}" ]]; then \
+	if [[ -v RPC_URL && -n "$$RPC_URL" && -v RPC_URL_FILE && -n "$$RPC_URL_FILE" ]]; then \
 	  printf '%s\n' 'Set only one of RPC_URL or RPC_URL_FILE.' >&2; \
 	  exit 2; \
 	fi; \
@@ -381,13 +385,13 @@ cast-rpc:
 	  exit "$$status"; \
 	}; \
 	trap cleanup EXIT; \
-	if [[ -n "$${RPC_URL_FILE:-}" ]]; then \
+	if [[ -v RPC_URL_FILE && -n "$$RPC_URL_FILE" ]]; then \
 	  if [[ ! -r "$$RPC_URL_FILE" ]]; then \
 	    printf 'RPC_URL_FILE is not readable: %s\n' "$$RPC_URL_FILE" >&2; \
 	    exit 2; \
 	  fi; \
 	  cp -- "$$RPC_URL_FILE" "$$rpc_url_file"; \
-	elif [[ -n "$${RPC_URL:-}" ]]; then \
+	elif [[ -v RPC_URL && -n "$$RPC_URL" ]]; then \
 	  printf '%s' "$$RPC_URL" > "$$rpc_url_file"; \
 	else \
 	  printf '%s\n' 'Set RPC_URL_FILE=/path/to/rpc-url, or set RPC_URL for temporary use.' >&2; \

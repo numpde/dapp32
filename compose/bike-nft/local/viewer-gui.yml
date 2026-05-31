@@ -88,7 +88,7 @@ services:
       - bike_nft_local
       - bike_nft_browser
     ports:
-      - "${BIKE_NFT_GUI_BIND_HOST:-127.0.0.1}:${BIKE_NFT_GUI_PORT:-5173}:8080"
+      - "${BIKE_NFT_GUI_BIND_HOST:?missing_BIKE_NFT_GUI_BIND_HOST}:${BIKE_NFT_GUI_PORT:?missing_BIKE_NFT_GUI_PORT}:8080"
     command:
       - "/bin/sh"
       - "-eu"
