@@ -15,7 +15,9 @@
       "first": {
         "contract": "BicycleComponentManagerUI",
         "function": "viewEntry",
-        "args": ["$account.address"]
+        "args": {
+          "account": "$account.address"
+        }
       },
       "then": {
         "render": "ui",
@@ -33,7 +35,10 @@
       "first": {
         "contract": "BicycleComponentManagerUI",
         "function": "viewComponent",
-        "args": ["$inputs.serialNumber", "$account.address"]
+        "args": {
+          "serialNumber": "$inputs.serialNumber",
+          "account": "$account.address"
+        }
       },
       "then": {
         "render": "ui",
@@ -51,7 +56,10 @@
       "first": {
         "contract": "BicycleComponentManagerUI",
         "function": "viewRegister",
-        "args": ["$inputs.serialNumber", "$account.address"]
+        "args": {
+          "serialNumber": "$inputs.serialNumber",
+          "account": "$account.address"
+        }
       },
       "then": {
         "render": "ui",
@@ -69,7 +77,11 @@
       "first": {
         "contract": "BicycleComponentManager",
         "function": "registerComponent",
-        "args": ["$account.address", "$inputs.serialNumber", "$inputs.tokenURI"]
+        "args": {
+          "owner": "$account.address",
+          "serialNumber": "$inputs.serialNumber",
+          "tokenURI_": "$inputs.tokenURI"
+        }
       },
       "then": {
         "to": "component",
@@ -83,7 +95,10 @@
       "first": {
         "contract": "BicycleComponentManager",
         "function": "setComponentMetadata",
-        "args": ["$inputs.serialNumber", "$inputs.tokenURI"]
+        "args": {
+          "serialNumber": "$inputs.serialNumber",
+          "tokenURI_": "$inputs.tokenURI"
+        }
       },
       "then": {
         "to": "component",
@@ -97,7 +112,9 @@
       "first": {
         "contract": "BicycleComponentManager",
         "function": "markMissing",
-        "args": ["$inputs.serialNumber"]
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
       },
       "then": {
         "to": "component",
@@ -111,7 +128,9 @@
       "first": {
         "contract": "BicycleComponentManager",
         "function": "clearMissing",
-        "args": ["$inputs.serialNumber"]
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
       },
       "then": {
         "to": "component",
@@ -125,7 +144,9 @@
       "first": {
         "contract": "BicycleComponentManager",
         "function": "retireComponent",
-        "args": ["$inputs.serialNumber"]
+        "args": {
+          "serialNumber": "$inputs.serialNumber"
+        }
       },
       "then": {
         "to": "component",

@@ -98,9 +98,25 @@ Action nodes do not name contracts or functions:
 ```
 
 The target route in `main.json` declares its named `inputs`, its first contract
-call, and any follow-up route. The ABI decides whether the first call is a read
-or a write; `ui.json` does not duplicate function mutability and does not
-contain nested post-success actions.
+call, and any follow-up route. Contract-call `args` are named by ABI input name,
+not by position:
+
+```json
+{
+  "first": {
+    "contract": "BicycleComponentManager",
+    "function": "registerComponent",
+    "args": {
+      "owner": "$account.address",
+      "serialNumber": "$inputs.serialNumber",
+      "tokenURI_": "$inputs.tokenURI"
+    }
+  }
+}
+```
+
+The ABI decides whether the first call is a read or a write. `ui.json` does not
+duplicate function mutability and does not contain nested post-success actions.
 
 The tentative route output shape is deliberately semantic. The contract/view
 helper should return IDs such as:
