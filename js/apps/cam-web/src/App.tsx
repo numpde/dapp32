@@ -41,6 +41,11 @@ import {
 } from "./wallet"
 import type { WalletState } from "./wallet"
 import { errorMessage } from "./errors"
+import {
+  requireAddress,
+  requireEvmChainId,
+  shortenAddress,
+} from "./evm"
 
 type StartupOptions = {
   readonly chainId: string
@@ -234,11 +239,11 @@ export function App(): ReactElement {
             </div>
             <div>
               <dt>Host</dt>
-              <dd>{shorten(options.host)}</dd>
+              <dd>{shortenAddress(options.host)}</dd>
             </div>
             <div>
               <dt>Viewer account</dt>
-              <dd>{shorten(currentViewerAccount(loadState, options.account))}</dd>
+              <dd>{shortenAddress(currentViewerAccount(loadState, options.account))}</dd>
             </div>
             <div>
               <dt>Wallet</dt>
@@ -400,7 +405,7 @@ function KeyValue({
 function parseStartupOptions(url: URL): StartupOptions {
   const params = url.searchParams
   return {
-    chainId: requireChainId(requiredParam(params, "chainId")),
+    chainId: requireEvmChainId(requiredParam(params, "chainId")),
     host: requireAddress(requiredParam(params, "host"), "host"),
     account: requireAddress(requiredParam(params, "account"), "account"),
     rpcUrl: requireHttpURL(requiredParam(params, "rpcUrl"), "rpcUrl").href,
@@ -485,22 +490,6 @@ function requireHttpURL(value: string, label: string): URL {
   return url
 }
 
-function requireChainId(value: string): string {
-  if (!/^eip155:[1-9][0-9]*$/.test(value)) {
-    throw new Error("chainId: expected CAIP-2 EVM chain id, for example eip155:31337")
-  }
-
-  return value
-}
-
-function requireAddress(value: string, label: string): CamHost["address"] {
-  if (!/^0x[0-9a-fA-F]{40}$/.test(value)) {
-    throw new Error(`${label}: expected 20-byte hex address`)
-  }
-
-  return value as CamHost["address"]
-}
-
 function requireSession(session: CamViewerSession | undefined): CamViewerSession {
   if (session === undefined) {
     throw new Error("CAM viewer session is not loaded")
@@ -519,10 +508,6 @@ function formatInertValue(value: InertValue): string {
   if (typeof value === "string") return value
   if (typeof value === "number" || typeof value === "boolean") return String(value)
   return JSON.stringify(value)
-}
-
-function shorten(address: string): string {
-  return address.length > 14 ? `${address.slice(0, 6)}...${address.slice(-4)}` : address
 }
 
 function currentViewerAccount(loadState: LoadState, fallback: CamHost["address"]): CamHost["address"] {

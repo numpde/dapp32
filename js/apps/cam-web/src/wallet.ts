@@ -3,6 +3,11 @@ import {
   custom,
 } from "viem"
 import type { Address } from "viem"
+import {
+  evmChainIdHex,
+  requireAddress,
+  shortenAddress,
+} from "./evm"
 
 export type WalletState =
   | { readonly status: "unavailable" }
@@ -27,7 +32,7 @@ export function walletLabel(wallet: WalletState): string {
     case "disconnected":
       return "Disconnected"
     case "connected":
-      return shorten(wallet.address)
+      return shortenAddress(wallet.address)
   }
 }
 
@@ -42,7 +47,7 @@ export async function connectInjectedWallet(
 
 export async function ensureInjectedWalletChain(options: WalletChainOptions): Promise<void> {
   const provider = requireEthereum()
-  const chainId = hexChainId(options.chainId)
+  const chainId = evmChainIdHex(options.chainId)
 
   try {
     await provider.request({
@@ -85,15 +90,6 @@ function requireEthereum(): EthereumProvider {
   return window.ethereum
 }
 
-function hexChainId(chainId: string): `0x${string}` {
-  if (!/^eip155:[1-9][0-9]*$/.test(chainId)) {
-    throw new Error("chainId: expected CAIP-2 EVM chain id, for example eip155:31337")
-  }
-
-  const decimal = chainId.slice("eip155:".length)
-  return `0x${BigInt(decimal).toString(16)}`
-}
-
 function walletErrorCode(error: unknown): number | undefined {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "number"
     ? error.code
@@ -111,16 +107,4 @@ function requireAddressArray(value: unknown, label: string): readonly [Address, 
     }
     return requireAddress(item, `${label}.${index}`)
   }) as [Address, ...Address[]]
-}
-
-function requireAddress(value: string, label: string): Address {
-  if (!/^0x[0-9a-fA-F]{40}$/.test(value)) {
-    throw new Error(`${label}: expected 20-byte hex address`)
-  }
-
-  return value as Address
-}
-
-function shorten(address: string): string {
-  return address.length > 14 ? `${address.slice(0, 6)}...${address.slice(-4)}` : address
 }
