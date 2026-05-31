@@ -128,7 +128,7 @@ function normalizeWriteArg(value: InertValue, parameter: AbiParameter, path: str
 
   const integerType = parseIntegerType(type, path)
   if (integerType !== undefined) {
-    return normalizeInteger(value, path, integerType.signed)
+    return normalizeInteger(value, path, integerType)
   }
 
   const fixedBytesLength = parseFixedBytesLength(type, path)
@@ -166,27 +166,36 @@ function normalizeWriteArg(value: InertValue, parameter: AbiParameter, path: str
   throw invalidArg(path, `unsupported ABI input type: ${type}`)
 }
 
-function normalizeInteger(value: InertValue, path: string, signed: boolean): bigint {
+type IntegerType = {
+  readonly bits: number
+  readonly signed: boolean
+}
+
+function normalizeInteger(value: InertValue, path: string, type: IntegerType): bigint {
   if (typeof value === "number" && Number.isSafeInteger(value)) {
-    return requireIntegerSign(BigInt(value), path, signed)
+    return requireIntegerBounds(BigInt(value), path, type)
   }
 
   if (typeof value === "string" && /^-?[0-9]+$/.test(value)) {
-    return requireIntegerSign(BigInt(value), path, signed)
+    return requireIntegerBounds(BigInt(value), path, type)
   }
 
   throw invalidArg(path, "expected integer")
 }
 
-function requireIntegerSign(value: bigint, path: string, signed: boolean): bigint {
-  if (!signed && value < 0n) {
-    throw invalidArg(path, "expected unsigned integer")
+function requireIntegerBounds(value: bigint, path: string, type: IntegerType): bigint {
+  const bits = BigInt(type.bits)
+  const min = type.signed ? -(1n << (bits - 1n)) : 0n
+  const max = type.signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n
+
+  if (value < min || value > max) {
+    throw invalidArg(path, `integer is out of range for ${type.signed ? "int" : "uint"}${type.bits}`)
   }
 
   return value
 }
 
-function parseIntegerType(type: string, path: string): { readonly signed: boolean } | undefined {
+function parseIntegerType(type: string, path: string): IntegerType | undefined {
   const match = /^(u?)int([0-9]*)$/.exec(type)
   if (match === null) return undefined
 
@@ -195,7 +204,7 @@ function parseIntegerType(type: string, path: string): { readonly signed: boolea
     throw invalidArg(path, `unsupported ABI integer type: ${type}`)
   }
 
-  return { signed: match[1] === "" }
+  return { bits, signed: match[1] === "" }
 }
 
 function parseFixedBytesLength(type: string, path: string): number | undefined {
