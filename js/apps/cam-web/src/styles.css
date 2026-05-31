@@ -179,10 +179,6 @@ dd,
   cursor: not-allowed;
 }
 
-.hint {
-  color: var(--muted);
-}
-
 .field {
   display: grid;
   gap: 7px;
@@ -244,12 +240,6 @@ input {
 .write-action {
   color: var(--accent);
   background: #ffffff;
-}
-
-code {
-  padding: 2px 5px;
-  border-radius: 4px;
-  background: #edf2f6;
 }
 
 @media (max-width: 760px) {
