@@ -1,5 +1,5 @@
 import type { Abi } from "viem"
-import { parseJsonBytes } from "@cam/protocol"
+import { isRecordObject, parseJsonBytes } from "@cam/protocol"
 
 import { CamEvmError } from "./errors.ts"
 
@@ -43,6 +43,16 @@ export function parseAbiBytes(bytes: Uint8Array, uri: string): Abi {
 
   if (!Array.isArray(value)) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI must be a JSON array: ${uri}`)
+  }
+
+  for (let index = 0; index < value.length; index++) {
+    const item = value[index]
+    if (!isRecordObject(item)) {
+      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI item must be an object: ${uri}.${index}`)
+    }
+    if (typeof item.type !== "string" || item.type.length === 0) {
+      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI item must declare a type: ${uri}.${index}`)
+    }
   }
 
   return value as Abi
