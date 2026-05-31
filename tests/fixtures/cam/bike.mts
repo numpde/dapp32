@@ -246,33 +246,34 @@ export function bikeEntryRouteResult(account: string): readonly unknown[] {
 }
 
 export function bikeComponentRouteResult(serialNumber: string): readonly unknown[] {
-  const screenURI = serialNumber.length > 0
+  const exists = serialNumber.length > 0
+  const screenURI = exists
     ? BIKE_RELATIVE_COMPONENT_FOUND_SCREEN_URI
     : BIKE_RELATIVE_COMPONENT_EMPTY_SCREEN_URI
 
   return [
     screenURI,
     {
-      exists: serialNumber.length > 0,
-      serialHash: serialNumber.length > 0
+      exists,
+      serialHash: exists
         ? "0x1111111111111111111111111111111111111111111111111111111111111111"
         : BIKE_ZERO_BYTES32,
       tokenContract: BIKE_COMPONENTS_ADDRESS,
-      tokenId: serialNumber.length > 0 ? 42 : 0,
+      tokenId: exists ? 42 : 0,
       owner: BIKE_ACCOUNT_ADDRESS,
       ownerInfo: "Mock owner account",
       registrar: BIKE_ACCOUNT_ADDRESS,
-      status: serialNumber.length > 0 ? 1 : 0,
-      tokenURI: serialNumber.length > 0 ? `ipfs://example/token/${serialNumber}` : "",
-      registeredAt: serialNumber.length > 0 ? 1 : 0,
-      updatedAt: serialNumber.length > 0 ? 2 : 0,
+      status: exists ? 1 : 0,
+      tokenURI: exists ? `ipfs://example/token/${serialNumber}` : "",
+      registeredAt: exists ? 1 : 0,
+      updatedAt: exists ? 2 : 0,
       serialNumber,
       permissions: 7,
       isOwner: true,
-      canUpdateMetadata: serialNumber.length > 0,
-      canMarkMissing: serialNumber.length > 0,
+      canUpdateMetadata: exists,
+      canMarkMissing: exists,
       canClearMissing: false,
-      canRetire: serialNumber.length > 0,
+      canRetire: exists,
     },
     {
       account: BIKE_ACCOUNT_ADDRESS,
@@ -283,7 +284,8 @@ export function bikeComponentRouteResult(serialNumber: string): readonly unknown
 }
 
 export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[] {
-  const screenURI = serialNumber.length > 0
+  const hasSerialNumber = serialNumber.length > 0
+  const screenURI = hasSerialNumber
     ? BIKE_RELATIVE_REGISTER_READY_SCREEN_URI
     : BIKE_RELATIVE_REGISTER_EMPTY_SCREEN_URI
 
@@ -292,7 +294,7 @@ export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[
     {
       canRegister: true,
       exists: false,
-      serialHash: serialNumber.length > 0
+      serialHash: hasSerialNumber
         ? "0x2222222222222222222222222222222222222222222222222222222222222222"
         : BIKE_ZERO_BYTES32,
       tokenId: 0,
