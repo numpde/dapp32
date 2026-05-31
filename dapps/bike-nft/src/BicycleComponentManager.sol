@@ -294,7 +294,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         bytes32 serialHash = _requireSerialNumber(serialNumber);
         ComponentRecord storage record = _requireRegistered(serialHash);
         address actor = _msgSender();
-        address owner = _ownerOfOrZero(record);
+        address owner = _ownerOf(record);
 
         if (actor != owner) revert Unauthorized(actor, serialHash, 0);
 
@@ -312,7 +312,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         bytes32 serialHash = _requireSerialNumber(serialNumber);
         ComponentRecord storage record = _requireRegistered(serialHash);
         address actor = _msgSender();
-        address owner = _ownerOfOrZero(record);
+        address owner = _ownerOf(record);
 
         if (actor != owner) revert Unauthorized(actor, serialHash, 0);
 
@@ -394,10 +394,10 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         view_.exists = true;
         view_.tokenContract = record.tokenContract;
         view_.tokenId = record.tokenId;
-        view_.owner = _ownerOfOrZero(record);
+        view_.owner = _ownerOf(record);
         view_.registrar = record.registrar;
         view_.status = record.status;
-        view_.tokenURI = _tokenURIOrEmpty(record);
+        view_.tokenURI = _tokenURI(record);
         view_.registeredAt = record.registeredAt;
         view_.updatedAt = record.updatedAt;
         view_.serialNumber = record.serialNumber;
@@ -454,7 +454,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         // of reverting for unknown serials. Keep callers aware that zero means
         // "no recorded owner", not an account.
         if (record.status == ComponentStatus.None) return address(0);
-        return _ownerOfOrZero(record);
+        return _ownerOf(record);
     }
 
     function componentURI(string calldata serialNumber) public view returns (string memory) {
@@ -462,7 +462,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         // Intentional default: the empty string is the unknown-component
         // sentinel. It should not be confused with a deliberately blank URI.
         if (record.status == ComponentStatus.None) return "";
-        return _tokenURIOrEmpty(record);
+        return _tokenURI(record);
     }
 
     function componentStatus(string calldata serialNumber) public view returns (ComponentStatus) {
@@ -601,7 +601,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     // ---------------------------------------------------------------------
 
     function _isTokenOwner(ComponentRecord storage record, address actor) internal view returns (bool) {
-        return actor != address(0) && _ownerOfOrZero(record) == actor;
+        return actor != address(0) && _ownerOf(record) == actor;
     }
 
     function _hasCapability(ComponentRecord storage record, address actor, uint64 capability)
@@ -630,7 +630,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         if (delegation.grantor == address(0)) return 0;
         if (delegation.capabilities == 0) return 0;
         if (delegation.validUntil <= block.timestamp) return 0;
-        if (_ownerOfOrZero(record) != delegation.grantor) return 0;
+        if (_ownerOf(record) != delegation.grantor) return 0;
 
         return delegation.capabilities;
     }
@@ -689,26 +689,12 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         if (record.status == ComponentStatus.None) revert ComponentNotRegistered(serialHash);
     }
 
-    function _ownerOfOrZero(ComponentRecord storage record) internal view returns (address) {
-        try IBicycleComponents(record.tokenContract).ownerOf(record.tokenId) returns (address owner) {
-            return owner;
-        } catch {
-            // Intentional default: owner lookup failures collapse to
-            // address(0). This protects read helpers from reverting, but can
-            // hide a broken component-token contract.
-            return address(0);
-        }
+    function _ownerOf(ComponentRecord storage record) internal view returns (address) {
+        return IBicycleComponents(record.tokenContract).ownerOf(record.tokenId);
     }
 
-    function _tokenURIOrEmpty(ComponentRecord storage record) internal view returns (string memory) {
-        try IBicycleComponents(record.tokenContract).tokenURI(record.tokenId) returns (string memory uri) {
-            return uri;
-        } catch {
-            // Intentional default: tokenURI lookup failures collapse to "".
-            // Callers cannot distinguish missing metadata from a token contract
-            // error without an explicit diagnostic path.
-            return "";
-        }
+    function _tokenURI(ComponentRecord storage record) internal view returns (string memory) {
+        return IBicycleComponents(record.tokenContract).tokenURI(record.tokenId);
     }
 
     function _now48() internal view returns (uint48) {

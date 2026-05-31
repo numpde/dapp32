@@ -138,6 +138,26 @@ contract BicycleComponentManagerTest is Test {
         );
     }
 
+    function test_registeredComponentViewsPropagateTokenReadFailures() external {
+        RevertingReadComponents failingComponents = new RevertingReadComponents();
+        manager.setComponentsAddress(address(failingComponents));
+
+        vm.prank(registrar);
+        manager.registerComponent(owner, SECOND_SERIAL, TOKEN_URI);
+
+        IBicycleComponentManagerView.ComponentView memory component = manager.componentBySerial(SECOND_SERIAL);
+        assertEq(component.owner, owner, "component owner mismatch before read failure");
+        assertEq(component.tokenURI, TOKEN_URI, "component URI mismatch before read failure");
+
+        failingComponents.setRevertReads(true);
+
+        vm.expectRevert(RevertingReadComponents.ReadsDisabled.selector);
+        manager.ownerOf(SECOND_SERIAL);
+
+        vm.expectRevert(RevertingReadComponents.ReadsDisabled.selector);
+        manager.componentBySerial(SECOND_SERIAL);
+    }
+
     function test_emptySerialNumberIsRejectedAtManagerBoundary() external {
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.serialHashOf("");
@@ -281,5 +301,131 @@ contract BicycleComponentManagerTest is Test {
     function registerDefaultComponent() private {
         vm.prank(registrar);
         manager.registerComponent(owner, SERIAL, TOKEN_URI);
+    }
+}
+
+contract RevertingReadComponents is IBicycleComponents {
+    error ReadsDisabled();
+    error TokenAlreadyExists(uint256 tokenId);
+    error TokenDoesNotExist(uint256 tokenId);
+    error UnsupportedFixtureCall();
+    error WrongTokenOwner(address from, uint256 tokenId);
+    error ZeroAddress();
+
+    string private constant COLLECTION_NAME = "Failing Bike Components";
+    string private constant COLLECTION_SYMBOL = "FBIKE";
+    string private constant BASE_URI = "fixture://bike-nft/failing-components/";
+    string private constant CONTRACT_URI = "fixture://bike-nft/failing-components.json";
+
+    bool private _revertReads;
+    mapping(uint256 tokenId => address owner) private _owners;
+    mapping(uint256 tokenId => string uri) private _uris;
+    mapping(address owner => uint256 balance) private _balances;
+
+    function setRevertReads(bool revertReads) external {
+        _revertReads = revertReads;
+    }
+
+    function mint(address to, uint256 tokenId, string calldata uri) external {
+        _mint(to, tokenId, uri);
+    }
+
+    function safeMint(address to, uint256 tokenId, string calldata uri, bytes calldata) external {
+        _mint(to, tokenId, uri);
+    }
+
+    function setTokenURI(uint256 tokenId, string calldata uri) external {
+        _requireOwner(tokenId);
+        _uris[tokenId] = uri;
+    }
+
+    function exists(uint256 tokenId) external view returns (bool) {
+        return _owners[tokenId] != address(0);
+    }
+
+    function baseURI() external pure returns (string memory) {
+        return BASE_URI;
+    }
+
+    function contractURI() external pure returns (string memory) {
+        return CONTRACT_URI;
+    }
+
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == type(IBicycleComponents).interfaceId;
+    }
+
+    function balanceOf(address owner_) external view returns (uint256) {
+        return _balances[owner_];
+    }
+
+    function ownerOf(uint256 tokenId) external view returns (address) {
+        if (_revertReads) revert ReadsDisabled();
+        return _requireOwner(tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes calldata) external {
+        _transfer(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId) external {
+        _transfer(from, to, tokenId);
+    }
+
+    function transferFrom(address from, address to, uint256 tokenId) external {
+        _transfer(from, to, tokenId);
+    }
+
+    function approve(address, uint256) external pure {
+        revert UnsupportedFixtureCall();
+    }
+
+    function setApprovalForAll(address, bool) external pure {
+        revert UnsupportedFixtureCall();
+    }
+
+    function getApproved(uint256) external pure returns (address) {
+        revert UnsupportedFixtureCall();
+    }
+
+    function isApprovedForAll(address, address) external pure returns (bool) {
+        revert UnsupportedFixtureCall();
+    }
+
+    function name() external pure returns (string memory) {
+        return COLLECTION_NAME;
+    }
+
+    function symbol() external pure returns (string memory) {
+        return COLLECTION_SYMBOL;
+    }
+
+    function tokenURI(uint256 tokenId) external view returns (string memory) {
+        if (_revertReads) revert ReadsDisabled();
+        _requireOwner(tokenId);
+        return _uris[tokenId];
+    }
+
+    function _mint(address to, uint256 tokenId, string calldata uri) private {
+        if (to == address(0)) revert ZeroAddress();
+        if (_owners[tokenId] != address(0)) revert TokenAlreadyExists(tokenId);
+
+        _owners[tokenId] = to;
+        _balances[to] += 1;
+        _uris[tokenId] = uri;
+    }
+
+    function _transfer(address from, address to, uint256 tokenId) private {
+        if (to == address(0)) revert ZeroAddress();
+        if (_requireOwner(tokenId) != from) revert WrongTokenOwner(from, tokenId);
+
+        _owners[tokenId] = to;
+        _balances[from] -= 1;
+        _balances[to] += 1;
+    }
+
+    function _requireOwner(uint256 tokenId) private view returns (address owner_) {
+        owner_ = _owners[tokenId];
+        if (owner_ == address(0)) revert TokenDoesNotExist(tokenId);
     }
 }
