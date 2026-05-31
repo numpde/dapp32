@@ -45,7 +45,7 @@ READ_ROUTE_MUTABILITY = frozenset({"view", "pure"})
 WRITE_ACTION_MUTABILITY = frozenset({"nonpayable", "payable"})
 
 
-def abi_route_functions(abi: list[object]) -> dict[str, AbiFunction | None]:
+def abi_functions(abi: list[object]) -> dict[str, AbiFunction | None]:
     functions_by_name: dict[str, AbiFunction | None] = {}
     for item in abi:
         if not isinstance(item, dict):

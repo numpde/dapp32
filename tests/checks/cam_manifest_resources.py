@@ -74,7 +74,7 @@ class CamManifestResourceValidator:
         if failures:
             return failures
 
-        abi_functions_by_contract, abi_failures = self.abi_route_functions_by_contract(manifest_path, contracts)
+        abi_functions_by_contract, abi_failures = self.abi_functions_by_contract(manifest_path, contracts)
         failures.extend(abi_failures)
 
         failures.extend(
@@ -346,7 +346,7 @@ class CamManifestResourceValidator:
 
         return failures
 
-    def abi_route_functions_by_contract(
+    def abi_functions_by_contract(
         self,
         manifest_path: Path,
         contracts: dict[object, object],
@@ -368,7 +368,7 @@ class CamManifestResourceValidator:
                 continue
 
             assert abi is not None
-            abi_functions_by_contract[contract_name] = route_abi.abi_route_functions(abi)
+            abi_functions_by_contract[contract_name] = route_abi.abi_functions(abi)
 
         return abi_functions_by_contract, failures
 
