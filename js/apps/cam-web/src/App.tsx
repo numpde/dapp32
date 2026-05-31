@@ -34,17 +34,15 @@ import {
 import type { WalletState } from "./wallet"
 import { errorMessage } from "./errors"
 import {
-  shortenAddress,
-} from "./evm"
-import {
   assertHostHasCode,
   createPinnedOriginResourceLoader,
   parseStartupOptions,
 } from "./startup"
 import type { StartupOptions } from "./startup"
 import {
+  ConnectionSummary,
   PreparedCallView,
-  ScreenElementView,
+  ScreenView,
 } from "./components"
 
 type LoadState =
@@ -224,24 +222,12 @@ export function App(): ReactElement {
           <h1>{loadState.status === "ready" ? loadState.snapshot.resolvedScreen?.title ?? "Untitled screen" : "Loading"}</h1>
         </div>
         {options === undefined ? null : (
-          <dl className="connection">
-            <div>
-              <dt>Chain</dt>
-              <dd>{options.chainId}</dd>
-            </div>
-            <div>
-              <dt>Host</dt>
-              <dd>{shortenAddress(options.host)}</dd>
-            </div>
-            <div>
-              <dt>Viewer account</dt>
-              <dd>{shortenAddress(currentViewerAccount(loadState, options.account))}</dd>
-            </div>
-            <div>
-              <dt>Wallet</dt>
-              <dd>{walletLabel(wallet)}</dd>
-            </div>
-          </dl>
+          <ConnectionSummary
+            chainId={options.chainId}
+            host={options.host}
+            account={currentViewerAccount(loadState, options.account)}
+            wallet={walletLabel(wallet)}
+          />
         )}
       </header>
 
@@ -275,22 +261,11 @@ export function App(): ReactElement {
       ) : null}
 
       {loadState.status === "ready" ? (
-        <section className="screen">
-          <div className="screen-meta">
-            <span>{loadState.snapshot.route}</span>
-            <span>{loadState.snapshot.screenURI}</span>
-          </div>
-          <div className="elements">
-            {(loadState.snapshot.resolvedScreen?.elements ?? []).map((element, index) => (
-              <ScreenElementView
-                key={index}
-                element={element}
-                onAction={dispatch}
-                onInput={updateInput}
-              />
-            ))}
-          </div>
-        </section>
+        <ScreenView
+          snapshot={loadState.snapshot}
+          onAction={dispatch}
+          onInput={updateInput}
+        />
       ) : null}
     </main>
   )

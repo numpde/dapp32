@@ -5,7 +5,76 @@ import type {
   ResolvedScreenAction,
   ResolvedScreenElement,
 } from "@cam/screen"
-import type { CamViewerPreparedContractCall } from "@cam/viewer"
+import type {
+  CamViewerPreparedContractCall,
+  CamViewerSnapshot,
+} from "@cam/viewer"
+
+import {
+  shortenAddress,
+} from "./evm"
+
+export function ConnectionSummary({
+  chainId,
+  host,
+  account,
+  wallet,
+}: {
+  readonly chainId: string
+  readonly host: string
+  readonly account: string
+  readonly wallet: string
+}): ReactElement {
+  return (
+    <dl className="connection">
+      <div>
+        <dt>Chain</dt>
+        <dd>{chainId}</dd>
+      </div>
+      <div>
+        <dt>Host</dt>
+        <dd>{shortenAddress(host)}</dd>
+      </div>
+      <div>
+        <dt>Viewer account</dt>
+        <dd>{shortenAddress(account)}</dd>
+      </div>
+      <div>
+        <dt>Wallet</dt>
+        <dd>{wallet}</dd>
+      </div>
+    </dl>
+  )
+}
+
+export function ScreenView({
+  snapshot,
+  onAction,
+  onInput,
+}: {
+  readonly snapshot: CamViewerSnapshot
+  readonly onAction: (action: ResolvedScreenAction) => Promise<void>
+  readonly onInput: (name: string, value: string) => void
+}): ReactElement {
+  return (
+    <section className="screen">
+      <div className="screen-meta">
+        <span>{snapshot.route}</span>
+        <span>{snapshot.screenURI}</span>
+      </div>
+      <div className="elements">
+        {(snapshot.resolvedScreen?.elements ?? []).map((element, index) => (
+          <ScreenElementView
+            key={index}
+            element={element}
+            onAction={onAction}
+            onInput={onInput}
+          />
+        ))}
+      </div>
+    </section>
+  )
+}
 
 export function PreparedCallView({
   call,
