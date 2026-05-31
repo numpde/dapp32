@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useRef,
   useState,
 } from "react"
 import type { ReactElement } from "react"
@@ -47,13 +46,18 @@ import {
 
 type LoadState =
   | { readonly status: "loading" }
-  | { readonly status: "ready"; readonly snapshot: CamViewerSnapshot }
+  | { readonly status: "ready"; readonly runtime: AppRuntime; readonly snapshot: CamViewerSnapshot }
   | { readonly status: "failed"; readonly message: string }
 
+type AppPublicClient = ReturnType<typeof createPublicClient>
+
+type AppRuntime = {
+  readonly startup: StartupOptions
+  readonly publicClient: AppPublicClient
+  readonly session: CamViewerSession
+}
+
 export function App(): ReactElement {
-  const sessionRef = useRef<CamViewerSession | undefined>(undefined)
-  const publicClientRef = useRef<ReturnType<typeof createPublicClient> | undefined>(undefined)
-  const [options, setOptions] = useState<StartupOptions | undefined>(undefined)
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
   const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
   const [notice, setNotice] = useState<string | undefined>(undefined)
@@ -86,10 +90,15 @@ export function App(): ReactElement {
         const snapshot = await session.load()
 
         if (!cancelled) {
-          sessionRef.current = session
-          publicClientRef.current = publicClient
-          setOptions(startup)
-          setLoadState({ status: "ready", snapshot })
+          setLoadState({
+            status: "ready",
+            runtime: {
+              startup,
+              publicClient,
+              session,
+            },
+            snapshot,
+          })
         }
       } catch (error) {
         if (!cancelled) {
@@ -109,14 +118,14 @@ export function App(): ReactElement {
   }, [])
 
   async function dispatch(action: ResolvedScreenAction): Promise<void> {
-    const session = requireSession(sessionRef.current)
+    const ready = requireReadyState(loadState)
     setNotice(undefined)
     setPreparedCall(undefined)
 
     try {
-      const result = await session.dispatchAction(action)
+      const result = await ready.runtime.session.dispatchAction(action)
       if (result.type === "navigated") {
-        setLoadState({ status: "ready", snapshot: result.snapshot })
+        setLoadState({ ...ready, snapshot: result.snapshot })
         return
       }
 
@@ -131,23 +140,23 @@ export function App(): ReactElement {
   }
 
   async function preflightPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
-    const startup = requireOptions(options)
+    const ready = requireReadyState(loadState)
     await simulateCamContractCall({
-      publicClient: requirePublicClient(publicClientRef.current),
-      account: wallet.status === "connected" ? wallet.address : currentViewerAccount(loadState, startup.account),
+      publicClient: ready.runtime.publicClient,
+      account: wallet.status === "connected" ? wallet.address : currentViewerAccount(ready),
       call,
     })
   }
 
   async function connectWallet(): Promise<void> {
     try {
-      const startup = requireOptions(options)
+      const ready = requireReadyState(loadState)
+      const startup = ready.runtime.startup
       const address = await connectInjectedWallet(startup)
-      const session = requireSession(sessionRef.current)
-      const snapshot = await session.setAccount({ address })
+      const snapshot = await ready.runtime.session.setAccount({ address })
 
       setWallet({ status: "connected", address })
-      setLoadState({ status: "ready", snapshot })
+      setLoadState({ ...ready, snapshot })
       setPreparedCall(undefined)
       setNotice(address.toLowerCase() === startup.account.toLowerCase()
         ? "Wallet connected."
@@ -166,19 +175,18 @@ export function App(): ReactElement {
     setSending(true)
     setNotice(undefined)
     try {
-      const publicClient = requirePublicClient(publicClientRef.current)
+      const ready = requireReadyState(loadState)
       await simulateCamContractCall({
-        publicClient,
+        publicClient: ready.runtime.publicClient,
         account: wallet.address,
         call,
       })
-      const startup = requireOptions(options)
-      await ensureInjectedWalletChain(startup)
+      await ensureInjectedWalletChain(ready.runtime.startup)
       const walletClient = createInjectedWalletClient(wallet.address)
       const txHash = await sendCamContractCall({ walletClient, call })
       setNotice(`Transaction sent: ${txHash}`)
 
-      const receipt = await publicClient.waitForTransactionReceipt({
+      const receipt = await ready.runtime.publicClient.waitForTransactionReceipt({
         hash: txHash,
       })
       if (receipt.status !== "success") {
@@ -188,10 +196,9 @@ export function App(): ReactElement {
       setPreparedCall(undefined)
 
       if (call.onSuccess !== undefined) {
-        const session = requireSession(sessionRef.current)
-        const result = await session.dispatchAction(call.onSuccess)
+        const result = await ready.runtime.session.dispatchAction(call.onSuccess)
         if (result.type === "navigated") {
-          setLoadState({ status: "ready", snapshot: result.snapshot })
+          setLoadState({ ...ready, snapshot: result.snapshot })
         }
       }
     } catch (error) {
@@ -202,12 +209,12 @@ export function App(): ReactElement {
   }
 
   function updateInput(name: string, value: string): void {
-    const session = requireSession(sessionRef.current)
+    const ready = requireReadyState(loadState)
     try {
       setPreparedCall(undefined)
       setLoadState({
-        status: "ready",
-        snapshot: session.updateForm({ [name]: value }),
+        ...ready,
+        snapshot: ready.runtime.session.updateForm({ [name]: value }),
       })
     } catch (error) {
       setNotice(errorMessage(error))
@@ -221,11 +228,11 @@ export function App(): ReactElement {
           <p className="eyebrow">CAM viewer</p>
           <h1>{loadState.status === "ready" ? loadState.snapshot.resolvedScreen?.title ?? "Untitled screen" : "Loading"}</h1>
         </div>
-        {options === undefined ? null : (
+        {loadState.status !== "ready" ? null : (
           <ConnectionSummary
-            chainId={options.chainId}
-            host={options.host}
-            account={currentViewerAccount(loadState, options.account)}
+            chainId={loadState.runtime.startup.chainId}
+            host={loadState.runtime.startup.host}
+            account={currentViewerAccount(loadState)}
             wallet={walletLabel(wallet)}
           />
         )}
@@ -271,32 +278,16 @@ export function App(): ReactElement {
   )
 }
 
-function requireOptions(options: StartupOptions | undefined): StartupOptions {
-  if (options === undefined) {
-    throw new Error("CAM viewer startup options are not loaded")
-  }
-
-  return options
-}
-
-function requirePublicClient(client: ReturnType<typeof createPublicClient> | undefined): ReturnType<typeof createPublicClient> {
-  if (client === undefined) {
-    throw new Error("CAM viewer public client is not loaded")
-  }
-
-  return client
-}
-
-function requireSession(session: CamViewerSession | undefined): CamViewerSession {
-  if (session === undefined) {
+function requireReadyState(loadState: LoadState): Extract<LoadState, { readonly status: "ready" }> {
+  if (loadState.status !== "ready") {
     throw new Error("CAM viewer session is not loaded")
   }
 
-  return session
+  return loadState
 }
 
-function currentViewerAccount(loadState: LoadState, fallback: StartupOptions["account"]): StartupOptions["account"] {
-  return loadState.status === "ready" && loadState.snapshot.account !== undefined
+function currentViewerAccount(loadState: Extract<LoadState, { readonly status: "ready" }>): StartupOptions["account"] {
+  return loadState.snapshot.account !== undefined
     ? loadState.snapshot.account.address
-    : fallback
+    : loadState.runtime.startup.account
 }
