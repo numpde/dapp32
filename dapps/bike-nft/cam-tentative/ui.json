@@ -1,6 +1,5 @@
 {
   "ui": "1.0.0-tentative",
-  "title": "Bicycle component registry",
   "tree": {
     "type": "Screen",
     "props": {
@@ -22,7 +21,6 @@
   },
   "catalogs": {
     "views": {
-      "role": "views",
       "items": {
         "entry": {
           "type": "Fragment",
@@ -258,10 +256,8 @@
       }
     },
     "actions": {
-      "role": "actions",
       "order": [
         "lookupComponent",
-        "openComponent",
         "openRegister",
         "register",
         "updateMetadata",
@@ -274,19 +270,6 @@
           "type": "Action",
           "props": {
             "label": "Look up component",
-            "action": {
-              "type": "navigate",
-              "route": "component",
-              "params": {
-                "serialNumber": "$form.serialNumber"
-              }
-            }
-          }
-        },
-        "openComponent": {
-          "type": "Action",
-          "props": {
-            "label": "Open component",
             "action": {
               "type": "navigate",
               "route": "component",

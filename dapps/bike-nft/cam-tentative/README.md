@@ -38,6 +38,9 @@ The generic primitive is one node:
 `select` controls which catalog items appear. `enabled` controls which of those
 items are actionable. The action catalog owns presentation order.
 
+The UI title lives in the `Screen` node, not as a second top-level field. The
+tree is the presentation source of truth.
+
 The tentative route output shape is deliberately semantic. The contract/view
 helper should return IDs such as:
 
