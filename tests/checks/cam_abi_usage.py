@@ -314,6 +314,9 @@ def expected_abi_type_for_screen_field(path: str, parent: object | None) -> str 
     if parent.get("type") == "address" and path.endswith(".address"):
         return "address"
 
+    if parent.get("type") == "input" and path.endswith(".value"):
+        return "string"
+
     if parent.get("type") == "nft" and path.endswith(".contractAddress"):
         return "address"
 

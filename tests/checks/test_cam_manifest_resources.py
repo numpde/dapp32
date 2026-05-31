@@ -180,6 +180,77 @@ class CamManifestResourceTest(unittest.TestCase):
             ],
         )
 
+    def test_screen_input_values_must_match_string_route_outputs(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            abi_dir = manifest_path.parent / "abi"
+            screen_dir = manifest_path.parent / "screens"
+            abi_dir.mkdir(parents=True)
+            screen_dir.mkdir()
+            write_json(
+                abi_dir / "UI.json",
+                [
+                    {
+                        "type": "function",
+                        "name": "viewComponent",
+                        "stateMutability": "view",
+                        "inputs": [],
+                        "outputs": [
+                            {"name": "screenURI", "type": "string"},
+                            {
+                                "name": "component",
+                                "type": "tuple",
+                                "components": [
+                                    {"name": "serialNumber", "type": "uint256"},
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            )
+            write_json(
+                screen_dir / "component.json",
+                {
+                    "screen": "1.0.0",
+                    "title": "Component",
+                    "elements": [
+                        {
+                            "type": "input",
+                            "name": "serialNumber",
+                            "label": "Serial number",
+                            "value": "$values.0.serialNumber",
+                        },
+                    ],
+                },
+            )
+
+            failures = self.validator.validate_declared_abi_usage(
+                manifest_path,
+                {
+                    "contracts": {
+                        "UI": {
+                            "abiURI": "./abi/UI.json",
+                        },
+                    },
+                    "routes": {
+                        "component": {
+                            "contract": "UI",
+                            "function": "viewComponent",
+                            "args": [],
+                        },
+                    },
+                },
+            )
+
+        self.assertEqual(
+            failures,
+            [
+                f"{manifest_path}: routes.component screen references ABI output type 'uint256' where 'string' is required "
+                f"in UI.viewComponent output at {screen_dir / 'component.json'}:elements.0.value: "
+                "$values.0.serialNumber",
+            ],
+        )
+
 
 def write_json(path: Path, document: object) -> None:
     path.write_text(f"{json.dumps(document, indent=2)}\n", encoding="utf-8")
