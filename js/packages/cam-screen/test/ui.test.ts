@@ -215,6 +215,51 @@ test("parseUi rejects stale screen-era and control fields", () => {
   )
 })
 
+test("parseUi and resolveUiNode reject invalid tag props", () => {
+  assert.throws(
+    () => parseUi({
+      ui: "1.0.0",
+      nodes: {
+        text: {
+          tag: "Text",
+          requires: [],
+          props: {
+            label: "not a text prop",
+          },
+        },
+      },
+    }),
+    /text/,
+  )
+
+  const ui = parseUi({
+    ui: "1.0.0",
+    nodes: {
+      action: {
+        tag: "Action",
+        requires: ["view"],
+        props: {
+          label: "$view.label",
+        },
+        call: {
+          namespace: "routes",
+          function: "component",
+          args: {},
+        },
+      },
+    },
+  })
+
+  assert.throws(
+    () => resolveUiNode(ui, "action", inertRecord({
+      view: {
+        label: false,
+      },
+    }), context),
+    /label/,
+  )
+})
+
 test("resolveUiNode fails closed on missing required arguments and non-string action functions", () => {
   const ui = parseUi({
     ui: "1.0.0",

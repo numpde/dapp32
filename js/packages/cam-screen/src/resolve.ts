@@ -1,5 +1,5 @@
 import { UiError } from "./errors.ts"
-import { UI_RUNTIME_ROOTS } from "./constants.ts"
+import { UI_PROP_SCHEMAS, UI_RUNTIME_ROOTS } from "./constants.ts"
 import { resolveValueAtPath } from "./expressions.ts"
 import {
   createStringMap,
@@ -149,7 +149,7 @@ function resolveNode(
     case "Nft":
       return [{
         tag: node.tag,
-        props: resolveRecord(node.props, context, `${path}.props`),
+        props: resolveProps(node.tag, node.props, context, `${path}.props`),
         children: [],
       }]
   }
@@ -171,7 +171,9 @@ function resolveElementNode(
 
   return {
     tag: node.tag,
-    props: node.tag === "Screen" ? resolveRecord(node.props, context, `${path}.props`) : createStringMap<InertValue>(),
+    props: node.tag === "Screen"
+      ? resolveProps(node.tag, node.props, context, `${path}.props`)
+      : createStringMap<InertValue>(),
     children,
   }
 }
@@ -248,8 +250,28 @@ function selectedNodeNames(value: InertValue, path: string): readonly string[] {
 function resolveAction(node: ActionNode, context: UiRuntimeContext, path: string): ResolvedActionNode {
   return {
     tag: "Action",
-    props: resolveRecord(node.props, context, `${path}.props`),
+    props: resolveProps(node.tag, node.props, context, `${path}.props`),
     call: resolveCall(node.call, context, `${path}.call`),
+  }
+}
+
+function resolveProps(
+  tag: keyof typeof UI_PROP_SCHEMAS,
+  props: InertRecord,
+  context: UiRuntimeContext,
+  path: string,
+): InertRecord {
+  const resolved = resolveRecord(props, context, path)
+  for (const name of UI_PROP_SCHEMAS[tag].string) {
+    requireStringProp(resolved, name, path)
+  }
+
+  return resolved
+}
+
+function requireStringProp(props: InertRecord, name: string, path: string): void {
+  if (typeof props[name] !== "string") {
+    throw new UiError("UI_INVALID_FIELD", `UI prop must resolve to a string: ${name}`, `${path}.${name}`)
   }
 }
 
