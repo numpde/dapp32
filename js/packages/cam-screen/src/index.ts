@@ -9,8 +9,8 @@ export type {
   UiRuntimeContext,
 } from "./types.ts"
 
-export { ScreenError } from "./errors.ts"
-export type { ScreenErrorCode } from "./errors.ts"
+export { UiError } from "./errors.ts"
+export type { UiErrorCode } from "./errors.ts"
 
 export { parseUi } from "./validate.ts"
 export {

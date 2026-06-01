@@ -4,21 +4,21 @@ import {
   joinPath,
   toInertValue,
 } from "@cam/protocol"
-import { SCREEN_CONTEXT_KEYS } from "./constants.ts"
-import { ScreenError } from "./errors.ts"
+import { UI_CONTEXT_KEYS } from "./constants.ts"
+import { UiError } from "./errors.ts"
 import type { UiRuntimeContext } from "./types.ts"
 import type { InertValue } from "@cam/protocol"
 
-const SCREEN_EXPRESSIONS = createExpressionRuntime({
-  roots: SCREEN_CONTEXT_KEYS,
+const UI_EXPRESSIONS = createExpressionRuntime({
+  roots: UI_CONTEXT_KEYS,
   numericSegments: true,
   normalize(value, path) {
     try {
       return toInertValue(value)
     } catch (error) {
       if (error instanceof InertValueError) {
-        throw new ScreenError(
-          "SCREEN_INVALID_FIELD",
+        throw new UiError(
+          "UI_INVALID_FIELD",
           error.message,
           error.path === undefined ? path : joinPath(path, error.path),
         )
@@ -30,23 +30,23 @@ const SCREEN_EXPRESSIONS = createExpressionRuntime({
   error(kind, message, path) {
     switch (kind) {
       case "invalidField":
-        return new ScreenError("SCREEN_INVALID_FIELD", message, path)
+        return new UiError("UI_INVALID_FIELD", message, path)
       case "invalidExpression":
-        return new ScreenError("SCREEN_INVALID_EXPRESSION", message, path)
+        return new UiError("UI_INVALID_EXPRESSION", message, path)
       case "unresolvedValue":
-        return new ScreenError("SCREEN_UNRESOLVED_VALUE", message, path)
+        return new UiError("UI_UNRESOLVED_VALUE", message, path)
     }
   },
 })
 
 export function validateExpressionValue(value: unknown, path: string): void {
-  SCREEN_EXPRESSIONS.validateValue(value, path)
+  UI_EXPRESSIONS.validateValue(value, path)
 }
 
 export function parseExpressionPayload(value: unknown, path: string): InertValue {
-  return SCREEN_EXPRESSIONS.parsePayload(value, path)
+  return UI_EXPRESSIONS.parsePayload(value, path)
 }
 
 export function resolveValueAtPath(value: InertValue, context: UiRuntimeContext, path: string): InertValue {
-  return SCREEN_EXPRESSIONS.resolveValue(value, context, path)
+  return UI_EXPRESSIONS.resolveValue(value, context, path)
 }

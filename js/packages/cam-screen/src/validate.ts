@@ -1,5 +1,5 @@
-import { SCREEN_VERSION } from "./constants.ts"
-import { ScreenError } from "./errors.ts"
+import { UI_VERSION } from "./constants.ts"
+import { UiError } from "./errors.ts"
 import { parseExpressionPayload } from "./expressions.ts"
 import {
   requiredArray,
@@ -31,14 +31,14 @@ export function parseUi(input: unknown): UiDocument {
       continue
     }
     if (name.length === 0) {
-      throw new ScreenError("SCREEN_INVALID_FIELD", "UI node name must not be empty", "")
+      throw new UiError("UI_INVALID_FIELD", "UI node name must not be empty", "")
     }
 
     nodes[name] = parseNamedNode(value, name)
   }
 
   if (Object.keys(nodes).length === 0) {
-    throw new ScreenError("SCREEN_INVALID_FIELD", "UI resource must declare at least one node", "")
+    throw new UiError("UI_INVALID_FIELD", "UI resource must declare at least one node", "")
   }
 
   return { ui, nodes }
@@ -46,8 +46,8 @@ export function parseUi(input: unknown): UiDocument {
 
 function parseUiVersion(value: unknown): string {
   const version = requiredNonEmptyString(value, "ui")
-  if (version !== SCREEN_VERSION) {
-    throw new ScreenError("SCREEN_INVALID_FIELD", `unsupported UI version: ${version}`, "ui")
+  if (version !== UI_VERSION) {
+    throw new UiError("UI_INVALID_FIELD", `unsupported UI version: ${version}`, "ui")
   }
 
   return version
@@ -56,7 +56,7 @@ function parseUiVersion(value: unknown): string {
 function parseNamedNode(input: unknown, name: string): UiNode {
   const path = name
   const source = requiredRecord(input, path)
-  rejectUnknownScreenFields(source, NAMED_NODE_KEYS, path)
+  rejectUnknownUiFields(source, NAMED_NODE_KEYS, path)
 
   return {
     ...parseNodeBody(source, path),
@@ -66,7 +66,7 @@ function parseNamedNode(input: unknown, name: string): UiNode {
 
 function parseInlineNode(input: unknown, path: string): UiNode {
   const source = requiredRecord(input, path)
-  rejectUnknownScreenFields(source, INLINE_NODE_KEYS, path)
+  rejectUnknownUiFields(source, INLINE_NODE_KEYS, path)
 
   return parseNodeBody(source, path)
 }
@@ -112,7 +112,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         call: parseCall(source.call, `${path}.call`),
       }
     default:
-      throw new ScreenError("SCREEN_INVALID_FIELD", `unknown UI node tag: ${tag}`, `${path}.tag`)
+      throw new UiError("UI_INVALID_FIELD", `unknown UI node tag: ${tag}`, `${path}.tag`)
   }
 }
 
@@ -122,7 +122,7 @@ function rejectUnexpectedNodeShape(
   path: string,
 ): void {
   const effectiveKeys = source.requires === undefined ? allowedKeys : new Set([...allowedKeys, "requires"])
-  rejectUnknownScreenFields(source, effectiveKeys, path)
+  rejectUnknownUiFields(source, effectiveKeys, path)
 }
 
 function parseRequires(value: unknown, path: string): readonly string[] {
@@ -134,7 +134,7 @@ function parseRequires(value: unknown, path: string): readonly string[] {
     const itemPath = `${path}.${index}`
     const name = requiredNonEmptyString(item, itemPath)
     if (seen.has(name)) {
-      throw new ScreenError("SCREEN_INVALID_FIELD", `duplicate required argument: ${name}`, itemPath)
+      throw new UiError("UI_INVALID_FIELD", `duplicate required argument: ${name}`, itemPath)
     }
 
     seen.add(name)
@@ -154,7 +154,7 @@ function parseProps(value: unknown, path: string): InertRecord {
 
 function parseCall(value: unknown, path: string): UiCall {
   const source = requiredRecord(value, path)
-  rejectUnknownScreenFields(source, CALL_KEYS, path)
+  rejectUnknownUiFields(source, CALL_KEYS, path)
 
   return {
     namespace: requiredNonEmptyString(source.namespace, `${path}.namespace`),
@@ -168,7 +168,7 @@ function parseInertRecord(source: Record<string, unknown>, path: string): InertR
 
   for (const [name, value] of Object.entries(source)) {
     if (name.length === 0) {
-      throw new ScreenError("SCREEN_INVALID_FIELD", "field name must not be empty", path)
+      throw new UiError("UI_INVALID_FIELD", "field name must not be empty", path)
     }
 
     record[name] = parseExpressionPayload(value, `${path}.${name}`)
@@ -177,10 +177,10 @@ function parseInertRecord(source: Record<string, unknown>, path: string): InertR
   return record
 }
 
-function rejectUnknownScreenFields(
+function rejectUnknownUiFields(
   source: Record<string, unknown>,
   allowedKeys: ReadonlySet<string>,
   path: string,
 ): void {
-  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in UI ${SCREEN_VERSION}: ${key}`)
+  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in UI ${UI_VERSION}: ${key}`)
 }

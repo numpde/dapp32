@@ -1,4 +1,4 @@
-import { ScreenError } from "./errors.ts"
+import { UiError } from "./errors.ts"
 import { resolveValueAtPath } from "./expressions.ts"
 import {
   createStringMap,
@@ -27,7 +27,7 @@ export function resolveUiNode(
 ): ResolvedUiNode {
   const resolved = resolveNamedNode(ui, nodeName, args, context, nodeName, { includeActions: true })
   if (resolved.length !== 1) {
-    throw new ScreenError("SCREEN_INVALID_FIELD", `UI node did not resolve to one root node: ${nodeName}`, nodeName)
+    throw new UiError("UI_INVALID_FIELD", `UI node did not resolve to one root node: ${nodeName}`, nodeName)
   }
 
   return resolved[0]
@@ -77,7 +77,7 @@ function resolveNamedNode(
   options: ResolveOptions,
 ): readonly ResolvedUiNode[] {
   if (!hasOwn(ui.nodes, nodeName)) {
-    throw new ScreenError("SCREEN_UNRESOLVED_VALUE", `UI node does not exist: ${nodeName}`, path)
+    throw new UiError("UI_UNRESOLVED_VALUE", `UI node does not exist: ${nodeName}`, path)
   }
 
   const node = ui.nodes[nodeName]
@@ -103,7 +103,7 @@ function contextForNode(
 
   for (const name of requires) {
     if (!hasOwn(args, name)) {
-      throw new ScreenError("SCREEN_UNRESOLVED_VALUE", `UI node argument is missing: ${name}`, `${path}.requires`)
+      throw new UiError("UI_UNRESOLVED_VALUE", `UI node argument is missing: ${name}`, `${path}.requires`)
     }
   }
 
@@ -112,7 +112,7 @@ function contextForNode(
 
 function requireNamedNodeArgs(node: UiNode, path: string): readonly string[] {
   if (node.requires === undefined) {
-    throw new ScreenError("SCREEN_INVALID_FIELD", "named UI nodes must declare requires", `${path}.requires`)
+    throw new UiError("UI_INVALID_FIELD", "named UI nodes must declare requires", `${path}.requires`)
   }
 
   return node.requires
@@ -174,7 +174,7 @@ function resolveInclude(
   options: ResolveOptions,
 ): readonly ResolvedUiNode[] {
   if (node.call.namespace !== "ui") {
-    throw new ScreenError("SCREEN_INVALID_FIELD", `Include must call the ui namespace: ${node.call.namespace}`, `${path}.call.namespace`)
+    throw new UiError("UI_INVALID_FIELD", `Include must call the ui namespace: ${node.call.namespace}`, `${path}.call.namespace`)
   }
 
   const selected = resolveValueAtPath(node.call.function, context, `${path}.call.function`)
@@ -205,13 +205,13 @@ function appendInitialForm(nodes: readonly ResolvedUiNode[], form: Record<string
       const name = node.props.name
       const value = node.props.value
       if (typeof name !== "string" || name.length === 0) {
-        throw new ScreenError("SCREEN_INVALID_FIELD", "Input props.name must resolve to a non-empty string")
+        throw new UiError("UI_INVALID_FIELD", "Input props.name must resolve to a non-empty string")
       }
       if (typeof value !== "string") {
-        throw new ScreenError("SCREEN_INVALID_FIELD", `Input props.value must resolve to a string: ${name}`)
+        throw new UiError("UI_INVALID_FIELD", `Input props.value must resolve to a string: ${name}`)
       }
       if (hasOwn(form, name)) {
-        throw new ScreenError("SCREEN_INVALID_FIELD", `duplicate input name: ${name}`)
+        throw new UiError("UI_INVALID_FIELD", `duplicate input name: ${name}`)
       }
       form[name] = value
     }
@@ -231,7 +231,7 @@ function selectedNodeNames(value: InertValue, path: string): readonly string[] {
     return value
   }
 
-  throw new ScreenError("SCREEN_INVALID_FIELD", "Include selection must resolve to a string or string array", path)
+  throw new UiError("UI_INVALID_FIELD", "Include selection must resolve to a string or string array", path)
 }
 
 function resolveAction(node: ActionNode, context: UiRuntimeContext, path: string): ResolvedActionNode {
@@ -245,7 +245,7 @@ function resolveAction(node: ActionNode, context: UiRuntimeContext, path: string
 function resolveCall(call: UiCall, context: UiRuntimeContext, path: string): ResolvedUiCall {
   const functionName = resolveValueAtPath(call.function, context, `${path}.function`)
   if (typeof functionName !== "string") {
-    throw new ScreenError("SCREEN_INVALID_FIELD", "call function must resolve to a string", `${path}.function`)
+    throw new UiError("UI_INVALID_FIELD", "call function must resolve to a string", `${path}.function`)
   }
 
   return {
@@ -258,7 +258,7 @@ function resolveCall(call: UiCall, context: UiRuntimeContext, path: string): Res
 function resolveRecord(record: InertRecord, context: UiRuntimeContext, path: string): InertRecord {
   const resolved = resolveValueAtPath(record, context, path)
   if (!isRecordObject(resolved)) {
-    throw new ScreenError("SCREEN_INVALID_FIELD", "expected resolved object", path)
+    throw new UiError("UI_INVALID_FIELD", "expected resolved object", path)
   }
 
   return resolved as InertRecord

@@ -1,16 +1,16 @@
-export type ScreenErrorCode =
-  | "SCREEN_NOT_OBJECT"
-  | "SCREEN_INVALID_FIELD"
-  | "SCREEN_INVALID_EXPRESSION"
-  | "SCREEN_UNRESOLVED_VALUE"
+export type UiErrorCode =
+  | "UI_NOT_OBJECT"
+  | "UI_INVALID_FIELD"
+  | "UI_INVALID_EXPRESSION"
+  | "UI_UNRESOLVED_VALUE"
 
-export class ScreenError extends Error {
-  readonly code: ScreenErrorCode
+export class UiError extends Error {
+  readonly code: UiErrorCode
   readonly path: string | undefined
 
-  constructor(code: ScreenErrorCode, message: string, path?: string) {
+  constructor(code: UiErrorCode, message: string, path?: string) {
     super(path === undefined ? message : `${path}: ${message}`)
-    this.name = "ScreenError"
+    this.name = "UiError"
     this.code = code
     this.path = path
   }
