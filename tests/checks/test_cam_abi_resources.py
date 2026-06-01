@@ -31,11 +31,11 @@ class CamAbiResourceTest(unittest.TestCase):
             manifest_path.parent.mkdir(parents=True)
             manifest_path.parent.joinpath("abi").symlink_to(outside, target_is_directory=True)
 
-            failure = validate_local_abi_uri(manifest_path, "UI", "./abi/UI.json")
+            failures = validate_local_abi_uri(manifest_path, "UI", "./abi/UI.json")
 
         self.assertEqual(
-            failure,
-            f"{manifest_path}: refusing symlinked CAM resource path: ./abi/UI.json",
+            failures,
+            [f"{manifest_path}: refusing symlinked CAM resource path: ./abi/UI.json"],
         )
 
 

@@ -7,6 +7,10 @@ from tools.json_policy import JsonPolicyError, strict_json_loads
 from tools.cam_resource_integrity import CamResourceIntegrityError, local_resource_path
 
 
+class CamAbiResourceError(ValueError):
+    pass
+
+
 def validate_no_orphan_abi_files(
     manifest_path: Path,
     contracts: dict[str, dict[object, object]],
@@ -14,16 +18,12 @@ def validate_no_orphan_abi_files(
     referenced: set[Path] = set()
     failures: list[str] = []
     for contract_name, contract in contracts.items():
-        abi_path, error = checked_local_abi_path(
-            manifest_path,
-            contract_name,
-            contract.get("abiURI"),
-        )
-        if error is not None:
-            failures.append(error)
+        try:
+            abi_path = checked_local_abi_path(manifest_path, contract_name, contract.get("abiURI"))
+        except CamAbiResourceError as error:
+            failures.append(str(error))
             continue
 
-        assert abi_path is not None
         referenced.add(abi_path)
 
     abi_dir = manifest_path.parent / "abi"
@@ -42,29 +42,22 @@ def validate_local_abi_uri(
     manifest_path: Path,
     contract_name: str,
     abi_uri: object,
-) -> str | None:
-    _abi, error = load_local_abi_array(
-        manifest_path,
-        contract_name,
-        abi_uri,
-    )
-    return error
+) -> list[str]:
+    failures: list[str] = []
+    try:
+        checked_local_abi_path(manifest_path, contract_name, abi_uri)
+    except CamAbiResourceError as error:
+        failures.append(str(error))
+
+    return failures
 
 
 def load_local_abi_array(
     manifest_path: Path,
     contract_name: str,
     abi_uri: object,
-) -> tuple[list[object] | None, str | None]:
-    resolved, error = checked_local_abi_path(
-        manifest_path,
-        contract_name,
-        abi_uri,
-    )
-    if error is not None:
-        return None, error
-
-    assert resolved is not None
+) -> list[object]:
+    resolved = checked_local_abi_path(manifest_path, contract_name, abi_uri)
     abi_error: JsonPolicyError | None = None
     try:
         abi = strict_json_loads(read_text(resolved))
@@ -73,36 +66,33 @@ def load_local_abi_array(
         abi_error = error
 
     if abi_error is not None:
-        return None, f"{manifest_path}: {contract_abi_uri_path(contract_name)} target is invalid JSON: {abi_uri}: {abi_error}"
+        raise CamAbiResourceError(
+            f"{manifest_path}: {contract_abi_uri_path(contract_name)} target is invalid JSON: {abi_uri}: {abi_error}"
+        )
 
     if not isinstance(abi, list):
-        return None, f"{manifest_path}: {contract_abi_uri_path(contract_name)} target must be a JSON ABI array: {abi_uri}"
+        raise CamAbiResourceError(
+            f"{manifest_path}: {contract_abi_uri_path(contract_name)} target must be a JSON ABI array: {abi_uri}"
+        )
 
-    return abi, None
+    return abi
 
 
 def checked_local_abi_path(
     manifest_path: Path,
     contract_name: str,
     abi_uri: object,
-) -> tuple[Path | None, str | None]:
+) -> Path:
     path = contract_abi_uri_path(contract_name)
     if not isinstance(abi_uri, str):
-        return None, f"{manifest_path}: {path} must be a string"
+        raise CamAbiResourceError(f"{manifest_path}: {path} must be a string")
     if not abi_uri.endswith(".json"):
-        return None, f"{manifest_path}: {path} must target a JSON ABI file: {abi_uri}"
+        raise CamAbiResourceError(f"{manifest_path}: {path} must target a JSON ABI file: {abi_uri}")
 
-    resolved: Path | None = None
-    failures: list[str] = []
     try:
-        resolved = local_resource_path(manifest_path, abi_uri, path)
+        return local_resource_path(manifest_path, abi_uri, path)
     except CamResourceIntegrityError as error:
-        failures.append(str(error))
-    if failures:
-        return None, failures[0]
-
-    assert resolved is not None
-    return resolved, None
+        raise CamAbiResourceError(str(error)) from error
 
 
 def contract_abi_uri_path(contract_name: str) -> str:

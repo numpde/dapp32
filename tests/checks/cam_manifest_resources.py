@@ -57,9 +57,9 @@ class CamManifestResourceValidator:
             return failures
 
         for contract_name, contract in contracts.items():
-            error = abi_resources.validate_local_abi_uri(manifest_path, contract_name, contract.get("abiURI"))
-            if error is not None:
-                failures.append(error)
+            failures.extend(
+                abi_resources.validate_local_abi_uri(manifest_path, contract_name, contract.get("abiURI"))
+            )
 
         return failures
 
@@ -650,12 +650,12 @@ class CamManifestResourceValidator:
         abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]] = {}
         failures: list[str] = []
         for contract_name, contract in contracts.items():
-            abi, error = abi_resources.load_local_abi_array(manifest_path, contract_name, contract.get("abiURI"))
-            if error is not None:
-                failures.append(error)
+            try:
+                abi = abi_resources.load_local_abi_array(manifest_path, contract_name, contract.get("abiURI"))
+            except abi_resources.CamAbiResourceError as error:
+                failures.append(str(error))
                 continue
 
-            assert abi is not None
             abi_functions_by_contract[contract_name] = abi_usage.abi_functions(abi)
 
         return abi_functions_by_contract, failures
