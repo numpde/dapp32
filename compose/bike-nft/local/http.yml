@@ -4,7 +4,7 @@
 #
 # Compose this file with deploy.yml when a local consumer should
 # load the checked-in bike CAM over HTTP, matching how a real viewer obtains
-# CAM manifests, ABIs, and screens from a resource URI. Keeping HTTP separate
+# CAM manifests, ABIs, and UI resources from a resource URI. Keeping HTTP separate
 # lets terminals, web viewers, and smoke tests share the same resource-serving
 # boundary without coupling it to any one consumer.
 

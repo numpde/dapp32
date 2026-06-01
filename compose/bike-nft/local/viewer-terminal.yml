@@ -45,8 +45,8 @@ services:
       CAM_VIEWER_RPC_URL: http://bike-nft-anvil:8545
       CAM_VIEWER_BROADCAST_PATH: "${BIKE_NFT_BROADCAST_PATH:?missing_BIKE_NFT_BROADCAST_PATH}"
       CAM_VIEWER_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
-      # The bike entry route takes the connected account only; route params are
-      # explicit here so the backend does not invent an empty params default.
+      # The bike entry route takes the connected account only. Keep route inputs
+      # explicit so the backend never invents an empty input default.
       CAM_VIEWER_INITIAL_INPUTS_JSON: "{}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=256m

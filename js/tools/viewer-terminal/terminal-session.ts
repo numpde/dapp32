@@ -91,8 +91,8 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
       case "actions":
         printActions(context.session.snapshot())
         break
-      case "screen":
-        printScreen(context.session.snapshot())
+      case "ui":
+        printUi(context.session.snapshot())
         break
       case "trace":
         handleTrace(context, args)
@@ -315,13 +315,13 @@ function printActions(snapshot: CamViewerSnapshot): void {
   })), jsonReplacer, 2)}\n`)
 }
 
-function printScreen(snapshot: CamViewerSnapshot): void {
-  let screen: unknown = null
+function printUi(snapshot: CamViewerSnapshot): void {
+  let ui: unknown = null
   if (snapshot.resolvedUi !== undefined) {
-    screen = snapshot.resolvedUi
+    ui = snapshot.resolvedUi
   }
 
-  output.write(`${JSON.stringify(screen, jsonReplacer, 2)}\n`)
+  output.write(`${JSON.stringify(ui, jsonReplacer, 2)}\n`)
 }
 
 function loadedText(value: string | undefined): string {
@@ -369,11 +369,11 @@ function printHelp(): void {
     "  form                  Print route, UI URI, account, inputs, and form.",
     "  values                Print the current route return values.",
     "  actions               Print resolved actions and their button numbers.",
-    "  screen                Print the resolved UI tree.",
+    "  ui                    Print the resolved UI tree.",
     "  trace                 Print backend contract reads and resource loads.",
     "  trace clear           Clear the trace buffer.",
     "  restart               Reset the backend session and reload the entry route.",
-    "  set <name> <value>    Update local screen form and re-resolve actions.",
+    "  set <name> <value>    Update local UI form and re-resolve actions.",
     "  press <n>             Dispatch a resolved button action.",
     "  help                  Print this help.",
     "  quit                  Exit.",
