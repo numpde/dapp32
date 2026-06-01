@@ -2,17 +2,21 @@ import { readFileSync } from "node:fs"
 
 import {
   createPublicClient,
+  createWalletClient,
   http,
 } from "viem"
-import type { Address } from "viem"
+import type { Address, Chain, Hex } from "viem"
+import { privateKeyToAccount } from "viem/accounts"
 
 import {
   callCamRoute,
   createHttpCamPublicClient,
+  evmChainIdNumber,
   loadCamFromHost,
   requireEvmAddress,
   requireEvmChainId,
   resolveCamContracts,
+  sendCamContractCall,
   simulateCamContractCall,
 } from "../../packages/cam-evm-viem/dist/index.js"
 import type {
@@ -28,6 +32,7 @@ import {
   createCamViewerSession,
 } from "../../packages/cam-viewer/dist/index.js"
 import type {
+  CamViewerPreparedContractCall,
   CamViewerSession,
   CamViewerSnapshot,
 } from "../../packages/cam-viewer/dist/index.js"
@@ -63,6 +68,29 @@ type RunnerOptions = {
   readonly seed: string
   readonly runs: number
   readonly steps: number
+  readonly writeMode: WriteMode
+}
+
+type WriteMode =
+  | { readonly kind: "simulate" }
+  | {
+    readonly kind: "local-fixture"
+    readonly privateKey: Hex
+  }
+
+type WriteContext =
+  | { readonly kind: "simulate" }
+  | {
+    readonly kind: "local-fixture"
+    readonly chain: Chain
+    readonly walletClient: Parameters<typeof sendCamContractCall>[0]["walletClient"]
+  }
+
+type ReceiptClient = {
+  readonly waitForTransactionReceipt: (request: { readonly hash: Hex }) => Promise<{
+    readonly status: string
+    readonly transactionHash: Hex
+  }>
 }
 
 type JsonObject = {
@@ -85,6 +113,7 @@ async function main(): Promise<void> {
   const fullPublicClient = createPublicClient({
     transport: http(options.descriptor.rpcUrl),
   })
+  const writeContext = createWriteContext(options, account)
   const loadResource = httpResourceLoader(options.descriptor.resourceOrigin)
 
   emit({
@@ -95,6 +124,7 @@ async function main(): Promise<void> {
     chainId: host.chainId,
     host: host.address,
     account,
+    writeMode: options.writeMode.kind,
     resourceOrigin: options.descriptor.resourceOrigin,
     allowUnsignedCamHash: options.descriptor.allowUnsignedCamHash,
   })
@@ -169,6 +199,8 @@ async function main(): Promise<void> {
       session,
       account,
       simulationClient: fullPublicClient,
+      receiptClient: fullPublicClient,
+      writeContext,
       prng,
     })
   }
@@ -252,6 +284,8 @@ async function walkSession({
   session,
   account,
   simulationClient,
+  receiptClient,
+  writeContext,
   prng,
 }: {
   readonly run: number
@@ -259,6 +293,8 @@ async function walkSession({
   readonly session: CamViewerSession
   readonly account: Address
   readonly simulationClient: CamSimulationClient
+  readonly receiptClient: ReceiptClient
+  readonly writeContext: WriteContext
   readonly prng: Prng
 }): Promise<void> {
   requireLoadedSnapshot(session.snapshot())
@@ -322,28 +358,37 @@ async function walkSession({
       continue
     }
 
-    await simulatePreparedWrite({
+    await handlePreparedWrite({
       publicClient: simulationClient,
+      receiptClient,
       account,
       run,
       step,
+      session,
+      writeContext,
       call: result.call,
     })
   }
 }
 
-async function simulatePreparedWrite({
+async function handlePreparedWrite({
   publicClient,
+  receiptClient,
   account,
   run,
   step,
+  session,
+  writeContext,
   call,
 }: {
   readonly publicClient: CamSimulationClient
+  readonly receiptClient: ReceiptClient
   readonly account: Address
   readonly run: number
   readonly step: number
-  readonly call: Parameters<typeof simulateCamContractCall>[0]["call"] & { readonly route: string }
+  readonly session: CamViewerSession
+  readonly writeContext: WriteContext
+  readonly call: CamViewerPreparedContractCall
 }): Promise<void> {
   try {
     await simulateCamContractCall({
@@ -373,6 +418,95 @@ async function simulatePreparedWrite({
       call: contractCallSummary(call),
       error: error.message,
     })
+    return
+  }
+
+  if (writeContext.kind === "simulate") {
+    return
+  }
+
+  const hash = await sendCamContractCall({
+    walletClient: writeContext.walletClient,
+    chain: writeContext.chain,
+    call,
+  })
+  emit({
+    event: "write_transaction",
+    run,
+    step,
+    route: call.route,
+    status: "submitted",
+    hash,
+    call: contractCallSummary(call),
+  })
+
+  const receipt = await receiptClient.waitForTransactionReceipt({ hash })
+  emit({
+    event: "write_transaction",
+    run,
+    step,
+    route: call.route,
+    status: receipt.status,
+    hash: receipt.transactionHash,
+  })
+  if (receipt.status !== "success") {
+    throw new Error(`write transaction did not succeed for route ${call.route}: ${receipt.status}`)
+  }
+
+  if (call.then.namespace !== "routes") {
+    throw new Error(`write route must continue to routes namespace after transaction: ${call.route}`)
+  }
+  const snapshot = await session.navigate(call.then.function, call.then.args)
+  emit({
+    event: "navigation",
+    run,
+    step,
+    fromRoute: call.route,
+    toRoute: snapshot.route,
+    inputs: snapshot.inputs,
+    form: snapshot.form,
+    values: snapshot.values,
+    actions: actionSummaries(actionNodes(snapshot.resolvedUi)),
+    afterWriteHash: receipt.transactionHash,
+  })
+}
+
+function createWriteContext(options: RunnerOptions, account: Address): WriteContext {
+  if (options.writeMode.kind === "simulate") {
+    return { kind: "simulate" }
+  }
+  if (options.descriptor.chainId !== "eip155:31337") {
+    throw new Error("local-fixture write mode only runs on eip155:31337")
+  }
+
+  const walletAccount = privateKeyToAccount(options.writeMode.privateKey)
+  if (walletAccount.address.toLowerCase() !== account.toLowerCase()) {
+    throw new Error("local-fixture write key does not match descriptor account")
+  }
+
+  const chain = {
+    id: evmChainIdNumber(options.descriptor.chainId),
+    name: "CAM local fixture",
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+    rpcUrls: {
+      default: {
+        http: [options.descriptor.rpcUrl],
+      },
+    },
+  } satisfies Chain
+
+  return {
+    kind: "local-fixture",
+    chain,
+    walletClient: createWalletClient({
+      account: walletAccount,
+      chain,
+      transport: http(options.descriptor.rpcUrl),
+    }),
   }
 }
 
@@ -388,7 +522,7 @@ function actionSummary(action: ResolvedActionNode): JsonObject {
   }
 }
 
-function contractCallSummary(call: Parameters<typeof simulateCamContractCall>[0]["call"] & { readonly route: string }): JsonObject {
+function contractCallSummary(call: CamViewerPreparedContractCall): JsonObject {
   return {
     route: call.route,
     address: call.address,
@@ -552,7 +686,32 @@ function readOptions(env: NodeJS.ProcessEnv): RunnerOptions {
     seed: requiredEnv(env, "CAM_INTEGRATION_SEED"),
     runs: requiredPositiveIntegerEnv(env, "CAM_INTEGRATION_RUNS"),
     steps: requiredPositiveIntegerEnv(env, "CAM_INTEGRATION_STEPS"),
+    writeMode: readWriteMode(env),
   }
+}
+
+function readWriteMode(env: NodeJS.ProcessEnv): WriteMode {
+  const value = requiredEnv(env, "CAM_INTEGRATION_WRITE_MODE")
+  if (value === "simulate") {
+    return { kind: "simulate" }
+  }
+  if (value === "local-fixture") {
+    return {
+      kind: "local-fixture",
+      privateKey: requiredPrivateKey(env, "CAM_INTEGRATION_PRIVATE_KEY"),
+    }
+  }
+
+  throw new Error(`CAM_INTEGRATION_WRITE_MODE: unsupported write mode: ${value}`)
+}
+
+function requiredPrivateKey(env: NodeJS.ProcessEnv, name: string): Hex {
+  const value = requiredEnv(env, name)
+  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) {
+    throw new Error(`${name}: expected a 32-byte hex private key`)
+  }
+
+  return value as Hex
 }
 
 function readDescriptor(path: string): Descriptor {

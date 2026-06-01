@@ -30,6 +30,7 @@ BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nf
 BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-viewer-gui
 TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-test-integration-fuzz
 TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-test-integration-fuzz-bike-nft
+TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-test-integration-fuzz-with-writes-bike-nft
 BIKE_NFT_GUI_PORT ?= 5173
 BIKE_NFT_GUI_BIND_HOST ?= 127.0.0.1
 BIKE_NFT_GUI_ORIGIN ?= http://127.0.0.1:$(BIKE_NFT_GUI_PORT)
@@ -59,6 +60,7 @@ BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_
 BIKE_NFT_VIEWER_GUI_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_GUI_ORIGIN)/cam/main.json BIKE_NFT_GUI_PORT=$(BIKE_NFT_GUI_PORT) BIKE_NFT_GUI_BIND_HOST=$(BIKE_NFT_GUI_BIND_HOST) BIKE_NFT_GUI_ORIGIN=$(BIKE_NFT_GUI_ORIGIN)
 TEST_INTEGRATION_FUZZ_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME) CAM_INTEGRATION_SEED=$(CAM_INTEGRATION_SEED) CAM_INTEGRATION_RUNS=$(CAM_INTEGRATION_RUNS) CAM_INTEGRATION_STEPS=$(CAM_INTEGRATION_STEPS)
 TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN) CAM_INTEGRATION_SEED=$(CAM_INTEGRATION_SEED) CAM_INTEGRATION_RUNS=$(CAM_INTEGRATION_RUNS) CAM_INTEGRATION_STEPS=$(CAM_INTEGRATION_STEPS)
+TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN) CAM_INTEGRATION_SEED=$(CAM_INTEGRATION_SEED) CAM_INTEGRATION_RUNS=$(CAM_INTEGRATION_RUNS) CAM_INTEGRATION_STEPS=$(CAM_INTEGRATION_STEPS)
 VIEWER_TERMINAL_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) VIEWER_TERMINAL_CONTAINER_NAME=$(VIEWER_TERMINAL_CONTAINER_NAME) CAM_VIEWER_MOCK=$(VIEWER_TERMINAL_MOCK)
 ANVIL_INTERNAL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal
 ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host ANVIL_HOST_PORT=$(ANVIL_HOST_PORT)
@@ -90,7 +92,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
 
 help:
 	@printf '%s\n' \
@@ -124,6 +126,7 @@ help:
 	  '  make invariant    Run invariant tests for all dapps' \
 	  '  make test-integration-fuzz CAM_INTEGRATION_DESCRIPTOR_HOST_PATH=/path CAM_INTEGRATION_NETWORK=name  Run generic CAM integration fuzzing against an existing deployment' \
 	  '  make test-integration-fuzz-bike-nft  Deploy bike NFT locally and run generic CAM integration fuzzing' \
+	  '  make test-integration-fuzz-with-writes-bike-nft  Deploy bike NFT locally and run integration fuzzing with local fixture writes' \
 	  '  make coverage     Print coverage summary from all dapp unit tests' \
 	  '  make ci           Run fmt, build, script-build, unit, fuzz, invariant, and package-ci lanes' \
 	  '  make cast-offline Run offline cast smoke lane' \
@@ -413,9 +416,27 @@ test-integration-fuzz-bike-nft: deps-verify
 	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
 	  up --build --abort-on-container-exit --exit-code-from test-integration-fuzz-bike-nft test-integration-fuzz-bike-nft
 
+test-integration-fuzz-with-writes-bike-nft: deps-verify
+	@$(NON_ROOT_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	cleanup() { \
+	  status="$$?"; \
+	  $(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	    $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
+	    $(COMPOSE_DOWN_CLEANUP); \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
+	  up --build --abort-on-container-exit --exit-code-from test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-with-writes-bike-nft
+
 test-integration-fuzz-bike-nft-down:
 	@$(NON_ROOT_GUARD); \
 	$(TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
+	  $(COMPOSE_DOWN_CLEANUP); \
+	$(TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
 	  $(COMPOSE_DOWN_CLEANUP)
 
