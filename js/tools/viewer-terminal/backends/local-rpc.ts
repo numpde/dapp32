@@ -30,7 +30,7 @@ import {
   requiredField,
   requiredRecord,
   requiredString,
-} from "../input.ts"
+} from "../../input.ts"
 
 type BroadcastDeployment = {
   readonly chainId: string

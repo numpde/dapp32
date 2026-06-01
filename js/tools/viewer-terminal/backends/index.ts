@@ -3,7 +3,7 @@ import {
   readInertRecordEnv,
   requiredBooleanEnv,
   requiredEnv,
-} from "../input.ts"
+} from "../../input.ts"
 
 export async function createTerminalBackendFromEnv(env: NodeJS.ProcessEnv): Promise<TerminalBackend> {
   const backend = requiredEnv(env, "CAM_VIEWER_BACKEND")

@@ -3,8 +3,8 @@ import {
   isRecordObject,
   parseJsonText,
   toInertValue,
-} from "../../packages/cam-protocol/dist/index.js"
-import type { InertRecord } from "../../packages/cam-protocol/dist/index.js"
+} from "../packages/cam-protocol/dist/index.js"
+import type { InertRecord } from "../packages/cam-protocol/dist/index.js"
 
 export function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]
@@ -13,6 +13,16 @@ export function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
   }
 
   return value
+}
+
+export function requiredPositiveIntegerEnv(env: NodeJS.ProcessEnv, name: string): number {
+  const value = requiredEnv(env, name)
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name}: expected a positive integer`)
+  }
+
+  return parsed
 }
 
 export function requiredBooleanEnv(env: NodeJS.ProcessEnv, name: string): boolean {
@@ -49,9 +59,21 @@ export function requiredArray(source: Record<string, unknown>, key: string): rea
 }
 
 export function requiredString(source: Record<string, unknown>, key: string, path: string): string {
-  const value = requiredField(source, key)
+  return requiredStringValue(requiredField(source, key), path)
+}
+
+export function requiredStringValue(value: unknown, path: string): string {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`${path}: expected a non-empty string`)
+  }
+
+  return value
+}
+
+export function requiredBoolean(source: Record<string, unknown>, key: string, path: string): boolean {
+  const value = requiredField(source, key)
+  if (typeof value !== "boolean") {
+    throw new Error(`${path}: expected a boolean`)
   }
 
   return value

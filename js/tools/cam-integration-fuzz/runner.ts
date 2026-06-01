@@ -52,6 +52,13 @@ import type {
   InertRecord,
   InertValue,
 } from "../../packages/cam-protocol/dist/index.js"
+import {
+  requiredBoolean,
+  requiredEnv,
+  requiredPositiveIntegerEnv,
+  requiredString,
+  requiredStringValue,
+} from "../input.ts"
 
 type Descriptor = {
   readonly camIntegration: "1.0.0"
@@ -740,55 +747,18 @@ function readDescriptor(path: string): Descriptor {
 
   return {
     camIntegration: "1.0.0",
-    chainId: requireEvmChainId(requiredString(value, "chainId")),
-    rpcUrl: requiredString(value, "rpcUrl"),
-    camHost: requireEvmAddress(requiredString(value, "camHost"), "descriptor.camHost"),
-    resourceOrigin: requireHttpOrigin(requiredString(value, "resourceOrigin"), "descriptor.resourceOrigin"),
+    chainId: requireEvmChainId(requiredString(value, "chainId", "descriptor.chainId")),
+    rpcUrl: requiredString(value, "rpcUrl", "descriptor.rpcUrl"),
+    camHost: requireEvmAddress(requiredString(value, "camHost", "descriptor.camHost"), "descriptor.camHost"),
+    resourceOrigin: requireHttpOrigin(
+      requiredString(value, "resourceOrigin", "descriptor.resourceOrigin"),
+      "descriptor.resourceOrigin",
+    ),
     accounts: accountsValue.map((account, index) =>
       requireEvmAddress(requiredStringValue(account, `descriptor.accounts.${index}`), `descriptor.accounts.${index}`),
     ),
-    allowUnsignedCamHash: requiredBoolean(value, "allowUnsignedCamHash"),
+    allowUnsignedCamHash: requiredBoolean(value, "allowUnsignedCamHash", "descriptor.allowUnsignedCamHash"),
   }
-}
-
-function requiredString(source: Record<string, unknown>, key: string): string {
-  return requiredStringValue(source[key], `descriptor.${key}`)
-}
-
-function requiredStringValue(value: unknown, path: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${path}: expected a non-empty string`)
-  }
-
-  return value
-}
-
-function requiredBoolean(source: Record<string, unknown>, key: string): boolean {
-  const value = source[key]
-  if (typeof value !== "boolean") {
-    throw new Error(`descriptor.${key}: expected a boolean`)
-  }
-
-  return value
-}
-
-function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]
-  if (value === undefined || value.length === 0) {
-    throw new Error(`missing required environment variable: ${name}`)
-  }
-
-  return value
-}
-
-function requiredPositiveIntegerEnv(env: NodeJS.ProcessEnv, name: string): number {
-  const value = requiredEnv(env, name)
-  const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${name}: expected a positive integer`)
-  }
-
-  return parsed
 }
 
 type Prng = {
