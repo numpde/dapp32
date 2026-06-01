@@ -363,7 +363,7 @@
               <td><code>forge-abi-plan</code> writes a TSV plan into a temporary host directory outside the repo. <code>forge-abi</code> reads that plan read-only. Only explicit, pre-existing <code>dapps/&lt;name&gt;/cam/abi/*.json</code> output directories are writable; the rest of <code>dapps/</code> is read-only.</td>
               <td>None.</td>
               <td>Makefile creates the temporary plan directory, runs both one-shot services, then removes the plan directory and Compose project on exit.</td>
-              <td>Parse CAM manifests as JSON, generate only the ABI resources declared by <code>contracts.*.abiURI</code>, and avoid deriving Solidity source paths from ABI filenames.</td>
+              <td>Parse CAM manifests as JSON, generate only the ABI resources declared by <code>namespaces.contracts.&lt;ContractName&gt;.abiURI</code>, and avoid deriving Solidity source paths from ABI filenames.</td>
             </tr>
             <tr>
               <td><code>package-build-check</code>, <code>package-test</code></td>

@@ -99,7 +99,8 @@ Keep the project small, explicit, and protocol-first.
   read-only and mount only explicit, pre-existing `dapps/<name>/cam/abi/`
   directories writable.
 - CAM ABI files are generated resources whose source of truth is
-  `dapps/<name>/cam/main.json`. `contracts.*.abiURI` must point directly to
+  `dapps/<name>/cam/main.json`.
+  `namespaces.contracts.<ContractName>.abiURI` must point directly to
   `cam/abi/<ContractName>.json`; unused `cam/abi/*.json` files are repository
   hygiene failures.
 - CAM manifest `integrity` fields are derived from local ABI/UI resource bytes.
