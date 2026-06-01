@@ -361,6 +361,141 @@ test("callCamRoute normalizes safe number integer outputs from real RPC clients"
   assert.equal((result.values[0] as Record<string, unknown>).status, "0")
 })
 
+test("callCamRoute rejects non-canonical integer output shapes", async () => {
+  const integerRoute = "integerRoute"
+  const integerFunction = "viewInteger"
+  const cam = parseCam({
+    ...camJson,
+    routes: {
+      ...camJson.routes,
+      [integerRoute]: {
+        kind: "read",
+        inputs: [],
+        call: {
+          namespace: BIKE_UI_NAMESPACE,
+          function: integerFunction,
+          args: {},
+        },
+        then: {
+          namespace: "ui",
+          function: "app",
+          args: {
+            view: "$outputs.0",
+          },
+        },
+      },
+    },
+  })
+  const abi = [
+    {
+      type: "function",
+      name: integerFunction,
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{ name: "value", type: "uint256" }],
+    },
+  ] as const satisfies Abi
+
+  for (const value of [Number.MAX_SAFE_INTEGER + 1, "1"]) {
+    await assert.rejects(
+      () => callCamRoute({
+        publicClient: createPublicClient(publicClientFixtureOptions({
+          routeResults: {
+            [integerFunction]: value,
+          },
+        })),
+        cam,
+        contracts: {
+          [BIKE_UI_NAMESPACE]: {
+            address: uiAddress,
+            abi,
+          },
+        },
+        route: integerRoute,
+        context: {
+          host,
+          account: { address: userAddress },
+          inputs: {},
+          outputs: [],
+          form: {},
+        },
+      }),
+      (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+    )
+  }
+})
+
+test("callCamRoute normalizes array-like decoded tuple outputs by ABI component name", async () => {
+  const tupleRoute = "tupleRoute"
+  const tupleFunction = "viewTuple"
+  const cam = parseCam({
+    ...camJson,
+    routes: {
+      ...camJson.routes,
+      [tupleRoute]: {
+        kind: "read",
+        inputs: [],
+        call: {
+          namespace: BIKE_UI_NAMESPACE,
+          function: tupleFunction,
+          args: {},
+        },
+        then: {
+          namespace: "ui",
+          function: "app",
+          args: {
+            view: "$outputs.0",
+          },
+        },
+      },
+    },
+  })
+  const abi = [
+    {
+      type: "function",
+      name: tupleFunction,
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{
+        name: "view_",
+        type: "tuple",
+        components: [
+          { name: "status", type: "uint8" },
+          { name: "owner", type: "address" },
+        ],
+      }],
+    },
+  ] as const satisfies Abi
+
+  const result = await callCamRoute({
+    publicClient: createPublicClient(publicClientFixtureOptions({
+      routeResults: {
+        [tupleFunction]: [1, userAddress],
+      },
+    })),
+    cam,
+    contracts: {
+      [BIKE_UI_NAMESPACE]: {
+        address: uiAddress,
+        abi,
+      },
+    },
+    route: tupleRoute,
+    context: {
+      host,
+      account: { address: userAddress },
+      inputs: {},
+      outputs: [],
+      form: {},
+    },
+  })
+
+  assert.deepEqual(result.values[0], toInertValue({
+    status: "1",
+    owner: userAddress,
+  }))
+})
+
 test("callCamRoute treats a single array output as one ABI output", async () => {
   const arrayRoute = "arrayRoute"
   const arrayFunction = "viewArray"

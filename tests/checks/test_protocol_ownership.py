@@ -41,6 +41,28 @@ class ProtocolOwnershipTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_runtime_integer_representations_do_not_leak_past_evm_adapter(self) -> None:
+        allowed = {
+            repo_path("js/packages/cam-evm-viem/src/arguments.ts"),
+            repo_path("js/packages/cam-evm-viem/src/chain.ts"),
+            repo_path("js/packages/cam-evm-viem/src/routes.ts"),
+        }
+        failures: list[str] = []
+
+        for path in self.package_source_files():
+            if path in allowed:
+                continue
+            text = read_text(path)
+            for line_number, line in enumerate(text.splitlines(), start=1):
+                if re.search(r"\bbigint\b|BigInt\s*\(", line):
+                    failures.append(
+                        f"{path}:{line_number}: bigint is an EVM adapter runtime representation; "
+                        "protocol packages must expose inert values instead"
+                    )
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def package_source_files(self) -> list[Path]:
         return sorted(repo_path("js/packages").glob("*/src/**/*.ts"))
 
