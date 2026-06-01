@@ -23,6 +23,7 @@ CONTRACT_NAMESPACE_PREFIX = "contracts."
 INTEGRITY_PREFIX = "sha256:0x"
 LOCAL_URI_PREFIX = "./"
 UI_NAMESPACE = "ui"
+ROUTES_NAMESPACE = "routes"
 
 
 class CamResourceIntegrityError(ValueError):
@@ -63,31 +64,59 @@ def refresh_manifest(manifest_path: Path) -> bool:
         raise CamResourceIntegrityError(f"{manifest_path}: namespaces must be an object")
 
     changed = False
-    for namespace, declaration in namespaces.items():
-        if not isinstance(namespace, str) or not isinstance(declaration, dict):
-            continue
-
-        if namespace.startswith(CONTRACT_NAMESPACE_PREFIX) and declaration.get("type") == "contract":
-            changed |= refresh_integrity_field(
-                manifest_path,
-                declaration,
-                "abiURI",
-                "integrity",
-                f"namespaces.{namespace}",
-            )
-        elif namespace == UI_NAMESPACE and declaration.get("type") == "ui":
-            changed |= refresh_integrity_field(
-                manifest_path,
-                declaration,
-                "uri",
-                "integrity",
-                "namespaces.ui",
-            )
+    for declaration, uri_key, integrity_key, path in resource_declarations(manifest_path, namespaces):
+        changed |= refresh_integrity_field(
+            manifest_path,
+            declaration,
+            uri_key,
+            integrity_key,
+            path,
+        )
 
     if changed:
         write_json_in_place(manifest_path, document)
 
     return changed
+
+
+def resource_declarations(
+    manifest_path: Path,
+    namespaces: dict[object, object],
+) -> list[tuple[dict[object, object], str, str, str]]:
+    resources: list[tuple[dict[object, object], str, str, str]] = []
+
+    for namespace, declaration in namespaces.items():
+        if not isinstance(namespace, str) or namespace == "":
+            raise CamResourceIntegrityError(f"{manifest_path}: namespace names must be non-empty strings")
+        if not isinstance(declaration, dict):
+            raise CamResourceIntegrityError(f"{manifest_path}: namespaces.{namespace} must be an object")
+
+        declaration_type = declaration.get("type")
+        if not isinstance(declaration_type, str) or declaration_type == "":
+            raise CamResourceIntegrityError(f"{manifest_path}: namespaces.{namespace}.type must be a non-empty string")
+
+        if namespace.startswith(CONTRACT_NAMESPACE_PREFIX):
+            if namespace == CONTRACT_NAMESPACE_PREFIX:
+                raise CamResourceIntegrityError(f"{manifest_path}: contract namespace name must not be empty")
+            if declaration_type != "contract":
+                raise CamResourceIntegrityError(f"{manifest_path}: namespaces.{namespace}.type must be contract")
+            resources.append((declaration, "abiURI", "integrity", f"namespaces.{namespace}"))
+            continue
+
+        if namespace == UI_NAMESPACE:
+            if declaration_type != "ui":
+                raise CamResourceIntegrityError(f"{manifest_path}: namespaces.ui.type must be ui")
+            resources.append((declaration, "uri", "integrity", "namespaces.ui"))
+            continue
+
+        if namespace == ROUTES_NAMESPACE:
+            if declaration_type != "routes":
+                raise CamResourceIntegrityError(f"{manifest_path}: namespaces.routes.type must be routes")
+            continue
+
+        raise CamResourceIntegrityError(f"{manifest_path}: unsupported namespace: {namespace}")
+
+    return resources
 
 
 def refresh_integrity_field(

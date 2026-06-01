@@ -71,6 +71,40 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             with self.assertRaisesRegex(CamResourceIntegrityError, "must stay under the CAM directory"):
                 refresh_manifest(manifest_path)
 
+    def test_refresh_manifest_rejects_malformed_namespaces(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            manifest_path.parent.mkdir(parents=True)
+            write_json(
+                manifest_path,
+                {
+                    "namespaces": {
+                        "contracts.UI": {
+                            "type": "ui",
+                            "abiURI": "./abi/UI.json",
+                        },
+                    },
+                },
+            )
+
+            with self.assertRaisesRegex(CamResourceIntegrityError, "namespaces.contracts.UI.type must be contract"):
+                refresh_manifest(manifest_path)
+
+            write_json(
+                manifest_path,
+                {
+                    "namespaces": {
+                        "widgets": {
+                            "type": "ui",
+                            "uri": "./ui.json",
+                        },
+                    },
+                },
+            )
+
+            with self.assertRaisesRegex(CamResourceIntegrityError, "unsupported namespace: widgets"):
+                refresh_manifest(manifest_path)
+
 
 def write_json(path: Path, document: object) -> None:
     path.write_text(f"{json.dumps(document, indent=2)}\n", encoding="utf-8")
