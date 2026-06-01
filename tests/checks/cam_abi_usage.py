@@ -6,17 +6,9 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class AbiFunction:
-    input_count: int
+    input_names: tuple[str | None, ...]
     state_mutability: str | None
     outputs: tuple[object, ...]
-
-
-@dataclass(frozen=True)
-class ContractActionReference:
-    path: str
-    contract_name: object
-    function_name: object
-    arg_count: int | None
 
 
 READ_ROUTE_MUTABILITY = frozenset({"view", "pure"})
@@ -47,11 +39,64 @@ def abi_functions(abi: list[object]) -> dict[str, AbiFunction | None]:
                 abi_outputs = tuple(outputs)
 
             functions_by_name[name] = AbiFunction(
-                input_count=len(inputs),
+                input_names=abi_input_names(inputs),
                 state_mutability=state_mutability,
                 outputs=abi_outputs,
             )
     return functions_by_name
+
+
+def abi_input_names(inputs: list[object]) -> tuple[str | None, ...]:
+    names: list[str | None] = []
+    for item in inputs:
+        if not isinstance(item, dict):
+            names.append(None)
+            continue
+
+        name = item.get("name")
+        if isinstance(name, str) and name != "":
+            names.append(name)
+        else:
+            names.append(None)
+    return tuple(names)
+
+
+def validate_named_args(
+    manifest_path: Path,
+    location: str,
+    contract_name: str,
+    function_name: str,
+    function: AbiFunction,
+    args: dict[object, object],
+) -> list[str]:
+    # CAM route args are named, while ABI encoding is positional. Static checks
+    # must therefore prove the names line up before runtime orders them.
+    failures: list[str] = []
+    input_names = function.input_names
+
+    if any(name is None for name in input_names):
+        failures.append(
+            f"{manifest_path}: ABI inputs must be named for {contract_name}.{function_name} at {location}"
+        )
+        return failures
+
+    expected_names = tuple(name for name in input_names if name is not None)
+    expected = set(expected_names)
+    actual = set(args)
+
+    if len(expected) != len(expected_names):
+        failures.append(
+            f"{manifest_path}: ABI input names must be unique for {contract_name}.{function_name} at {location}"
+        )
+        return failures
+
+    for name in sorted(expected - actual):
+        failures.append(f"{manifest_path}: missing arg {name} for {contract_name}.{function_name} at {location}")
+
+    for name in sorted(actual - expected):
+        failures.append(f"{manifest_path}: unexpected arg {name} for {contract_name}.{function_name} at {location}")
+
+    return failures
 
 
 def validate_route_function_mutability(
@@ -73,7 +118,8 @@ def validate_route_function_mutability(
 def validate_contract_action_function(
     manifest_path: Path,
     location: str,
-    action: ContractActionReference,
+    contract_name: str,
+    function_name: str,
     function: AbiFunction,
 ) -> list[str]:
     failures: list[str] = []
@@ -81,15 +127,7 @@ def validate_contract_action_function(
     if function.state_mutability not in WRITE_ACTION_MUTABILITY:
         failures.append(
             f"{manifest_path}: write route must target a payable or nonpayable ABI function "
-            f"at {location}: {action.contract_name}.{action.function_name}"
-        )
-
-    if action.arg_count is None:
-        failures.append(f"{manifest_path}: write route args must be an object at {location}")
-    elif action.arg_count != function.input_count:
-        failures.append(
-            f"{manifest_path}: write route has {action.arg_count} arg(s), "
-            f"but {action.contract_name}.{action.function_name} expects {function.input_count} at {location}"
+            f"at {location}: {contract_name}.{function_name}"
         )
 
     return failures

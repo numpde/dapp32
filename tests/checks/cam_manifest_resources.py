@@ -166,11 +166,16 @@ class CamManifestResourceValidator:
             if not isinstance(args, dict):
                 failures.append(f"{manifest_path}: {path}.call.args must be an object")
                 continue
-            if len(args) != function.input_count:
-                failures.append(
-                    f"{manifest_path}: {path}.call.args has {len(args)} item(s), "
-                    f"but {contract_name}.{function_name} expects {function.input_count}"
+            failures.extend(
+                abi_usage.validate_named_args(
+                    manifest_path,
+                    f"{path}.call",
+                    contract_name,
+                    function_name,
+                    function,
+                    args,
                 )
+            )
 
             failures.extend(
                 self.validate_route_call_mutability(
@@ -180,7 +185,6 @@ class CamManifestResourceValidator:
                     contract_name,
                     function_name,
                     function,
-                    len(args),
                 )
             )
 
@@ -194,7 +198,6 @@ class CamManifestResourceValidator:
         contract_name: str,
         function_name: str,
         function: abi_usage.AbiFunction,
-        arg_count: int,
     ) -> list[str]:
         then = route.get("then")
         if not isinstance(then, dict):
@@ -211,16 +214,11 @@ class CamManifestResourceValidator:
             )
 
         if then_namespace == "routes":
-            action = abi_usage.ContractActionReference(
-                path=f"{route_path}.call",
-                contract_name=contract_name,
-                function_name=function_name,
-                arg_count=arg_count,
-            )
             return abi_usage.validate_contract_action_function(
                 manifest_path,
                 f"{route_path}.call",
-                action,
+                contract_name,
+                function_name,
                 function,
             )
 
