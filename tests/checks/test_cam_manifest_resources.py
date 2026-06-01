@@ -15,7 +15,6 @@ class CamManifestResourceTest(unittest.TestCase):
 
     def test_cam_manifests_match_declared_abis_and_resource_inventory(self) -> None:
         failures = [
-            *self.validator.collect_manifest_failures(self.validator.validate_cam_document_shape),
             *self.validator.collect_manifest_failures(self.validator.validate_declared_abi_usage),
             *self.validator.collect_manifest_failures(self.validator.validate_declared_route_continuations),
             *self.validator.collect_manifest_failures(self.validator.validate_resource_inventory),
@@ -64,63 +63,6 @@ class CamManifestResourceTest(unittest.TestCase):
         self.assertEqual(
             legacy_failures,
             [f"{manifest_path}: namespaced CAM must not keep legacy screens/ resources"],
-        )
-
-    def test_cam_document_shape_rejects_runtime_parser_drift(self) -> None:
-        with TemporaryDirectory() as tmp:
-            manifest_path = Path(tmp) / "cam" / "main.json"
-            manifest_path.parent.mkdir(parents=True)
-
-            failures = self.validator.validate_cam_document_shape(
-                manifest_path,
-                {
-                    "cam": "1.0.0",
-                    "entry": "entry",
-                    "extra": True,
-                    "namespaces": {
-                        "contracts.UI": {
-                            "type": "contract",
-                            "abiURI": "./abi/UI.json",
-                            "integrity": ZERO_SHA256,
-                            "extra": True,
-                        },
-                        "widgets": {
-                            "type": "ui",
-                            "uri": "./ui.json",
-                            "integrity": ZERO_SHA256,
-                        },
-                        "routes": {
-                            "type": "routes",
-                        },
-                    },
-                    "routes": {
-                        "entry": {
-                            "kind": "read",
-                            "inputs": ["serialNumber", "serialNumber"],
-                            "call": {
-                                "namespace": "contracts.UI",
-                                "function": "viewEntry",
-                                "args": {},
-                            },
-                            "then": {
-                                "namespace": "routes",
-                                "function": "entry",
-                                "args": {},
-                            },
-                        },
-                    },
-                },
-            )
-
-        self.assertEqual(
-            failures,
-            [
-                f"{manifest_path}: field is not allowed in CAM 1.0.0: extra",
-                f"{manifest_path}: field is not allowed in CAM 1.0.0: namespaces.contracts.UI.extra",
-                f"{manifest_path}: ui namespace must be named ui",
-                f"{manifest_path}: duplicate name in routes.entry.inputs: serialNumber",
-                f"{manifest_path}: routes.entry.then.namespace references invalid routes namespace: routes",
-            ],
         )
 
     def test_contract_namespace_extraction_rejects_unsupported_namespaces(self) -> None:

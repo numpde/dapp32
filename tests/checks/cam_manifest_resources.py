@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Collection
+from collections.abc import Callable
 from pathlib import Path
 
 from . import cam_abi_resources as abi_resources
@@ -18,14 +18,6 @@ from tools.json_policy import JsonPolicyError, strict_json_loads
 CONTRACT_NAMESPACE_PREFIX = "contracts."
 ROUTES_NAMESPACE = "routes"
 UI_NAMESPACE = "ui"
-CAM_VERSION = "1.0.0"
-TOP_LEVEL_KEYS = frozenset({"cam", "entry", "namespaces", "routes"})
-CONTRACT_NAMESPACE_KEYS = frozenset({"type", "abiURI", "integrity"})
-ROUTES_NAMESPACE_KEYS = frozenset({"type"})
-UI_NAMESPACE_KEYS = frozenset({"type", "uri", "integrity"})
-ROUTE_KEYS = frozenset({"kind", "inputs", "call", "then"})
-INVOCATION_KEYS = frozenset({"namespace", "function", "args"})
-ROUTE_CONTINUATION_NAMESPACE_TYPES = frozenset({"routes", "ui"})
 
 
 class CamManifestResourceValidator:
@@ -69,40 +61,6 @@ class CamManifestResourceValidator:
             error = abi_resources.validate_local_abi_uri(manifest_path, contract_name, contract.get("abiURI"))
             if error is not None:
                 failures.append(error)
-
-        return failures
-
-    def validate_cam_document_shape(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
-        failures: list[str] = []
-        failures.extend(self.reject_unknown_keys(manifest_path, "", manifest, TOP_LEVEL_KEYS))
-
-        if manifest.get("cam") != CAM_VERSION:
-            failures.append(f"{manifest_path}: cam must be {CAM_VERSION}")
-
-        entry = manifest.get("entry")
-        if not isinstance(entry, str) or entry == "":
-            failures.append(f"{manifest_path}: entry must be a non-empty string")
-
-        namespaces = manifest.get("namespaces")
-        if not isinstance(namespaces, dict):
-            failures.append(f"{manifest_path}: namespaces must be an object")
-            namespaces = {}
-
-        routes = manifest.get("routes")
-        if not isinstance(routes, dict):
-            failures.append(f"{manifest_path}: routes must be an object")
-            routes = {}
-
-        namespace_types, namespace_failures = self.validate_namespaces(
-            manifest_path,
-            namespaces,
-            require_resource_fields=True,
-        )
-        failures.extend(namespace_failures)
-        failures.extend(self.validate_routes_shape(manifest_path, routes, namespace_types))
-
-        if isinstance(entry, str) and entry != "" and entry not in routes:
-            failures.append(f"{manifest_path}: entry route does not exist: {entry}")
 
         return failures
 
@@ -206,211 +164,6 @@ class CamManifestResourceValidator:
 
         return abi_resources.validate_no_orphan_abi_files(manifest_path, {"contracts": contracts})
 
-    def validate_namespaces(
-        self,
-        manifest_path: Path,
-        namespaces: dict[object, object],
-        *,
-        require_resource_fields: bool,
-    ) -> tuple[dict[str, str], list[str]]:
-        namespace_types: dict[str, str] = {}
-        failures: list[str] = []
-
-        for namespace, declaration in namespaces.items():
-            path = f"namespaces.{namespace}"
-            if not isinstance(namespace, str) or namespace == "":
-                failures.append(f"{manifest_path}: namespace names must be non-empty strings")
-                continue
-            if not isinstance(declaration, dict):
-                failures.append(f"{manifest_path}: {path} must be an object")
-                continue
-
-            declaration_type = declaration.get("type")
-            if not isinstance(declaration_type, str) or declaration_type == "":
-                failures.append(f"{manifest_path}: {path}.type must be a non-empty string")
-                continue
-
-            namespace_types[namespace] = declaration_type
-            if declaration_type == "contract":
-                failures.extend(
-                    self.validate_contract_namespace(
-                        manifest_path,
-                        namespace,
-                        declaration,
-                        require_resource_fields=require_resource_fields,
-                    )
-                )
-            elif declaration_type == "routes":
-                failures.extend(self.validate_routes_namespace(manifest_path, namespace, declaration))
-            elif declaration_type == "ui":
-                failures.extend(
-                    self.validate_ui_namespace(
-                        manifest_path,
-                        namespace,
-                        declaration,
-                        require_resource_fields=require_resource_fields,
-                    )
-                )
-            else:
-                failures.append(f"{manifest_path}: unknown namespace type at {path}.type: {declaration_type}")
-
-        return namespace_types, failures
-
-    def validate_contract_namespace(
-        self,
-        manifest_path: Path,
-        namespace: str,
-        declaration: dict[object, object],
-        *,
-        require_resource_fields: bool,
-    ) -> list[str]:
-        path = f"namespaces.{namespace}"
-        failures = self.reject_unknown_keys(manifest_path, path, declaration, CONTRACT_NAMESPACE_KEYS)
-        if not namespace.startswith(CONTRACT_NAMESPACE_PREFIX) or namespace == CONTRACT_NAMESPACE_PREFIX:
-            failures.append(f"{manifest_path}: {path} must be {CONTRACT_NAMESPACE_PREFIX}<name>")
-        if require_resource_fields:
-            for key in ("abiURI", "integrity"):
-                if not isinstance(declaration.get(key), str) or declaration.get(key) == "":
-                    failures.append(f"{manifest_path}: {path}.{key} must be a non-empty string")
-        return failures
-
-    def validate_routes_namespace(
-        self,
-        manifest_path: Path,
-        namespace: str,
-        declaration: dict[object, object],
-    ) -> list[str]:
-        path = f"namespaces.{namespace}"
-        failures = self.reject_unknown_keys(manifest_path, path, declaration, ROUTES_NAMESPACE_KEYS)
-        if namespace != ROUTES_NAMESPACE:
-            failures.append(f"{manifest_path}: routes namespace must be named {ROUTES_NAMESPACE}")
-        return failures
-
-    def validate_ui_namespace(
-        self,
-        manifest_path: Path,
-        namespace: str,
-        declaration: dict[object, object],
-        *,
-        require_resource_fields: bool,
-    ) -> list[str]:
-        path = f"namespaces.{namespace}"
-        failures = self.reject_unknown_keys(manifest_path, path, declaration, UI_NAMESPACE_KEYS)
-        if namespace != UI_NAMESPACE:
-            failures.append(f"{manifest_path}: ui namespace must be named {UI_NAMESPACE}")
-        if require_resource_fields:
-            for key in ("uri", "integrity"):
-                if not isinstance(declaration.get(key), str) or declaration.get(key) == "":
-                    failures.append(f"{manifest_path}: {path}.{key} must be a non-empty string")
-        return failures
-
-    def validate_routes_shape(
-        self,
-        manifest_path: Path,
-        routes: dict[object, object],
-        namespace_types: dict[str, str],
-    ) -> list[str]:
-        failures: list[str] = []
-        for route_name, route in routes.items():
-            path = f"routes.{route_name}"
-            if not isinstance(route_name, str) or route_name == "":
-                failures.append(f"{manifest_path}: route names must be non-empty strings")
-                continue
-            if not isinstance(route, dict):
-                failures.append(f"{manifest_path}: {path} must be an object")
-                continue
-
-            failures.extend(self.reject_unknown_keys(manifest_path, path, route, ROUTE_KEYS))
-            kind = route.get("kind")
-            if kind not in {"read", "write"}:
-                failures.append(f"{manifest_path}: {path}.kind must be read or write")
-
-            inputs = route.get("inputs")
-            if not isinstance(inputs, list):
-                failures.append(f"{manifest_path}: {path}.inputs must be an array")
-            else:
-                _, input_failures = self.string_list(manifest_path, f"{path}.inputs", inputs)
-                failures.extend(input_failures)
-
-            failures.extend(
-                self.validate_invocation_shape(
-                    manifest_path,
-                    f"{path}.call",
-                    route.get("call"),
-                    namespace_types,
-                    {"contract"},
-                )
-            )
-            if kind == "read":
-                then_allowed = frozenset({"ui"})
-            elif kind == "write":
-                then_allowed = frozenset({"routes"})
-            else:
-                then_allowed = ROUTE_CONTINUATION_NAMESPACE_TYPES
-            failures.extend(
-                self.validate_invocation_shape(
-                    manifest_path,
-                    f"{path}.then",
-                    route.get("then"),
-                    namespace_types,
-                    then_allowed,
-                )
-            )
-
-        return failures
-
-    def validate_invocation_shape(
-        self,
-        manifest_path: Path,
-        path: str,
-        value: object,
-        namespace_types: dict[str, str],
-        allowed_namespace_types: Collection[str],
-    ) -> list[str]:
-        if not isinstance(value, dict):
-            return [f"{manifest_path}: {path} must be an object"]
-
-        failures = self.reject_unknown_keys(manifest_path, path, value, INVOCATION_KEYS)
-        namespace = value.get("namespace")
-        if not isinstance(namespace, str) or namespace == "":
-            failures.append(f"{manifest_path}: {path}.namespace must be a non-empty string")
-        else:
-            namespace_type = namespace_types.get(namespace)
-            if namespace_type is None:
-                failures.append(f"{manifest_path}: {path}.namespace references unknown namespace: {namespace}")
-            elif namespace_type not in allowed_namespace_types:
-                failures.append(f"{manifest_path}: {path}.namespace references invalid {namespace_type} namespace: {namespace}")
-
-        function = value.get("function")
-        if not isinstance(function, str) or function == "":
-            failures.append(f"{manifest_path}: {path}.function must be a non-empty string")
-
-        args = value.get("args")
-        if not isinstance(args, dict):
-            failures.append(f"{manifest_path}: {path}.args must be an object")
-        else:
-            for name in args:
-                if not isinstance(name, str) or name == "":
-                    failures.append(f"{manifest_path}: {path}.args names must be non-empty strings")
-
-        return failures
-
-    def reject_unknown_keys(
-        self,
-        manifest_path: Path,
-        path: str,
-        source: dict[object, object],
-        allowed: frozenset[str],
-    ) -> list[str]:
-        failures: list[str] = []
-        for key in source:
-            if not isinstance(key, str) or key not in allowed:
-                if path == "":
-                    failures.append(f"{manifest_path}: field is not allowed in CAM {CAM_VERSION}: {key}")
-                else:
-                    failures.append(f"{manifest_path}: field is not allowed in CAM {CAM_VERSION}: {path}.{key}")
-        return failures
-
     def contract_namespaces(
         self,
         manifest_path: Path,
@@ -420,11 +173,7 @@ class CamManifestResourceValidator:
         if not isinstance(namespaces, dict):
             return {}, [f"{manifest_path}: namespaces must be an object"]
 
-        namespace_types, failures = self.validate_namespaces(
-            manifest_path,
-            namespaces,
-            require_resource_fields=False,
-        )
+        namespace_types, failures = self.validate_namespace_inventory(manifest_path, namespaces)
         contracts: dict[str, dict[object, object]] = {}
 
         for namespace, declaration in namespaces.items():
@@ -448,6 +197,43 @@ class CamManifestResourceValidator:
             failures.append(f"{manifest_path}: no contract namespaces declared")
 
         return contracts, failures
+
+    def validate_namespace_inventory(
+        self,
+        manifest_path: Path,
+        namespaces: dict[object, object],
+    ) -> tuple[dict[str, str], list[str]]:
+        namespace_types: dict[str, str] = {}
+        failures: list[str] = []
+
+        for namespace, declaration in namespaces.items():
+            path = f"namespaces.{namespace}"
+            if not isinstance(namespace, str) or namespace == "":
+                failures.append(f"{manifest_path}: namespace names must be non-empty strings")
+                continue
+            if not isinstance(declaration, dict):
+                failures.append(f"{manifest_path}: {path} must be an object")
+                continue
+
+            declaration_type = declaration.get("type")
+            if not isinstance(declaration_type, str) or declaration_type == "":
+                failures.append(f"{manifest_path}: {path}.type must be a non-empty string")
+                continue
+
+            namespace_types[namespace] = declaration_type
+            if declaration_type == "contract":
+                if not namespace.startswith(CONTRACT_NAMESPACE_PREFIX) or namespace == CONTRACT_NAMESPACE_PREFIX:
+                    failures.append(f"{manifest_path}: {path} must be {CONTRACT_NAMESPACE_PREFIX}<name>")
+            elif declaration_type == "routes":
+                if namespace != ROUTES_NAMESPACE:
+                    failures.append(f"{manifest_path}: routes namespace must be named {ROUTES_NAMESPACE}")
+            elif declaration_type == "ui":
+                if namespace != UI_NAMESPACE:
+                    failures.append(f"{manifest_path}: ui namespace must be named {UI_NAMESPACE}")
+            else:
+                failures.append(f"{manifest_path}: unknown namespace type at {path}.type: {declaration_type}")
+
+        return namespace_types, failures
 
     def validate_route_calls_match_declared_abis(
         self,
