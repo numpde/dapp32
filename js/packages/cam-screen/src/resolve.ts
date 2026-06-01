@@ -26,7 +26,7 @@ export function resolveUiNode(
   args: InertRecord,
   context: UiRuntimeContext,
 ): ResolvedUiNode {
-  const resolved = resolveNamedNode(ui, nodeName, args, context, nodeName, { includeActions: true })
+  const resolved = resolveNamedNode(ui, nodeName, args, context, nodeName, { includeActions: true }, [])
   if (resolved.length !== 1) {
     throw new UiError("UI_INVALID_FIELD", `UI node did not resolve to one root node: ${nodeName}`, nodeName)
   }
@@ -48,7 +48,7 @@ export function resolveInitialUiNode(
     ...context,
     form: emptyForm,
   }
-  const initialNodes = resolveNamedNode(ui, nodeName, args, initialContext, nodeName, { includeActions: false })
+  const initialNodes = resolveNamedNode(ui, nodeName, args, initialContext, nodeName, { includeActions: false }, [])
   const form = createInitialForm(initialNodes)
   const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, form })
 
@@ -65,14 +65,18 @@ function resolveNamedNode(
   context: UiRuntimeContext,
   path: string,
   options: ResolveOptions,
+  stack: readonly string[],
 ): readonly ResolvedUiNode[] {
+  if (stack.includes(nodeName)) {
+    throw new UiError("UI_INVALID_FIELD", `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`, path)
+  }
   if (!hasOwn(ui.nodes, nodeName)) {
     throw new UiError("UI_UNRESOLVED_VALUE", `UI node does not exist: ${nodeName}`, path)
   }
 
   const node = ui.nodes[nodeName]
   const nodeContext = contextForNode(node, args, context, path)
-  return resolveNode(ui, node, nodeContext, path, options)
+  return resolveNode(ui, node, nodeContext, path, options, [...stack, nodeName])
 }
 
 type ResolveOptions = {
@@ -95,6 +99,11 @@ function contextForNode(
   for (const name of requires) {
     if (!hasOwn(args, name)) {
       throw new UiError("UI_UNRESOLVED_VALUE", `UI node argument is missing: ${name}`, `${path}.requires`)
+    }
+  }
+  for (const name of Object.keys(args)) {
+    if (!requires.includes(name)) {
+      throw new UiError("UI_INVALID_FIELD", `UI node argument is not declared in requires: ${name}`, `${path}.args`)
     }
   }
 
@@ -123,15 +132,16 @@ function resolveNode(
   context: UiRuntimeContext,
   path: string,
   options: ResolveOptions,
+  stack: readonly string[],
 ): readonly ResolvedUiNode[] {
   switch (node.tag) {
     case "Include":
-      return resolveInclude(ui, node, context, path, options)
+      return resolveInclude(ui, node, context, path, options, stack)
     case "Action":
       return options.includeActions ? [resolveAction(node, context, path)] : []
     case "Screen":
     case "Fragment":
-      return [resolveElementNode(ui, node, context, path, options)]
+      return [resolveElementNode(ui, node, context, path, options, stack)]
     case "Text":
     case "Input":
     case "Address":
@@ -151,11 +161,12 @@ function resolveElementNode(
   context: UiRuntimeContext,
   path: string,
   options: ResolveOptions,
+  stack: readonly string[],
 ): ResolvedElementNode {
   const children: ResolvedUiNode[] = []
 
   for (const [index, child] of node.children.entries()) {
-    children.push(...resolveNode(ui, child, context, `${path}.children.${index}`, options))
+    children.push(...resolveNode(ui, child, context, `${path}.children.${index}`, options, stack))
   }
 
   return {
@@ -171,6 +182,7 @@ function resolveInclude(
   context: UiRuntimeContext,
   path: string,
   options: ResolveOptions,
+  stack: readonly string[],
 ): readonly ResolvedUiNode[] {
   if (node.call.namespace !== "ui") {
     throw new UiError("UI_INVALID_FIELD", `Include must call the ui namespace: ${node.call.namespace}`, `${path}.call.namespace`)
@@ -186,7 +198,7 @@ function resolveInclude(
     }
 
     const args = resolveRecord(node.call.args, context, `${path}.call.args`)
-    children.push(...resolveNamedNode(ui, nodeName, args, context, `${path}.${nodeName}`, options))
+    children.push(...resolveNamedNode(ui, nodeName, args, context, `${path}.${nodeName}`, options, stack))
   }
 
   return children

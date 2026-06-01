@@ -130,6 +130,46 @@ test("resolveUiNode rejects args that shadow runtime roots", () => {
   )
 })
 
+test("resolveUiNode rejects include cycles and undeclared node args", () => {
+  const cyclic = parseUi({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Include",
+        requires: [],
+        call: {
+          namespace: "ui",
+          function: "app",
+          args: {},
+        },
+      },
+    },
+  })
+
+  assert.throws(
+    () => resolveUiNode(cyclic, "app", inertRecord({}), context),
+    /UI Include cycle detected: app -> app/,
+  )
+
+  const strictArgs = parseUi({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Text",
+        requires: [],
+        props: {
+          text: "strict",
+        },
+      },
+    },
+  })
+
+  assert.throws(
+    () => resolveUiNode(strictArgs, "app", inertRecord({ extra: "x" }), context),
+    /not declared in requires: extra/,
+  )
+})
+
 test("parseUi rejects stale screen-era and control fields", () => {
   assert.throws(
     () => parseUi({
