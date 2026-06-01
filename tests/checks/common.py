@@ -14,6 +14,16 @@ from tools.json_policy import strict_json_loads
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCKER_COMPOSE_DEFAULT_RE = re.compile(r"^DOCKER_COMPOSE \?= (?P<command>.+)$", re.MULTILINE)
+RENDERED_COMPOSE_FIXTURE_ENV = {
+    "ABI_PLAN_DIR": "/tmp/abi-plan",
+    "ALLOW_UPDATE": "0",
+    "ANVIL_HOST_PORT": "8545",
+    "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
+    "BIKE_NFT_GUI_PORT": "5173",
+    "COMPOSE_PROJECT_NAME": "dapps-check",
+    "LOCAL_GID": "1000",
+    "LOCAL_UID": "1000",
+}
 
 SKIP_DIRS = {
     ".agents",
@@ -110,18 +120,7 @@ def load_python_module(module_name: str, path: Path) -> ModuleType:
 
 def rendered_compose_config(compose_file: str | tuple[str, ...], *, env: dict[str, str] | None = None) -> dict[str, Any]:
     render_env = os.environ.copy()
-    render_env.update(
-        {
-            "LOCAL_UID": "1000",
-            "LOCAL_GID": "1000",
-            "ABI_PLAN_DIR": "/tmp/abi-plan",
-            "ALLOW_UPDATE": "0",
-            "ANVIL_HOST_PORT": "8545",
-            "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
-            "BIKE_NFT_GUI_PORT": "5173",
-            "COMPOSE_PROJECT_NAME": "dapps-check",
-        }
-    )
+    render_env.update(RENDERED_COMPOSE_FIXTURE_ENV)
     if env is not None:
         render_env.update(env)
 

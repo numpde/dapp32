@@ -4,6 +4,7 @@ import unittest
 from typing import Any
 
 from ..common import (
+    RENDERED_COMPOSE_FIXTURE_ENV,
     compose_command_text,
     compose_mapping,
     compose_sequence,
@@ -92,6 +93,21 @@ def bike_integration_fuzz_env() -> dict[str, str]:
 
 
 class RenderedComposePostureTest(unittest.TestCase):
+    def test_rendered_compose_fixture_env_is_explicit(self) -> None:
+        self.assertEqual(
+            {
+                "ABI_PLAN_DIR": "/tmp/abi-plan",
+                "ALLOW_UPDATE": "0",
+                "ANVIL_HOST_PORT": "8545",
+                "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
+                "BIKE_NFT_GUI_PORT": "5173",
+                "COMPOSE_PROJECT_NAME": "dapps-check",
+                "LOCAL_GID": "1000",
+                "LOCAL_UID": "1000",
+            },
+            RENDERED_COMPOSE_FIXTURE_ENV,
+        )
+
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service["read_only"])
         self.assertIn("no-new-privileges:true", compose_sequence(config_service, "security_opt"))
