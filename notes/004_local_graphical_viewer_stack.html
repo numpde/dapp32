@@ -252,7 +252,7 @@
     <div class="shell">
       <h1>Local Graphical Viewer Stack</h1>
       <p class="lede">
-        Updated 2026-05-28. The GUI viewer should reuse the current local bike
+        Updated 2026-06-01. The GUI viewer should reuse the current local bike
         fixture discipline: exact read-only mounts, local-only throwaway keys,
         Docker-managed infrastructure, and protocol logic kept in CAM packages.
         The main difference from the terminal viewer is that a browser cannot
@@ -269,13 +269,13 @@
         <p>
           Add a graphical host for the protocol path first proven by the
           terminal:
-          <code>CamRoot -&gt; CAM -&gt; route call -&gt; screen JSON -&gt; resolved screen</code>.
+          <code>CamRoot -&gt; CAM -&gt; route call -&gt; UI catalog -&gt; resolved UI tree</code>.
         </p>
         <p>
           The GUI should be a consumer of <code>@cam/viewer</code>,
           <code>@cam/screen</code>, <code>@cam/evm-viem</code>, and
           <code>@cam/core</code>. It should not own protocol parsing,
-          expression resolution, route execution, or screen semantics.
+          expression resolution, route execution, or UI semantics.
         </p>
       </div>
 
@@ -442,8 +442,8 @@
           <div class="number">1</div>
           <div>
             <strong>CAM HTTP starts.</strong>
-            It serves <code>main.json</code>, <code>abi/</code>, and
-            <code>screens/</code> from <code>dapps/bike-nft/cam</code>.
+            It serves <code>main.json</code>, <code>ui.json</code>, and
+            <code>abi/</code> from <code>dapps/bike-nft/cam</code>.
           </div>
         </div>
         <div class="step">
@@ -469,7 +469,8 @@
           <div>
             <strong>The GUI reads URL startup parameters.</strong>
             The browser URL supplies the chain id, RPC URL, CamRoot address,
-            account, and unsigned-hash policy. The app then reads
+            and account. Unsigned CAM acceptance is a build/runtime policy, not
+            a URL parameter. The app then reads
             <code>camURI</code>, <code>camHash</code>, and contract addresses
             from CamRoot.
           </div>
@@ -478,9 +479,9 @@
           <div class="number">5</div>
           <div>
             <strong>The GUI follows the package path.</strong>
-            React renders the resolved screen tree returned by
+            React renders the resolved UI tree returned by
             <code>@cam/viewer</code>. It does not call route contracts directly
-            and does not parse CAM or screen documents itself.
+            and does not parse CAM or UI documents itself.
           </div>
         </div>
       </div>
@@ -651,7 +652,7 @@
           <li>The GUI stack starts with one configured gateway port, loopback by default.</li>
           <li><code>CamRoot.camURI()</code> is browser-reachable in the GUI scenario.</li>
           <li>The viewer reads URL startup parameters rather than bundled deployment addresses.</li>
-          <li>The GUI renders screens through <code>@cam/viewer</code> and <code>@cam/screen</code>.</li>
+          <li>The GUI renders UI nodes through <code>@cam/viewer</code> and <code>@cam/screen</code>.</li>
           <li>No GUI runtime service has secrets, repo-root mounts, Docker socket access, or dependency-install authority.</li>
           <li>Rendered Compose posture tests assert the GUI ports, mounts, and no-secret boundary.</li>
         </ul>

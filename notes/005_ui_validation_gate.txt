@@ -125,19 +125,24 @@ The missing integration gate
 The repo needs a Docker-backed real-RPC integration lane. It should use the same
 local scenario pieces as the manual viewer, but turn them into assertions.
 
-Proposed target:
+Implemented first target:
 
-    make bike-nft-integration
+    make test-integration-fuzz-bike-nft
+
+Write-enabled variant:
+
+    make test-integration-fuzz-with-writes-bike-nft
 
 Runtime shape:
 
     1. Start Anvil on an internal Compose network.
     2. Deploy the bike fixture with Forge.
     3. Serve dapps/bike-nft/cam over HTTP.
-    4. Run a Node integration test container.
+    4. Run the generic CAM integration-fuzz Node container.
     5. The test container loads the deployed CamRoot through @cam/viewer.
-    6. It walks entry, component, register, and write-preparation paths.
-    7. It asserts resolved UI data and prepared calls.
+    6. It performs deterministic random walks through route-exposed actions.
+    7. It asserts resolved UI data, prepared calls, and, in write mode,
+       successful simulation for exposed write actions.
 
 This should be a test service, not a manual terminal. It should have:
 
@@ -180,7 +185,7 @@ Runtime shape:
 
 Initial browser assertions:
 
-- page loads without CAM host, CAM parse, ABI, route, or screen errors;
+- page loads without CAM host, CAM parse, ABI, route, or UI errors;
 - entry view renders title, account, register capability, and actions;
 - lookup with empty serial stays in the expected empty-component state;
 - lookup with seeded serial renders component.found data;
@@ -254,9 +259,9 @@ Near-term implementation order
 1. Fix the current integer normalization bug and add a small package regression
    test for number-valued integer outputs.
 
-2. Add the real-RPC headless integration lane for bike-nft.
-   This is the most important next test because it catches adapter/client/ABI
-   mismatches without adding browser complexity.
+2. Keep extending the real-RPC headless integration-fuzz lane.
+   This is the most important current test because it catches
+   adapter/client/ABI mismatches without adding browser complexity.
 
 3. Add browser E2E after the headless integration lane is stable.
    Use the same Compose fixture so the browser test does not invent a second
