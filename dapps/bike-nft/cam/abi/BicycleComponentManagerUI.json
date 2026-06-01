@@ -48,15 +48,35 @@
     ],
     "outputs": [
       {
-        "name": "screenURI",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "component",
+        "name": "view_",
         "type": "tuple",
-        "internalType": "struct BicycleComponentManagerUI.ComponentScreenView",
+        "internalType": "struct BicycleComponentManagerUI.AppView",
         "components": [
+          {
+            "name": "viewId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "actions",
+            "type": "string[]",
+            "internalType": "string[]"
+          },
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "canRegister",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "accountInfo",
+            "type": "string",
+            "internalType": "string"
+          },
           {
             "name": "exists",
             "type": "bool",
@@ -146,28 +166,11 @@
             "name": "canRetire",
             "type": "bool",
             "internalType": "bool"
-          }
-        ]
-      },
-      {
-        "name": "accountView",
-        "type": "tuple",
-        "internalType": "struct BicycleComponentManagerUI.AccountView",
-        "components": [
+          },
           {
-            "name": "account",
+            "name": "componentsAddress",
             "type": "address",
             "internalType": "address"
-          },
-          {
-            "name": "canRegister",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "accountInfo",
-            "type": "string",
-            "internalType": "string"
           }
         ]
       }
@@ -186,15 +189,20 @@
     ],
     "outputs": [
       {
-        "name": "screenURI",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "accountView",
+        "name": "view_",
         "type": "tuple",
-        "internalType": "struct BicycleComponentManagerUI.AccountView",
+        "internalType": "struct BicycleComponentManagerUI.AppView",
         "components": [
+          {
+            "name": "viewId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "actions",
+            "type": "string[]",
+            "internalType": "string[]"
+          },
           {
             "name": "account",
             "type": "address",
@@ -209,6 +217,101 @@
             "name": "accountInfo",
             "type": "string",
             "internalType": "string"
+          },
+          {
+            "name": "exists",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "serialHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "tokenContract",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "ownerInfo",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registrar",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+          },
+          {
+            "name": "tokenURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registeredAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "updatedAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "serialNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "permissions",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "isOwner",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canUpdateMetadata",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canMarkMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canClearMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canRetire",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentsAddress",
+            "type": "address",
+            "internalType": "address"
           }
         ]
       }
@@ -232,57 +335,20 @@
     ],
     "outputs": [
       {
-        "name": "screenURI",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "registerView",
+        "name": "view_",
         "type": "tuple",
-        "internalType": "struct BicycleComponentManagerUI.RegisterScreenView",
+        "internalType": "struct BicycleComponentManagerUI.AppView",
         "components": [
           {
-            "name": "canRegister",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "exists",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "serialHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "tokenId",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "componentsAddress",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "serialNumber",
+            "name": "viewId",
             "type": "string",
             "internalType": "string"
           },
           {
-            "name": "accountInfo",
-            "type": "string",
-            "internalType": "string"
-          }
-        ]
-      },
-      {
-        "name": "accountView",
-        "type": "tuple",
-        "internalType": "struct BicycleComponentManagerUI.AccountView",
-        "components": [
+            "name": "actions",
+            "type": "string[]",
+            "internalType": "string[]"
+          },
           {
             "name": "account",
             "type": "address",
@@ -297,6 +363,101 @@
             "name": "accountInfo",
             "type": "string",
             "internalType": "string"
+          },
+          {
+            "name": "exists",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "serialHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "tokenContract",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "owner",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "ownerInfo",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registrar",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+          },
+          {
+            "name": "tokenURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "registeredAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "updatedAt",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "serialNumber",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "permissions",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "isOwner",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canUpdateMetadata",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canMarkMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canClearMissing",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "canRetire",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentsAddress",
+            "type": "address",
+            "internalType": "address"
           }
         ]
       }

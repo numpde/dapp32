@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 
 from . import cam_abi_resources as abi_resources
@@ -10,10 +9,7 @@ from .common import read_text, repo_path
 from tools.json_policy import JsonPolicyError, strict_json_loads
 
 
-@dataclass(frozen=True)
-class RouteScreens:
-    paths: tuple[Path, ...]
-    documents: tuple[tuple[Path, dict[str, object]], ...]
+CONTRACT_NAMESPACE_PREFIX = "contracts."
 
 
 class CamManifestResourceValidator:
@@ -49,33 +45,20 @@ class CamManifestResourceValidator:
         return document
 
     def validate_manifest_abi_uris(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
-        contracts = manifest.get("contracts")
-        if not isinstance(contracts, dict):
-            return [f"{manifest_path}: contracts must be an object"]
+        contracts, failures = self.contract_namespaces(manifest_path, manifest)
+        if failures:
+            return failures
 
-        failures: list[str] = []
         for contract_name, contract in contracts.items():
-            if not isinstance(contract_name, str) or contract_name == "":
-                failures.append(f"{manifest_path}: contract names must be non-empty strings")
-                continue
-
-            if not isinstance(contract, dict):
-                failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
-                continue
-
-            abi_uri = contract.get("abiURI")
-            error = abi_resources.validate_local_abi_uri(manifest_path, contract_name, abi_uri)
+            error = abi_resources.validate_local_abi_uri(manifest_path, contract_name, contract.get("abiURI"))
             if error is not None:
                 failures.append(error)
 
         return failures
 
     def validate_declared_abi_usage(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
-        contracts = manifest.get("contracts")
+        contracts, failures = self.contract_namespaces(manifest_path, manifest)
         routes = manifest.get("routes")
-        failures: list[str] = []
-        if not isinstance(contracts, dict):
-            failures.append(f"{manifest_path}: contracts must be an object")
         if not isinstance(routes, dict):
             failures.append(f"{manifest_path}: routes must be an object")
         if failures:
@@ -83,32 +66,67 @@ class CamManifestResourceValidator:
 
         abi_functions_by_contract, abi_failures = self.abi_functions_by_contract(manifest_path, contracts)
         failures.extend(abi_failures)
-        route_screens, screen_failures = self.route_screens(manifest_path, routes)
-        failures.extend(screen_failures)
-
         failures.extend(
-            self.validate_route_functions_match_declared_abis(
+            self.validate_route_calls_match_declared_abis(
                 manifest_path,
                 routes,
-                abi_functions_by_contract,
-                route_screens,
-            )
-        )
-        failures.extend(
-            self.validate_screen_contract_actions_match_declared_abis(
-                manifest_path,
-                route_screens,
                 abi_functions_by_contract,
             )
         )
         return failures
 
-    def validate_route_functions_match_declared_abis(
+    def validate_resource_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        return self.validate_namespaced_ui_inventory(manifest_path, manifest)
+
+    def validate_no_orphan_abi_files(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        contracts, failures = self.contract_namespaces(manifest_path, manifest)
+        if failures:
+            return failures
+
+        return abi_resources.validate_no_orphan_abi_files(manifest_path, {"contracts": contracts})
+
+    def contract_namespaces(
+        self,
+        manifest_path: Path,
+        manifest: dict[str, object],
+    ) -> tuple[dict[str, dict[object, object]], list[str]]:
+        namespaces = manifest.get("namespaces")
+        if not isinstance(namespaces, dict):
+            return {}, [f"{manifest_path}: namespaces must be an object"]
+
+        failures: list[str] = []
+        contracts: dict[str, dict[object, object]] = {}
+
+        for namespace, declaration in namespaces.items():
+            if not isinstance(namespace, str) or not namespace.startswith(CONTRACT_NAMESPACE_PREFIX):
+                continue
+
+            contract_name = namespace.removeprefix(CONTRACT_NAMESPACE_PREFIX)
+            if contract_name == "":
+                failures.append(f"{manifest_path}: contract namespace names must be non-empty")
+                continue
+            if contract_name in contracts:
+                failures.append(f"{manifest_path}: duplicate contract namespace: {namespace}")
+                continue
+            if not isinstance(declaration, dict):
+                failures.append(f"{manifest_path}: namespaces.{namespace} must be an object")
+                continue
+            if declaration.get("type") != "contract":
+                failures.append(f"{manifest_path}: namespaces.{namespace}.type must be contract")
+                continue
+
+            contracts[contract_name] = declaration
+
+        if not contracts:
+            failures.append(f"{manifest_path}: no contract namespaces declared")
+
+        return contracts, failures
+
+    def validate_route_calls_match_declared_abis(
         self,
         manifest_path: Path,
         routes: dict[object, object],
         abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]],
-        route_screens: dict[str, RouteScreens],
     ) -> list[str]:
         failures: list[str] = []
 
@@ -117,128 +135,96 @@ class CamManifestResourceValidator:
             if not isinstance(route_name, str) or route_name == "":
                 failures.append(f"{manifest_path}: route names must be non-empty strings")
                 continue
-
             if not isinstance(route, dict):
                 failures.append(f"{manifest_path}: {path} must be an object")
                 continue
 
-            contract_name = route.get("contract")
-            function_name = route.get("function")
-            if not isinstance(contract_name, str) or not isinstance(function_name, str):
-                failures.append(f"{manifest_path}: {path} must declare string contract and function fields")
+            call = route.get("call")
+            if not isinstance(call, dict):
+                failures.append(f"{manifest_path}: {path}.call must be an object")
+                continue
+
+            contract_name = self.contract_name_from_call_namespace(call.get("namespace"))
+            function_name = call.get("function")
+            if contract_name is None or not isinstance(function_name, str) or function_name == "":
+                failures.append(f"{manifest_path}: {path}.call must declare contract namespace and function")
                 continue
 
             function, reference_failures = self.declared_abi_function(
                 manifest_path,
                 abi_functions_by_contract,
-                path,
+                f"{path}.call",
                 contract_name,
                 function_name,
-                "route",
+                "route call",
             )
             failures.extend(reference_failures)
             if function is None:
                 continue
 
-            args = route.get("args")
-            if not isinstance(args, list):
-                failures.append(f"{manifest_path}: {path}.args must be an array")
+            args = call.get("args")
+            if not isinstance(args, dict):
+                failures.append(f"{manifest_path}: {path}.call.args must be an object")
                 continue
-
             if len(args) != function.input_count:
                 failures.append(
-                    f"{manifest_path}: {path}.args has {len(args)} item(s), "
+                    f"{manifest_path}: {path}.call.args has {len(args)} item(s), "
                     f"but {contract_name}.{function_name} expects {function.input_count}"
-            )
+                )
 
             failures.extend(
-                abi_usage.validate_route_function_mutability(
+                self.validate_route_call_mutability(
                     manifest_path,
                     path,
+                    route,
                     contract_name,
                     function_name,
                     function,
-                )
-            )
-            failures.extend(
-                abi_usage.validate_route_output_shape(
-                    manifest_path,
-                    path,
-                    contract_name,
-                    function_name,
-                    function,
-                )
-            )
-            failures.extend(
-                self.validate_route_screen_values_references(
-                    manifest_path,
-                    route_name,
-                    path,
-                    contract_name,
-                    function_name,
-                    function,
-                    self.route_screens_for_route(route_screens, route_name),
+                    len(args),
                 )
             )
 
         return failures
 
-    def route_screens_for_route(
-        self,
-        route_screens: dict[str, RouteScreens],
-        route_name: object,
-    ) -> RouteScreens:
-        if not isinstance(route_name, str):
-            return RouteScreens(paths=(), documents=())
-        if route_name not in route_screens:
-            return RouteScreens(paths=(), documents=())
-        return route_screens[route_name]
-
-    def validate_screen_contract_actions_match_declared_abis(
+    def validate_route_call_mutability(
         self,
         manifest_path: Path,
-        route_screens: dict[str, RouteScreens],
-        abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]],
+        route_path: str,
+        route: dict[object, object],
+        contract_name: str,
+        function_name: str,
+        function: abi_usage.AbiFunction,
+        arg_count: int,
     ) -> list[str]:
-        failures: list[str] = []
-        screen_documents = {
-            screen_path: screen
-            for screens in route_screens.values()
-            for screen_path, screen in screens.documents
-        }
+        then = route.get("then")
+        if not isinstance(then, dict):
+            return [f"{manifest_path}: {route_path}.then must be an object"]
 
-        for screen_path, screen in sorted(screen_documents.items()):
-            for action in abi_usage.contract_action_references(screen):
-                location = f"{screen_path}:{action.path}" if action.path else str(screen_path)
-                if not isinstance(action.contract_name, str) or action.contract_name == "":
-                    failures.append(f"{manifest_path}: contract-call action must declare a contract at {location}")
-                    continue
-                if not isinstance(action.function_name, str) or action.function_name == "":
-                    failures.append(f"{manifest_path}: contract-call action must declare a function at {location}")
-                    continue
+        then_namespace = then.get("namespace")
+        if then_namespace == "ui":
+            return abi_usage.validate_route_function_mutability(
+                manifest_path,
+                f"{route_path}.call",
+                contract_name,
+                function_name,
+                function,
+            )
 
-                function, reference_failures = self.declared_abi_function(
-                    manifest_path,
-                    abi_functions_by_contract,
-                    location,
-                    action.contract_name,
-                    action.function_name,
-                    "contract-call action",
-                )
-                failures.extend(reference_failures)
-                if function is None:
-                    continue
+        if then_namespace == "routes":
+            action = abi_usage.ContractActionReference(
+                path=f"{route_path}.call",
+                contract_name=contract_name,
+                function_name=function_name,
+                arg_count=arg_count,
+            )
+            return abi_usage.validate_contract_action_function(
+                manifest_path,
+                f"{route_path}.call",
+                action,
+                function,
+            )
 
-                failures.extend(
-                    abi_usage.validate_contract_action_function(
-                        manifest_path,
-                        location,
-                        action,
-                        function,
-                    )
-                )
-
-        return failures
+        return [f"{manifest_path}: {route_path}.then.namespace must be ui or routes"]
 
     def declared_abi_function(
         self,
@@ -268,141 +254,49 @@ class CamManifestResourceValidator:
 
         return function, []
 
-    def validate_route_screen_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
-        routes = manifest.get("routes")
-        if not isinstance(routes, dict):
-            return [f"{manifest_path}: routes must be an object"]
+    def contract_name_from_call_namespace(self, namespace: object) -> str | None:
+        if not isinstance(namespace, str) or not namespace.startswith(CONTRACT_NAMESPACE_PREFIX):
+            return None
+
+        contract_name = namespace.removeprefix(CONTRACT_NAMESPACE_PREFIX)
+        if contract_name == "":
+            return None
+
+        return contract_name
+
+    def validate_namespaced_ui_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        namespaces = manifest.get("namespaces")
+        if not isinstance(namespaces, dict):
+            return [f"{manifest_path}: namespaces must be an object"]
+
+        ui = namespaces.get("ui")
+        if not isinstance(ui, dict):
+            return [f"{manifest_path}: namespaces.ui must be an object"]
 
         failures: list[str] = []
-        route_names: set[str] = set()
-        for route_name in routes:
-            if not isinstance(route_name, str) or route_name == "":
-                failures.append(f"{manifest_path}: route names must be non-empty strings")
-                continue
+        if ui.get("type") != "ui":
+            failures.append(f"{manifest_path}: namespaces.ui.type must be ui")
 
-            route_names.add(route_name)
+        uri = ui.get("uri")
+        if uri != "./ui.json":
+            failures.append(f"{manifest_path}: namespaces.ui.uri must be ./ui.json")
+        elif not (manifest_path.parent / "ui.json").is_file():
+            failures.append(f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json")
 
         screen_dir = manifest_path.parent / "screens"
-        existing_screen_names = {path.name for path in screen_dir.glob("*.json")} if screen_dir.is_dir() else set()
-
-        for route_name in sorted(route_names):
-            if not self.route_screen_paths(manifest_path, route_name):
-                failures.append(f"{manifest_path}: route has no matching CAM screen: screens/{route_name}[.*].json")
-
-        for screen_name in sorted(existing_screen_names):
-            matching_routes = self.matching_screen_routes(route_names, screen_name)
-            if not matching_routes:
-                failures.append(f"{manifest_path}: CAM screen has no matching route: screens/{screen_name}")
-            elif len(matching_routes) > 1:
-                failures.append(
-                    f"{manifest_path}: CAM screen matches multiple routes: screens/{screen_name} -> "
-                    f"{', '.join(matching_routes)}"
-                )
-
-        return failures
-
-    def route_screen_paths(self, manifest_path: Path, route_name: str) -> list[Path]:
-        screen_dir = manifest_path.parent / "screens"
-        if not screen_dir.is_dir():
-            return []
-
-        return [
-            path
-            for path in sorted(screen_dir.glob("*.json"))
-            if self.is_route_screen_name(route_name, path.name)
-        ]
-
-    def is_route_screen_name(self, route_name: str, screen_name: str) -> bool:
-        if not screen_name.endswith(".json"):
-            return False
-
-        screen_stem = screen_name[:-len(".json")]
-        if screen_stem == route_name:
-            return True
-
-        prefix = f"{route_name}."
-        return screen_stem.startswith(prefix) and screen_stem != prefix
-
-    def matching_screen_routes(self, route_names: set[str], screen_name: str) -> list[str]:
-        return sorted(route_name for route_name in route_names if self.is_route_screen_name(route_name, screen_name))
-
-    def route_screens(
-        self,
-        manifest_path: Path,
-        routes: dict[object, object],
-    ) -> tuple[dict[str, RouteScreens], list[str]]:
-        screens_by_route: dict[str, RouteScreens] = {}
-        documents_by_path: dict[Path, dict[str, object]] = {}
-        failures: list[str] = []
-
-        for route_name in routes:
-            if not isinstance(route_name, str) or route_name == "":
-                continue
-
-            paths = tuple(self.route_screen_paths(manifest_path, route_name))
-            documents: list[tuple[Path, dict[str, object]]] = []
-            for screen_path in paths:
-                if screen_path not in documents_by_path:
-                    try:
-                        documents_by_path[screen_path] = self.read_json_object(screen_path)
-                    except AssertionError as error:
-                        failures.append(str(error))
-                        continue
-
-                documents.append((screen_path, documents_by_path[screen_path]))
-
-            screens_by_route[route_name] = RouteScreens(paths=paths, documents=tuple(documents))
-
-        return screens_by_route, failures
-
-    def validate_route_screen_values_references(
-        self,
-        manifest_path: Path,
-        route_name: object,
-        route_path: str,
-        contract_name: str,
-        function_name: str,
-        function: abi_usage.AbiFunction,
-        route_screens: RouteScreens,
-    ) -> list[str]:
-        if not isinstance(route_name, str):
-            return []
-
-        failures: list[str] = []
-        if not route_screens.paths:
-            return [f"{manifest_path}: {route_path} has no matching CAM screen: screens/{route_name}[.*].json"]
-
-        for screen_path, screen in route_screens.documents:
-            failures.extend(
-                abi_usage.validate_screen_values_references(
-                    manifest_path,
-                    route_path,
-                    screen_path,
-                    screen,
-                    contract_name,
-                    function_name,
-                    function,
-                )
-            )
+        if screen_dir.exists():
+            failures.append(f"{manifest_path}: namespaced CAM must not keep legacy screens/ resources")
 
         return failures
 
     def abi_functions_by_contract(
         self,
         manifest_path: Path,
-        contracts: dict[object, object],
+        contracts: dict[str, dict[object, object]],
     ) -> tuple[dict[str, dict[str, abi_usage.AbiFunction | None]], list[str]]:
         abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]] = {}
         failures: list[str] = []
         for contract_name, contract in contracts.items():
-            if not isinstance(contract_name, str) or contract_name == "":
-                failures.append(f"{manifest_path}: contract names must be non-empty strings")
-                continue
-
-            if not isinstance(contract, dict):
-                failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
-                continue
-
             abi, error = abi_resources.load_local_abi_array(manifest_path, contract_name, contract.get("abiURI"))
             if error is not None:
                 failures.append(error)
@@ -412,6 +306,3 @@ class CamManifestResourceValidator:
             abi_functions_by_contract[contract_name] = abi_usage.abi_functions(abi)
 
         return abi_functions_by_contract, failures
-
-    def validate_no_orphan_abi_files(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
-        return abi_resources.validate_no_orphan_abi_files(manifest_path, manifest)

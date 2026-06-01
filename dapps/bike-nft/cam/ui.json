@@ -1,5 +1,5 @@
 {
-  "ui": "1.0.0-tentative",
+  "ui": "1.0.0",
   "app": {
     "tag": "Screen",
     "requires": ["form", "view"],

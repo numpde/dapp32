@@ -1,11 +1,10 @@
-# Tentative CAM UI Model
+# CAM UI Model
 
-This folder sketches a possible next CAM UI shape. It is not wired to the
-current runtime parser.
+This folder contains the current CAM resources for the bike NFT example.
 
-The root contract points to `main.json`, not directly to `ui.json`. The manifest
-must declare how to call contracts, routes, and UI nodes before the viewer can
-execute the entry route.
+The root contract points to `main.json`, not directly to `ui.json`. The
+manifest declares how to call contracts, routes, and UI nodes before the viewer
+can execute the entry route.
 
 ## Shape
 

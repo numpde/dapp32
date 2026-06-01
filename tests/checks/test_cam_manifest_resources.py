@@ -13,57 +13,54 @@ class CamManifestResourceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.validator = CamManifestResourceValidator()
 
-    def test_cam_manifests_match_declared_abis_and_screen_inventory(self) -> None:
+    def test_cam_manifests_match_declared_abis_and_resource_inventory(self) -> None:
         failures = [
             *self.validator.collect_manifest_failures(self.validator.validate_declared_abi_usage),
-            *self.validator.collect_manifest_failures(self.validator.validate_route_screen_inventory),
+            *self.validator.collect_manifest_failures(self.validator.validate_resource_inventory),
         ]
 
         if failures:
             self.fail("\n".join(failures))
 
-    def test_screen_inventory_accepts_route_owned_screen_families(self) -> None:
+    def test_namespaced_ui_inventory_rejects_missing_ui_or_legacy_screens(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
-            screen_dir = manifest_path.parent / "screens"
-            screen_dir.mkdir(parents=True)
-            (screen_dir / "entry.json").write_text("{}\n", encoding="utf-8")
-            (screen_dir / "component.empty.json").write_text("{}\n", encoding="utf-8")
-            (screen_dir / "component.found.json").write_text("{}\n", encoding="utf-8")
-            (screen_dir / "orphan.json").write_text("{}\n", encoding="utf-8")
+            manifest_path.parent.mkdir(parents=True)
 
-            failures = self.validator.validate_route_screen_inventory(
+            failures = self.validator.validate_resource_inventory(
                 manifest_path,
                 {
-                    "routes": {
-                        "entry": {},
-                        "component": {},
-                    },
+                    "namespaces": {
+                        "ui": {
+                            "type": "ui",
+                            "uri": "./ui.json",
+                        },
+                    }
                 },
             )
 
-        self.assertEqual(failures, [f"{manifest_path}: CAM screen has no matching route: screens/orphan.json"])
+            (manifest_path.parent / "ui.json").write_text("{}\n", encoding="utf-8")
+            (manifest_path.parent / "screens").mkdir()
 
-    def test_screen_inventory_rejects_ambiguous_route_families(self) -> None:
-        with TemporaryDirectory() as tmp:
-            manifest_path = Path(tmp) / "cam" / "main.json"
-            screen_dir = manifest_path.parent / "screens"
-            screen_dir.mkdir(parents=True)
-            (screen_dir / "component.found.json").write_text("{}\n", encoding="utf-8")
-
-            failures = self.validator.validate_route_screen_inventory(
+            legacy_failures = self.validator.validate_resource_inventory(
                 manifest_path,
                 {
-                    "routes": {
-                        "component": {},
-                        "component.found": {},
-                    },
+                    "namespaces": {
+                        "ui": {
+                            "type": "ui",
+                            "uri": "./ui.json",
+                        },
+                    }
                 },
             )
 
         self.assertEqual(
             failures,
-            [f"{manifest_path}: CAM screen matches multiple routes: screens/component.found.json -> component, component.found"],
+            [f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json"],
+        )
+        self.assertEqual(
+            legacy_failures,
+            [f"{manifest_path}: namespaced CAM must not keep legacy screens/ resources"],
         )
 
     def test_abi_export_plan_scopes_contract_names_by_dapp_source_path(self) -> None:
@@ -75,7 +72,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 (dapp_root / "cam" / "abi").mkdir(parents=True)
                 (dapp_root / "src" / "AppUI.sol").write_text("contract AppUI {}\n", encoding="utf-8")
                 (dapp_root / "cam" / "main.json").write_text(
-                    '{"contracts":{"AppUI":{"abiURI":"./abi/AppUI.json"}}}\n',
+                    '{"namespaces":{"contracts.AppUI":{"type":"contract","abiURI":"./abi/AppUI.json"}}}\n',
                     encoding="utf-8",
                 )
 
@@ -87,13 +84,11 @@ class CamManifestResourceTest(unittest.TestCase):
                 ],
             )
 
-    def test_screen_contract_actions_must_match_declared_abis(self) -> None:
+    def test_namespaced_route_calls_must_match_declared_abis(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
             abi_dir = manifest_path.parent / "abi"
-            screen_dir = manifest_path.parent / "screens"
             abi_dir.mkdir(parents=True)
-            screen_dir.mkdir()
             write_json(
                 abi_dir / "UI.json",
                 [
@@ -101,8 +96,8 @@ class CamManifestResourceTest(unittest.TestCase):
                         "type": "function",
                         "name": "viewEntry",
                         "stateMutability": "view",
-                        "inputs": [],
-                        "outputs": [{"name": "screenURI", "type": "string"}],
+                        "inputs": [{"name": "account", "type": "address"}],
+                        "outputs": [{"name": "view", "type": "tuple", "components": []}],
                     },
                 ],
             )
@@ -118,125 +113,50 @@ class CamManifestResourceTest(unittest.TestCase):
                     },
                 ],
             )
-            write_json(
-                screen_dir / "entry.json",
-                {
-                    "screen": "1.0.0",
-                    "elements": [
-                        {
-                            "type": "button",
-                            "label": "Broken",
-                            "action": {
-                                "type": "contract-call",
-                                "contract": "Manager",
-                                "function": "readOnly",
-                                "args": ["extra"],
-                            },
-                        },
-                        {
-                            "type": "button",
-                            "label": "Missing",
-                            "action": {
-                                "type": "contract-call",
-                                "contract": "Manager",
-                                "function": "missing",
-                                "args": [],
-                            },
-                        },
-                    ],
-                },
-            )
 
             failures = self.validator.validate_declared_abi_usage(
                 manifest_path,
                 {
-                    "contracts": {
-                        "UI": {
+                    "namespaces": {
+                        "contracts.UI": {
+                            "type": "contract",
                             "abiURI": "./abi/UI.json",
                         },
-                        "Manager": {
+                        "contracts.Manager": {
+                            "type": "contract",
                             "abiURI": "./abi/Manager.json",
                         },
                     },
                     "routes": {
                         "entry": {
-                            "contract": "UI",
-                            "function": "viewEntry",
-                            "args": [],
-                        },
-                    },
-                },
-            )
-
-        self.assertEqual(
-            failures,
-            [
-                f"{manifest_path}: contract-call action must target a payable or nonpayable ABI function "
-                f"at {screen_dir / 'entry.json'}:elements.0.action: Manager.readOnly",
-                f"{manifest_path}: contract-call action has 1 arg(s), but Manager.readOnly expects 0 "
-                f"at {screen_dir / 'entry.json'}:elements.0.action",
-                f"{manifest_path}: contract-call action function is not present in Manager ABI "
-                f"at {screen_dir / 'entry.json'}:elements.1.action: missing",
-            ],
-        )
-
-    def test_screen_input_values_must_match_string_route_outputs(self) -> None:
-        with TemporaryDirectory() as tmp:
-            manifest_path = Path(tmp) / "cam" / "main.json"
-            abi_dir = manifest_path.parent / "abi"
-            screen_dir = manifest_path.parent / "screens"
-            abi_dir.mkdir(parents=True)
-            screen_dir.mkdir()
-            write_json(
-                abi_dir / "UI.json",
-                [
-                    {
-                        "type": "function",
-                        "name": "viewComponent",
-                        "stateMutability": "view",
-                        "inputs": [],
-                        "outputs": [
-                            {"name": "screenURI", "type": "string"},
-                            {
-                                "name": "component",
-                                "type": "tuple",
-                                "components": [
-                                    {"name": "serialNumber", "type": "uint256"},
-                                ],
+                            "call": {
+                                "namespace": "contracts.UI",
+                                "function": "viewEntry",
+                                "args": {},
                             },
-                        ],
-                    },
-                ],
-            )
-            write_json(
-                screen_dir / "component.json",
-                {
-                    "screen": "1.0.0",
-                    "title": "Component",
-                    "elements": [
-                        {
-                            "type": "input",
-                            "name": "serialNumber",
-                            "label": "Serial number",
-                            "value": "$values.0.serialNumber",
+                            "then": {
+                                "namespace": "ui",
+                            },
                         },
-                    ],
-                },
-            )
-
-            failures = self.validator.validate_declared_abi_usage(
-                manifest_path,
-                {
-                    "contracts": {
-                        "UI": {
-                            "abiURI": "./abi/UI.json",
+                        "badWrite": {
+                            "call": {
+                                "namespace": "contracts.Manager",
+                                "function": "readOnly",
+                                "args": {"extra": "x"},
+                            },
+                            "then": {
+                                "namespace": "routes",
+                            },
                         },
-                    },
-                    "routes": {
-                        "component": {
-                            "contract": "UI",
-                            "function": "viewComponent",
-                            "args": [],
+                        "missing": {
+                            "call": {
+                                "namespace": "contracts.Manager",
+                                "function": "missing",
+                                "args": {},
+                            },
+                            "then": {
+                                "namespace": "routes",
+                            },
                         },
                     },
                 },
@@ -245,9 +165,13 @@ class CamManifestResourceTest(unittest.TestCase):
         self.assertEqual(
             failures,
             [
-                f"{manifest_path}: routes.component screen references ABI output type 'uint256' where 'string' is required "
-                f"in UI.viewComponent output at {screen_dir / 'component.json'}:elements.0.value: "
-                "$values.0.serialNumber",
+                f"{manifest_path}: routes.entry.call.args has 0 item(s), but UI.viewEntry expects 1",
+                f"{manifest_path}: routes.badWrite.call.args has 1 item(s), but Manager.readOnly expects 0",
+                f"{manifest_path}: contract-call action must target a payable or nonpayable ABI function "
+                f"at routes.badWrite.call: Manager.readOnly",
+                f"{manifest_path}: contract-call action has 1 arg(s), but Manager.readOnly expects 0 "
+                f"at routes.badWrite.call",
+                f"{manifest_path}: route call function is not present in Manager ABI at routes.missing.call: missing",
             ],
         )
 

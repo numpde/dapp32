@@ -5,7 +5,7 @@ This plan targets the current V1 architecture:
 - `CamRoot` is the app entry point and CAM/address resolver.
 - `BicycleComponents` is a non-upgradeable ERC-721 collection with role-gated minting and metadata updates.
 - `BicycleComponentManager` is the registry/status/policy contract.
-- `BicycleComponentManagerUI` is read-only: it selects CAM screens and aggregates view data.
+- `BicycleComponentManagerUI` is read-only: it selects semantic CAM views/actions and aggregates view data.
 - Token transfers use standard ERC-721 transfer/approval methods directly on `BicycleComponents`.
 - Gas sponsorship, relayers, paymasters, bundlers, and frontends have no registry authority.
 
