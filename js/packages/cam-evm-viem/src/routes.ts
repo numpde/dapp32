@@ -81,7 +81,7 @@ function normalizeRouteResult(
   route: string,
   routeOutputs: readonly AbiParameter[],
 ): RouteResult {
-  const outputs = Array.isArray(raw) ? raw : [raw]
+  const outputs = normalizeRawRouteOutputs(raw, route, routeOutputs.length)
   if (outputs.length !== routeOutputs.length) {
     throw new CamEvmError(
       "CAM_ROUTE_INVALID_RESULT",
@@ -92,6 +92,29 @@ function normalizeRouteResult(
   return {
     values: normalizeRouteValues(outputs, routeOutputs, route),
   }
+}
+
+function normalizeRawRouteOutputs(raw: unknown, route: string, outputCount: number): readonly unknown[] {
+  if (outputCount === 0) {
+    if (raw !== undefined) {
+      throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ${route} returned a value, but its ABI declares none`)
+    }
+
+    return []
+  }
+
+  if (outputCount === 1) {
+    return [raw]
+  }
+
+  if (!Array.isArray(raw)) {
+    throw new CamEvmError(
+      "CAM_ROUTE_INVALID_RESULT",
+      `CAM route ${route} returned one value, but its ABI declares ${outputCount}`,
+    )
+  }
+
+  return raw
 }
 
 function normalizeRouteValues(

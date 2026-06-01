@@ -215,6 +215,68 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
   }))
 })
 
+test("callCamRoute treats a single array output as one ABI output", async () => {
+  const arrayRoute = "arrayRoute"
+  const arrayFunction = "viewArray"
+  const cam = parseCam({
+    ...camJson,
+    routes: {
+      ...camJson.routes,
+      [arrayRoute]: {
+        inputs: [],
+        call: {
+          namespace: BIKE_UI_NAMESPACE,
+          function: arrayFunction,
+          args: {},
+        },
+        then: {
+          namespace: "ui",
+          function: "app",
+          args: {
+            form: "$form",
+            view: "$outputs.0",
+          },
+        },
+      },
+    },
+  })
+  const abi = [
+    {
+      type: "function",
+      name: arrayFunction,
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{ name: "items", type: "string[]" }],
+    },
+  ] as const satisfies Abi
+  const publicClient = createPublicClient(publicClientFixtureOptions({
+    routeResults: {
+      [arrayFunction]: ["one", "two"],
+    },
+  }))
+
+  const result = await callCamRoute({
+    publicClient,
+    cam,
+    contracts: {
+      [BIKE_UI_NAMESPACE]: {
+        address: uiAddress,
+        abi,
+      },
+    },
+    route: arrayRoute,
+    context: {
+      host,
+      account: { address: userAddress },
+      inputs: {},
+      outputs: [],
+      form: {},
+    },
+  })
+
+  assert.deepEqual(result.values, toInertValue([["one", "two"]]))
+})
+
 test("callCamRoute rejects mutable route functions and invalid named args", async () => {
   const nonViewAbi = [
     {

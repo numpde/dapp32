@@ -106,3 +106,37 @@ test("rejects invalid CAM versions and unresolved route expressions", () => {
     (error) => error instanceof CamError && error.code === "CAM_UNRESOLVED_VALUE",
   )
 })
+
+test("enforces declared route inputs before resolving route calls", () => {
+  const cam = parseCam(mainJson)
+  const baseContext = {
+    host: {
+      chainId: BIKE_HOST_CHAIN_ID,
+      address: BIKE_HOST_ADDRESS,
+    },
+    account: {
+      address: BIKE_ACCOUNT_ADDRESS,
+    },
+    outputs: [],
+    form: {},
+  }
+
+  assert.throws(
+    () => resolveRouteCall(cam, BIKE_ROUTE_COMPONENT, createContext({
+      ...baseContext,
+      inputs: {},
+    })),
+    /missing route input: serialNumber/,
+  )
+
+  assert.throws(
+    () => resolveRouteThen(cam, BIKE_ROUTE_COMPONENT, createContext({
+      ...baseContext,
+      inputs: {
+        serialNumber: BIKE_SERIAL_NUMBER,
+        typo: "ignored",
+      },
+    })),
+    /unexpected route input: typo/,
+  )
+})

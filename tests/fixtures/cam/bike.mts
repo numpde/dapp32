@@ -55,7 +55,7 @@ export function bikeAddressForContract(name: string): string {
 export function bikeRouteResults(
   serialNumber: string,
   account: string,
-): Record<string, readonly unknown[]> {
+): Record<string, unknown> {
   return {
     [BIKE_VIEW_ENTRY]: bikeEntryRouteResult(account),
     [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber),
@@ -63,105 +63,99 @@ export function bikeRouteResults(
   }
 }
 
-export function bikeEntryRouteResult(account: string): readonly unknown[] {
-  return [
-    {
-      viewId: "entry",
-      actions: ["lookupComponent", "openRegister"],
-      account,
-      canRegister: true,
-      accountInfo: "Mock registrar account",
-      serialNumber: "",
-      exists: false,
-      serialHash: BIKE_ZERO_BYTES32,
-      tokenContract: BIKE_COMPONENTS_ADDRESS,
-      tokenId: 0n,
-      owner: account,
-      ownerInfo: "",
-      registrar: account,
-      status: 0n,
-      tokenURI: "",
-      registeredAt: 0n,
-      updatedAt: 0n,
-      permissions: 0n,
-      isOwner: false,
-      canUpdateMetadata: false,
-      canMarkMissing: false,
-      canClearMissing: false,
-      canRetire: false,
-      componentsAddress: BIKE_COMPONENTS_ADDRESS,
-    },
-  ]
+export function bikeEntryRouteResult(account: string): Record<string, unknown> {
+  return {
+    viewId: "entry",
+    actions: ["lookupComponent", "openRegister"],
+    account,
+    canRegister: true,
+    accountInfo: "Mock registrar account",
+    serialNumber: "",
+    exists: false,
+    serialHash: BIKE_ZERO_BYTES32,
+    tokenContract: BIKE_COMPONENTS_ADDRESS,
+    tokenId: 0n,
+    owner: account,
+    ownerInfo: "",
+    registrar: account,
+    status: 0n,
+    tokenURI: "",
+    registeredAt: 0n,
+    updatedAt: 0n,
+    permissions: 0n,
+    isOwner: false,
+    canUpdateMetadata: false,
+    canMarkMissing: false,
+    canClearMissing: false,
+    canRetire: false,
+    componentsAddress: BIKE_COMPONENTS_ADDRESS,
+  }
 }
 
-export function bikeComponentRouteResult(serialNumber: string): readonly unknown[] {
+export function bikeComponentRouteResult(serialNumber: string): Record<string, unknown> {
   const exists = serialNumber.length > 0
 
-  return [
-    {
-      viewId: exists ? "component.found" : "component.empty",
-      actions: exists ? ["markComponentMissing"] : ["lookupComponent", "openRegister"],
-      account: BIKE_ACCOUNT_ADDRESS,
-      canRegister: true,
-      accountInfo: "Mock registrar account",
-      exists,
-      serialHash: exists
-        ? "0x1111111111111111111111111111111111111111111111111111111111111111"
-        : BIKE_ZERO_BYTES32,
-      tokenContract: BIKE_COMPONENTS_ADDRESS,
-      tokenId: exists ? 42n : 0n,
-      owner: BIKE_ACCOUNT_ADDRESS,
-      ownerInfo: "Mock owner account",
-      registrar: BIKE_ACCOUNT_ADDRESS,
-      status: exists ? 1n : 0n,
-      tokenURI: exists ? `ipfs://example/token/${serialNumber}` : "",
-      registeredAt: exists ? 1n : 0n,
-      updatedAt: exists ? 2n : 0n,
-      serialNumber,
-      permissions: 7n,
-      isOwner: true,
-      canUpdateMetadata: exists,
-      canMarkMissing: exists,
-      canClearMissing: false,
-      canRetire: exists,
-      componentsAddress: BIKE_COMPONENTS_ADDRESS,
-    },
-  ]
+  return {
+    viewId: exists ? "component.found" : "component.empty",
+    actions: exists ? ["markComponentMissing"] : ["lookupComponent", "openRegister"],
+    account: BIKE_ACCOUNT_ADDRESS,
+    canRegister: true,
+    accountInfo: "Mock registrar account",
+    exists,
+    serialHash: exists
+      ? "0x1111111111111111111111111111111111111111111111111111111111111111"
+      : BIKE_ZERO_BYTES32,
+    tokenContract: BIKE_COMPONENTS_ADDRESS,
+    tokenId: exists ? 42n : 0n,
+    owner: BIKE_ACCOUNT_ADDRESS,
+    ownerInfo: "Mock owner account",
+    registrar: BIKE_ACCOUNT_ADDRESS,
+    status: exists ? 1n : 0n,
+    tokenURI: exists ? `ipfs://example/token/${serialNumber}` : "",
+    registeredAt: exists ? 1n : 0n,
+    updatedAt: exists ? 2n : 0n,
+    serialNumber,
+    permissions: 7n,
+    isOwner: true,
+    canUpdateMetadata: exists,
+    canMarkMissing: exists,
+    canClearMissing: false,
+    canRetire: exists,
+    componentsAddress: BIKE_COMPONENTS_ADDRESS,
+  }
 }
 
-export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[] {
+export function bikeRegisterRouteResult(serialNumber: string): Record<string, unknown> {
   const hasSerialNumber = serialNumber.length > 0
 
-  return [
-    {
-      viewId: hasSerialNumber ? "register.ready" : "register.empty",
-      actions: hasSerialNumber ? ["registerComponent"] : ["openRegister"],
-      account: BIKE_ACCOUNT_ADDRESS,
-      canRegister: true,
-      exists: false,
-      serialHash: hasSerialNumber
-        ? "0x2222222222222222222222222222222222222222222222222222222222222222"
-        : BIKE_ZERO_BYTES32,
-      tokenId: 0n,
-      componentsAddress: BIKE_COMPONENTS_ADDRESS,
-      serialNumber,
-      accountInfo: "Mock registrar account",
-      tokenContract: BIKE_COMPONENTS_ADDRESS,
-      owner: BIKE_ACCOUNT_ADDRESS,
-      ownerInfo: "",
-      registrar: BIKE_ACCOUNT_ADDRESS,
-      status: 0n,
-      tokenURI: "",
-      registeredAt: 0n,
-      updatedAt: 0n,
-      permissions: 0n,
-      isOwner: false,
-      canUpdateMetadata: false,
-      canMarkMissing: false,
-      canClearMissing: false,
-      canRetire: false,
-    },
-  ]
+  return {
+    viewId: hasSerialNumber ? "register.ready" : "register.empty",
+    actions: hasSerialNumber ? ["registerComponent"] : ["openRegister"],
+    account: BIKE_ACCOUNT_ADDRESS,
+    canRegister: true,
+    exists: false,
+    serialHash: hasSerialNumber
+      ? "0x2222222222222222222222222222222222222222222222222222222222222222"
+      : BIKE_ZERO_BYTES32,
+    tokenId: 0n,
+    componentsAddress: BIKE_COMPONENTS_ADDRESS,
+    serialNumber,
+    accountInfo: "Mock registrar account",
+    tokenContract: BIKE_COMPONENTS_ADDRESS,
+    owner: BIKE_ACCOUNT_ADDRESS,
+    ownerInfo: "",
+    registrar: BIKE_ACCOUNT_ADDRESS,
+    status: 0n,
+    tokenURI: "",
+    registeredAt: 0n,
+    updatedAt: 0n,
+    permissions: 0n,
+    isOwner: false,
+    canUpdateMetadata: false,
+    canMarkMissing: false,
+    canClearMissing: false,
+    canRetire: false,
+  }
 }
 
 function bikeResourceURI(relativeURI: string): string {
