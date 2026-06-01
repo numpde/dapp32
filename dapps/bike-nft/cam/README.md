@@ -8,8 +8,8 @@ can execute the entry route.
 
 ## Shape
 
-`main.json` owns callable namespaces and routes. `ui.json` owns named render and
-action nodes.
+`main.json` owns callable namespaces, routes, and resource integrity pins.
+`ui.json` owns named render and action nodes under its explicit `nodes` map.
 
 Every operation uses the same call shape:
 
@@ -32,6 +32,19 @@ Namespaces are closed and declared in `main.json`:
 - `type: "routes"` calls a route in `routes`.
 - `type: "ui"` calls a named UI node from the UI resource.
 
+External CAM resources are pinned from `main.json`:
+
+```json
+{
+  "type": "ui",
+  "uri": "./ui.json",
+  "integrity": "sha256:0x..."
+}
+```
+
+The root CAM hash pins `main.json`; these integrity fields pin the ABI and UI
+bytes that `main.json` references.
+
 Namespace declarations use `type` for namespace kind. UI nodes use `tag` for
 render element kind.
 
@@ -41,9 +54,11 @@ Named UI nodes declare the arguments they read:
 
 ```json
 {
-  "app": {
-    "tag": "Screen",
-    "requires": ["view"]
+  "nodes": {
+    "app": {
+      "tag": "Screen",
+      "requires": ["view"]
+    }
   }
 }
 ```
@@ -112,5 +127,5 @@ Contracts should not return UI resource paths or fragment references:
 }
 ```
 
-The contract owns business state and capabilities. The manifest owns placement,
-node definitions, and route wiring.
+The contract owns business state and capabilities. The manifest owns resource
+integrity, placement, node definitions, and route wiring.
