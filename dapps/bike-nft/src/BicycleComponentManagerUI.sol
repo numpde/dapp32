@@ -159,8 +159,8 @@ contract BicycleComponentManagerUI {
         view_.serialNumber = component.exists ? component.serialNumber : serialNumber;
 
         // Intentional default: an unknown component returns only serialNumber
-        // and exists=false. The route chooses a not-found screen for that
-        // state, so zero/empty sentinel fields are not meant for display.
+        // and exists=false. The route chooses a not-found view for that state,
+        // so zero/empty sentinel fields are not meant for display.
         if (!component.exists) {
             return;
         }
