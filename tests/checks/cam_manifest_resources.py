@@ -94,31 +94,15 @@ class CamManifestResourceValidator:
 
     def validate_resource_integrity(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         failures: list[str] = []
-        contracts, contract_failures = self.contract_namespaces(manifest_path, manifest)
-        failures.extend(contract_failures)
-        for contract_name, contract in contracts.items():
-            abi_uri = contract.get("abiURI")
+        resources, resource_failures = self.manifest_resource_declarations(manifest_path, manifest)
+        failures.extend(resource_failures)
+        for _namespace, declaration, uri_key, integrity_key, path in resources:
             failures.extend(
                 self.validate_sha256_integrity(
                     manifest_path,
-                    f"namespaces.{CONTRACT_NAMESPACE_PREFIX}{contract_name}.integrity",
-                    abi_uri,
-                    contract.get("integrity"),
-                )
-            )
-
-        namespaces = manifest.get("namespaces")
-        if not isinstance(namespaces, dict):
-            return failures
-
-        ui = namespaces.get(UI_NAMESPACE)
-        if isinstance(ui, dict):
-            failures.extend(
-                self.validate_sha256_integrity(
-                    manifest_path,
-                    "namespaces.ui.integrity",
-                    ui.get("uri"),
-                    ui.get("integrity"),
+                    f"{path}.{integrity_key}",
+                    declaration.get(uri_key),
+                    declaration.get(integrity_key),
                 )
             )
 
@@ -168,16 +152,7 @@ class CamManifestResourceValidator:
         manifest_path: Path,
         manifest: dict[str, object],
     ) -> tuple[dict[str, dict[object, object]], list[str]]:
-        namespaces = manifest.get("namespaces")
-        if not isinstance(namespaces, dict):
-            return {}, [f"{manifest_path}: namespaces must be an object"]
-
-        failures: list[str] = []
-        resources: list[tuple[str, dict[object, object], str, str, str]] = []
-        try:
-            resources = resource_declarations(manifest_path, namespaces)
-        except CamResourceIntegrityError as error:
-            failures.append(str(error))
+        resources, failures = self.manifest_resource_declarations(manifest_path, manifest)
         if failures:
             return {}, failures
 
@@ -191,6 +166,24 @@ class CamManifestResourceValidator:
             return {}, [f"{manifest_path}: no contract namespaces declared"]
 
         return contracts, []
+
+    def manifest_resource_declarations(
+        self,
+        manifest_path: Path,
+        manifest: dict[str, object],
+    ) -> tuple[list[tuple[str, dict[object, object], str, str, str]], list[str]]:
+        namespaces = manifest.get("namespaces")
+        if not isinstance(namespaces, dict):
+            return [], [f"{manifest_path}: namespaces must be an object"]
+
+        resources: list[tuple[str, dict[object, object], str, str, str]] = []
+        failures: list[str] = []
+        try:
+            resources = resource_declarations(manifest_path, namespaces)
+        except CamResourceIntegrityError as error:
+            failures.append(str(error))
+
+        return resources, failures
 
     def validate_route_calls_match_declared_abis(
         self,
@@ -602,19 +595,19 @@ class CamManifestResourceValidator:
         return contract_name
 
     def validate_namespaced_ui_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
-        namespaces = manifest.get("namespaces")
-        if not isinstance(namespaces, dict):
-            return [f"{manifest_path}: namespaces must be an object"]
+        resources, failures = self.manifest_resource_declarations(manifest_path, manifest)
+        if failures:
+            return failures
 
-        ui = namespaces.get("ui")
-        if not isinstance(ui, dict):
+        ui_declarations = [
+            declaration
+            for namespace, declaration, _uri_key, _integrity_key, _path in resources
+            if namespace == UI_NAMESPACE
+        ]
+        if not ui_declarations:
             return [f"{manifest_path}: namespaces.ui must be an object"]
 
-        failures: list[str] = []
-        if ui.get("type") != "ui":
-            failures.append(f"{manifest_path}: namespaces.ui.type must be ui")
-
-        uri = ui.get("uri")
+        uri = ui_declarations[0].get("uri")
         if uri != "./ui.json":
             failures.append(f"{manifest_path}: namespaces.ui.uri must be ./ui.json")
         elif not (manifest_path.parent / "ui.json").is_file():
@@ -637,14 +630,14 @@ class CamManifestResourceValidator:
             return [f"{manifest_path}: {field_path} must be a sha256:0x-prefixed lowercase digest"]
 
         actual: str | None = None
-        failure: str | None = None
+        failures: list[str] = []
         try:
             actual = resource_integrity(manifest_path, uri, field_path)
         except CamResourceIntegrityError as error:
-            failure = str(error)
+            failures.append(str(error))
 
-        if failure is not None:
-            return [failure]
+        if failures:
+            return failures
 
         if actual != integrity:
             return [f"{manifest_path}: {field_path} does not match {uri}"]
