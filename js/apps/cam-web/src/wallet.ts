@@ -4,9 +4,11 @@ import {
 } from "viem"
 import type { Address } from "viem"
 import {
-  evmChainIdNumber,
   evmChainIdHex,
-  requireAddress,
+  evmChainIdNumber,
+  requireEvmAddress,
+} from "@cam/evm-viem"
+import {
   shortenAddress,
 } from "./evm"
 
@@ -121,7 +123,7 @@ function requireAddressArray(value: unknown, label: string): readonly [Address, 
     if (typeof item !== "string") {
       throw new Error(`${label}.${index}: expected account address string`)
     }
-    return requireAddress(item, `${label}.${index}`)
+    return requireEvmAddress(item, `${label}.${index}`)
   })
   const [first, ...rest] = addresses
   if (first === undefined) {

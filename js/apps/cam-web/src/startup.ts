@@ -2,16 +2,19 @@ import type {
   CamHost,
   ResourceLoader,
 } from "@cam/evm-viem"
+import {
+  evmChainIdNumber,
+  requireEvmAddress,
+  requireEvmChainId,
+} from "@cam/evm-viem"
+import {
+  readBoundedResponseBytes,
+  requireHttpURL,
+} from "@cam/protocol"
 import type {
   Address,
   Hex,
 } from "viem"
-
-import {
-  evmChainIdNumber,
-  requireAddress,
-  requireEvmChainId,
-} from "./evm"
 
 export type StartupOptions = {
   readonly chainId: string
@@ -37,14 +40,12 @@ type ChainIdClient = {
   readonly getChainId: () => Promise<number>
 }
 
-const MAX_CAM_RESOURCE_BYTES = 2 * 1024 * 1024
-
 export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOptions {
   const params = url.searchParams
   return {
     chainId: requireEvmChainId(requiredParam(params, "chainId")),
-    host: requireAddress(requiredParam(params, "host"), "host"),
-    account: requireAddress(requiredParam(params, "account"), "account"),
+    host: requireEvmAddress(requiredParam(params, "host"), "host"),
+    account: requireEvmAddress(requiredParam(params, "account"), "account"),
     rpcUrl: requireHttpURL(requiredParam(params, "rpcUrl"), "rpcUrl").href,
     allowUnsignedCamHash: policy.allowUnsignedCamHash,
   }
@@ -70,24 +71,14 @@ export function createPinnedOriginResourceLoader(): ResourceLoader {
       throw new Error(`CAM resource escaped pinned origin: ${url.href}`)
     }
 
-    const response = await fetch(url, {
+    const response = await fetch(url.href, {
       cache: "no-store",
       redirect: "error",
     })
     if (!response.ok) {
       throw new Error(`failed to load CAM resource ${url.href}: HTTP ${response.status}`)
     }
-    const contentLength = responseContentLength(response, url.href)
-    if (contentLength !== undefined && contentLength > MAX_CAM_RESOURCE_BYTES) {
-      throw new Error(`CAM resource is too large: ${url.href}`)
-    }
-
-    const bytes = new Uint8Array(await response.arrayBuffer())
-    if (bytes.byteLength > MAX_CAM_RESOURCE_BYTES) {
-      throw new Error(`CAM resource is too large: ${url.href}`)
-    }
-
-    return bytes
+    return readBoundedResponseBytes(response, url.href)
   }
 }
 
@@ -129,27 +120,4 @@ function parseRequiredBoolean(value: string | undefined, name: string): boolean 
   if (value === "true") return true
   if (value === "false") return false
   throw new Error(`${name}: expected "true" or "false"`)
-}
-
-function responseContentLength(response: Response, uri: string): number | undefined {
-  const value = response.headers.get("content-length")
-  if (value === null) return undefined
-
-  if (!/^[0-9]+$/.test(value)) {
-    throw new Error(`CAM resource has invalid Content-Length: ${uri}`)
-  }
-
-  return Number(value)
-}
-
-function requireHttpURL(value: string, label: string): URL {
-  const url = new URL(value)
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`${label}: expected http or https URL`)
-  }
-  if (url.username !== "" || url.password !== "") {
-    throw new Error(`${label}: credentials are not allowed`)
-  }
-
-  return url
 }
