@@ -140,6 +140,12 @@ def refresh_integrity_field(
 
 
 def resource_integrity(manifest_path: Path, uri: object, path: str) -> str:
+    resource_path = local_resource_path(manifest_path, uri, path)
+    digest = hashlib.sha256(resource_path.read_bytes()).hexdigest()
+    return f"{INTEGRITY_PREFIX}{digest}"
+
+
+def local_resource_path(manifest_path: Path, uri: object, path: str) -> Path:
     if not isinstance(uri, str):
         raise CamResourceIntegrityError(f"{manifest_path}: {path} must be a string")
     if not uri.startswith(LOCAL_URI_PREFIX):
@@ -172,8 +178,7 @@ def resource_integrity(manifest_path: Path, uri: object, path: str) -> str:
             f"{manifest_path}: CAM resource is too large: {uri} exceeds {MAX_CAM_RESOURCE_BYTES} bytes",
         )
 
-    digest = hashlib.sha256(resource_path.read_bytes()).hexdigest()
-    return f"{INTEGRITY_PREFIX}{digest}"
+    return resource_path
 
 
 def write_json_in_place(path: Path, document: dict[object, object]) -> None:

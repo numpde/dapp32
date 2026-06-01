@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 from pathlib import Path
-from urllib.parse import urlsplit
 
 from .common import read_text
 from tools.json_policy import JsonPolicyError, strict_json_loads
+from tools.cam_resource_integrity import CamResourceIntegrityError, local_resource_path
 
 
 def validate_no_orphan_abi_files(
     manifest_path: Path,
     contracts: dict[str, dict[object, object]],
-    *,
-    existing_files: set[Path] | None = None,
 ) -> list[str]:
     referenced: set[Path] = set()
     failures: list[str] = []
@@ -20,7 +18,6 @@ def validate_no_orphan_abi_files(
             manifest_path,
             contract_name,
             contract.get("abiURI"),
-            existing_files=existing_files,
         )
         if error is not None:
             failures.append(error)
@@ -29,11 +26,8 @@ def validate_no_orphan_abi_files(
         assert abi_path is not None
         referenced.add(abi_path)
 
-    if existing_files is None:
-        abi_dir = manifest_path.parent / "abi"
-        abi_files = set(abi_dir.glob("*.json")) if abi_dir.is_dir() else set()
-    else:
-        abi_files = existing_files
+    abi_dir = manifest_path.parent / "abi"
+    abi_files = set(abi_dir.glob("*.json")) if abi_dir.is_dir() else set()
 
     for orphan in sorted(abi_files - referenced):
         failures.append(
@@ -48,16 +42,11 @@ def validate_local_abi_uri(
     manifest_path: Path,
     contract_name: str,
     abi_uri: object,
-    *,
-    existing_files: set[Path] | None = None,
-    abi_documents: dict[Path, object] | None = None,
 ) -> str | None:
     _abi, error = load_local_abi_array(
         manifest_path,
         contract_name,
         abi_uri,
-        existing_files=existing_files,
-        abi_documents=abi_documents,
     )
     return error
 
@@ -66,15 +55,11 @@ def load_local_abi_array(
     manifest_path: Path,
     contract_name: str,
     abi_uri: object,
-    *,
-    existing_files: set[Path] | None = None,
-    abi_documents: dict[Path, object] | None = None,
 ) -> tuple[list[object] | None, str | None]:
     resolved, error = checked_local_abi_path(
         manifest_path,
         contract_name,
         abi_uri,
-        existing_files=existing_files,
     )
     if error is not None:
         return None, error
@@ -82,7 +67,7 @@ def load_local_abi_array(
     assert resolved is not None
     abi_error: JsonPolicyError | None = None
     try:
-        abi = abi_documents[resolved] if abi_documents is not None else strict_json_loads(read_text(resolved))
+        abi = strict_json_loads(read_text(resolved))
     except JsonPolicyError as error:
         abi = None
         abi_error = error
@@ -100,44 +85,24 @@ def checked_local_abi_path(
     manifest_path: Path,
     contract_name: str,
     abi_uri: object,
-    *,
-    existing_files: set[Path] | None = None,
 ) -> tuple[Path | None, str | None]:
     path = contract_abi_uri_path(contract_name)
-    if not isinstance(abi_uri, str) or abi_uri == "":
-        return None, f"{manifest_path}: {path} must be a non-empty string"
-
-    parsed = urlsplit(abi_uri)
-    if parsed.scheme or parsed.netloc:
-        return None, f"{manifest_path}: {path} must be a local relative URI: {abi_uri}"
-
-    if abi_uri.startswith("/") or any(part in {"", ".", ".."} for part in Path(abi_uri).parts):
-        return None, f"{manifest_path}: {path} must not be absolute or contain unsafe path segments: {abi_uri}"
-
+    if not isinstance(abi_uri, str):
+        return None, f"{manifest_path}: {path} must be a string"
     if not abi_uri.endswith(".json"):
         return None, f"{manifest_path}: {path} must target a JSON ABI file: {abi_uri}"
 
-    resolved = resolve_local_abi_path(manifest_path, abi_uri)
+    resolved: Path | None = None
+    failures: list[str] = []
+    try:
+        resolved = local_resource_path(manifest_path, abi_uri, path)
+    except CamResourceIntegrityError as error:
+        failures.append(str(error))
+    if failures:
+        return None, failures[0]
+
     assert resolved is not None
-    cam_dir = manifest_path.parent.resolve()
-    if resolved != cam_dir and cam_dir not in resolved.parents:
-        return None, f"{manifest_path}: {path} escapes the CAM directory: {abi_uri}"
-
-    if existing_files is None:
-        if not resolved.is_file():
-            return None, f"{manifest_path}: {path} target does not exist: {abi_uri}"
-    elif resolved not in existing_files:
-        return None, f"{manifest_path}: {path} target does not exist: {abi_uri}"
-
     return resolved, None
-
-
-def resolve_local_abi_path(manifest_path: Path, abi_uri: str) -> Path | None:
-    parsed = urlsplit(abi_uri)
-    if parsed.scheme or parsed.netloc or abi_uri.startswith("/"):
-        return None
-
-    return (manifest_path.parent / abi_uri).resolve()
 
 
 def contract_abi_uri_path(contract_name: str) -> str:

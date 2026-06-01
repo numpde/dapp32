@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
+from .cam_abi_resources import validate_local_abi_uri
 from .cam_manifest_resources import CamManifestResourceValidator
 
 
@@ -17,6 +20,23 @@ class CamAbiResourceTest(unittest.TestCase):
 
         if failures:
             self.fail("\n".join(failures))
+
+    def test_abi_uri_reuses_cam_resource_path_policy(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest_path = root / "cam" / "main.json"
+            outside = root / "outside"
+            outside.mkdir()
+            outside.joinpath("UI.json").write_text("[]\n", encoding="utf-8")
+            manifest_path.parent.mkdir(parents=True)
+            manifest_path.parent.joinpath("abi").symlink_to(outside, target_is_directory=True)
+
+            failure = validate_local_abi_uri(manifest_path, "UI", "./abi/UI.json")
+
+        self.assertEqual(
+            failure,
+            f"{manifest_path}: refusing symlinked CAM resource path: ./abi/UI.json",
+        )
 
 
 if __name__ == "__main__":
