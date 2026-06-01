@@ -237,11 +237,6 @@ input {
   filter: brightness(0.96);
 }
 
-.write-action {
-  color: var(--accent);
-  background: #ffffff;
-}
-
 @media (max-width: 760px) {
   .topbar,
   .connection div,

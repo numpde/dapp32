@@ -149,7 +149,7 @@ function UiNodeView({
     case "Action":
       return (
         <button
-          className={`action-button ${node.call.namespace === "routes" ? "" : "write-action"}`}
+          className="action-button"
           type="button"
           onClick={() => {
             void onAction(node)
