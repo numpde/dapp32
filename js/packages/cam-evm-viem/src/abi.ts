@@ -10,9 +10,10 @@ export const CAM_ROOT_FUNCTIONS = {
   supportsInterface: "supportsInterface",
 } as const
 
-// type(ICamApp).interfaceId from ICamApp.sol:
-// camURI() ^ camHash() ^ IERC165.supportsInterface(bytes4).
-export const ICAM_APP_INTERFACE_ID = "0x029d9651"
+// type(ICamApp).interfaceId from ICamApp.sol. Solidity does not include the
+// inherited IERC165 function in the child interface id; ERC-165 itself is
+// checked separately with 0x01ffc9a7 if needed.
+export const ICAM_APP_INTERFACE_ID = "0x03625ff6"
 
 export const camRootAbi = [
   {

@@ -3,7 +3,7 @@ import test from "node:test"
 
 import { parseCam } from "@cam/core"
 import { toInertValue } from "@cam/protocol"
-import { sha256 } from "viem"
+import { sha256, toFunctionSelector } from "viem"
 import type { Abi, Address, Chain, Hex } from "viem"
 
 import {
@@ -18,6 +18,7 @@ import {
   sendCamContractCall,
   simulateCamContractCall,
 } from "../src/index.ts"
+import { ICAM_APP_INTERFACE_ID } from "../src/abi.ts"
 import type { CamHost, CamPublicClient, CamSimulationClient, CamWalletClient } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
@@ -84,6 +85,10 @@ test("validates EVM address and chain boundary values", () => {
   assert.throws(() => requireEvmChainId("31337"), /CAIP-2/)
 })
 
+test("uses the Solidity ICamApp interface id", () => {
+  assert.equal(ICAM_APP_INTERFACE_ID, xorSelectors(["camURI()", "camHash()"]))
+})
+
 test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects hash mismatches", async () => {
   const camBytes = encodeJson(camJson)
   const publicClient = createPublicClient(publicClientFixtureOptions({
@@ -108,6 +113,7 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
     ROOT_CAM_URI,
     ROOT_CAM_HASH,
   ])
+  assert.deepEqual(publicClient.calls[0]?.args, [ICAM_APP_INTERFACE_ID])
   assert.equal(publicClient.chainCalls, 1)
 
   await assert.rejects(
@@ -692,6 +698,14 @@ function camWithNamespaceIntegrity(namespace: string, bytes: Uint8Array) {
 
 function resourceIntegrity(bytes: Uint8Array): string {
   return `sha256:${sha256(bytes)}`
+}
+
+function xorSelectors(signatures: readonly string[]): `0x${string}` {
+  const selector = signatures.reduce((result, signature) => {
+    return result ^ Number.parseInt(toFunctionSelector(signature).slice(2), 16)
+  }, 0)
+
+  return `0x${(selector >>> 0).toString(16).padStart(8, "0")}`
 }
 
 function createSimulationClient(failure?: Error): CamSimulationClient & {
