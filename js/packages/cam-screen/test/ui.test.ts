@@ -26,58 +26,60 @@ const context = {
 test("resolves a UI catalog through Include nodes into render and action nodes", () => {
   const ui = parseUi({
     ui: "1.0.0",
-    app: {
-      tag: "Screen",
-      requires: ["view"],
-      props: {
-        title: "Bicycle component registry",
-      },
-      children: [
-        {
-          tag: "Include",
-          call: {
-            namespace: "ui",
-            function: "$view.viewId",
-            args: {
-              view: "$view",
+    nodes: {
+      app: {
+        tag: "Screen",
+        requires: ["view"],
+        props: {
+          title: "Bicycle component registry",
+        },
+        children: [
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "$view.viewId",
+              args: {
+                view: "$view",
+              },
             },
           },
-        },
-        {
-          tag: "Include",
-          call: {
-            namespace: "ui",
-            function: "$view.actions",
-            args: {},
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "$view.actions",
+              args: {},
+            },
           },
-        },
-      ],
-    },
-    entry: {
-      tag: "Fragment",
-      requires: ["view"],
-      children: [
-        {
-          tag: "Input",
-          props: {
-            name: "serialNumber",
-            label: "Serial number",
-            value: "$view.serialNumber",
-          },
-        },
-      ],
-    },
-    lookupComponent: {
-      tag: "Action",
-      requires: [],
-      props: {
-        label: "Look up component",
+        ],
       },
-      call: {
-        namespace: "routes",
-        function: "component",
-        args: {
-          serialNumber: "$form.serialNumber",
+      entry: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Input",
+            props: {
+              name: "serialNumber",
+              label: "Serial number",
+              value: "$view.serialNumber",
+            },
+          },
+        ],
+      },
+      lookupComponent: {
+        tag: "Action",
+        requires: [],
+        props: {
+          label: "Look up component",
+        },
+        call: {
+          namespace: "routes",
+          function: "component",
+          args: {
+            serialNumber: "$form.serialNumber",
+          },
         },
       },
     },
@@ -111,11 +113,13 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
 test("resolveUiNode rejects args that shadow runtime roots", () => {
   const ui = parseUi({
     ui: "1.0.0",
-    app: {
-      tag: "Text",
-      requires: [],
-      props: {
-        text: "shadow",
+    nodes: {
+      app: {
+        tag: "Text",
+        requires: [],
+        props: {
+          text: "shadow",
+        },
       },
     },
   })
@@ -139,13 +143,32 @@ test("parseUi rejects stale screen-era and control fields", () => {
   assert.throws(
     () => parseUi({
       ui: "1.0.0",
-      entry: {
-        tag: "Text",
-        requires: [],
-        props: {
-          text: "Registered",
+      title: "Metadata-like top-level fields are not UI nodes",
+      nodes: {
+        entry: {
+          tag: "Text",
+          requires: [],
+          props: {
+            text: "Registered",
+          },
         },
-        visibleWhen: "$view.exists",
+      },
+    }),
+    /title/,
+  )
+
+  assert.throws(
+    () => parseUi({
+      ui: "1.0.0",
+      nodes: {
+        entry: {
+          tag: "Text",
+          requires: [],
+          props: {
+            text: "Registered",
+          },
+          visibleWhen: "$view.exists",
+        },
       },
     }),
     /visibleWhen/,
@@ -155,16 +178,18 @@ test("parseUi rejects stale screen-era and control fields", () => {
 test("resolveUiNode fails closed on missing required arguments and non-string action functions", () => {
   const ui = parseUi({
     ui: "1.0.0",
-    action: {
-      tag: "Action",
-      requires: ["view"],
-      props: {
-        label: "Broken",
-      },
-      call: {
-        namespace: "routes",
-        function: "$view.actions",
-        args: {},
+    nodes: {
+      action: {
+        tag: "Action",
+        requires: ["view"],
+        props: {
+          label: "Broken",
+        },
+        call: {
+          namespace: "routes",
+          function: "$view.actions",
+          args: {},
+        },
       },
     },
   })

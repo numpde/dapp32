@@ -1,367 +1,385 @@
 {
   "ui": "1.0.0",
-  "app": {
-    "tag": "Screen",
-    "requires": ["view"],
-    "props": {
-      "title": "Bicycle component registry"
-    },
-    "children": [
-      {
-        "tag": "Include",
-        "call": {
-          "namespace": "ui",
-          "function": "$view.viewId",
-          "args": {
-            "view": "$view"
+  "nodes": {
+    "app": {
+      "tag": "Screen",
+      "requires": [
+        "view"
+      ],
+      "props": {
+        "title": "Bicycle component registry"
+      },
+      "children": [
+        {
+          "tag": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "$view.viewId",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "tag": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "$view.actions",
+            "args": {}
           }
         }
-      },
-      {
-        "tag": "Include",
-        "call": {
-          "namespace": "ui",
-          "function": "$view.actions",
-          "args": {}
-        }
-      }
-    ]
-  },
-  "entry": {
-    "requires": ["view"],
-    "tag": "Fragment",
-    "children": [
-      {
-        "tag": "Text",
-        "props": {
-          "text": "Look up a component by the serial number stamped on the bicycle."
-        }
-      },
-      {
-        "tag": "Address",
-        "props": {
-          "label": "Connected account",
-          "address": "$view.account"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Can register components",
-          "value": "$view.canRegister"
-        }
-      },
-      {
-        "tag": "Input",
-        "props": {
-          "name": "serialNumber",
-          "label": "Serial number",
-          "value": "$view.serialNumber"
-        }
-      }
-    ]
-  },
-  "component.empty": {
-    "requires": ["view"],
-    "tag": "Fragment",
-    "children": [
-      {
-        "tag": "Text",
-        "props": {
-          "text": "Enter a bicycle component serial number."
-        }
-      },
-      {
-        "tag": "Input",
-        "props": {
-          "name": "serialNumber",
-          "label": "Serial number",
-          "value": "$view.serialNumber"
-        }
-      }
-    ]
-  },
-  "component.notFound": {
-    "requires": ["view"],
-    "tag": "Fragment",
-    "children": [
-      {
-        "tag": "Input",
-        "props": {
-          "name": "serialNumber",
-          "label": "Serial number",
-          "value": "$view.serialNumber"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Registered",
-          "value": false
-        }
-      }
-    ]
-  },
-  "component.found": {
-    "requires": ["view"],
-    "tag": "Fragment",
-    "children": [
-      {
-        "tag": "Input",
-        "props": {
-          "name": "serialNumber",
-          "label": "Serial number",
-          "value": "$view.serialNumber"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Status",
-          "value": "$view.status"
-        }
-      },
-      {
-        "tag": "Address",
-        "props": {
-          "label": "Owner",
-          "address": "$view.owner"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Owner info",
-          "value": "$view.ownerInfo"
-        }
-      },
-      {
-        "tag": "Nft",
-        "props": {
-          "contractAddress": "$view.tokenContract",
-          "tokenId": "$view.tokenId"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Token URI",
-          "value": "$view.tokenURI"
-        }
-      },
-      {
-        "tag": "Input",
-        "props": {
-          "name": "tokenURI",
-          "label": "New token URI",
-          "value": "$view.tokenURI"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Serial hash",
-          "value": "$view.serialHash"
-        }
-      }
-    ]
-  },
-  "register.empty": {
-    "requires": ["view"],
-    "tag": "Fragment",
-    "children": [
-      {
-        "tag": "Text",
-        "props": {
-          "text": "Enter a serial number before preparing registration."
-        }
-      },
-      {
-        "tag": "Input",
-        "props": {
-          "name": "serialNumber",
-          "label": "Serial number",
-          "value": "$view.serialNumber"
-        }
-      },
-      {
-        "tag": "Input",
-        "props": {
-          "name": "tokenURI",
-          "label": "Token URI",
-          "value": "$view.tokenURI"
-        }
-      }
-    ]
-  },
-  "register.ready": {
-    "requires": ["view"],
-    "tag": "Fragment",
-    "children": [
-      {
-        "tag": "Input",
-        "props": {
-          "name": "serialNumber",
-          "label": "Serial number",
-          "value": "$view.serialNumber"
-        }
-      },
-      {
-        "tag": "Input",
-        "props": {
-          "name": "tokenURI",
-          "label": "Token URI",
-          "value": "$view.tokenURI"
-        }
-      },
-      {
-        "tag": "Address",
-        "props": {
-          "label": "Component contract",
-          "address": "$view.componentsAddress"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Account info",
-          "value": "$view.accountInfo"
-        }
-      }
-    ]
-  },
-  "register.blocked": {
-    "requires": ["view"],
-    "tag": "Fragment",
-    "children": [
-      {
-        "tag": "Input",
-        "props": {
-          "name": "serialNumber",
-          "label": "Serial number",
-          "value": "$view.serialNumber"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Connected account can register",
-          "value": "$view.canRegister"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Component already exists",
-          "value": "$view.exists"
-        }
-      },
-      {
-        "tag": "Status",
-        "props": {
-          "label": "Account info",
-          "value": "$view.accountInfo"
-        }
-      }
-    ]
-  },
-  "lookupComponent": {
-    "requires": [],
-    "tag": "Action",
-    "props": {
-      "label": "Look up component"
+      ]
     },
-    "call": {
-      "namespace": "routes",
-      "function": "component",
-      "args": {
-        "serialNumber": "$form.serialNumber"
-      }
-    }
-  },
-  "openRegister": {
-    "requires": [],
-    "tag": "Action",
-    "props": {
-      "label": "Register component"
+    "entry": {
+      "requires": [
+        "view"
+      ],
+      "tag": "Fragment",
+      "children": [
+        {
+          "tag": "Text",
+          "props": {
+            "text": "Look up a component by the serial number stamped on the bicycle."
+          }
+        },
+        {
+          "tag": "Address",
+          "props": {
+            "label": "Connected account",
+            "address": "$view.account"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Can register components",
+            "value": "$view.canRegister"
+          }
+        },
+        {
+          "tag": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$view.serialNumber"
+          }
+        }
+      ]
     },
-    "call": {
-      "namespace": "routes",
-      "function": "register",
-      "args": {
-        "serialNumber": "$form.serialNumber"
-      }
-    }
-  },
-  "registerComponent": {
-    "requires": [],
-    "tag": "Action",
-    "props": {
-      "label": "Prepare registration"
+    "component.empty": {
+      "requires": [
+        "view"
+      ],
+      "tag": "Fragment",
+      "children": [
+        {
+          "tag": "Text",
+          "props": {
+            "text": "Enter a bicycle component serial number."
+          }
+        },
+        {
+          "tag": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$view.serialNumber"
+          }
+        }
+      ]
     },
-    "call": {
-      "namespace": "routes",
-      "function": "registerComponent",
-      "args": {
-        "serialNumber": "$form.serialNumber",
-        "tokenURI": "$form.tokenURI"
-      }
-    }
-  },
-  "updateComponentMetadata": {
-    "requires": [],
-    "tag": "Action",
-    "props": {
-      "label": "Prepare metadata update"
+    "component.notFound": {
+      "requires": [
+        "view"
+      ],
+      "tag": "Fragment",
+      "children": [
+        {
+          "tag": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$view.serialNumber"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Registered",
+            "value": false
+          }
+        }
+      ]
     },
-    "call": {
-      "namespace": "routes",
-      "function": "updateComponentMetadata",
-      "args": {
-        "serialNumber": "$form.serialNumber",
-        "tokenURI": "$form.tokenURI"
-      }
-    }
-  },
-  "markComponentMissing": {
-    "requires": [],
-    "tag": "Action",
-    "props": {
-      "label": "Prepare missing report"
+    "component.found": {
+      "requires": [
+        "view"
+      ],
+      "tag": "Fragment",
+      "children": [
+        {
+          "tag": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$view.serialNumber"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Status",
+            "value": "$view.status"
+          }
+        },
+        {
+          "tag": "Address",
+          "props": {
+            "label": "Owner",
+            "address": "$view.owner"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Owner info",
+            "value": "$view.ownerInfo"
+          }
+        },
+        {
+          "tag": "Nft",
+          "props": {
+            "contractAddress": "$view.tokenContract",
+            "tokenId": "$view.tokenId"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Token URI",
+            "value": "$view.tokenURI"
+          }
+        },
+        {
+          "tag": "Input",
+          "props": {
+            "name": "tokenURI",
+            "label": "New token URI",
+            "value": "$view.tokenURI"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Serial hash",
+            "value": "$view.serialHash"
+          }
+        }
+      ]
     },
-    "call": {
-      "namespace": "routes",
-      "function": "markComponentMissing",
-      "args": {
-        "serialNumber": "$form.serialNumber"
-      }
-    }
-  },
-  "clearComponentMissing": {
-    "requires": [],
-    "tag": "Action",
-    "props": {
-      "label": "Prepare missing clear"
+    "register.empty": {
+      "requires": [
+        "view"
+      ],
+      "tag": "Fragment",
+      "children": [
+        {
+          "tag": "Text",
+          "props": {
+            "text": "Enter a serial number before preparing registration."
+          }
+        },
+        {
+          "tag": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$view.serialNumber"
+          }
+        },
+        {
+          "tag": "Input",
+          "props": {
+            "name": "tokenURI",
+            "label": "Token URI",
+            "value": "$view.tokenURI"
+          }
+        }
+      ]
     },
-    "call": {
-      "namespace": "routes",
-      "function": "clearComponentMissing",
-      "args": {
-        "serialNumber": "$form.serialNumber"
-      }
-    }
-  },
-  "retireComponent": {
-    "requires": [],
-    "tag": "Action",
-    "props": {
-      "label": "Prepare retirement"
+    "register.ready": {
+      "requires": [
+        "view"
+      ],
+      "tag": "Fragment",
+      "children": [
+        {
+          "tag": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$view.serialNumber"
+          }
+        },
+        {
+          "tag": "Input",
+          "props": {
+            "name": "tokenURI",
+            "label": "Token URI",
+            "value": "$view.tokenURI"
+          }
+        },
+        {
+          "tag": "Address",
+          "props": {
+            "label": "Component contract",
+            "address": "$view.componentsAddress"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Account info",
+            "value": "$view.accountInfo"
+          }
+        }
+      ]
     },
-    "call": {
-      "namespace": "routes",
-      "function": "retireComponent",
-      "args": {
-        "serialNumber": "$form.serialNumber"
+    "register.blocked": {
+      "requires": [
+        "view"
+      ],
+      "tag": "Fragment",
+      "children": [
+        {
+          "tag": "Input",
+          "props": {
+            "name": "serialNumber",
+            "label": "Serial number",
+            "value": "$view.serialNumber"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Connected account can register",
+            "value": "$view.canRegister"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Component already exists",
+            "value": "$view.exists"
+          }
+        },
+        {
+          "tag": "Status",
+          "props": {
+            "label": "Account info",
+            "value": "$view.accountInfo"
+          }
+        }
+      ]
+    },
+    "lookupComponent": {
+      "requires": [],
+      "tag": "Action",
+      "props": {
+        "label": "Look up component"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "component",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
+      }
+    },
+    "openRegister": {
+      "requires": [],
+      "tag": "Action",
+      "props": {
+        "label": "Register component"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "register",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
+      }
+    },
+    "registerComponent": {
+      "requires": [],
+      "tag": "Action",
+      "props": {
+        "label": "Prepare registration"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "registerComponent",
+        "args": {
+          "serialNumber": "$form.serialNumber",
+          "tokenURI": "$form.tokenURI"
+        }
+      }
+    },
+    "updateComponentMetadata": {
+      "requires": [],
+      "tag": "Action",
+      "props": {
+        "label": "Prepare metadata update"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "updateComponentMetadata",
+        "args": {
+          "serialNumber": "$form.serialNumber",
+          "tokenURI": "$form.tokenURI"
+        }
+      }
+    },
+    "markComponentMissing": {
+      "requires": [],
+      "tag": "Action",
+      "props": {
+        "label": "Prepare missing report"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "markComponentMissing",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
+      }
+    },
+    "clearComponentMissing": {
+      "requires": [],
+      "tag": "Action",
+      "props": {
+        "label": "Prepare missing clear"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "clearComponentMissing",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
+      }
+    },
+    "retireComponent": {
+      "requires": [],
+      "tag": "Action",
+      "props": {
+        "label": "Prepare retirement"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "retireComponent",
+        "args": {
+          "serialNumber": "$form.serialNumber"
+        }
       }
     }
   }

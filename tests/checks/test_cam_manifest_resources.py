@@ -94,8 +94,10 @@ class CamManifestResourceTest(unittest.TestCase):
                 manifest_path.parent / "ui.json",
                 {
                     "ui": "1.0.0",
-                    "app": {
-                        "requires": ["view"],
+                    "nodes": {
+                        "app": {
+                            "requires": ["view"],
+                        },
                     },
                 },
             )
@@ -199,8 +201,10 @@ class CamManifestResourceTest(unittest.TestCase):
                 manifest_path.parent / "ui.json",
                 {
                     "ui": "1.0.0",
-                    "app": {
-                        "requires": ["view"],
+                    "nodes": {
+                        "app": {
+                            "requires": ["view"],
+                        },
                     },
                 },
             )

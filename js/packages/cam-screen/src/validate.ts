@@ -11,7 +11,7 @@ import { createStringMap } from "@cam/protocol"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type { UiCall, UiDocument, UiNode } from "./types.ts"
 
-const UI_TOP_LEVEL_KEYS = new Set(["ui"])
+const UI_TOP_LEVEL_KEYS = new Set(["ui", "nodes"])
 const NAMED_NODE_KEYS = new Set(["requires", "tag", "props", "children", "call"])
 const INLINE_NODE_KEYS = new Set(["tag", "props", "children", "call"])
 const CALL_KEYS = new Set(["namespace", "function", "args"])
@@ -24,17 +24,17 @@ const ACTION_KEYS = new Set(["tag", "props", "call"])
 export function parseUi(input: unknown): UiDocument {
   const source = requiredRecord(input, "")
   const ui = parseUiVersion(source.ui)
+  rejectUnknownUiFields(source, UI_TOP_LEVEL_KEYS, "")
+
+  const sourceNodes = requiredRecord(source.nodes, "nodes")
   const nodes = createStringMap<UiNode>()
 
-  for (const [name, value] of Object.entries(source)) {
-    if (UI_TOP_LEVEL_KEYS.has(name)) {
-      continue
-    }
+  for (const [name, value] of Object.entries(sourceNodes)) {
     if (name.length === 0) {
-      throw new UiError("UI_INVALID_FIELD", "UI node name must not be empty", "")
+      throw new UiError("UI_INVALID_FIELD", "UI node name must not be empty", "nodes")
     }
 
-    nodes[name] = parseNamedNode(value, name)
+    nodes[name] = parseNamedNode(value, `nodes.${name}`)
   }
 
   if (Object.keys(nodes).length === 0) {
