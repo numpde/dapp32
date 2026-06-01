@@ -237,15 +237,15 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_hardened(cam_integrity)
         self.assertEqual("none", cam_integrity.get("network_mode"))
         self.assertEqual(True, compose_volume(cam_integrity, "/work/dapps").get("read_only"))
+        for dapp_dir in sorted(repo_path("dapps").iterdir()):
+            if (dapp_dir / "cam" / "main.json").is_file():
+                manifest_mount = compose_volume(cam_integrity, f"/work/dapps/{dapp_dir.name}/cam/main.json")
+                # Intentional default: this is the one CAM integrity lane
+                # output. The broader dapps tree stays read-only above.
+                self.assertIsNot(manifest_mount.get("read_only"), True)
 
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
-            (
-                "compose/cam.yml",
-                "cam-integrity",
-                str(repo_path("dapps/bike-nft/cam/main.json")),
-                "/work/dapps/bike-nft/cam/main.json",
-            ),
             ("compose/forge-abi.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
             ("compose/deps.yml", "soldeer-apply-locked", str(repo_path("dapps/dependencies")), "/work/dependencies"),
             ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/dependencies")), "/work/dependencies"),
@@ -268,6 +268,15 @@ class RenderedComposePostureTest(unittest.TestCase):
         }
 
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
+            if (dapp_dir / "cam" / "main.json").is_file():
+                expected.add(
+                    (
+                        "compose/cam.yml",
+                        "cam-integrity",
+                        str(dapp_dir / "cam" / "main.json"),
+                        f"/work/dapps/{dapp_dir.name}/cam/main.json",
+                    )
+                )
             if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
                 expected.add(
                     (
