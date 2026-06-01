@@ -20,18 +20,35 @@ export type StartupOptions = {
   readonly allowUnsignedCamHash: boolean
 }
 
+export type StartupPolicy = {
+  readonly allowUnsignedCamHash: boolean
+}
+
+export type StartupEnv = {
+  readonly VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH?: string
+}
+
 type HostCodeClient = {
   readonly getCode: (request: { readonly address: Address }) => Promise<Hex | undefined>
 }
 
-export function parseStartupOptions(url: URL): StartupOptions {
+export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOptions {
   const params = url.searchParams
   return {
     chainId: requireEvmChainId(requiredParam(params, "chainId")),
     host: requireAddress(requiredParam(params, "host"), "host"),
     account: requireAddress(requiredParam(params, "account"), "account"),
     rpcUrl: requireHttpURL(requiredParam(params, "rpcUrl"), "rpcUrl").href,
-    allowUnsignedCamHash: requiredBooleanParam(params, "allowUnsignedCamHash"),
+    allowUnsignedCamHash: policy.allowUnsignedCamHash,
+  }
+}
+
+export function readStartupPolicy(env: StartupEnv): StartupPolicy {
+  return {
+    allowUnsignedCamHash: parseRequiredBoolean(
+      env.VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH,
+      "VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH",
+    ),
   }
 }
 
@@ -77,8 +94,11 @@ function requiredParam(params: URLSearchParams, name: string): string {
   return value
 }
 
-function requiredBooleanParam(params: URLSearchParams, name: string): boolean {
-  const value = requiredParam(params, name)
+function parseRequiredBoolean(value: string | undefined, name: string): boolean {
+  if (value === undefined || value.length === 0) {
+    throw new Error(`missing environment setting: ${name}`)
+  }
+
   if (value === "true") return true
   if (value === "false") return false
   throw new Error(`${name}: expected "true" or "false"`)

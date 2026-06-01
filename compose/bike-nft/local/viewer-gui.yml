@@ -44,6 +44,9 @@ services:
     mem_limit: 1g
     environment:
       HOME: /tmp/home
+      # Local fixture CAMs are deliberately unsigned. This is deployment policy,
+      # not a browser URL parameter, so a deep link cannot loosen hash checks.
+      VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH: "true"
       npm_config_cache: /tmp/npm-cache
       npm_config_audit: "false"
       npm_config_fund: "false"
@@ -159,7 +162,6 @@ services:
       # Address derived from the obvious local-only 0xbaba... fixture key in
       # deploy.yml. It is display/session identity, not a browser wallet.
       ACCOUNT: "0xfe7854bc8ca79fbe9dc94dfdaf8c10e5c6decab7"
-      ALLOW_UNSIGNED_CAM_HASH: "true"
       BROADCAST_PATH: "${BIKE_NFT_BROADCAST_PATH:?missing_BIKE_NFT_BROADCAST_PATH}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=32m
@@ -197,7 +199,6 @@ services:
             "host": host,
             "account": os.environ["ACCOUNT"],
             "rpcUrl": os.environ["RPC_URL"],
-            "allowUnsignedCamHash": os.environ["ALLOW_UNSIGNED_CAM_HASH"],
         })
         print(f"{os.environ['GUI_URL']}?{query}")
 

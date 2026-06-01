@@ -36,6 +36,7 @@ import {
   assertHostHasCode,
   createPinnedOriginResourceLoader,
   parseStartupOptions,
+  readStartupPolicy,
 } from "./startup"
 import type { StartupOptions } from "./startup"
 import {
@@ -69,7 +70,7 @@ export function App(): ReactElement {
 
     async function load(): Promise<void> {
       try {
-        const startup = parseStartupOptions(new URL(window.location.href))
+        const startup = parseStartupOptions(new URL(window.location.href), readStartupPolicy(import.meta.env))
         const publicClient = createPublicClient({
           transport: http(startup.rpcUrl),
         })
