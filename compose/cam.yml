@@ -1,0 +1,37 @@
+# CAM resource maintenance lanes.
+#
+# These services update derived CAM metadata, not source contracts or package
+# dependencies. They run offline and mount only the manifest files that may be
+# rewritten; referenced ABI/UI resources are read through the read-only dapps
+# mount.
+services:
+  cam-integrity:
+    build:
+      context: ../containers/checks
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 256m
+    environment:
+      HOME: /tmp/home
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONHASHSEED: "0"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=64m
+    volumes:
+      - ../dapps:/work/dapps:ro
+      - ../tools/cam_resource_integrity.py:/work/tools/cam_resource_integrity.py:ro
+      - ../tools/json_policy.py:/work/tools/json_policy.py:ro
+      - ../dapps/bike-nft/cam/main.json:/work/dapps/bike-nft/cam/main.json:rw
+    command:
+      - "-I"
+      - "-B"
+      - "/work/tools/cam_resource_integrity.py"
+      - "/work/dapps"

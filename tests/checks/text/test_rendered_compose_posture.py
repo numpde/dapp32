@@ -232,8 +232,20 @@ class RenderedComposePostureTest(unittest.TestCase):
                 # explicit ABI materialization boundary this test is checking.
                 self.assertIsNot(abi_mount.get("read_only"), True)
 
+        cam_config = rendered_compose_config("compose/cam.yml")
+        cam_integrity = compose_service(cam_config, "cam-integrity")
+        self.assert_hardened(cam_integrity)
+        self.assertEqual("none", cam_integrity.get("network_mode"))
+        self.assertEqual(True, compose_volume(cam_integrity, "/work/dapps").get("read_only"))
+
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
+            (
+                "compose/cam.yml",
+                "cam-integrity",
+                str(repo_path("dapps/bike-nft/cam/main.json")),
+                "/work/dapps/bike-nft/cam/main.json",
+            ),
             ("compose/forge-abi.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
             ("compose/deps.yml", "soldeer-apply-locked", str(repo_path("dapps/dependencies")), "/work/dependencies"),
             ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/dependencies")), "/work/dependencies"),
@@ -272,6 +284,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             "compose/bike-nft/local/deploy.yml",
             "compose/bike-nft/local/http.yml",
             BIKE_NFT_VIEWER_TERMINAL_COMPOSE,
+            "compose/cam.yml",
             "compose/cast.yml",
             "compose/checks.yml",
             "compose/deps.yml",

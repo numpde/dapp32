@@ -102,6 +102,9 @@ Keep the project small, explicit, and protocol-first.
   `dapps/<name>/cam/main.json`. `contracts.*.abiURI` must point directly to
   `cam/abi/<ContractName>.json`; unused `cam/abi/*.json` files are repository
   hygiene failures.
+- CAM manifest `integrity` fields are derived from local ABI/UI resource bytes.
+  Refresh them with `make cam-integrity`; `make abi` runs that refresh after
+  exporting generated ABIs.
 
 ## Dapp Layout
 
