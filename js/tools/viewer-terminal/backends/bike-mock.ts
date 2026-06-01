@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises"
+import { readFile, stat } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 
 import type {
@@ -8,6 +8,7 @@ import {
   createCamViewerSession,
 } from "../../../packages/cam-viewer/dist/index.js"
 import {
+  CAM_RESOURCE_MAX_BYTES,
   toInertValue,
 } from "../../../packages/cam-protocol/dist/index.js"
 import type { InertValue } from "../../../packages/cam-protocol/dist/index.js"
@@ -142,7 +143,13 @@ function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promis
     }
 
     requireMockCamFileURI(resourceURI)
-    const bytes = await readFile(fileURLToPath(resourceURI))
+    const resourcePath = fileURLToPath(resourceURI)
+    const metadata = await stat(resourcePath)
+    if (metadata.size > CAM_RESOURCE_MAX_BYTES) {
+      throw new Error(`mock CAM resource is too large: ${resourceURI.href}`)
+    }
+
+    const bytes = await readFile(resourcePath)
     events.push({
       step: events.length + 1,
       kind: "resource-load",
