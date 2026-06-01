@@ -19,13 +19,26 @@ class JsonPolicyError(ValueError):
 
 def strict_json_loads(text: str) -> object:
     try:
-        return json.loads(text, parse_constant=reject_json_constant)
+        return json.loads(
+            text,
+            object_pairs_hook=reject_duplicate_keys,
+            parse_constant=reject_json_constant,
+        )
     except json.JSONDecodeError as error:
         raise JsonPolicyError(str(error)) from error
 
 
 def read_strict_json(path: Path) -> object:
     return strict_json_loads(path.read_text(encoding="utf-8"))
+
+
+def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise JsonPolicyError(f"duplicate JSON object key is not allowed: {key}")
+        result[key] = value
+    return result
 
 
 def reject_json_constant(value: str) -> NoReturn:
