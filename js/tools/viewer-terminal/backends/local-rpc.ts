@@ -13,9 +13,6 @@ import {
 } from "../../../packages/cam-viewer/dist/index.js"
 import {
   parseJsonText,
-  readBoundedResponseBytes,
-  requireHttpOrigin,
-  requireSameHttpOrigin,
   toInertValue,
 } from "../../../packages/cam-protocol/dist/index.js"
 
@@ -31,6 +28,7 @@ import {
   requiredRecord,
   requiredString,
 } from "../../input.ts"
+import { createSameOriginHttpResourceLoader } from "../../http-resource.ts"
 
 type BroadcastDeployment = {
   readonly chainId: string
@@ -46,7 +44,7 @@ export function createLocalRpcBackend(
   }: TerminalBackendOptions,
 ): TerminalBackend {
   const rpcURL = requiredEnv(env, "CAM_VIEWER_RPC_URL")
-  const resourceOrigin = requiredResourceOrigin(env)
+  const resourceOrigin = requiredEnv(env, "CAM_VIEWER_RESOURCE_ORIGIN")
   const deployment = readBroadcastDeployment(requiredEnv(env, "CAM_VIEWER_BROADCAST_PATH"))
 
   return {
@@ -65,7 +63,19 @@ export function createLocalRpcBackend(
         },
         inputs: initialInputs,
         allowUnsignedCamHash,
-        loadResource: createHttpResourceLoader(resourceOrigin, events),
+        loadResource: createSameOriginHttpResourceLoader({
+          originInput: resourceOrigin,
+          originLabel: "CAM_VIEWER_RESOURCE_ORIGIN",
+          loadFailurePrefix: "local-rpc terminal failed to load CAM resource",
+          onLoad(event) {
+            events.push({
+              step: events.length + 1,
+              kind: "resource-load",
+              uri: event.uri,
+              bytes: event.bytes,
+            })
+          },
+        }),
       })
     },
   }
@@ -90,24 +100,6 @@ function tracedPublicClient(publicClient: CamPublicClient, events: DebugEvent[])
       })
       return result
     },
-  }
-}
-
-function createHttpResourceLoader(origin: string, events: DebugEvent[]): (uri: string) => Promise<Uint8Array> {
-  return async (uri: string): Promise<Uint8Array> => {
-    const resourceURL = requireSameHttpOrigin(uri, origin, "CAM resource URI")
-    const response = await fetch(resourceURL.href, { redirect: "error" })
-    if (!response.ok) {
-      throw new Error(`local-rpc terminal failed to load CAM resource ${resourceURL.href}: HTTP ${response.status}`)
-    }
-    const bytes = await readBoundedResponseBytes(response, resourceURL.href)
-    events.push({
-      step: events.length + 1,
-      kind: "resource-load",
-      uri: resourceURL.href,
-      bytes: bytes.byteLength,
-    })
-    return bytes
   }
 }
 
@@ -147,10 +139,6 @@ function findCreatedContract(transactions: readonly unknown[], contractName: str
 function firstReceiptSender(receipts: readonly unknown[]): CamHost["address"] {
   const receipt = requiredRecord(receipts[0], "receipts.0")
   return requiredAddress(requiredString(receipt, "from", "receipts.0.from"), "receipts.0.from")
-}
-
-function requiredResourceOrigin(env: NodeJS.ProcessEnv): string {
-  return requireHttpOrigin(requiredEnv(env, "CAM_VIEWER_RESOURCE_ORIGIN"), "CAM_VIEWER_RESOURCE_ORIGIN")
 }
 
 function requiredChainNumber(value: unknown): number {

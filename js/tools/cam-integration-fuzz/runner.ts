@@ -43,9 +43,7 @@ import type {
 import {
   isRecordObject,
   parseJsonText,
-  readBoundedResponseBytes,
   requireHttpOrigin,
-  requireSameHttpOrigin,
   toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
@@ -59,6 +57,7 @@ import {
   requiredString,
   requiredStringValue,
 } from "../input.ts"
+import { createSameOriginHttpResourceLoader } from "../http-resource.ts"
 
 type Descriptor = {
   readonly camIntegration: "1.0.0"
@@ -127,7 +126,12 @@ async function main(): Promise<void> {
   // action must simulate and execute. The broad read-only lane keeps invalid
   // strings in its corpus so negative simulations remain observable there.
   const valueMode = options.writeMode.kind === "local-fixture" ? "write-positive" : "broad"
-  const loadResource = httpResourceLoader(options.descriptor.resourceOrigin)
+  const loadResource = createSameOriginHttpResourceLoader({
+    originInput: options.descriptor.resourceOrigin,
+    originLabel: "descriptor.resourceOrigin",
+    loadFailurePrefix: "failed to load CAM resource",
+    onLoad: undefined,
+  })
 
   emit({
     event: "start",
@@ -683,18 +687,6 @@ async function assertResolvedContractsHaveCode(
     if (code === undefined || code === "0x") {
       throw new Error(`CAM contract namespace has no code: ${namespace} ${contract.address}`)
     }
-  }
-}
-
-function httpResourceLoader(originInput: string): (uri: string) => Promise<Uint8Array> {
-  const origin = requireHttpOrigin(originInput, "descriptor.resourceOrigin")
-  return async (uri: string): Promise<Uint8Array> => {
-    const resourceURL = requireSameHttpOrigin(uri, origin, "CAM resource URI")
-    const response = await fetch(resourceURL.href, { redirect: "error" })
-    if (!response.ok) {
-      throw new Error(`failed to load CAM resource ${resourceURL.href}: HTTP ${response.status}`)
-    }
-    return await readBoundedResponseBytes(response, resourceURL.href)
   }
 }
 
