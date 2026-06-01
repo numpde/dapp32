@@ -9,16 +9,14 @@ from .cam_expressions import expression_first_segment, expression_references
 from .common import read_text, repo_path
 from tools.cam_resource_integrity import (
     CamResourceIntegrityError,
+    CONTRACT_NAMESPACE_PREFIX,
     INTEGRITY_PATTERN,
+    ROUTES_NAMESPACE,
+    UI_NAMESPACE,
     resource_declarations,
     resource_integrity,
 )
 from tools.json_policy import JsonPolicyError, strict_json_loads
-
-
-CONTRACT_NAMESPACE_PREFIX = "contracts."
-ROUTES_NAMESPACE = "routes"
-UI_NAMESPACE = "ui"
 
 
 class CamManifestResourceValidator:
