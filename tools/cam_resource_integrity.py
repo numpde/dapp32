@@ -14,12 +14,6 @@ from pathlib import Path
 import re
 import sys
 
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from tools.json_policy import JsonPolicyError, read_strict_json  # noqa: E402
-
-
 CONTRACT_NAMESPACE_PREFIX = "contracts."
 INTEGRITY_PREFIX = "sha256:0x"
 INTEGRITY_PATTERN = re.compile(r"^sha256:0x[0-9a-f]{64}$")
@@ -56,6 +50,8 @@ def refresh_manifest(manifest_path: Path) -> bool:
         raise CamResourceIntegrityError(f"refusing symlinked CAM manifest: {manifest_path}")
 
     try:
+        from tools.json_policy import JsonPolicyError, read_strict_json
+
         document = read_strict_json(manifest_path)
     except JsonPolicyError as error:
         raise CamResourceIntegrityError(f"{manifest_path}: invalid JSON: {error}") from error
@@ -190,6 +186,11 @@ def write_json_in_place(path: Path, document: dict[object, object]) -> None:
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         raise SystemExit("usage: cam_resource_integrity.py <dapps-root>")
+
+    # Compose runs this script with Python isolated mode, so the repository root
+    # is not importable by default. Keep that path mutation local to CLI use so
+    # tests can import this module without changing global import resolution.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
     try:
         changed = refresh_dapps(Path(argv[1]))
