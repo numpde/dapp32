@@ -4,7 +4,6 @@ export type CamViewerErrorCode =
   | "CAM_VIEWER_UI_PARSE_FAILED"
   | "CAM_VIEWER_ACTION_UNSUPPORTED"
   | "CAM_VIEWER_INVALID_INERT_VALUE"
-  | "CAM_VIEWER_UNKNOWN_FORM_FIELD"
 
 export class CamViewerError extends Error {
   readonly code: CamViewerErrorCode
