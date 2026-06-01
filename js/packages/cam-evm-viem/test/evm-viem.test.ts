@@ -9,7 +9,11 @@ import type { Abi, Address, Chain, Hex } from "viem"
 import {
   CamEvmError,
   callCamRoute,
+  evmChainIdHex,
+  evmChainIdNumber,
   loadCamFromHost,
+  requireEvmAddress,
+  requireEvmChainId,
   resolveCamContracts,
   sendCamContractCall,
   simulateCamContractCall,
@@ -70,6 +74,15 @@ const testChain: Chain = {
     },
   },
 }
+
+test("validates EVM address and chain boundary values", () => {
+  assert.equal(requireEvmAddress(userAddress, "account"), userAddress)
+  assert.equal(requireEvmChainId("eip155:31337"), "eip155:31337")
+  assert.equal(evmChainIdNumber("eip155:31337"), 31337)
+  assert.equal(evmChainIdHex("eip155:31337"), "0x7a69")
+  assert.throws(() => requireEvmAddress("0xabc", "account"), /address/)
+  assert.throws(() => requireEvmChainId("31337"), /CAIP-2/)
+})
 
 test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects hash mismatches", async () => {
   const camBytes = encodeJson(camJson)
