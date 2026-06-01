@@ -390,6 +390,604 @@ Enforcement checklist
     from the intended app and chain.
 
 
+Detailed implementation checklist
+---------------------------------
+
+Use this as the working checklist when hardening a boundary. Each item should
+end in one of three states:
+
+    done
+    deliberately unsupported and rejected early
+    deferred with a named follow-up and a test proving current behavior
+
+Do not mark an item done because TypeScript makes it "unlikely." A boundary is
+done when runtime validation, static checks, and the relevant tests agree.
+
+0. Boundary inventory
+
+   [ ] List every public package entrypoint that accepts external data.
+       Candidate files:
+
+           js/packages/cam-core/src/index.ts
+           js/packages/cam-screen/src/index.ts
+           js/packages/cam-evm-viem/src/index.ts
+           js/packages/cam-viewer/src/index.ts
+           js/apps/cam-web/src/startup.ts
+           js/tools/viewer-terminal/backends/*.ts
+           js/tools/cam-integration-fuzz/runner.ts
+
+   [ ] For each entrypoint, write down the owning schema:
+
+           CAM schema
+           UI schema
+           ABI schema
+           EIP-155 chain id
+           EVM address
+           HTTP resource policy
+           inert-value policy
+           wallet/simulation policy
+
+   [ ] For each entrypoint, write down the accepted raw representation.
+
+   [ ] For each entrypoint, write down the canonical returned representation.
+
+   [ ] For each entrypoint, identify the first line where validation happens.
+
+   [ ] Move validation earlier if the value crosses a package boundary before
+       that line.
+
+   [ ] Add a short local code comment only where the boundary is non-obvious.
+       The comment should name the boundary, not narrate the code.
+
+
+1. JSON and inert-value boundaries
+
+   [ ] Every JSON.parse in JS/TS code is immediately followed by the owning
+       parser or inert-value validator.
+
+   [ ] No parsed JSON object is passed through more than one function before
+       validation.
+
+   [ ] CAM JSON bytes enter through parseCam.
+
+   [ ] UI JSON bytes enter through parseUi or the current UI parser.
+
+   [ ] Integration descriptors enter through a descriptor parser, not ad hoc
+       property reads.
+
+   [ ] HTTP/resource loader outputs are byte-limited before JSON parsing.
+
+   [ ] Inert values reject:
+
+           undefined
+           NaN
+           Infinity
+           bigint
+           Date
+           Map
+           Set
+           functions
+           sparse arrays
+           cyclic objects
+           non-plain objects
+
+   [ ] Tests cover each rejected inert value above.
+
+   [ ] Resolved UI trees validate as inert values except for explicitly typed
+       action descriptors.
+
+   [ ] Viewer snapshots validate as inert values plus explicitly typed session
+       metadata.
+
+   [ ] No public CAM/screen/viewer type exposes unknown where InertValue or a
+       narrower protocol type is the real contract.
+
+   Verification:
+
+       make package-test
+       make checks
+
+
+2. ABI resource boundary
+
+   [ ] parseAbiBytes rejects JSON that is not an array.
+
+   [ ] parseAbiBytes rejects array items that are not plain objects.
+
+   [ ] Function entries require:
+
+           non-empty name
+           valid stateMutability
+           inputs array
+           outputs array
+           valid parameter objects
+
+   [ ] Route-callable functions reject overload ambiguity.
+
+   [ ] Read routes require view or pure functions.
+
+   [ ] Write routes reject view and pure functions.
+
+   [ ] Payable write functions are rejected until CAM has an explicit value
+       model.
+
+   [ ] ABI parameters reject unsupported array shapes early.
+
+   [ ] Fixed-size arrays are either fully supported or rejected during ABI
+       validation.
+
+   [ ] Nested arrays are either fully supported or rejected during ABI
+       validation.
+
+   [ ] Tuple outputs require named components when they cross into CAM values.
+
+   [ ] Unnamed tuple outputs are rejected before route execution.
+
+   [ ] bytesN accepts only N in 1..32.
+
+   [ ] intN/uintN accepts only widths supported by Solidity ABI.
+
+   [ ] Address, bool, string, bytes, bytesN, integer, tuple, and supported array
+       parameters each have one validation path.
+
+   Verification:
+
+       package tests for @cam/evm-viem ABI parsing
+       source check for unsupported ABI shapes in CAM manifests
+
+
+3. ABI input normalization
+
+   [ ] There is one normalizer for CAM inert value -> ABI runtime input.
+
+   [ ] The normalizer takes the ABI parameter and path as required arguments.
+
+   [ ] Address inputs require a valid EVM address string.
+
+   [ ] Bool inputs require boolean.
+
+   [ ] String inputs require string.
+
+   [ ] bytes inputs require 0x-prefixed even-length hex.
+
+   [ ] bytesN inputs require exact byte length.
+
+   [ ] uint inputs accept only integer representations explicitly supported by
+       CAM input policy.
+
+   [ ] int inputs accept only integer representations explicitly supported by
+       CAM input policy.
+
+   [ ] Integer inputs reject unsafe JS numbers.
+
+   [ ] Integer inputs reject decimal strings if the input policy does not
+       intentionally support them.
+
+   [ ] Integer inputs range-check against signedness and bit width.
+
+   [ ] Tuple inputs require all declared component names.
+
+   [ ] Tuple inputs reject extra component names unless a reason is documented.
+
+   [ ] Array inputs normalize every element with the same parameter rule.
+
+   [ ] Route call args are matched by ABI input name, not positional guessing.
+
+   [ ] Missing named route args fail.
+
+   [ ] Extra named route args fail.
+
+   [ ] Error paths include route name, function name, arg name, and nested
+       component path.
+
+   Tests:
+
+       [ ] valid address
+       [ ] invalid address
+       [ ] bool rejects "true"
+       [ ] bytes rejects odd-length hex
+       [ ] bytes32 rejects 31-byte and 33-byte values
+       [ ] uint8 accepts minimum and maximum
+       [ ] uint8 rejects -1 and 256
+       [ ] uint256 rejects unsafe JS number
+       [ ] tuple rejects missing component
+       [ ] tuple rejects extra component
+       [ ] array element error reports index path
+
+
+4. ABI output normalization
+
+   [ ] There is one normalizer for RPC decoded output -> CAM inert value.
+
+   [ ] The normalizer takes the ABI output parameter and path as required
+       arguments.
+
+   [ ] Route output count, not Array.isArray alone, decides raw return shape.
+
+   [ ] Zero-output ABI functions reject any returned value.
+
+   [ ] One-output ABI functions wrap raw as a single value.
+
+   [ ] Multi-output ABI functions require a return tuple with exactly that many
+       items.
+
+   [ ] A single Solidity array return is treated as one output.
+
+   [ ] Address outputs are validated as address strings.
+
+   [ ] Bool outputs require boolean.
+
+   [ ] String outputs require string.
+
+   [ ] bytes outputs require 0x-prefixed even-length hex.
+
+   [ ] bytesN outputs require exact byte length.
+
+   [ ] Integer outputs accept bigint.
+
+   [ ] Integer outputs accept safe JS number only if real client paths require
+       it and a test proves the path.
+
+   [ ] Integer outputs reject unsafe JS numbers.
+
+   [ ] Integer outputs reject strings unless deliberately added as a supported
+       decoder shape.
+
+   [ ] Integer outputs range-check against ABI signedness and width.
+
+   [ ] Integer outputs emit decimal strings.
+
+   [ ] Tuple outputs accept object-like decoded tuples.
+
+   [ ] Tuple outputs accept array-like decoded tuples.
+
+   [ ] Tuple outputs reject missing components.
+
+   [ ] Tuple outputs emit inert records keyed by ABI component name.
+
+   [ ] Array outputs normalize every element with the declared element ABI
+       type.
+
+   [ ] Error paths include route name, output index, and tuple/array path.
+
+   Tests:
+
+       [ ] uint8 bigint -> "1"
+       [ ] uint8 safe number -> "1"
+       [ ] uint8 unsafe number rejected
+       [ ] uint8 out of range rejected
+       [ ] int8 lower and upper bounds
+       [ ] bytes rejects odd-length hex
+       [ ] bytes32 exact length
+       [ ] tuple object shape
+       [ ] tuple array shape
+       [ ] tuple missing named field
+       [ ] single array output remains one output
+       [ ] multi-output count mismatch rejected
+
+
+5. CAM route boundary
+
+   [ ] parseCam records route kind, inputs, call, and continuation.
+
+   [ ] resolveRouteCall rejects missing declared inputs.
+
+   [ ] resolveRouteCall rejects extra inputs.
+
+   [ ] Read route calls can target only contract namespaces.
+
+   [ ] Write route calls can target only contract namespaces.
+
+   [ ] Read route continuations can target only UI namespaces.
+
+   [ ] Write route continuations can target only route namespaces until a
+       separate post-write UI model exists.
+
+   [ ] The core parser rejects namespace combinations that no runtime supports.
+
+   [ ] Route expressions resolve only from allowed runtime roots.
+
+   [ ] Literal dollar strings use the explicit escape syntax and are tested.
+
+   [ ] Route continuation args are validated against the target route inputs.
+
+   [ ] Static CAM checks validate the same route/namespace compatibility that
+       runtime uses.
+
+   Tests:
+
+       [ ] missing route input fails
+       [ ] extra route input fails
+       [ ] typo in route continuation arg fails
+       [ ] read route to write-only/mutable ABI fails
+       [ ] write route to view/pure ABI fails
+       [ ] unsupported continuation namespace fails
+       [ ] literal $$ string resolves to literal $
+
+
+6. UI boundary
+
+   [ ] UI top-level shape is explicit.
+
+   [ ] Unknown top-level fields fail.
+
+   [ ] Node ids are unique.
+
+   [ ] Node tags are from the closed supported set.
+
+   [ ] Node props are closed per tag.
+
+   [ ] Required props are checked before resolution where possible.
+
+   [ ] Resolved props are checked after expression resolution.
+
+   [ ] Include resolution has a cycle guard.
+
+   [ ] Include resolution has useful path errors.
+
+   [ ] Include args must match the selected node's required args exactly.
+
+   [ ] Include args cannot shadow runtime roots.
+
+   [ ] Action calls can target only route namespaces.
+
+   [ ] Action call args are validated against target route inputs.
+
+   [ ] UI expressions resolve only from allowed UI roots.
+
+   [ ] UI nodes do not contain embedded JavaScript, HTML, style objects, or
+       renderer-specific escape hatches.
+
+   Tests:
+
+       [ ] unknown tag rejected
+       [ ] unknown prop rejected
+       [ ] missing required prop rejected
+       [ ] resolved string prop rejects non-string value
+       [ ] Include cycle rejected
+       [ ] Include missing arg rejected
+       [ ] Include extra arg rejected
+       [ ] Include runtime-root shadow rejected
+       [ ] Action route arg typo rejected
+
+
+7. Viewer/session boundary
+
+   [ ] createCamViewerSession validates host, account, inputs, form, and policy.
+
+   [ ] session.load uses createContext or the canonical context validator.
+
+   [ ] session.navigate validates route inputs before dispatch.
+
+   [ ] session snapshots do not expose mutable internal references.
+
+   [ ] snapshot values are inert.
+
+   [ ] snapshot UI is resolved and validated.
+
+   [ ] dispatchAction distinguishes navigation from prepared write without
+       guessing from UI labels or renderer state.
+
+   [ ] prepared write descriptors contain only normalized contract call data,
+       chain-independent metadata, and explicit continuation.
+
+   [ ] No raw viem result object appears in a snapshot or prepared action.
+
+   Tests:
+
+       [ ] mutating a snapshot does not mutate session state
+       [ ] bad account rejected at session boundary
+       [ ] bad host chain id rejected
+       [ ] navigate missing input rejected
+       [ ] prepared write contains normalized args only
+       [ ] prepared write continuation is preserved exactly
+
+
+8. Chain and host boundary
+
+   [ ] RPC chain id is read from the RPC endpoint.
+
+   [ ] RPC chain id must equal descriptor/startup host.chainId.
+
+   [ ] CamRoot address must have code.
+
+   [ ] CamRoot must support ICamApp.
+
+   [ ] Contract namespace addresses from CamRoot must be nonzero.
+
+   [ ] Contract namespace addresses must have code.
+
+   [ ] send path passes an explicit Chain object.
+
+   [ ] send path never uses chain: null.
+
+   [ ] local fixture write mode is restricted to eip155:31337.
+
+   [ ] local fixture private key must match the descriptor account.
+
+   [ ] browser unsigned-CAM policy is not controlled by URL params.
+
+   Tests:
+
+       [ ] wrong RPC chain rejected
+       [ ] no code at host rejected
+       [ ] non-ICamApp host rejected
+       [ ] zero namespace address rejected
+       [ ] namespace address without code rejected
+       [ ] fixture key/account mismatch rejected
+
+
+9. Resource boundary
+
+   [ ] CAM root bytes are checked against camHash unless local policy explicitly
+       allows zero hash.
+
+   [ ] main.json declares integrity for every ABI/UI resource namespace.
+
+   [ ] ABI resources are checked against their declared integrity.
+
+   [ ] UI resources are checked against their declared integrity.
+
+   [ ] Relative resource URIs resolve predictably against their base URI.
+
+   [ ] Resource loaders reject cross-origin or out-of-policy resources.
+
+   [ ] Resource loaders enforce maximum byte size before parsing.
+
+   [ ] HTTP loaders reject non-OK responses.
+
+   [ ] File/mock loaders used in tests have explicit fixture-only posture.
+
+   [ ] Static checks reject unused ABI files under cam/abi.
+
+   [ ] Static checks reject ABI URI paths outside cam/abi/<ContractName>.json.
+
+   Tests:
+
+       [ ] bad integrity rejected
+       [ ] missing integrity rejected
+       [ ] oversized resource rejected
+       [ ] cross-origin URI rejected
+       [ ] path traversal URI rejected
+       [ ] orphan ABI file rejected
+
+
+10. Integration fuzz boundary
+
+    [ ] Descriptor parsing is closed and validates every required field.
+
+    [ ] Descriptor accounts array must be non-empty.
+
+    [ ] Generic runner asserts host boundary before loading CAM.
+
+    [ ] Generic runner asserts resource boundary before walking.
+
+    [ ] Generic runner calls every read route at least once where inputs can be
+        generated.
+
+    [ ] Random walk emits structured JSON for every step.
+
+    [ ] Random walk emits route, inputs, form, values, action, and result.
+
+    [ ] Generated values are deterministic from seed.
+
+    [ ] The same seed reproduces the same path for the same deployment.
+
+    [ ] Read-only mode prepares/simulates writes without sending.
+
+    [ ] Write mode sends only after simulation succeeds.
+
+    [ ] Write mode waits for receipt.
+
+    [ ] Write mode fails if receipt status is not success.
+
+    [ ] Write mode follows the route continuation after success.
+
+    [ ] Presented write actions that simulation-revert are failures in strict
+        validation mode.
+
+    [ ] Rejected simulations are allowed only in a deliberately named negative
+        test mode or workflow.
+
+    Tests/targets:
+
+        [ ] make test-integration-fuzz
+        [ ] make test-integration-fuzz-bike-nft
+        [ ] make test-integration-fuzz-with-writes-bike-nft
+
+
+11. Source checks that make drift hard
+
+    [ ] Check that bigint appears only in allowed adapter/test files.
+
+    [ ] Check that JSON.parse is followed by an approved parser/validator.
+
+    [ ] Check that public CAM/screen/viewer types do not expose unknown where
+        InertValue is required.
+
+    [ ] Check that sendCamContractCall never passes chain: null.
+
+    [ ] Check that write routes cannot target payable ABI functions until value
+        is modeled.
+
+    [ ] Check that route/read mutability policy in static checks matches runtime
+        policy.
+
+    [ ] Check that every dapps/*/cam/main.json has pinned resources.
+
+    [ ] Check that no CAM resource checker silently skips malformed prerequisite
+        state.
+
+    [ ] Check that local fixture unsigned-CAM policy is confined to local
+        Compose files.
+
+    [ ] Check that browser startup does not accept unsigned-CAM policy from URL.
+
+    [ ] Put brittle text checks under tests/checks/text/ and keep them narrow.
+
+    Target:
+
+        [ ] make checks
+
+
+12. Browser/rendering boundary
+
+    [ ] Browser startup validates URL params before constructing clients.
+
+    [ ] Browser startup validates RPC chain before loading CAM.
+
+    [ ] Browser resource loader enforces origin and size policy.
+
+    [ ] Renderer receives resolved UI, not raw CAM/UI JSON.
+
+    [ ] Renderer never evaluates manifest JavaScript.
+
+    [ ] Renderer does not treat missing props as blank UI silently.
+
+    [ ] Prepare write runs simulation before wallet send.
+
+    [ ] Simulation errors are displayed with decoded reason where available.
+
+    [ ] Wallet send is unavailable until simulation succeeds.
+
+    [ ] Browser never renders unresolved expression strings.
+
+    [ ] Browser never renders sentinel zero addresses in views where the
+        contract selected a state that should not display them.
+
+    Future target:
+
+        [ ] make test-browser-bike-nft or equivalent browser E2E lane
+
+
+13. Review closure
+
+    Before considering a boundary hardening change complete:
+
+    [ ] The owning schema is identified in code or tests.
+
+    [ ] Unsupported cases fail earlier than before.
+
+    [ ] Existing happy paths still pass.
+
+    [ ] At least one negative test proves the new failure boundary.
+
+    [ ] At least one real-RPC or integration test covers the path if runtime
+        decoder shape is involved.
+
+    [ ] No new parser/checker duplicates an existing source of truth without a
+        comment explaining why.
+
+    [ ] No new silent default was added.
+
+    [ ] No new Docker lane or Make target was added unless it has a distinct
+        runtime, trust, or operator boundary.
+
+    [ ] make checks passes.
+
+    [ ] The narrowest package/app/Forge/integration test passes.
+
+
 Code review checklist
 ---------------------
 
