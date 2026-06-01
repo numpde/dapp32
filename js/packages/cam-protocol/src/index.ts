@@ -48,3 +48,9 @@ export type {
   HttpResponse,
   HttpURL,
 } from "./resources.ts"
+
+export {
+  CAM_CONTRACT_NAMESPACE_PREFIX,
+  CAM_ROUTES_NAMESPACE,
+  CAM_UI_NAMESPACE,
+} from "./namespaces.ts"

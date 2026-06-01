@@ -1,5 +1,5 @@
 import { UiError } from "./errors.ts"
-import { UI_PROP_SCHEMAS, UI_RUNTIME_ROOTS } from "./constants.ts"
+import { CAM_UI_NAMESPACE, UI_PROP_SCHEMAS, UI_RUNTIME_ROOTS } from "./constants.ts"
 import { resolveValueAtPath } from "./expressions.ts"
 import {
   createStringMap,
@@ -186,7 +186,7 @@ function resolveInclude(
   options: ResolveOptions,
   stack: readonly string[],
 ): readonly ResolvedUiNode[] {
-  if (node.call.namespace !== "ui") {
+  if (node.call.namespace !== CAM_UI_NAMESPACE) {
     throw new UiError("UI_INVALID_FIELD", `Include must call the ui namespace: ${node.call.namespace}`, `${path}.call.namespace`)
   }
 

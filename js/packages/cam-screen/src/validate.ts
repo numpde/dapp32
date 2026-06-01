@@ -1,4 +1,10 @@
-import { UI_NODE_ARGUMENT_KEYS, UI_PROP_SCHEMAS, UI_VERSION } from "./constants.ts"
+import {
+  CAM_ROUTES_NAMESPACE,
+  CAM_UI_NAMESPACE,
+  UI_NODE_ARGUMENT_KEYS,
+  UI_PROP_SCHEMAS,
+  UI_VERSION,
+} from "./constants.ts"
 import { UiError } from "./errors.ts"
 import { parseExpressionPayload } from "./expressions.ts"
 import {
@@ -122,14 +128,14 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       rejectUnexpectedNodeShape(source, INCLUDE_KEYS, path)
       return {
         tag,
-        call: parseCall(source.call, `${path}.call`, "ui"),
+        call: parseCall(source.call, `${path}.call`, CAM_UI_NAMESPACE),
       }
     case "Action":
       rejectUnexpectedNodeShape(source, ACTION_KEYS, path)
       return {
         tag,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Action.required),
-        call: parseCall(source.call, `${path}.call`, "routes"),
+        call: parseCall(source.call, `${path}.call`, CAM_ROUTES_NAMESPACE),
       }
     default:
       throw new UiError("UI_INVALID_FIELD", `unknown UI node tag: ${tag}`, `${path}.tag`)
