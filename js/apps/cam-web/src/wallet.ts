@@ -101,10 +101,16 @@ function requireAddressArray(value: unknown, label: string): readonly [Address, 
     throw new Error(`${label}: expected at least one wallet account`)
   }
 
-  return value.map((item, index) => {
+  const addresses = value.map((item, index) => {
     if (typeof item !== "string") {
       throw new Error(`${label}.${index}: expected account address string`)
     }
     return requireAddress(item, `${label}.${index}`)
-  }) as [Address, ...Address[]]
+  })
+  const [first, ...rest] = addresses
+  if (first === undefined) {
+    throw new Error(`${label}: expected at least one wallet account`)
+  }
+
+  return [first, ...rest]
 }
