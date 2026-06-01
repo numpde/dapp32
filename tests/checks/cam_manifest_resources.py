@@ -383,16 +383,7 @@ class CamManifestResourceValidator:
         return fields, failures
 
     def ui_view_references(self, manifest_path: Path) -> tuple[list[tuple[str, str]], list[str]]:
-        ui_path = manifest_path.parent / "ui.json"
-        if not ui_path.is_file():
-            return [], [f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json"]
-
-        failures: list[str] = []
-        ui: dict[str, object] | None = None
-        try:
-            ui = self.read_json_object(ui_path)
-        except AssertionError as error:
-            failures.append(str(error))
+        ui_path, ui, failures = self.read_ui_object(manifest_path)
         if failures:
             return [], failures
         assert ui is not None
@@ -478,19 +469,10 @@ class CamManifestResourceValidator:
         return self.string_list(manifest_path, f"routes.{route_name}.inputs", inputs)
 
     def ui_requires_by_node(self, manifest_path: Path) -> tuple[dict[str, tuple[str, ...]], list[str]]:
-        ui_path = manifest_path.parent / "ui.json"
-        failures: list[str] = []
-        ui: dict[str, object] | None = None
-        if not ui_path.is_file():
-            return {}, [f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json"]
-
-        try:
-            ui = self.read_json_object(ui_path)
-        except AssertionError as error:
-            failures.append(str(error))
-
-        if ui is None:
+        ui_path, ui, failures = self.read_ui_object(manifest_path)
+        if failures:
             return {}, failures
+        assert ui is not None
 
         nodes = ui.get("nodes")
         if not isinstance(nodes, dict):
@@ -512,6 +494,22 @@ class CamManifestResourceValidator:
             requires_by_node[name] = required_names
 
         return requires_by_node, failures
+
+    def read_ui_object(self, manifest_path: Path) -> tuple[Path, dict[str, object] | None, list[str]]:
+        ui_path = manifest_path.parent / "ui.json"
+        failures: list[str] = []
+        ui: dict[str, object] | None = None
+
+        if not ui_path.is_file():
+            failures.append(f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json")
+            return ui_path, ui, failures
+
+        try:
+            ui = self.read_json_object(ui_path)
+        except AssertionError as error:
+            failures.append(str(error))
+
+        return ui_path, ui, failures
 
     def string_list(
         self,
