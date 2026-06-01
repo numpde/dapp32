@@ -176,6 +176,7 @@ class CamManifestResourceTest(unittest.TestCase):
                     },
                     "routes": {
                         "entry": {
+                            "kind": "read",
                             "call": {
                                 "namespace": "contracts.UI",
                                 "function": "viewEntry",
@@ -190,6 +191,7 @@ class CamManifestResourceTest(unittest.TestCase):
                             },
                         },
                         "badWrite": {
+                            "kind": "write",
                             "call": {
                                 "namespace": "contracts.Manager",
                                 "function": "readOnly",
@@ -202,6 +204,7 @@ class CamManifestResourceTest(unittest.TestCase):
                             },
                         },
                         "missing": {
+                            "kind": "write",
                             "call": {
                                 "namespace": "contracts.Manager",
                                 "function": "missing",
@@ -249,6 +252,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 {
                     "routes": {
                         "entry": {
+                            "kind": "read",
                             "inputs": [],
                             "then": {
                                 "namespace": "ui",
@@ -257,6 +261,7 @@ class CamManifestResourceTest(unittest.TestCase):
                             },
                         },
                         "write": {
+                            "kind": "write",
                             "inputs": ["serialNumber"],
                             "then": {
                                 "namespace": "routes",
@@ -267,6 +272,7 @@ class CamManifestResourceTest(unittest.TestCase):
                             },
                         },
                         "missingUi": {
+                            "kind": "read",
                             "inputs": [],
                             "then": {
                                 "namespace": "ui",
@@ -275,6 +281,7 @@ class CamManifestResourceTest(unittest.TestCase):
                             },
                         },
                         "missingRoute": {
+                            "kind": "write",
                             "inputs": [],
                             "then": {
                                 "namespace": "routes",

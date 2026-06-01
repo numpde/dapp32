@@ -11,6 +11,12 @@ can execute the entry route.
 `main.json` owns callable namespaces, routes, and resource integrity pins.
 `ui.json` owns named render and action nodes under its explicit `nodes` map.
 
+The namespace names are part of CAM V1, not arbitrary labels:
+
+- `contracts.<Name>` declares one ABI-backed contract namespace.
+- `routes` declares the route table.
+- `ui` declares the UI resource.
+
 Every operation uses the same call shape:
 
 ```json
@@ -24,7 +30,11 @@ Every operation uses the same call shape:
 ```
 
 Routes and actionable UI nodes carry that object in `call`. Route continuations
-carry the same object in `then`.
+carry the same object in `then`. Routes also declare `kind`:
+
+- `read` routes call view/pure contract functions and continue to `ui`.
+- `write` routes prepare mutable contract calls and continue to another route
+  after the write succeeds.
 
 Namespaces are closed and declared in `main.json`:
 

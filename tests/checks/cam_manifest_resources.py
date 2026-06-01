@@ -266,12 +266,8 @@ class CamManifestResourceValidator:
         function_name: str,
         function: abi_usage.AbiFunction,
     ) -> list[str]:
-        then = route.get("then")
-        if not isinstance(then, dict):
-            return [f"{manifest_path}: {route_path}.then must be an object"]
-
-        then_namespace = then.get("namespace")
-        if then_namespace == UI_NAMESPACE:
+        kind = route.get("kind")
+        if kind == "read":
             return abi_usage.validate_route_function_mutability(
                 manifest_path,
                 f"{route_path}.call",
@@ -280,7 +276,7 @@ class CamManifestResourceValidator:
                 function,
             )
 
-        if then_namespace == ROUTES_NAMESPACE:
+        if kind == "write":
             return abi_usage.validate_contract_action_function(
                 manifest_path,
                 f"{route_path}.call",
@@ -289,7 +285,7 @@ class CamManifestResourceValidator:
                 function,
             )
 
-        return [f"{manifest_path}: {route_path}.then.namespace must be ui or routes"]
+        return [f"{manifest_path}: {route_path}.kind must be read or write"]
 
     def validate_route_continuation(
         self,
@@ -304,15 +300,20 @@ class CamManifestResourceValidator:
             return [f"{manifest_path}: {route_path}.then must be an object"]
 
         namespace = then.get("namespace")
+        kind = route.get("kind")
         function = then.get("function")
         args = then.get("args")
         continuation_path = f"{route_path}.then"
+        if kind not in {"read", "write"}:
+            return [f"{manifest_path}: {route_path}.kind must be read or write"]
         if not isinstance(function, str) or function == "":
             return [f"{manifest_path}: {continuation_path}.function must be a non-empty string"]
         if not isinstance(args, dict):
             return [f"{manifest_path}: {continuation_path}.args must be an object"]
 
         if namespace == ROUTES_NAMESPACE:
+            if kind != "write":
+                return [f"{manifest_path}: read route continuation must target ui at {continuation_path}"]
             target_route = routes.get(function)
             if not isinstance(target_route, dict):
                 return [f"{manifest_path}: route continuation references unknown route at {continuation_path}: {function}"]
@@ -330,6 +331,8 @@ class CamManifestResourceValidator:
             ]
 
         if namespace == UI_NAMESPACE:
+            if kind != "read":
+                return [f"{manifest_path}: write route continuation must target routes at {continuation_path}"]
             target_requires = ui_requires_by_node.get(function)
             if target_requires is None:
                 return [f"{manifest_path}: route continuation references unknown UI node at {continuation_path}: {function}"]
@@ -391,6 +394,9 @@ class CamManifestResourceValidator:
 
             required_names, require_failures = self.string_list(ui_path, f"{name}.requires", requires)
             failures.extend(require_failures)
+            for required_name in required_names:
+                if required_name != "view":
+                    failures.append(f"{ui_path}: unsupported UI node required argument at {name}.requires: {required_name}")
             requires_by_node[name] = required_names
 
         return requires_by_node, failures
