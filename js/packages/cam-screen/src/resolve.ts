@@ -1,4 +1,5 @@
 import { UiError } from "./errors.ts"
+import { UI_RUNTIME_ROOTS } from "./constants.ts"
 import { resolveValueAtPath } from "./expressions.ts"
 import {
   createStringMap,
@@ -49,22 +50,11 @@ export function resolveInitialUiNode(
   }
   const initialNodes = resolveNamedNode(ui, nodeName, args, initialContext, nodeName, { includeActions: false })
   const form = createInitialForm(initialNodes)
-  const resolvedUi = resolveUiNode(ui, nodeName, argsWithInitialForm(args, form), { ...context, form })
+  const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, form })
 
   return {
     form,
     resolvedUi,
-  }
-}
-
-function argsWithInitialForm(args: InertRecord, form: InertRecord): InertRecord {
-  if (!hasOwn(args, "form")) {
-    return args
-  }
-
-  return {
-    ...args,
-    form,
   }
 }
 
@@ -96,6 +86,7 @@ function contextForNode(
   path: string,
 ): UiRuntimeContext {
   const requires = requireNamedNodeArgs(node, path)
+  rejectRuntimeRootArgs(args, path)
   const nodeContext = {
     ...context,
     ...args,
@@ -108,6 +99,14 @@ function contextForNode(
   }
 
   return nodeContext
+}
+
+function rejectRuntimeRootArgs(args: InertRecord, path: string): void {
+  for (const name of Object.keys(args)) {
+    if (UI_RUNTIME_ROOTS.has(name)) {
+      throw new UiError("UI_INVALID_FIELD", `UI node args must not shadow runtime root: ${name}`, `${path}.args`)
+    }
+  }
 }
 
 function requireNamedNodeArgs(node: UiNode, path: string): readonly string[] {

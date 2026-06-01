@@ -95,7 +95,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 {
                     "ui": "1.0.0",
                     "app": {
-                        "requires": ["form", "view"],
+                        "requires": ["view"],
                     },
                 },
             )
@@ -148,7 +148,6 @@ class CamManifestResourceTest(unittest.TestCase):
                                 "namespace": "ui",
                                 "function": "app",
                                 "args": {
-                                    "form": "$form",
                                     "view": "$outputs.0",
                                 },
                             },
@@ -201,7 +200,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 {
                     "ui": "1.0.0",
                     "app": {
-                        "requires": ["form", "view"],
+                        "requires": ["view"],
                     },
                 },
             )
@@ -215,9 +214,7 @@ class CamManifestResourceTest(unittest.TestCase):
                             "then": {
                                 "namespace": "ui",
                                 "function": "app",
-                                "args": {
-                                    "form": "$form",
-                                },
+                                "args": {},
                             },
                         },
                         "write": {

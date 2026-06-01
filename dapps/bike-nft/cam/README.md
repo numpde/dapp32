@@ -43,7 +43,7 @@ Named UI nodes declare the arguments they read:
 {
   "app": {
     "tag": "Screen",
-    "requires": ["form", "view"]
+    "requires": ["view"]
   }
 }
 ```
@@ -52,7 +52,7 @@ Named UI nodes declare the arguments they read:
 Expanded nodes receive only the args their parent passes.
 
 Input `props.value` initializes `form[input.name]`; after that, the viewer owns
-the current form value and actions read it through `form`.
+the current form value and actions read it through the runtime `form` root.
 
 `Include` is the expansion primitive:
 
@@ -62,9 +62,7 @@ the current form value and actions read it through `form`.
   "call": {
     "namespace": "ui",
     "function": "$view.actions",
-    "args": {
-      "form": "$form"
-    }
+    "args": {}
   }
 }
 ```

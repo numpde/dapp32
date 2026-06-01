@@ -2,7 +2,7 @@
   "ui": "1.0.0",
   "app": {
     "tag": "Screen",
-    "requires": ["form", "view"],
+    "requires": ["view"],
     "props": {
       "title": "Bicycle component registry"
     },
@@ -22,9 +22,7 @@
         "call": {
           "namespace": "ui",
           "function": "$view.actions",
-          "args": {
-            "form": "$form"
-          }
+          "args": {}
         }
       }
     ]
@@ -268,7 +266,7 @@
     ]
   },
   "lookupComponent": {
-    "requires": ["form"],
+    "requires": [],
     "tag": "Action",
     "props": {
       "label": "Look up component"
@@ -282,7 +280,7 @@
     }
   },
   "openRegister": {
-    "requires": ["form"],
+    "requires": [],
     "tag": "Action",
     "props": {
       "label": "Register component"
@@ -296,7 +294,7 @@
     }
   },
   "registerComponent": {
-    "requires": ["form"],
+    "requires": [],
     "tag": "Action",
     "props": {
       "label": "Prepare registration"
@@ -311,7 +309,7 @@
     }
   },
   "updateComponentMetadata": {
-    "requires": ["form"],
+    "requires": [],
     "tag": "Action",
     "props": {
       "label": "Prepare metadata update"
@@ -326,7 +324,7 @@
     }
   },
   "markComponentMissing": {
-    "requires": ["form"],
+    "requires": [],
     "tag": "Action",
     "props": {
       "label": "Prepare missing report"
@@ -340,7 +338,7 @@
     }
   },
   "clearComponentMissing": {
-    "requires": ["form"],
+    "requires": [],
     "tag": "Action",
     "props": {
       "label": "Prepare missing clear"
@@ -354,7 +352,7 @@
     }
   },
   "retireComponent": {
-    "requires": ["form"],
+    "requires": [],
     "tag": "Action",
     "props": {
       "label": "Prepare retirement"

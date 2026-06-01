@@ -28,7 +28,7 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
     ui: "1.0.0",
     app: {
       tag: "Screen",
-      requires: ["form", "view"],
+      requires: ["view"],
       props: {
         title: "Bicycle component registry",
       },
@@ -48,9 +48,7 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
           call: {
             namespace: "ui",
             function: "$view.actions",
-            args: {
-              form: "$form",
-            },
+            args: {},
           },
         },
       ],
@@ -71,7 +69,7 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
     },
     lookupComponent: {
       tag: "Action",
-      requires: ["form"],
+      requires: [],
       props: {
         label: "Look up component",
       },
@@ -86,7 +84,6 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
   })
 
   const resolved = resolveUiNode(ui, "app", inertRecord({
-    form: context.form,
     view: {
       viewId: "entry",
       actions: ["lookupComponent"],
@@ -109,6 +106,24 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
   assert.equal(action?.call.namespace, "routes")
   assert.equal(action?.call.function, "component")
   assert.equal(action?.call.args.serialNumber, "ABC123")
+})
+
+test("resolveUiNode rejects args that shadow runtime roots", () => {
+  const ui = parseUi({
+    ui: "1.0.0",
+    app: {
+      tag: "Text",
+      requires: [],
+      props: {
+        text: "shadow",
+      },
+    },
+  })
+
+  assert.throws(
+    () => resolveUiNode(ui, "app", inertRecord({ form: {} }), context),
+    /must not shadow runtime root: form/,
+  )
 })
 
 test("parseUi rejects stale screen-era and control fields", () => {
@@ -142,7 +157,7 @@ test("resolveUiNode fails closed on missing required arguments and non-string ac
     ui: "1.0.0",
     action: {
       tag: "Action",
-      requires: ["form"],
+      requires: ["view"],
       props: {
         label: "Broken",
       },
@@ -156,12 +171,11 @@ test("resolveUiNode fails closed on missing required arguments and non-string ac
 
   assert.throws(
     () => resolveUiNode(ui, "action", inertRecord({}), context),
-    /form/,
+    /view/,
   )
 
   assert.throws(
     () => resolveUiNode(ui, "action", inertRecord({
-      form: {},
       view: {
         actions: ["component"],
       },

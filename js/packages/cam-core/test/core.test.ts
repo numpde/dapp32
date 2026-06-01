@@ -69,9 +69,6 @@ test("resolves a CAM route into a plain call descriptor", () => {
     namespace: "ui",
     function: "app",
     args: toInertValue({
-      form: {
-        serialNumber: BIKE_SERIAL_NUMBER,
-      },
       view: {
         viewId: "component.found",
       },
