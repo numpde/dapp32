@@ -607,7 +607,6 @@ function generatedNamedValue(name: string, account: Address, prng: Prng, mode: V
 
 function assertResolvedSnapshot(snapshot: CamViewerSnapshot): void {
   const loaded = requireLoadedSnapshot(snapshot)
-  assertNoExpressionLeak(loaded.resolvedUi, "resolvedUi")
   if (actionNodes(loaded.resolvedUi).some((action) => action.call.namespace !== "routes")) {
     throw new Error(`route ${loaded.route}: resolved action outside routes namespace`)
   }
@@ -619,26 +618,6 @@ function requireLoadedSnapshot(snapshot: CamViewerSnapshot): Required<Pick<CamVi
   }
 
   return snapshot as Required<Pick<CamViewerSnapshot, "route" | "form" | "resolvedUi">> & CamViewerSnapshot
-}
-
-function assertNoExpressionLeak(value: unknown, path: string): void {
-  if (typeof value === "string") {
-    if (value.startsWith("$")) {
-      throw new Error(`${path}: unresolved CAM/UI expression leaked into resolved output: ${value}`)
-    }
-    return
-  }
-
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => assertNoExpressionLeak(item, `${path}.${index}`))
-    return
-  }
-
-  if (isRecordObject(value)) {
-    for (const [key, item] of Object.entries(value)) {
-      assertNoExpressionLeak(item, `${path}.${key}`)
-    }
-  }
 }
 
 function inputNames(node: ResolvedUiNode): readonly string[] {

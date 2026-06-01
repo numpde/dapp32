@@ -83,16 +83,31 @@ x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
         throw new Error("CamRoot contractAddress not found in Forge broadcast output")
       }
 
+      function requiredEnv(name) {
+        const value = process.env[name]
+        if (value === undefined || value.length === 0) {
+          throw new Error(`missing required environment variable: $${name}`)
+        }
+        return value
+      }
+
+      function requiredBooleanEnv(name) {
+        const value = requiredEnv(name)
+        if (value === "true") return true
+        if (value === "false") return false
+        throw new Error(`$${name} must be literal true or false`)
+      }
+
       const descriptor = {
         camIntegration: "1.0.0",
-        chainId: process.env.CAM_INTEGRATION_CHAIN_ID,
-        rpcUrl: process.env.CAM_INTEGRATION_RPC_URL,
+        chainId: requiredEnv("CAM_INTEGRATION_CHAIN_ID"),
+        rpcUrl: requiredEnv("CAM_INTEGRATION_RPC_URL"),
         camHost,
-        resourceOrigin: process.env.CAM_INTEGRATION_RESOURCE_ORIGIN,
-        accounts: [process.env.CAM_INTEGRATION_ACCOUNT],
-        allowUnsignedCamHash: process.env.CAM_INTEGRATION_ALLOW_UNSIGNED_CAM_HASH === "true",
+        resourceOrigin: requiredEnv("CAM_INTEGRATION_RESOURCE_ORIGIN"),
+        accounts: [requiredEnv("CAM_INTEGRATION_ACCOUNT")],
+        allowUnsignedCamHash: requiredBooleanEnv("CAM_INTEGRATION_ALLOW_UNSIGNED_CAM_HASH"),
       }
-      writeFileSync(process.env.CAM_INTEGRATION_DESCRIPTOR_PATH, JSON.stringify(descriptor, null, 2) + "\n")
+      writeFileSync(requiredEnv("CAM_INTEGRATION_DESCRIPTOR_PATH"), JSON.stringify(descriptor, null, 2) + "\n")
       JS
       node --experimental-strip-types tools/cam-integration-fuzz/runner.ts
 
