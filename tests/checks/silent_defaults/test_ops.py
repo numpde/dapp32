@@ -25,6 +25,37 @@ YAML_ENV_LIST_ASSIGNMENT_RE = re.compile(r"^\s*-\s+(?P<name>[A-Za-z_][A-Za-z0-9_
 YAML_ENV_MAPPING_BLANK_RE = re.compile(r"^\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*):\s*(?:#.*)?$")
 YAML_ENVIRONMENT_BLOCK_RE = re.compile(r"^(?P<indent>\s*)environment:\s*$")
 WORKFLOW_DEFAULT_FIELD_RE = re.compile(r"^\s*default:\s*(?P<value>.*)$")
+ALLOWED_MAKE_DEFAULT_NAMES = frozenset(
+    {
+        "ALLOW_UPDATE",
+        "ANVIL_COMPOSE_PROJECT_NAME",
+        "ANVIL_HOST_PORT",
+        "BIKE_NFT_CAM_HASH",
+        "BIKE_NFT_GUI_BIND_HOST",
+        "BIKE_NFT_GUI_ORIGIN",
+        "BIKE_NFT_GUI_PORT",
+        "BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME",
+        "BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME",
+        "BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME",
+        "CAM_INTEGRATION_RUNS",
+        "CAM_INTEGRATION_SEED",
+        "CAM_INTEGRATION_STEPS",
+        "CAM_URI",
+        "COMPOSE_DIR",
+        "COMPOSE_PROJECT_NAME",
+        "DOCKER_COMPOSE",
+        "LIVE_CHECK_COMPOSE_PROJECT_NAME",
+        "LOCAL_GID",
+        "LOCAL_UID",
+        "RPC_COMPOSE_PROJECT_NAME",
+        "TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME",
+        "TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME",
+        "TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME",
+        "VIEWER_TERMINAL_COMPOSE_PROJECT_NAME",
+        "VIEWER_TERMINAL_CONTAINER_NAME",
+        "VIEWER_TERMINAL_MOCK",
+    }
+)
 
 
 def ops_files() -> list[Path]:
@@ -63,10 +94,15 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         self.assertRegex("      - FOO=", YAML_ENV_LIST_ASSIGNMENT_RE)
         self.assertRegex("    environment:", YAML_ENVIRONMENT_BLOCK_RE)
         self.assertRegex("      FOO:", YAML_ENV_MAPPING_BLANK_RE)
+        self.assertEqual(
+            ["Makefile:1: unreviewed Make default assignment: PROFILE ?= demo"],
+            make_default_assignment_findings_for_source("PROFILE ?= demo\n", "Makefile"),
+        )
 
     def test_ops_files_do_not_publish_silent_defaults(self) -> None:
         files = ops_files()
         findings: list[str] = []
+        findings.extend(make_default_assignment_findings(files))
         findings.extend(line_findings(files, MAKE_FUNCTION_DEFAULT_RE, "make function fallback"))
         findings.extend(line_findings(files, SHELL_DEFAULT_EXPANSION_RE, "shell/compose interpolation default"))
         findings.extend(self.shell_silent_success_findings(files))
@@ -106,6 +142,11 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
         self.assertEqual([], findings)
 
+    def test_all_allowed_make_defaults_are_still_present(self) -> None:
+        names = make_default_names(ROOT / "Makefile")
+
+        self.assertEqual(ALLOWED_MAKE_DEFAULT_NAMES, names)
+
     def shell_silent_success_findings(self, files: list[Path]) -> list[str]:
         findings: list[str] = []
         for path in files:
@@ -118,6 +159,36 @@ class OpsSilentDefaultsTest(unittest.TestCase):
                     continue
                 findings.append(f"{path.relative_to(ROOT)}:{line_number}: shell silent success fallback: {line.strip()}")
         return findings
+
+
+def make_default_assignment_findings(files: list[Path]) -> list[str]:
+    findings: list[str] = []
+    for path in files:
+        findings.extend(make_default_assignment_findings_for_source(path.read_text(encoding="utf-8"), str(path.relative_to(ROOT))))
+    return findings
+
+
+def make_default_assignment_findings_for_source(source: str, label: str) -> list[str]:
+    findings: list[str] = []
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        if line.lstrip().startswith("#"):
+            continue
+        match = MAKE_DEFAULT_ASSIGNMENT_RE.match(line)
+        if match is None:
+            continue
+        name = match.group("name")
+        if name not in ALLOWED_MAKE_DEFAULT_NAMES:
+            findings.append(f"{label}:{line_number}: unreviewed Make default assignment: {line.strip()}")
+    return findings
+
+
+def make_default_names(path: Path) -> set[str]:
+    names: set[str] = set()
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = MAKE_DEFAULT_ASSIGNMENT_RE.match(line)
+        if match is not None:
+            names.add(match.group("name"))
+    return names
 
 
 if __name__ == "__main__":

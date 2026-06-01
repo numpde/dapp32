@@ -31,6 +31,11 @@ JS_DESTRUCTURING_DEFAULT_RE = re.compile(
 JS_PARAMETER_DESTRUCTURING_VALUE_RE = re.compile(
     r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:[\"'`{\[]|\d|true|false|null|undefined|[A-Z_][A-Za-z0-9_]*)"
 )
+JS_PARAMETER_OBJECT_START_RE = re.compile(
+    r"(?:\bfunction\b[^{\n]*\(\s*\{"
+    r"|(?:const|let|var)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:async\s*)?\(?\s*\{"
+    r"|^\s*[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\{)"
+)
 JS_OPTION_OBJECT_DEFAULT_RE = re.compile(
     r"(?:function\s+[A-Za-z0-9_]+\s*\([^)\n]*\{[^)\n]*\}\s*:\s*[A-Za-z0-9_<>, ]+\s*=\s*\{\}"
     r"|\([^)\n]*\{[^)\n]*\}\s*:\s*[A-Za-z0-9_<>, ]+\s*=\s*\{\}\)\s*=>"
@@ -79,6 +84,8 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
         self.assertRegex("const port = configuredPort ? configuredPort : '8080'", JS_TERNARY_DEFAULT_RE)
         self.assertRegex("const { port = '8080' } = config", JS_DESTRUCTURING_DEFAULT_RE)
         self.assertTrue(js_source_has_parameter_destructuring_default("function run({\n  port = DEFAULT_PORT,\n}: Options) {}"))
+        self.assertTrue(js_source_has_parameter_destructuring_default("const run = ({\n  port = DEFAULT_PORT,\n}: Options) => {}"))
+        self.assertTrue(js_source_has_parameter_destructuring_default("run({\n  port = DEFAULT_PORT,\n}: Options) {}"))
         self.assertRegex("function run({ port }: Options = {}) {}", JS_OPTION_OBJECT_DEFAULT_RE)
         self.assertRegex("}: MockPublicClientOptions = {}): {", JS_OPTION_OBJECT_DEFAULT_RE)
         self.assertRegex('function run(port = "8080") {}', JS_DEFAULT_PARAMETER_RE)
@@ -133,7 +140,7 @@ def js_parameter_destructuring_default_findings_for_source(source: str, label: s
     findings: list[str] = []
     in_parameter_object = False
     for line_number, line in enumerate(source.splitlines(), start=1):
-        if not in_parameter_object and re.search(r"\bfunction\b[^{\n]*\(\s*\{", line):
+        if not in_parameter_object and JS_PARAMETER_OBJECT_START_RE.search(line):
             in_parameter_object = True
 
         if in_parameter_object and JS_PARAMETER_DESTRUCTURING_VALUE_RE.search(line):
