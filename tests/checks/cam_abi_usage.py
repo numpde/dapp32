@@ -14,7 +14,7 @@ class AbiFunction:
 
 
 READ_ROUTE_MUTABILITY = frozenset({"view", "pure"})
-WRITE_ACTION_MUTABILITY = frozenset({"nonpayable", "payable"})
+WRITE_ACTION_MUTABILITY = frozenset({"nonpayable"})
 
 
 def abi_functions(abi: list[object]) -> dict[str, AbiFunction | None]:
@@ -184,7 +184,7 @@ def validate_contract_action_function(
 
     if function.state_mutability not in WRITE_ACTION_MUTABILITY:
         failures.append(
-            f"{manifest_path}: write route must target a payable or nonpayable ABI function "
+            f"{manifest_path}: write route must target a nonpayable ABI function "
             f"at {location}: {contract_name}.{function_name}"
         )
 

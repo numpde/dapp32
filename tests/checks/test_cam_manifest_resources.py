@@ -163,6 +163,13 @@ class CamManifestResourceTest(unittest.TestCase):
                         "inputs": [],
                         "outputs": [],
                     },
+                    {
+                        "type": "function",
+                        "name": "pay",
+                        "stateMutability": "payable",
+                        "inputs": [],
+                        "outputs": [],
+                    },
                 ],
             )
 
@@ -221,6 +228,19 @@ class CamManifestResourceTest(unittest.TestCase):
                                 "args": {},
                             },
                         },
+                        "pay": {
+                            "kind": "write",
+                            "call": {
+                                "namespace": "contracts.Manager",
+                                "function": "pay",
+                                "args": {},
+                            },
+                            "then": {
+                                "namespace": "routes",
+                                "function": "entry",
+                                "args": {},
+                            },
+                        },
                     },
                 },
             )
@@ -230,9 +250,11 @@ class CamManifestResourceTest(unittest.TestCase):
             [
                 f"{manifest_path}: missing arg account for UI.viewEntry at routes.entry.call",
                 f"{manifest_path}: unexpected arg extra for Manager.readOnly at routes.badWrite.call",
-                f"{manifest_path}: write route must target a payable or nonpayable ABI function "
+                f"{manifest_path}: write route must target a nonpayable ABI function "
                 f"at routes.badWrite.call: Manager.readOnly",
                 f"{manifest_path}: route call function is not present in Manager ABI at routes.missing.call: missing",
+                f"{manifest_path}: write route must target a nonpayable ABI function "
+                f"at routes.pay.call: Manager.pay",
                 f"{manifest_path}: UI expression references unknown contract view field "
                 f"at {manifest_path.parent / 'ui.json'}.nodes.app.props.title: missing",
             ],
