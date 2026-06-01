@@ -43,6 +43,7 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def test_runtime_integer_representations_do_not_leak_past_evm_adapter(self) -> None:
         allowed = {
+            repo_path("js/packages/cam-evm-viem/src/abi-values.ts"),
             repo_path("js/packages/cam-evm-viem/src/arguments.ts"),
             repo_path("js/packages/cam-evm-viem/src/chain.ts"),
             repo_path("js/packages/cam-evm-viem/src/routes.ts"),

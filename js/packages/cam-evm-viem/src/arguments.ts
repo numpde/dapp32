@@ -6,6 +6,13 @@ import {
 } from "@cam/protocol"
 import type { InertValue } from "@cam/protocol"
 
+import {
+  dynamicArrayElement,
+  integerBounds,
+  parseFixedBytesLength,
+  parseIntegerType,
+} from "./abi-values.ts"
+import type { IntegerType } from "./abi-values.ts"
 import { CamEvmError } from "./errors.ts"
 
 type ArgumentErrorCode = "CAM_ROUTE_INVALID_ARGUMENT" | "CAM_WRITE_INVALID_ARGUMENT"
@@ -72,13 +79,14 @@ function normalizeAbiArg(
 ): unknown {
   const type = parameter.type
 
-  if (type.endsWith("[]")) {
+  const element = dynamicArrayElement(parameter)
+  if (element !== undefined) {
     if (!Array.isArray(value)) {
       throw invalidArg(errorCode, path, "", `expected array for ${type}`)
     }
 
     return value.map((item, index) =>
-      normalizeAbiArg(item, { ...parameter, type: type.slice(0, -2) }, `${path}.${index}`, errorCode),
+      normalizeAbiArg(item, element, `${path}.${index}`, errorCode),
     )
   }
 
@@ -97,12 +105,21 @@ function normalizeAbiArg(
     return value
   }
 
-  const integerType = parseIntegerType(type, errorCode, path)
-  if (integerType !== undefined) {
-    return normalizeInteger(value, errorCode, path, integerType)
+  try {
+    const integerType = parseIntegerType(type)
+    if (integerType !== undefined) {
+      return normalizeInteger(value, errorCode, path, integerType)
+    }
+  } catch (cause) {
+    throw invalidArg(errorCode, path, "", cause instanceof Error ? cause.message : String(cause))
   }
 
-  const fixedBytesLength = parseFixedBytesLength(type, errorCode, path)
+  let fixedBytesLength: number | undefined
+  try {
+    fixedBytesLength = parseFixedBytesLength(type)
+  } catch (cause) {
+    throw invalidArg(errorCode, path, "", cause instanceof Error ? cause.message : String(cause))
+  }
   if (type === "bytes" || fixedBytesLength !== undefined) {
     if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) {
       throw invalidArg(errorCode, path, "", `expected hex bytes for ${type}`)
@@ -141,11 +158,6 @@ function normalizeAbiArg(
   throw invalidArg(errorCode, path, "", `unsupported ABI input type: ${type}`)
 }
 
-type IntegerType = {
-  readonly bits: number
-  readonly signed: boolean
-}
-
 function normalizeInteger(value: InertValue, errorCode: ArgumentErrorCode, path: string, type: IntegerType): bigint {
   if (typeof value === "number" && Number.isSafeInteger(value)) {
     return requireIntegerBounds(value, errorCode, path, type)
@@ -158,46 +170,15 @@ function normalizeInteger(value: InertValue, errorCode: ArgumentErrorCode, path:
   throw invalidArg(errorCode, path, "", "expected integer")
 }
 
-function requireIntegerBounds(
-  value: bigint | number,
-  errorCode: ArgumentErrorCode,
-  path: string,
-  type: IntegerType,
-): bigint {
+function requireIntegerBounds(value: bigint | number, errorCode: ArgumentErrorCode, path: string, type: IntegerType): bigint {
   const bigintValue = typeof value === "bigint" ? value : BigInt(value)
-  const bits = BigInt(type.bits)
-  const min = type.signed ? -(1n << (bits - 1n)) : 0n
-  const max = type.signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n
+  const { min, max } = integerBounds(type)
 
   if (bigintValue < min || bigintValue > max) {
     throw invalidArg(errorCode, path, "", `integer is out of range for ${type.signed ? "int" : "uint"}${type.bits}`)
   }
 
   return bigintValue
-}
-
-function parseIntegerType(type: string, errorCode: ArgumentErrorCode, path: string): IntegerType | undefined {
-  const match = /^(u?)int([0-9]*)$/.exec(type)
-  if (match === null) return undefined
-
-  const bits = match[2] === "" ? 256 : Number(match[2])
-  if (!Number.isInteger(bits) || bits < 8 || bits > 256 || bits % 8 !== 0) {
-    throw invalidArg(errorCode, path, "", `unsupported ABI integer type: ${type}`)
-  }
-
-  return { bits, signed: match[1] === "" }
-}
-
-function parseFixedBytesLength(type: string, errorCode: ArgumentErrorCode, path: string): number | undefined {
-  const match = /^bytes([0-9]+)$/.exec(type)
-  if (match === null) return undefined
-
-  const bytes = Number(match[1])
-  if (!Number.isInteger(bytes) || bytes < 1 || bytes > 32) {
-    throw invalidArg(errorCode, path, "", `unsupported ABI bytes type: ${type}`)
-  }
-
-  return bytes
 }
 
 function tupleComponents(

@@ -9,6 +9,15 @@ import { isAddress } from "viem"
 import type { Abi, AbiFunction, AbiParameter, Address } from "viem"
 
 import { abiFunctionInputs, normalizeAbiArgs } from "./arguments.ts"
+import {
+  dynamicArrayElement,
+  integerBounds,
+  isFixedArrayType,
+  isTupleParameter,
+  parseFixedBytesLength,
+  parseIntegerType,
+} from "./abi-values.ts"
+import type { AbiTupleParameter, IntegerType } from "./abi-values.ts"
 import { findUniqueAbiFunction } from "./abi-functions.ts"
 import { assertClientChain } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
@@ -142,17 +151,16 @@ function normalizeRouteValues(
 function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string): InertValue {
   const type = parameter.type
 
-  if (type.endsWith("[]")) {
+  const element = dynamicArrayElement(parameter)
+  if (element !== undefined) {
     if (!Array.isArray(value)) {
       throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output expected array for ${type} at ${path}`)
     }
 
-    return value.map((item, index) =>
-      normalizeAbiValue(item, { ...parameter, type: type.slice(0, -2) }, `${path}.${index}`),
-    )
+    return value.map((item, index) => normalizeAbiValue(item, element, `${path}.${index}`))
   }
 
-  if (/\[[0-9]+\]$/.test(type)) {
+  if (isFixedArrayType(type)) {
     throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output fixed-size arrays are not supported at ${path}`)
   }
 
@@ -185,30 +193,32 @@ function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string
     return value
   }
 
-  const integerType = parseIntegerType(type)
-  if (integerType !== undefined) {
-    return normalizeIntegerOutput(value, integerType, path)
+  try {
+    const integerType = parseIntegerType(type)
+    if (integerType !== undefined) {
+      return normalizeIntegerOutput(value, integerType, path)
+    }
+  } catch (cause) {
+    throw new CamEvmError(
+      "CAM_ROUTE_INVALID_RESULT",
+      `CAM route output ${cause instanceof Error ? cause.message : String(cause)} at ${path}`,
+    )
   }
 
-  const fixedBytesLength = parseFixedBytesLength(type)
+  let fixedBytesLength: number | undefined
+  try {
+    fixedBytesLength = parseFixedBytesLength(type)
+  } catch (cause) {
+    throw new CamEvmError(
+      "CAM_ROUTE_INVALID_RESULT",
+      `CAM route output ${cause instanceof Error ? cause.message : String(cause)} at ${path}`,
+    )
+  }
   if (type === "bytes" || fixedBytesLength !== undefined) {
     return normalizeBytesOutput(value, type, fixedBytesLength, path)
   }
 
   throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `unsupported CAM route output ABI type at ${path}: ${type}`)
-}
-
-type AbiTupleParameter = AbiParameter & {
-  readonly type: "tuple"
-  readonly components: readonly AbiParameter[]
-}
-
-function isTupleParameter(parameter: AbiParameter): parameter is AbiTupleParameter {
-  if (parameter.type !== "tuple") {
-    return false
-  }
-
-  return Array.isArray((parameter as { readonly components?: unknown }).components)
 }
 
 function normalizeTupleValue(value: unknown, parameter: AbiTupleParameter, path: string): InertValue {
@@ -242,17 +252,10 @@ function readTupleComponent(value: unknown, name: string, index: number): unknow
   return undefined
 }
 
-type IntegerType = {
-  readonly bits: number
-  readonly signed: boolean
-}
-
 function normalizeIntegerOutput(value: unknown, type: IntegerType, path: string): string {
   const integer = integerOutputValue(value, path)
 
-  const bits = BigInt(type.bits)
-  const min = type.signed ? -(1n << (bits - 1n)) : 0n
-  const max = type.signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n
+  const { min, max } = integerBounds(type)
   if (integer < min || integer > max) {
     throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output integer is out of range at ${path}`)
   }
@@ -287,30 +290,6 @@ function normalizeBytesOutput(value: unknown, type: string, fixedBytesLength: nu
   }
 
   return value
-}
-
-function parseIntegerType(type: string): IntegerType | undefined {
-  const match = /^(u?)int([0-9]*)$/.exec(type)
-  if (match === null) return undefined
-
-  const bits = match[2] === "" ? 256 : Number(match[2])
-  if (!Number.isInteger(bits) || bits < 8 || bits > 256 || bits % 8 !== 0) {
-    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `unsupported CAM route output integer type: ${type}`)
-  }
-
-  return { bits, signed: match[1] === "" }
-}
-
-function parseFixedBytesLength(type: string): number | undefined {
-  const match = /^bytes([0-9]+)$/.exec(type)
-  if (match === null) return undefined
-
-  const bytes = Number(match[1])
-  if (!Number.isInteger(bytes) || bytes < 1 || bytes > 32) {
-    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `unsupported CAM route output bytes type: ${type}`)
-  }
-
-  return bytes
 }
 
 function assertRouteFunctionAbi(abi: Abi, functionName: string): AbiFunction {

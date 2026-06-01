@@ -1,6 +1,11 @@
 import type { Abi } from "viem"
 import { isRecordObject, parseJsonBytes } from "@cam/protocol"
 
+import {
+  isFixedArrayType,
+  parseFixedBytesLength,
+  parseIntegerType,
+} from "./abi-values.ts"
 import { CamEvmError } from "./errors.ts"
 
 export const CAM_ROOT_FUNCTIONS = {
@@ -118,8 +123,18 @@ function validateAbiParameter(value: unknown, path: string): void {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameter must declare a type: ${path}`)
   }
 
-  if (/\[[0-9]+\]$/.test(value.type)) {
+  if (isFixedArrayType(value.type)) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI fixed-size arrays are not supported: ${path}`)
+  }
+
+  try {
+    parseIntegerType(value.type)
+    parseFixedBytesLength(value.type)
+  } catch (cause) {
+    throw new CamEvmError(
+      "CAM_ABI_INVALID",
+      `${path}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    )
   }
 
   if (value.type.startsWith("tuple")) {
