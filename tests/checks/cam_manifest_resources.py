@@ -383,10 +383,14 @@ class CamManifestResourceValidator:
         return fields, failures
 
     def ui_view_references(self, manifest_path: Path) -> tuple[list[tuple[str, str]], list[str]]:
-        ui_path, ui, failures = self.read_ui_object(manifest_path)
+        failures: list[str] = []
+        try:
+            ui_path, ui = self.read_ui_object(manifest_path)
+        except AssertionError as error:
+            failures.append(str(error))
+
         if failures:
             return [], failures
-        assert ui is not None
 
         references: list[tuple[str, str]] = []
         for path, reference in expression_references(str(ui_path), ui, "view"):
@@ -469,10 +473,14 @@ class CamManifestResourceValidator:
         return self.string_list(manifest_path, f"routes.{route_name}.inputs", inputs)
 
     def ui_requires_by_node(self, manifest_path: Path) -> tuple[dict[str, tuple[str, ...]], list[str]]:
-        ui_path, ui, failures = self.read_ui_object(manifest_path)
+        failures: list[str] = []
+        try:
+            ui_path, ui = self.read_ui_object(manifest_path)
+        except AssertionError as error:
+            failures.append(str(error))
+
         if failures:
             return {}, failures
-        assert ui is not None
 
         nodes = ui.get("nodes")
         if not isinstance(nodes, dict):
@@ -495,21 +503,13 @@ class CamManifestResourceValidator:
 
         return requires_by_node, failures
 
-    def read_ui_object(self, manifest_path: Path) -> tuple[Path, dict[str, object] | None, list[str]]:
+    def read_ui_object(self, manifest_path: Path) -> tuple[Path, dict[str, object]]:
         ui_path = manifest_path.parent / "ui.json"
-        failures: list[str] = []
-        ui: dict[str, object] | None = None
 
         if not ui_path.is_file():
-            failures.append(f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json")
-            return ui_path, ui, failures
+            raise AssertionError(f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json")
 
-        try:
-            ui = self.read_json_object(ui_path)
-        except AssertionError as error:
-            failures.append(str(error))
-
-        return ui_path, ui, failures
+        return ui_path, self.read_json_object(ui_path)
 
     def string_list(
         self,
