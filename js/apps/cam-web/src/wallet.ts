@@ -4,6 +4,7 @@ import {
 } from "viem"
 import type { Address } from "viem"
 import {
+  evmChainIdNumber,
   evmChainIdHex,
   requireAddress,
   shortenAddress,
@@ -17,6 +18,24 @@ export type WalletState =
 export type WalletChainOptions = {
   readonly chainId: string
   readonly rpcUrl: string
+}
+
+export function walletChain(options: WalletChainOptions) {
+  const id = evmChainIdNumber(options.chainId)
+  return {
+    id,
+    name: `CAM ${options.chainId}`,
+    nativeCurrency: {
+      name: "Ether",
+      symbol: "ETH",
+      decimals: 18,
+    },
+    rpcUrls: {
+      default: {
+        http: [options.rpcUrl],
+      },
+    },
+  } as const
 }
 
 export function initialWalletState(): WalletState {
@@ -59,17 +78,14 @@ export async function ensureInjectedWalletChain(options: WalletChainOptions): Pr
       throw error
     }
 
+    const chain = walletChain(options)
     await provider.request({
       method: "wallet_addEthereumChain",
       params: [{
         chainId,
-        chainName: `Local ${options.chainId}`,
-        nativeCurrency: {
-          name: "Ether",
-          symbol: "ETH",
-          decimals: 18,
-        },
-        rpcUrls: [options.rpcUrl],
+        chainName: chain.name,
+        nativeCurrency: chain.nativeCurrency,
+        rpcUrls: chain.rpcUrls.default.http,
       }],
     })
   }

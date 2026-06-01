@@ -28,12 +28,14 @@ import {
   createInjectedWalletClient,
   ensureInjectedWalletChain,
   initialWalletState,
+  walletChain,
   walletLabel,
 } from "./wallet"
 import type { WalletState } from "./wallet"
 import { errorMessage } from "./errors"
 import {
   assertHostHasCode,
+  assertRpcChain,
   createPinnedOriginResourceLoader,
   parseStartupOptions,
   readStartupPolicy,
@@ -74,6 +76,7 @@ export function App(): ReactElement {
         const publicClient = createPublicClient({
           transport: http(startup.rpcUrl),
         })
+        await assertRpcChain(publicClient, startup.chainId)
         await assertHostHasCode(publicClient, startup.host)
         const session = createCamViewerSession({
           publicClient,
@@ -184,7 +187,11 @@ export function App(): ReactElement {
       })
       await ensureInjectedWalletChain(ready.runtime.startup)
       const walletClient = createInjectedWalletClient(wallet.address)
-      const txHash = await sendCamContractCall({ walletClient, call })
+      const txHash = await sendCamContractCall({
+        walletClient,
+        chain: walletChain(ready.runtime.startup),
+        call,
+      })
       setNotice(`Transaction sent: ${txHash}`)
 
       const receipt = await ready.runtime.publicClient.waitForTransactionReceipt({

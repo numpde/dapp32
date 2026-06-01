@@ -23,6 +23,16 @@ export function evmChainIdHex(chainId: string): `0x${string}` {
   return `0x${BigInt(decimal).toString(16)}`
 }
 
+export function evmChainIdNumber(chainId: string): number {
+  const decimal = requireEvmChainId(chainId).slice(EVM_CHAIN_PREFIX.length)
+  const numeric = Number(decimal)
+  if (!Number.isSafeInteger(numeric)) {
+    throw new Error("chainId: expected a safe integer chain id")
+  }
+
+  return numeric
+}
+
 export function shortenAddress(address: string): string {
   return address.length > 14 ? `${address.slice(0, 6)}...${address.slice(-4)}` : address
 }

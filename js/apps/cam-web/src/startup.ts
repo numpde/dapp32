@@ -8,6 +8,7 @@ import type {
 } from "viem"
 
 import {
+  evmChainIdNumber,
   requireAddress,
   requireEvmChainId,
 } from "./evm"
@@ -31,6 +32,12 @@ export type StartupEnv = {
 type HostCodeClient = {
   readonly getCode: (request: { readonly address: Address }) => Promise<Hex | undefined>
 }
+
+type ChainIdClient = {
+  readonly getChainId: () => Promise<number>
+}
+
+const MAX_CAM_RESOURCE_BYTES = 2 * 1024 * 1024
 
 export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOptions {
   const params = url.searchParams
@@ -70,8 +77,17 @@ export function createPinnedOriginResourceLoader(): ResourceLoader {
     if (!response.ok) {
       throw new Error(`failed to load CAM resource ${url.href}: HTTP ${response.status}`)
     }
+    const contentLength = responseContentLength(response, url.href)
+    if (contentLength !== undefined && contentLength > MAX_CAM_RESOURCE_BYTES) {
+      throw new Error(`CAM resource is too large: ${url.href}`)
+    }
 
-    return new Uint8Array(await response.arrayBuffer())
+    const bytes = new Uint8Array(await response.arrayBuffer())
+    if (bytes.byteLength > MAX_CAM_RESOURCE_BYTES) {
+      throw new Error(`CAM resource is too large: ${url.href}`)
+    }
+
+    return bytes
   }
 }
 
@@ -82,6 +98,17 @@ export async function assertHostHasCode(
   const code = await publicClient.getCode({ address: host })
   if (code === undefined || code === "0x") {
     throw new Error(`CAM host has no contract code at ${host}. Check that the host URL parameter matches the currently running chain.`)
+  }
+}
+
+export async function assertRpcChain(
+  publicClient: ChainIdClient,
+  expectedChainId: StartupOptions["chainId"],
+): Promise<void> {
+  const actual = await publicClient.getChainId()
+  const expected = evmChainIdNumber(expectedChainId)
+  if (actual !== expected) {
+    throw new Error(`RPC chain mismatch: expected ${expectedChainId}, got eip155:${actual}`)
   }
 }
 
@@ -102,6 +129,17 @@ function parseRequiredBoolean(value: string | undefined, name: string): boolean 
   if (value === "true") return true
   if (value === "false") return false
   throw new Error(`${name}: expected "true" or "false"`)
+}
+
+function responseContentLength(response: Response, uri: string): number | undefined {
+  const value = response.headers.get("content-length")
+  if (value === null) return undefined
+
+  if (!/^[0-9]+$/.test(value)) {
+    throw new Error(`CAM resource has invalid Content-Length: ${uri}`)
+  }
+
+  return Number(value)
 }
 
 function requireHttpURL(value: string, label: string): URL {

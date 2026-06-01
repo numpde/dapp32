@@ -29,6 +29,8 @@ type BroadcastDeployment = {
   readonly camRoot: CamHost["address"]
 }
 
+const MAX_CAM_RESOURCE_BYTES = 2 * 1024 * 1024
+
 export function createLocalRpcBackend(
   env: NodeJS.ProcessEnv,
   {
@@ -88,8 +90,15 @@ function createHttpResourceLoader(origin: string, events: DebugEvent[]): (uri: s
     if (!response.ok) {
       throw new Error(`local-rpc terminal failed to load CAM resource ${resourceURL.href}: HTTP ${response.status}`)
     }
+    const contentLength = responseContentLength(response, resourceURL.href)
+    if (contentLength !== undefined && contentLength > MAX_CAM_RESOURCE_BYTES) {
+      throw new Error(`local-rpc terminal CAM resource is too large: ${resourceURL.href}`)
+    }
 
     const bytes = new Uint8Array(await response.arrayBuffer())
+    if (bytes.byteLength > MAX_CAM_RESOURCE_BYTES) {
+      throw new Error(`local-rpc terminal CAM resource is too large: ${resourceURL.href}`)
+    }
     events.push({
       step: events.length + 1,
       kind: "resource-load",
@@ -176,6 +185,17 @@ function requireHttpURL(value: string, label: string): URL {
   }
 
   return url
+}
+
+function responseContentLength(response: Response, uri: string): number | undefined {
+  const value = response.headers.get("content-length")
+  if (value === null) return undefined
+
+  if (!/^[0-9]+$/.test(value)) {
+    throw new Error(`local-rpc terminal CAM resource has invalid Content-Length: ${uri}`)
+  }
+
+  return Number(value)
 }
 
 function requiredRecord(value: unknown, path: string): Record<string, unknown> {
