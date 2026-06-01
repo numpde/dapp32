@@ -68,6 +68,9 @@ export function createLocalRpcBackend(
 
 function tracedPublicClient(publicClient: CamPublicClient, events: DebugEvent[]): CamPublicClient {
   return {
+    async getChainId() {
+      return await publicClient.getChainId()
+    },
     async readContract(request) {
       const result = await publicClient.readContract(request)
       const args = Array.isArray(request.args)

@@ -4,6 +4,7 @@ import type { CamDocument } from "@cam/core"
 import { isAddress } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi, parseAbiBytes } from "./abi.ts"
+import { assertClientChain } from "./chain.ts"
 import { ZERO_ADDRESS } from "./constants.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamResourceIntegrity } from "./hash.ts"
@@ -17,6 +18,8 @@ export async function resolveCamContracts({
   cam,
   loadResource,
 }: ResolveCamContractsOptions): Promise<Record<string, ResolvedCamContract>> {
+  await assertClientChain(publicClient, host)
+
   const entries = await Promise.all(
     contractNamespaces(cam).map(async ([namespace, contractName, contract]) => [
       namespace,

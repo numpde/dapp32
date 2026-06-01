@@ -78,6 +78,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
     },
   ]))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
+    "supportsInterface",
     "camURI",
     "camHash",
     "contractAddress",
@@ -211,15 +212,19 @@ function createSession({
 }
 
 function createPublicClient({
+  chainId,
   camHash,
+  supportsCamInterface,
   addresses,
   routeResults,
 }: PublicClientFixtureOptions) {
   // This fake models raw viem return values before @cam/evm-viem normalizes
   // them to RouteResult.values.
   return createMockCamPublicClient<CreateCamViewerSessionOptions["publicClient"]["readContract"]>({
+    chainId,
     camURI,
     camHash,
+    supportsCamInterface,
     addresses,
     routeResults,
   })
@@ -231,7 +236,9 @@ type SessionFixtureOptions = {
 }
 
 type PublicClientFixtureOptions = {
+  readonly chainId: number
   readonly camHash: Hex
+  readonly supportsCamInterface: boolean
   readonly addresses: Readonly<Record<string, Address>>
   readonly routeResults: Record<string, unknown>
 }
@@ -246,7 +253,9 @@ function sessionFixtureOptions(overrides: Partial<SessionFixtureOptions>): Sessi
 
 function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOptions>): PublicClientFixtureOptions {
   return {
+    chainId: 31337,
     camHash: BIKE_UNSIGNED_CAM_HASH,
+    supportsCamInterface: true,
     addresses: bikeContractAddresses,
     routeResults: bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
     ...overrides,

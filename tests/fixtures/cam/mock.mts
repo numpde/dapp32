@@ -36,22 +36,34 @@ type MockReadContractRequest = {
 }
 
 type MockPublicClientOptions = {
+  readonly chainId: number
   readonly camURI: string
   readonly camHash: MockHash
+  readonly supportsCamInterface: boolean
   readonly addresses: Readonly<Partial<Record<string, MockAddress>>>
   readonly routeResults: Readonly<Record<string, unknown>>
 }
 
 export function createMockCamPublicClient<ReadContract = (request: MockReadContractRequest) => Promise<unknown>>({
+  chainId,
   camURI,
   camHash,
+  supportsCamInterface,
   addresses,
   routeResults,
 }: MockPublicClientOptions): {
   readonly calls: MockReadContractCall[]
+  readonly chainCalls: number
+  readonly getChainId: () => Promise<number>
   readonly readContract: ReadContract
 } {
   const calls: MockReadContractCall[] = []
+  let chainCalls = 0
+
+  async function getChainId(): Promise<number> {
+    chainCalls += 1
+    return chainId
+  }
 
   async function readContract(request: MockReadContractRequest): Promise<unknown> {
     const call: {
@@ -68,6 +80,10 @@ export function createMockCamPublicClient<ReadContract = (request: MockReadContr
     if (request.args !== undefined) call.args = request.args
     if (request.account !== undefined) call.account = request.account
     calls.push(call)
+
+    if (request.functionName === "supportsInterface") {
+      return supportsCamInterface
+    }
 
     if (request.functionName === "camURI") {
       return camURI
@@ -91,6 +107,10 @@ export function createMockCamPublicClient<ReadContract = (request: MockReadContr
 
   return {
     calls,
+    get chainCalls() {
+      return chainCalls
+    },
+    getChainId,
     readContract: readContract as ReadContract,
   }
 }

@@ -65,6 +65,9 @@ export function createBikeMockBackend({
 
 function createMockPublicClient(events: DebugEvent[]): TerminalPublicClient {
   return {
+    async getChainId(): Promise<number> {
+      return 31337
+    },
     async readContract(request: {
       readonly functionName: string
       readonly args?: readonly unknown[]
@@ -93,6 +96,9 @@ function mockReadContract(functionName: string, args: readonly InertValue[]): un
     case "camHash":
       requireNoArgs(functionName, args)
       return BIKE_UNSIGNED_CAM_HASH
+    case "supportsInterface":
+      requireStringArgs(functionName, args, 1)
+      return true
     case "contractAddress":
       return contractAddress(requireStringArgs(functionName, args, 1)[0])
     case BIKE_VIEW_ENTRY:

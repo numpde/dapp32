@@ -2,7 +2,7 @@ import type { Abi, Address, Chain, Hex, PublicClient } from "viem"
 import type { CamDocument } from "@cam/core"
 import type { InertValue } from "@cam/protocol"
 
-export type CamPublicClient = Pick<PublicClient, "readContract">
+export type CamPublicClient = Pick<PublicClient, "getChainId" | "readContract">
 
 export type CamHost = {
   readonly chainId: string

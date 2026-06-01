@@ -55,8 +55,14 @@ function writeRequest(call: CamContractCall): WriteRequest {
     purpose: "write",
   })
 
-  if (fn.stateMutability !== "nonpayable" && fn.stateMutability !== "payable") {
-    throw new CamEvmError("CAM_WRITE_FUNCTION_NOT_MUTABLE", `CAM write function must be payable or nonpayable: ${call.function}`)
+  if (fn.stateMutability === "payable") {
+    throw new CamEvmError(
+      "CAM_WRITE_FUNCTION_PAYABLE_UNSUPPORTED",
+      `CAM write function is payable but CAM V1 has no value model: ${call.function}`,
+    )
+  }
+  if (fn.stateMutability !== "nonpayable") {
+    throw new CamEvmError("CAM_WRITE_FUNCTION_NOT_MUTABLE", `CAM write function must be nonpayable: ${call.function}`)
   }
 
   return {

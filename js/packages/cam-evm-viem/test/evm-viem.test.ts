@@ -104,9 +104,11 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
   assert.equal(loaded.camURI, camDocumentURI)
   assert.deepEqual(loaded.cam, parseCam(camJson))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
+    "supportsInterface",
     ROOT_CAM_URI,
     ROOT_CAM_HASH,
   ])
+  assert.equal(publicClient.chainCalls, 1)
 
   await assert.rejects(
     () => loadCamFromHost({
@@ -119,6 +121,30 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
       allowUnsignedCamHash: false,
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_HASH_MISMATCH",
+  )
+
+  await assert.rejects(
+    () => loadCamFromHost({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        chainId: 1,
+      })),
+      host,
+      loadResource: resources,
+      allowUnsignedCamHash: true,
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_CHAIN_MISMATCH",
+  )
+
+  await assert.rejects(
+    () => loadCamFromHost({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        supportsCamInterface: false,
+      })),
+      host,
+      loadResource: resources,
+      allowUnsignedCamHash: true,
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_HOST_UNSUPPORTED",
   )
 })
 
@@ -209,6 +235,32 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
       cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, invalidAbiParameterBytes),
       loadResource: createResourceLoader({
         [uiAbiURI]: invalidAbiParameterBytes,
+        [managerAbiURI]: managerAbiBytes,
+      }),
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
+  )
+
+  const fixedArrayAbiBytes = encodeJson([{
+    type: "function",
+    name: BIKE_VIEW_ENTRY,
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "ids", type: "uint256[2]" }],
+  }])
+  await assert.rejects(
+    () => resolveCamContracts({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        addresses: {
+          [BIKE_UI_CONTRACT]: uiAddress,
+          [BIKE_MANAGER_CONTRACT]: managerAddress,
+        },
+      })),
+      host,
+      camURI: camDocumentURI,
+      cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, fixedArrayAbiBytes),
+      loadResource: createResourceLoader({
+        [uiAbiURI]: fixedArrayAbiBytes,
         [managerAbiURI]: managerAbiBytes,
       }),
     }),
@@ -399,6 +451,41 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_ARGUMENT",
   )
+
+  const invalidAddressAbi = [
+    {
+      type: "function",
+      name: BIKE_VIEW_ENTRY,
+      stateMutability: "view",
+      inputs: [{ name: "account", type: "address" }],
+      outputs: [{ name: "owner", type: "address" }],
+    },
+  ] as const satisfies Abi
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        routeResults: {
+          [BIKE_VIEW_ENTRY]: "not-an-address",
+        },
+      })),
+      cam: parseCam(camJson),
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: uiAddress,
+          abi: invalidAddressAbi,
+        },
+      },
+      route: BIKE_ROUTE_ENTRY,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+        form: {},
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+  )
 })
 
 test("sendCamContractCall and simulateCamContractCall validate named write args", async () => {
@@ -496,33 +583,68 @@ test("sendCamContractCall rejects odd-length dynamic bytes", async () => {
   )
 })
 
+test("sendCamContractCall rejects payable writes until CAM has a value model", async () => {
+  const walletClient = createWalletClient()
+  const payableAbi = [
+    {
+      type: "function",
+      name: "pay",
+      stateMutability: "payable",
+      inputs: [],
+      outputs: [],
+    },
+  ] as const satisfies Abi
+
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      chain: testChain,
+      call: {
+        address: managerAddress,
+        abi: payableAbi,
+        function: "pay",
+        args: {},
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_FUNCTION_PAYABLE_UNSUPPORTED",
+  )
+})
+
 function createPublicClient({
+  chainId,
   camURI,
   camHash,
+  supportsCamInterface,
   addresses,
   routeResults,
 }: PublicClientFixtureOptions) {
   // This fake models raw viem return values before callCamRoute normalizes
   // them to RouteResult.values.
   return createMockCamPublicClient<CamPublicClient["readContract"]>({
+    chainId,
     camURI,
     camHash,
+    supportsCamInterface,
     addresses,
     routeResults,
   })
 }
 
 type PublicClientFixtureOptions = {
+  readonly chainId: number
   readonly camURI: string
   readonly camHash: Hex
+  readonly supportsCamInterface: boolean
   readonly addresses: Record<string, Address>
   readonly routeResults: Record<string, unknown>
 }
 
 function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOptions>): PublicClientFixtureOptions {
   return {
+    chainId: 31337,
     camURI: camDocumentURI,
     camHash: BIKE_UNSIGNED_CAM_HASH,
+    supportsCamInterface: true,
     addresses: bikeContractAddresses,
     routeResults: NO_ROUTE_RESULTS,
     ...overrides,

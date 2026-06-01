@@ -7,9 +7,21 @@ export const CAM_ROOT_FUNCTIONS = {
   camURI: "camURI",
   camHash: "camHash",
   contractAddress: "contractAddress",
+  supportsInterface: "supportsInterface",
 } as const
 
+// type(ICamApp).interfaceId from ICamApp.sol:
+// camURI() ^ camHash() ^ IERC165.supportsInterface(bytes4).
+export const ICAM_APP_INTERFACE_ID = "0x029d9651"
+
 export const camRootAbi = [
+  {
+    type: "function",
+    name: CAM_ROOT_FUNCTIONS.supportsInterface,
+    stateMutability: "view",
+    inputs: [{ name: "interfaceId", type: "bytes4" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
   {
     type: "function",
     name: CAM_ROOT_FUNCTIONS.camURI,
@@ -103,6 +115,10 @@ function validateAbiParameter(value: unknown, path: string): void {
 
   if (typeof value.type !== "string" || value.type.length === 0) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameter must declare a type: ${path}`)
+  }
+
+  if (/\[[0-9]+\]$/.test(value.type)) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI fixed-size arrays are not supported: ${path}`)
   }
 
   if (value.type.startsWith("tuple")) {

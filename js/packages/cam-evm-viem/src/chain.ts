@@ -1,7 +1,17 @@
 import type { Address, Hex } from "viem"
 import { isAddress } from "viem"
 
+import { CamEvmError } from "./errors.ts"
+
 const EVM_CHAIN_PREFIX = "eip155:"
+
+type ChainIdentityClient = {
+  readonly getChainId: () => Promise<number>
+}
+
+type ChainIdentityHost = {
+  readonly chainId: string
+}
 
 export function requireEvmAddress(value: string, label: string): Address {
   if (!isAddress(value)) {
@@ -32,4 +42,15 @@ export function evmChainIdNumber(chainId: string): number {
   }
 
   return numeric
+}
+
+export async function assertClientChain(
+  publicClient: ChainIdentityClient,
+  host: ChainIdentityHost,
+): Promise<void> {
+  const actual = await publicClient.getChainId()
+  const expected = evmChainIdNumber(host.chainId)
+  if (actual !== expected) {
+    throw new CamEvmError("CAM_CHAIN_MISMATCH", `CAM host chain mismatch: expected ${host.chainId}, got eip155:${actual}`)
+  }
 }

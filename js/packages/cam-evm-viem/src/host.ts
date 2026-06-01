@@ -2,7 +2,8 @@ import { parseCam } from "@cam/core"
 import { parseJsonBytes } from "@cam/protocol"
 import type { Hex } from "viem"
 
-import { CAM_ROOT_FUNCTIONS, camRootAbi } from "./abi.ts"
+import { CAM_ROOT_FUNCTIONS, ICAM_APP_INTERFACE_ID, camRootAbi } from "./abi.ts"
+import { assertClientChain } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamHash } from "./hash.ts"
 import { loadResourceBytes } from "./resources.ts"
@@ -14,6 +15,9 @@ export async function loadCamFromHost({
   loadResource,
   allowUnsignedCamHash,
 }: LoadCamFromHostOptions): Promise<LoadedCam> {
+  await assertClientChain(publicClient, host)
+  await assertCamHostInterface(publicClient, host.address)
+
   let camURI: string
   let camHash: Hex
   try {
@@ -56,5 +60,26 @@ export async function loadCamFromHost({
   return {
     camURI,
     cam,
+  }
+}
+
+async function assertCamHostInterface(
+  publicClient: LoadCamFromHostOptions["publicClient"],
+  hostAddress: LoadCamFromHostOptions["host"]["address"],
+): Promise<void> {
+  let supported: unknown
+  try {
+    supported = await publicClient.readContract({
+      address: hostAddress,
+      abi: camRootAbi,
+      functionName: CAM_ROOT_FUNCTIONS.supportsInterface,
+      args: [ICAM_APP_INTERFACE_ID],
+    })
+  } catch (cause) {
+    throw new CamEvmError("CAM_HOST_READ_FAILED", `failed to check CAM host interface: ${hostAddress}`, cause)
+  }
+
+  if (supported !== true) {
+    throw new CamEvmError("CAM_HOST_UNSUPPORTED", `CAM host does not support ICamApp: ${hostAddress}`)
   }
 }
