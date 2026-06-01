@@ -130,7 +130,6 @@ async function main(): Promise<void> {
     originInput: options.descriptor.resourceOrigin,
     originLabel: "descriptor.resourceOrigin",
     loadFailurePrefix: "failed to load CAM resource",
-    onLoad: undefined,
   })
 
   emit({

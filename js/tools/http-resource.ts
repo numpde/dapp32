@@ -4,16 +4,10 @@ import {
   requireSameHttpOrigin,
 } from "../packages/cam-protocol/dist/index.js"
 
-export type ResourceLoadObserver = (event: {
-  readonly uri: string
-  readonly bytes: number
-}) => void
-
 export function createSameOriginHttpResourceLoader(options: {
   readonly originInput: string
   readonly originLabel: string
   readonly loadFailurePrefix: string
-  readonly onLoad: ResourceLoadObserver | undefined
 }): (uri: string) => Promise<Uint8Array> {
   const origin = requireHttpOrigin(options.originInput, options.originLabel)
 
@@ -25,10 +19,6 @@ export function createSameOriginHttpResourceLoader(options: {
     }
 
     const bytes = await readBoundedResponseBytes(response, resourceURL.href)
-    options.onLoad?.({
-      uri: resourceURL.href,
-      bytes: bytes.byteLength,
-    })
     return bytes
   }
 }

@@ -52,6 +52,12 @@ export function createLocalRpcBackend(
     description: "local Anvil RPC from Forge broadcast",
     hostLabel: `${deployment.chainId} ${deployment.camRoot}`,
     createSession(events) {
+      const loadResource = createSameOriginHttpResourceLoader({
+        originInput: resourceOrigin,
+        originLabel: "CAM_VIEWER_RESOURCE_ORIGIN",
+        loadFailurePrefix: "local-rpc terminal failed to load CAM resource",
+      })
+
       return createCamViewerSession({
         publicClient: tracedPublicClient(createHttpCamPublicClient({ rpcURL }), events),
         host: {
@@ -63,19 +69,16 @@ export function createLocalRpcBackend(
         },
         inputs: initialInputs,
         allowUnsignedCamHash,
-        loadResource: createSameOriginHttpResourceLoader({
-          originInput: resourceOrigin,
-          originLabel: "CAM_VIEWER_RESOURCE_ORIGIN",
-          loadFailurePrefix: "local-rpc terminal failed to load CAM resource",
-          onLoad(event) {
-            events.push({
-              step: events.length + 1,
-              kind: "resource-load",
-              uri: event.uri,
-              bytes: event.bytes,
-            })
-          },
-        }),
+        async loadResource(uri) {
+          const bytes = await loadResource(uri)
+          events.push({
+            step: events.length + 1,
+            kind: "resource-load",
+            uri,
+            bytes: bytes.byteLength,
+          })
+          return bytes
+        },
       })
     },
   }
