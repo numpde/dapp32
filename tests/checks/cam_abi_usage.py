@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .cam_expressions import expression_first_segment, expression_references
+
 
 @dataclass(frozen=True)
 class AbiFunction:
@@ -107,7 +109,7 @@ def validate_output_references(
 ) -> list[str]:
     failures: list[str] = []
 
-    for path, reference in output_references(location, value):
+    for path, reference in expression_references(location, value, "outputs"):
         index = output_reference_index(reference)
         if index is None:
             failures.append(f"{manifest_path}: output expression must select a numbered output at {path}: {reference}")
@@ -143,41 +145,10 @@ def tuple_component_names(parameter: object) -> tuple[str, ...] | None:
     return tuple(names)
 
 
-def output_references(path: str, value: object) -> list[tuple[str, str]]:
-    if isinstance(value, str):
-        if is_outputs_reference(value):
-            return [(path, value)]
-        return []
-
-    if isinstance(value, list):
-        references: list[tuple[str, str]] = []
-        for index, item in enumerate(value):
-            references.extend(output_references(f"{path}.{index}", item))
-        return references
-
-    if isinstance(value, dict):
-        references = []
-        for key, item in value.items():
-            references.extend(output_references(f"{path}.{key}", item))
-        return references
-
-    return []
-
-
-def is_outputs_reference(value: str) -> bool:
-    if value.startswith("$$"):
-        return False
-
-    return value == "$outputs" or value.startswith("$outputs.")
-
-
 def output_reference_index(reference: str) -> int | None:
-    if reference == "$outputs":
+    segment = expression_first_segment(reference, "outputs")
+    if segment is None:
         return None
-    if not reference.startswith("$outputs."):
-        return None
-
-    segment = reference.removeprefix("$outputs.").split(".", 1)[0]
     if segment == "0":
         return 0
     if segment.startswith("0") or not segment.isdecimal():

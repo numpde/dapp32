@@ -6,6 +6,7 @@ from pathlib import Path
 
 from . import cam_abi_resources as abi_resources
 from . import cam_abi_usage as abi_usage
+from .cam_expressions import expression_first_segment, expression_references
 from .common import read_text, repo_path
 from tools.json_policy import JsonPolicyError, strict_json_loads
 
@@ -409,39 +410,12 @@ class CamManifestResourceValidator:
         assert ui is not None
 
         references: list[tuple[str, str]] = []
-        self.collect_ui_view_references(references, ui, str(ui_path))
-        return references, []
-
-    def collect_ui_view_references(
-        self,
-        references: list[tuple[str, str]],
-        value: object,
-        path: str,
-    ) -> None:
-        if isinstance(value, str):
-            field = self.view_reference_field(value)
+        for path, reference in expression_references(str(ui_path), ui, "view"):
+            field = expression_first_segment(reference, "view")
             if field is not None:
                 references.append((path, field))
-            return
 
-        if isinstance(value, list):
-            for index, item in enumerate(value):
-                self.collect_ui_view_references(references, item, f"{path}.{index}")
-            return
-
-        if isinstance(value, dict):
-            for key, item in value.items():
-                self.collect_ui_view_references(references, item, f"{path}.{key}")
-
-    def view_reference_field(self, value: str) -> str | None:
-        if value.startswith("$$") or not value.startswith("$view."):
-            return None
-
-        field = value.removeprefix("$view.").split(".", 1)[0]
-        if field == "":
-            return None
-
-        return field
+        return references, []
 
     def validate_route_continuation(
         self,
