@@ -1,0 +1,412 @@
+Generic CAM integration fuzzing
+Date: 2026-06-01
+
+Purpose
+-------
+
+The first serious integration layer should be generic. It should not encode
+Bike NFT business expectations, seeded serial numbers, or contract-specific
+assertions. It should ask a narrower and more fundamental question:
+
+    Given a deployed CAM host, can a generic runner load the live CAM, resolve
+    resources, call read routes, resolve UI nodes, walk actions, and prepare or
+    simulate writes without violating the CAM protocol?
+
+This is an integration fuzz layer, not a Solidity fuzz layer and not a browser
+test. It sits between package unit tests and browser E2E:
+
+    package tests -> generic real-RPC integration fuzz -> browser E2E
+
+The current `entry.0.status` failure is exactly the kind of bug this layer
+should catch. It was not a business-rule failure. It was a mismatch between
+real RPC/ABI decoding and the adapter's assumptions about output value shape.
+
+
+Name
+----
+
+Use the repo naming convention:
+
+    make test-integration-fuzz
+
+For a local dapp fixture wrapper:
+
+    make test-integration-fuzz-bike-nft
+
+The generic target should run a generic runner against a supplied deployment
+descriptor. The dapp-specific wrapper may start Anvil, deploy the fixture, serve
+CAM resources, and produce the descriptor, but the runner logic stays dapp
+independent.
+
+
+What the dapp deployment supplies
+---------------------------------
+
+The runner needs operational facts that are not part of CAM:
+
+    chainId
+    rpcUrl
+    camHost
+    resource origin or resource loader policy
+    accounts available for testing
+    unsigned CAM hash policy
+
+Those facts should be passed as a descriptor produced by the Compose scenario,
+not embedded in `main.json` or `ui.json`.
+
+Example descriptor:
+
+    {
+      "camIntegration": "1.0.0",
+      "chainId": "eip155:31337",
+      "rpcUrl": "http://bike-nft-anvil:8545",
+      "camHost": "0x...",
+      "resourceOrigin": "http://bike-nft-cam-http",
+      "accounts": [
+        "0xfe7854bc8ca79fbe9dc94dfdaf8c10e5c6decab7"
+      ],
+      "allowUnsignedCamHash": true
+    }
+
+For the local bike fixture, `camHost` can come from Forge broadcast output.
+Contract addresses should then come from CamRoot itself:
+
+    CamRoot.contractAddress("BicycleComponentManagerUI")
+    CamRoot.contractAddress("BicycleComponentManager")
+
+The workflow does not need to know them.
+
+
+What the CAM supplies
+---------------------
+
+The CAM itself supplies the executable map:
+
+    namespaces
+    contracts.* ABI URIs
+    resource integrity pins
+    routes
+    route kinds
+    route inputs
+    route calls
+    route continuations
+    UI nodes
+    UI actions
+    UI input names
+
+The runner should discover behavior from the live CAM, not from dapp-specific
+scripts.
+
+
+Core invariant
+--------------
+
+The invariant is:
+
+    The live deployed CAM app must be walkable by a generic CAM client.
+
+More explicitly:
+
+    Starting from CamRoot and an account, every route/action path selected by
+    the runner must either resolve to a valid next CAM state, prepare a valid
+    write, produce a structured expected failure, or be rejected by the protocol
+    validator with a useful error.
+
+Crashes, unresolved expressions, bad ABI output shapes, unknown actions,
+untyped reverts, and renderer-visible protocol garbage are failures.
+
+
+Runner algorithm
+----------------
+
+One deterministic run should do this:
+
+1. Read and verify the descriptor.
+2. Create a viem public client for descriptor.rpcUrl.
+3. Assert RPC chain equals descriptor.chainId.
+4. Assert camHost has code.
+5. Load CAM through @cam/viewer.
+6. Verify CamRoot supports ICamApp.
+7. Verify camHash policy.
+8. Load and verify all ABI and UI resources through declared integrity pins.
+9. Resolve all contract namespaces through CamRoot.
+10. Start at cam.entry with generated route inputs.
+11. Call the read route against real RPC.
+12. Normalize real decoded ABI outputs.
+13. Resolve the route continuation.
+14. Resolve the UI tree.
+15. Collect resolved Action nodes and Input nodes.
+16. Generate or mutate form values.
+17. Pick an action using the seeded pseudo-random generator.
+18. If the action targets a read route, navigate.
+19. If the action targets a write route, prepare and simulate the write.
+20. Record the transition and repeat until the step limit.
+
+This is a random walk over the live CAM graph. The randomness is only in value
+generation and action selection. The run must be reproducible from:
+
+    seed
+    run index
+    step count
+    descriptor
+    committed CAM resources
+    deployed fixture bytecode
+
+
+Why deterministic pseudo-randomness
+-----------------------------------
+
+Pure randomness is not good enough. A failing run must be replayable.
+
+The runner should print:
+
+    seed
+    run index
+    step index
+    route
+    inputs
+    action selected
+    form patch
+    write simulation result or error
+
+Then the same seed should reproduce the same path.
+
+The first implementation can use a tiny local PRNG. It does not need a property
+testing dependency to be useful. A pinned property-test dependency can come
+later if it earns its keep.
+
+
+Generated values
+----------------
+
+The runner should generate values from route input names, UI Input names, and
+ABI types. It should be deterministic and conservative.
+
+Generic values:
+
+    address -> one of descriptor.accounts
+    string  -> "", "CAM-TEST-001", "CAM-TEST-002", "fixture://cam-test/1.json"
+    bool    -> true, false
+    uint    -> 0, 1, max-small, random bounded value
+    int     -> 0, 1, -1, random bounded value
+    bytes32 -> 0x00..., 0x11...
+    bytes   -> 0x, 0x1234
+
+Name-aware hints can be allowed, but must remain generic:
+
+    serialNumber -> string corpus
+    tokenURI     -> URI-like string corpus
+    uri          -> URI-like string corpus
+    account      -> descriptor account
+    owner        -> descriptor account
+
+Name-aware hints are a pragmatic bridge. They must not encode dapp-specific
+values like "DEMO-FRAME-001" unless those values are provided by a later
+dapp-owned workflow file.
+
+
+Universal assertions
+--------------------
+
+The runner can assert a lot without knowing the dapp:
+
+1. Host boundary
+   - RPC chain matches descriptor.chainId.
+   - camHost has code.
+   - camHost supports ICamApp.
+   - unsigned camHash is accepted only if the descriptor explicitly allows it.
+
+2. Resource boundary
+   - main.json parses as CAM.
+   - ABI resources load and match integrity pins.
+   - UI resource loads and matches integrity pins.
+   - relative resource resolution stays within the allowed loader policy.
+
+3. Contract namespace boundary
+   - every contracts.* namespace resolves through CamRoot.
+   - every resolved contract address is nonzero.
+   - every resolved contract has code.
+
+4. Route boundary
+   - read routes call view/pure ABI functions.
+   - write routes call nonpayable/payable policy-approved ABI functions.
+   - route inputs are complete and have no extras.
+   - route call args match ABI names and normalize to ABI types.
+   - real decoded outputs normalize to inert CAM values.
+   - route continuations resolve.
+
+5. UI boundary
+   - UI nodes parse.
+   - Include nodes terminate.
+   - selected UI nodes exist.
+   - required UI args are present.
+   - resolved props satisfy tag schemas.
+   - no unresolved expression leaks into resolved UI.
+   - no raw control object is exposed as display text.
+
+6. Action boundary
+   - every resolved Action calls the routes namespace.
+   - target route exists.
+   - action args match target route inputs.
+   - read actions navigate.
+   - write actions prepare a contract call.
+   - write simulations either succeed or produce a structured revert.
+
+
+What this layer cannot prove
+----------------------------
+
+It cannot prove business intent.
+
+It will not know:
+
+    seeded component DEMO-FRAME-001 should exist
+    registrar should see exactly these actions
+    non-registrar must not register
+    marking missing should remove markMissing and add clearMissing
+    a specific token ID should be minted
+
+Those are dapp-owned workflow assertions. They can be added later beside CAM
+resources, but they should not be part of the generic runner.
+
+The generic runner proves conformance and walkability. Dapp workflows prove
+meaning.
+
+
+How it relates to browser E2E
+-----------------------------
+
+The generic integration fuzz layer should run before browser E2E.
+
+It proves:
+
+    live CAM + real RPC + real ABI decoding + viewer protocol packages
+
+Browser E2E then proves:
+
+    rendered DOM + human interaction + wallet/provider boundary
+
+Keeping these separate matters. Browser failures are noisy. The generic runner
+should catch protocol and adapter bugs before a browser is involved.
+
+
+Docker posture
+--------------
+
+The first implementation should be Docker-backed and least privilege:
+
+    no network except the internal local scenario network
+    no host port by default
+    no repo-root mount
+    read-only JS workspace input
+    read-only node_modules
+    staged tmpfs workspace
+    read-only CAM resource HTTP service
+    read-only Forge broadcast volume
+    no dependency installation
+    bounded memory and PIDs
+    no wallet private key in the runner
+
+The dapp-specific wrapper may use the local fixture deploy service. The generic
+runner should only read the descriptor and interact through RPC/resource HTTP.
+
+
+Files and targets
+-----------------
+
+Possible first structure:
+
+    js/tools/cam-integration-fuzz/
+      runner.ts
+      descriptor.ts
+      prng.ts
+      values.ts
+      walk.ts
+      assertions.ts
+
+    compose/integration-fuzz.yml
+      cam-integration-fuzz
+
+    compose/bike-nft/local/integration-fuzz.yml
+      descriptor service or env wiring for the bike fixture
+
+    Makefile
+      test-integration-fuzz
+      test-integration-fuzz-bike-nft
+
+The generic target can require an explicit descriptor path:
+
+    CAM_INTEGRATION_DESCRIPTOR=/work/runtime/cam-integration.json \
+    CAM_INTEGRATION_SEED=... \
+    CAM_INTEGRATION_RUNS=... \
+    CAM_INTEGRATION_STEPS=... \
+    make test-integration-fuzz
+
+The bike wrapper can produce the descriptor from Forge broadcast output and then
+call the generic service.
+
+
+First useful test
+-----------------
+
+The first version should be deliberately small:
+
+    runs = 1
+    steps = all read routes once, then one seeded random walk
+    writes = simulate only
+    browser = none
+
+Minimum assertions:
+
+    load CAM from CamRoot
+    resolve contract namespaces
+    call every read route at least once
+    normalize every returned ABI value
+    resolve every returned UI continuation
+    resolve every visible action
+    prepare and simulate at least one write action if any write action is
+    reachable
+
+This would catch the current status integer bug without requiring dapp-specific
+knowledge.
+
+
+Future stages
+-------------
+
+Stage 1: Generic smoke walk
+    Deterministic generated values, one account, real RPC, read routes, UI
+    resolution, write preparation/simulation.
+
+Stage 2: Corpus and shrinking
+    Keep failing seeds. Add a small failure reducer for route/action sequences.
+
+Stage 3: Dapp-owned workflows
+    Add optional CAM-adjacent workflow files for business expectations. The same
+    runner can execute them after generic fuzz.
+
+Stage 4: Multi-account walks
+    Use several descriptor accounts to discover permission and rendering
+    differences.
+
+Stage 5: Browser replay
+    Take a failing or interesting generic walk and replay it through the browser
+    E2E runner.
+
+Stage 6: Production preflight
+    Point the same runner at a testnet or staging deployment with unsigned CAM
+    disabled and read-only write simulation policy.
+
+
+Design rule
+-----------
+
+Do not let the generic runner become a hidden Bike NFT test.
+
+If an assertion mentions a dapp concept, it belongs in a dapp workflow file.
+If an assertion mentions CAM protocol shape, resource integrity, ABI decoding,
+UI resolution, route inputs, actions, or write simulation, it belongs in the
+generic runner.
+
+That separation keeps the first integration layer maximally reusable while
+still catching the real failures that package mocks and manual GUI runs miss.
