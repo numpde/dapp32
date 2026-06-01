@@ -89,7 +89,7 @@ class CamManifestResourceTest(unittest.TestCase):
         self.assertEqual(contracts, {"UI": {"type": "contract", "abiURI": "./abi/UI.json", "integrity": ZERO_SHA256}})
         self.assertEqual(
             failures,
-            [f"{manifest_path}: unknown namespace type at namespaces.widgets.type: widgets"],
+            [f"{manifest_path}: unsupported namespace: widgets"],
         )
 
     def test_abi_export_plan_scopes_contract_names_by_dapp_source_path(self) -> None:

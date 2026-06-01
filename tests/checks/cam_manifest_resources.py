@@ -10,6 +10,7 @@ from .common import read_text, repo_path
 from tools.cam_resource_integrity import (
     CamResourceIntegrityError,
     INTEGRITY_PATTERN,
+    resource_declarations,
     resource_integrity,
 )
 from tools.json_policy import JsonPolicyError, strict_json_loads
@@ -173,7 +174,12 @@ class CamManifestResourceValidator:
         if not isinstance(namespaces, dict):
             return {}, [f"{manifest_path}: namespaces must be an object"]
 
-        namespace_types, failures = self.validate_namespace_inventory(manifest_path, namespaces)
+        failures: list[str] = []
+        try:
+            resource_declarations(manifest_path, namespaces)
+        except CamResourceIntegrityError as error:
+            failures.append(str(error))
+
         contracts: dict[str, dict[object, object]] = {}
 
         for namespace, declaration in namespaces.items():
@@ -189,7 +195,7 @@ class CamManifestResourceValidator:
                 continue
             if not isinstance(declaration, dict):
                 continue
-            if namespace_types.get(namespace) != "contract":
+            if declaration.get("type") != "contract":
                 continue
             contracts[contract_name] = declaration
 
@@ -197,43 +203,6 @@ class CamManifestResourceValidator:
             failures.append(f"{manifest_path}: no contract namespaces declared")
 
         return contracts, failures
-
-    def validate_namespace_inventory(
-        self,
-        manifest_path: Path,
-        namespaces: dict[object, object],
-    ) -> tuple[dict[str, str], list[str]]:
-        namespace_types: dict[str, str] = {}
-        failures: list[str] = []
-
-        for namespace, declaration in namespaces.items():
-            path = f"namespaces.{namespace}"
-            if not isinstance(namespace, str) or namespace == "":
-                failures.append(f"{manifest_path}: namespace names must be non-empty strings")
-                continue
-            if not isinstance(declaration, dict):
-                failures.append(f"{manifest_path}: {path} must be an object")
-                continue
-
-            declaration_type = declaration.get("type")
-            if not isinstance(declaration_type, str) or declaration_type == "":
-                failures.append(f"{manifest_path}: {path}.type must be a non-empty string")
-                continue
-
-            namespace_types[namespace] = declaration_type
-            if declaration_type == "contract":
-                if not namespace.startswith(CONTRACT_NAMESPACE_PREFIX) or namespace == CONTRACT_NAMESPACE_PREFIX:
-                    failures.append(f"{manifest_path}: {path} must be {CONTRACT_NAMESPACE_PREFIX}<name>")
-            elif declaration_type == "routes":
-                if namespace != ROUTES_NAMESPACE:
-                    failures.append(f"{manifest_path}: routes namespace must be named {ROUTES_NAMESPACE}")
-            elif declaration_type == "ui":
-                if namespace != UI_NAMESPACE:
-                    failures.append(f"{manifest_path}: ui namespace must be named {UI_NAMESPACE}")
-            else:
-                failures.append(f"{manifest_path}: unknown namespace type at {path}.type: {declaration_type}")
-
-        return namespace_types, failures
 
     def validate_route_calls_match_declared_abis(
         self,
