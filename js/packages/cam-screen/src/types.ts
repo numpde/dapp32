@@ -74,7 +74,7 @@ export type UiCall = {
 }
 
 export type UiRuntimeContext = CamRuntimeContext & {
-  readonly [key: string]: unknown
+  readonly [key: string]: InertValue | undefined
 }
 
 export type ResolvedUiNode =
