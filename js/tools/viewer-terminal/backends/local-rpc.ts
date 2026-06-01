@@ -12,8 +12,6 @@ import {
   createCamViewerSession,
 } from "../../../packages/cam-viewer/dist/index.js"
 import {
-  hasOwn,
-  isRecordObject,
   parseJsonText,
   readBoundedResponseBytes,
   requireHttpOrigin,
@@ -26,6 +24,13 @@ import type {
   TerminalBackend,
   TerminalBackendOptions,
 } from "../types.ts"
+import {
+  requiredArray,
+  requiredEnv,
+  requiredField,
+  requiredRecord,
+  requiredString,
+} from "../input.ts"
 
 type BroadcastDeployment = {
   readonly chainId: string
@@ -144,51 +149,8 @@ function firstReceiptSender(receipts: readonly unknown[]): CamHost["address"] {
   return requiredAddress(requiredString(receipt, "from", "receipts.0.from"), "receipts.0.from")
 }
 
-function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]
-  if (value === undefined || value.length === 0) {
-    throw new Error(`missing required environment variable: ${name}`)
-  }
-
-  return value
-}
-
 function requiredResourceOrigin(env: NodeJS.ProcessEnv): string {
   return requireHttpOrigin(requiredEnv(env, "CAM_VIEWER_RESOURCE_ORIGIN"), "CAM_VIEWER_RESOURCE_ORIGIN")
-}
-
-function requiredRecord(value: unknown, path: string): Record<string, unknown> {
-  if (!isRecordObject(value)) {
-    throw new Error(`${path}: expected an object`)
-  }
-
-  return value
-}
-
-function requiredArray(source: Record<string, unknown>, key: string): readonly unknown[] {
-  const value = requiredField(source, key)
-  if (!Array.isArray(value)) {
-    throw new Error(`${key}: expected an array`)
-  }
-
-  return value
-}
-
-function requiredString(source: Record<string, unknown>, key: string, path: string): string {
-  const value = requiredField(source, key)
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${path}: expected a non-empty string`)
-  }
-
-  return value
-}
-
-function requiredField(source: Record<string, unknown>, key: string): unknown {
-  if (!hasOwn(source, key)) {
-    throw new Error(`Forge broadcast missing field: ${key}`)
-  }
-
-  return source[key]
 }
 
 function requiredChainNumber(value: unknown): number {
