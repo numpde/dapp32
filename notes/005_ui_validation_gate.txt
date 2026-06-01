@@ -1,0 +1,284 @@
+CAM UI validation gate
+Date: 2026-06-01
+
+Problem
+-------
+
+The local GUI reached a real Anvil deployment and failed with:
+
+    CAM route output expected bigint integer at entry.0.status
+
+That failure is valuable because it exposes the wrong test boundary. The
+contract, ABI, CAM manifest, viewer packages, and browser app all looked
+reasonable in isolation. The failure appeared only when real viem decoding from
+Anvil produced a runtime value shape that our mocked package tests did not
+model.
+
+The product risk is larger than this one integer-normalization bug. CAM is a UI
+and agent interface derived from contracts. For the final product, deployment
+must not mean "the contracts compile and the React app starts." Deployment must
+mean:
+
+    the exact onchain app, exact CAM resources, exact ABI resources, exact
+    viewer packages, and exact browser renderer have been exercised together.
+
+
+What the current tests prove
+----------------------------
+
+The repo currently has useful but incomplete layers:
+
+1. Python checks
+   They validate repo shape, manifests, ABI references, integrity metadata,
+   import policy, Docker posture, and silent-default patterns.
+
+2. Solidity unit tests
+   They test selected contract behavior. Forge fuzz and invariant lanes exist,
+   but the bike app does not yet have meaningful fuzz/invariant coverage.
+
+3. TypeScript package tests
+   They test CAM parsing, UI parsing, route resolution, EVM adapter behavior,
+   and viewer session behavior. These are mostly example-based and many EVM
+   paths use mocked viem values.
+
+4. Local viewer targets
+   They are useful manual scenarios. They boot Anvil, deploy a fixture, serve
+   CAM resources, and open a terminal or GUI. They are not yet assertion-driven
+   integration tests.
+
+This leaves a gap exactly where the bug occurred:
+
+    real contract -> real ABI -> real viem decoding -> CAM value normalization
+    -> UI resolution -> renderer
+
+
+Why "more mocks" is not enough
+------------------------------
+
+Mocks are necessary for small package tests, but they cannot be the deployment
+gate. They encode our assumptions. The status bug survived because the mock
+said "integer outputs are bigint", while the real client path produced a small
+integer as a number.
+
+Mocks should be used for:
+
+- parser and resolver edge cases;
+- exact error behavior;
+- impossible or hard-to-create malformed values;
+- package-local unit tests.
+
+Mocks should not be used as the only proof that a dapp's CAM works.
+
+
+Where fuzzing belongs
+---------------------
+
+Fuzzing is useful, but it must be aimed at the right surfaces.
+
+1. Solidity fuzz tests
+   Own contract input space:
+
+   - serial-number validation;
+   - role boundaries;
+   - status transitions;
+   - delegation expiry;
+   - attestation write paths;
+   - metadata update rules;
+   - write functions never bypass manager authorization.
+
+2. Solidity invariant tests
+   Own persistent onchain state:
+
+   - retired components cannot return to active;
+   - missing/active transitions are controlled;
+   - token owner and manager record do not drift;
+   - permissions cannot appear for unregistered components;
+   - component records with status None are not treated as real components;
+   - delegation capabilities never exceed what the owner granted.
+
+3. TypeScript property tests
+   Own protocol shape:
+
+   - inert value validation rejects mutable or non-serializable values;
+   - expression resolution is closed over allowed roots;
+   - UI Include resolution terminates or fails on cycles;
+   - route input declarations are enforced;
+   - ABI output normalization accepts exactly the decoded values the adapter
+     promises to support;
+   - malformed CAM/UI resources fail closed.
+
+4. Differential/fixture tests
+   Own mocked-versus-real assumptions:
+
+   - for representative ABI types, compare mocked route output fixtures against
+     real viem-decoded output shapes;
+   - ensure fixture values use the same shape as real clients, or deliberately
+     test both.
+
+Fuzzing should not replace real integration tests. It should make each layer
+more hostile to hidden assumptions.
+
+
+The missing integration gate
+----------------------------
+
+The repo needs a Docker-backed real-RPC integration lane. It should use the same
+local scenario pieces as the manual viewer, but turn them into assertions.
+
+Proposed target:
+
+    make bike-nft-integration
+
+Runtime shape:
+
+    1. Start Anvil on an internal Compose network.
+    2. Deploy the bike fixture with Forge.
+    3. Serve dapps/bike-nft/cam over HTTP.
+    4. Run a Node integration test container.
+    5. The test container loads the deployed CamRoot through @cam/viewer.
+    6. It walks entry, component, register, and write-preparation paths.
+    7. It asserts resolved UI data and prepared calls.
+
+This should be a test service, not a manual terminal. It should have:
+
+- no host port by default;
+- no repository root mount;
+- read-only package workspace input;
+- read-only node_modules;
+- internal network access only to Anvil and CAM HTTP;
+- read-only access to the Forge broadcast output needed to discover CamRoot;
+- bounded memory/PIDs;
+- no dependency installation;
+- no browser unless it is the explicit browser lane.
+
+The first regression test should cover the exact failure:
+
+    viewEntry(account) from real Anvil normalizes AppView.status to the
+    canonical inert value expected by CAM, without relying on mocked bigint
+    fixture output.
+
+
+Browser validation gate
+-----------------------
+
+The package-level viewer test proves the headless state machine. The browser
+still needs its own gate because rendering and wallet preparation are product
+surface.
+
+Proposed target:
+
+    make bike-nft-viewer-e2e
+
+Runtime shape:
+
+    1. Start Anvil.
+    2. Deploy the bike fixture.
+    3. Serve CAM resources.
+    4. Start cam-web behind the local RPC/CAM gateway.
+    5. Run Playwright or an equivalent browser runner in a container.
+    6. Assert browser-visible UI states and interactions.
+
+Initial browser assertions:
+
+- page loads without CAM host, CAM parse, ABI, route, or screen errors;
+- entry view renders title, account, register capability, and actions;
+- lookup with empty serial stays in the expected empty-component state;
+- lookup with seeded serial renders component.found data;
+- register route renders register.empty and register.ready states;
+- Prepare write validates/simulates before opening a wallet transaction;
+- failed simulation displays a useful error, not an opaque gas-limit failure;
+- successful write path updates the route after confirmation;
+- no unresolved expression text is visible in the DOM;
+- no sentinel zero address is shown in views where the contract selected a
+  state that should not display it.
+
+The browser lane should include screenshot capture only as secondary evidence.
+The primary assertions should be semantic DOM and viewer-state checks.
+
+
+Deployment-grade CAM validation
+-------------------------------
+
+A dapp should not be deployable as a "validated CAM app" unless all of these
+are true:
+
+1. Static manifest checks pass.
+   CAM references only declared namespaces, pinned resources, valid ABI URIs,
+   declared route kinds, and known UI nodes.
+
+2. Resource integrity is closed.
+   main.json pins all ABI/UI resources it loads. Unsigned CAM hashes are allowed
+   only in explicit local fixtures, never as a production default.
+
+3. Solidity tests pass.
+   Unit, fuzz, and invariant tests cover the contract's business rules.
+
+4. Real-RPC integration passes.
+   The deployed app is loaded through CamRoot and exercised through the viewer
+   packages against Anvil.
+
+5. Browser E2E passes.
+   The graphical viewer renders the expected UI and handles read/write flows
+   using the same local deployment.
+
+6. Write preparation is preflighted.
+   Every CAM write action that the UI exposes must be simulatable before the
+   wallet is asked to sign.
+
+7. Error surfaces are checked.
+   Reverts, malformed resources, unsupported hosts, wrong chains, and failed
+   simulations must produce useful errors.
+
+
+Avoid these false comforts
+--------------------------
+
+Do not treat these as sufficient:
+
+- only checking TypeScript types;
+- only parsing CAM JSON;
+- only rendering React components with fake data;
+- only running mocked viewer package tests;
+- only doing manual browser checks;
+- only checking screenshots;
+- only relying on wallet failure messages;
+- only testing the happy path with one seeded component.
+
+Those checks are useful, but none of them validates the whole contract-defined
+UI boundary.
+
+
+Near-term implementation order
+------------------------------
+
+1. Fix the current integer normalization bug and add a small package regression
+   test for number-valued integer outputs.
+
+2. Add the real-RPC headless integration lane for bike-nft.
+   This is the most important next test because it catches adapter/client/ABI
+   mismatches without adding browser complexity.
+
+3. Add browser E2E after the headless integration lane is stable.
+   Use the same Compose fixture so the browser test does not invent a second
+   scenario.
+
+4. Add Foundry fuzz and invariant tests for BicycleComponentManager.
+   These should focus on contract rules, not UI rendering.
+
+5. Add property tests for CAM/UI protocol packages if the repo accepts a pinned
+   property-testing dependency. If not, use deterministic generators first.
+
+
+Core principle
+--------------
+
+CAM validation must follow the trust boundary:
+
+    contracts own authority;
+    CAM resources describe interaction;
+    viewers render and prepare execution;
+    tests must exercise the handoff between all three.
+
+The final deployment gate should be boring and strict: if the exact deployed
+contract, exact manifest, exact ABI, exact UI resource, and exact viewer cannot
+survive an automated local-chain run, the dapp is not ready to publish.
