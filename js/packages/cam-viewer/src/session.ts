@@ -9,6 +9,7 @@ import {
   toInertValue,
 } from "@cam/protocol"
 import {
+  createContext,
   resolveResourceURI,
   resolveRouteCall,
   resolveRouteThen,
@@ -309,13 +310,13 @@ export function createCamViewerSession({
     outputs: readonly InertValue[],
     form: InertRecord,
   ): CamRuntimeContext {
-    return {
+    return createContext({
       host: sessionHost,
       ...(account === undefined ? {} : { account }),
       inputs,
       outputs,
       form,
-    }
+    })
   }
 
   function activeForm(): InertRecord {

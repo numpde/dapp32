@@ -29,6 +29,9 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
     if (!value.startsWith("$")) {
       return
     }
+    if (value.startsWith("$$")) {
+      return
+    }
 
     const segments = value.slice(1).split(".")
     const [root, ...pathSegments] = segments
@@ -107,6 +110,11 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
   function resolveString(value: string, context: object, path: string): unknown {
     if (!value.startsWith("$")) {
       return value
+    }
+    if (value.startsWith("$$")) {
+      // A doubled leading dollar is the protocol escape for literal strings
+      // that would otherwise be parsed as expression references.
+      return value.slice(1)
     }
 
     validateString(value, path)

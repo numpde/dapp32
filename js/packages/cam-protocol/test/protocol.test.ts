@@ -34,6 +34,7 @@ test("resolves expression payloads with caller-owned normalization and errors", 
   ) as { readonly owner?: unknown }
 
   assert.equal(resolved.owner, "0x0000000000000000000000000000000000000001")
+  assert.equal(runtime.resolveValue("$$values.0.owner", { values: [] }, "field"), "$values.0.owner")
 })
 
 test("validates, clones, and rejects non-inert protocol values", () => {
