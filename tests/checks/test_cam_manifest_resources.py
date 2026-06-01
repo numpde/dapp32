@@ -16,6 +16,7 @@ class CamManifestResourceTest(unittest.TestCase):
     def test_cam_manifests_match_declared_abis_and_resource_inventory(self) -> None:
         failures = [
             *self.validator.collect_manifest_failures(self.validator.validate_declared_abi_usage),
+            *self.validator.collect_manifest_failures(self.validator.validate_declared_route_continuations),
             *self.validator.collect_manifest_failures(self.validator.validate_resource_inventory),
         ]
 
@@ -90,6 +91,15 @@ class CamManifestResourceTest(unittest.TestCase):
             abi_dir = manifest_path.parent / "abi"
             abi_dir.mkdir(parents=True)
             write_json(
+                manifest_path.parent / "ui.json",
+                {
+                    "ui": "1.0.0",
+                    "app": {
+                        "requires": ["form", "view"],
+                    },
+                },
+            )
+            write_json(
                 abi_dir / "UI.json",
                 [
                     {
@@ -136,6 +146,11 @@ class CamManifestResourceTest(unittest.TestCase):
                             },
                             "then": {
                                 "namespace": "ui",
+                                "function": "app",
+                                "args": {
+                                    "form": "$form",
+                                    "view": "$outputs.0",
+                                },
                             },
                         },
                         "badWrite": {
@@ -146,6 +161,8 @@ class CamManifestResourceTest(unittest.TestCase):
                             },
                             "then": {
                                 "namespace": "routes",
+                                "function": "entry",
+                                "args": {},
                             },
                         },
                         "missing": {
@@ -156,6 +173,8 @@ class CamManifestResourceTest(unittest.TestCase):
                             },
                             "then": {
                                 "namespace": "routes",
+                                "function": "entry",
+                                "args": {},
                             },
                         },
                     },
@@ -170,6 +189,74 @@ class CamManifestResourceTest(unittest.TestCase):
                 f"{manifest_path}: write route must target a payable or nonpayable ABI function "
                 f"at routes.badWrite.call: Manager.readOnly",
                 f"{manifest_path}: route call function is not present in Manager ABI at routes.missing.call: missing",
+            ],
+        )
+
+    def test_route_continuations_must_match_declared_targets(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            manifest_path.parent.mkdir(parents=True)
+            write_json(
+                manifest_path.parent / "ui.json",
+                {
+                    "ui": "1.0.0",
+                    "app": {
+                        "requires": ["form", "view"],
+                    },
+                },
+            )
+
+            failures = self.validator.validate_declared_route_continuations(
+                manifest_path,
+                {
+                    "routes": {
+                        "entry": {
+                            "inputs": [],
+                            "then": {
+                                "namespace": "ui",
+                                "function": "app",
+                                "args": {
+                                    "form": "$form",
+                                },
+                            },
+                        },
+                        "write": {
+                            "inputs": ["serialNumber"],
+                            "then": {
+                                "namespace": "routes",
+                                "function": "entry",
+                                "args": {
+                                    "extra": "$inputs.serialNumber",
+                                },
+                            },
+                        },
+                        "missingUi": {
+                            "inputs": [],
+                            "then": {
+                                "namespace": "ui",
+                                "function": "missing",
+                                "args": {},
+                            },
+                        },
+                        "missingRoute": {
+                            "inputs": [],
+                            "then": {
+                                "namespace": "routes",
+                                "function": "missing",
+                                "args": {},
+                            },
+                        },
+                    },
+                },
+            )
+
+        self.assertEqual(
+            failures,
+            [
+                f"{manifest_path}: missing continuation arg view for UI node app at routes.entry.then",
+                f"{manifest_path}: unexpected continuation arg extra for route entry at routes.write.then",
+                f"{manifest_path}: route continuation references unknown UI node at routes.missingUi.then: missing",
+                f"{manifest_path}: route continuation references unknown route at routes.missingRoute.then: missing",
             ],
         )
 

@@ -10,6 +10,8 @@ from tools.json_policy import JsonPolicyError, strict_json_loads
 
 
 CONTRACT_NAMESPACE_PREFIX = "contracts."
+ROUTES_NAMESPACE = "routes"
+UI_NAMESPACE = "ui"
 
 
 class CamManifestResourceValidator:
@@ -77,6 +79,38 @@ class CamManifestResourceValidator:
 
     def validate_resource_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         return self.validate_namespaced_ui_inventory(manifest_path, manifest)
+
+    def validate_declared_route_continuations(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        # Runtime route resolution is dynamic, but route continuations are still
+        # declared names. Check those names here so manifest drift fails before
+        # a viewer reaches a broken route or UI node.
+        routes = manifest.get("routes")
+        if not isinstance(routes, dict):
+            return [f"{manifest_path}: routes must be an object"]
+
+        ui_requires_by_node, ui_failures = self.ui_requires_by_node(manifest_path)
+        failures = [*ui_failures]
+
+        for route_name, route in routes.items():
+            path = f"routes.{route_name}"
+            if not isinstance(route_name, str) or route_name == "":
+                failures.append(f"{manifest_path}: route names must be non-empty strings")
+                continue
+            if not isinstance(route, dict):
+                failures.append(f"{manifest_path}: {path} must be an object")
+                continue
+
+            failures.extend(
+                self.validate_route_continuation(
+                    manifest_path,
+                    routes,
+                    ui_requires_by_node,
+                    path,
+                    route,
+                )
+            )
+
+        return failures
 
     def validate_no_orphan_abi_files(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         contracts, failures = self.contract_namespaces(manifest_path, manifest)
@@ -204,7 +238,7 @@ class CamManifestResourceValidator:
             return [f"{manifest_path}: {route_path}.then must be an object"]
 
         then_namespace = then.get("namespace")
-        if then_namespace == "ui":
+        if then_namespace == UI_NAMESPACE:
             return abi_usage.validate_route_function_mutability(
                 manifest_path,
                 f"{route_path}.call",
@@ -213,7 +247,7 @@ class CamManifestResourceValidator:
                 function,
             )
 
-        if then_namespace == "routes":
+        if then_namespace == ROUTES_NAMESPACE:
             return abi_usage.validate_contract_action_function(
                 manifest_path,
                 f"{route_path}.call",
@@ -223,6 +257,148 @@ class CamManifestResourceValidator:
             )
 
         return [f"{manifest_path}: {route_path}.then.namespace must be ui or routes"]
+
+    def validate_route_continuation(
+        self,
+        manifest_path: Path,
+        routes: dict[object, object],
+        ui_requires_by_node: dict[str, tuple[str, ...]],
+        route_path: str,
+        route: dict[object, object],
+    ) -> list[str]:
+        then = route.get("then")
+        if not isinstance(then, dict):
+            return [f"{manifest_path}: {route_path}.then must be an object"]
+
+        namespace = then.get("namespace")
+        function = then.get("function")
+        args = then.get("args")
+        continuation_path = f"{route_path}.then"
+        if not isinstance(function, str) or function == "":
+            return [f"{manifest_path}: {continuation_path}.function must be a non-empty string"]
+        if not isinstance(args, dict):
+            return [f"{manifest_path}: {continuation_path}.args must be an object"]
+
+        if namespace == ROUTES_NAMESPACE:
+            target_route = routes.get(function)
+            if not isinstance(target_route, dict):
+                return [f"{manifest_path}: route continuation references unknown route at {continuation_path}: {function}"]
+
+            target_inputs, input_failures = self.route_input_names(manifest_path, function, target_route)
+            return [
+                *input_failures,
+                *self.validate_named_manifest_args(
+                    manifest_path,
+                    continuation_path,
+                    f"route {function}",
+                    target_inputs,
+                    args,
+                ),
+            ]
+
+        if namespace == UI_NAMESPACE:
+            target_requires = ui_requires_by_node.get(function)
+            if target_requires is None:
+                return [f"{manifest_path}: route continuation references unknown UI node at {continuation_path}: {function}"]
+
+            return self.validate_named_manifest_args(
+                manifest_path,
+                continuation_path,
+                f"UI node {function}",
+                target_requires,
+                args,
+            )
+
+        return [f"{manifest_path}: {continuation_path}.namespace must be ui or routes"]
+
+    def route_input_names(
+        self,
+        manifest_path: Path,
+        route_name: str,
+        route: dict[object, object],
+    ) -> tuple[tuple[str, ...], list[str]]:
+        inputs = route.get("inputs")
+        if not isinstance(inputs, list):
+            return (), [f"{manifest_path}: routes.{route_name}.inputs must be an array"]
+
+        return self.string_list(manifest_path, f"routes.{route_name}.inputs", inputs)
+
+    def ui_requires_by_node(self, manifest_path: Path) -> tuple[dict[str, tuple[str, ...]], list[str]]:
+        ui_path = manifest_path.parent / "ui.json"
+        failures: list[str] = []
+        ui: dict[str, object] | None = None
+        if not ui_path.is_file():
+            return {}, [f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json"]
+
+        try:
+            ui = self.read_json_object(ui_path)
+        except AssertionError as error:
+            failures.append(str(error))
+
+        if ui is None:
+            return {}, failures
+
+        requires_by_node: dict[str, tuple[str, ...]] = {}
+        for name, node in ui.items():
+            if name == UI_NAMESPACE:
+                continue
+            if not isinstance(node, dict):
+                failures.append(f"{ui_path}: UI node must be an object: {name}")
+                continue
+
+            requires = node.get("requires")
+            if not isinstance(requires, list):
+                failures.append(f"{ui_path}: {name}.requires must be an array")
+                continue
+
+            required_names, require_failures = self.string_list(ui_path, f"{name}.requires", requires)
+            failures.extend(require_failures)
+            requires_by_node[name] = required_names
+
+        return requires_by_node, failures
+
+    def string_list(
+        self,
+        path: Path,
+        field_path: str,
+        value: list[object],
+    ) -> tuple[tuple[str, ...], list[str]]:
+        failures: list[str] = []
+        names: list[str] = []
+        seen: set[str] = set()
+        for index, item in enumerate(value):
+            item_path = f"{field_path}.{index}"
+            if not isinstance(item, str) or item == "":
+                failures.append(f"{path}: {item_path} must be a non-empty string")
+                continue
+            if item in seen:
+                failures.append(f"{path}: duplicate name in {field_path}: {item}")
+                continue
+
+            seen.add(item)
+            names.append(item)
+
+        return tuple(names), failures
+
+    def validate_named_manifest_args(
+        self,
+        manifest_path: Path,
+        location: str,
+        target_name: str,
+        expected_names: tuple[str, ...],
+        args: dict[object, object],
+    ) -> list[str]:
+        expected = set(expected_names)
+        actual = set(args)
+        failures: list[str] = []
+
+        for name in sorted(expected - actual):
+            failures.append(f"{manifest_path}: missing continuation arg {name} for {target_name} at {location}")
+
+        for name in sorted(actual - expected):
+            failures.append(f"{manifest_path}: unexpected continuation arg {name} for {target_name} at {location}")
+
+        return failures
 
     def declared_abi_function(
         self,
