@@ -163,7 +163,7 @@ class CamManifestResourceValidator:
         if failures:
             return failures
 
-        return abi_resources.validate_no_orphan_abi_files(manifest_path, {"contracts": contracts})
+        return abi_resources.validate_no_orphan_abi_files(manifest_path, contracts)
 
     def contract_namespaces(
         self,

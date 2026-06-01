@@ -9,25 +9,13 @@ from tools.json_policy import JsonPolicyError, strict_json_loads
 
 def validate_no_orphan_abi_files(
     manifest_path: Path,
-    manifest: dict[str, object],
+    contracts: dict[str, dict[object, object]],
     *,
     existing_files: set[Path] | None = None,
 ) -> list[str]:
-    contracts = manifest.get("contracts")
-    if not isinstance(contracts, dict):
-        return [f"{manifest_path}: contracts must be an object"]
-
     referenced: set[Path] = set()
     failures: list[str] = []
     for contract_name, contract in contracts.items():
-        if not isinstance(contract_name, str) or contract_name == "":
-            failures.append(f"{manifest_path}: contract names must be non-empty strings")
-            continue
-
-        if not isinstance(contract, dict):
-            failures.append(f"{manifest_path}: contracts.{contract_name} must be an object")
-            continue
-
         abi_path, error = checked_local_abi_path(
             manifest_path,
             contract_name,
@@ -49,7 +37,7 @@ def validate_no_orphan_abi_files(
 
     for orphan in sorted(abi_files - referenced):
         failures.append(
-            f"{manifest_path}: cam/abi contains unused ABI file not referenced by contracts.*.abiURI: "
+            f"{manifest_path}: cam/abi contains unused ABI file not referenced by namespaces.contracts.*.abiURI: "
             f"{orphan.name}"
         )
 
@@ -100,10 +88,10 @@ def load_local_abi_array(
         abi_error = error
 
     if abi_error is not None:
-        return None, f"{manifest_path}: contracts.{contract_name}.abiURI target is invalid JSON: {abi_uri}: {abi_error}"
+        return None, f"{manifest_path}: {contract_abi_uri_path(contract_name)} target is invalid JSON: {abi_uri}: {abi_error}"
 
     if not isinstance(abi, list):
-        return None, f"{manifest_path}: contracts.{contract_name}.abiURI target must be a JSON ABI array: {abi_uri}"
+        return None, f"{manifest_path}: {contract_abi_uri_path(contract_name)} target must be a JSON ABI array: {abi_uri}"
 
     return abi, None
 
@@ -115,7 +103,7 @@ def checked_local_abi_path(
     *,
     existing_files: set[Path] | None = None,
 ) -> tuple[Path | None, str | None]:
-    path = f"contracts.{contract_name}.abiURI"
+    path = contract_abi_uri_path(contract_name)
     if not isinstance(abi_uri, str) or abi_uri == "":
         return None, f"{manifest_path}: {path} must be a non-empty string"
 
@@ -150,3 +138,7 @@ def resolve_local_abi_path(manifest_path: Path, abi_uri: str) -> Path | None:
         return None
 
     return (manifest_path.parent / abi_uri).resolve()
+
+
+def contract_abi_uri_path(contract_name: str) -> str:
+    return f"namespaces.contracts.{contract_name}.abiURI"
