@@ -47,13 +47,74 @@ export function parseAbiBytes(bytes: Uint8Array, uri: string): Abi {
 
   for (let index = 0; index < value.length; index++) {
     const item = value[index]
-    if (!isRecordObject(item)) {
-      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI item must be an object: ${uri}.${index}`)
-    }
-    if (typeof item.type !== "string" || item.type.length === 0) {
-      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI item must declare a type: ${uri}.${index}`)
-    }
+    validateAbiItem(item, `${uri}.${index}`)
   }
 
   return value as Abi
+}
+
+function validateAbiItem(item: unknown, path: string): void {
+  if (!isRecordObject(item)) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI item must be an object: ${path}`)
+  }
+
+  if (typeof item.type !== "string" || item.type.length === 0) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI item must declare a type: ${path}`)
+  }
+
+  // CAM calls only target functions. Other ABI item kinds may be present, but
+  // validating every event/error variant would make this adapter a general ABI
+  // linter instead of a strict caller for the shapes it executes.
+  if (item.type === "function") {
+    validateFunctionItem(item, path)
+  }
+}
+
+function validateFunctionItem(item: Record<string, unknown>, path: string): void {
+  if (typeof item.name !== "string" || item.name.length === 0) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI function must declare a name: ${path}`)
+  }
+
+  if (!isStateMutability(item.stateMutability)) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI function must declare stateMutability: ${path}`)
+  }
+
+  validateAbiParameters(item.inputs, `${path}.inputs`)
+  validateAbiParameters(item.outputs, `${path}.outputs`)
+}
+
+function validateAbiParameters(value: unknown, path: string): void {
+  if (!Array.isArray(value)) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameters must be an array: ${path}`)
+  }
+
+  for (let index = 0; index < value.length; index++) {
+    if (!(index in value)) {
+      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameter must be present: ${path}.${index}`)
+    }
+    validateAbiParameter(value[index], `${path}.${index}`)
+  }
+}
+
+function validateAbiParameter(value: unknown, path: string): void {
+  if (!isRecordObject(value)) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameter must be an object: ${path}`)
+  }
+
+  if (typeof value.type !== "string" || value.type.length === 0) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameter must declare a type: ${path}`)
+  }
+
+  if (value.type.startsWith("tuple")) {
+    validateAbiParameters(value.components, `${path}.components`)
+    return
+  }
+
+  if ("components" in value) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI components require a tuple type: ${path}.components`)
+  }
+}
+
+function isStateMutability(value: unknown): value is "pure" | "view" | "nonpayable" | "payable" {
+  return value === "pure" || value === "view" || value === "nonpayable" || value === "payable"
 }
