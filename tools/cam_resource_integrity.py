@@ -63,7 +63,7 @@ def refresh_manifest(manifest_path: Path) -> bool:
         raise CamResourceIntegrityError(f"{manifest_path}: namespaces must be an object")
 
     changed = False
-    for declaration, uri_key, integrity_key, path in resource_declarations(manifest_path, namespaces):
+    for _namespace, declaration, uri_key, integrity_key, path in resource_declarations(manifest_path, namespaces):
         changed |= refresh_integrity_field(
             manifest_path,
             declaration,
@@ -81,8 +81,8 @@ def refresh_manifest(manifest_path: Path) -> bool:
 def resource_declarations(
     manifest_path: Path,
     namespaces: dict[object, object],
-) -> list[tuple[dict[object, object], str, str, str]]:
-    resources: list[tuple[dict[object, object], str, str, str]] = []
+) -> list[tuple[str, dict[object, object], str, str, str]]:
+    resources: list[tuple[str, dict[object, object], str, str, str]] = []
 
     for namespace, declaration in namespaces.items():
         if not isinstance(namespace, str) or namespace == "":
@@ -99,13 +99,13 @@ def resource_declarations(
                 raise CamResourceIntegrityError(f"{manifest_path}: contract namespace name must not be empty")
             if declaration_type != "contract":
                 raise CamResourceIntegrityError(f"{manifest_path}: namespaces.{namespace}.type must be contract")
-            resources.append((declaration, "abiURI", "integrity", f"namespaces.{namespace}"))
+            resources.append((namespace, declaration, "abiURI", "integrity", f"namespaces.{namespace}"))
             continue
 
         if namespace == UI_NAMESPACE:
             if declaration_type != "ui":
                 raise CamResourceIntegrityError(f"{manifest_path}: namespaces.ui.type must be ui")
-            resources.append((declaration, "uri", "integrity", "namespaces.ui"))
+            resources.append((namespace, declaration, "uri", "integrity", "namespaces.ui"))
             continue
 
         if namespace == ROUTES_NAMESPACE:

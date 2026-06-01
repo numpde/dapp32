@@ -13,12 +13,12 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
+from tools.cam_resource_integrity import CamResourceIntegrityError, CONTRACT_NAMESPACE_PREFIX, resource_declarations
 from tools.json_policy import JsonPolicyError, read_strict_json
 
 
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 GENERATED_ABI_URI_RE = re.compile(r"^\./abi/([A-Za-z_][A-Za-z0-9_]*\.json)$")
-CONTRACT_NAMESPACE_PREFIX = "contracts."
 
 
 class CamAbiPlanError(ValueError):
@@ -119,15 +119,15 @@ def manifest_contracts(manifest_path: Path, manifest: dict[object, object]) -> l
         raise CamAbiPlanError(f"{manifest_path} must declare namespaces.* contract entries")
 
     contracts: list[tuple[str, dict[object, object]]] = []
-    for namespace, declaration in namespaces.items():
-        if not isinstance(namespace, str) or not namespace.startswith(CONTRACT_NAMESPACE_PREFIX):
+    try:
+        resources = resource_declarations(manifest_path, namespaces)
+    except CamResourceIntegrityError as error:
+        raise CamAbiPlanError(str(error)) from error
+
+    for namespace, declaration, uri_key, _integrity_key, _path in resources:
+        if uri_key != "abiURI":
             continue
-        contract_name = namespace.removeprefix(CONTRACT_NAMESPACE_PREFIX)
-        if not isinstance(declaration, dict):
-            raise CamAbiPlanError(f"{manifest_path}: namespaces.{namespace} must be an object")
-        if declaration.get("type") != "contract":
-            raise CamAbiPlanError(f"{manifest_path}: namespaces.{namespace}.type must be contract")
-        contracts.append((contract_name, declaration))
+        contracts.append((namespace.removeprefix(CONTRACT_NAMESPACE_PREFIX), declaration))
 
     return contracts
 
