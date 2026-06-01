@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Callable
 from pathlib import Path
 
@@ -8,6 +7,11 @@ from . import cam_abi_resources as abi_resources
 from . import cam_abi_usage as abi_usage
 from .cam_expressions import expression_first_segment, expression_references
 from .common import read_text, repo_path
+from tools.cam_resource_integrity import (
+    CamResourceIntegrityError,
+    INTEGRITY_PATTERN,
+    resource_integrity,
+)
 from tools.json_policy import JsonPolicyError, strict_json_loads
 
 
@@ -644,23 +648,20 @@ class CamManifestResourceValidator:
         uri: object,
         integrity: object,
     ) -> list[str]:
-        if not isinstance(uri, str) or not uri.startswith("./"):
-            return [f"{manifest_path}: {field_path} target URI must be a local ./ resource"]
-        if not isinstance(integrity, str):
-            return [f"{manifest_path}: {field_path} must be a sha256 integrity string"]
-        if not integrity.startswith("sha256:0x") or len(integrity) != len("sha256:0x") + 64:
-            return [f"{manifest_path}: {field_path} must be sha256:0x followed by 64 hex characters"]
+        if not isinstance(integrity, str) or not INTEGRITY_PATTERN.fullmatch(integrity):
+            return [f"{manifest_path}: {field_path} must be a sha256:0x-prefixed lowercase digest"]
 
-        digest = integrity.removeprefix("sha256:0x")
-        if any(character not in "0123456789abcdefABCDEF" for character in digest):
-            return [f"{manifest_path}: {field_path} must be sha256:0x followed by 64 hex characters"]
+        actual: str | None = None
+        failure: str | None = None
+        try:
+            actual = resource_integrity(manifest_path, uri, field_path)
+        except CamResourceIntegrityError as error:
+            failure = str(error)
 
-        resource_path = manifest_path.parent / uri.removeprefix("./")
-        if not resource_path.is_file():
-            return [f"{manifest_path}: {field_path} target does not exist: {uri}"]
+        if failure is not None:
+            return [failure]
 
-        actual = hashlib.sha256(resource_path.read_bytes()).hexdigest()
-        if actual != digest.lower():
+        if actual != integrity:
             return [f"{manifest_path}: {field_path} does not match {uri}"]
 
         return []
