@@ -35,3 +35,16 @@ export type {
   JsonGuards,
   JsonGuardsOptions,
 } from "./json.ts"
+
+export {
+  CAM_RESOURCE_MAX_BYTES,
+  readBoundedResponseBytes,
+  requireHttpOrigin,
+  requireHttpURL,
+  requireSameHttpOrigin,
+  responseContentLength,
+} from "./resources.ts"
+export type {
+  HttpResponse,
+  HttpURL,
+} from "./resources.ts"
