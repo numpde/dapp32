@@ -35,9 +35,9 @@ import {
   bikeCamJson as camJson,
   bikeContractAddresses,
   bikeHost,
-  bikeManagerAbi as managerAbi,
+  bikeManagerAbi as managerAbiJson,
   bikeRouteResults,
-  bikeUiAbi as uiAbi,
+  bikeUiAbi as uiAbiJson,
 } from "../../../../tests/fixtures/cam/bike.mts"
 import {
   createMockCamPublicClient,
@@ -49,6 +49,8 @@ const host: CamHost = bikeHost
 const ROOT_CAM_URI = "camURI"
 const ROOT_CAM_HASH = "camHash"
 const NO_ROUTE_RESULTS = {}
+const uiAbi = uiAbiJson as Abi
+const managerAbi = managerAbiJson as Abi
 
 test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects hash mismatches", async () => {
   const camBytes = encodeJson(camJson)
@@ -214,7 +216,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
 test("callCamRoute rejects mutable route functions and invalid named args", async () => {
   const nonViewAbi = [
     {
-      ...uiAbi[0],
+      ...findAbiFunction(uiAbi, BIKE_VIEW_ENTRY),
       stateMutability: "nonpayable",
     },
   ] as const satisfies Abi
@@ -427,4 +429,17 @@ function createWalletClient(): CamWalletClient & {
       return "0x1234"
     },
   }
+}
+
+type AbiFunctionItem = Extract<Abi[number], { readonly type: "function" }>
+
+function findAbiFunction(abi: Abi, functionName: string): AbiFunctionItem {
+  const item = abi.find((candidate): candidate is AbiFunctionItem => (
+    candidate.type === "function" && candidate.name === functionName
+  ))
+  if (item === undefined) {
+    throw new Error(`missing ABI function fixture: ${functionName}`)
+  }
+
+  return item
 }
