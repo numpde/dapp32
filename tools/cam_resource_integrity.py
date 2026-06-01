@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 
 
@@ -21,7 +22,9 @@ from tools.json_policy import JsonPolicyError, read_strict_json  # noqa: E402
 
 CONTRACT_NAMESPACE_PREFIX = "contracts."
 INTEGRITY_PREFIX = "sha256:0x"
+INTEGRITY_PATTERN = re.compile(r"^sha256:0x[0-9a-f]{64}$")
 LOCAL_URI_PREFIX = "./"
+MAX_CAM_RESOURCE_BYTES = 2 * 1024 * 1024
 UI_NAMESPACE = "ui"
 ROUTES_NAMESPACE = "routes"
 
@@ -126,8 +129,14 @@ def refresh_integrity_field(
     integrity_key: str,
     path: str,
 ) -> bool:
+    current_digest = declaration.get(integrity_key)
+    if not isinstance(current_digest, str) or not INTEGRITY_PATTERN.fullmatch(current_digest):
+        raise CamResourceIntegrityError(
+            f"{manifest_path}: {path}.{integrity_key} must be a sha256:0x-prefixed lowercase digest",
+        )
+
     digest = resource_integrity(manifest_path, declaration.get(uri_key), f"{path}.{uri_key}")
-    if declaration.get(integrity_key) == digest:
+    if current_digest == digest:
         return False
 
     declaration[integrity_key] = digest
@@ -144,11 +153,28 @@ def resource_integrity(manifest_path: Path, uri: object, path: str) -> str:
     if relative_path.is_absolute() or ".." in relative_path.parts or str(relative_path) == "":
         raise CamResourceIntegrityError(f"{manifest_path}: {path} must stay under the CAM directory")
 
-    resource_path = manifest_path.parent / relative_path
+    unresolved_resource_path = manifest_path.parent / relative_path
+    current_path = manifest_path.parent
+    for part in relative_path.parts:
+        current_path = current_path / part
+        if current_path.is_symlink():
+            raise CamResourceIntegrityError(f"{manifest_path}: refusing symlinked CAM resource path: {uri}")
+
+    cam_dir = manifest_path.parent.resolve(strict=True)
+    resource_path = unresolved_resource_path.resolve(strict=False)
+    try:
+        resource_path.relative_to(cam_dir)
+    except ValueError as error:
+        raise CamResourceIntegrityError(f"{manifest_path}: {path} must stay under the CAM directory") from error
+
     if resource_path.is_symlink():
         raise CamResourceIntegrityError(f"{manifest_path}: refusing symlinked CAM resource: {uri}")
     if not resource_path.is_file():
         raise CamResourceIntegrityError(f"{manifest_path}: CAM resource does not exist: {uri}")
+    if resource_path.stat().st_size > MAX_CAM_RESOURCE_BYTES:
+        raise CamResourceIntegrityError(
+            f"{manifest_path}: CAM resource is too large: {uri} exceeds {MAX_CAM_RESOURCE_BYTES} bytes",
+        )
 
     digest = hashlib.sha256(resource_path.read_bytes()).hexdigest()
     return f"{INTEGRITY_PREFIX}{digest}"
