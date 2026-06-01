@@ -2,6 +2,7 @@ import {
   callCamRoute,
   loadCamFromHost,
   resolveCamContracts,
+  verifyCamResourceIntegrity,
 } from "@cam/evm-viem"
 import {
   createStringMap,
@@ -113,14 +114,14 @@ export function createCamViewerSession({
       loadResource,
     })
 
-    const uiURI = uiResourceURI(loadedCam.cam, loadedCam.camURI)
-    const ui = await loadUi(uiURI)
+    const uiResource = uiResourceDeclaration(loadedCam.cam, loadedCam.camURI)
+    const ui = await loadUi(uiResource.uri, uiResource.integrity)
 
     loadedState = {
       cam: loadedCam.cam,
       camURI: loadedCam.camURI,
       contracts,
-      uiURI,
+      uiURI: uiResource.uri,
       ui,
     }
 
@@ -227,12 +228,17 @@ export function createCamViewerSession({
     return loadedSnapshot(currentView)
   }
 
-  async function loadUi(uri: string): Promise<UiDocument> {
+  async function loadUi(uri: string, integrity: string): Promise<UiDocument> {
     let bytes: Uint8Array
     try {
       bytes = await loadResource(uri)
     } catch (cause) {
       throw new CamViewerError("CAM_VIEWER_UI_LOAD_FAILED", `failed to load CAM UI resource: ${uri}`, cause)
+    }
+    try {
+      verifyCamResourceIntegrity({ bytes, integrity, uri })
+    } catch (cause) {
+      throw new CamViewerError("CAM_VIEWER_UI_LOAD_FAILED", `failed to verify CAM UI resource: ${uri}`, cause)
     }
 
     try {
@@ -348,13 +354,19 @@ export function createCamViewerSession({
   }
 }
 
-function uiResourceURI(cam: CamDocument, camURI: string): string {
+function uiResourceDeclaration(cam: CamDocument, camURI: string): {
+  readonly uri: string
+  readonly integrity: string
+} {
   const ui = cam.namespaces.ui
   if (ui?.type !== "ui") {
     throw new CamViewerError("CAM_VIEWER_UI_LOAD_FAILED", "CAM manifest does not declare namespaces.ui")
   }
 
-  return resolveResourceURI(camURI, ui.uri)
+  return {
+    uri: resolveResourceURI(camURI, ui.uri),
+    integrity: ui.integrity,
+  }
 }
 
 function cloneAccount(source: CamViewerAccount): CamViewerAccount {

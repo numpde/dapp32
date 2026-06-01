@@ -20,9 +20,9 @@ import type {
 import type { InertValue } from "@cam/protocol"
 
 const TOP_LEVEL_KEYS = new Set(["cam", "entry", "namespaces", "routes"])
-const CONTRACT_NAMESPACE_KEYS = new Set(["type", "abiURI"])
+const CONTRACT_NAMESPACE_KEYS = new Set(["type", "abiURI", "integrity"])
 const ROUTES_NAMESPACE_KEYS = new Set(["type"])
-const UI_NAMESPACE_KEYS = new Set(["type", "uri"])
+const UI_NAMESPACE_KEYS = new Set(["type", "uri", "integrity"])
 const ROUTE_KEYS = new Set(["inputs", "call", "then"])
 const INVOCATION_KEYS = new Set(["namespace", "function", "args"])
 
@@ -91,6 +91,7 @@ function parseContractNamespace(source: Record<string, unknown>, path: string): 
   return {
     type: "contract",
     abiURI: requiredNonEmptyString(source.abiURI, `${path}.abiURI`),
+    integrity: requiredNonEmptyString(source.integrity, `${path}.integrity`),
   }
 }
 
@@ -106,6 +107,7 @@ function parseUiNamespace(source: Record<string, unknown>, path: string): CamUiN
   return {
     type: "ui",
     uri: requiredNonEmptyString(source.uri, `${path}.uri`),
+    integrity: requiredNonEmptyString(source.integrity, `${path}.integrity`),
   }
 }
 

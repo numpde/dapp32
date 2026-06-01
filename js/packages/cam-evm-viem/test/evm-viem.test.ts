@@ -3,6 +3,7 @@ import test from "node:test"
 
 import { parseCam } from "@cam/core"
 import { toInertValue } from "@cam/protocol"
+import { sha256 } from "viem"
 import type { Abi, Address, Hex } from "viem"
 
 import {
@@ -38,7 +39,9 @@ import {
 } from "../../../../tests/fixtures/cam/bike.mts"
 import {
   bikeCamJson as camJson,
+  bikeManagerAbiBytes as managerAbiBytes,
   bikeManagerAbi as managerAbiJson,
+  bikeUiAbiBytes as uiAbiBytes,
   bikeUiAbi as uiAbiJson,
 } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import {
@@ -101,8 +104,8 @@ test("resolveCamContracts resolves namespaced contracts through CamRoot", async 
     },
   }))
   const resources = createResourceLoader({
-    [uiAbiURI]: encodeJson(uiAbi),
-    [managerAbiURI]: encodeJson(managerAbi),
+    [uiAbiURI]: uiAbiBytes,
+    [managerAbiURI]: managerAbiBytes,
   })
 
   const contracts = await resolveCamContracts({
@@ -120,6 +123,7 @@ test("resolveCamContracts resolves namespaced contracts through CamRoot", async 
 })
 
 test("resolveCamContracts rejects invalid bindings and malformed ABIs", async () => {
+  const invalidAbiItemBytes = encodeJson([{ name: BIKE_VIEW_ENTRY }])
   await assert.rejects(
     () => resolveCamContracts({
       publicClient: createPublicClient(publicClientFixtureOptions({
@@ -132,8 +136,8 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
       camURI: camDocumentURI,
       cam: parseCam(camJson),
       loadResource: createResourceLoader({
-        [uiAbiURI]: encodeJson(uiAbi),
-        [managerAbiURI]: encodeJson(managerAbi),
+        [uiAbiURI]: uiAbiBytes,
+        [managerAbiURI]: managerAbiBytes,
       }),
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_CONTRACT_INVALID",
@@ -149,15 +153,22 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
       })),
       host,
       camURI: camDocumentURI,
-      cam: parseCam(camJson),
+      cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, invalidAbiItemBytes),
       loadResource: createResourceLoader({
-        [uiAbiURI]: encodeJson([{ name: BIKE_VIEW_ENTRY }]),
-        [managerAbiURI]: encodeJson(managerAbi),
+        [uiAbiURI]: invalidAbiItemBytes,
+        [managerAbiURI]: managerAbiBytes,
       }),
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
   )
 
+  const invalidAbiParameterBytes = encodeJson([{
+    type: "function",
+    name: BIKE_VIEW_ENTRY,
+    stateMutability: "view",
+    inputs: [{ name: "account" }],
+    outputs: [],
+  }])
   await assert.rejects(
     () => resolveCamContracts({
       publicClient: createPublicClient(publicClientFixtureOptions({
@@ -168,16 +179,10 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
       })),
       host,
       camURI: camDocumentURI,
-      cam: parseCam(camJson),
+      cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, invalidAbiParameterBytes),
       loadResource: createResourceLoader({
-        [uiAbiURI]: encodeJson([{
-          type: "function",
-          name: BIKE_VIEW_ENTRY,
-          stateMutability: "view",
-          inputs: [{ name: "account" }],
-          outputs: [],
-        }]),
-        [managerAbiURI]: encodeJson(managerAbi),
+        [uiAbiURI]: invalidAbiParameterBytes,
+        [managerAbiURI]: managerAbiBytes,
       }),
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
@@ -464,6 +469,29 @@ function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOption
     routeResults: NO_ROUTE_RESULTS,
     ...overrides,
   }
+}
+
+function camWithNamespaceIntegrity(namespace: string, bytes: Uint8Array) {
+  const namespaces = camJson.namespaces as Record<string, unknown>
+  const declaration = namespaces[namespace]
+  assert.equal(typeof declaration, "object")
+  assert.notEqual(declaration, null)
+  assert.equal(Array.isArray(declaration), false)
+
+  return parseCam({
+    ...camJson,
+    namespaces: {
+      ...namespaces,
+      [namespace]: {
+        ...(declaration as Record<string, unknown>),
+        integrity: resourceIntegrity(bytes),
+      },
+    },
+  })
+}
+
+function resourceIntegrity(bytes: Uint8Array): string {
+  return `sha256:${sha256(bytes)}`
 }
 
 function createSimulationClient(failure?: Error): CamSimulationClient & {

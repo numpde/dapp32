@@ -29,6 +29,12 @@ export type VerifyCamHashOptions = {
   readonly allowUnsigned: boolean
 }
 
+export type VerifyCamResourceIntegrityOptions = {
+  readonly bytes: Uint8Array
+  readonly integrity: string
+  readonly uri: string
+}
+
 export type ResolvedCamContract = {
   readonly address: Address
   readonly abi: Abi

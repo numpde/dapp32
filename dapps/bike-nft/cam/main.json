@@ -4,18 +4,21 @@
   "namespaces": {
     "contracts.BicycleComponentManagerUI": {
       "type": "contract",
-      "abiURI": "./abi/BicycleComponentManagerUI.json"
+      "abiURI": "./abi/BicycleComponentManagerUI.json",
+      "integrity": "sha256:0x35ac513bc468bf5d27cdc65c8bd94e5f13013384b96bacf9960596594e1f4b10"
     },
     "contracts.BicycleComponentManager": {
       "type": "contract",
-      "abiURI": "./abi/BicycleComponentManager.json"
+      "abiURI": "./abi/BicycleComponentManager.json",
+      "integrity": "sha256:0x79799b5e6f26d796af04de48ac89fb7074cd42d6d28c4064071f74663fdcb794"
     },
     "routes": {
       "type": "routes"
     },
     "ui": {
       "type": "ui",
-      "uri": "./ui.json"
+      "uri": "./ui.json",
+      "integrity": "sha256:0x8e64d9dd0c8fb5dcdd32f91d48aa399ba01a3eceb50069ff466e5e56e20c3017"
     }
   },
   "routes": {

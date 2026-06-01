@@ -16,6 +16,7 @@ export type CamNamespace =
 export type CamContractNamespace = {
   readonly type: "contract"
   readonly abiURI: string
+  readonly integrity: string
 }
 
 export type CamRoutesNamespace = {
@@ -25,6 +26,7 @@ export type CamRoutesNamespace = {
 export type CamUiNamespace = {
   readonly type: "ui"
   readonly uri: string
+  readonly integrity: string
 }
 
 export type CamRoute = {

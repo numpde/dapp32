@@ -6,6 +6,7 @@ import { isAddress } from "viem"
 import { CAM_ROOT_FUNCTIONS, camRootAbi, parseAbiBytes } from "./abi.ts"
 import { ZERO_ADDRESS } from "./constants.ts"
 import { CamEvmError } from "./errors.ts"
+import { verifyCamResourceIntegrity } from "./hash.ts"
 import { loadResourceBytes } from "./resources.ts"
 import type { CamHost, CamPublicClient, ResolvedCamContract, ResourceLoader } from "./types.ts"
 
@@ -25,6 +26,7 @@ export async function resolveCamContracts({
         camURI,
         name: contractName,
         abiURI: contract.abiURI,
+        integrity: contract.integrity,
         loadResource,
       }),
     ] as const),
@@ -60,6 +62,7 @@ async function resolveContract({
   camURI,
   name,
   abiURI: relativeAbiURI,
+  integrity,
   loadResource,
 }: {
   readonly publicClient: CamPublicClient
@@ -67,6 +70,7 @@ async function resolveContract({
   readonly camURI: string
   readonly name: string
   readonly abiURI: string
+  readonly integrity: string
   readonly loadResource: ResourceLoader
 }): Promise<ResolvedCamContract> {
   let address: ResolvedCamContract["address"]
@@ -94,6 +98,11 @@ async function resolveContract({
     abiURI,
     `failed to load CAM ABI resource: ${abiURI}`,
   )
+  verifyCamResourceIntegrity({
+    bytes: abiBytes,
+    integrity,
+    uri: abiURI,
+  })
 
   return {
     address,

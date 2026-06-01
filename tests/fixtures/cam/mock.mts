@@ -7,10 +7,10 @@ import {
   BIKE_UI_URI,
 } from "./bike.mts"
 import {
-  bikeCamJson,
-  bikeManagerAbi,
-  bikeUiJson,
-  bikeUiAbi,
+  bikeCamBytes,
+  bikeManagerAbiBytes,
+  bikeUiAbiBytes,
+  bikeUiBytes,
 } from "./bike-resources.mts"
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -110,10 +110,10 @@ export function bikeResourceBytes(
   overrides: Readonly<Record<string, Uint8Array>>,
 ): Record<string, Uint8Array> {
   return {
-    [BIKE_CAM_URI]: encodeJson(bikeCamJson),
-    [BIKE_UI_ABI_URI]: encodeJson(bikeUiAbi),
-    [BIKE_MANAGER_ABI_URI]: encodeJson(bikeManagerAbi),
-    [BIKE_UI_URI]: encodeJson(bikeUiJson),
+    [BIKE_CAM_URI]: bikeCamBytes,
+    [BIKE_UI_ABI_URI]: bikeUiAbiBytes,
+    [BIKE_MANAGER_ABI_URI]: bikeManagerAbiBytes,
+    [BIKE_UI_URI]: bikeUiBytes,
     ...overrides,
   }
 }

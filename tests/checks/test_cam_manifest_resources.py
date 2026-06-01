@@ -18,6 +18,7 @@ class CamManifestResourceTest(unittest.TestCase):
             *self.validator.collect_manifest_failures(self.validator.validate_declared_abi_usage),
             *self.validator.collect_manifest_failures(self.validator.validate_declared_route_continuations),
             *self.validator.collect_manifest_failures(self.validator.validate_resource_inventory),
+            *self.validator.collect_manifest_failures(self.validator.validate_resource_integrity),
         ]
 
         if failures:
@@ -84,6 +85,40 @@ class CamManifestResourceTest(unittest.TestCase):
                     "two\ttwo/src/AppUI.sol:AppUI\tAppUI.json\n",
                 ],
             )
+
+    def test_resource_integrity_checks_sha256_digests(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            abi_dir = manifest_path.parent / "abi"
+            abi_dir.mkdir(parents=True)
+            (abi_dir / "UI.json").write_text("[]\n", encoding="utf-8")
+            (manifest_path.parent / "ui.json").write_text('{"ui":"1.0.0","nodes":{}}\n', encoding="utf-8")
+
+            failures = self.validator.validate_resource_integrity(
+                manifest_path,
+                {
+                    "namespaces": {
+                        "contracts.UI": {
+                            "type": "contract",
+                            "abiURI": "./abi/UI.json",
+                            "integrity": "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+                        },
+                        "ui": {
+                            "type": "ui",
+                            "uri": "./ui.json",
+                            "integrity": "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+                        },
+                    },
+                },
+            )
+
+        self.assertEqual(
+            failures,
+            [
+                f"{manifest_path}: namespaces.contracts.UI.integrity does not match ./abi/UI.json",
+                f"{manifest_path}: namespaces.ui.integrity does not match ./ui.json",
+            ],
+        )
 
     def test_namespaced_route_calls_must_match_declared_abis(self) -> None:
         with TemporaryDirectory() as tmp:

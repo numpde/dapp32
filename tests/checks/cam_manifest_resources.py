@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable
 from pathlib import Path
 
@@ -79,6 +80,38 @@ class CamManifestResourceValidator:
 
     def validate_resource_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         return self.validate_namespaced_ui_inventory(manifest_path, manifest)
+
+    def validate_resource_integrity(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        failures: list[str] = []
+        contracts, contract_failures = self.contract_namespaces(manifest_path, manifest)
+        failures.extend(contract_failures)
+        for contract_name, contract in contracts.items():
+            abi_uri = contract.get("abiURI")
+            failures.extend(
+                self.validate_sha256_integrity(
+                    manifest_path,
+                    f"namespaces.{CONTRACT_NAMESPACE_PREFIX}{contract_name}.integrity",
+                    abi_uri,
+                    contract.get("integrity"),
+                )
+            )
+
+        namespaces = manifest.get("namespaces")
+        if not isinstance(namespaces, dict):
+            return failures
+
+        ui = namespaces.get(UI_NAMESPACE)
+        if isinstance(ui, dict):
+            failures.extend(
+                self.validate_sha256_integrity(
+                    manifest_path,
+                    "namespaces.ui.integrity",
+                    ui.get("uri"),
+                    ui.get("integrity"),
+                )
+            )
+
+        return failures
 
     def validate_declared_route_continuations(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         # Runtime route resolution is dynamic, but route continuations are still
@@ -467,6 +500,34 @@ class CamManifestResourceValidator:
             failures.append(f"{manifest_path}: namespaced CAM must not keep legacy screens/ resources")
 
         return failures
+
+    def validate_sha256_integrity(
+        self,
+        manifest_path: Path,
+        field_path: str,
+        uri: object,
+        integrity: object,
+    ) -> list[str]:
+        if not isinstance(uri, str) or not uri.startswith("./"):
+            return [f"{manifest_path}: {field_path} target URI must be a local ./ resource"]
+        if not isinstance(integrity, str):
+            return [f"{manifest_path}: {field_path} must be a sha256 integrity string"]
+        if not integrity.startswith("sha256:0x") or len(integrity) != len("sha256:0x") + 64:
+            return [f"{manifest_path}: {field_path} must be sha256:0x followed by 64 hex characters"]
+
+        digest = integrity.removeprefix("sha256:0x")
+        if any(character not in "0123456789abcdefABCDEF" for character in digest):
+            return [f"{manifest_path}: {field_path} must be sha256:0x followed by 64 hex characters"]
+
+        resource_path = manifest_path.parent / uri.removeprefix("./")
+        if not resource_path.is_file():
+            return [f"{manifest_path}: {field_path} target does not exist: {uri}"]
+
+        actual = hashlib.sha256(resource_path.read_bytes()).hexdigest()
+        if actual != digest.lower():
+            return [f"{manifest_path}: {field_path} does not match {uri}"]
+
+        return []
 
     def abi_functions_by_contract(
         self,

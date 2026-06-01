@@ -12,12 +12,13 @@ export type {
   SendCamContractCallOptions,
   SimulateCamContractCallOptions,
   VerifyCamHashOptions,
+  VerifyCamResourceIntegrityOptions,
 } from "./types.ts"
 
 export { CamEvmError } from "./errors.ts"
 export type { CamEvmErrorCode } from "./errors.ts"
 
-export { verifyCamHash } from "./hash.ts"
+export { verifyCamHash, verifyCamResourceIntegrity } from "./hash.ts"
 export { createHttpCamPublicClient } from "./client.ts"
 export type { CreateHttpCamPublicClientOptions } from "./client.ts"
 export { loadCamFromHost } from "./host.ts"
