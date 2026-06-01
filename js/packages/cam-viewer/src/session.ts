@@ -231,13 +231,13 @@ export function createCamViewerSession({
     try {
       bytes = await loadResource(uri)
     } catch (cause) {
-      throw new CamViewerError("CAM_VIEWER_SCREEN_LOAD_FAILED", `failed to load CAM UI resource: ${uri}`, cause)
+      throw new CamViewerError("CAM_VIEWER_UI_LOAD_FAILED", `failed to load CAM UI resource: ${uri}`, cause)
     }
 
     try {
       return parseUi(parseJsonBytes(bytes))
     } catch (cause) {
-      throw new CamViewerError("CAM_VIEWER_SCREEN_PARSE_FAILED", `failed to parse CAM UI resource: ${uri}`, cause)
+      throw new CamViewerError("CAM_VIEWER_UI_PARSE_FAILED", `failed to parse CAM UI resource: ${uri}`, cause)
     }
   }
 
@@ -350,7 +350,7 @@ export function createCamViewerSession({
 function uiResourceURI(cam: CamDocument, camURI: string): string {
   const ui = cam.namespaces.ui
   if (ui?.type !== "ui") {
-    throw new CamViewerError("CAM_VIEWER_SCREEN_LOAD_FAILED", "CAM manifest does not declare namespaces.ui")
+    throw new CamViewerError("CAM_VIEWER_UI_LOAD_FAILED", "CAM manifest does not declare namespaces.ui")
   }
 
   return resolveResourceURI(camURI, ui.uri)
