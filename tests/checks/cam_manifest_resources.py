@@ -499,9 +499,6 @@ class CamManifestResourceValidator:
         if ui is None:
             return {}, failures
 
-        if set(ui.keys()) != {UI_NAMESPACE, "nodes"}:
-            return {}, [f"{ui_path}: UI resource must declare only ui and nodes"]
-
         nodes = ui.get("nodes")
         if not isinstance(nodes, dict):
             return {}, [f"{ui_path}: nodes must be an object"]
@@ -519,9 +516,6 @@ class CamManifestResourceValidator:
 
             required_names, require_failures = self.string_list(ui_path, f"{name}.requires", requires)
             failures.extend(require_failures)
-            for required_name in required_names:
-                if required_name != "view":
-                    failures.append(f"{ui_path}: unsupported UI node required argument at {name}.requires: {required_name}")
             requires_by_node[name] = required_names
 
         return requires_by_node, failures
