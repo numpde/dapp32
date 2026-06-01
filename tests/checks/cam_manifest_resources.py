@@ -76,6 +76,13 @@ class CamManifestResourceValidator:
                 abi_functions_by_contract,
             )
         )
+        failures.extend(
+            self.validate_ui_view_references_match_declared_abis(
+                manifest_path,
+                routes,
+                abi_functions_by_contract,
+            )
+        )
         return failures
 
     def validate_resource_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
@@ -306,6 +313,135 @@ class CamManifestResourceValidator:
             )
 
         return [f"{manifest_path}: {route_path}.kind must be read or write"]
+
+    def validate_ui_view_references_match_declared_abis(
+        self,
+        manifest_path: Path,
+        routes: dict[object, object],
+        abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]],
+    ) -> list[str]:
+        # The contract chooses the concrete UI node at runtime, so this static
+        # check only proves the shared view vocabulary: every top-level
+        # `$view.foo` used by ui.json must exist on at least one read-route view
+        # tuple returned by a declared contract ABI.
+        fields, field_failures = self.contract_view_fields(manifest_path, routes, abi_functions_by_contract)
+        references, reference_failures = self.ui_view_references(manifest_path)
+        failures = [*field_failures, *reference_failures]
+        if failures:
+            return failures
+
+        for path, field in references:
+            if field not in fields:
+                failures.append(f"{manifest_path}: UI expression references unknown contract view field at {path}: {field}")
+
+        return failures
+
+    def contract_view_fields(
+        self,
+        manifest_path: Path,
+        routes: dict[object, object],
+        abi_functions_by_contract: dict[str, dict[str, abi_usage.AbiFunction | None]],
+    ) -> tuple[set[str], list[str]]:
+        fields: set[str] = set()
+        failures: list[str] = []
+
+        for route_name, route in routes.items():
+            path = f"routes.{route_name}"
+            if not isinstance(route_name, str) or not isinstance(route, dict) or route.get("kind") != "read":
+                continue
+
+            call = route.get("call")
+            then = route.get("then")
+            if not isinstance(call, dict) or not isinstance(then, dict):
+                continue
+
+            contract_name = self.contract_name_from_call_namespace(call.get("namespace"))
+            function_name = call.get("function")
+            if contract_name is None or not isinstance(function_name, str) or function_name == "":
+                continue
+
+            function, reference_failures = self.declared_abi_function(
+                manifest_path,
+                abi_functions_by_contract,
+                f"{path}.call",
+                contract_name,
+                function_name,
+                "route call",
+            )
+            failures.extend(reference_failures)
+            if function is None:
+                continue
+
+            args = then.get("args")
+            if not isinstance(args, dict):
+                continue
+
+            view_arg = args.get("view")
+            if not isinstance(view_arg, str) or not view_arg.startswith("$outputs."):
+                continue
+
+            output_index = abi_usage.output_reference_index(view_arg)
+            if output_index is None or output_index >= len(function.outputs):
+                continue
+
+            names = abi_usage.tuple_component_names(function.outputs[output_index])
+            if names is None:
+                failures.append(f"{manifest_path}: {path}.then.args.view must reference a tuple ABI output")
+                continue
+
+            fields.update(names)
+
+        return fields, failures
+
+    def ui_view_references(self, manifest_path: Path) -> tuple[list[tuple[str, str]], list[str]]:
+        ui_path = manifest_path.parent / "ui.json"
+        if not ui_path.is_file():
+            return [], [f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json"]
+
+        failures: list[str] = []
+        ui: dict[str, object] | None = None
+        try:
+            ui = self.read_json_object(ui_path)
+        except AssertionError as error:
+            failures.append(str(error))
+        if failures:
+            return [], failures
+        assert ui is not None
+
+        references: list[tuple[str, str]] = []
+        self.collect_ui_view_references(references, ui, str(ui_path))
+        return references, []
+
+    def collect_ui_view_references(
+        self,
+        references: list[tuple[str, str]],
+        value: object,
+        path: str,
+    ) -> None:
+        if isinstance(value, str):
+            field = self.view_reference_field(value)
+            if field is not None:
+                references.append((path, field))
+            return
+
+        if isinstance(value, list):
+            for index, item in enumerate(value):
+                self.collect_ui_view_references(references, item, f"{path}.{index}")
+            return
+
+        if isinstance(value, dict):
+            for key, item in value.items():
+                self.collect_ui_view_references(references, item, f"{path}.{key}")
+
+    def view_reference_field(self, value: str) -> str | None:
+        if value.startswith("$$") or not value.startswith("$view."):
+            return None
+
+        field = value.removeprefix("$view.").split(".", 1)[0]
+        if field == "":
+            return None
+
+        return field
 
     def validate_route_continuation(
         self,

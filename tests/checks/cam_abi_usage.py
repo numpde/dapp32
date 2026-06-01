@@ -121,6 +121,28 @@ def validate_output_references(
     return failures
 
 
+def tuple_component_names(parameter: object) -> tuple[str, ...] | None:
+    if not isinstance(parameter, dict):
+        return None
+    if parameter.get("type") != "tuple":
+        return None
+
+    components = parameter.get("components")
+    if not isinstance(components, list):
+        return None
+
+    names: list[str] = []
+    for component in components:
+        if not isinstance(component, dict):
+            return None
+        name = component.get("name")
+        if not isinstance(name, str) or name == "":
+            return None
+        names.append(name)
+
+    return tuple(names)
+
+
 def output_references(path: str, value: object) -> list[tuple[str, str]]:
     if isinstance(value, str):
         if is_outputs_reference(value):

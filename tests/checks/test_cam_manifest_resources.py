@@ -132,6 +132,11 @@ class CamManifestResourceTest(unittest.TestCase):
                     "nodes": {
                         "app": {
                             "requires": ["view"],
+                            "tag": "Screen",
+                            "props": {
+                                "title": "$view.missing",
+                            },
+                            "children": [],
                         },
                     },
                 },
@@ -228,6 +233,8 @@ class CamManifestResourceTest(unittest.TestCase):
                 f"{manifest_path}: write route must target a payable or nonpayable ABI function "
                 f"at routes.badWrite.call: Manager.readOnly",
                 f"{manifest_path}: route call function is not present in Manager ABI at routes.missing.call: missing",
+                f"{manifest_path}: UI expression references unknown contract view field "
+                f"at {manifest_path.parent / 'ui.json'}.nodes.app.props.title: missing",
             ],
         )
 
@@ -236,6 +243,17 @@ class CamManifestResourceTest(unittest.TestCase):
             manifest_path = Path(tmp) / "cam" / "main.json"
             abi_dir = manifest_path.parent / "abi"
             abi_dir.mkdir(parents=True)
+            write_json(
+                manifest_path.parent / "ui.json",
+                {
+                    "ui": "1.0.0",
+                    "nodes": {
+                        "app": {
+                            "requires": ["view"],
+                        },
+                    },
+                },
+            )
             write_json(
                 abi_dir / "UI.json",
                 [
