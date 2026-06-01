@@ -1,7 +1,8 @@
-import type { Abi } from "viem"
+import type { Abi, AbiParameter } from "viem"
 import { isRecordObject, parseJsonBytes } from "@cam/protocol"
 
 import {
+  dynamicArrayElement,
   isFixedArrayType,
   parseFixedBytesLength,
   parseIntegerType,
@@ -123,6 +124,12 @@ function validateAbiParameter(value: unknown, path: string): void {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameter must declare a type: ${path}`)
   }
 
+  const arrayElement = dynamicArrayElement(value as AbiParameter)
+  if (arrayElement !== undefined) {
+    validateAbiParameter(arrayElement, path)
+    return
+  }
+
   if (isFixedArrayType(value.type)) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI fixed-size arrays are not supported: ${path}`)
   }
@@ -145,8 +152,21 @@ function validateAbiParameter(value: unknown, path: string): void {
   if ("components" in value) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI components require a tuple type: ${path}.components`)
   }
+
+  if (!isSupportedScalarAbiType(value.type)) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameter type is not supported: ${path}`)
+  }
 }
 
 function isStateMutability(value: unknown): value is "pure" | "view" | "nonpayable" | "payable" {
   return value === "pure" || value === "view" || value === "nonpayable" || value === "payable"
+}
+
+function isSupportedScalarAbiType(type: string): boolean {
+  return type === "string"
+    || type === "address"
+    || type === "bool"
+    || type === "bytes"
+    || parseIntegerType(type) !== undefined
+    || parseFixedBytesLength(type) !== undefined
 }

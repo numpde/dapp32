@@ -273,6 +273,34 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
   )
+
+  for (const type of ["uint257[]", "bytes33[]", "uint256[2][]"]) {
+    const invalidArrayElementAbiBytes = encodeJson([{
+      type: "function",
+      name: BIKE_VIEW_ENTRY,
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{ name: "values", type }],
+    }])
+    await assert.rejects(
+      () => resolveCamContracts({
+        publicClient: createPublicClient(publicClientFixtureOptions({
+          addresses: {
+            [BIKE_UI_CONTRACT]: uiAddress,
+            [BIKE_MANAGER_CONTRACT]: managerAddress,
+          },
+        })),
+        host,
+        camURI: camDocumentURI,
+        cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, invalidArrayElementAbiBytes),
+        loadResource: createResourceLoader({
+          [uiAbiURI]: invalidArrayElementAbiBytes,
+          [managerAbiURI]: managerAbiBytes,
+        }),
+      }),
+      (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
+    )
+  }
 })
 
 test("callCamRoute orders named args by ABI and returns normalized route values", async () => {
