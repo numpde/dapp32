@@ -47,7 +47,7 @@ export function ConnectionSummary({
   )
 }
 
-export function ScreenView({
+export function UiView({
   snapshot,
   onAction,
   onInput,
@@ -57,8 +57,8 @@ export function ScreenView({
   readonly onInput: (name: string, value: string) => void
 }): ReactElement {
   return (
-    <section className="screen">
-      <div className="screen-meta">
+    <section className="ui">
+      <div className="ui-meta">
         <span>{snapshot.route}</span>
         <span>{snapshot.uiURI}</span>
       </div>

@@ -96,18 +96,18 @@ dd,
   font-size: 0.82rem;
 }
 
-.screen,
+.ui,
 .panel {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
 }
 
-.screen {
+.ui {
   overflow: hidden;
 }
 
-.screen-meta {
+.ui-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;

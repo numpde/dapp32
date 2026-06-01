@@ -41,7 +41,7 @@ import type { StartupOptions } from "./startup"
 import {
   ConnectionSummary,
   PreparedCallView,
-  ScreenView,
+  UiView,
 } from "./components"
 
 type LoadState =
@@ -266,7 +266,7 @@ export function App(): ReactElement {
       ) : null}
 
       {loadState.status === "ready" ? (
-        <ScreenView
+        <UiView
           snapshot={loadState.snapshot}
           onAction={dispatch}
           onInput={updateInput}
