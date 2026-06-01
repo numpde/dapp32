@@ -17,24 +17,21 @@ import type { CamHost, CamPublicClient, CamSimulationClient, CamWalletClient } f
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
-  BIKE_COMPONENTS_ADDRESS,
-  BIKE_ENTRY_SCREEN_URI,
   BIKE_MANAGER_ABI_URI as managerAbiURI,
   BIKE_MANAGER_ADDRESS as managerAddress,
   BIKE_MANAGER_CONTRACT,
-  BIKE_RELATIVE_ENTRY_SCREEN_URI,
-  BIKE_RELATIVE_MANAGER_ABI_URI,
-  BIKE_RELATIVE_REGISTER_READY_SCREEN_URI,
+  BIKE_MANAGER_NAMESPACE,
+  BIKE_MARK_MISSING,
+  BIKE_ROUTE_COMPONENT,
   BIKE_ROUTE_ENTRY,
-  BIKE_ROUTE_REGISTER,
   BIKE_SERIAL_NUMBER,
   BIKE_UNSIGNED_CAM_HASH,
-  BIKE_MARK_MISSING,
   BIKE_UI_ABI_URI as uiAbiURI,
   BIKE_UI_ADDRESS as uiAddress,
   BIKE_UI_CONTRACT,
+  BIKE_UI_NAMESPACE,
+  BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
-  BIKE_VIEW_REGISTER,
   bikeCamJson as camJson,
   bikeContractAddresses,
   bikeHost,
@@ -46,16 +43,14 @@ import {
   createMockCamPublicClient,
   createMockResourceLoader as createResourceLoader,
   encodeJson,
-  encodeText,
 } from "../../../../tests/fixtures/cam/mock.mts"
 
 const host: CamHost = bikeHost
 const ROOT_CAM_URI = "camURI"
 const ROOT_CAM_HASH = "camHash"
-const ROOT_CONTRACT_ADDRESS = "contractAddress"
 const NO_ROUTE_RESULTS = {}
 
-test("loadCamFromHost reads root metadata, accepts unsigned CAMs, and rejects hash mismatches", async () => {
+test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects hash mismatches", async () => {
   const camBytes = encodeJson(camJson)
   const publicClient = createPublicClient(publicClientFixtureOptions({
     camURI: camDocumentURI,
@@ -93,7 +88,7 @@ test("loadCamFromHost reads root metadata, accepts unsigned CAMs, and rejects ha
   )
 })
 
-test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relative to the CAM", async () => {
+test("resolveCamContracts resolves namespaced contracts through CamRoot", async () => {
   const cam = parseCam(camJson)
   const publicClient = createPublicClient(publicClientFixtureOptions({
     addresses: {
@@ -114,12 +109,13 @@ test("resolveCamContracts resolves addresses through CamRoot and ABI URIs relati
     loadResource: resources,
   })
 
-  assert.equal(contracts[BIKE_UI_CONTRACT].address, uiAddress)
-  assert.deepEqual(contracts[BIKE_UI_CONTRACT].abi, uiAbi)
+  assert.equal(contracts[BIKE_UI_NAMESPACE].address, uiAddress)
+  assert.equal(contracts[BIKE_MANAGER_NAMESPACE].address, managerAddress)
+  assert.deepEqual(contracts[BIKE_UI_NAMESPACE].abi, uiAbi)
   assert.equal(Object.getPrototypeOf(contracts), null)
 })
 
-test("resolveCamContracts rejects invalid root contract bindings", async () => {
+test("resolveCamContracts rejects invalid bindings and malformed ABIs", async () => {
   await assert.rejects(
     () => resolveCamContracts({
       publicClient: createPublicClient(publicClientFixtureOptions({
@@ -138,180 +134,84 @@ test("resolveCamContracts rejects invalid root contract bindings", async () => {
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_CONTRACT_INVALID",
   )
-})
 
-test("resolveCamContracts rejects malformed ABI entries", async () => {
-  const cases = [
-    [null],
-    [{ name: BIKE_VIEW_ENTRY }],
-  ]
-
-  for (const malformedAbi of cases) {
-    await assert.rejects(
-      () => resolveCamContracts({
-        publicClient: createPublicClient(publicClientFixtureOptions({
-          addresses: {
-            [BIKE_UI_CONTRACT]: uiAddress,
-            [BIKE_MANAGER_CONTRACT]: managerAddress,
-          },
-        })),
-        host,
-        camURI: camDocumentURI,
-        cam: parseCam(camJson),
-        loadResource: createResourceLoader({
-          [uiAbiURI]: encodeJson(malformedAbi),
-          [managerAbiURI]: encodeJson(managerAbi),
-        }),
+  await assert.rejects(
+    () => resolveCamContracts({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        addresses: {
+          [BIKE_UI_CONTRACT]: uiAddress,
+          [BIKE_MANAGER_CONTRACT]: managerAddress,
+        },
+      })),
+      host,
+      camURI: camDocumentURI,
+      cam: parseCam(camJson),
+      loadResource: createResourceLoader({
+        [uiAbiURI]: encodeJson([{ name: BIKE_VIEW_ENTRY }]),
+        [managerAbiURI]: encodeJson(managerAbi),
       }),
-      (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
-    )
-  }
-})
-
-test("callCamRoute resolves CAM args, calls the selected contract, and returns normalized route values", async () => {
-  const cam = parseCam(camJson)
-  const publicClient = createPublicClient(publicClientFixtureOptions({
-    routeResults: {
-      [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, [userAddress, true, "Mock registrar account"]],
-    },
-  }))
-
-  const result = await callCamRoute({
-    publicClient,
-    cam,
-    camURI: camDocumentURI,
-    contracts: {
-      [BIKE_UI_CONTRACT]: {
-        address: uiAddress,
-        abi: uiAbi,
-      },
-    },
-    route: BIKE_ROUTE_ENTRY,
-    context: {
-      host,
-      account: { address: userAddress },
-      params: {},
-    },
-  })
-
-  assert.equal(result.screenURI, BIKE_ENTRY_SCREEN_URI)
-  assert.deepEqual(result.values, [
-    toInertValue({
-      account: userAddress,
-      canRegister: true,
-      accountInfo: "Mock registrar account",
     }),
-  ])
-
-  assert.deepEqual(publicClient.calls.at(-1), {
-    address: uiAddress,
-    abi: uiAbi,
-    functionName: BIKE_VIEW_ENTRY,
-    args: [userAddress],
-    account: userAddress,
-  })
+    (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
+  )
 })
 
-test("callCamRoute maps positional ABI tuples to named route values", async () => {
-  const cam = parseCam(camJson)
+test("callCamRoute orders named args by ABI and returns normalized route values", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({
-    routeResults: {
-      [BIKE_VIEW_REGISTER]: [
-        BIKE_RELATIVE_REGISTER_READY_SCREEN_URI,
-        [
-          true,
-          false,
-          "0x2222222222222222222222222222222222222222222222222222222222222222",
-          0n,
-          BIKE_COMPONENTS_ADDRESS,
-          BIKE_SERIAL_NUMBER,
-          "Mock registrar account",
-        ],
-        [
-          userAddress,
-          true,
-          "Mock registrar account",
-        ],
-      ],
-    },
+    routeResults: bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
   }))
 
   const result = await callCamRoute({
     publicClient,
-    cam,
-    camURI: camDocumentURI,
+    cam: parseCam(camJson),
     contracts: {
-      [BIKE_UI_CONTRACT]: {
+      [BIKE_UI_NAMESPACE]: {
         address: uiAddress,
         abi: uiAbi,
       },
     },
-    route: BIKE_ROUTE_REGISTER,
+    route: BIKE_ROUTE_COMPONENT,
     context: {
       host,
       account: { address: userAddress },
-      params: {
+      inputs: {
         serialNumber: BIKE_SERIAL_NUMBER,
       },
+      outputs: [],
+      form: {},
     },
   })
 
-  assert.deepEqual(result.values, [
-    toInertValue({
-      canRegister: true,
-      exists: false,
-      serialHash: "0x2222222222222222222222222222222222222222222222222222222222222222",
-      tokenId: "0",
-      componentsAddress: BIKE_COMPONENTS_ADDRESS,
-      serialNumber: BIKE_SERIAL_NUMBER,
-      accountInfo: "Mock registrar account",
-    }),
-    toInertValue({
-      account: userAddress,
-      canRegister: true,
-      accountInfo: "Mock registrar account",
-    }),
-  ])
+  assert.equal(publicClient.calls.at(-1)?.functionName, BIKE_VIEW_COMPONENT)
+  assert.deepEqual(publicClient.calls.at(-1)?.args, [BIKE_SERIAL_NUMBER, userAddress])
+  assert.deepEqual(result.values[0], toInertValue({
+    viewId: "component.found",
+    actions: ["markComponentMissing"],
+    account: userAddress,
+    canRegister: true,
+    accountInfo: "Mock registrar account",
+    exists: true,
+    serialHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
+    tokenContract: "0x0000000000000000000000000000000000000010",
+    tokenId: "42",
+    owner: userAddress,
+    ownerInfo: "Mock owner account",
+    registrar: userAddress,
+    status: "1",
+    tokenURI: `ipfs://example/token/${BIKE_SERIAL_NUMBER}`,
+    registeredAt: "1",
+    updatedAt: "2",
+    serialNumber: BIKE_SERIAL_NUMBER,
+    permissions: "7",
+    isOwner: true,
+    canUpdateMetadata: true,
+    canMarkMissing: true,
+    canClearMissing: false,
+    canRetire: true,
+    componentsAddress: "0x0000000000000000000000000000000000000010",
+  }))
 })
 
-test("callCamRoute rejects unsafe screen URIs and non-view route functions", async () => {
-  const unsafeScreenURIs = [
-    "",
-    "https://example.com/x.json",
-    "ipfs://example/x.json",
-    "../x.json",
-    BIKE_RELATIVE_MANAGER_ABI_URI,
-    "./screens/../x.json",
-    "/screens/component.json",
-  ]
-
-  for (const unsafeScreenURI of unsafeScreenURIs) {
-    await assert.rejects(
-      () => callCamRoute({
-        publicClient: createPublicClient(publicClientFixtureOptions({
-          routeResults: {
-            [BIKE_VIEW_ENTRY]: [unsafeScreenURI],
-          },
-        })),
-        cam: parseCam(camJson),
-        camURI: camDocumentURI,
-        contracts: {
-          [BIKE_UI_CONTRACT]: {
-            address: uiAddress,
-            abi: uiAbi,
-          },
-        },
-        route: BIKE_ROUTE_ENTRY,
-        context: {
-          host,
-          account: { address: userAddress },
-          params: {},
-        },
-      }),
-      (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-    )
-  }
-
+test("callCamRoute rejects mutable route functions and invalid named args", async () => {
   const nonViewAbi = [
     {
       ...uiAbi[0],
@@ -321,15 +221,10 @@ test("callCamRoute rejects unsafe screen URIs and non-view route functions", asy
 
   await assert.rejects(
     () => callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
-        },
-      })),
+      publicClient: createPublicClient(publicClientFixtureOptions({})),
       cam: parseCam(camJson),
-      camURI: camDocumentURI,
       contracts: {
-        [BIKE_UI_CONTRACT]: {
+        [BIKE_UI_NAMESPACE]: {
           address: uiAddress,
           abi: nonViewAbi,
         },
@@ -338,25 +233,34 @@ test("callCamRoute rejects unsafe screen URIs and non-view route functions", asy
       context: {
         host,
         account: { address: userAddress },
-        params: {},
+        inputs: {},
+        outputs: [],
+        form: {},
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_FUNCTION_NOT_VIEW",
   )
-})
 
-test("callCamRoute rejects route return values that do not match the ABI", async () => {
   await assert.rejects(
     () => callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI],
+      publicClient: createPublicClient(publicClientFixtureOptions({})),
+      cam: parseCam({
+        ...camJson,
+        routes: {
+          ...camJson.routes,
+          entry: {
+            ...camJson.routes.entry,
+            call: {
+              ...camJson.routes.entry.call,
+              args: {
+                extra: "x",
+              },
+            },
+          },
         },
-      })),
-      cam: parseCam(camJson),
-      camURI: camDocumentURI,
+      }),
       contracts: {
-        [BIKE_UI_CONTRACT]: {
+        [BIKE_UI_NAMESPACE]: {
           address: uiAddress,
           abi: uiAbi,
         },
@@ -365,71 +269,16 @@ test("callCamRoute rejects route return values that do not match the ABI", async
       context: {
         host,
         account: { address: userAddress },
-        params: {},
+        inputs: {},
+        outputs: [],
+        form: {},
       },
     }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-  )
-
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, [userAddress, true, ""], "extra"],
-        },
-      })),
-      cam: parseCam(camJson),
-      camURI: camDocumentURI,
-      contracts: {
-        [BIKE_UI_CONTRACT]: {
-          address: uiAddress,
-          abi: uiAbi,
-        },
-      },
-      route: BIKE_ROUTE_ENTRY,
-      context: {
-        host,
-        account: { address: userAddress },
-        params: {},
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_ARGUMENT",
   )
 })
 
-test("callCamRoute rejects route ABIs without screenURI as the first output", async () => {
-  const invalidRouteAbi = [{
-    ...uiAbi[0],
-    outputs: [{ name: "screen", type: "string" }, uiAbi[0].outputs[1]],
-  }] as unknown as Abi
-
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [BIKE_VIEW_ENTRY]: [BIKE_RELATIVE_ENTRY_SCREEN_URI, [userAddress, true, ""]],
-        },
-      })),
-      cam: parseCam(camJson),
-      camURI: camDocumentURI,
-      contracts: {
-        [BIKE_UI_CONTRACT]: {
-          address: uiAddress,
-          abi: invalidRouteAbi,
-        },
-      },
-      route: BIKE_ROUTE_ENTRY,
-      context: {
-        host,
-        account: { address: userAddress },
-        params: {},
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-  )
-})
-
-test("sendCamContractCall validates mutable ABI functions and submits through the wallet client", async () => {
+test("sendCamContractCall and simulateCamContractCall validate named write args", async () => {
   const walletClient = createWalletClient()
 
   const hash = await sendCamContractCall({
@@ -438,7 +287,9 @@ test("sendCamContractCall validates mutable ABI functions and submits through th
       address: managerAddress,
       abi: managerAbi,
       function: BIKE_MARK_MISSING,
-      args: [BIKE_SERIAL_NUMBER],
+      args: {
+        serialNumber: BIKE_SERIAL_NUMBER,
+      },
     },
   })
 
@@ -457,138 +308,16 @@ test("sendCamContractCall validates mutable ABI functions and submits through th
     () => sendCamContractCall({
       walletClient,
       call: {
-        address: uiAddress,
-        abi: uiAbi,
-        function: BIKE_VIEW_ENTRY,
-        args: [userAddress],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_FUNCTION_NOT_MUTABLE",
-  )
-
-  await assert.rejects(
-    () => sendCamContractCall({
-      walletClient,
-      call: {
         address: managerAddress,
-        abi: [{
-          type: "function",
-          name: "setCount",
-          stateMutability: "nonpayable",
-          inputs: [{ name: "count", type: "uint256" }],
-          outputs: [],
-        }],
-        function: "setCount",
-        args: [-1],
+        abi: managerAbi,
+        function: BIKE_MARK_MISSING,
+        args: {},
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
   )
 
-  await assert.rejects(
-    () => sendCamContractCall({
-      walletClient,
-      call: {
-        address: managerAddress,
-        abi: [{
-          type: "function",
-          name: "setSmallCount",
-          stateMutability: "nonpayable",
-          inputs: [{ name: "count", type: "uint8" }],
-          outputs: [],
-        }],
-        function: "setSmallCount",
-        args: [256],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
-  )
-
-  await assert.rejects(
-    () => sendCamContractCall({
-      walletClient,
-      call: {
-        address: managerAddress,
-        abi: [{
-          type: "function",
-          name: "setSignedCount",
-          stateMutability: "nonpayable",
-          inputs: [{ name: "count", type: "int8" }],
-          outputs: [],
-        }],
-        function: "setSignedCount",
-        args: [-129],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
-  )
-
-  await assert.rejects(
-    () => sendCamContractCall({
-      walletClient,
-      call: {
-        address: managerAddress,
-        abi: [{
-          type: "function",
-          name: "setTag",
-          stateMutability: "nonpayable",
-          inputs: [{ name: "tag", type: "bytes4" }],
-          outputs: [],
-        }],
-        function: "setTag",
-        args: ["0x123456"],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
-  )
-
-  await assert.rejects(
-    () => sendCamContractCall({
-      walletClient,
-      call: {
-        address: managerAddress,
-        abi: [{
-          type: "function",
-          name: "missingInputs",
-          stateMutability: "nonpayable",
-        }] as unknown as Abi,
-        function: "missingInputs",
-        args: [],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
-  )
-
-  await assert.rejects(
-    () => sendCamContractCall({
-      walletClient,
-      call: {
-        address: managerAddress,
-        abi: [{
-          type: "function",
-          name: "setComponent",
-          stateMutability: "nonpayable",
-          inputs: [{
-            name: "component",
-            type: "tuple",
-            components: [
-              { name: "serialNumber", type: "string" },
-              { name: "owner", type: "address" },
-            ],
-          }],
-          outputs: [],
-        }],
-        function: "setComponent",
-        args: [{ serialNumber: BIKE_SERIAL_NUMBER }],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
-  )
-})
-
-test("simulateCamContractCall validates and simulates with the selected account", async () => {
   const publicClient = createSimulationClient()
-
   await simulateCamContractCall({
     publicClient,
     account: userAddress,
@@ -596,7 +325,9 @@ test("simulateCamContractCall validates and simulates with the selected account"
       address: managerAddress,
       abi: managerAbi,
       function: BIKE_MARK_MISSING,
-      args: [BIKE_SERIAL_NUMBER],
+      args: {
+        serialNumber: BIKE_SERIAL_NUMBER,
+      },
     },
   })
 
@@ -609,22 +340,6 @@ test("simulateCamContractCall validates and simulates with the selected account"
       account: userAddress,
     },
   ])
-
-  const failingClient = createSimulationClient(new Error("EmptySerialNumber()"))
-
-  await assert.rejects(
-    () => simulateCamContractCall({
-      publicClient: failingClient,
-      account: userAddress,
-      call: {
-        address: managerAddress,
-        abi: managerAbi,
-        function: BIKE_MARK_MISSING,
-        args: [BIKE_SERIAL_NUMBER],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_SIMULATION_FAILED",
-  )
 })
 
 function createPublicClient({

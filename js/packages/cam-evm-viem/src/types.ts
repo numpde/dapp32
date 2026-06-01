@@ -35,7 +35,6 @@ export type ResolvedCamContract = {
 }
 
 export type RouteResult = {
-  readonly screenURI: string
   readonly values: readonly InertValue[]
 }
 
@@ -43,7 +42,7 @@ export type CamContractCall = {
   readonly address: Address
   readonly abi: Abi
   readonly function: string
-  readonly args: readonly InertValue[]
+  readonly args: Record<string, InertValue>
 }
 
 export type CamWalletClient = {

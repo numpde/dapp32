@@ -11,7 +11,7 @@ import type { InertValue } from "@cam/protocol"
 
 const CAM_EXPRESSIONS = createExpressionRuntime({
   roots: CAM_CONTEXT_KEYS,
-  numericSegments: false,
+  numericSegments: true,
   normalize(value, path) {
     try {
       return toInertValue(value)
@@ -39,8 +39,17 @@ const CAM_EXPRESSIONS = createExpressionRuntime({
   },
 })
 
-export function resolveArgs(args: readonly InertValue[], context: CamRuntimeContext): readonly InertValue[] {
-  return args.map((arg, index) => CAM_EXPRESSIONS.resolveValue(arg, context, `args.${index}`))
+export function resolveArgs(
+  args: Record<string, InertValue>,
+  context: CamRuntimeContext,
+): Record<string, InertValue> {
+  const resolved: Record<string, InertValue> = Object.create(null) as Record<string, InertValue>
+
+  for (const [name, value] of Object.entries(args)) {
+    resolved[name] = CAM_EXPRESSIONS.resolveValue(value, context, `args.${name}`)
+  }
+
+  return resolved
 }
 
 export function validateExpressionValue(value: unknown, path: string): void {

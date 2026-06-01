@@ -1,140 +1,180 @@
-import { parseAction } from "./actions.ts"
 import { SCREEN_VERSION } from "./constants.ts"
 import { ScreenError } from "./errors.ts"
-import { parseExpressionPayload, validateExpressionValue } from "./expressions.ts"
+import { parseExpressionPayload } from "./expressions.ts"
 import {
   requiredArray,
   requiredNonEmptyString,
   requiredRecord,
   rejectUnknownFields,
 } from "./guards.ts"
-import type { ScreenDocument, ScreenElement } from "./types.ts"
+import { createStringMap } from "@cam/protocol"
+import type { InertRecord, InertValue } from "@cam/protocol"
+import type { UiCall, UiDocument, UiNode } from "./types.ts"
 
-const TOP_LEVEL_KEYS = new Set(["screen", "title", "elements"])
-const TEXT_KEYS = elementKeys("text")
-const INPUT_KEYS = elementKeys("name", "label", "value")
-const ADDRESS_KEYS = elementKeys("label", "address")
-const BUTTON_KEYS = elementKeys("label", "action")
-const STATUS_KEYS = elementKeys("label", "value")
-const NFT_KEYS = elementKeys("contractAddress", "tokenId")
+const UI_TOP_LEVEL_KEYS = new Set(["ui"])
+const NAMED_NODE_KEYS = new Set(["requires", "tag", "props", "children", "call"])
+const INLINE_NODE_KEYS = new Set(["tag", "props", "children", "call"])
+const CALL_KEYS = new Set(["namespace", "function", "args"])
+const SCREEN_KEYS = new Set(["tag", "props", "children"])
+const FRAGMENT_KEYS = new Set(["tag", "children"])
+const PROPS_ONLY_KEYS = new Set(["tag", "props"])
+const INCLUDE_KEYS = new Set(["tag", "call"])
+const ACTION_KEYS = new Set(["tag", "props", "call"])
 
-export function parseScreen(input: unknown): ScreenDocument {
+export function parseUi(input: unknown): UiDocument {
   const source = requiredRecord(input, "")
-  rejectUnknownScreenFields(source, TOP_LEVEL_KEYS, "")
+  const ui = parseUiVersion(source.ui)
+  const nodes = createStringMap<UiNode>()
 
-  return {
-    screen: parseScreenVersion(source.screen),
-    title: parseExpressionString(source.title, "title"),
-    elements: parseElements(requiredArray(source.elements, "elements")),
+  for (const [name, value] of Object.entries(source)) {
+    if (UI_TOP_LEVEL_KEYS.has(name)) {
+      continue
+    }
+    if (name.length === 0) {
+      throw new ScreenError("SCREEN_INVALID_FIELD", "UI node name must not be empty", "")
+    }
+
+    nodes[name] = parseNamedNode(value, name)
   }
+
+  if (Object.keys(nodes).length === 0) {
+    throw new ScreenError("SCREEN_INVALID_FIELD", "UI resource must declare at least one node", "")
+  }
+
+  return { ui, nodes }
 }
 
-function parseScreenVersion(value: unknown): string {
-  const version = requiredNonEmptyString(value, "screen")
+function parseUiVersion(value: unknown): string {
+  const version = requiredNonEmptyString(value, "ui")
   if (version !== SCREEN_VERSION) {
-    throw new ScreenError("SCREEN_INVALID_FIELD", `unsupported screen version: ${version}`, "screen")
+    throw new ScreenError("SCREEN_INVALID_FIELD", `unsupported UI version: ${version}`, "ui")
   }
 
   return version
 }
 
-function parseElements(source: readonly unknown[]): readonly ScreenElement[] {
-  return source.map((element, index) => parseElement(element, `elements.${index}`))
-}
-
-function parseElement(input: unknown, path: string): ScreenElement {
+function parseNamedNode(input: unknown, name: string): UiNode {
+  const path = name
   const source = requiredRecord(input, path)
-  const type = requiredNonEmptyString(source.type, `${path}.type`)
+  rejectUnknownScreenFields(source, NAMED_NODE_KEYS, path)
 
-  switch (type) {
-    case "text":
-      return parseTextElement(source, path)
-    case "input":
-      return parseInputElement(source, path)
-    case "address":
-      return parseAddressElement(source, path)
-    case "button":
-      return parseButtonElement(source, path)
-    case "status":
-      return parseStatusElement(source, path)
-    case "nft":
-      return parseNftElement(source, path)
+  return {
+    ...parseNodeBody(source, path),
+    requires: parseRequires(source.requires, `${path}.requires`),
+  } as UiNode
+}
+
+function parseInlineNode(input: unknown, path: string): UiNode {
+  const source = requiredRecord(input, path)
+  rejectUnknownScreenFields(source, INLINE_NODE_KEYS, path)
+
+  return parseNodeBody(source, path)
+}
+
+function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
+  const tag = requiredNonEmptyString(source.tag, `${path}.tag`)
+
+  switch (tag) {
+    case "Screen":
+      rejectUnexpectedNodeShape(source, SCREEN_KEYS, path)
+      return {
+        tag,
+        props: parseProps(source.props, `${path}.props`),
+        children: parseChildren(source.children, `${path}.children`),
+      }
+    case "Fragment":
+      rejectUnexpectedNodeShape(source, FRAGMENT_KEYS, path)
+      return {
+        tag,
+        children: parseChildren(source.children, `${path}.children`),
+      }
+    case "Text":
+    case "Input":
+    case "Address":
+    case "Status":
+    case "Nft":
+      rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
+      return {
+        tag,
+        props: parseProps(source.props, `${path}.props`),
+      } as UiNode
+    case "Include":
+      rejectUnexpectedNodeShape(source, INCLUDE_KEYS, path)
+      return {
+        tag,
+        call: parseCall(source.call, `${path}.call`),
+      }
+    case "Action":
+      rejectUnexpectedNodeShape(source, ACTION_KEYS, path)
+      return {
+        tag,
+        props: parseProps(source.props, `${path}.props`),
+        call: parseCall(source.call, `${path}.call`),
+      }
     default:
-      throw new ScreenError("SCREEN_INVALID_FIELD", `unknown screen element type: ${type}`, `${path}.type`)
+      throw new ScreenError("SCREEN_INVALID_FIELD", `unknown UI node tag: ${tag}`, `${path}.tag`)
   }
 }
 
-function parseTextElement(source: Record<string, unknown>, path: string): ScreenElement {
-  rejectUnknownScreenFields(source, TEXT_KEYS, path)
-  return {
-    type: "text",
-    text: parseExpressionString(source.text, `${path}.text`),
-  }
+function rejectUnexpectedNodeShape(
+  source: Record<string, unknown>,
+  allowedKeys: ReadonlySet<string>,
+  path: string,
+): void {
+  const effectiveKeys = source.requires === undefined ? allowedKeys : new Set([...allowedKeys, "requires"])
+  rejectUnknownScreenFields(source, effectiveKeys, path)
 }
 
-function parseInputElement(source: Record<string, unknown>, path: string): ScreenElement {
-  rejectUnknownScreenFields(source, INPUT_KEYS, path)
+function parseRequires(value: unknown, path: string): readonly string[] {
+  const source = requiredArray(value, path)
+  const requires: string[] = []
+  const seen = new Set<string>()
 
-  return {
-    type: "input",
-    name: requiredNonEmptyString(source.name, `${path}.name`),
-    label: parseExpressionString(source.label, `${path}.label`),
-    value: parseInputValue(source.value, `${path}.value`),
+  for (const [index, item] of source.entries()) {
+    const itemPath = `${path}.${index}`
+    const name = requiredNonEmptyString(item, itemPath)
+    if (seen.has(name)) {
+      throw new ScreenError("SCREEN_INVALID_FIELD", `duplicate required argument: ${name}`, itemPath)
+    }
+
+    seen.add(name)
+    requires.push(name)
   }
+
+  return requires
 }
 
-function parseAddressElement(source: Record<string, unknown>, path: string): ScreenElement {
-  rejectUnknownScreenFields(source, ADDRESS_KEYS, path)
-  return {
-    type: "address",
-    label: parseExpressionString(source.label, `${path}.label`),
-    address: parseExpressionString(source.address, `${path}.address`),
-  }
+function parseChildren(value: unknown, path: string): readonly UiNode[] {
+  return requiredArray(value, path).map((child, index) => parseInlineNode(child, `${path}.${index}`))
 }
 
-function parseButtonElement(source: Record<string, unknown>, path: string): ScreenElement {
-  rejectUnknownScreenFields(source, BUTTON_KEYS, path)
-
-  return {
-    type: "button",
-    label: parseExpressionString(source.label, `${path}.label`),
-    action: parseAction(source.action, `${path}.action`),
-  }
+function parseProps(value: unknown, path: string): InertRecord {
+  return parseInertRecord(requiredRecord(value, path), path)
 }
 
-function parseStatusElement(source: Record<string, unknown>, path: string): ScreenElement {
-  rejectUnknownScreenFields(source, STATUS_KEYS, path)
-
-  return {
-    type: "status",
-    label: parseExpressionString(source.label, `${path}.label`),
-    value: parseExpressionPayload(source.value, `${path}.value`),
-  }
-}
-
-function parseNftElement(source: Record<string, unknown>, path: string): ScreenElement {
-  rejectUnknownScreenFields(source, NFT_KEYS, path)
+function parseCall(value: unknown, path: string): UiCall {
+  const source = requiredRecord(value, path)
+  rejectUnknownScreenFields(source, CALL_KEYS, path)
 
   return {
-    type: "nft",
-    contractAddress: parseExpressionString(source.contractAddress, `${path}.contractAddress`),
-    tokenId: parseExpressionPayload(source.tokenId, `${path}.tokenId`),
+    namespace: requiredNonEmptyString(source.namespace, `${path}.namespace`),
+    function: parseExpressionPayload(source.function, `${path}.function`),
+    args: parseInertRecord(requiredRecord(source.args, `${path}.args`), `${path}.args`),
   }
 }
 
-function parseExpressionString(value: unknown, path: string): string {
-  const string = requiredNonEmptyString(value, path)
-  validateExpressionValue(string, path)
-  return string
-}
+function parseInertRecord(source: Record<string, unknown>, path: string): InertRecord {
+  const record = createStringMap<InertValue>()
 
-function parseInputValue(value: unknown, path: string): string {
-  if (typeof value !== "string") {
-    throw new ScreenError("SCREEN_INVALID_FIELD", "expected a string", path)
+  for (const [name, value] of Object.entries(source)) {
+    if (name.length === 0) {
+      throw new ScreenError("SCREEN_INVALID_FIELD", "field name must not be empty", path)
+    }
+
+    record[name] = parseExpressionPayload(value, `${path}.${name}`)
   }
 
-  validateExpressionValue(value, path)
-  return value
+  return record
 }
 
 function rejectUnknownScreenFields(
@@ -142,9 +182,5 @@ function rejectUnknownScreenFields(
   allowedKeys: ReadonlySet<string>,
   path: string,
 ): void {
-  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in screen ${SCREEN_VERSION}: ${key}`)
-}
-
-function elementKeys(...keys: string[]): ReadonlySet<string> {
-  return new Set(["type", ...keys])
+  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in UI ${SCREEN_VERSION}: ${key}`)
 }

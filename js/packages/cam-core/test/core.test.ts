@@ -1,11 +1,13 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { toInertValue } from "@cam/protocol"
 
 import {
   CamError,
   createContext,
   parseCam,
   resolveRouteCall,
+  resolveRouteThen,
 } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS,
@@ -13,7 +15,7 @@ import {
   BIKE_HOST_CHAIN_ID,
   BIKE_ROUTE_COMPONENT,
   BIKE_SERIAL_NUMBER,
-  BIKE_UI_CONTRACT,
+  BIKE_UI_NAMESPACE,
   BIKE_VIEW_COMPONENT,
   bikeCamJson as mainJson,
 } from "../../../../tests/fixtures/cam/bike.mts"
@@ -28,20 +30,52 @@ test("resolves a CAM route into a plain call descriptor", () => {
     account: {
       address: BIKE_ACCOUNT_ADDRESS,
     },
-    params: {
+    inputs: {
       serialNumber: BIKE_SERIAL_NUMBER,
     },
+    outputs: [],
+    form: {},
   })
 
   const call = resolveRouteCall(cam, BIKE_ROUTE_COMPONENT, context)
+  const then = resolveRouteThen(cam, BIKE_ROUTE_COMPONENT, createContext({
+    host: {
+      chainId: BIKE_HOST_CHAIN_ID,
+      address: BIKE_HOST_ADDRESS,
+    },
+    account: {
+      address: BIKE_ACCOUNT_ADDRESS,
+    },
+    inputs: {
+      serialNumber: BIKE_SERIAL_NUMBER,
+    },
+    outputs: [{
+      viewId: "component.found",
+    }],
+    form: {
+      serialNumber: BIKE_SERIAL_NUMBER,
+    },
+  }))
 
   assert.deepEqual(call, {
-    contract: BIKE_UI_CONTRACT,
+    namespace: BIKE_UI_NAMESPACE,
     function: BIKE_VIEW_COMPONENT,
-    args: [
-      BIKE_SERIAL_NUMBER,
-      BIKE_ACCOUNT_ADDRESS,
-    ],
+    args: toInertValue({
+      serialNumber: BIKE_SERIAL_NUMBER,
+      account: BIKE_ACCOUNT_ADDRESS,
+    }),
+  })
+  assert.deepEqual(then, {
+    namespace: "ui",
+    function: "app",
+    args: toInertValue({
+      form: {
+        serialNumber: BIKE_SERIAL_NUMBER,
+      },
+      view: {
+        viewId: "component.found",
+      },
+    }),
   })
 })
 
@@ -60,9 +94,11 @@ test("rejects invalid CAM versions and unresolved route expressions", () => {
       chainId: "eip155:31337",
       address: "0x0000000000000000000000000000000000000001",
     },
-    params: {
+    inputs: {
       serialNumber: "ABC123",
     },
+    outputs: [],
+    form: {},
   })
 
   assert.throws(

@@ -1,4 +1,4 @@
-import type { InertRecord } from "./inert-value.ts"
+import type { InertRecord, InertValue } from "./inert-value.ts"
 
 export type CamRuntimeContext = {
   readonly host: {
@@ -8,5 +8,7 @@ export type CamRuntimeContext = {
   readonly account?: {
     readonly address: string
   }
-  readonly params: InertRecord
+  readonly inputs: InertRecord
+  readonly outputs: readonly InertValue[]
+  readonly form: InertRecord
 }

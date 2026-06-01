@@ -17,13 +17,13 @@ export async function resolveCamContracts({
   loadResource,
 }: ResolveCamContractsOptions): Promise<Record<string, ResolvedCamContract>> {
   const entries = await Promise.all(
-    Object.entries(cam.contracts).map(async ([name, contract]) => [
-      name,
+    contractNamespaces(cam).map(async ([namespace, contractName, contract]) => [
+      namespace,
       await resolveContract({
         publicClient,
         host,
         camURI,
-        name,
+        name: contractName,
         abiURI: contract.abiURI,
         loadResource,
       }),
@@ -35,6 +35,23 @@ export async function resolveCamContracts({
     contracts[name] = contract
   }
   return contracts
+}
+
+function contractNamespaces(cam: CamDocument) {
+  return Object.entries(cam.namespaces).flatMap(([namespace, declaration]) => {
+    if (declaration.type !== "contract") {
+      return []
+    }
+
+    const prefix = "contracts."
+    if (!namespace.startsWith(prefix) || namespace.length === prefix.length) {
+      throw new CamEvmError("CAM_CONTRACT_INVALID", `CAM contract namespace is invalid: ${namespace}`)
+    }
+
+    // Runtime maps resolved contracts by full namespace, but CamRoot stores the
+    // bare onchain name because Solidity does not know the CAM namespace tree.
+    return [[namespace, namespace.slice(prefix.length), declaration] as const]
+  })
 }
 
 async function resolveContract({

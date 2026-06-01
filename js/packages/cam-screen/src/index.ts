@@ -1,21 +1,19 @@
 export type {
-  ContractCallAction,
-  NavigateAction,
-  ResolvedScreen,
-  ResolvedScreenAction,
-  ResolvedScreenElement,
-  ScreenAction,
-  ScreenDocument,
-  ScreenElement,
-  ScreenInitialContext,
-  ScreenRuntimeContext,
+  ResolvedActionNode,
+  ResolvedElementNode,
+  ResolvedUiCall,
+  ResolvedUiNode,
+  UiCall,
+  UiDocument,
+  UiNode,
+  UiRuntimeContext,
 } from "./types.ts"
 
 export { ScreenError } from "./errors.ts"
 export type { ScreenErrorCode } from "./errors.ts"
 
-export { parseScreen } from "./validate.ts"
+export { parseUi } from "./validate.ts"
 export {
-  resolveInitialScreen,
-  resolveScreen,
+  resolveInitialUiNode,
+  resolveUiNode,
 } from "./resolve.ts"

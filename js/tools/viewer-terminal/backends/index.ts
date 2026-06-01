@@ -30,7 +30,7 @@ export async function createTerminalBackendFromEnv(env: NodeJS.ProcessEnv): Prom
 function readBackendOptions(env: NodeJS.ProcessEnv): TerminalBackendOptions {
   return {
     allowUnsignedCamHash: requiredBooleanEnv(env, "CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH"),
-    initialParams: readInertRecordEnv(env, "CAM_VIEWER_INITIAL_PARAMS_JSON"),
+    initialInputs: readInertRecordEnv(env, "CAM_VIEWER_INITIAL_INPUTS_JSON"),
   }
 }
 

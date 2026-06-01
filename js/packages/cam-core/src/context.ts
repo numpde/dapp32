@@ -1,5 +1,6 @@
 import { CamError } from "./errors.ts"
 import {
+  requiredArray,
   rejectUnknownFields,
   requiredNonEmptyString,
   requiredRecord,
@@ -36,7 +37,9 @@ export function createContext(input: unknown): CamRuntimeContext {
           },
         }
       : {}),
-    params: cloneContextRecord(source.params, "params"),
+    inputs: cloneContextRecord(source.inputs, "inputs"),
+    outputs: cloneContextArray(source.outputs, "outputs"),
+    form: cloneContextRecord(source.form, "form"),
   }
 }
 
@@ -57,6 +60,17 @@ function cloneContextRecord(value: unknown, path: string): InertRecord {
 
   for (const [key, item] of Object.entries(source)) {
     clone[key] = toInertContextValue(item, `${path}.${key}`)
+  }
+
+  return clone
+}
+
+function cloneContextArray(value: unknown, path: string): readonly InertValue[] {
+  const source = requiredArray(value, path)
+  const clone: InertValue[] = []
+
+  for (const [index, item] of source.entries()) {
+    clone.push(toInertContextValue(item, `${path}.${index}`))
   }
 
   return clone

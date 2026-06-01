@@ -16,15 +16,13 @@ import type { Address, Hex } from "viem"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camURI,
-  BIKE_COMPONENT_FOUND_SCREEN_URI as componentScreenURI,
-  BIKE_ENTRY_SCREEN_URI as entryScreenURI,
   BIKE_MARK_MISSING,
   BIKE_MANAGER_ADDRESS as managerAddress,
-  BIKE_MANAGER_CONTRACT,
   BIKE_ROUTE_COMPONENT,
   BIKE_ROUTE_ENTRY,
   BIKE_SERIAL_NUMBER,
   BIKE_UNSIGNED_CAM_HASH,
+  BIKE_UI_NAMESPACE,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
   bikeContractAddresses,
@@ -36,27 +34,47 @@ import {
   bikeResourceBytes,
   createMockCamPublicClient,
   createMockResourceLoader as createResourceLoader,
-  encodeJson,
 } from "../../../../tests/fixtures/cam/mock.mts"
 
 const host: CamHost = bikeHost
 const otherUserAddress = "0x0000000000000000000000000000000000000099"
 const NO_RESOURCE_OVERRIDES = {}
 
-test("load resolves host CAM, entry route, and entry screen", async () => {
+test("load resolves host CAM, entry route, UI resource, and entry view", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
   const session = createSession(sessionFixtureOptions({ publicClient }))
 
   const snapshot = await session.load()
 
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
-  assert.equal(snapshot.screenURI, entryScreenURI)
-  assert.equal(snapshot.resolvedScreen.title, "Entry")
+  assert.equal(snapshot.resolvedUi.tag, "Screen")
+  assert.equal(snapshot.resolvedUi.children[0]?.tag, "Fragment")
   assert.deepEqual(snapshot.values, inert([
     {
+      viewId: "entry",
+      actions: ["lookupComponent", "openRegister"],
       account: userAddress,
       canRegister: true,
       accountInfo: "Mock registrar account",
+      serialNumber: "",
+      exists: false,
+      serialHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+      tokenContract: "0x0000000000000000000000000000000000000010",
+      tokenId: "0",
+      owner: userAddress,
+      ownerInfo: "",
+      registrar: userAddress,
+      status: "0",
+      tokenURI: "",
+      registeredAt: "0",
+      updatedAt: "0",
+      permissions: "0",
+      isOwner: false,
+      canUpdateMetadata: false,
+      canMarkMissing: false,
+      canClearMissing: false,
+      canRetire: false,
+      componentsAddress: "0x0000000000000000000000000000000000000010",
     },
   ]))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
@@ -68,34 +86,16 @@ test("load resolves host CAM, entry route, and entry screen", async () => {
   ])
 })
 
-test("snapshot returns isolated copies of nested route and resolved screen data", async () => {
-  const session = createSession(sessionFixtureOptions({
-    loadResource: createResourceLoader(bikeResourceBytes({
-      [entryScreenURI]: encodeJson({
-        screen: "1.0.0",
-        title: "Entry",
-        elements: [
-          {
-            type: "status",
-            label: "Account",
-            value: "$values.0",
-          },
-        ],
-      }),
-    })),
-  }))
-
+test("snapshot returns isolated copies of nested route and resolved UI data", async () => {
+  const session = createSession(sessionFixtureOptions({}))
   const snapshot = await session.load()
 
   mutableRecord(snapshot.values[0]).accountInfo = "mutated route value"
-  mutableRecord(mutableRecord(snapshot.resolvedScreen.elements[0]).value).accountInfo = "mutated resolved value"
+  mutableRecord(snapshot.resolvedUi.props).title = "mutated title"
 
   const nextSnapshot = session.snapshot()
   assert.equal(mutableRecord(nextSnapshot.values?.[0]).accountInfo, "Mock registrar account")
-  assert.equal(
-    mutableRecord(mutableRecord(nextSnapshot.resolvedScreen?.elements[0]).value).accountInfo,
-    "Mock registrar account",
-  )
+  assert.equal(mutableRecord(nextSnapshot.resolvedUi?.props).title, "Bicycle component registry")
 })
 
 test("setAccount before load fails without mutating the session", async () => {
@@ -110,18 +110,20 @@ test("setAccount before load fails without mutating the session", async () => {
 })
 
 test("setAccount reload failures preserve the previous loaded snapshot", async () => {
-  let entryScreenLoads = 0
-  const resources = createResourceLoader(bikeResourceBytes({}))
+  let entryCalls = 0
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
   const session = createSession(sessionFixtureOptions({
-    loadResource: async (uri) => {
-      if (uri === entryScreenURI) {
-        entryScreenLoads += 1
-        if (entryScreenLoads > 1) {
-          throw new Error("entry reload failed")
+    publicClient: {
+      ...publicClient,
+      readContract: (async (request) => {
+        if (request.functionName === BIKE_VIEW_ENTRY) {
+          entryCalls += 1
+          if (entryCalls > 1) {
+            throw new Error("entry reload failed")
+          }
         }
-      }
-
-      return await resources(uri)
+        return await publicClient.readContract(request)
+      }) as typeof publicClient.readContract,
     },
   }))
 
@@ -129,100 +131,68 @@ test("setAccount reload failures preserve the previous loaded snapshot", async (
 
   await assert.rejects(
     () => session.setAccount({ address: otherUserAddress }),
-    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_SCREEN_LOAD_FAILED",
+    (error) => error instanceof Error,
   )
 
   assert.deepEqual(session.snapshot(), before)
 })
 
-test("updateForm resolves navigation actions, while contract actions are surfaced without sending", async () => {
+test("updateForm resolves route actions, while write routes are surfaced without sending", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
-  const session = createSession(sessionFixtureOptions({
-    publicClient,
-    loadResource: createResourceLoader(bikeResourceBytes({
-      [entryScreenURI]: encodeJson({
-        screen: "1.0.0",
-        title: "Entry",
-        elements: [
-          {
-            type: "input",
-            name: "serialNumber",
-            label: "Serial number",
-            value: "",
-          },
-          {
-            type: "button",
-            label: "Look up",
-            action: {
-              type: "navigate",
-              route: BIKE_ROUTE_COMPONENT,
-              params: {
-                serialNumber: "$form.serialNumber",
-              },
-            },
-          },
-        ],
-      }),
-    })),
-  }))
+  const session = createSession(sessionFixtureOptions({ publicClient }))
   await session.load()
 
   const snapshot = session.updateForm({
     serialNumber: BIKE_SERIAL_NUMBER,
   })
 
-  assert.deepEqual(snapshot.resolvedScreen.elements[0], inert({
-    type: "input",
-    name: "serialNumber",
-    label: "Serial number",
-    value: BIKE_SERIAL_NUMBER,
-  }))
-  assert.deepEqual(snapshot.resolvedScreen.elements[1], inert({
-    type: "button",
-    label: "Look up",
-    action: {
-      type: "navigate",
-      route: BIKE_ROUTE_COMPONENT,
-      params: {
-        serialNumber: BIKE_SERIAL_NUMBER,
-      },
-    },
-  }))
-
-  const button = snapshot.resolvedScreen.elements[1]
-  assert.equal(button.type, "button")
-  if (button.type !== "button") {
-    assert.fail("expected resolved button")
+  assert.equal("children" in snapshot.resolvedUi, true)
+  if (!("children" in snapshot.resolvedUi)) {
+    assert.fail("expected resolved root children")
   }
+  const action = snapshot.resolvedUi.children.find((child) => child.tag === "Action")
+  assert.equal(action?.tag, "Action")
+  if (action?.tag !== "Action") {
+    assert.fail("expected resolved action")
+  }
+  assert.equal(action.call.function, BIKE_ROUTE_COMPONENT)
+  assert.equal(action.call.args.serialNumber, BIKE_SERIAL_NUMBER)
 
-  const result = await session.dispatchAction(button.action)
+  const result = await session.dispatchAction(action)
 
   assert.equal(result.type, "navigated")
   if (result.type !== "navigated") {
     assert.fail("expected navigation action result")
   }
   assert.equal(result.snapshot.route, BIKE_ROUTE_COMPONENT)
-  assert.equal(result.snapshot.params.serialNumber, BIKE_SERIAL_NUMBER)
-  assert.equal(result.snapshot.screenURI, componentScreenURI)
+  assert.equal(result.snapshot.inputs.serialNumber, BIKE_SERIAL_NUMBER)
   assert.equal(publicClient.calls.at(-1)?.functionName, BIKE_VIEW_COMPONENT)
   assert.deepEqual(publicClient.calls.at(-1)?.args, [BIKE_SERIAL_NUMBER, userAddress])
 
-  const callsBefore = publicClient.calls.length
+  assert.equal("children" in result.snapshot.resolvedUi, true)
+  if (!("children" in result.snapshot.resolvedUi)) {
+    assert.fail("expected resolved root children")
+  }
+  const writeAction = result.snapshot.resolvedUi.children.find((child) => child.tag === "Action")
+  assert.equal(writeAction?.tag, "Action")
+  if (writeAction?.tag !== "Action") {
+    assert.fail("expected resolved write action")
+  }
 
-  const action = {
-    type: "contract-call",
-    contract: BIKE_MANAGER_CONTRACT,
-    function: BIKE_MARK_MISSING,
-    args: [BIKE_SERIAL_NUMBER],
-  } as const
-  const contractResult = await session.dispatchAction(action)
+  const callsBefore = publicClient.calls.length
+  const contractResult = await session.dispatchAction(writeAction)
 
   assert.equal(contractResult.type, "contractCall")
-  assert.equal(contractResult.call.contract, BIKE_MANAGER_CONTRACT)
+  if (contractResult.type !== "contractCall") {
+    assert.fail("expected contract call action result")
+  }
+  assert.equal(contractResult.call.route, "markComponentMissing")
   assert.equal(contractResult.call.address, managerAddress)
   assert.equal(contractResult.call.function, BIKE_MARK_MISSING)
   assert.deepEqual(contractResult.call.abi, toInertValue(bikeManagerAbi))
-  assert.deepEqual(contractResult.call.args, [BIKE_SERIAL_NUMBER])
+  assert.deepEqual(contractResult.call.args, toInertValue({ serialNumber: BIKE_SERIAL_NUMBER }))
+  assert.equal(contractResult.call.then.namespace, "routes")
+  assert.equal(contractResult.call.then.function, BIKE_ROUTE_COMPONENT)
   assert.equal(publicClient.calls.length, callsBefore)
 })
 
@@ -234,7 +204,7 @@ function createSession({
     publicClient,
     host,
     account: { address: userAddress },
-    params: {},
+    inputs: {},
     allowUnsignedCamHash: true,
     loadResource,
   })

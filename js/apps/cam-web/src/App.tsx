@@ -9,7 +9,7 @@ import {
   simulateCamContractCall,
 } from "@cam/evm-viem"
 import type {
-  ResolvedScreenAction,
+  ResolvedActionNode,
 } from "@cam/screen"
 import {
   createCamViewerSession,
@@ -83,7 +83,7 @@ export function App(): ReactElement {
           account: {
             address: startup.account,
           },
-          params: {},
+          inputs: {},
           allowUnsignedCamHash: startup.allowUnsignedCamHash,
           loadResource: createPinnedOriginResourceLoader(),
         })
@@ -117,7 +117,7 @@ export function App(): ReactElement {
     }
   }, [])
 
-  async function dispatch(action: ResolvedScreenAction): Promise<void> {
+  async function dispatch(action: ResolvedActionNode): Promise<void> {
     const ready = requireReadyState(loadState)
     setNotice(undefined)
     setPreparedCall(undefined)
@@ -195,11 +195,9 @@ export function App(): ReactElement {
       setNotice(`Transaction confirmed in block ${receipt.blockNumber.toString()}.`)
       setPreparedCall(undefined)
 
-      if (call.onSuccess !== undefined) {
-        const result = await ready.runtime.session.dispatchAction(call.onSuccess)
-        if (result.type === "navigated") {
-          setLoadState({ ...ready, snapshot: result.snapshot })
-        }
+      if (call.then.namespace === "routes") {
+        const snapshot = await ready.runtime.session.navigate(call.then.function, call.then.args)
+        setLoadState({ ...ready, snapshot })
       }
     } catch (error) {
       setNotice(errorMessage(error))
@@ -283,7 +281,8 @@ function headerTitle(loadState: LoadState): string {
     return "Loading"
   }
 
-  return loadState.snapshot.resolvedScreen.title
+  const title = loadState.snapshot.resolvedUi.props.title
+  return typeof title === "string" ? title : loadState.snapshot.route
 }
 
 function requireReadyState(loadState: LoadState): Extract<LoadState, { readonly status: "ready" }> {

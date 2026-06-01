@@ -6,7 +6,7 @@ import {
 } from "@cam/protocol"
 import { SCREEN_CONTEXT_KEYS } from "./constants.ts"
 import { ScreenError } from "./errors.ts"
-import type { ScreenRuntimeContext } from "./types.ts"
+import type { UiRuntimeContext } from "./types.ts"
 import type { InertValue } from "@cam/protocol"
 
 const SCREEN_EXPRESSIONS = createExpressionRuntime({
@@ -47,6 +47,6 @@ export function parseExpressionPayload(value: unknown, path: string): InertValue
   return SCREEN_EXPRESSIONS.parsePayload(value, path)
 }
 
-export function resolveValueAtPath(value: InertValue, context: ScreenRuntimeContext, path: string): InertValue {
+export function resolveValueAtPath(value: InertValue, context: UiRuntimeContext, path: string): InertValue {
   return SCREEN_EXPRESSIONS.resolveValue(value, context, path)
 }

@@ -1,26 +1,25 @@
-import type { Dirent } from "node:fs"
-import { readdir, readFile } from "node:fs/promises"
+import { readdir, readFile, stat } from "node:fs/promises"
 import { join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import test from "node:test"
 
 import { parseJsonText } from "@cam/protocol"
-import { parseScreen } from "../src/index.ts"
+import { parseUi } from "../src/index.ts"
 
 const dappsRoot = fileURLToPath(new URL("../../../../dapps/", import.meta.url))
 
-test("checked-in CAM screens parse with the runtime screen parser", async () => {
-  const screenPaths = await checkedInScreenPaths()
+test("checked-in CAM UI resources parse with the runtime UI parser", async () => {
+  const uiPaths = await checkedInUiPaths()
 
-  for (const screenPath of screenPaths) {
-    await test(relative(dappsRoot, screenPath), async () => {
-      const screen = parseJsonText(await readFile(screenPath, "utf8"))
-      parseScreen(screen)
+  for (const uiPath of uiPaths) {
+    await test(relative(dappsRoot, uiPath), async () => {
+      const ui = parseJsonText(await readFile(uiPath, "utf8"))
+      parseUi(ui)
     })
   }
 })
 
-async function checkedInScreenPaths(): Promise<string[]> {
+async function checkedInUiPaths(): Promise<string[]> {
   const dapps = await readdir(dappsRoot, { withFileTypes: true })
   const paths: string[] = []
 
@@ -29,30 +28,28 @@ async function checkedInScreenPaths(): Promise<string[]> {
       continue
     }
 
-    const screenDir = join(dappsRoot, dapp.name, "cam", "screens")
-    for (const screen of await readdirIfExists(screenDir)) {
-      if (screen.isFile() && screen.name.endsWith(".json")) {
-        paths.push(join(screenDir, screen.name))
-      }
+    const uiPath = join(dappsRoot, dapp.name, "cam", "ui.json")
+    if (await isFileIfExists(uiPath)) {
+      paths.push(uiPath)
     }
   }
 
   return paths.sort()
 }
 
-async function readdirIfExists(path: string) {
-  let entries: Dirent[]
+async function isFileIfExists(path: string): Promise<boolean> {
+  let exists: boolean
   try {
-    entries = await readdir(path, { withFileTypes: true })
+    exists = (await stat(path)).isFile()
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
-      entries = []
+      exists = false
     } else {
       throw error
     }
   }
 
-  return entries
+  return exists
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

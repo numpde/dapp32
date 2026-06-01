@@ -1,150 +1,265 @@
-import { resolveActionAtPath } from "./actions.ts"
 import { ScreenError } from "./errors.ts"
 import { resolveValueAtPath } from "./expressions.ts"
 import {
   createStringMap,
   hasOwn,
+  isRecordObject,
 } from "@cam/protocol"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
-  ResolvedScreen,
-  ResolvedScreenElement,
-  ScreenDocument,
-  ScreenElement,
-  ScreenInitialContext,
-  ScreenRuntimeContext,
+  ActionNode,
+  IncludeNode,
+  ResolvedActionNode,
+  ResolvedElementNode,
+  ResolvedUiCall,
+  ResolvedUiNode,
+  UiCall,
+  UiDocument,
+  UiNode,
+  UiRuntimeContext,
 } from "./types.ts"
 
-export function resolveInitialScreen(
-  screen: ScreenDocument,
-  context: ScreenInitialContext,
+export function resolveUiNode(
+  ui: UiDocument,
+  nodeName: string,
+  args: InertRecord,
+  context: UiRuntimeContext,
+): ResolvedUiNode {
+  const resolved = resolveNamedNode(ui, nodeName, args, context, nodeName, { includeActions: true })
+  if (resolved.length !== 1) {
+    throw new ScreenError("SCREEN_INVALID_FIELD", `UI node did not resolve to one root node: ${nodeName}`, nodeName)
+  }
+
+  return resolved[0]
+}
+
+export function resolveInitialUiNode(
+  ui: UiDocument,
+  nodeName: string,
+  args: InertRecord,
+  context: UiRuntimeContext,
 ): {
   readonly form: InertRecord
-  readonly resolvedScreen: ResolvedScreen
+  readonly resolvedUi: ResolvedUiNode
 } {
-  const form = createInitialForm(screen, context)
+  const emptyForm = createStringMap<InertValue>()
+  const initialContext = {
+    ...context,
+    form: emptyForm,
+  }
+  const initialNodes = resolveNamedNode(ui, nodeName, args, initialContext, nodeName, { includeActions: false })
+  const form = createInitialForm(initialNodes)
+  const resolvedUi = resolveUiNode(ui, nodeName, argsWithInitialForm(args, form), { ...context, form })
 
   return {
     form,
-    resolvedScreen: resolveScreen(screen, {
-      ...context,
-      form,
-    }),
+    resolvedUi,
   }
 }
 
-function createInitialForm(screen: ScreenDocument, context: ScreenInitialContext): InertRecord {
+function argsWithInitialForm(args: InertRecord, form: InertRecord): InertRecord {
+  if (!hasOwn(args, "form")) {
+    return args
+  }
+
+  return {
+    ...args,
+    form,
+  }
+}
+
+function resolveNamedNode(
+  ui: UiDocument,
+  nodeName: string,
+  args: InertRecord,
+  context: UiRuntimeContext,
+  path: string,
+  options: ResolveOptions,
+): readonly ResolvedUiNode[] {
+  if (!hasOwn(ui.nodes, nodeName)) {
+    throw new ScreenError("SCREEN_UNRESOLVED_VALUE", `UI node does not exist: ${nodeName}`, path)
+  }
+
+  const node = ui.nodes[nodeName]
+  const nodeContext = contextForNode(node, args, context, path)
+  return resolveNode(ui, node, nodeContext, path, options)
+}
+
+type ResolveOptions = {
+  readonly includeActions: boolean
+}
+
+function contextForNode(
+  node: UiNode,
+  args: InertRecord,
+  context: UiRuntimeContext,
+  path: string,
+): UiRuntimeContext {
+  const requires = requireNamedNodeArgs(node, path)
+  const nodeContext = {
+    ...context,
+    ...args,
+  }
+
+  for (const name of requires) {
+    if (!hasOwn(args, name)) {
+      throw new ScreenError("SCREEN_UNRESOLVED_VALUE", `UI node argument is missing: ${name}`, `${path}.requires`)
+    }
+  }
+
+  return nodeContext
+}
+
+function requireNamedNodeArgs(node: UiNode, path: string): readonly string[] {
+  if (node.requires === undefined) {
+    throw new ScreenError("SCREEN_INVALID_FIELD", "named UI nodes must declare requires", `${path}.requires`)
+  }
+
+  return node.requires
+}
+
+function resolveNode(
+  ui: UiDocument,
+  node: UiNode,
+  context: UiRuntimeContext,
+  path: string,
+  options: ResolveOptions,
+): readonly ResolvedUiNode[] {
+  switch (node.tag) {
+    case "Include":
+      return resolveInclude(ui, node, context, path, options)
+    case "Action":
+      return options.includeActions ? [resolveAction(node, context, path)] : []
+    case "Screen":
+    case "Fragment":
+      return [resolveElementNode(ui, node, context, path, options)]
+    case "Text":
+    case "Input":
+    case "Address":
+    case "Status":
+    case "Nft":
+      return [{
+        tag: node.tag,
+        props: resolveRecord(node.props, context, `${path}.props`),
+        children: [],
+      }]
+  }
+}
+
+function resolveElementNode(
+  ui: UiDocument,
+  node: Extract<UiNode, { readonly tag: "Screen" | "Fragment" }>,
+  context: UiRuntimeContext,
+  path: string,
+  options: ResolveOptions,
+): ResolvedElementNode {
+  const children: ResolvedUiNode[] = []
+
+  for (const [index, child] of node.children.entries()) {
+    children.push(...resolveNode(ui, child, context, `${path}.children.${index}`, options))
+  }
+
+  return {
+    tag: node.tag,
+    props: node.tag === "Screen" ? resolveRecord(node.props, context, `${path}.props`) : createStringMap<InertValue>(),
+    children,
+  }
+}
+
+function resolveInclude(
+  ui: UiDocument,
+  node: IncludeNode,
+  context: UiRuntimeContext,
+  path: string,
+  options: ResolveOptions,
+): readonly ResolvedUiNode[] {
+  if (node.call.namespace !== "ui") {
+    throw new ScreenError("SCREEN_INVALID_FIELD", `Include must call the ui namespace: ${node.call.namespace}`, `${path}.call.namespace`)
+  }
+
+  const selected = resolveValueAtPath(node.call.function, context, `${path}.call.function`)
+  const nodeNames = selectedNodeNames(selected, `${path}.call.function`)
+  const children: ResolvedUiNode[] = []
+
+  for (const nodeName of nodeNames) {
+    if (!options.includeActions && ui.nodes[nodeName]?.tag === "Action") {
+      continue
+    }
+
+    const args = resolveRecord(node.call.args, context, `${path}.call.args`)
+    children.push(...resolveNamedNode(ui, nodeName, args, context, `${path}.${nodeName}`, options))
+  }
+
+  return children
+}
+
+function createInitialForm(nodes: readonly ResolvedUiNode[]): InertRecord {
   const form = createStringMap<InertValue>()
-  // Input initializers run before the screen form exists. Resolving against an
-  // empty form makes $form references fail through the normal expression path.
-  const initializerContext = { ...context, form: createStringMap<InertValue>() }
-  appendInitialFormValues(screen.elements, initializerContext, "elements", form)
+  appendInitialForm(nodes, form)
   return form
 }
 
-export function resolveScreen(screen: ScreenDocument, context: ScreenRuntimeContext): ResolvedScreen {
-  const elements: ResolvedScreenElement[] = []
-  appendResolvedElements(screen.elements, context, "elements", elements)
-
-  return {
-    title: resolveStringField(screen.title, context, "title"),
-    elements,
-  }
-}
-
-function appendInitialFormValues(
-  elements: readonly ScreenElement[],
-  context: ScreenRuntimeContext,
-  path: string,
-  target: Record<string, InertValue>,
-): void {
-  for (const [index, element] of elements.entries()) {
-    const elementPath = `${path}.${index}`
-
-    if (element.type === "input") {
-      if (hasOwn(target, element.name)) {
-        throw new ScreenError("SCREEN_INVALID_FIELD", "duplicate input name", `${elementPath}.name`)
+function appendInitialForm(nodes: readonly ResolvedUiNode[], form: Record<string, InertValue>): void {
+  for (const node of nodes) {
+    if (node.tag === "Input") {
+      const name = node.props.name
+      const value = node.props.value
+      if (typeof name !== "string" || name.length === 0) {
+        throw new ScreenError("SCREEN_INVALID_FIELD", "Input props.name must resolve to a non-empty string")
       }
+      if (typeof value !== "string") {
+        throw new ScreenError("SCREEN_INVALID_FIELD", `Input props.value must resolve to a string: ${name}`)
+      }
+      if (hasOwn(form, name)) {
+        throw new ScreenError("SCREEN_INVALID_FIELD", `duplicate input name: ${name}`)
+      }
+      form[name] = value
+    }
 
-      target[element.name] = resolveStringField(element.value, context, `${elementPath}.value`)
+    if ("children" in node) {
+      appendInitialForm(node.children, form)
     }
   }
 }
 
-function appendResolvedElements(
-  elements: readonly ScreenElement[],
-  context: ScreenRuntimeContext,
-  path: string,
-  target: ResolvedScreenElement[],
-): void {
-  for (const [index, element] of elements.entries()) {
-    target.push(resolveElement(element, context, `${path}.${index}`))
+function selectedNodeNames(value: InertValue, path: string): readonly string[] {
+  if (typeof value === "string") {
+    return [value]
+  }
+
+  if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
+    return value
+  }
+
+  throw new ScreenError("SCREEN_INVALID_FIELD", "Include selection must resolve to a string or string array", path)
+}
+
+function resolveAction(node: ActionNode, context: UiRuntimeContext, path: string): ResolvedActionNode {
+  return {
+    tag: "Action",
+    props: resolveRecord(node.props, context, `${path}.props`),
+    call: resolveCall(node.call, context, `${path}.call`),
   }
 }
 
-function resolveElement(
-  element: ScreenElement,
-  context: ScreenRuntimeContext,
-  path: string,
-): ResolvedScreenElement {
-  switch (element.type) {
-    case "text":
-      return {
-        type: "text",
-        text: resolveStringField(element.text, context, `${path}.text`),
-      }
-    case "input":
-      return {
-        type: "input",
-        name: element.name,
-        label: resolveStringField(element.label, context, `${path}.label`),
-        value: formValueForInput(element.name, context, `${path}.value`),
-      }
-    case "address":
-      return {
-        type: "address",
-        label: resolveStringField(element.label, context, `${path}.label`),
-        address: resolveStringField(element.address, context, `${path}.address`),
-      }
-    case "button":
-      return {
-        type: "button",
-        label: resolveStringField(element.label, context, `${path}.label`),
-        action: resolveActionAtPath(element.action, context, `${path}.action`),
-      }
-    case "status":
-      return {
-        type: "status",
-        label: resolveStringField(element.label, context, `${path}.label`),
-        value: resolveValueAtPath(element.value, context, `${path}.value`),
-      }
-    case "nft":
-      return {
-        type: "nft",
-        contractAddress: resolveStringField(element.contractAddress, context, `${path}.contractAddress`),
-        tokenId: resolveValueAtPath(element.tokenId, context, `${path}.tokenId`),
-      }
+function resolveCall(call: UiCall, context: UiRuntimeContext, path: string): ResolvedUiCall {
+  const functionName = resolveValueAtPath(call.function, context, `${path}.function`)
+  if (typeof functionName !== "string") {
+    throw new ScreenError("SCREEN_INVALID_FIELD", "call function must resolve to a string", `${path}.function`)
+  }
+
+  return {
+    namespace: call.namespace,
+    function: functionName,
+    args: resolveRecord(call.args, context, `${path}.args`),
   }
 }
 
-function formValueForInput(name: string, context: ScreenRuntimeContext, path: string): string {
-  if (!hasOwn(context.form, name)) {
-    throw new ScreenError("SCREEN_UNRESOLVED_VALUE", `missing form value for input: ${name}`, path)
+function resolveRecord(record: InertRecord, context: UiRuntimeContext, path: string): InertRecord {
+  const resolved = resolveValueAtPath(record, context, path)
+  if (!isRecordObject(resolved)) {
+    throw new ScreenError("SCREEN_INVALID_FIELD", "expected resolved object", path)
   }
 
-  const value = context.form[name]
-  if (typeof value !== "string") {
-    throw new ScreenError("SCREEN_INVALID_FIELD", `input form value must be a string: ${name}`, path)
-  }
-
-  return value
-}
-
-function resolveStringField(value: string, context: ScreenRuntimeContext, path: string): string {
-  const resolved = resolveValueAtPath(value, context, path)
-  if (typeof resolved !== "string") {
-    throw new ScreenError("SCREEN_INVALID_FIELD", "expected resolved string", path)
-  }
-
-  return resolved
+  return resolved as InertRecord
 }

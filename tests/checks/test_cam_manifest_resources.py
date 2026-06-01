@@ -167,9 +167,9 @@ class CamManifestResourceTest(unittest.TestCase):
             [
                 f"{manifest_path}: routes.entry.call.args has 0 item(s), but UI.viewEntry expects 1",
                 f"{manifest_path}: routes.badWrite.call.args has 1 item(s), but Manager.readOnly expects 0",
-                f"{manifest_path}: contract-call action must target a payable or nonpayable ABI function "
+                f"{manifest_path}: write route must target a payable or nonpayable ABI function "
                 f"at routes.badWrite.call: Manager.readOnly",
-                f"{manifest_path}: contract-call action has 1 arg(s), but Manager.readOnly expects 0 "
+                f"{manifest_path}: write route has 1 arg(s), but Manager.readOnly expects 0 "
                 f"at routes.badWrite.call",
                 f"{manifest_path}: route call function is not present in Manager ABI at routes.missing.call: missing",
             ],

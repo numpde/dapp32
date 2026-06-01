@@ -2,8 +2,8 @@ import type { ReactElement } from "react"
 
 import type { InertValue } from "@cam/protocol"
 import type {
-  ResolvedScreenAction,
-  ResolvedScreenElement,
+  ResolvedActionNode,
+  ResolvedUiNode,
 } from "@cam/screen"
 import type {
   CamViewerLoadedSnapshot,
@@ -53,24 +53,17 @@ export function ScreenView({
   onInput,
 }: {
   readonly snapshot: CamViewerLoadedSnapshot
-  readonly onAction: (action: ResolvedScreenAction) => Promise<void>
+  readonly onAction: (action: ResolvedActionNode) => Promise<void>
   readonly onInput: (name: string, value: string) => void
 }): ReactElement {
   return (
     <section className="screen">
       <div className="screen-meta">
         <span>{snapshot.route}</span>
-        <span>{snapshot.screenURI}</span>
+        <span>{snapshot.uiURI}</span>
       </div>
       <div className="elements">
-        {snapshot.resolvedScreen.elements.map((element, index) => (
-          <ScreenElementView
-            key={index}
-            element={element}
-            onAction={onAction}
-            onInput={onInput}
-          />
-        ))}
+        <UiNodeView node={snapshot.resolvedUi} onAction={onAction} onInput={onInput} />
       </div>
     </section>
   )
@@ -90,11 +83,11 @@ export function PreparedCallView({
   return (
     <section className="panel prepared-call">
       <h2>Prepared contract call</h2>
-      <KeyValue label="Contract" value={call.contract} mono={false} />
+      <KeyValue label="Route" value={call.route} mono={false} />
       <KeyValue label="Address" value={call.address} mono={true} />
       <KeyValue label="Function" value={call.function} mono={false} />
       <KeyValue label="Args" value={formatInertValue(call.args)} mono={false} />
-      {call.onSuccess === undefined ? null : <KeyValue label="On success" value={`${call.onSuccess.route} ${formatInertValue(call.onSuccess.params)}`} mono={false} />}
+      <KeyValue label="Then" value={`${call.then.namespace}.${call.then.function} ${formatInertValue(call.then.args)}`} mono={false} />
       <button
         className="send-button"
         type="button"
@@ -109,52 +102,68 @@ export function PreparedCallView({
   )
 }
 
-function ScreenElementView({
-  element,
+function UiNodeView({
+  node,
   onAction,
   onInput,
 }: {
-  readonly element: ResolvedScreenElement
-  readonly onAction: (action: ResolvedScreenAction) => Promise<void>
+  readonly node: ResolvedUiNode
+  readonly onAction: (action: ResolvedActionNode) => Promise<void>
   readonly onInput: (name: string, value: string) => void
 }): ReactElement {
-  switch (element.type) {
-    case "text":
-      return <p className="text-row">{element.text}</p>
-    case "input":
+  switch (node.tag) {
+    case "Screen":
+    case "Fragment":
+      return (
+        <>
+          {node.children.map((child, index) => (
+            <UiNodeView key={index} node={child} onAction={onAction} onInput={onInput} />
+          ))}
+        </>
+      )
+    case "Text":
+      return <p className="text-row">{stringProp(node.props, "text")}</p>
+    case "Input": {
+      const name = stringProp(node.props, "name")
       return (
         <label className="field">
-          <span>{element.label}</span>
+          <span>{stringProp(node.props, "label")}</span>
           <input
-            value={element.value}
-            onChange={(event) => onInput(element.name, event.currentTarget.value)}
+            value={stringProp(node.props, "value")}
+            onChange={(event) => onInput(name, event.currentTarget.value)}
           />
         </label>
       )
-    case "address":
-      return <KeyValue label={element.label} value={element.address} mono={true} />
-    case "status":
-      return <KeyValue label={element.label} value={formatInertValue(element.value)} mono={false} />
-    case "nft":
+    }
+    case "Address":
+      return <KeyValue label={stringProp(node.props, "label")} value={stringProp(node.props, "address")} mono={true} />
+    case "Status":
+      return <KeyValue label={stringProp(node.props, "label")} value={formatInertValue(node.props.value)} mono={false} />
+    case "Nft":
       return (
         <div className="nft-row">
-          <KeyValue label="NFT contract" value={element.contractAddress} mono={true} />
-          <KeyValue label="Token ID" value={formatInertValue(element.tokenId)} mono={false} />
+          <KeyValue label="NFT contract" value={stringProp(node.props, "contractAddress")} mono={true} />
+          <KeyValue label="Token ID" value={formatInertValue(node.props.tokenId)} mono={false} />
         </div>
       )
-    case "button":
+    case "Action":
       return (
         <button
-          className={`action-button ${element.action.type === "contract-call" ? "write-action" : ""}`}
+          className={`action-button ${node.call.namespace === "routes" ? "" : "write-action"}`}
           type="button"
           onClick={() => {
-            void onAction(element.action)
+            void onAction(node)
           }}
         >
-          {element.label}
+          {stringProp(node.props, "label")}
         </button>
       )
   }
+}
+
+function stringProp(props: Record<string, InertValue>, name: string): string {
+  const value = props[name]
+  return typeof value === "string" ? value : formatInertValue(value)
 }
 
 function KeyValue({

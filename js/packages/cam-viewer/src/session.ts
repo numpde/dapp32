@@ -4,24 +4,28 @@ import {
   resolveCamContracts,
 } from "@cam/evm-viem"
 import {
-  hasOwn,
+  createStringMap,
   parseJsonBytes,
   toInertValue,
 } from "@cam/protocol"
+import {
+  resolveResourceURI,
+  resolveRouteCall,
+  resolveRouteThen,
+} from "@cam/core"
 import type { CamDocument } from "@cam/core"
 import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 import {
-  parseScreen,
-  resolveInitialScreen,
-  resolveScreen,
+  parseUi,
+  resolveInitialUiNode,
+  resolveUiNode,
 } from "@cam/screen"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type {
-  ResolvedScreen,
-  ResolvedScreenAction,
-  ScreenInitialContext,
-  ScreenRuntimeContext,
-  ScreenDocument,
+  ResolvedActionNode,
+  ResolvedUiCall,
+  ResolvedUiNode,
+  UiDocument,
 } from "@cam/screen"
 
 import { CamViewerError } from "./errors.ts"
@@ -39,15 +43,15 @@ type CamViewerLoadedState = {
   readonly cam: CamDocument
   readonly camURI: string
   readonly contracts: Record<string, ResolvedCamContract>
+  readonly uiURI: string
+  readonly ui: UiDocument
 }
 
-type CurrentScreen = {
+type CurrentView = {
   readonly route: string
-  readonly params: InertRecord
-  readonly screenURI: string
-  readonly screen: ScreenDocument
+  readonly inputs: InertRecord
   readonly form: InertRecord
-  readonly resolvedScreen: ResolvedScreen
+  readonly resolvedUi: ResolvedUiNode
   readonly values: readonly InertValue[]
 }
 
@@ -57,37 +61,38 @@ export function createCamViewerSession({
   loadResource,
   allowUnsignedCamHash,
   account: initialAccount,
-  params: initialParams,
+  inputs: initialInputs,
 }: CreateCamViewerSessionOptions): CamViewerSession {
   const sessionHost = cloneHost(host)
-  let loadedState: CamViewerLoadedState | undefined
-  const initialRouteParams = cloneViewerData<InertRecord>(initialParams, "params")
+  const initialRouteInputs = cloneViewerData<InertRecord>(initialInputs, "inputs")
   let account = initialAccount === undefined ? undefined : cloneAccount(initialAccount)
-  let currentScreen: CurrentScreen | undefined
+  let loadedState: CamViewerLoadedState | undefined
+  let currentView: CurrentView | undefined
 
   function snapshot(): CamViewerSnapshot {
-    if (currentScreen === undefined) {
-      return sessionSnapshot(initialRouteParams)
+    if (currentView === undefined) {
+      return sessionSnapshot(initialRouteInputs)
     }
 
-    return loadedSnapshot(currentScreen)
+    return loadedSnapshot(currentView)
   }
 
-  function sessionSnapshot(params: InertRecord): CamViewerSnapshot {
+  function sessionSnapshot(inputs: InertRecord): CamViewerSnapshot {
     return {
-      params: cloneViewerData<InertRecord>(params, "params"),
+      inputs: cloneViewerData<InertRecord>(inputs, "inputs"),
       ...(account === undefined ? {} : { account: cloneAccount(account) }),
     }
   }
 
-  function loadedSnapshot(screen: CurrentScreen): CamViewerLoadedSnapshot {
+  function loadedSnapshot(view: CurrentView): CamViewerLoadedSnapshot {
+    const current = assertLoaded()
     return {
-      ...sessionSnapshot(screen.params),
-      route: screen.route,
-      form: cloneViewerData<InertRecord>(screen.form, "form"),
-      screenURI: screen.screenURI,
-      resolvedScreen: cloneViewerData<ResolvedScreen>(screen.resolvedScreen, "resolvedScreen"),
-      values: cloneViewerData<readonly InertValue[]>(screen.values, "values"),
+      ...sessionSnapshot(view.inputs),
+      route: view.route,
+      form: cloneViewerData<InertRecord>(view.form, "form"),
+      uiURI: current.uiURI,
+      resolvedUi: cloneViewerData<ResolvedUiNode>(view.resolvedUi, "resolvedUi"),
+      values: cloneViewerData<readonly InertValue[]>(view.values, "values"),
     }
   }
 
@@ -107,33 +112,35 @@ export function createCamViewerSession({
       loadResource,
     })
 
+    const uiURI = uiResourceURI(loadedCam.cam, loadedCam.camURI)
+    const ui = await loadUi(uiURI)
+
     loadedState = {
       cam: loadedCam.cam,
       camURI: loadedCam.camURI,
       contracts,
+      uiURI,
+      ui,
     }
 
-    return await navigateLoaded(loadedCam.cam.entry, initialRouteParams)
+    return await navigateLoaded(loadedCam.cam.entry, initialRouteInputs)
   }
 
-  async function navigate(
-    nextRoute: string,
-    nextParams: InertRecord,
-  ): Promise<CamViewerLoadedSnapshot> {
+  async function navigate(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
     assertLoaded()
-    return await navigateLoaded(nextRoute, nextParams)
+    return await navigateLoaded(nextRoute, nextInputs)
   }
 
   async function setAccount(nextAccount?: CamViewerAccount): Promise<CamViewerLoadedSnapshot> {
-    const screen = currentScreen
-    if (screen === undefined) {
-      throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded screen")
+    const view = currentView
+    if (view === undefined) {
+      throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded view")
     }
 
     const previousAccount = account
     account = nextAccount === undefined ? undefined : cloneAccount(nextAccount)
     try {
-      return await navigateLoaded(screen.route, screen.params)
+      return await navigateLoaded(view.route, view.inputs)
     } catch (cause) {
       account = previousAccount
       throw cause
@@ -141,110 +148,185 @@ export function createCamViewerSession({
   }
 
   function updateForm(patch: InertRecord): CamViewerLoadedSnapshot {
-    if (currentScreen === undefined) {
-      throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded screen form")
+    if (currentView === undefined) {
+      throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded form")
     }
 
     const formPatch = cloneViewerData<InertRecord>(patch, "form")
-    assertKnownFormFields(currentScreen.form, formPatch)
     const form = cloneViewerData<InertRecord>(
       {
-        ...currentScreen.form,
+        ...currentView.form,
         ...formPatch,
       },
       "form",
     )
-    const resolvedScreen = resolveScreen(
-      currentScreen.screen,
-      screenContext(currentScreen.params, currentScreen.values, form),
-    )
-    currentScreen = {
-      ...currentScreen,
+
+    const resolvedUi = resolveCurrentUi(currentView.route, currentView.inputs, currentView.values, form)
+    currentView = {
+      ...currentView,
       form,
-      resolvedScreen,
+      resolvedUi,
     }
 
-    return loadedSnapshot(currentScreen)
+    return loadedSnapshot(currentView)
   }
 
-  async function dispatchAction(action: ResolvedScreenAction): Promise<CamViewerActionResult> {
+  async function dispatchAction(action: ResolvedActionNode): Promise<CamViewerActionResult> {
     assertLoaded()
 
-    if (action.type === "navigate") {
+    if (action.call.namespace !== "routes") {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action must call routes namespace: ${action.call.namespace}`)
+    }
+
+    const route = action.call.function
+    const camRoute = assertLoaded().cam.routes[route]
+    if (camRoute === undefined) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action references unknown route: ${route}`)
+    }
+
+    const targetNamespace = camRoute.then.namespace
+    if (targetNamespace === "ui") {
       return {
         type: "navigated",
-        snapshot: await navigateLoaded(action.route, action.params),
+        snapshot: await navigateLoaded(route, action.call.args),
       }
     }
 
-    if (action.type === "contract-call") {
+    if (targetNamespace === "routes") {
       return {
         type: "contractCall",
-        call: prepareContractCall(action),
+        call: prepareContractCall(route, action.call.args),
       }
     }
 
-    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "unsupported CAM viewer action")
+    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `unsupported CAM route continuation: ${targetNamespace}`)
   }
 
-  async function navigateLoaded(
-    nextRoute: string,
-    nextParams: InertRecord,
-  ): Promise<CamViewerLoadedSnapshot> {
+  async function navigateLoaded(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
     const current = assertLoaded()
-    const routeParams = cloneViewerData<InertRecord>(nextParams, "params")
+    const routeInputs = cloneViewerData<InertRecord>(nextInputs, "inputs")
 
     const routeResult = await callCamRoute({
       publicClient,
       cam: current.cam,
-      camURI: current.camURI,
       contracts: current.contracts,
       route: nextRoute,
-      context: routeContext(routeParams),
+      context: routeContext(routeInputs, [], activeForm()),
     })
 
-    const screenBytes = await loadScreenBytes(routeResult.screenURI)
-    const parsedScreen = parseScreenBytes(screenBytes, routeResult.screenURI)
-    const initialScreen = resolveInitialScreen(
-      parsedScreen,
-      screenBaseContext(routeParams, routeResult.values),
-    )
-
-    currentScreen = {
+    const initial = resolveInitialUi(current.cam, nextRoute, routeInputs, routeResult.values)
+    currentView = {
       route: nextRoute,
-      params: routeParams,
-      screenURI: routeResult.screenURI,
-      screen: parsedScreen,
-      form: initialScreen.form,
-      resolvedScreen: initialScreen.resolvedScreen,
+      inputs: routeInputs,
+      form: initial.form,
+      resolvedUi: initial.resolvedUi,
       values: routeResult.values,
     }
 
-    return loadedSnapshot(currentScreen)
+    return loadedSnapshot(currentView)
   }
 
-  async function loadScreenBytes(uri: string): Promise<Uint8Array> {
+  async function loadUi(uri: string): Promise<UiDocument> {
+    let bytes: Uint8Array
     try {
-      return await loadResource(uri)
+      bytes = await loadResource(uri)
     } catch (cause) {
-      throw new CamViewerError(
-        "CAM_VIEWER_SCREEN_LOAD_FAILED",
-        `failed to load CAM screen resource: ${uri}`,
-        cause,
-      )
+      throw new CamViewerError("CAM_VIEWER_SCREEN_LOAD_FAILED", `failed to load CAM UI resource: ${uri}`, cause)
+    }
+
+    try {
+      return parseUi(parseJsonBytes(bytes))
+    } catch (cause) {
+      throw new CamViewerError("CAM_VIEWER_SCREEN_PARSE_FAILED", `failed to parse CAM UI resource: ${uri}`, cause)
     }
   }
 
-  function parseScreenBytes(bytes: Uint8Array, uri: string): ScreenDocument {
-    try {
-      return parseScreen(parseJsonBytes(bytes))
-    } catch (cause) {
-      throw new CamViewerError(
-        "CAM_VIEWER_SCREEN_PARSE_FAILED",
-        `failed to parse CAM screen resource: ${uri}`,
-        cause,
-      )
+  function resolveInitialUi(
+    cam: CamDocument,
+    route: string,
+    inputs: InertRecord,
+    values: readonly InertValue[],
+  ): {
+    readonly form: InertRecord
+    readonly resolvedUi: ResolvedUiNode
+  } {
+    const current = assertLoaded()
+    const context = routeContext(inputs, values, activeForm())
+    const then = resolveRouteThen(cam, route, context)
+    if (then.namespace !== "ui") {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
     }
+
+    // UI initial resolution is deliberately two-pass: input nodes establish the
+    // form values first, then action nodes can safely read $form.
+    return resolveInitialUiNode(current.ui, then.function, then.args, context)
+  }
+
+  function resolveCurrentUi(
+    route: string,
+    inputs: InertRecord,
+    values: readonly InertValue[],
+    form: InertRecord,
+  ): ResolvedUiNode {
+    const current = assertLoaded()
+    const context = routeContext(inputs, values, form)
+    const then = resolveRouteThen(current.cam, route, context)
+    if (then.namespace !== "ui") {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
+    }
+
+    return resolveUiNode(current.ui, then.function, then.args, context)
+  }
+
+  function prepareContractCall(route: string, inputs: InertRecord): CamViewerPreparedContractCall {
+    const current = assertLoaded()
+    if (current.cam.routes[route] === undefined) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route does not exist: ${route}`)
+    }
+
+    const context = routeContext(inputs, [], activeForm())
+    const call = resolveRouteCall(current.cam, route, context)
+    if (call === undefined || !call.namespace.startsWith("contracts.")) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route must call a contract namespace: ${route}`)
+    }
+    const contract = current.contracts[call.namespace]
+    if (contract === undefined) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action references unresolved namespace: ${call.namespace}`)
+    }
+
+    return {
+      route,
+      address: contract.address,
+      abi: cloneViewerData<ResolvedCamContract["abi"]>(contract.abi, "contract.abi"),
+      function: call.function,
+      args: call.args,
+      then: resolveRouteThen(current.cam, route, context),
+    }
+  }
+
+  function routeContext(
+    inputs: InertRecord,
+    outputs: readonly InertValue[],
+    form: InertRecord,
+  ): CamRuntimeContext {
+    return {
+      host: sessionHost,
+      ...(account === undefined ? {} : { account }),
+      inputs,
+      outputs,
+      form,
+    }
+  }
+
+  function activeForm(): InertRecord {
+    if (currentView !== undefined) {
+      return currentView.form
+    }
+
+    // Route calls can run before any UI has been resolved, so there may be no
+    // form yet. Use an explicit empty inert record instead of hiding this as a
+    // nullable snapshot fallback.
+    return createStringMap<InertValue>()
   }
 
   function assertLoaded(): CamViewerLoadedState {
@@ -255,54 +337,6 @@ export function createCamViewerSession({
     return loadedState
   }
 
-  function prepareContractCall(action: Extract<ResolvedScreenAction, { readonly type: "contract-call" }>): CamViewerPreparedContractCall {
-    const current = assertLoaded()
-    const contract = current.contracts[action.contract]
-    if (contract === undefined) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action references unresolved contract: ${action.contract}`)
-    }
-
-    return {
-      contract: action.contract,
-      address: contract.address,
-      abi: cloneViewerData<ResolvedCamContract["abi"]>(contract.abi, "contract.abi"),
-      function: action.function,
-      args: cloneViewerData<readonly InertValue[]>(action.args, "action.args"),
-      ...(action.onSuccess === undefined
-        ? {}
-        : { onSuccess: cloneViewerData<NonNullable<typeof action.onSuccess>>(action.onSuccess, "action.onSuccess") }),
-    }
-  }
-
-  function routeContext(routeParams: InertRecord): CamRuntimeContext {
-    return {
-      host: sessionHost,
-      ...(account === undefined ? {} : { account }),
-      params: routeParams,
-    }
-  }
-
-  function screenContext(
-    routeParams: InertRecord,
-    routeValues: readonly InertValue[],
-    screenForm: InertRecord,
-  ): ScreenRuntimeContext {
-    return {
-      ...screenBaseContext(routeParams, routeValues),
-      form: screenForm,
-    }
-  }
-
-  function screenBaseContext(
-    routeParams: InertRecord,
-    routeValues: readonly InertValue[],
-  ): ScreenInitialContext {
-    return {
-      ...routeContext(routeParams),
-      values: routeValues,
-    }
-  }
-
   return {
     snapshot,
     load,
@@ -311,6 +345,15 @@ export function createCamViewerSession({
     updateForm,
     dispatchAction,
   }
+}
+
+function uiResourceURI(cam: CamDocument, camURI: string): string {
+  const ui = cam.namespaces.ui
+  if (ui?.type !== "ui") {
+    throw new CamViewerError("CAM_VIEWER_SCREEN_LOAD_FAILED", "CAM manifest does not declare namespaces.ui")
+  }
+
+  return resolveResourceURI(camURI, ui.uri)
 }
 
 function cloneAccount(source: CamViewerAccount): CamViewerAccount {
@@ -333,13 +376,5 @@ function cloneViewerData<T>(value: T, path: string): T {
       `CAM viewer data is not safely cloneable: ${path}`,
       cause,
     )
-  }
-}
-
-function assertKnownFormFields(form: InertRecord, patch: InertRecord): void {
-  for (const key of Object.keys(patch)) {
-    if (!hasOwn(form, key)) {
-      throw new CamViewerError("CAM_VIEWER_UNKNOWN_FORM_FIELD", `CAM screen form has no field named: ${key}`)
-    }
   }
 }

@@ -39,7 +39,7 @@ const BIKE_MOCK_CAM_URI = new URL("main.json", BIKE_MOCK_CAM_BASE_URI).href
 
 export function createBikeMockBackend({
   allowUnsignedCamHash,
-  initialParams,
+  initialInputs,
 }: TerminalBackendOptions): TerminalBackend {
   return {
     name: "mock:bike-nft",
@@ -55,7 +55,7 @@ export function createBikeMockBackend({
         account: {
           address: BIKE_ACCOUNT_ADDRESS,
         },
-        params: initialParams,
+        inputs: initialInputs,
         allowUnsignedCamHash,
         loadResource: createMockResourceLoader(events),
       })

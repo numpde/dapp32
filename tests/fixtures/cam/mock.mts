@@ -2,20 +2,12 @@ import { TextEncoder } from "node:util"
 
 import {
   BIKE_CAM_URI,
-  BIKE_COMPONENT_EMPTY_SCREEN_URI,
-  BIKE_COMPONENT_FOUND_SCREEN_URI,
-  BIKE_COMPONENT_NOT_FOUND_SCREEN_URI,
-  BIKE_ENTRY_SCREEN_URI,
   BIKE_MANAGER_ABI_URI,
-  BIKE_REGISTER_BLOCKED_SCREEN_URI,
-  BIKE_REGISTER_EMPTY_SCREEN_URI,
-  BIKE_REGISTER_READY_SCREEN_URI,
   BIKE_UI_ABI_URI,
+  BIKE_UI_URI,
   bikeCamJson,
-  bikeComponentScreen,
-  bikeEntryScreen,
   bikeManagerAbi,
-  bikeRegisterScreen,
+  bikeUiJson,
   bikeUiAbi,
 } from "./bike.mts"
 
@@ -119,13 +111,7 @@ export function bikeResourceBytes(
     [BIKE_CAM_URI]: encodeJson(bikeCamJson),
     [BIKE_UI_ABI_URI]: encodeJson(bikeUiAbi),
     [BIKE_MANAGER_ABI_URI]: encodeJson(bikeManagerAbi),
-    [BIKE_ENTRY_SCREEN_URI]: encodeJson(bikeEntryScreen),
-    [BIKE_COMPONENT_EMPTY_SCREEN_URI]: encodeJson(bikeComponentScreen),
-    [BIKE_COMPONENT_FOUND_SCREEN_URI]: encodeJson(bikeComponentScreen),
-    [BIKE_COMPONENT_NOT_FOUND_SCREEN_URI]: encodeJson(bikeComponentScreen),
-    [BIKE_REGISTER_BLOCKED_SCREEN_URI]: encodeJson(bikeRegisterScreen),
-    [BIKE_REGISTER_EMPTY_SCREEN_URI]: encodeJson(bikeRegisterScreen),
-    [BIKE_REGISTER_READY_SCREEN_URI]: encodeJson(bikeRegisterScreen),
+    [BIKE_UI_URI]: encodeJson(bikeUiJson),
     ...overrides,
   }
 }

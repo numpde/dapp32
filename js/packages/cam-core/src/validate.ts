@@ -8,18 +8,30 @@ import {
 } from "./guards.ts"
 import { createStringMap, hasOwn } from "@cam/protocol"
 import { CAM_VERSION } from "./constants.ts"
-import type { CamContract, CamDocument, CamRoute } from "./types.ts"
+import type {
+  CamContractNamespace,
+  CamDocument,
+  CamInvocation,
+  CamNamespace,
+  CamRoute,
+  CamRoutesNamespace,
+  CamUiNamespace,
+} from "./types.ts"
+import type { InertValue } from "@cam/protocol"
 
-const TOP_LEVEL_KEYS = new Set(["cam", "entry", "contracts", "routes"])
-const CONTRACT_KEYS = new Set(["abiURI"])
-const ROUTE_KEYS = new Set(["contract", "function", "args"])
+const TOP_LEVEL_KEYS = new Set(["cam", "entry", "namespaces", "routes"])
+const CONTRACT_NAMESPACE_KEYS = new Set(["type", "abiURI"])
+const ROUTES_NAMESPACE_KEYS = new Set(["type"])
+const UI_NAMESPACE_KEYS = new Set(["type", "uri"])
+const ROUTE_KEYS = new Set(["inputs", "call", "then"])
+const INVOCATION_KEYS = new Set(["namespace", "function", "args"])
 
 export function parseCam(input: unknown): CamDocument {
   const source = requiredRecord(input, "")
   rejectUnknownCamFields(source, TOP_LEVEL_KEYS, "")
 
-  const contracts = parseContracts(requiredRecord(source.contracts, "contracts"))
-  const routes = parseRoutes(requiredRecord(source.routes, "routes"), contracts)
+  const namespaces = parseNamespaces(requiredRecord(source.namespaces, "namespaces"))
+  const routes = parseRoutes(requiredRecord(source.routes, "routes"), namespaces)
   const entry = requiredNonEmptyString(source.entry, "entry")
 
   if (!hasOwn(routes, entry)) {
@@ -29,7 +41,7 @@ export function parseCam(input: unknown): CamDocument {
   return {
     cam: parseCamVersion(source.cam),
     entry,
-    contracts,
+    namespaces,
     routes,
   }
 }
@@ -43,29 +55,63 @@ function parseCamVersion(value: unknown): string {
   return version
 }
 
-function parseContracts(source: Record<string, unknown>): Record<string, CamContract> {
-  const contracts = createStringMap<CamContract>()
+function parseNamespaces(source: Record<string, unknown>): Record<string, CamNamespace> {
+  const namespaces = createStringMap<CamNamespace>()
 
   for (const [name, value] of Object.entries(source)) {
     if (name.length === 0) {
-      throw new CamError("CAM_INVALID_FIELD", "contract name must not be empty", "contracts")
+      throw new CamError("CAM_INVALID_FIELD", "namespace name must not be empty", "namespaces")
     }
 
-    const path = `contracts.${name}`
-    const contract = requiredRecord(value, path)
-    rejectUnknownCamFields(contract, CONTRACT_KEYS, path)
-
-    contracts[name] = {
-      abiURI: requiredNonEmptyString(contract.abiURI, `${path}.abiURI`),
-    }
+    namespaces[name] = parseNamespace(name, value)
   }
 
-  return contracts
+  return namespaces
+}
+
+function parseNamespace(name: string, value: unknown): CamNamespace {
+  const path = `namespaces.${name}`
+  const source = requiredRecord(value, path)
+  const type = requiredNonEmptyString(source.type, `${path}.type`)
+
+  switch (type) {
+    case "contract":
+      return parseContractNamespace(source, path)
+    case "routes":
+      return parseRoutesNamespace(source, path)
+    case "ui":
+      return parseUiNamespace(source, path)
+    default:
+      throw new CamError("CAM_INVALID_FIELD", `unknown namespace type: ${type}`, `${path}.type`)
+  }
+}
+
+function parseContractNamespace(source: Record<string, unknown>, path: string): CamContractNamespace {
+  rejectUnknownCamFields(source, CONTRACT_NAMESPACE_KEYS, path)
+  return {
+    type: "contract",
+    abiURI: requiredNonEmptyString(source.abiURI, `${path}.abiURI`),
+  }
+}
+
+function parseRoutesNamespace(source: Record<string, unknown>, path: string): CamRoutesNamespace {
+  rejectUnknownCamFields(source, ROUTES_NAMESPACE_KEYS, path)
+  return {
+    type: "routes",
+  }
+}
+
+function parseUiNamespace(source: Record<string, unknown>, path: string): CamUiNamespace {
+  rejectUnknownCamFields(source, UI_NAMESPACE_KEYS, path)
+  return {
+    type: "ui",
+    uri: requiredNonEmptyString(source.uri, `${path}.uri`),
+  }
 }
 
 function parseRoutes(
   source: Record<string, unknown>,
-  contracts: Record<string, CamContract>,
+  namespaces: Record<string, CamNamespace>,
 ): Record<string, CamRoute> {
   const routes = createStringMap<CamRoute>()
 
@@ -78,22 +124,67 @@ function parseRoutes(
     const route = requiredRecord(value, path)
     rejectUnknownCamFields(route, ROUTE_KEYS, path)
 
-    const contract = requiredNonEmptyString(route.contract, `${path}.contract`)
-    if (!hasOwn(contracts, contract)) {
-      throw new CamError("CAM_UNKNOWN_CONTRACT", `route references unknown contract: ${contract}`, `${path}.contract`)
-    }
-
-    const functionName = requiredNonEmptyString(route.function, `${path}.function`)
-    const args = requiredArray(route.args, `${path}.args`)
-
     routes[name] = {
-      contract,
-      function: functionName,
-      args: args.map((arg, index) => parseExpressionPayload(arg, `${path}.args.${index}`)),
+      inputs: parseInputNames(route.inputs, `${path}.inputs`),
+      call: parseInvocation(route.call, `${path}.call`, namespaces),
+      then: parseInvocation(route.then, `${path}.then`, namespaces),
     }
   }
 
   return routes
+}
+
+function parseInputNames(value: unknown, path: string): readonly string[] {
+  const source = requiredArray(value, path)
+  const names: string[] = []
+  const seen = new Set<string>()
+
+  for (const [index, item] of source.entries()) {
+    const itemPath = `${path}.${index}`
+    const name = requiredNonEmptyString(item, itemPath)
+    if (seen.has(name)) {
+      throw new CamError("CAM_INVALID_FIELD", `duplicate input name: ${name}`, itemPath)
+    }
+
+    seen.add(name)
+    names.push(name)
+  }
+
+  return names
+}
+
+function parseInvocation(
+  value: unknown,
+  path: string,
+  namespaces: Record<string, CamNamespace>,
+): CamInvocation {
+  const source = requiredRecord(value, path)
+  rejectUnknownCamFields(source, INVOCATION_KEYS, path)
+
+  const namespace = requiredNonEmptyString(source.namespace, `${path}.namespace`)
+  if (!hasOwn(namespaces, namespace)) {
+    throw new CamError("CAM_INVALID_FIELD", `invocation references unknown namespace: ${namespace}`, `${path}.namespace`)
+  }
+
+  return {
+    namespace,
+    function: requiredNonEmptyString(source.function, `${path}.function`),
+    args: parseNamedArgs(requiredRecord(source.args, `${path}.args`), `${path}.args`),
+  }
+}
+
+function parseNamedArgs(source: Record<string, unknown>, path: string): Record<string, InertValue> {
+  const args = createStringMap<InertValue>()
+
+  for (const [name, value] of Object.entries(source)) {
+    if (name.length === 0) {
+      throw new CamError("CAM_INVALID_FIELD", "argument name must not be empty", path)
+    }
+
+    args[name] = parseExpressionPayload(value, `${path}.${name}`)
+  }
+
+  return args
 }
 
 function rejectUnknownCamFields(

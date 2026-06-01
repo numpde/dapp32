@@ -9,7 +9,8 @@ import {
   toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
-  ResolvedScreenElement,
+  ResolvedActionNode,
+  ResolvedUiNode,
 } from "../../packages/cam-screen/dist/index.js"
 
 import { createTerminalBackendFromEnv } from "./backends/index.ts"
@@ -17,8 +18,6 @@ import type {
   DebugEvent,
   TerminalBackend,
 } from "./types.ts"
-
-type TerminalButtonElement = Extract<ResolvedScreenElement, { readonly type: "button" }>
 
 type TerminalContext = {
   readonly backend: TerminalBackend
@@ -153,82 +152,104 @@ async function handlePress(session: CamViewerSession, args: readonly string[]): 
     throw new Error(`button does not exist: ${index}`)
   }
 
-  const result = await session.dispatchAction(button.action)
+  const result = await session.dispatchAction(button)
   if (result.type === "navigated") {
     render(result.snapshot)
     return
   }
 
   output.write("Contract call requested; no transaction was sent.\n")
-  output.write(`contract: ${result.call.contract}\n`)
+  output.write(`route: ${result.call.route}\n`)
   output.write(`address: ${result.call.address}\n`)
   output.write(`function: ${result.call.function}\n`)
   output.write(`args: ${formatValue(result.call.args)}\n`)
+  output.write(`then: ${result.call.then.namespace}.${result.call.then.function} ${formatValue(result.call.then.args)}\n`)
 }
 
 function render(snapshot: CamViewerSnapshot): void {
   output.write("\n")
   output.write(`route: ${loadedText(snapshot.route)}\n`)
-  output.write(`screen: ${presentText(snapshot.screenURI)}\n`)
+  output.write(`ui: ${presentText(snapshot.uiURI)}\n`)
 
-  if (snapshot.resolvedScreen?.title !== undefined) {
-    output.write(`\n${snapshot.resolvedScreen.title}\n`)
+  const title = snapshot.resolvedUi?.props.title
+  if (typeof title === "string") {
+    output.write(`\n${title}\n`)
   }
 
-  if (snapshot.resolvedScreen === undefined) {
-    output.write("\n(no resolved screen)\n\n")
+  if (snapshot.resolvedUi === undefined) {
+    output.write("\n(no resolved UI)\n\n")
     return
   }
 
-  const buttons: TerminalButtonElement[] = []
-  for (const element of snapshot.resolvedScreen.elements) {
-    renderElement(element, buttons)
-  }
+  const buttons: ResolvedActionNode[] = []
+  renderNode(snapshot.resolvedUi, buttons)
 
   if (buttons.length > 0) {
     output.write("\nActions\n")
     buttons.forEach((button, index) => {
-      output.write(`${index + 1}. ${button.label}\n`)
+      output.write(`${index + 1}. ${labelForAction(button)}\n`)
     })
   }
 
   output.write("\n")
 }
 
-function renderElement(
-  element: ResolvedScreenElement,
-  buttons: TerminalButtonElement[],
+function renderNode(
+  node: ResolvedUiNode,
+  buttons: ResolvedActionNode[],
 ): void {
-  switch (element.type) {
-    case "text":
-      output.write(`\n${element.text}\n`)
+  switch (node.tag) {
+    case "Screen":
+    case "Fragment":
+      for (const child of node.children) {
+        renderNode(child, buttons)
+      }
       return
-    case "input":
-      output.write(`${element.label}: ${formatValue(element.value)}\n`)
+    case "Text":
+      output.write(`\n${formatValue(node.props.text)}\n`)
       return
-    case "address":
-      output.write(`${element.label}: ${element.address}\n`)
+    case "Input":
+      output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.value)}\n`)
       return
-    case "status":
-      output.write(`${element.label}: ${formatValue(element.value)}\n`)
+    case "Address":
+      output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.address)}\n`)
       return
-    case "nft":
-      output.write(`NFT: ${element.contractAddress} #${formatValue(element.tokenId)}\n`)
+    case "Status":
+      output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.value)}\n`)
       return
-    case "button":
-      buttons.push(element)
+    case "Nft":
+      output.write(`NFT: ${formatValue(node.props.contractAddress)} #${formatValue(node.props.tokenId)}\n`)
+      return
+    case "Action":
+      buttons.push(node)
       return
   }
 }
 
-function buttonsOf(snapshot: CamViewerSnapshot): readonly TerminalButtonElement[] {
-  if (snapshot.resolvedScreen === undefined) {
-    throw new Error("viewer has no resolved screen")
+function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedActionNode[] {
+  if (snapshot.resolvedUi === undefined) {
+    throw new Error("viewer has no resolved UI")
   }
 
-  return snapshot.resolvedScreen.elements.filter(
-    (element): element is TerminalButtonElement => element.type === "button",
-  )
+  const buttons: ResolvedActionNode[] = []
+  collectButtons(snapshot.resolvedUi, buttons)
+  return buttons
+}
+
+function collectButtons(node: ResolvedUiNode, buttons: ResolvedActionNode[]): void {
+  if (node.tag === "Action") {
+    buttons.push(node)
+    return
+  }
+
+  for (const child of node.children) {
+    collectButtons(child, buttons)
+  }
+}
+
+function labelForAction(action: ResolvedActionNode): string {
+  const label = action.props.label
+  return typeof label === "string" ? label : formatValue(action.props)
 }
 
 function formatValue(value: unknown): string {
@@ -259,9 +280,9 @@ function printForm(snapshot: CamViewerSnapshot): void {
 
   output.write(`${JSON.stringify({
     route: snapshot.route,
-    screenURI: snapshot.screenURI,
+    uiURI: snapshot.uiURI,
     account: snapshot.account,
-    params: snapshot.params,
+    inputs: snapshot.inputs,
     form,
   }, jsonReplacer, 2)}\n`)
 }
@@ -272,7 +293,7 @@ function printPromptContext(context: TerminalContext): void {
   output.write(`  backend: ${context.backend.name}\n`)
   output.write(`  host: ${context.backend.hostLabel}\n`)
   output.write(`  account: ${accountText(snapshot.account)}\n`)
-  output.write(`  params: ${formatValue(snapshot.params)}\n`)
+  output.write(`  inputs: ${formatValue(snapshot.inputs)}\n`)
   output.write(`  form: ${snapshot.form === undefined ? "(not loaded)" : formatValue(snapshot.form)}\n`)
   output.write(`  values: ${snapshot.values === undefined ? "(not loaded)" : formatValue(snapshot.values)}\n`)
 }
@@ -289,15 +310,15 @@ function printValues(snapshot: CamViewerSnapshot): void {
 function printActions(snapshot: CamViewerSnapshot): void {
   output.write(`${JSON.stringify(buttonsOf(snapshot).map((button, index) => ({
     index: index + 1,
-    label: button.label,
-    action: button.action,
+    label: labelForAction(button),
+    call: button.call,
   })), jsonReplacer, 2)}\n`)
 }
 
 function printScreen(snapshot: CamViewerSnapshot): void {
   let screen: unknown = null
-  if (snapshot.resolvedScreen !== undefined) {
-    screen = snapshot.resolvedScreen
+  if (snapshot.resolvedUi !== undefined) {
+    screen = snapshot.resolvedUi
   }
 
   output.write(`${JSON.stringify(screen, jsonReplacer, 2)}\n`)
@@ -344,11 +365,11 @@ function jsonReplacer(_key: string, value: unknown): unknown {
 function printHelp(): void {
   output.write([
     "Commands:",
-    "  show                  Render the current resolved screen.",
-    "  form                  Print route, screen URI, account, params, and screen form.",
+    "  show                  Render the current resolved UI.",
+    "  form                  Print route, UI URI, account, inputs, and form.",
     "  values                Print the current route return values.",
-    "  actions               Print resolved button actions and their button numbers.",
-    "  screen                Print the resolved screen document.",
+    "  actions               Print resolved actions and their button numbers.",
+    "  screen                Print the resolved UI tree.",
     "  trace                 Print backend contract reads and resource loads.",
     "  trace clear           Clear the trace buffer.",
     "  restart               Reset the backend session and reload the entry route.",

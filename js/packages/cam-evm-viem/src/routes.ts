@@ -1,4 +1,4 @@
-import { resolveResourceURI, resolveRouteCall } from "@cam/core"
+import { resolveRouteCall } from "@cam/core"
 import {
   createStringMap,
   isRecordObject,
@@ -9,6 +9,7 @@ import type { CamRuntimeContext, InertValue } from "@cam/protocol"
 import { isAddress } from "viem"
 import type { Abi, AbiFunction, AbiParameter, Address } from "viem"
 
+import { abiFunctionInputs, normalizeAbiArgs } from "./arguments.ts"
 import { findUniqueAbiFunction } from "./abi-functions.ts"
 import { CamEvmError } from "./errors.ts"
 import type { CamPublicClient, ResolvedCamContract, RouteResult } from "./types.ts"
@@ -16,22 +17,26 @@ import type { CamPublicClient, ResolvedCamContract, RouteResult } from "./types.
 export async function callCamRoute({
   publicClient,
   cam,
-  camURI,
   contracts,
   route,
   context,
 }: CallCamRouteOptions): Promise<RouteResult> {
   const routeCall = resolveRouteCall(cam, route, context)
-  const contract = contracts[routeCall.contract]
+  const contract = contracts[routeCall.namespace]
 
   if (contract === undefined) {
     throw new CamEvmError(
       "CAM_UNKNOWN_CONTRACT",
-      `CAM route references unresolved contract: ${routeCall.contract}`,
+      `CAM route references unresolved contract namespace: ${routeCall.namespace}`,
     )
   }
   const routeFunction = assertRouteFunctionAbi(contract.abi, routeCall.function)
-  const routeOutputs = routeFunctionOutputs(routeFunction, route)
+  const args = normalizeAbiArgs({
+    inputs: abiFunctionInputs(routeFunction, "CAM_ROUTE_INVALID_ARGUMENT"),
+    args: routeCall.args,
+    functionName: routeCall.function,
+    errorCode: "CAM_ROUTE_INVALID_ARGUMENT",
+  })
 
   const account = routeAccount(context)
   let raw: unknown
@@ -40,20 +45,19 @@ export async function callCamRoute({
       address: contract.address,
       abi: contract.abi,
       functionName: routeCall.function,
-      args: routeCall.args,
+      args,
       account,
     })
   } catch (cause) {
     throw new CamEvmError("CAM_ROUTE_CALL_FAILED", `failed to call CAM route: ${route}`, cause)
   }
 
-  return normalizeRouteResult(raw, camURI, route, routeOutputs)
+  return normalizeRouteResult(raw, route, routeFunctionOutputs(routeFunction, route))
 }
 
 type CallCamRouteOptions = {
   readonly publicClient: CamPublicClient
   readonly cam: CamDocument
-  readonly camURI: string
   readonly contracts: Record<string, ResolvedCamContract>
   readonly route: string
   readonly context: CamRuntimeContext
@@ -74,7 +78,6 @@ function routeAccount(context: CamRuntimeContext): Address | undefined {
 
 function normalizeRouteResult(
   raw: unknown,
-  camURI: string,
   route: string,
   routeOutputs: readonly AbiParameter[],
 ): RouteResult {
@@ -86,19 +89,8 @@ function normalizeRouteResult(
     )
   }
 
-  const screenURI = outputs[0]
-
-  if (typeof screenURI !== "string" || screenURI.length === 0) {
-    throw new CamEvmError(
-      "CAM_ROUTE_INVALID_RESULT",
-      `CAM route did not return a screen URI as its first output: ${route}`,
-    )
-  }
-  assertLocalScreenURI(screenURI, route)
-
   return {
-    screenURI: resolveResourceURI(camURI, screenURI),
-    values: normalizeRouteValues(outputs.slice(1), routeOutputs.slice(1), route),
+    values: normalizeRouteValues(outputs, routeOutputs, route),
   }
 }
 
@@ -175,7 +167,7 @@ function readTupleComponent(value: unknown, name: string, index: number): unknow
 
 function normalizeRouteValue(value: unknown, path: string): InertValue {
   if (typeof value === "bigint") {
-    // viem decodes Solidity integers as bigint; CAM screen data carries them
+    // viem decodes Solidity integers as bigint; CAM route outputs carry them
     // as decimal strings because InertValue deliberately has no bigint scalar.
     return value.toString()
   }
@@ -201,15 +193,6 @@ function normalizeRouteValue(value: unknown, path: string): InertValue {
   }
 }
 
-function assertLocalScreenURI(screenURI: string, route: string): void {
-  if (!/^\.\/screens\/[A-Za-z0-9][A-Za-z0-9._-]*\.json$/.test(screenURI)) {
-    throw new CamEvmError(
-      "CAM_ROUTE_INVALID_RESULT",
-      `CAM route returned an unsafe screen URI for ${route}: ${screenURI}`,
-    )
-  }
-}
-
 function assertRouteFunctionAbi(abi: Abi, functionName: string): AbiFunction {
   const fn = findUniqueAbiFunction({
     abi,
@@ -228,14 +211,6 @@ function assertRouteFunctionAbi(abi: Abi, functionName: string): AbiFunction {
 function routeFunctionOutputs(fn: AbiFunction, route: string): readonly AbiParameter[] {
   if (!Array.isArray(fn.outputs)) {
     throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI is missing outputs: ${route}`)
-  }
-
-  const screenOutput = fn.outputs[0]
-  if (screenOutput === undefined) {
-    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI must declare screenURI as first output: ${route}`)
-  }
-  if (screenOutput.name !== "screenURI" || screenOutput.type !== "string") {
-    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI first output must be screenURI: string for ${route}`)
   }
 
   return fn.outputs

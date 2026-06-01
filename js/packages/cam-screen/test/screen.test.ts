@@ -2,15 +2,13 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { toInertValue } from "@cam/protocol"
-import type { InertValue } from "@cam/protocol"
+import type { InertRecord } from "@cam/protocol"
 import {
-  resolveInitialScreen,
-  parseScreen,
-  resolveScreen,
+  parseUi,
+  resolveUiNode,
 } from "../src/index.ts"
-import type { ScreenRuntimeContext } from "../src/index.ts"
 
-const screenBaseContext = {
+const context = {
   host: {
     chainId: "eip155:31337",
     address: "0x0000000000000000000000000000000000000001",
@@ -18,231 +16,160 @@ const screenBaseContext = {
   account: {
     address: "0x0000000000000000000000000000000000000002",
   },
-  params: {
+  inputs: {},
+  outputs: [],
+  form: {
     serialNumber: "ABC123",
   },
-  values: [
-    {
-      exists: true,
-      owner: "0x0000000000000000000000000000000000000003",
-      tokenContract: "0x0000000000000000000000000000000000000004",
-      tokenId: "42",
-    },
-  ],
 }
 
-const context: ScreenRuntimeContext = {
-  ...screenBaseContext,
-  form: {
-    serialNumber: "XYZ789",
-  },
-}
-
-test("resolveScreen resolves params, form, route values, and initial form values", () => {
-  const screen = parseScreen({
-    screen: "1.0.0",
-    title: "$params.serialNumber",
-    elements: [
-      {
-        type: "input",
-        name: "serialNumber",
-        label: "$params.serialNumber",
-        value: "$params.serialNumber",
+test("resolves a UI catalog through Include nodes into render and action nodes", () => {
+  const ui = parseUi({
+    ui: "1.0.0",
+    app: {
+      tag: "Screen",
+      requires: ["form", "view"],
+      props: {
+        title: "Bicycle component registry",
       },
-      {
-        type: "status",
-        label: "Registered",
-        value: "$values.0.exists",
-      },
-      {
-        type: "nft",
-        contractAddress: "$values.0.tokenContract",
-        tokenId: "$values.0.tokenId",
-      },
-      {
-        type: "button",
-        label: "Look up",
-        action: {
-          type: "navigate",
-          route: "component",
-          params: {
-            serialNumber: "$form.serialNumber",
-          },
-        },
-      },
-      {
-        type: "button",
-        label: "Mark missing",
-        action: {
-          type: "contract-call",
-          contract: "BicycleComponentManager",
-          function: "markMissing",
-          args: ["$form.serialNumber"],
-          onSuccess: {
-            type: "navigate",
-            route: "component",
-            params: {
-              serialNumber: "$form.serialNumber",
+      children: [
+        {
+          tag: "Include",
+          call: {
+            namespace: "ui",
+            function: "$view.viewId",
+            args: {
+              view: "$view",
             },
           },
         },
-      },
-    ],
-  })
-
-  const resolved = resolveScreen(screen, context)
-
-  assert.equal(resolved.title, "ABC123")
-  assert.deepEqual(resolved.elements, [
-    {
-      type: "input",
-      name: "serialNumber",
-      label: "ABC123",
-      value: "XYZ789",
-    },
-    {
-      type: "status",
-      label: "Registered",
-      value: true,
-    },
-    {
-      type: "nft",
-      contractAddress: "0x0000000000000000000000000000000000000004",
-      tokenId: "42",
-    },
-    {
-      type: "button",
-      label: "Look up",
-      action: {
-        type: "navigate",
-        route: "component",
-        params: inert({
-          serialNumber: "XYZ789",
-        }),
-      },
-    },
-    {
-      type: "button",
-      label: "Mark missing",
-      action: {
-        type: "contract-call",
-        contract: "BicycleComponentManager",
-        function: "markMissing",
-        args: ["XYZ789"],
-        onSuccess: {
-          type: "navigate",
-          route: "component",
-          params: inert({
-            serialNumber: "XYZ789",
-          }),
-        },
-      },
-    },
-  ])
-
-  const initial = resolveInitialScreen(screen, screenBaseContext)
-
-  assert.deepEqual(initial.form, inert({
-    serialNumber: "ABC123",
-  }))
-  assert.deepEqual(initial.resolvedScreen.elements.slice(0, 2), [
-    {
-      type: "input",
-      name: "serialNumber",
-      label: "ABC123",
-      value: "ABC123",
-    },
-    {
-      type: "status",
-      label: "Registered",
-      value: true,
-    },
-  ])
-})
-
-test("parseScreen requires explicit action types", () => {
-  assert.throws(
-    () => parseScreen({
-      screen: "1.0.0",
-      title: "Invalid action",
-      elements: [
         {
-          type: "button",
-          label: "Look up",
-          action: {
-            route: "component",
-            params: {},
+          tag: "Include",
+          call: {
+            namespace: "ui",
+            function: "$view.actions",
+            args: {
+              form: "$form",
+            },
           },
         },
       ],
-    }),
-    /elements\.0\.action\.type/,
-  )
-})
-
-test("parseScreen rejects element control logic", () => {
-  assert.throws(
-    () => parseScreen({
-      screen: "1.0.0",
-      title: "Invalid control",
-      elements: [
+    },
+    entry: {
+      tag: "Fragment",
+      requires: ["view"],
+      children: [
         {
-          type: "text",
-          text: "Registered",
-          visibleWhen: "$values.0.exists",
+          tag: "Input",
+          props: {
+            name: "serialNumber",
+            label: "Serial number",
+            value: "$view.serialNumber",
+          },
         },
       ],
-    }),
-    /elements\.0\.visibleWhen/,
-  )
-})
-
-test("parseScreen rejects layout-only group elements", () => {
-  assert.throws(
-    () => parseScreen({
-      screen: "1.0.0",
-      title: "Invalid layout",
-      elements: [
-        {
-          type: "group",
-          elements: [],
-        },
-      ],
-    }),
-    /elements\.0\.type/,
-  )
-})
-
-test("input values must resolve to strings", () => {
-  const screen = parseScreen({
-    screen: "1.0.0",
-    title: "Invalid input",
-    elements: [
-      {
-        type: "input",
-        name: "serialNumber",
-        label: "Serial number",
-        value: "$values.0.exists",
+    },
+    lookupComponent: {
+      tag: "Action",
+      requires: ["form"],
+      props: {
+        label: "Look up component",
       },
-    ],
+      call: {
+        namespace: "routes",
+        function: "component",
+        args: {
+          serialNumber: "$form.serialNumber",
+        },
+      },
+    },
+  })
+
+  const resolved = resolveUiNode(ui, "app", inertRecord({
+    form: context.form,
+    view: {
+      viewId: "entry",
+      actions: ["lookupComponent"],
+      serialNumber: "",
+    },
+  }), context)
+
+  assert.equal(resolved.tag, "Screen")
+  assert.equal(resolved.props.title, "Bicycle component registry")
+  assert.equal(resolved.children.length, 2)
+
+  const [view, action] = resolved.children
+  assert.equal(view?.tag, "Fragment")
+  assert.equal(view?.children[0]?.tag, "Input")
+  assert.equal(view?.children[0]?.props.name, "serialNumber")
+  assert.equal(view?.children[0]?.props.value, "")
+
+  assert.equal(action?.tag, "Action")
+  assert.equal(action?.props.label, "Look up component")
+  assert.equal(action?.call.namespace, "routes")
+  assert.equal(action?.call.function, "component")
+  assert.equal(action?.call.args.serialNumber, "ABC123")
+})
+
+test("parseUi rejects stale screen-era and control fields", () => {
+  assert.throws(
+    () => parseUi({
+      screen: "1.0.0",
+      title: "Old screen",
+      elements: [],
+    }),
+    /ui/,
+  )
+
+  assert.throws(
+    () => parseUi({
+      ui: "1.0.0",
+      entry: {
+        tag: "Text",
+        requires: [],
+        props: {
+          text: "Registered",
+        },
+        visibleWhen: "$view.exists",
+      },
+    }),
+    /visibleWhen/,
+  )
+})
+
+test("resolveUiNode fails closed on missing required arguments and non-string action functions", () => {
+  const ui = parseUi({
+    ui: "1.0.0",
+    action: {
+      tag: "Action",
+      requires: ["form"],
+      props: {
+        label: "Broken",
+      },
+      call: {
+        namespace: "routes",
+        function: "$view.actions",
+        args: {},
+      },
+    },
   })
 
   assert.throws(
-    () => resolveInitialScreen(screen, screenBaseContext),
-    /elements\.0\.value/,
+    () => resolveUiNode(ui, "action", inertRecord({}), context),
+    /form/,
   )
 
   assert.throws(
-    () => resolveScreen(screen, {
-      ...screenBaseContext,
-      form: {
-        serialNumber: true,
+    () => resolveUiNode(ui, "action", inertRecord({
+      form: {},
+      view: {
+        actions: ["component"],
       },
-    }),
-    /input form value must be a string/,
+    }), context),
+    /call function must resolve to a string/,
   )
 })
 
-function inert(value: unknown): InertValue {
-  return toInertValue(value)
+function inertRecord(value: unknown): InertRecord {
+  return toInertValue(value) as InertRecord
 }

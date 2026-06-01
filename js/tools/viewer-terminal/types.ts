@@ -28,7 +28,7 @@ export type TerminalBackend = {
 
 export type TerminalBackendOptions = {
   readonly allowUnsignedCamHash: boolean
-  readonly initialParams: InertRecord
+  readonly initialInputs: InertRecord
 }
 
 export type TerminalPublicClient = CreateCamViewerSessionOptions["publicClient"]

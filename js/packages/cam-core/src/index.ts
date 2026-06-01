@@ -1,6 +1,9 @@
 export type {
   CamDocument,
-  CamRouteCall,
+  CamInvocation,
+  CamNamespace,
+  CamResolvedInvocation,
+  CamRoute,
   CamRuntimeContext,
 } from "./types.ts"
 export type {
@@ -15,6 +18,9 @@ export { parseCam } from "./validate.ts"
 
 export { createContext } from "./context.ts"
 
-export { resolveRouteCall } from "./routes.ts"
+export {
+  resolveRouteCall,
+  resolveRouteThen,
+} from "./routes.ts"
 
 export { resolveResourceURI } from "./uri.ts"

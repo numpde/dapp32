@@ -1,83 +1,100 @@
 import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 
-export type ScreenDocument = {
-  readonly screen: string
-  readonly title: string
-  readonly elements: readonly ScreenElement[]
+export type UiDocument = {
+  readonly ui: string
+  readonly nodes: Record<string, UiNode>
 }
 
-export type ScreenElement =
-  | TextElement
-  | InputElement
-  | AddressElement
-  | ButtonElement
-  | StatusElement
-  | NftElement
+export type UiNode =
+  | ScreenNode
+  | FragmentNode
+  | TextNode
+  | InputNode
+  | AddressNode
+  | StatusNode
+  | NftNode
+  | IncludeNode
+  | ActionNode
 
-export type TextElement = {
-  readonly type: "text"
-  readonly text: string
+export type UiNodeBase = {
+  readonly requires?: readonly string[]
 }
 
-export type InputElement = {
-  readonly type: "input"
-  readonly name: string
-  readonly label: string
-  readonly value: string
+export type ScreenNode = UiNodeBase & {
+  readonly tag: "Screen"
+  readonly props: InertRecord
+  readonly children: readonly UiNode[]
 }
 
-export type AddressElement = {
-  readonly type: "address"
-  readonly label: string
-  readonly address: string
+export type FragmentNode = UiNodeBase & {
+  readonly tag: "Fragment"
+  readonly children: readonly UiNode[]
 }
 
-export type ButtonElement = {
-  readonly type: "button"
-  readonly label: string
-  readonly action: ScreenAction
+export type TextNode = UiNodeBase & {
+  readonly tag: "Text"
+  readonly props: InertRecord
 }
 
-export type StatusElement = {
-  readonly type: "status"
-  readonly label: string
-  readonly value: InertValue
+export type InputNode = UiNodeBase & {
+  readonly tag: "Input"
+  readonly props: InertRecord
 }
 
-export type NftElement = {
-  readonly type: "nft"
-  readonly contractAddress: string
-  readonly tokenId: InertValue
+export type AddressNode = UiNodeBase & {
+  readonly tag: "Address"
+  readonly props: InertRecord
 }
 
-export type ScreenAction = NavigateAction | ContractCallAction
-
-export type NavigateAction = {
-  readonly type: "navigate"
-  readonly route: string
-  readonly params: InertRecord
+export type StatusNode = UiNodeBase & {
+  readonly tag: "Status"
+  readonly props: InertRecord
 }
 
-export type ContractCallAction = {
-  readonly type: "contract-call"
-  readonly contract: string
+export type NftNode = UiNodeBase & {
+  readonly tag: "Nft"
+  readonly props: InertRecord
+}
+
+export type IncludeNode = UiNodeBase & {
+  readonly tag: "Include"
+  readonly call: UiCall
+}
+
+export type ActionNode = UiNodeBase & {
+  readonly tag: "Action"
+  readonly props: InertRecord
+  readonly call: UiCall
+}
+
+export type UiCall = {
+  readonly namespace: string
+  readonly function: InertValue
+  readonly args: InertRecord
+}
+
+export type UiRuntimeContext = CamRuntimeContext & {
+  readonly [key: string]: unknown
+}
+
+export type ResolvedUiNode =
+  | ResolvedElementNode
+  | ResolvedActionNode
+
+export type ResolvedElementNode = {
+  readonly tag: Exclude<UiNode["tag"], "Include" | "Action">
+  readonly props: InertRecord
+  readonly children: readonly ResolvedUiNode[]
+}
+
+export type ResolvedActionNode = {
+  readonly tag: "Action"
+  readonly props: InertRecord
+  readonly call: ResolvedUiCall
+}
+
+export type ResolvedUiCall = {
+  readonly namespace: string
   readonly function: string
-  readonly args: readonly InertValue[]
-  readonly onSuccess?: NavigateAction
+  readonly args: InertRecord
 }
-
-export type ScreenRuntimeContext = CamRuntimeContext & {
-  readonly form: InertRecord
-  readonly values: readonly InertValue[]
-}
-
-export type ScreenInitialContext = Omit<ScreenRuntimeContext, "form">
-
-export type ResolvedScreen = {
-  readonly title: string
-  readonly elements: readonly ResolvedScreenElement[]
-}
-
-export type ResolvedScreenElement = ScreenElement
-
-export type ResolvedScreenAction = ScreenAction

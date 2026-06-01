@@ -33,7 +33,7 @@ export function createLocalRpcBackend(
   env: NodeJS.ProcessEnv,
   {
     allowUnsignedCamHash,
-    initialParams,
+    initialInputs,
   }: TerminalBackendOptions,
 ): TerminalBackend {
   const rpcURL = requiredEnv(env, "CAM_VIEWER_RPC_URL")
@@ -54,7 +54,7 @@ export function createLocalRpcBackend(
         account: {
           address: deployment.account,
         },
-        params: initialParams,
+        inputs: initialInputs,
         allowUnsignedCamHash,
         loadResource: createHttpResourceLoader(resourceOrigin, events),
       })

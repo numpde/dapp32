@@ -7,6 +7,10 @@ export const BIKE_COMPONENTS_ADDRESS = "0x00000000000000000000000000000000000000
 
 export const BIKE_UI_CONTRACT = "BicycleComponentManagerUI"
 export const BIKE_MANAGER_CONTRACT = "BicycleComponentManager"
+export const BIKE_UI_NAMESPACE = `contracts.${BIKE_UI_CONTRACT}`
+export const BIKE_MANAGER_NAMESPACE = `contracts.${BIKE_MANAGER_CONTRACT}`
+export const BIKE_ROUTES_NAMESPACE = "routes"
+export const BIKE_UI_RESOURCE_NAMESPACE = "ui"
 
 export const BIKE_ROUTE_ENTRY = "entry"
 export const BIKE_ROUTE_COMPONENT = "component"
@@ -21,8 +25,10 @@ export const BIKE_CAM_URI = "ipfs://example/main.json"
 
 export const BIKE_RELATIVE_UI_ABI_URI = "./abi/BicycleComponentManagerUI.json"
 export const BIKE_RELATIVE_MANAGER_ABI_URI = "./abi/BicycleComponentManager.json"
+export const BIKE_RELATIVE_UI_URI = "./ui.json"
 export const BIKE_UI_ABI_URI = bikeResourceURI(BIKE_RELATIVE_UI_ABI_URI)
 export const BIKE_MANAGER_ABI_URI = bikeResourceURI(BIKE_RELATIVE_MANAGER_ABI_URI)
+export const BIKE_UI_URI = bikeResourceURI(BIKE_RELATIVE_UI_URI)
 
 export const BIKE_RELATIVE_ENTRY_SCREEN_URI = "./screens/entry.json"
 export const BIKE_RELATIVE_COMPONENT_EMPTY_SCREEN_URI = "./screens/component.empty.json"
@@ -57,47 +63,109 @@ export const bikeContractAddresses = {
 export const bikeCamJson = {
   cam: "1.0.0",
   entry: BIKE_ROUTE_ENTRY,
-  contracts: {
-    [BIKE_UI_CONTRACT]: {
+  namespaces: {
+    [BIKE_UI_NAMESPACE]: {
+      type: "contract",
       abiURI: BIKE_RELATIVE_UI_ABI_URI,
     },
-    [BIKE_MANAGER_CONTRACT]: {
+    [BIKE_MANAGER_NAMESPACE]: {
+      type: "contract",
       abiURI: BIKE_RELATIVE_MANAGER_ABI_URI,
+    },
+    [BIKE_ROUTES_NAMESPACE]: {
+      type: "routes",
+    },
+    [BIKE_UI_RESOURCE_NAMESPACE]: {
+      type: "ui",
+      uri: "./ui.json",
     },
   },
   routes: {
     [BIKE_ROUTE_ENTRY]: {
-      contract: BIKE_UI_CONTRACT,
-      function: BIKE_VIEW_ENTRY,
-      args: ["$account.address"],
+      inputs: [],
+      call: {
+        namespace: BIKE_UI_NAMESPACE,
+        function: BIKE_VIEW_ENTRY,
+        args: {
+          account: "$account.address",
+        },
+      },
+      then: {
+        namespace: BIKE_UI_RESOURCE_NAMESPACE,
+        function: "app",
+        args: {
+          form: "$form",
+          view: "$outputs.0",
+        },
+      },
     },
     [BIKE_ROUTE_COMPONENT]: {
-      contract: BIKE_UI_CONTRACT,
-      function: BIKE_VIEW_COMPONENT,
-      args: ["$params.serialNumber", "$account.address"],
+      inputs: ["serialNumber"],
+      call: {
+        namespace: BIKE_UI_NAMESPACE,
+        function: BIKE_VIEW_COMPONENT,
+        args: {
+          serialNumber: "$inputs.serialNumber",
+          account: "$account.address",
+        },
+      },
+      then: {
+        namespace: BIKE_UI_RESOURCE_NAMESPACE,
+        function: "app",
+        args: {
+          form: "$form",
+          view: "$outputs.0",
+        },
+      },
     },
     [BIKE_ROUTE_REGISTER]: {
-      contract: BIKE_UI_CONTRACT,
-      function: BIKE_VIEW_REGISTER,
-      args: ["$params.serialNumber", "$account.address"],
+      inputs: ["serialNumber"],
+      call: {
+        namespace: BIKE_UI_NAMESPACE,
+        function: BIKE_VIEW_REGISTER,
+        args: {
+          serialNumber: "$inputs.serialNumber",
+          account: "$account.address",
+        },
+      },
+      then: {
+        namespace: BIKE_UI_RESOURCE_NAMESPACE,
+        function: "app",
+        args: {
+          form: "$form",
+          view: "$outputs.0",
+        },
+      },
+    },
+    markComponentMissing: {
+      inputs: ["serialNumber"],
+      call: {
+        namespace: BIKE_MANAGER_NAMESPACE,
+        function: BIKE_MARK_MISSING,
+        args: {
+          serialNumber: "$inputs.serialNumber",
+        },
+      },
+      then: {
+        namespace: BIKE_ROUTES_NAMESPACE,
+        function: BIKE_ROUTE_COMPONENT,
+        args: {
+          serialNumber: "$inputs.serialNumber",
+        },
+      },
     },
   },
 } as const
 
-const accountViewOutput = {
-  name: "accountView",
+const appViewOutput = {
+  name: "view",
   type: "tuple",
   components: [
+    { name: "viewId", type: "string" },
+    { name: "actions", type: "string[]" },
     { name: "account", type: "address" },
     { name: "canRegister", type: "bool" },
     { name: "accountInfo", type: "string" },
-  ],
-} as const
-
-const componentViewOutput = {
-  name: "component",
-  type: "tuple",
-  components: [
     { name: "exists", type: "bool" },
     { name: "serialHash", type: "bytes32" },
     { name: "tokenContract", type: "address" },
@@ -116,20 +184,8 @@ const componentViewOutput = {
     { name: "canMarkMissing", type: "bool" },
     { name: "canClearMissing", type: "bool" },
     { name: "canRetire", type: "bool" },
-  ],
-} as const
-
-const registerViewOutput = {
-  name: "registerView",
-  type: "tuple",
-  components: [
-    { name: "canRegister", type: "bool" },
-    { name: "exists", type: "bool" },
-    { name: "serialHash", type: "bytes32" },
-    { name: "tokenId", type: "uint256" },
     { name: "componentsAddress", type: "address" },
-    { name: "serialNumber", type: "string" },
-    { name: "accountInfo", type: "string" },
+    { name: "tokenURI", type: "string" },
   ],
 } as const
 
@@ -138,8 +194,8 @@ export const bikeUiAbi = [
     type: "function",
     name: BIKE_VIEW_ENTRY,
     stateMutability: "view",
-    inputs: [{ name: "viewer", type: "address" }],
-    outputs: [{ name: "screenURI", type: "string" }, accountViewOutput],
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [appViewOutput],
   },
   {
     type: "function",
@@ -147,9 +203,9 @@ export const bikeUiAbi = [
     stateMutability: "view",
     inputs: [
       { name: "serialNumber", type: "string" },
-      { name: "viewer", type: "address" },
+      { name: "account", type: "address" },
     ],
-    outputs: [{ name: "screenURI", type: "string" }, componentViewOutput, accountViewOutput],
+    outputs: [appViewOutput],
   },
   {
     type: "function",
@@ -157,9 +213,9 @@ export const bikeUiAbi = [
     stateMutability: "view",
     inputs: [
       { name: "serialNumber", type: "string" },
-      { name: "viewer", type: "address" },
+      { name: "account", type: "address" },
     ],
-    outputs: [{ name: "screenURI", type: "string" }, registerViewOutput, accountViewOutput],
+    outputs: [appViewOutput],
   },
 ] as const
 
@@ -173,46 +229,136 @@ export const bikeManagerAbi = [
   },
 ] as const
 
-export const bikeEntryScreen = {
-  screen: "1.0.0",
-  title: "Entry",
-  elements: [
-    {
-      type: "input",
-      name: "serialNumber",
-      label: "Serial number",
-      value: "",
+export const bikeUiJson = {
+  ui: "1.0.0",
+  app: {
+    tag: "Screen",
+    requires: ["form", "view"],
+    props: {
+      title: "Bicycle component registry",
     },
-    {
-      type: "status",
-      label: "Can register",
-      value: "$values.0.canRegister",
+    children: [
+      {
+        tag: "Include",
+        call: {
+          namespace: "ui",
+          function: "$view.viewId",
+          args: {
+            view: "$view",
+          },
+        },
+      },
+      {
+        tag: "Include",
+        call: {
+          namespace: "ui",
+          function: "$view.actions",
+          args: {
+            form: "$form",
+          },
+        },
+      },
+    ],
+  },
+  entry: {
+    tag: "Fragment",
+    requires: ["view"],
+    children: [
+      {
+        tag: "Input",
+        props: {
+          name: "serialNumber",
+          label: "Serial number",
+          value: "$view.serialNumber",
+        },
+      },
+    ],
+  },
+  "component.found": {
+    tag: "Fragment",
+    requires: ["view"],
+    children: [
+      {
+        tag: "Input",
+        props: {
+          name: "serialNumber",
+          label: "Serial number",
+          value: "$view.serialNumber",
+        },
+      },
+      {
+        tag: "Status",
+        props: {
+          label: "Status",
+          value: "$view.status",
+        },
+      },
+    ],
+  },
+  "register.ready": {
+    tag: "Fragment",
+    requires: ["view"],
+    children: [
+      {
+        tag: "Input",
+        props: {
+          name: "serialNumber",
+          label: "Serial number",
+          value: "$view.serialNumber",
+        },
+      },
+      {
+        tag: "Input",
+        props: {
+          name: "tokenURI",
+          label: "Token URI",
+          value: "$view.tokenURI",
+        },
+      },
+    ],
+  },
+  lookupComponent: {
+    tag: "Action",
+    requires: ["form"],
+    props: {
+      label: "Look up component",
     },
-  ],
-} as const
-
-export const bikeComponentScreen = {
-  screen: "1.0.0",
-  title: "Component",
-  elements: [
-    {
-      type: "status",
-      label: "Serial number",
-      value: "$values.0.serialNumber",
+    call: {
+      namespace: "routes",
+      function: BIKE_ROUTE_COMPONENT,
+      args: {
+        serialNumber: "$form.serialNumber",
+      },
     },
-  ],
-} as const
-
-export const bikeRegisterScreen = {
-  screen: "1.0.0",
-  title: "Register",
-  elements: [
-    {
-      type: "status",
-      label: "Can register",
-      value: "$values.0.canRegister",
+  },
+  openRegister: {
+    tag: "Action",
+    requires: ["form"],
+    props: {
+      label: "Register component",
     },
-  ],
+    call: {
+      namespace: "routes",
+      function: BIKE_ROUTE_REGISTER,
+      args: {
+        serialNumber: "$form.serialNumber",
+      },
+    },
+  },
+  markComponentMissing: {
+    tag: "Action",
+    requires: ["form"],
+    props: {
+      label: "Prepare missing report",
+    },
+    call: {
+      namespace: "routes",
+      function: "markComponentMissing",
+      args: {
+        serialNumber: "$form.serialNumber",
+      },
+    },
+  },
 } as const
 
 export function bikeAddressForContract(name: string): string {
@@ -236,76 +382,101 @@ export function bikeRouteResults(
 
 export function bikeEntryRouteResult(account: string): readonly unknown[] {
   return [
-    BIKE_RELATIVE_ENTRY_SCREEN_URI,
     {
+      viewId: "entry",
+      actions: ["lookupComponent", "openRegister"],
       account,
       canRegister: true,
       accountInfo: "Mock registrar account",
+      serialNumber: "",
+      exists: false,
+      serialHash: BIKE_ZERO_BYTES32,
+      tokenContract: BIKE_COMPONENTS_ADDRESS,
+      tokenId: 0n,
+      owner: account,
+      ownerInfo: "",
+      registrar: account,
+      status: 0n,
+      tokenURI: "",
+      registeredAt: 0n,
+      updatedAt: 0n,
+      permissions: 0n,
+      isOwner: false,
+      canUpdateMetadata: false,
+      canMarkMissing: false,
+      canClearMissing: false,
+      canRetire: false,
+      componentsAddress: BIKE_COMPONENTS_ADDRESS,
     },
   ]
 }
 
 export function bikeComponentRouteResult(serialNumber: string): readonly unknown[] {
   const exists = serialNumber.length > 0
-  const screenURI = exists
-    ? BIKE_RELATIVE_COMPONENT_FOUND_SCREEN_URI
-    : BIKE_RELATIVE_COMPONENT_EMPTY_SCREEN_URI
 
   return [
-    screenURI,
     {
+      viewId: exists ? "component.found" : "component.empty",
+      actions: exists ? ["markComponentMissing"] : ["lookupComponent", "openRegister"],
+      account: BIKE_ACCOUNT_ADDRESS,
+      canRegister: true,
+      accountInfo: "Mock registrar account",
       exists,
       serialHash: exists
         ? "0x1111111111111111111111111111111111111111111111111111111111111111"
         : BIKE_ZERO_BYTES32,
       tokenContract: BIKE_COMPONENTS_ADDRESS,
-      tokenId: exists ? 42 : 0,
+      tokenId: exists ? 42n : 0n,
       owner: BIKE_ACCOUNT_ADDRESS,
       ownerInfo: "Mock owner account",
       registrar: BIKE_ACCOUNT_ADDRESS,
-      status: exists ? 1 : 0,
+      status: exists ? 1n : 0n,
       tokenURI: exists ? `ipfs://example/token/${serialNumber}` : "",
-      registeredAt: exists ? 1 : 0,
-      updatedAt: exists ? 2 : 0,
+      registeredAt: exists ? 1n : 0n,
+      updatedAt: exists ? 2n : 0n,
       serialNumber,
-      permissions: 7,
+      permissions: 7n,
       isOwner: true,
       canUpdateMetadata: exists,
       canMarkMissing: exists,
       canClearMissing: false,
       canRetire: exists,
-    },
-    {
-      account: BIKE_ACCOUNT_ADDRESS,
-      canRegister: true,
-      accountInfo: "Mock registrar account",
+      componentsAddress: BIKE_COMPONENTS_ADDRESS,
     },
   ]
 }
 
 export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[] {
   const hasSerialNumber = serialNumber.length > 0
-  const screenURI = hasSerialNumber
-    ? BIKE_RELATIVE_REGISTER_READY_SCREEN_URI
-    : BIKE_RELATIVE_REGISTER_EMPTY_SCREEN_URI
 
   return [
-    screenURI,
     {
+      viewId: hasSerialNumber ? "register.ready" : "register.empty",
+      actions: hasSerialNumber ? ["registerComponent"] : ["openRegister"],
+      account: BIKE_ACCOUNT_ADDRESS,
       canRegister: true,
       exists: false,
       serialHash: hasSerialNumber
         ? "0x2222222222222222222222222222222222222222222222222222222222222222"
         : BIKE_ZERO_BYTES32,
-      tokenId: 0,
+      tokenId: 0n,
       componentsAddress: BIKE_COMPONENTS_ADDRESS,
       serialNumber,
       accountInfo: "Mock registrar account",
-    },
-    {
-      account: BIKE_ACCOUNT_ADDRESS,
-      canRegister: true,
-      accountInfo: "Mock registrar account",
+      tokenContract: BIKE_COMPONENTS_ADDRESS,
+      owner: BIKE_ACCOUNT_ADDRESS,
+      ownerInfo: "",
+      registrar: BIKE_ACCOUNT_ADDRESS,
+      status: 0n,
+      tokenURI: "",
+      registeredAt: 0n,
+      updatedAt: 0n,
+      permissions: 0n,
+      isOwner: false,
+      canUpdateMetadata: false,
+      canMarkMissing: false,
+      canClearMissing: false,
+      canRetire: false,
     },
   ]
 }

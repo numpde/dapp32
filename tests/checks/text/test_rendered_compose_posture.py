@@ -154,7 +154,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             environment["CAM_VIEWER_BROADCAST_PATH"],
         )
         self.assertEqual(BIKE_CAM_HTTP_ORIGIN, environment["CAM_VIEWER_RESOURCE_ORIGIN"])
-        self.assertEqual("{}", environment["CAM_VIEWER_INITIAL_PARAMS_JSON"])
+        self.assertEqual("{}", environment["CAM_VIEWER_INITIAL_INPUTS_JSON"])
         self.assertNotIn("CAM_VIEWER_FILE_ROOT", environment)
         self.assertNotIn("PRIVATE_KEY", environment)
 
