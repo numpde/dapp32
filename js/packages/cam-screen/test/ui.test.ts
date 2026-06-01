@@ -215,6 +215,47 @@ test("parseUi rejects stale screen-era and control fields", () => {
   )
 })
 
+test("parseUi rejects calls wired to the wrong namespace", () => {
+  assert.throws(
+    () => parseUi({
+      ui: "1.0.0",
+      nodes: {
+        include: {
+          tag: "Include",
+          requires: [],
+          call: {
+            namespace: "routes",
+            function: "entry",
+            args: {},
+          },
+        },
+      },
+    }),
+    /ui namespace/,
+  )
+
+  assert.throws(
+    () => parseUi({
+      ui: "1.0.0",
+      nodes: {
+        action: {
+          tag: "Action",
+          requires: [],
+          props: {
+            label: "Bad action",
+          },
+          call: {
+            namespace: "ui",
+            function: "entry",
+            args: {},
+          },
+        },
+      },
+    }),
+    /routes namespace/,
+  )
+})
+
 test("parseUi and resolveUiNode reject invalid tag props", () => {
   assert.throws(
     () => parseUi({

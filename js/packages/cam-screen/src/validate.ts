@@ -122,14 +122,14 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       rejectUnexpectedNodeShape(source, INCLUDE_KEYS, path)
       return {
         tag,
-        call: parseCall(source.call, `${path}.call`),
+        call: parseCall(source.call, `${path}.call`, "ui"),
       }
     case "Action":
       rejectUnexpectedNodeShape(source, ACTION_KEYS, path)
       return {
         tag,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Action.required),
-        call: parseCall(source.call, `${path}.call`),
+        call: parseCall(source.call, `${path}.call`, "routes"),
       }
     default:
       throw new UiError("UI_INVALID_FIELD", `unknown UI node tag: ${tag}`, `${path}.tag`)
@@ -181,12 +181,16 @@ function parseProps(value: unknown, path: string, allowedKeys: readonly string[]
   return parseInertRecord(source, path)
 }
 
-function parseCall(value: unknown, path: string): UiCall {
+function parseCall(value: unknown, path: string, expectedNamespace: string): UiCall {
   const source = requiredRecord(value, path)
   rejectUnknownUiFields(source, CALL_KEYS, path)
+  const namespace = requiredNonEmptyString(source.namespace, `${path}.namespace`)
+  if (namespace !== expectedNamespace) {
+    throw new UiError("UI_INVALID_FIELD", `UI ${path} must call ${expectedNamespace} namespace`, `${path}.namespace`)
+  }
 
   return {
-    namespace: requiredNonEmptyString(source.namespace, `${path}.namespace`),
+    namespace,
     function: parseExpressionPayload(source.function, `${path}.function`),
     args: parseInertRecord(requiredRecord(source.args, `${path}.args`), `${path}.args`),
   }

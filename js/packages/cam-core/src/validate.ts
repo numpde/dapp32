@@ -126,10 +126,13 @@ function parseRoutes(
     const route = requiredRecord(value, path)
     rejectUnknownCamFields(route, ROUTE_KEYS, path)
 
+    const call = parseInvocation(route.call, `${path}.call`, namespaces, new Set(["contract"]))
+    const then = parseInvocation(route.then, `${path}.then`, namespaces, new Set(["routes", "ui"]))
+
     routes[name] = {
       inputs: parseInputNames(route.inputs, `${path}.inputs`),
-      call: parseInvocation(route.call, `${path}.call`, namespaces),
-      then: parseInvocation(route.then, `${path}.then`, namespaces),
+      call,
+      then,
     }
   }
 
@@ -159,6 +162,7 @@ function parseInvocation(
   value: unknown,
   path: string,
   namespaces: Record<string, CamNamespace>,
+  allowedNamespaceTypes: ReadonlySet<CamNamespace["type"]>,
 ): CamInvocation {
   const source = requiredRecord(value, path)
   rejectUnknownCamFields(source, INVOCATION_KEYS, path)
@@ -166,6 +170,10 @@ function parseInvocation(
   const namespace = requiredNonEmptyString(source.namespace, `${path}.namespace`)
   if (!hasOwn(namespaces, namespace)) {
     throw new CamError("CAM_INVALID_FIELD", `invocation references unknown namespace: ${namespace}`, `${path}.namespace`)
+  }
+  const namespaceType = namespaces[namespace].type
+  if (!allowedNamespaceTypes.has(namespaceType)) {
+    throw new CamError("CAM_INVALID_FIELD", `invocation references invalid ${namespaceType} namespace: ${namespace}`, `${path}.namespace`)
   }
 
   return {

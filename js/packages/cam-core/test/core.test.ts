@@ -137,3 +137,39 @@ test("enforces declared route inputs before resolving route calls", () => {
     /unexpected route input: typo/,
   )
 })
+
+test("parseCam rejects route invocations with invalid namespace kinds", () => {
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      routes: {
+        ...mainJson.routes,
+        entry: {
+          ...mainJson.routes.entry,
+          call: {
+            ...mainJson.routes.entry.call,
+            namespace: "ui",
+          },
+        },
+      },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      routes: {
+        ...mainJson.routes,
+        entry: {
+          ...mainJson.routes.entry,
+          then: {
+            ...mainJson.routes.entry.then,
+            namespace: BIKE_UI_NAMESPACE,
+          },
+        },
+      },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
+  )
+})
