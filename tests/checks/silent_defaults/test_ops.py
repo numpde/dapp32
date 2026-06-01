@@ -25,37 +25,35 @@ YAML_ENV_LIST_ASSIGNMENT_RE = re.compile(r"^\s*-\s+(?P<name>[A-Za-z_][A-Za-z0-9_
 YAML_ENV_MAPPING_BLANK_RE = re.compile(r"^\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*):\s*(?:#.*)?$")
 YAML_ENVIRONMENT_BLOCK_RE = re.compile(r"^(?P<indent>\s*)environment:\s*$")
 WORKFLOW_DEFAULT_FIELD_RE = re.compile(r"^\s*default:\s*(?P<value>.*)$")
-ALLOWED_MAKE_DEFAULT_NAMES = frozenset(
-    {
-        "ALLOW_UPDATE",
-        "ANVIL_COMPOSE_PROJECT_NAME",
-        "ANVIL_HOST_PORT",
-        "BIKE_NFT_CAM_HASH",
-        "BIKE_NFT_GUI_BIND_HOST",
-        "BIKE_NFT_GUI_ORIGIN",
-        "BIKE_NFT_GUI_PORT",
-        "BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME",
-        "BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME",
-        "BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME",
-        "CAM_INTEGRATION_RUNS",
-        "CAM_INTEGRATION_SEED",
-        "CAM_INTEGRATION_STEPS",
-        "CAM_URI",
-        "COMPOSE_DIR",
-        "COMPOSE_PROJECT_NAME",
-        "DOCKER_COMPOSE",
-        "LIVE_CHECK_COMPOSE_PROJECT_NAME",
-        "LOCAL_GID",
-        "LOCAL_UID",
-        "RPC_COMPOSE_PROJECT_NAME",
-        "TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME",
-        "TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME",
-        "TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME",
-        "VIEWER_TERMINAL_COMPOSE_PROJECT_NAME",
-        "VIEWER_TERMINAL_CONTAINER_NAME",
-        "VIEWER_TERMINAL_MOCK",
-    }
-)
+ALLOWED_MAKE_DEFAULTS = {
+    "ALLOW_UPDATE": "0",
+    "ANVIL_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-anvil",
+    "ANVIL_HOST_PORT": "8545",
+    "BIKE_NFT_CAM_HASH": "0x0000000000000000000000000000000000000000000000000000000000000000",
+    "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
+    "BIKE_NFT_GUI_ORIGIN": "http://127.0.0.1:$(BIKE_NFT_GUI_PORT)",
+    "BIKE_NFT_GUI_PORT": "5173",
+    "BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-bike-nft-local",
+    "BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-bike-nft-viewer-gui",
+    "BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-bike-nft-viewer-terminal",
+    "CAM_INTEGRATION_RUNS": "1",
+    "CAM_INTEGRATION_SEED": "cam-integration-fuzz",
+    "CAM_INTEGRATION_STEPS": "16",
+    "CAM_URI": "",
+    "COMPOSE_DIR": "compose",
+    "COMPOSE_PROJECT_NAME": "dapps",
+    "DOCKER_COMPOSE": "docker compose",
+    "LIVE_CHECK_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-check-live",
+    "LOCAL_GID": "$(shell id -g)",
+    "LOCAL_UID": "$(shell id -u)",
+    "RPC_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-cast-rpc",
+    "TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-test-integration-fuzz-bike-nft",
+    "TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-test-integration-fuzz",
+    "TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-test-integration-fuzz-with-writes-bike-nft",
+    "VIEWER_TERMINAL_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-viewer-terminal",
+    "VIEWER_TERMINAL_CONTAINER_NAME": "$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME)-session",
+    "VIEWER_TERMINAL_MOCK": "bike-nft",
+}
 
 
 def ops_files() -> list[Path]:
@@ -97,6 +95,10 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         self.assertEqual(
             ["Makefile:1: unreviewed Make default assignment: PROFILE ?= demo"],
             make_default_assignment_findings_for_source("PROFILE ?= demo\n", "Makefile"),
+        )
+        self.assertEqual(
+            ["Makefile:1: changed Make default assignment: ANVIL_HOST_PORT ?= 9545"],
+            make_default_assignment_findings_for_source("ANVIL_HOST_PORT ?= 9545\n", "Makefile"),
         )
 
     def test_ops_files_do_not_publish_silent_defaults(self) -> None:
@@ -142,10 +144,10 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
         self.assertEqual([], findings)
 
-    def test_all_allowed_make_defaults_are_still_present(self) -> None:
-        names = make_default_names(ROOT / "Makefile")
+    def test_allowed_make_defaults_match_exact_values(self) -> None:
+        defaults = make_defaults(ROOT / "Makefile")
 
-        self.assertEqual(ALLOWED_MAKE_DEFAULT_NAMES, names)
+        self.assertEqual(ALLOWED_MAKE_DEFAULTS, defaults)
 
     def shell_silent_success_findings(self, files: list[Path]) -> list[str]:
         findings: list[str] = []
@@ -177,18 +179,21 @@ def make_default_assignment_findings_for_source(source: str, label: str) -> list
         if match is None:
             continue
         name = match.group("name")
-        if name not in ALLOWED_MAKE_DEFAULT_NAMES:
+        value = match.group("value")
+        if name not in ALLOWED_MAKE_DEFAULTS:
             findings.append(f"{label}:{line_number}: unreviewed Make default assignment: {line.strip()}")
+        elif ALLOWED_MAKE_DEFAULTS[name] != value:
+            findings.append(f"{label}:{line_number}: changed Make default assignment: {line.strip()}")
     return findings
 
 
-def make_default_names(path: Path) -> set[str]:
-    names: set[str] = set()
+def make_defaults(path: Path) -> dict[str, str]:
+    defaults: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         match = MAKE_DEFAULT_ASSIGNMENT_RE.match(line)
         if match is not None:
-            names.add(match.group("name"))
-    return names
+            defaults[match.group("name")] = match.group("value")
+    return defaults
 
 
 if __name__ == "__main__":
