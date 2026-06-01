@@ -25,6 +25,7 @@ SKIP_DIRS = {
     ".pytest_cache",
     ".ruff_cache",
     ".venv",
+    "__pycache__",
     "broadcast",
     "cache",
     "dependencies",
