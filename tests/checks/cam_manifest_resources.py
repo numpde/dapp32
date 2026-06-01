@@ -173,34 +173,24 @@ class CamManifestResourceValidator:
             return {}, [f"{manifest_path}: namespaces must be an object"]
 
         failures: list[str] = []
+        resources: list[tuple[str, dict[object, object], str, str, str]] = []
         try:
-            resource_declarations(manifest_path, namespaces)
+            resources = resource_declarations(manifest_path, namespaces)
         except CamResourceIntegrityError as error:
             failures.append(str(error))
+        if failures:
+            return {}, failures
 
-        contracts: dict[str, dict[object, object]] = {}
-
-        for namespace, declaration in namespaces.items():
-            if not isinstance(namespace, str) or not namespace.startswith(CONTRACT_NAMESPACE_PREFIX):
-                continue
-
-            contract_name = namespace.removeprefix(CONTRACT_NAMESPACE_PREFIX)
-            if contract_name == "":
-                failures.append(f"{manifest_path}: contract namespace names must be non-empty")
-                continue
-            if contract_name in contracts:
-                failures.append(f"{manifest_path}: duplicate contract namespace: {namespace}")
-                continue
-            if not isinstance(declaration, dict):
-                continue
-            if declaration.get("type") != "contract":
-                continue
-            contracts[contract_name] = declaration
+        contracts = {
+            namespace.removeprefix(CONTRACT_NAMESPACE_PREFIX): declaration
+            for namespace, declaration, uri_key, _integrity_key, _path in resources
+            if uri_key == "abiURI"
+        }
 
         if not contracts:
-            failures.append(f"{manifest_path}: no contract namespaces declared")
+            return {}, [f"{manifest_path}: no contract namespaces declared"]
 
-        return contracts, failures
+        return contracts, []
 
     def validate_route_calls_match_declared_abis(
         self,

@@ -86,7 +86,7 @@ class CamManifestResourceTest(unittest.TestCase):
                 },
             )
 
-        self.assertEqual(contracts, {"UI": {"type": "contract", "abiURI": "./abi/UI.json", "integrity": ZERO_SHA256}})
+        self.assertEqual(contracts, {})
         self.assertEqual(
             failures,
             [f"{manifest_path}: unsupported namespace: widgets"],
