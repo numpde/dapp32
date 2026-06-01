@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   createExpressionRuntime,
   InertValueError,
+  parseJsonText,
   readBoundedResponseBytes,
   requireHttpOrigin,
   requireHttpURL,
@@ -63,6 +64,23 @@ test("validates, clones, and rejects non-inert protocol values", () => {
   )
 })
 
+test("parseJsonText rejects duplicate object keys before runtime parsing", () => {
+  assert.deepEqual(parseJsonText('{"cam":"1.0.0","nested":{"key":1}}'), {
+    cam: "1.0.0",
+    nested: {
+      key: 1,
+    },
+  })
+  assert.throws(
+    () => parseJsonText('{"cam":"1.0.0","cam":"2.0.0"}'),
+    /duplicate JSON object key/,
+  )
+  assert.throws(
+    () => parseJsonText('{"\\u0063am":"1.0.0","cam":"2.0.0"}'),
+    /duplicate JSON object key/,
+  )
+})
+
 test("validates HTTP resource boundaries and bounded response bytes", async () => {
   assert.equal(requireHttpURL("https://example.test/cam/main.json", "uri").href, "https://example.test/cam/main.json")
   assert.equal(requireHttpOrigin("https://example.test", "origin"), "https://example.test")
@@ -88,6 +106,11 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
         "content-length": "4",
       },
     }), "https://example.test/x", 3),
+    /too large/,
+  )
+
+  await assert.rejects(
+    () => readBoundedResponseBytes(new Response("abcd"), "https://example.test/x", 3),
     /too large/,
   )
 })

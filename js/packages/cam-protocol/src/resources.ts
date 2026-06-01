@@ -14,10 +14,19 @@ export type HttpURL = {
 }
 
 export type HttpResponse = {
+  readonly body?: unknown
   readonly headers: {
     readonly get: (name: string) => string | null
   }
-  readonly arrayBuffer: () => Promise<ArrayBuffer>
+}
+
+export type HttpByteStreamReader = {
+  readonly read: () => Promise<{
+    readonly done: boolean
+    readonly value?: Uint8Array
+  }>
+  readonly cancel?: () => Promise<void>
+  readonly releaseLock?: () => void
 }
 
 export function requireHttpURL(value: string, label: string): HttpURL {
@@ -71,10 +80,47 @@ export async function readBoundedResponseBytes(
     throw new Error(`CAM resource is too large: ${uri}`)
   }
 
-  const bytes = new Uint8Array(await response.arrayBuffer())
-  if (bytes.byteLength > maxBytes) {
-    throw new Error(`CAM resource is too large: ${uri}`)
+  if (!isStreamBody(response.body)) {
+    throw new Error(`CAM resource response body is not streamable: ${uri}`)
+  }
+
+  // Do not buffer the full body before enforcing the CAM resource size cap.
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let byteLength = 0
+
+  try {
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+
+      const value = chunk.value
+      if (value === undefined) continue
+
+      byteLength += value.byteLength
+      if (byteLength > maxBytes) {
+        await reader.cancel?.()
+        throw new Error(`CAM resource is too large: ${uri}`)
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock?.()
+  }
+
+  const bytes = new Uint8Array(byteLength)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
   }
 
   return bytes
+}
+
+function isStreamBody(value: unknown): value is { readonly getReader: () => HttpByteStreamReader } {
+  return value !== null
+    && typeof value === "object"
+    && "getReader" in value
+    && typeof value.getReader === "function"
 }
