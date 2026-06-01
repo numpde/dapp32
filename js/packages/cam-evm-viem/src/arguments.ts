@@ -107,6 +107,9 @@ function normalizeAbiArg(
     if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) {
       throw invalidArg(errorCode, path, "", `expected hex bytes for ${type}`)
     }
+    if ((value.length - 2) % 2 !== 0) {
+      throw invalidArg(errorCode, path, "", `expected whole-byte hex value for ${type}`)
+    }
     if (fixedBytesLength !== undefined && (value.length - 2) / 2 !== fixedBytesLength) {
       throw invalidArg(errorCode, path, "", `expected ${fixedBytesLength} byte hex value for ${type}`)
     }

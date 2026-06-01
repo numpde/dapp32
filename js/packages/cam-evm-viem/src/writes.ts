@@ -14,6 +14,7 @@ type WriteRequest = {
 
 export async function sendCamContractCall({
   walletClient,
+  chain,
   call,
 }: SendCamContractCallOptions): Promise<Hex> {
   const request = writeRequest(call)
@@ -21,7 +22,7 @@ export async function sendCamContractCall({
   try {
     return await walletClient.writeContract({
       ...request,
-      chain: null,
+      chain,
     })
   } catch (cause) {
     throw new CamEvmError("CAM_WRITE_FAILED", `failed to send CAM contract call: ${call.function}`, cause)

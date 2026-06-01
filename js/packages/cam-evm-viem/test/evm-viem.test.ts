@@ -4,7 +4,7 @@ import test from "node:test"
 import { parseCam } from "@cam/core"
 import { toInertValue } from "@cam/protocol"
 import { sha256 } from "viem"
-import type { Abi, Address, Hex } from "viem"
+import type { Abi, Address, Chain, Hex } from "viem"
 
 import {
   CamEvmError,
@@ -56,6 +56,20 @@ const ROOT_CAM_HASH = "camHash"
 const NO_ROUTE_RESULTS = {}
 const uiAbi = uiAbiJson as Abi
 const managerAbi = managerAbiJson as Abi
+const testChain: Chain = {
+  id: 31337,
+  name: "CAM test chain",
+  nativeCurrency: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18,
+  },
+  rpcUrls: {
+    default: {
+      http: ["http://127.0.0.1:8545"],
+    },
+  },
+}
 
 test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects hash mismatches", async () => {
   const camBytes = encodeJson(camJson)
@@ -379,6 +393,7 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
 
   const hash = await sendCamContractCall({
     walletClient,
+    chain: testChain,
     call: {
       address: managerAddress,
       abi: managerAbi,
@@ -396,13 +411,14 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
       abi: managerAbi,
       functionName: BIKE_MARK_MISSING,
       args: [BIKE_SERIAL_NUMBER],
-      chain: null,
+      chain: testChain,
     },
   ])
 
   await assert.rejects(
     () => sendCamContractCall({
       walletClient,
+      chain: testChain,
       call: {
         address: managerAddress,
         abi: managerAbi,
@@ -436,6 +452,35 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
       account: userAddress,
     },
   ])
+})
+
+test("sendCamContractCall rejects odd-length dynamic bytes", async () => {
+  const walletClient = createWalletClient()
+  const bytesAbi = [
+    {
+      type: "function",
+      name: "writeBytes",
+      stateMutability: "nonpayable",
+      inputs: [{ name: "payload", type: "bytes" }],
+      outputs: [],
+    },
+  ] as const satisfies Abi
+
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      chain: testChain,
+      call: {
+        address: managerAddress,
+        abi: bytesAbi,
+        function: "writeBytes",
+        args: {
+          payload: "0xabc",
+        },
+      },
+    }),
+    /expected whole-byte hex value/,
+  )
 })
 
 function createPublicClient({
@@ -528,7 +573,7 @@ function createWalletClient(): CamWalletClient & {
     readonly abi: Abi
     readonly functionName: string
     readonly args?: readonly unknown[]
-    readonly chain: null
+    readonly chain: Chain
   }>
 } {
   const calls: Array<{
@@ -536,7 +581,7 @@ function createWalletClient(): CamWalletClient & {
     readonly abi: Abi
     readonly functionName: string
     readonly args?: readonly unknown[]
-    readonly chain: null
+    readonly chain: Chain
   }> = []
 
   return {

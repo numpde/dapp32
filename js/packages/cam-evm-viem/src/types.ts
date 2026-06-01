@@ -1,4 +1,4 @@
-import type { Abi, Address, Hex, PublicClient } from "viem"
+import type { Abi, Address, Chain, Hex, PublicClient } from "viem"
 import type { CamDocument } from "@cam/core"
 import type { InertValue } from "@cam/protocol"
 
@@ -57,7 +57,7 @@ export type CamWalletClient = {
     readonly abi: Abi
     readonly functionName: string
     readonly args?: readonly unknown[]
-    readonly chain: null
+    readonly chain: Chain
   }) => Promise<Hex>
 }
 
@@ -79,5 +79,6 @@ export type SimulateCamContractCallOptions = {
 
 export type SendCamContractCallOptions = {
   readonly walletClient: CamWalletClient
+  readonly chain: Chain
   readonly call: CamContractCall
 }
