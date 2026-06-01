@@ -38,6 +38,7 @@ import {
   BIKE_UI_NAMESPACE,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
+  bikeEntryRouteResult,
   bikeContractAddresses,
   bikeHost,
   bikeRouteResults,
@@ -328,6 +329,36 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     canRetire: true,
     componentsAddress: "0x0000000000000000000000000000000000000010",
   }))
+})
+
+test("callCamRoute normalizes safe number integer outputs from real RPC clients", async () => {
+  const result = await callCamRoute({
+    publicClient: createPublicClient(publicClientFixtureOptions({
+      routeResults: {
+        [BIKE_VIEW_ENTRY]: {
+          ...bikeEntryRouteResult(userAddress),
+          status: 0,
+        },
+      },
+    })),
+    cam: parseCam(camJson),
+    contracts: {
+      [BIKE_UI_NAMESPACE]: {
+        address: uiAddress,
+        abi: uiAbi,
+      },
+    },
+    route: BIKE_ROUTE_ENTRY,
+    context: {
+      host,
+      account: { address: userAddress },
+      inputs: {},
+      outputs: [],
+      form: {},
+    },
+  })
+
+  assert.equal((result.values[0] as Record<string, unknown>).status, "0")
 })
 
 test("callCamRoute treats a single array output as one ABI output", async () => {

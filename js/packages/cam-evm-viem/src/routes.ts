@@ -248,18 +248,31 @@ type IntegerType = {
 }
 
 function normalizeIntegerOutput(value: unknown, type: IntegerType, path: string): string {
-  if (typeof value !== "bigint") {
-    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output expected bigint integer at ${path}`)
-  }
+  const integer = integerOutputValue(value, path)
 
   const bits = BigInt(type.bits)
   const min = type.signed ? -(1n << (bits - 1n)) : 0n
   const max = type.signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n
-  if (value < min || value > max) {
+  if (integer < min || integer > max) {
     throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output integer is out of range at ${path}`)
   }
 
-  return value.toString()
+  return integer.toString()
+}
+
+function integerOutputValue(value: unknown, path: string): bigint {
+  if (typeof value === "bigint") {
+    return value
+  }
+
+  // viem usually decodes ABI integers as bigint, but small enum/uint values
+  // can cross real local RPC paths as safe JS numbers. Normalize both decoded
+  // shapes before the bit-width range check so CAM exposes one inert string.
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    return BigInt(value)
+  }
+
+  throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output expected bigint integer at ${path}`)
 }
 
 function normalizeBytesOutput(value: unknown, type: string, fixedBytesLength: number | undefined, path: string): string {
