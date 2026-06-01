@@ -65,6 +65,10 @@ type RunnerOptions = {
   readonly steps: number
 }
 
+type JsonObject = {
+  readonly [key: string]: unknown
+}
+
 async function main(): Promise<void> {
   const options = readOptions(process.env)
   const prng = createPrng(options.seed)
@@ -83,6 +87,18 @@ async function main(): Promise<void> {
   })
   const loadResource = httpResourceLoader(options.descriptor.resourceOrigin)
 
+  emit({
+    event: "start",
+    seed: options.seed,
+    runs: options.runs,
+    steps: options.steps,
+    chainId: host.chainId,
+    host: host.address,
+    account,
+    resourceOrigin: options.descriptor.resourceOrigin,
+    allowUnsignedCamHash: options.descriptor.allowUnsignedCamHash,
+  })
+
   await assertHostBoundary(fullPublicClient, host)
 
   const loadedCam = await loadCamFromHost({
@@ -90,6 +106,13 @@ async function main(): Promise<void> {
     host,
     loadResource,
     allowUnsignedCamHash: options.descriptor.allowUnsignedCamHash,
+  })
+  emit({
+    event: "cam_loaded",
+    camURI: loadedCam.camURI,
+    entry: loadedCam.cam.entry,
+    routeCount: Object.keys(loadedCam.cam.routes).length,
+    namespaceCount: Object.keys(loadedCam.cam.namespaces).length,
   })
   const contracts = await resolveCamContracts({
     publicClient,
@@ -99,6 +122,17 @@ async function main(): Promise<void> {
     loadResource,
   })
   await assertResolvedContractsHaveCode(fullPublicClient, contracts)
+  emit({
+    event: "contracts_resolved",
+    contracts: Object.fromEntries(
+      Object.entries(contracts).map(([namespace, contract]) => [
+        namespace,
+        {
+          address: contract.address,
+        },
+      ]),
+    ),
+  })
 
   const session = createSession({
     publicClient,
@@ -110,6 +144,14 @@ async function main(): Promise<void> {
   })
   const entry = await session.load()
   assertResolvedSnapshot(entry)
+  emit({
+    event: "entry_loaded",
+    route: entry.route,
+    inputs: entry.inputs,
+    form: entry.form,
+    values: entry.values,
+    actions: actionSummaries(actionNodes(entry.resolvedUi)),
+  })
 
   await callEveryReadRoute({
     cam: loadedCam.cam,
@@ -131,7 +173,12 @@ async function main(): Promise<void> {
     })
   }
 
-  console.log(`cam-integration-fuzz: ok seed=${options.seed} runs=${options.runs} steps=${options.steps}`)
+  emit({
+    event: "ok",
+    seed: options.seed,
+    runs: options.runs,
+    steps: options.steps,
+  })
 }
 
 function createSession({
@@ -176,6 +223,7 @@ async function callEveryReadRoute({
 }): Promise<void> {
   for (const [routeName, route] of Object.entries(cam.routes)) {
     if (route.kind !== "read") continue
+    const inputs = generatedRouteInputs(route, account, prng)
 
     await callCamRoute({
       publicClient,
@@ -185,10 +233,15 @@ async function callEveryReadRoute({
       context: {
         host,
         account: { address: account },
-        inputs: generatedRouteInputs(route, account, prng),
+        inputs,
         outputs: [],
         form: {},
       },
+    })
+    emit({
+      event: "read_route_checked",
+      route: routeName,
+      inputs,
     })
   }
 }
@@ -220,7 +273,18 @@ async function walkSession({
 
     const actions = actionNodes(current.resolvedUi)
     if (actions.length === 0) {
-      console.log(`cam-integration-fuzz: run=${run} step=${step} route=${current.route} has no actions`)
+      emit({
+        event: "step",
+        run,
+        step,
+        route: current.route,
+        inputs: current.inputs,
+        formPatch,
+        form: current.form,
+        values: current.values,
+        actionCount: 0,
+        result: "no_actions",
+      })
       continue
     }
 
@@ -229,35 +293,107 @@ async function walkSession({
       throw new Error("internal action selection failed")
     }
 
-    console.log(`cam-integration-fuzz: run=${run} step=${step} route=${current.route} action=${action.call.function}`)
+    emit({
+      event: "step",
+      run,
+      step,
+      route: current.route,
+      inputs: current.inputs,
+      formPatch,
+      form: current.form,
+      values: current.values,
+      actionCount: actions.length,
+      action: actionSummary(action),
+    })
     const result = await session.dispatchAction(action)
     if (result.type === "navigated") {
       assertResolvedSnapshot(result.snapshot)
+      emit({
+        event: "navigation",
+        run,
+        step,
+        fromRoute: current.route,
+        toRoute: result.snapshot.route,
+        inputs: result.snapshot.inputs,
+        form: result.snapshot.form,
+        values: result.snapshot.values,
+        actions: actionSummaries(actionNodes(result.snapshot.resolvedUi)),
+      })
       continue
     }
 
-    await simulatePreparedWrite(simulationClient, account, result.call.route, result.call)
+    await simulatePreparedWrite({
+      publicClient: simulationClient,
+      account,
+      run,
+      step,
+      call: result.call,
+    })
   }
 }
 
-async function simulatePreparedWrite(
-  publicClient: CamSimulationClient,
-  account: Address,
-  route: string,
-  call: Parameters<typeof simulateCamContractCall>[0]["call"],
-): Promise<void> {
+async function simulatePreparedWrite({
+  publicClient,
+  account,
+  run,
+  step,
+  call,
+}: {
+  readonly publicClient: CamSimulationClient
+  readonly account: Address
+  readonly run: number
+  readonly step: number
+  readonly call: Parameters<typeof simulateCamContractCall>[0]["call"] & { readonly route: string }
+}): Promise<void> {
   try {
     await simulateCamContractCall({
       publicClient,
       account,
       call,
     })
+    emit({
+      event: "write_simulation",
+      run,
+      step,
+      route: call.route,
+      status: "accepted",
+      call: contractCallSummary(call),
+    })
   } catch (cause) {
     const error = cause instanceof Error ? cause : new Error(String(cause))
     if (error.message.length === 0) {
-      throw new Error(`write simulation for ${route} failed without a useful error`)
+      throw new Error(`write simulation for ${call.route} failed without a useful error`)
     }
-    console.log(`cam-integration-fuzz: write simulation rejected route=${route}: ${error.message}`)
+    emit({
+      event: "write_simulation",
+      run,
+      step,
+      route: call.route,
+      status: "rejected",
+      call: contractCallSummary(call),
+      error: error.message,
+    })
+  }
+}
+
+function actionSummaries(actions: readonly ResolvedActionNode[]): readonly JsonObject[] {
+  return actions.map((action) => actionSummary(action))
+}
+
+function actionSummary(action: ResolvedActionNode): JsonObject {
+  return {
+    tag: action.tag,
+    props: action.props,
+    call: action.call,
+  }
+}
+
+function contractCallSummary(call: Parameters<typeof simulateCamContractCall>[0]["call"] & { readonly route: string }): JsonObject {
+  return {
+    route: call.route,
+    address: call.address,
+    function: call.function,
+    args: call.args,
   }
 }
 
@@ -527,7 +663,10 @@ function createPrng(seed: string): Prng {
 
 main().catch((error: unknown) => {
   const message = errorMessage(error)
-  console.error(message)
+  emit({
+    event: "error",
+    error: message,
+  })
   process.exitCode = 1
 })
 
@@ -540,4 +679,11 @@ function errorMessage(error: unknown): string {
   }
 
   return error.message
+}
+
+function emit(event: JsonObject): void {
+  console.log(JSON.stringify({
+    source: "cam-integration-fuzz",
+    ...event,
+  }))
 }
