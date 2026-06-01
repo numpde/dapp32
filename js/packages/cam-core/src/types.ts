@@ -30,6 +30,7 @@ export type CamUiNamespace = {
 }
 
 export type CamRoute = {
+  readonly kind: "read" | "write"
   readonly inputs: readonly string[]
   readonly call: CamInvocation
   readonly then: CamInvocation

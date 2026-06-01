@@ -7,7 +7,12 @@ import {
   rejectUnknownFields,
 } from "./guards.ts"
 import { createStringMap, hasOwn } from "@cam/protocol"
-import { CAM_VERSION } from "./constants.ts"
+import {
+  CAM_CONTRACT_NAMESPACE_PREFIX,
+  CAM_ROUTES_NAMESPACE,
+  CAM_UI_NAMESPACE,
+  CAM_VERSION,
+} from "./constants.ts"
 import type {
   CamContractNamespace,
   CamDocument,
@@ -23,7 +28,7 @@ const TOP_LEVEL_KEYS = new Set(["cam", "entry", "namespaces", "routes"])
 const CONTRACT_NAMESPACE_KEYS = new Set(["type", "abiURI", "integrity"])
 const ROUTES_NAMESPACE_KEYS = new Set(["type"])
 const UI_NAMESPACE_KEYS = new Set(["type", "uri", "integrity"])
-const ROUTE_KEYS = new Set(["inputs", "call", "then"])
+const ROUTE_KEYS = new Set(["kind", "inputs", "call", "then"])
 const INVOCATION_KEYS = new Set(["namespace", "function", "args"])
 
 export function parseCam(input: unknown): CamDocument {
@@ -87,6 +92,10 @@ function parseNamespace(name: string, value: unknown): CamNamespace {
 }
 
 function parseContractNamespace(source: Record<string, unknown>, path: string): CamContractNamespace {
+  const name = path.slice("namespaces.".length)
+  if (!name.startsWith(CAM_CONTRACT_NAMESPACE_PREFIX) || name.length === CAM_CONTRACT_NAMESPACE_PREFIX.length) {
+    throw new CamError("CAM_INVALID_FIELD", `contract namespace must be ${CAM_CONTRACT_NAMESPACE_PREFIX}<name>`, path)
+  }
   rejectUnknownCamFields(source, CONTRACT_NAMESPACE_KEYS, path)
   return {
     type: "contract",
@@ -96,6 +105,9 @@ function parseContractNamespace(source: Record<string, unknown>, path: string): 
 }
 
 function parseRoutesNamespace(source: Record<string, unknown>, path: string): CamRoutesNamespace {
+  if (path !== `namespaces.${CAM_ROUTES_NAMESPACE}`) {
+    throw new CamError("CAM_INVALID_FIELD", `routes namespace must be named ${CAM_ROUTES_NAMESPACE}`, path)
+  }
   rejectUnknownCamFields(source, ROUTES_NAMESPACE_KEYS, path)
   return {
     type: "routes",
@@ -103,6 +115,9 @@ function parseRoutesNamespace(source: Record<string, unknown>, path: string): Ca
 }
 
 function parseUiNamespace(source: Record<string, unknown>, path: string): CamUiNamespace {
+  if (path !== `namespaces.${CAM_UI_NAMESPACE}`) {
+    throw new CamError("CAM_INVALID_FIELD", `ui namespace must be named ${CAM_UI_NAMESPACE}`, path)
+  }
   rejectUnknownCamFields(source, UI_NAMESPACE_KEYS, path)
   return {
     type: "ui",
@@ -126,10 +141,17 @@ function parseRoutes(
     const route = requiredRecord(value, path)
     rejectUnknownCamFields(route, ROUTE_KEYS, path)
 
+    const kind = parseRouteKind(route.kind, `${path}.kind`)
     const call = parseInvocation(route.call, `${path}.call`, namespaces, new Set(["contract"]))
-    const then = parseInvocation(route.then, `${path}.then`, namespaces, new Set(["routes", "ui"]))
+    const then = parseInvocation(
+      route.then,
+      `${path}.then`,
+      namespaces,
+      kind === "read" ? new Set(["ui"]) : new Set(["routes"]),
+    )
 
     routes[name] = {
+      kind,
       inputs: parseInputNames(route.inputs, `${path}.inputs`),
       call,
       then,
@@ -137,6 +159,15 @@ function parseRoutes(
   }
 
   return routes
+}
+
+function parseRouteKind(value: unknown, path: string): CamRoute["kind"] {
+  const kind = requiredNonEmptyString(value, path)
+  if (kind !== "read" && kind !== "write") {
+    throw new CamError("CAM_INVALID_FIELD", `route kind must be read or write: ${kind}`, path)
+  }
+
+  return kind
 }
 
 function parseInputNames(value: unknown, path: string): readonly string[] {

@@ -10,6 +10,9 @@ import {
   toInertValue,
 } from "@cam/protocol"
 import {
+  CAM_CONTRACT_NAMESPACE_PREFIX,
+  CAM_ROUTES_NAMESPACE,
+  CAM_UI_NAMESPACE,
   createContext,
   resolveResourceURI,
   resolveRouteCall,
@@ -176,7 +179,7 @@ export function createCamViewerSession({
   async function dispatchAction(action: ResolvedActionNode): Promise<CamViewerActionResult> {
     assertLoaded()
 
-    if (action.call.namespace !== "routes") {
+    if (action.call.namespace !== CAM_ROUTES_NAMESPACE) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action must call routes namespace: ${action.call.namespace}`)
     }
 
@@ -186,27 +189,30 @@ export function createCamViewerSession({
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action references unknown route: ${route}`)
     }
 
-    const targetNamespace = camRoute.then.namespace
-    if (targetNamespace === "ui") {
+    if (camRoute.kind === "read") {
       return {
         type: "navigated",
         snapshot: await navigateLoaded(route, action.call.args),
       }
     }
 
-    if (targetNamespace === "routes") {
+    if (camRoute.kind === "write") {
       return {
         type: "contractCall",
         call: prepareContractCall(route, action.call.args),
       }
     }
 
-    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `unsupported CAM route continuation: ${targetNamespace}`)
+    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `unsupported CAM route kind: ${camRoute.kind}`)
   }
 
   async function navigateLoaded(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
     const current = assertLoaded()
     const routeInputs = cloneViewerData<InertRecord>(nextInputs, "inputs")
+    const routeDeclaration = current.cam.routes[nextRoute]
+    if (routeDeclaration === undefined || routeDeclaration.kind !== "read") {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM navigation route must be declared as read: ${nextRoute}`)
+    }
 
     const routeResult = await callCamRoute({
       publicClient,
@@ -260,7 +266,7 @@ export function createCamViewerSession({
     const current = assertLoaded()
     const context = routeContext(inputs, values, activeForm())
     const then = resolveRouteThen(cam, route, context)
-    if (then.namespace !== "ui") {
+    if (then.namespace !== CAM_UI_NAMESPACE) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
     }
 
@@ -278,7 +284,7 @@ export function createCamViewerSession({
     const current = assertLoaded()
     const context = routeContext(inputs, values, form)
     const then = resolveRouteThen(current.cam, route, context)
-    if (then.namespace !== "ui") {
+    if (then.namespace !== CAM_UI_NAMESPACE) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
     }
 
@@ -287,13 +293,17 @@ export function createCamViewerSession({
 
   function prepareContractCall(route: string, inputs: InertRecord): CamViewerPreparedContractCall {
     const current = assertLoaded()
-    if (current.cam.routes[route] === undefined) {
+    const routeDeclaration = current.cam.routes[route]
+    if (routeDeclaration === undefined) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route does not exist: ${route}`)
+    }
+    if (routeDeclaration.kind !== "write") {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action route must be declared as write: ${route}`)
     }
 
     const context = routeContext(inputs, [], activeForm())
     const call = resolveRouteCall(current.cam, route, context)
-    if (call === undefined || !call.namespace.startsWith("contracts.")) {
+    if (call === undefined || !call.namespace.startsWith(CAM_CONTRACT_NAMESPACE_PREFIX)) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route must call a contract namespace: ${route}`)
     }
     const contract = current.contracts[call.namespace]
@@ -358,7 +368,7 @@ function uiResourceDeclaration(cam: CamDocument, camURI: string): {
   readonly uri: string
   readonly integrity: string
 } {
-  const ui = cam.namespaces.ui
+  const ui = cam.namespaces[CAM_UI_NAMESPACE]
   if (ui?.type !== "ui") {
     throw new CamViewerError("CAM_VIEWER_UI_LOAD_FAILED", "CAM manifest does not declare namespaces.ui")
   }

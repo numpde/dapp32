@@ -23,6 +23,11 @@ export async function callCamRoute({
 }: CallCamRouteOptions): Promise<RouteResult> {
   await assertClientChain(publicClient, context.host)
 
+  const routeDeclaration = cam.routes[route]
+  if (routeDeclaration === undefined || routeDeclaration.kind !== "read") {
+    throw new CamEvmError("CAM_ROUTE_INVALID_KIND", `CAM route must be declared as read before it can be called: ${route}`)
+  }
+
   const routeCall = resolveRouteCall(cam, route, context)
   const contract = contracts[routeCall.namespace]
 

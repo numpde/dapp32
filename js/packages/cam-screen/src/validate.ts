@@ -1,4 +1,4 @@
-import { UI_PROP_SCHEMAS, UI_VERSION } from "./constants.ts"
+import { UI_NODE_ARGUMENT_KEYS, UI_PROP_SCHEMAS, UI_VERSION } from "./constants.ts"
 import { UiError } from "./errors.ts"
 import { parseExpressionPayload } from "./expressions.ts"
 import {
@@ -155,6 +155,9 @@ function parseRequires(value: unknown, path: string): readonly string[] {
     const name = requiredNonEmptyString(item, itemPath)
     if (seen.has(name)) {
       throw new UiError("UI_INVALID_FIELD", `duplicate required argument: ${name}`, itemPath)
+    }
+    if (!UI_NODE_ARGUMENT_KEYS.has(name)) {
+      throw new UiError("UI_INVALID_FIELD", `unsupported required argument: ${name}`, itemPath)
     }
 
     seen.add(name)

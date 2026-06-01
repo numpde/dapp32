@@ -332,6 +332,7 @@ test("callCamRoute treats a single array output as one ABI output", async () => 
     routes: {
       ...camJson.routes,
       [arrayRoute]: {
+        kind: "read",
         inputs: [],
         call: {
           namespace: BIKE_UI_NAMESPACE,
@@ -414,6 +415,25 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_FUNCTION_NOT_VIEW",
+  )
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({})),
+      cam: parseCam(camJson),
+      contracts: {},
+      route: "markComponentMissing",
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {
+          serialNumber: BIKE_SERIAL_NUMBER,
+        },
+        outputs: [],
+        form: {},
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_KIND",
   )
 
   await assert.rejects(

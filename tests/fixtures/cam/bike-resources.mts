@@ -7,6 +7,7 @@ type BikeInvocationFixture = {
   readonly args: Record<string, unknown>
 }
 type BikeRouteFixture = {
+  readonly kind: "read" | "write"
   readonly inputs: readonly string[]
   readonly call: BikeInvocationFixture
   readonly then: BikeInvocationFixture

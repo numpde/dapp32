@@ -170,6 +170,24 @@ test("resolveUiNode rejects include cycles and undeclared node args", () => {
   )
 })
 
+test("parseUi rejects required arguments outside the UI node interface", () => {
+  assert.throws(
+    () => parseUi({
+      ui: "1.0.0",
+      nodes: {
+        app: {
+          tag: "Text",
+          requires: ["foo"],
+          props: {
+            text: "unsupported argument",
+          },
+        },
+      },
+    }),
+    /unsupported required argument: foo/,
+  )
+})
+
 test("parseUi rejects stale screen-era and control fields", () => {
   assert.throws(
     () => parseUi({

@@ -1,4 +1,4 @@
-import { resolveResourceURI } from "@cam/core"
+import { CAM_CONTRACT_NAMESPACE_PREFIX, resolveResourceURI } from "@cam/core"
 import { createStringMap } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
 import { isAddress } from "viem"
@@ -48,14 +48,13 @@ function contractNamespaces(cam: CamDocument) {
       return []
     }
 
-    const prefix = "contracts."
-    if (!namespace.startsWith(prefix) || namespace.length === prefix.length) {
+    if (!namespace.startsWith(CAM_CONTRACT_NAMESPACE_PREFIX) || namespace.length === CAM_CONTRACT_NAMESPACE_PREFIX.length) {
       throw new CamEvmError("CAM_CONTRACT_INVALID", `CAM contract namespace is invalid: ${namespace}`)
     }
 
     // Runtime maps resolved contracts by full namespace, but CamRoot stores the
     // bare onchain name because Solidity does not know the CAM namespace tree.
-    return [[namespace, namespace.slice(prefix.length), declaration] as const]
+    return [[namespace, namespace.slice(CAM_CONTRACT_NAMESPACE_PREFIX.length), declaration] as const]
   })
 }
 

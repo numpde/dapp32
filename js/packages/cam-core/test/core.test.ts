@@ -173,3 +173,65 @@ test("parseCam rejects route invocations with invalid namespace kinds", () => {
     (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
   )
 })
+
+test("parseCam enforces canonical namespace names and route kinds", () => {
+  const namespaces = mainJson.namespaces as Record<string, unknown>
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      namespaces: {
+        ...namespaces,
+        screens: {
+          type: "ui",
+          uri: "./ui.json",
+          integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+        },
+      },
+    }),
+    /ui namespace must be named ui/,
+  )
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      namespaces: {
+        ...namespaces,
+        Manager: {
+          type: "contract",
+          abiURI: "./abi/Manager.json",
+          integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+        },
+      },
+    }),
+    /contract namespace must be contracts\.<name>/,
+  )
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      routes: {
+        ...mainJson.routes,
+        entry: {
+          ...mainJson.routes.entry,
+          kind: "write",
+        },
+      },
+    }),
+    /invalid ui namespace/,
+  )
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      routes: {
+        ...mainJson.routes,
+        registerComponent: {
+          ...mainJson.routes.registerComponent,
+          kind: "read",
+        },
+      },
+    }),
+    /invalid routes namespace/,
+  )
+})

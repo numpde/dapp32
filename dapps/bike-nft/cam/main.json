@@ -23,6 +23,7 @@
   },
   "routes": {
     "entry": {
+      "kind": "read",
       "inputs": [],
       "call": {
         "namespace": "contracts.BicycleComponentManagerUI",
@@ -40,6 +41,7 @@
       }
     },
     "component": {
+      "kind": "read",
       "inputs": ["serialNumber"],
       "call": {
         "namespace": "contracts.BicycleComponentManagerUI",
@@ -58,6 +60,7 @@
       }
     },
     "register": {
+      "kind": "read",
       "inputs": ["serialNumber"],
       "call": {
         "namespace": "contracts.BicycleComponentManagerUI",
@@ -76,6 +79,7 @@
       }
     },
     "registerComponent": {
+      "kind": "write",
       "inputs": ["serialNumber", "tokenURI"],
       "call": {
         "namespace": "contracts.BicycleComponentManager",
@@ -95,6 +99,7 @@
       }
     },
     "updateComponentMetadata": {
+      "kind": "write",
       "inputs": ["serialNumber", "tokenURI"],
       "call": {
         "namespace": "contracts.BicycleComponentManager",
@@ -113,6 +118,7 @@
       }
     },
     "markComponentMissing": {
+      "kind": "write",
       "inputs": ["serialNumber"],
       "call": {
         "namespace": "contracts.BicycleComponentManager",
@@ -130,6 +136,7 @@
       }
     },
     "clearComponentMissing": {
+      "kind": "write",
       "inputs": ["serialNumber"],
       "call": {
         "namespace": "contracts.BicycleComponentManager",
@@ -147,6 +154,7 @@
       }
     },
     "retireComponent": {
+      "kind": "write",
       "inputs": ["serialNumber"],
       "call": {
         "namespace": "contracts.BicycleComponentManager",
