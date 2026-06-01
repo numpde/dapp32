@@ -105,6 +105,15 @@ Keep the project small, explicit, and protocol-first.
 - CAM manifest `integrity` fields are derived from local ABI/UI resource bytes.
   Refresh them with `make cam-integrity`; `make abi` runs that refresh after
   exporting generated ABIs.
+- CAM integrity refresh may rewrite only explicit
+  `dapps/<name>/cam/main.json` bind mounts. Keep the broader `dapps/` mount
+  read-only, and let rendered Compose checks fail when a new CAM dapp needs an
+  explicit manifest output.
+- Shared browser/tool resource boundaries, such as HTTP(S) URL validation,
+  origin validation, and bounded response reads, belong in `@cam/protocol`.
+  EVM-specific address and `eip155:*` chain helpers belong in `@cam/evm-viem`.
+  Do not reimplement these ad hoc in apps or tools unless the semantics are
+  deliberately different and locally documented.
 
 ## Dapp Layout
 

@@ -2,8 +2,9 @@
 #
 # These services update derived CAM metadata, not source contracts or package
 # dependencies. They run offline and mount only the manifest files that may be
-# rewritten; referenced ABI/UI resources are read through the read-only dapps
-# mount.
+# rewritten. Each writable manifest is listed explicitly below so adding a new
+# CAM dapp requires an auditable mount change instead of a broad writable dapps
+# tree. Referenced ABI/UI resources are read through the read-only dapps mount.
 services:
   cam-integrity:
     build:
