@@ -15,7 +15,7 @@ ARGPARSE_CALL_NAMES = {"add_argument"}
 
 
 def python_files() -> list[Path]:
-    return repo_files(("*.py", "containers/**/*.py", "tools/**/*.py", "tests/**/*.py"))
+    return repo_files(("**/*.py",))
 
 
 def is_env_mapping(node: ast.AST) -> bool:
@@ -370,6 +370,13 @@ class PythonSilentDefaultsTest(unittest.TestCase):
         self.assertFalse(python_source_has_default('try:\n    run()\nexcept Exception as exc:\n    raise RuntimeError("failed") from exc'))
         self.assertFalse(python_source_has_default('optional = env["OPTIONAL"] if "OPTIONAL" in env else ""'))
         self.assertFalse(python_source_has_default('optional = env["OPTIONAL"] if "OPTIONAL" in env else None'))
+
+    def test_python_file_scan_is_repository_wide(self) -> None:
+        scanned = {path.relative_to(ROOT).as_posix() for path in python_files()}
+
+        self.assertIn("tools/cam_resource_integrity.py", scanned)
+        self.assertIn("containers/rpc-proxy/rpc_proxy.py", scanned)
+        self.assertIn("tests/checks/cam_manifest_resources.py", scanned)
 
     def test_python_files_do_not_default_operator_inputs(self) -> None:
         findings: list[str] = []
