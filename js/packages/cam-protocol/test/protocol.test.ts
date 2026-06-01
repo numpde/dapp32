@@ -113,4 +113,24 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
     () => readBoundedResponseBytes(new Response("abcd"), "https://example.test/x", 3),
     /too large/,
   )
+
+  await assert.rejects(
+    () => readBoundedResponseBytes({
+      body: {
+        getReader() {
+          return {
+            async read() {
+              return { done: false }
+            },
+          }
+        },
+      },
+      headers: {
+        get() {
+          return null
+        },
+      },
+    }, "https://example.test/x"),
+    /empty chunk/,
+  )
 })

@@ -95,7 +95,9 @@ export async function readBoundedResponseBytes(
       if (chunk.done) break
 
       const value = chunk.value
-      if (value === undefined) continue
+      if (value === undefined) {
+        throw new Error(`CAM resource stream returned an empty chunk: ${uri}`)
+      }
 
       byteLength += value.byteLength
       if (byteLength > maxBytes) {
