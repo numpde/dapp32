@@ -5,11 +5,13 @@ import {
   BIKE_MANAGER_ABI_URI,
   BIKE_UI_ABI_URI,
   BIKE_UI_URI,
+} from "./bike.mts"
+import {
   bikeCamJson,
   bikeManagerAbi,
   bikeUiJson,
   bikeUiAbi,
-} from "./bike.mts"
+} from "./bike-resources.mts"
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 

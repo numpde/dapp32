@@ -27,9 +27,9 @@ import {
   BIKE_VIEW_ENTRY,
   bikeContractAddresses,
   bikeHost,
-  bikeManagerAbi,
   bikeRouteResults,
 } from "../../../../tests/fixtures/cam/bike.mts"
+import { bikeManagerAbi } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import {
   bikeResourceBytes,
   createMockCamPublicClient,

@@ -32,13 +32,15 @@ import {
   BIKE_UI_NAMESPACE,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
-  bikeCamJson as camJson,
   bikeContractAddresses,
   bikeHost,
-  bikeManagerAbi as managerAbiJson,
   bikeRouteResults,
-  bikeUiAbi as uiAbiJson,
 } from "../../../../tests/fixtures/cam/bike.mts"
+import {
+  bikeCamJson as camJson,
+  bikeManagerAbi as managerAbiJson,
+  bikeUiAbi as uiAbiJson,
+} from "../../../../tests/fixtures/cam/bike-resources.mts"
 import {
   createMockCamPublicClient,
   createMockResourceLoader as createResourceLoader,

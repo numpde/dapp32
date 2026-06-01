@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs"
-
 export const BIKE_HOST_CHAIN_ID = "eip155:31337"
 export const BIKE_HOST_ADDRESS = "0x0000000000000000000000000000000000000001"
 export const BIKE_ACCOUNT_ADDRESS = "0x0000000000000000000000000000000000000002"
@@ -45,28 +43,6 @@ export const bikeContractAddresses = {
   [BIKE_UI_CONTRACT]: BIKE_UI_ADDRESS,
   [BIKE_MANAGER_CONTRACT]: BIKE_MANAGER_ADDRESS,
 } as const
-
-type JsonObject = Record<string, unknown>
-type BikeInvocationFixture = {
-  readonly namespace: string
-  readonly function: string
-  readonly args: Record<string, unknown>
-}
-type BikeRouteFixture = {
-  readonly inputs: readonly string[]
-  readonly call: BikeInvocationFixture
-  readonly then: BikeInvocationFixture
-}
-type BikeCamFixture = JsonObject & {
-  readonly routes: Record<string, BikeRouteFixture> & {
-    readonly entry: BikeRouteFixture
-  }
-}
-
-export const bikeCamJson = readBikeCamJson("main.json") as BikeCamFixture
-export const bikeUiAbi = readBikeCamJson("abi/BicycleComponentManagerUI.json") as readonly JsonObject[]
-export const bikeManagerAbi = readBikeCamJson("abi/BicycleComponentManager.json") as readonly JsonObject[]
-export const bikeUiJson = readBikeCamJson("ui.json") as JsonObject
 
 export function bikeAddressForContract(name: string): string {
   if (!Object.hasOwn(bikeContractAddresses, name)) {
@@ -190,11 +166,4 @@ export function bikeRegisterRouteResult(serialNumber: string): readonly unknown[
 
 function bikeResourceURI(relativeURI: string): string {
   return new URL(relativeURI, BIKE_CAM_URI).href
-}
-
-function readBikeCamJson(relativePath: string): unknown {
-  // Fixture tests exercise the checked-in CAM resources, not hand-copied
-  // approximations. That keeps protocol tests aligned with the dapp manifest.
-  const url = new URL(`../../../dapps/bike-nft/cam/${relativePath}`, import.meta.url)
-  return JSON.parse(readFileSync(url, "utf8"))
 }

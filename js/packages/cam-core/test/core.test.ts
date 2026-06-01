@@ -17,8 +17,8 @@ import {
   BIKE_SERIAL_NUMBER,
   BIKE_UI_NAMESPACE,
   BIKE_VIEW_COMPONENT,
-  bikeCamJson as mainJson,
 } from "../../../../tests/fixtures/cam/bike.mts"
+import { bikeCamJson as mainJson } from "../../../../tests/fixtures/cam/bike-resources.mts"
 
 test("resolves a CAM route into a plain call descriptor", () => {
   const cam = parseCam(mainJson)
