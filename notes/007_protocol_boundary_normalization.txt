@@ -1,0 +1,451 @@
+Protocol boundary normalization
+Date: 2026-06-01
+
+Problem
+-------
+
+The bigint/status bug was not really about bigint.
+
+It was a boundary-representation bug:
+
+    Solidity ABI type: uint8
+    adapter expectation: bigint
+    real local path: number
+    CAM protocol value: inert decimal string
+
+The protocol type was stable. The runtime representation was not. The adapter
+trusted one decoded JavaScript shape instead of treating the ABI as the source
+of truth.
+
+This is the general failure mode:
+
+    External values cross a runtime/trust boundary before they have been
+    normalized by the declared schema that owns them.
+
+For CAM this can happen at several boundaries:
+
+    JSON bytes -> CAM document
+    JSON bytes -> UI document
+    JSON bytes -> ABI resource
+    CAM values -> ABI call inputs
+    RPC decoded values -> CAM route outputs
+    route outputs -> UI arguments
+    UI actions -> prepared contract calls
+    prepared calls -> wallet/simulation/send requests
+
+The rule should be simple:
+
+    Decoder-shaped, runtime-shaped, or library-shaped values must not leak
+    across package boundaries. Boundary packages normalize them immediately
+    into the narrow protocol shape used by the next layer.
+
+
+Core invariant
+--------------
+
+The invariant to enforce is:
+
+    Every boundary value is accepted or rejected by the schema that declares
+    it, then converted into the next layer's canonical representation.
+
+That means:
+
+1. CAM JSON is normalized by the CAM schema.
+2. UI JSON is normalized by the UI schema.
+3. ABI JSON is normalized by ABI resource validation.
+4. Contract call inputs are normalized by ABI input parameters.
+5. Contract call outputs are normalized by ABI output parameters.
+6. Viewer and renderer packages receive only inert CAM values.
+7. Wallet/simulation/send packages receive only ABI-normalized values.
+
+The source of truth must be explicit:
+
+    CAM document shape     -> @cam/core
+    UI document shape      -> @cam/screen
+    JSON/inert value shape -> @cam/protocol
+    ABI resource shape     -> @cam/evm-viem
+    ABI inputs             -> ABI function inputs
+    ABI outputs            -> ABI function outputs
+    route execution        -> route.kind plus route.call
+    write execution        -> write route ABI plus explicit chain/wallet policy
+
+
+Canonical representations
+-------------------------
+
+Past the EVM adapter, CAM values should be inert:
+
+    null
+    boolean
+    string
+    readonly inert arrays
+    readonly inert records
+
+The following must not cross into CAM core, screen, viewer snapshots, or web UI
+props as live protocol data:
+
+    bigint
+    undefined
+    Date
+    Map
+    Set
+    functions
+    class instances
+    mutable decoder objects
+    viem-specific result objects
+    tuple proxy shapes
+
+ABI integer outputs should become decimal strings. This avoids JavaScript
+number precision issues and keeps all integer-sized EVM values serializable.
+
+ABI bytes and addresses should become normalized strings after strict shape
+checks. Booleans should remain booleans. Tuples should become inert records
+whose keys are declared ABI component names. Arrays should become inert arrays
+only when the ABI declares an array.
+
+
+Implementation checklist
+------------------------
+
+1. Name each boundary.
+
+   For every public function that accepts data from outside its package, answer:
+
+       What boundary is this?
+       What schema owns the value?
+       What representation is accepted?
+       What representation is returned?
+       What errors are possible?
+
+   If those answers are not clear, the function is probably doing too much or
+   accepting values too late.
+
+2. Keep normalization close to the boundary.
+
+   Normalize immediately after:
+
+       JSON.parse
+       resource load
+       ABI parse
+       readContract
+       simulateContract
+       wallet send result
+       user/env/URL input
+
+   Do not pass raw external values through two or three layers and normalize
+   later. Late normalization creates ambiguous ownership and poorer errors.
+
+3. Use declared schema, not runtime appearance.
+
+   Bad:
+
+       if Array.isArray(raw) then treat it as many return values
+
+   Better:
+
+       if ABI declares one output, raw is that one output
+       if ABI declares N outputs, raw must be an N-item return tuple
+
+   Bad:
+
+       expect every ABI integer output to be bigint
+
+   Better:
+
+       if ABI declares an integer, accept only the decoded integer shapes the
+       adapter explicitly supports, range-check against the ABI width, then emit
+       the canonical CAM integer string.
+
+4. Centralize ABI value normalization.
+
+   @cam/evm-viem should have one boring normalization path for ABI inputs and
+   one boring normalization path for ABI outputs:
+
+       CAM inert input -> ABI runtime input
+       RPC decoded output -> CAM inert output
+
+   Route calls, write preparation, simulation, and tests should use the same
+   helpers instead of each path performing ad hoc checks.
+
+5. Reject unsupported ABI features early.
+
+   If the adapter does not intentionally support a shape, reject it while
+   loading ABI resources or preparing the route, not after a user clicks.
+
+   Examples:
+
+       fixed-size arrays
+       nested arrays
+       unnamed tuple components
+       overloaded route functions
+       payable writes without an explicit value model
+       invalid bytesN sizes
+       unsupported integer widths
+
+   "Unsupported" is acceptable. Silent partial support is not.
+
+6. Keep route output normalization ABI-output-count aware.
+
+   The output count decides whether raw output is a scalar or a tuple.
+
+   This prevents a single Solidity return value of type T[] from being mistaken
+   for multiple function outputs.
+
+7. Normalize tuples by ABI component names.
+
+   viem can expose tuple outputs in object-like or array-like forms. The ABI
+   component list should decide the final CAM record:
+
+       component name -> normalized component value
+
+   Missing tuple components are failures. Unnamed tuple components are failures
+   for CAM-facing outputs because the UI cannot bind them reviewably.
+
+8. Normalize integers to strings after range checks.
+
+   Accept only explicit decoded integer shapes:
+
+       bigint
+       safe integer number, when needed for real local/client paths
+
+   Reject:
+
+       unsafe numbers
+       decimals
+       strings as decoded RPC integer outputs, unless a deliberate adapter
+       policy later accepts them
+
+   Then range-check by ABI width and signedness.
+
+9. Preserve provenance in error paths.
+
+   Errors should include enough path information to locate the schema edge:
+
+       route.entry.0.status
+       routes.registerComponent.args.serialNumber
+       namespaces.contracts.BicycleComponentManager.abi.outputs.0
+       ui.nodes.component.children.3.props.value
+
+   Do not collapse boundary failures into "invalid value".
+
+10. Do not expose decoder-shaped values in viewer snapshots.
+
+    Snapshot state is consumed by renderers and agents. It should contain only
+    inert values and stable typed descriptors. It should not expose mutable
+    arrays, raw viem return objects, bigint values, or live contract-call
+    internals.
+
+11. Treat fixture values as suspects.
+
+    Mocks are useful, but they can encode the wrong runtime shape. Fixture
+    values must either:
+
+        match real client shapes, or
+        intentionally test alternate accepted shapes.
+
+    A mock that only reflects what the code currently expects is false
+    confidence.
+
+
+Enforcement checklist
+---------------------
+
+1. Unit-test each boundary normalizer.
+
+   ABI input tests:
+
+       address accepts valid address strings and rejects invalid strings
+       uint accepts decimal integer strings and rejects unsafe numbers
+       bytes accepts whole-byte hex only
+       bytesN enforces exact byte length
+       tuple args require declared component names
+       arrays are accepted only where supported
+
+   ABI output tests:
+
+       uint8 accepts bigint and safe number, emits decimal string
+       uint256 rejects unsafe number
+       intN range-checks signed bounds
+       address rejects malformed strings
+       bytes32 rejects wrong length
+       bool rejects truthy/falsy non-booleans
+       tuple accepts object-like decoded values
+       tuple accepts array-like decoded values
+       tuple rejects missing components
+       single array output is one output, not many outputs
+
+2. Add negative tests for every unsupported feature.
+
+   Unsupported ABI features should have tests that prove they fail early and
+   with the right error code/message.
+
+3. Keep real-RPC integration fuzzing.
+
+   The integration fuzz lane must continue to exercise:
+
+       real Anvil deployment
+       real viem public client
+       real ABI decoding
+       real CAM resource loading
+       real route continuations
+       real UI resolution
+
+   This is the layer that catches representation drift between mocks and real
+   client behavior.
+
+4. Make write fuzzing strict for presented actions.
+
+   For production-like CAM validation, a write action that is presented by the
+   current UI should not be allowed to simulate-revert silently.
+
+   The strict invariant should be:
+
+       if an action is visible/resolved, preparation must succeed
+       if it targets a write route, simulation must succeed
+       if write mode is enabled, the transaction receipt must succeed
+       after success, the declared continuation must load and resolve
+
+   A rejected simulation can be logged as diagnostic data, but in a deployment
+   validation lane it should fail unless the workflow explicitly marks it as a
+   negative test case.
+
+5. Add a boundary-leak source check.
+
+   A Python check can make representation drift physically harder by forbidding
+   runtime-only types in public protocol layers.
+
+   Example policy:
+
+       bigint allowed:
+         js/packages/cam-evm-viem/src/arguments.ts
+         js/packages/cam-evm-viem/src/routes.ts
+         package tests that exercise normalization
+
+       bigint forbidden:
+         js/packages/cam-core/src
+         js/packages/cam-screen/src
+         js/packages/cam-viewer/src/types.ts
+         js/apps/cam-web/src/components.tsx
+
+   Similar checks can forbid:
+
+       unknown in public result types where InertValue should be used
+       any in protocol packages except tightly reviewed adapter shims
+       URL/env parsing duplicated outside shared boundary helpers
+       JSON.parse without immediate parse/validation helper use
+
+6. Add manifest/resource conformance checks.
+
+   For every dapps/*/cam/main.json:
+
+       load CAM structurally
+       load pinned ABI resources
+       validate route call namespace and function
+       validate route input names against ABI input names
+       validate route output ABI shapes are supported
+       validate route continuations can reference declared outputs
+       load UI resources
+       validate UI nodes and action calls
+       validate UI expressions against the receiving node interface
+
+   Static checks do not replace integration tests, but they catch cheap errors
+   before booting Anvil.
+
+7. Keep screen/viewer values inert.
+
+   Tests should assert that resolved UI trees and viewer snapshots can be
+   passed through the inert-value validator without change.
+
+   This prevents subtle leaks of bigint, undefined, mutable decoder tuples, or
+   app-specific objects into renderer-facing state.
+
+8. Exercise both fixture and real shapes.
+
+   For every bug caused by representation drift, add:
+
+       a focused unit test for the alternate shape
+       an integration assertion that the real path reaches that shape
+
+   The unit test protects the exact rule. The integration test protects the
+   assumption about the real client boundary.
+
+9. Fail closed on local validator uncertainty.
+
+   A validator helper should not skip malformed prerequisite state and hope a
+   sibling test catches it. If a local function needs a valid CAM, ABI, UI, or
+   descriptor shape to reason correctly, malformed prerequisite state should be
+   a local failure unless the caller has already passed a typed parsed object.
+
+10. Keep operator policy explicit.
+
+    Boundary validation depends on runtime policy too:
+
+        chain id must be asserted against RPC
+        unsigned CAM hash policy must be operator-controlled
+        local fixture private keys must be obviously non-secret
+        resource origins must be bounded
+        maximum resource sizes must be enforced
+
+    These are not UI details. They determine whether the normalized values came
+    from the intended app and chain.
+
+
+Code review checklist
+---------------------
+
+When reviewing a CAM protocol change, ask:
+
+1. What boundary does this touch?
+2. What schema owns the value at that boundary?
+3. Is the value normalized immediately?
+4. Is the normalized representation documented by type?
+5. Can unsupported shapes fail earlier?
+6. Does the error include a useful path?
+7. Are mocks using real boundary shapes or intentionally alternate shapes?
+8. Does a real-RPC test exercise the same path?
+9. Could a renderer or agent observe a raw runtime/library value?
+10. Could a visible action prepare or simulate differently than the UI implies?
+11. Does this add a second parser/checker for the same protocol rule?
+12. Does this make a silent local default look like production policy?
+
+If the answer to any of these is unclear, stop and tighten the boundary before
+adding more surface area.
+
+
+First implementation slice
+--------------------------
+
+The first practical slice should be small and enforceable:
+
+1. Audit @cam/evm-viem ABI normalization.
+2. Ensure one route-output normalizer owns all ABI output handling.
+3. Add focused tests for integer, bytes, tuple, and single-array output shapes.
+4. Make the write-enabled integration fuzz lane fail on presented write actions
+   whose simulation rejects.
+5. Add a source check that prevents bigint from leaking into CAM core, screen,
+   viewer snapshot types, or web renderer props.
+6. Re-run:
+
+       make checks
+       make package-test
+       make test-integration-fuzz-bike-nft
+       make test-integration-fuzz-with-writes-bike-nft
+
+Only after that should we broaden static resource conformance or browser E2E.
+
+
+Long-term target
+----------------
+
+The long-term shape should be:
+
+    external bytes/value
+        -> parse by owning schema
+        -> normalize to package boundary type
+        -> reject unsupported shapes early
+        -> pass inert/protocol values onward
+        -> test with both adversarial fixtures and real runtime paths
+
+That is how CAM stays protocol-first. The viewer can be generic, renderers can
+remain untrusted, and agents can consume the same app surface without depending
+on accidental JavaScript, viem, browser, or fixture representations.
