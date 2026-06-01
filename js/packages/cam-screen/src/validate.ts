@@ -15,7 +15,7 @@ const UI_TOP_LEVEL_KEYS = new Set(["ui"])
 const NAMED_NODE_KEYS = new Set(["requires", "tag", "props", "children", "call"])
 const INLINE_NODE_KEYS = new Set(["tag", "props", "children", "call"])
 const CALL_KEYS = new Set(["namespace", "function", "args"])
-const SCREEN_KEYS = new Set(["tag", "props", "children"])
+const SCREEN_NODE_KEYS = new Set(["tag", "props", "children"])
 const FRAGMENT_KEYS = new Set(["tag", "children"])
 const PROPS_ONLY_KEYS = new Set(["tag", "props"])
 const INCLUDE_KEYS = new Set(["tag", "call"])
@@ -76,7 +76,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
 
   switch (tag) {
     case "Screen":
-      rejectUnexpectedNodeShape(source, SCREEN_KEYS, path)
+      rejectUnexpectedNodeShape(source, SCREEN_NODE_KEYS, path)
       return {
         tag,
         props: parseProps(source.props, `${path}.props`),
