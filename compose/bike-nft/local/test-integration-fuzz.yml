@@ -1,0 +1,95 @@
+# Bike NFT local wrapper for the generic CAM integration-fuzz runner.
+#
+# Compose this with deploy.yml and http.yml. The wrapper reads Forge broadcast
+# output from the local deployment volume, writes a temporary generic descriptor
+# in container tmpfs, then runs the dapp-independent integration-fuzz tool.
+
+services:
+  test-integration-fuzz-bike-nft:
+    build:
+      context: ../../../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /work
+    depends_on:
+      deploy-bike-nft-local:
+        condition: service_completed_successfully
+      bike-nft-cam-http:
+        condition: service_healthy
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 384
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      npm_config_cache: /tmp/npm-cache
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+      CAM_INTEGRATION_DESCRIPTOR_PATH: /tmp/cam-integration/descriptor.json
+      CAM_INTEGRATION_SEED: "${CAM_INTEGRATION_SEED:?missing_CAM_INTEGRATION_SEED}"
+      CAM_INTEGRATION_RUNS: "${CAM_INTEGRATION_RUNS:?missing_CAM_INTEGRATION_RUNS}"
+      CAM_INTEGRATION_STEPS: "${CAM_INTEGRATION_STEPS:?missing_CAM_INTEGRATION_STEPS}"
+      CAM_INTEGRATION_CHAIN_ID: "eip155:31337"
+      CAM_INTEGRATION_RPC_URL: http://bike-nft-anvil:8545
+      CAM_INTEGRATION_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
+      CAM_INTEGRATION_ALLOW_UNSIGNED_CAM_HASH: "true"
+      # Address derived from the obvious local-only 0xbaba... fixture key in
+      # deploy.yml. It is the local scenario account, not an operator secret.
+      CAM_INTEGRATION_ACCOUNT: "0xfe7854bc8ca79fbe9dc94dfdaf8c10e5c6decab7"
+      CAM_INTEGRATION_BROADCAST_PATH: "${BIKE_NFT_BROADCAST_PATH:?missing_BIKE_NFT_BROADCAST_PATH}"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+      - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
+    volumes:
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+      - "bike_nft_broadcast:${BIKE_NFT_BROADCAST_DIR:?missing_BIKE_NFT_BROADCAST_DIR}:ro"
+    networks:
+      - bike_nft_local
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/cam-integration-fuzz/tsconfig.json
+        mkdir -p /tmp/cam-integration
+        node --input-type=module <<'JS'
+        import { readFileSync, writeFileSync } from "node:fs"
+
+        const broadcast = JSON.parse(readFileSync(process.env.CAM_INTEGRATION_BROADCAST_PATH, "utf8"))
+        if (!Array.isArray(broadcast.transactions)) {
+          throw new Error("Forge broadcast output must contain a transactions array")
+        }
+
+        const tx = broadcast.transactions.find((item) => (
+          item !== null
+          && typeof item === "object"
+          && item.contractName === "CamRoot"
+        ))
+        const camHost = tx?.contractAddress
+        const isHexAddress = typeof camHost === "string"
+          && camHost.length === 42
+          && camHost.startsWith("0x")
+          && [...camHost.slice(2)].every((char) => /[0-9a-fA-F]/.test(char))
+        if (!isHexAddress) {
+          throw new Error("CamRoot contractAddress not found in Forge broadcast output")
+        }
+
+        const descriptor = {
+          camIntegration: "1.0.0",
+          chainId: process.env.CAM_INTEGRATION_CHAIN_ID,
+          rpcUrl: process.env.CAM_INTEGRATION_RPC_URL,
+          camHost,
+          resourceOrigin: process.env.CAM_INTEGRATION_RESOURCE_ORIGIN,
+          accounts: [process.env.CAM_INTEGRATION_ACCOUNT],
+          allowUnsignedCamHash: process.env.CAM_INTEGRATION_ALLOW_UNSIGNED_CAM_HASH === "true",
+        }
+        writeFileSync(process.env.CAM_INTEGRATION_DESCRIPTOR_PATH, JSON.stringify(descriptor, null, 2) + "\n")
+        JS
+        node --experimental-strip-types tools/cam-integration-fuzz/runner.ts

@@ -39,6 +39,11 @@ BIKE_NFT_VIEWER_GUI_COMPOSE = (
     "compose/bike-nft/local/http.yml",
     "compose/bike-nft/local/viewer-gui.yml",
 )
+BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE = (
+    "compose/bike-nft/local/deploy.yml",
+    "compose/bike-nft/local/http.yml",
+    "compose/bike-nft/local/test-integration-fuzz.yml",
+)
 
 
 def standalone_bike_fixture_env() -> dict[str, str]:
@@ -64,6 +69,25 @@ def mock_viewer_env() -> dict[str, str]:
     return {
         "CAM_VIEWER_MOCK": "bike-nft",
         "VIEWER_TERMINAL_CONTAINER_NAME": VIEWER_TERMINAL_CONTAINER_NAME,
+    }
+
+
+def integration_fuzz_env() -> dict[str, str]:
+    return {
+        "CAM_INTEGRATION_DESCRIPTOR_HOST_PATH": "/tmp/cam-integration.json",
+        "CAM_INTEGRATION_NETWORK": "dapps-test-network",
+        "CAM_INTEGRATION_SEED": "test-seed",
+        "CAM_INTEGRATION_RUNS": "1",
+        "CAM_INTEGRATION_STEPS": "16",
+    }
+
+
+def bike_integration_fuzz_env() -> dict[str, str]:
+    return {
+        **bike_viewer_fixture_env(),
+        "CAM_INTEGRATION_SEED": "test-seed",
+        "CAM_INTEGRATION_RUNS": "1",
+        "CAM_INTEGRATION_STEPS": "16",
     }
 
 
@@ -292,7 +316,9 @@ class RenderedComposePostureTest(unittest.TestCase):
             "compose/anvil.yml",
             "compose/bike-nft/local/deploy.yml",
             "compose/bike-nft/local/http.yml",
+            "compose/test/integration-fuzz.yml",
             BIKE_NFT_VIEWER_TERMINAL_COMPOSE,
+            BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE,
             "compose/cam.yml",
             "compose/cast.yml",
             "compose/checks.yml",
@@ -308,7 +334,9 @@ class RenderedComposePostureTest(unittest.TestCase):
                 env={
                     "PACKAGE_INPUT_DIR": "/tmp/package-input",
                     "RPC_URL_FILE": "/tmp/rpc-url",
+                    **integration_fuzz_env(),
                     **bike_viewer_fixture_env(),
+                    **bike_integration_fuzz_env(),
                     **mock_viewer_env(),
                 },
             )
@@ -386,6 +414,56 @@ class RenderedComposePostureTest(unittest.TestCase):
         command = compose_command_text(viewer)
         self.assertIn("npm run build:workspace", command)
         self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", command)
+
+    def test_integration_fuzz_lanes_are_hardened_and_dapp_scoped(self) -> None:
+        generic_config = rendered_compose_config(
+            "compose/test/integration-fuzz.yml",
+            env=integration_fuzz_env(),
+        )
+        generic = compose_service(generic_config, "test-integration-fuzz")
+
+        self.assert_hardened(generic)
+        self.assert_no_published_ports(generic)
+        self.assert_staged_package_workspace(generic)
+        self.assert_no_volume_target(generic, "/work/dapps")
+        self.assert_read_only_volumes(generic, "/tmp/cam-integration.json")
+        self.assertEqual(
+            {"cam_integration": None},
+            generic["networks"],
+        )
+        self.assertEqual("dapps-test-network", generic_config["networks"]["cam_integration"]["name"])
+        self.assertTrue(generic_config["networks"]["cam_integration"]["external"])
+        command = compose_command_text(generic)
+        self.assertIn("tsc -p tools/cam-integration-fuzz/tsconfig.json", command)
+        self.assertIn("node --experimental-strip-types tools/cam-integration-fuzz/runner.ts", command)
+
+        bike_config = rendered_compose_config(
+            BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE,
+            env=bike_integration_fuzz_env(),
+        )
+        deploy = compose_service(bike_config, "deploy-bike-nft-local")
+        cam_http = compose_service(bike_config, "bike-nft-cam-http")
+        bike = compose_service(bike_config, "test-integration-fuzz-bike-nft")
+
+        self.assert_hardened(bike)
+        self.assert_no_published_ports(bike, deploy, cam_http)
+        self.assert_internal_network(bike_config, "bike_nft_local", bike, deploy, cam_http)
+        self.assertEqual("service_completed_successfully", bike["depends_on"]["deploy-bike-nft-local"]["condition"])
+        self.assertEqual("service_healthy", bike["depends_on"]["bike-nft-cam-http"]["condition"])
+        self.assert_staged_package_workspace(bike)
+        self.assert_no_volume_target(bike, "/work/dapps")
+        self.assert_read_only_volumes(bike, BIKE_NFT_BROADCAST_DIR)
+        self.assert_bike_broadcast_volume_shared(bike_config, deploy, bike)
+
+        environment = compose_mapping(bike, "environment")
+        self.assertEqual("eip155:31337", environment["CAM_INTEGRATION_CHAIN_ID"])
+        self.assertEqual("http://bike-nft-anvil:8545", environment["CAM_INTEGRATION_RPC_URL"])
+        self.assertEqual(BIKE_CAM_HTTP_ORIGIN, environment["CAM_INTEGRATION_RESOURCE_ORIGIN"])
+        self.assertEqual("true", environment["CAM_INTEGRATION_ALLOW_UNSIGNED_CAM_HASH"])
+        self.assertNotIn("PRIVATE_KEY", environment)
+        bike_command = compose_command_text(bike)
+        self.assertIn("node --input-type=module", bike_command)
+        self.assertIn("tools/cam-integration-fuzz/runner.ts", bike_command)
 
     def test_bike_nft_local_gui_viewer_is_gatewayed_and_read_only(self) -> None:
         config = rendered_compose_config(

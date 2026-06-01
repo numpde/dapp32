@@ -1,0 +1,54 @@
+# Generic CAM integration-fuzz runner.
+#
+# This service runs the dapp-independent CAM random-walk/conformance runner
+# against an already-deployed CAM host. The caller supplies a descriptor file
+# and the Docker network where the descriptor's rpcUrl/resourceOrigin are
+# reachable. Dapp-specific deployment remains outside this file.
+
+services:
+  test-integration-fuzz:
+    build:
+      context: ../../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /work
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 384
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      npm_config_cache: /tmp/npm-cache
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+      CAM_INTEGRATION_DESCRIPTOR_PATH: /tmp/cam-integration.json
+      CAM_INTEGRATION_SEED: "${CAM_INTEGRATION_SEED:?missing_CAM_INTEGRATION_SEED}"
+      CAM_INTEGRATION_RUNS: "${CAM_INTEGRATION_RUNS:?missing_CAM_INTEGRATION_RUNS}"
+      CAM_INTEGRATION_STEPS: "${CAM_INTEGRATION_STEPS:?missing_CAM_INTEGRATION_STEPS}"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+      - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
+    volumes:
+      - ../../js:/input/js:ro
+      - ../../js/node_modules:/work/js/node_modules:ro
+      - "${CAM_INTEGRATION_DESCRIPTOR_HOST_PATH:?missing_CAM_INTEGRATION_DESCRIPTOR_HOST_PATH}:/tmp/cam-integration.json:ro"
+    networks:
+      - cam_integration
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/cam-integration-fuzz/tsconfig.json
+        node --experimental-strip-types tools/cam-integration-fuzz/runner.ts
+
+networks:
+  cam_integration:
+    name: "${CAM_INTEGRATION_NETWORK:?missing_CAM_INTEGRATION_NETWORK}"
+    external: true
