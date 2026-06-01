@@ -99,6 +99,71 @@ def validate_named_args(
     return failures
 
 
+def validate_output_references(
+    manifest_path: Path,
+    location: str,
+    output_count: int,
+    value: object,
+) -> list[str]:
+    failures: list[str] = []
+
+    for path, reference in output_references(location, value):
+        index = output_reference_index(reference)
+        if index is None:
+            failures.append(f"{manifest_path}: output expression must select a numbered output at {path}: {reference}")
+            continue
+        if index >= output_count:
+            failures.append(
+                f"{manifest_path}: output expression references output {index}, "
+                f"but ABI declares {output_count} output(s) at {path}"
+            )
+
+    return failures
+
+
+def output_references(path: str, value: object) -> list[tuple[str, str]]:
+    if isinstance(value, str):
+        if is_outputs_reference(value):
+            return [(path, value)]
+        return []
+
+    if isinstance(value, list):
+        references: list[tuple[str, str]] = []
+        for index, item in enumerate(value):
+            references.extend(output_references(f"{path}.{index}", item))
+        return references
+
+    if isinstance(value, dict):
+        references = []
+        for key, item in value.items():
+            references.extend(output_references(f"{path}.{key}", item))
+        return references
+
+    return []
+
+
+def is_outputs_reference(value: str) -> bool:
+    if value.startswith("$$"):
+        return False
+
+    return value == "$outputs" or value.startswith("$outputs.")
+
+
+def output_reference_index(reference: str) -> int | None:
+    if reference == "$outputs":
+        return None
+    if not reference.startswith("$outputs."):
+        return None
+
+    segment = reference.removeprefix("$outputs.").split(".", 1)[0]
+    if segment == "0":
+        return 0
+    if segment.startswith("0") or not segment.isdecimal():
+        return None
+
+    return int(segment)
+
+
 def validate_route_function_mutability(
     manifest_path: Path,
     route_path: str,

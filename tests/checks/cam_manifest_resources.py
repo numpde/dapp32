@@ -243,6 +243,14 @@ class CamManifestResourceValidator:
                     args,
                 )
             )
+            failures.extend(
+                abi_usage.validate_output_references(
+                    manifest_path,
+                    f"{path}.call.args",
+                    0,
+                    args,
+                )
+            )
 
             failures.extend(
                 self.validate_route_call_mutability(
@@ -254,6 +262,18 @@ class CamManifestResourceValidator:
                     function,
                 )
             )
+            then = route.get("then")
+            if isinstance(then, dict):
+                then_args = then.get("args")
+                if isinstance(then_args, dict):
+                    failures.extend(
+                        abi_usage.validate_output_references(
+                            manifest_path,
+                            f"{path}.then.args",
+                            len(function.outputs),
+                            then_args,
+                        )
+                    )
 
         return failures
 

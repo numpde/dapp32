@@ -231,6 +231,81 @@ class CamManifestResourceTest(unittest.TestCase):
             ],
         )
 
+    def test_route_continuation_output_references_must_match_declared_abi_outputs(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            abi_dir = manifest_path.parent / "abi"
+            abi_dir.mkdir(parents=True)
+            write_json(
+                abi_dir / "UI.json",
+                [
+                    {
+                        "type": "function",
+                        "name": "viewEntry",
+                        "stateMutability": "view",
+                        "inputs": [],
+                        "outputs": [{"name": "view", "type": "tuple", "components": []}],
+                    },
+                ],
+            )
+
+            failures = self.validator.validate_declared_abi_usage(
+                manifest_path,
+                {
+                    "namespaces": {
+                        "contracts.UI": {
+                            "type": "contract",
+                            "abiURI": "./abi/UI.json",
+                        },
+                    },
+                    "routes": {
+                        "entry": {
+                            "kind": "read",
+                            "call": {
+                                "namespace": "contracts.UI",
+                                "function": "viewEntry",
+                                "args": {},
+                            },
+                            "then": {
+                                "namespace": "ui",
+                                "function": "app",
+                                "args": {
+                                    "view": "$outputs.1",
+                                    "all": "$outputs",
+                                },
+                            },
+                        },
+                        "badCall": {
+                            "kind": "read",
+                            "call": {
+                                "namespace": "contracts.UI",
+                                "function": "viewEntry",
+                                "args": {
+                                    "view": "$outputs.0",
+                                },
+                            },
+                            "then": {
+                                "namespace": "ui",
+                                "function": "app",
+                                "args": {},
+                            },
+                        },
+                    },
+                },
+            )
+
+        self.assertEqual(
+            failures,
+            [
+                f"{manifest_path}: output expression references output 1, "
+                f"but ABI declares 1 output(s) at routes.entry.then.args.view",
+                f"{manifest_path}: output expression must select a numbered output at routes.entry.then.args.all: $outputs",
+                f"{manifest_path}: unexpected arg view for UI.viewEntry at routes.badCall.call",
+                f"{manifest_path}: output expression references output 0, "
+                f"but ABI declares 0 output(s) at routes.badCall.call.args.view",
+            ],
+        )
+
     def test_route_continuations_must_match_declared_targets(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
