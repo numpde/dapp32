@@ -25,7 +25,9 @@
           "call": {
             "namespace": "ui",
             "function": "$view.actions",
-            "args": {}
+            "args": {
+              "view": "$view"
+            }
           }
         }
       ]
@@ -283,7 +285,9 @@
       ]
     },
     "lookupComponent": {
-      "requires": [],
+      "requires": [
+        "view"
+      ],
       "tag": "Action",
       "props": {
         "label": "Look up component"
@@ -297,7 +301,9 @@
       }
     },
     "openRegister": {
-      "requires": [],
+      "requires": [
+        "view"
+      ],
       "tag": "Action",
       "props": {
         "label": "Register component"
@@ -311,7 +317,9 @@
       }
     },
     "registerComponent": {
-      "requires": [],
+      "requires": [
+        "view"
+      ],
       "tag": "Action",
       "props": {
         "label": "Prepare registration"
@@ -326,7 +334,9 @@
       }
     },
     "updateComponentMetadata": {
-      "requires": [],
+      "requires": [
+        "view"
+      ],
       "tag": "Action",
       "props": {
         "label": "Prepare metadata update"
@@ -335,13 +345,15 @@
         "namespace": "routes",
         "function": "updateComponentMetadata",
         "args": {
-          "serialNumber": "$form.serialNumber",
+          "serialNumber": "$view.serialNumber",
           "tokenURI": "$form.tokenURI"
         }
       }
     },
     "markComponentMissing": {
-      "requires": [],
+      "requires": [
+        "view"
+      ],
       "tag": "Action",
       "props": {
         "label": "Prepare missing report"
@@ -350,12 +362,14 @@
         "namespace": "routes",
         "function": "markComponentMissing",
         "args": {
-          "serialNumber": "$form.serialNumber"
+          "serialNumber": "$view.serialNumber"
         }
       }
     },
     "clearComponentMissing": {
-      "requires": [],
+      "requires": [
+        "view"
+      ],
       "tag": "Action",
       "props": {
         "label": "Prepare missing clear"
@@ -364,12 +378,14 @@
         "namespace": "routes",
         "function": "clearComponentMissing",
         "args": {
-          "serialNumber": "$form.serialNumber"
+          "serialNumber": "$view.serialNumber"
         }
       }
     },
     "retireComponent": {
-      "requires": [],
+      "requires": [
+        "view"
+      ],
       "tag": "Action",
       "props": {
         "label": "Prepare retirement"
@@ -378,7 +394,7 @@
         "namespace": "routes",
         "function": "retireComponent",
         "args": {
-          "serialNumber": "$form.serialNumber"
+          "serialNumber": "$view.serialNumber"
         }
       }
     }

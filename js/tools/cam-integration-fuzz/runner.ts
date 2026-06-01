@@ -71,6 +71,8 @@ type RunnerOptions = {
   readonly writeMode: WriteMode
 }
 
+type ValueGenerationMode = "broad" | "write-positive"
+
 type WriteMode =
   | { readonly kind: "simulate" }
   | {
@@ -114,6 +116,10 @@ async function main(): Promise<void> {
     transport: http(options.descriptor.rpcUrl),
   })
   const writeContext = createWriteContext(options, account)
+  // The local write lane is a positive validation gate: every presented write
+  // action must simulate and execute. The broad read-only lane keeps invalid
+  // strings in its corpus so negative simulations remain observable there.
+  const valueMode = options.writeMode.kind === "local-fixture" ? "write-positive" : "broad"
   const loadResource = httpResourceLoader(options.descriptor.resourceOrigin)
 
   emit({
@@ -169,7 +175,7 @@ async function main(): Promise<void> {
     host,
     account,
     allowUnsignedCamHash: options.descriptor.allowUnsignedCamHash,
-    initialInputs: generatedRouteInputs(loadedCam.cam.routes[loadedCam.cam.entry], account, prng),
+    initialInputs: generatedRouteInputs(loadedCam.cam.routes[loadedCam.cam.entry], account, prng, valueMode),
     loadResource,
   })
   const entry = await session.load()
@@ -190,6 +196,7 @@ async function main(): Promise<void> {
     host,
     account,
     prng,
+    valueMode,
   })
 
   for (let run = 0; run < options.runs; run++) {
@@ -202,6 +209,7 @@ async function main(): Promise<void> {
       receiptClient: fullPublicClient,
       writeContext,
       prng,
+      valueMode,
     })
   }
 
@@ -245,6 +253,7 @@ async function callEveryReadRoute({
   host,
   account,
   prng,
+  valueMode,
 }: {
   readonly cam: CamDocument
   readonly contracts: Parameters<typeof callCamRoute>[0]["contracts"]
@@ -252,10 +261,11 @@ async function callEveryReadRoute({
   readonly host: CamHost
   readonly account: Address
   readonly prng: Prng
+  readonly valueMode: ValueGenerationMode
 }): Promise<void> {
   for (const [routeName, route] of Object.entries(cam.routes)) {
     if (route.kind !== "read") continue
-    const inputs = generatedRouteInputs(route, account, prng)
+    const inputs = generatedRouteInputs(route, account, prng, valueMode)
 
     await callCamRoute({
       publicClient,
@@ -287,6 +297,7 @@ async function walkSession({
   receiptClient,
   writeContext,
   prng,
+  valueMode,
 }: {
   readonly run: number
   readonly steps: number
@@ -296,12 +307,13 @@ async function walkSession({
   readonly receiptClient: ReceiptClient
   readonly writeContext: WriteContext
   readonly prng: Prng
+  readonly valueMode: ValueGenerationMode
 }): Promise<void> {
   requireLoadedSnapshot(session.snapshot())
 
   for (let step = 0; step < steps; step++) {
     const before = requireLoadedSnapshot(session.snapshot())
-    const formPatch = generatedFormPatch(before, account, prng)
+    const formPatch = generatedFormPatch(before, account, prng, valueMode)
     const current = Object.keys(formPatch).length === 0
       ? before
       : session.updateForm(formPatch)
@@ -418,6 +430,9 @@ async function handlePreparedWrite({
       call: contractCallSummary(call),
       error: error.message,
     })
+    if (writeContext.kind === "local-fixture") {
+      throw new Error(`presented write action failed simulation: ${call.route}: ${error.message}`)
+    }
     return
   }
 
@@ -531,20 +546,30 @@ function contractCallSummary(call: CamViewerPreparedContractCall): JsonObject {
   }
 }
 
-function generatedRouteInputs(route: CamRoute | undefined, account: Address, prng: Prng): InertRecord {
+function generatedRouteInputs(
+  route: CamRoute | undefined,
+  account: Address,
+  prng: Prng,
+  mode: ValueGenerationMode,
+): InertRecord {
   if (route === undefined) {
     throw new Error("cannot generate inputs for missing route")
   }
 
   const inputs: Record<string, InertValue> = {}
   for (const name of route.inputs) {
-    inputs[name] = generatedNamedValue(name, account, prng)
+    inputs[name] = generatedNamedValue(name, account, prng, mode)
   }
 
   return toInertValue(inputs) as InertRecord
 }
 
-function generatedFormPatch(snapshot: CamViewerSnapshot, account: Address, prng: Prng): InertRecord {
+function generatedFormPatch(
+  snapshot: CamViewerSnapshot,
+  account: Address,
+  prng: Prng,
+  mode: ValueGenerationMode,
+): InertRecord {
   const resolved = snapshot.resolvedUi
   if (resolved === undefined) {
     throw new Error("cannot generate form values without resolved UI")
@@ -552,13 +577,13 @@ function generatedFormPatch(snapshot: CamViewerSnapshot, account: Address, prng:
 
   const patch: Record<string, InertValue> = {}
   for (const name of inputNames(resolved)) {
-    patch[name] = generatedNamedValue(name, account, prng)
+    patch[name] = generatedNamedValue(name, account, prng, mode)
   }
 
   return toInertValue(patch) as InertRecord
 }
 
-function generatedNamedValue(name: string, account: Address, prng: Prng): InertValue {
+function generatedNamedValue(name: string, account: Address, prng: Prng, mode: ValueGenerationMode): InertValue {
   const lower = name.toLowerCase()
   if (lower.includes("account") || lower.includes("owner") || lower.includes("address")) {
     return account
@@ -567,7 +592,14 @@ function generatedNamedValue(name: string, account: Address, prng: Prng): InertV
     return `fixture://cam-integration/${1 + prng.integer(3)}.json`
   }
   if (lower.includes("serial")) {
+    if (mode === "write-positive") {
+      return prng.pick(["CAM-TEST-001", "CAM-TEST-002"])
+    }
     return prng.pick(["", "CAM-TEST-001", "CAM-TEST-002"])
+  }
+
+  if (mode === "write-positive") {
+    return prng.pick(["CAM-TEST-001", "1"])
   }
 
   return prng.pick(["", "CAM-TEST-001", "1"])
