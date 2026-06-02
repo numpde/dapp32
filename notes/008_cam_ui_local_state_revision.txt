@@ -1,0 +1,348 @@
+CAM UI local state revision plan
+================================
+
+Purpose
+-------
+
+Fix the class of bugs where editable UI values are initialized from one
+authority but rendered or submitted from another.
+
+The observed browser symptom was an input that could not be typed into. The
+general bug was not a React event problem. It was state authority confusion:
+the renderer wrote edits into viewer-local form state, then read the visible
+input value back from contract/view output on every render.
+
+The durable invariant should be:
+
+  Contract/view outputs initialize local viewer state.
+  Viewer state owns live interactive values.
+  Actions read live interactive values from viewer state.
+  Renderers never read editable live values from contract/view props.
+
+This note is a revision plan. The current implementation still uses the older
+`tag`/`Input`/`form` vocabulary in several places.
+
+
+Non-goals
+---------
+
+Do not put React, JSX, functions, event handlers, or arbitrary JavaScript in CAM
+resources.
+
+Do not invent a second UI framework. The manifest should describe a small,
+portable component tree that maps naturally to React and other renderers.
+
+Do not preserve backwards compatibility with the current `form`/`Input` shape
+unless a migration tool is deliberately added later. The current branch is still
+early enough to simplify the protocol.
+
+
+Vocabulary
+----------
+
+Use React-aligned concepts, but keep protocol and renderer boundaries clear.
+
+`component`
+  The known renderer component to instantiate, such as `Screen`, `Fragment`,
+  `Text`, `TextField`, `Status`, `Address`, `Nft`, `Button`, or `Include`.
+  This replaces the current `tag` field.
+
+`props`
+  Resolved render props. These are display/presentation inputs for a known
+  component and should be safe for a renderer to spread at the component
+  boundary. They must not contain live editable values or event behavior.
+
+`state`
+  Optional local viewer-state wiring for interactive components. A node with
+  `state` participates in viewer-local state. A node without `state` does not.
+
+`state.key`
+  The key under the viewer snapshot's local state object.
+
+`state.defaultValue`
+  Initial value for `state.key`, resolved from CAM context, usually from
+  contract/view data. It is consumed by the viewer/session when seeding local
+  state. It is not the live React value after initialization.
+
+`call`
+  Action behavior. A UI node may call the `routes` namespace. Contract calls
+  still go through CAM routes, not directly through UI nodes.
+
+`children`
+  Composition.
+
+`$state`
+  Runtime expression root for viewer-local state. This replaces `$form`.
+
+
+Target JSON shape
+-----------------
+
+A text field should look like:
+
+```json
+{
+  "component": "TextField",
+  "props": {
+    "label": "Serial number",
+    "placeholder": "Frame serial"
+  },
+  "state": {
+    "key": "serialNumber",
+    "defaultValue": "$view.serialNumber"
+  }
+}
+```
+
+An action should read the live value from `$state`:
+
+```json
+{
+  "component": "Button",
+  "props": {
+    "label": "Look up component"
+  },
+  "call": {
+    "namespace": "routes",
+    "function": "component",
+    "args": {
+      "serialNumber": "$state.serialNumber"
+    }
+  }
+}
+```
+
+An include remains composition only:
+
+```json
+{
+  "component": "Include",
+  "call": {
+    "namespace": "ui",
+    "function": "$view.viewId",
+    "args": {
+      "view": "$view"
+    }
+  }
+}
+```
+
+`Include` must not own state. If included content needs state, the included
+component should contain a stateful child.
+
+
+Why defaultValue still belongs
+------------------------------
+
+React's `defaultValue` is useful: it initializes an uncontrolled input. The CAM
+protocol needs the same concept, but at the headless viewer/session boundary,
+not only at the DOM boundary.
+
+If `defaultValue` is placed inside `props`, a renderer that spreads props can
+accidentally give React both:
+
+```tsx
+<input {...node.props} value={state[key]} />
+```
+
+That mixes an initialization prop with the live controlled value and recreates
+the original source-of-truth bug in a subtler form.
+
+Therefore CAM should keep the same idea but move it under the local state
+contract:
+
+```json
+"state": {
+  "key": "serialNumber",
+  "defaultValue": "$view.serialNumber"
+}
+```
+
+The viewer consumes `state.defaultValue` before render. The renderer receives a
+controlled value from viewer state. A renderer that deliberately wants
+uncontrolled DOM fields can still map the seeded viewer state to React
+`defaultValue`, but that is renderer policy, not CAM protocol state ownership.
+
+
+React mapping
+-------------
+
+The manifest's `state.defaultValue` corresponds to React's initialization idea,
+but the CAM viewer should render controlled React components.
+
+Viewer/session flow:
+
+1. Resolve `state.defaultValue`.
+2. If the state key is not present in the current route-local state, seed it.
+3. Return a snapshot containing the current local state.
+4. On edits, update the viewer state.
+5. Re-resolve action arguments and render props against the updated state.
+
+Minimal React mapping:
+
+```tsx
+function TextFieldNode({ node, state, updateState }) {
+  const { label, placeholder } = node.props
+  const { key } = node.state
+
+  return (
+    <TextField
+      label={label}
+      placeholder={placeholder}
+      value={state[key]}
+      onChange={(value) => updateState(key, value)}
+    />
+  )
+}
+```
+
+For generic prop spreading, the split is:
+
+```tsx
+<TextField
+  {...node.props}
+  value={snapshot.state[node.state.key]}
+  onChange={(value) => updateState(node.state.key, value)}
+/>
+```
+
+The renderer knows to read from viewer state because the node has a `state`
+field. It should not infer editability from component names or from prop names
+such as `value`.
+
+
+Validation rules
+----------------
+
+The parser should be closed-world:
+
+- reject unknown components;
+- reject stale `tag`;
+- reject stale `$form`;
+- reject `props.name`, `props.value`, `props.defaultValue`,
+  `props.checked`, and `props.defaultChecked` on all nodes unless a future
+  display component explicitly needs one of those names for a non-editable
+  meaning. For stateful controls, initialization belongs in
+  `state.defaultValue`;
+- require `state.key` and `state.defaultValue` on stateful controls;
+- reject `state` on components that do not participate in local state;
+- reject `call` on components that are not actions or includes;
+- reject `children` on leaf components;
+- reject duplicate state keys within one resolved UI tree unless the protocol
+  deliberately adds shared-control semantics later.
+
+The important rule is structural:
+
+  Only `state` marks live local state ownership.
+
+
+Resolver rules
+--------------
+
+Initial UI resolution:
+
+- resolve all stateful nodes without actions first;
+- collect state keys and resolved default values;
+- seed the route-local viewer state;
+- resolve the full UI with actions using that state.
+
+Current UI resolution:
+
+- keep existing viewer state;
+- do not overwrite viewer state from `state.defaultValue`;
+- expose enough state metadata for renderers to wire controlled components;
+- resolve action calls from `$state`.
+
+Navigation:
+
+- route inputs remain route-scoped data;
+- route outputs remain contract/view data;
+- local state is route/viewer state and should be seeded for the new view from
+  that view's stateful controls.
+
+
+Migration steps
+---------------
+
+1. Rename runtime concepts in code:
+   - `form` -> `state`;
+   - `updateForm` -> `updateState`;
+   - `snapshot.form` -> `snapshot.state`;
+   - `$form.*` -> `$state.*`.
+
+2. Revise `@cam/screen` types and parser:
+   - `tag` -> `component`;
+   - `Input` -> `TextField`;
+   - editable wiring moves from `props.name` and `props.value` to
+     `state.key` and `state.defaultValue`.
+
+3. Revise `@cam/screen` resolver:
+   - stateful nodes seed local state on initial resolution;
+   - current resolution uses existing state;
+   - action calls resolve `$state.*`.
+
+4. Revise `@cam/viewer`:
+   - expose `snapshot.state`;
+   - update via `updateState`;
+   - preserve route-local state semantics explicitly.
+
+5. Revise renderers:
+   - React web reads editable live values from `snapshot.state`;
+   - terminal commands and debug output say `state`, not `form`.
+
+6. Revise `dapps/bike-nft/cam/ui.json`:
+   - replace `tag` with `component`;
+   - replace `Input` with `TextField`;
+   - move input initialization into `state.defaultValue`;
+   - replace `$form.*` action arguments with `$state.*`.
+
+7. Revise docs that still describe `form`, especially
+   `dapps/bike-nft/cam/README.md` and older notes if they are used as operator
+   references.
+
+
+Incisive tests
+--------------
+
+The core test should not be browser-specific.
+
+Test: state default seeds local state once.
+
+- Given a `TextField` with `state.key = "serialNumber"` and
+  `state.defaultValue = "$view.serialNumber"`;
+- and `view.serialNumber = "DEMO-FRAME-001"`;
+- initial resolution yields `snapshot.state.serialNumber = "DEMO-FRAME-001"`.
+
+Test: live state beats default on re-resolution.
+
+- Given the same UI and `snapshot.state.serialNumber = "ABC123"`;
+- re-resolution keeps `snapshot.state.serialNumber = "ABC123"`;
+- the resolved control metadata still points at `state.key = "serialNumber"`.
+
+Test: actions read live state.
+
+- Given a button whose call args use `$state.serialNumber`;
+- and local state `serialNumber = "ABC123"`;
+- the resolved call args contain `"ABC123"`, even when
+  `view.serialNumber = ""`.
+
+Negative tests:
+
+- stale `tag` is rejected;
+- stale `$form.*` is rejected;
+- `TextField` without `state` is rejected;
+- non-stateful component with `state` is rejected;
+- editable live values in `props` are rejected;
+- duplicate state keys in one resolved tree are rejected.
+
+
+Definition of done
+------------------
+
+- Typing in the web viewer persists.
+- Terminal state updates use the same state model.
+- Actions use the typed value without renderer-specific logic.
+- `make package-ci` passes.
+- `make checks` passes.
+- `make test-integration-fuzz-bike-nft` passes.
+- The bike CAM README no longer documents the old `form` model.
