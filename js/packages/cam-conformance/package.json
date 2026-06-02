@@ -1,0 +1,27 @@
+{
+  "name": "@cam/conformance",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "npm run typecheck && node --test --experimental-strip-types test/*.test.ts"
+  },
+  "dependencies": {
+    "@cam/core": "0.1.0",
+    "@cam/evm-viem": "0.1.0",
+    "@cam/protocol": "0.1.0",
+    "@cam/screen": "0.1.0"
+  }
+}
