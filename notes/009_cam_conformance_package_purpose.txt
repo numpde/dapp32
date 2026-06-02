@@ -1,0 +1,276 @@
+CAM conformance package purpose
+===============================
+
+Purpose
+-------
+
+`@cam/conformance` is the executable publication gate for a CAM bundle.
+
+A CAM bundle is the set of bytes a contract-published CAM manifest depends on:
+
+  main.json
+  ui.json
+  abi/*.json
+  any other declared local CAM resources
+
+The package answers one specific question:
+
+  Can this bundle be safely published as the contract-referenced manifest for
+  this CAM version?
+
+It is not a viewer. It is not a React renderer. It is not a dapp integration
+test. It is a protocol conformance oracle for builders, viewers, agents, and
+repository checks.
+
+
+Who uses it
+-----------
+
+Dapp builders
+  Run it before publishing CAM resources, refreshing integrity pins, computing
+  a root CAM hash, or deploying/updating a CAM root contract.
+
+Viewer implementers
+  Use it as an executable specification of the bundle shapes a conforming CAM
+  viewer may expect to consume.
+
+Agents and automation
+  Run it before interpreting route actions or using CAM resources as a tool
+  surface. Agents need precise structural failures, not visual debugging.
+
+This repository
+  Use it for protocol coherence checks over checked-in CAM resources. Keep
+  Python `tests/checks` focused on repo-shape and operator hygiene.
+
+
+When it runs
+------------
+
+The useful moments are:
+
+  after ABI export
+  after main.json or ui.json edits
+  before resource integrity refresh
+  before camHash computation
+  before deploy or publish
+  in CI
+  during builder or agent preflight
+
+Runtime viewers must still validate every untrusted resource they load. The
+conformance package is heavier and builder-facing: it proves a bundle is fit to
+publish, not that a specific browser session is safe forever.
+
+
+Inputs and outputs
+------------------
+
+The package should accept bytes and declared resource names, not repository
+paths. That makes it useful for local files, IPFS staging, build systems,
+agents, and custom publication tools.
+
+Target shape:
+
+```ts
+export type CamConformanceBundle = {
+  readonly mainURI: string
+  readonly mainBytes: Uint8Array
+  readonly resources: ReadonlyMap<string, Uint8Array>
+}
+```
+
+`resources` is keyed by the resource references that `main.json` can resolve,
+such as `./ui.json` or `./abi/BicycleComponentManager.json`.
+
+Validation should return issues:
+
+```ts
+export type CamConformanceIssue = {
+  readonly rule: string
+  readonly severity: "error"
+  readonly resource: string
+  readonly message: string
+  readonly path?: string
+}
+```
+
+An empty issue list means pass. Do not add a fake `ok` field or an empty-report
+helper unless a real caller needs it.
+
+Public API should stay small:
+
+```ts
+validateCamBundle(bundle): readonly CamConformanceIssue[]
+assertCamBundle(bundle): void
+```
+
+
+Primitive ownership
+-------------------
+
+`@cam/conformance` should not reimplement primitive semantics.
+
+Use:
+
+  @cam/protocol
+    strict JSON parsing, duplicate-key rejection, inert values, expression
+    grammar, resource byte limits, hash helpers.
+
+  @cam/core
+    CAM document parsing, namespaces, route inputs, route call and continuation
+    shapes.
+
+  @cam/screen
+    UI document parsing, UI node shape, Include/action rules, UI state rules.
+
+  @cam/evm-viem
+    ABI parsing, ABI input/output normalization, EVM route/write compatibility.
+
+`@cam/conformance` owns only cross-document and publication-level rules that no
+single primitive package can know alone.
+
+
+Rules it should own
+-------------------
+
+Bundle-level conformance:
+
+  main.json parses with the runtime CAM parser.
+  Every declared local resource exists in the bundle.
+  Every declared integrity digest matches the referenced bytes.
+  ui.json parses with the runtime UI parser.
+  Every declared ABI parses with the runtime EVM ABI parser.
+
+Cross-document CAM rules:
+
+  Route call namespaces target declared contract namespaces.
+  Route call function names exist in the selected ABI.
+  Route args exactly match ABI input names.
+  Read routes target view or pure functions.
+  Write routes target nonpayable functions until CAM has an explicit value
+  model.
+  Route continuations target declared UI nodes or declared routes.
+  Output expressions used in continuations select existing route outputs.
+
+UI and DOM/schema rules:
+
+  UI actions target declared CAM routes.
+  UI Includes target declared UI nodes.
+  UI Includes cannot form cycles.
+  UI node props are closed and tag/component-specific.
+  UI state defaults are declared through the protocol state contract.
+  Stale vocabulary is rejected once the new UI state model lands.
+
+The package may validate DOM-facing descriptors, but it must not validate a
+specific DOM implementation. The test target is the protocol tree that a React,
+terminal, or agent renderer consumes.
+
+
+Rules it should not own
+-----------------------
+
+Do not put these in `@cam/conformance`:
+
+  Solidity business-rule tests.
+  Contract deployment tests.
+  Wallet behavior.
+  RPC chain checks.
+  React component rendering.
+  CSS or visual layout checks.
+  Docker posture.
+  Repository directory policy.
+  Unused generated ABI hygiene, unless exposed as an optional repo policy.
+
+Those checks are valuable, but they belong to contract tests, integration fuzz,
+the web app, or repo/source hygiene lanes.
+
+
+Structure
+---------
+
+Keep the package shaped around rule groups:
+
+```text
+js/packages/cam-conformance/
+  src/
+    index.ts
+    bundle.ts
+    issues.ts
+    checks/
+      json.ts
+      main.ts
+      resources.ts
+      abi.ts
+      routes.ts
+      ui.ts
+      ui-state.ts
+```
+
+Do not create all files upfront. Add each file only when it contains a real rule
+with a real test.
+
+
+Sacred test discipline
+----------------------
+
+Tests in this package should be small, mutation-based, and spec-level:
+
+  one invariant
+  one tiny fixture
+  one mutation
+  one precise failure
+
+Avoid large bike fixtures unless the rule specifically needs a realistic bundle.
+Avoid placeholder tests that only prove package wiring. A typecheck-only package
+is better than a meaningless test.
+
+First real tests should be:
+
+  valid minimal bundle passes
+  duplicate JSON key fails
+  missing ui resource fails
+  integrity mismatch fails
+  route arg not present in ABI fails
+  read route targeting mutable ABI function fails
+  write route targeting payable ABI function fails
+  UI action targeting unknown route fails
+  UI Include cycle fails
+  UI state/defaultValue invariant fails when malformed
+
+
+Maximally useful behavior
+-------------------------
+
+The package should produce errors that builders can act on immediately:
+
+```text
+rule: CAM_ROUTE_ARG_MISSING
+resource: main.json
+path: routes.component.call.args.serialNumber
+message: route arg serialNumber is required by BicycleComponentManagerUI.viewComponent
+```
+
+Prefer stable rule names over prose-only errors. Builders and agents can group,
+display, suppress, or explain stable rule names.
+
+Prefer returning all issues over failing at the first issue. A publication gate
+is most useful when it gives a complete repair list.
+
+Prefer resource-relative paths over repository paths. Repository paths are a
+local implementation detail; CAM bundles may come from build artifacts, IPFS
+staging, or agents.
+
+
+Definition of done for the first slice
+--------------------------------------
+
+The first implementation slice is complete when:
+
+  @cam/conformance has no placeholder tests.
+  validateCamBundle accepts bytes and resource names.
+  A valid minimal CAM bundle returns no issues.
+  A missing ui.json resource produces one precise issue.
+  An integrity mismatch produces one precise issue.
+  The package uses existing parser/value primitives instead of reimplementing
+  them.
+
+Only after that should we add route/ABI/UI-state conformance rules.
