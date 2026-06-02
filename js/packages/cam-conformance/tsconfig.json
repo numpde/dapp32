@@ -1,3 +1,8 @@
 {
-  "extends": "../../tsconfig.dom.json"
+  "extends": "../../tsconfig.package.json",
+  "compilerOptions": {
+    "types": [
+      "node"
+    ]
+  }
 }

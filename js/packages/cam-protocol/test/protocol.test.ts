@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   createExpressionRuntime,
+  CamResourceIntegrityError,
   InertValueError,
   parseJsonText,
   readBoundedResponseBytes,
@@ -10,6 +11,7 @@ import {
   requireHttpURL,
   requireSameHttpOrigin,
   toInertValue,
+  verifySha256ResourceIntegrity,
 } from "../src/index.ts"
 
 test("resolves expression payloads with caller-owned normalization and errors", () => {
@@ -132,5 +134,33 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
       },
     }, "https://example.test/x"),
     /empty chunk/,
+  )
+})
+
+test("validates sha256 resource integrity strings against caller-owned hashes", () => {
+  assert.doesNotThrow(() => verifySha256ResourceIntegrity({
+    actualHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    integrity: "sha256:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    uri: "./ui.json",
+  }))
+
+  assert.throws(
+    () => verifySha256ResourceIntegrity({
+      actualHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      integrity: "sha512:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      uri: "./ui.json",
+    }),
+    (error) => error instanceof CamResourceIntegrityError
+      && error.code === "CAM_RESOURCE_INTEGRITY_INVALID",
+  )
+
+  assert.throws(
+    () => verifySha256ResourceIntegrity({
+      actualHash: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      integrity: "sha256:0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      uri: "./ui.json",
+    }),
+    (error) => error instanceof CamResourceIntegrityError
+      && error.code === "CAM_RESOURCE_INTEGRITY_MISMATCH",
   )
 })

@@ -37,14 +37,17 @@ export type {
 } from "./json.ts"
 
 export {
+  CamResourceIntegrityError,
   CAM_RESOURCE_MAX_BYTES,
   readBoundedResponseBytes,
   requireHttpOrigin,
   requireHttpURL,
   requireSameHttpOrigin,
   responseContentLength,
+  verifySha256ResourceIntegrity,
 } from "./resources.ts"
 export type {
+  CamResourceIntegrityErrorCode,
   HttpResponse,
   HttpURL,
 } from "./resources.ts"

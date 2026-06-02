@@ -1,4 +1,20 @@
 export const CAM_RESOURCE_MAX_BYTES = 2 * 1024 * 1024
+const SHA256_INTEGRITY_PREFIX = "sha256:"
+const SHA256_HEX_PATTERN = /^0x[0-9a-fA-F]{64}$/
+
+export type CamResourceIntegrityErrorCode =
+  | "CAM_RESOURCE_INTEGRITY_INVALID"
+  | "CAM_RESOURCE_INTEGRITY_MISMATCH"
+
+export class CamResourceIntegrityError extends Error {
+  readonly code: CamResourceIntegrityErrorCode
+
+  constructor(code: CamResourceIntegrityErrorCode, message: string) {
+    super(message)
+    this.name = "CamResourceIntegrityError"
+    this.code = code
+  }
+}
 
 // Keep public resource types structural so non-browser protocol consumers do
 // not need DOM lib declarations just to import @cam/protocol.
@@ -68,6 +84,45 @@ export function responseContentLength(response: HttpResponse, uri: string): numb
   }
 
   return Number(value)
+}
+
+export function verifySha256ResourceIntegrity({
+  actualHash,
+  integrity,
+  uri,
+}: {
+  readonly actualHash: string
+  readonly integrity: string
+  readonly uri: string
+}): void {
+  if (!integrity.startsWith(SHA256_INTEGRITY_PREFIX)) {
+    throw new CamResourceIntegrityError(
+      "CAM_RESOURCE_INTEGRITY_INVALID",
+      `CAM resource integrity must use sha256: ${uri}`,
+    )
+  }
+
+  const expectedHash = integrity.slice(SHA256_INTEGRITY_PREFIX.length)
+  if (!SHA256_HEX_PATTERN.test(expectedHash)) {
+    throw new CamResourceIntegrityError(
+      "CAM_RESOURCE_INTEGRITY_INVALID",
+      `CAM resource integrity is not a sha256 hex digest: ${uri}`,
+    )
+  }
+
+  if (!SHA256_HEX_PATTERN.test(actualHash)) {
+    throw new CamResourceIntegrityError(
+      "CAM_RESOURCE_INTEGRITY_INVALID",
+      `CAM resource actual hash is not a sha256 hex digest: ${uri}`,
+    )
+  }
+
+  if (actualHash.toLowerCase() !== expectedHash.toLowerCase()) {
+    throw new CamResourceIntegrityError(
+      "CAM_RESOURCE_INTEGRITY_MISMATCH",
+      `CAM resource integrity mismatch: expected ${integrity}, got ${SHA256_INTEGRITY_PREFIX}${actualHash}`,
+    )
+  }
 }
 
 export async function readBoundedResponseBytes(

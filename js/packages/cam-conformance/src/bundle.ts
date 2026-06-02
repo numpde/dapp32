@@ -5,12 +5,11 @@ import {
 import type {
   CamDocument,
 } from "@cam/core"
+import { createHash } from "node:crypto"
 import {
-  CamEvmError,
-  verifyCamResourceIntegrity,
-} from "@cam/evm-viem"
-import {
+  CamResourceIntegrityError,
   parseJsonBytes,
+  verifySha256ResourceIntegrity,
 } from "@cam/protocol"
 import {
   parseUi,
@@ -121,14 +120,14 @@ function verifyIntegrity(
   issues: CamConformanceIssue[],
 ): void {
   try {
-    verifyCamResourceIntegrity({
-      bytes,
+    verifySha256ResourceIntegrity({
+      actualHash: sha256Hex(bytes),
       integrity: declaration.integrity,
       uri: declaration.uri,
     })
   } catch (error) {
     issues.push(issueFromError({
-      rule: error instanceof CamEvmError ? error.code : "CAM_RESOURCE_INTEGRITY_INVALID",
+      rule: error instanceof CamResourceIntegrityError ? error.code : "CAM_RESOURCE_INTEGRITY_INVALID",
       resource: declaration.uri,
       path: declaration.integrityPath,
       error,
@@ -163,4 +162,8 @@ function declaredResources(cam: CamDocument): readonly ResourceDeclaration[] {
   }
 
   return declarations
+}
+
+function sha256Hex(bytes: Uint8Array): string {
+  return `0x${createHash("sha256").update(bytes).digest("hex")}`
 }
