@@ -1,9 +1,13 @@
-export type CamConformanceIssue = {
-  readonly severity: string
-  readonly message: string
-  readonly path?: string
-}
-
-export type CamConformanceReport = {
-  readonly issues: readonly CamConformanceIssue[]
-}
+export type {
+  CamConformanceBundle,
+} from "./bundle.ts"
+export {
+  assertCamBundle,
+  validateCamBundle,
+} from "./bundle.ts"
+export {
+  CamConformanceError,
+} from "./issues.ts"
+export type {
+  CamConformanceIssue,
+} from "./issues.ts"
