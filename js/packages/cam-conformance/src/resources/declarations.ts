@@ -16,6 +16,7 @@ import type {
 
 export type ResourceDeclaration = {
   readonly namespace: string
+  readonly namespaceType: DeclaredNamespace["type"]
   readonly uri: string
   readonly integrity: string
   readonly uriPath: string
@@ -168,6 +169,7 @@ function collectNamespaceResource({
 
   declarations.push({
     namespace: namespace.name,
+    namespaceType: namespace.type,
     uri: declaredURI,
     integrity: declaredIntegrity,
     uriPath: `${basePath}.${uriKey}`,

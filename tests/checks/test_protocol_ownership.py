@@ -66,6 +66,7 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def test_cam_conformance_facets_keep_sourced_imports_isolated(self) -> None:
         allowed_imports_by_facet = {
+            "abi": {"@cam/protocol"},
             "bundle": {"@cam/protocol"},
             "manifest": {"@cam/protocol"},
             "resources": {"@cam/protocol"},

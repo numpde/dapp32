@@ -10,7 +10,21 @@ import type {
   NamespaceType,
 } from "./namespaces.ts"
 
-const ROUTE_KINDS = new Set(["read", "write"])
+export type RouteKind = "read" | "write"
+
+export type DeclaredInvocation = {
+  readonly namespace: string
+  readonly function: string
+  readonly args: Record<string, unknown>
+}
+
+export type DeclaredRoute = {
+  readonly name: string
+  readonly kind: RouteKind
+  readonly call: DeclaredInvocation
+  readonly then: DeclaredInvocation
+}
+
 const CALL_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["contract"])
 const READ_THEN_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["ui"])
 const WRITE_THEN_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["routes"])
@@ -25,17 +39,17 @@ export function validateRouteDeclarations({
   readonly root: unknown
   readonly namespaces: readonly DeclaredNamespace[]
   readonly issues: CamConformanceIssue[]
-}): void {
-  if (!isRecordObject(root)) return
+}): readonly DeclaredRoute[] {
+  if (!isRecordObject(root)) return []
 
   if (!isRecordObject(root.routes)) {
     issues.push(routeDeclarationIssue(resource, "routes", "CAM routes must be an object"))
-    return
+    return []
   }
 
   const namespaceTypes = new Map(namespaces.map((namespace) => [namespace.name, namespace.type]))
   validateEntryRoute(resource, root.entry, root.routes, issues)
-  validateRoutes(resource, root.routes, namespaceTypes, issues)
+  return validateRoutes(resource, root.routes, namespaceTypes, issues)
 }
 
 function validateEntryRoute(
@@ -61,7 +75,8 @@ function validateRoutes(
   routes: Record<string, unknown>,
   namespaces: ReadonlyMap<string, NamespaceType>,
   issues: CamConformanceIssue[],
-): void {
+): readonly DeclaredRoute[] {
+  const declaredRoutes: DeclaredRoute[] = []
   for (const [routeName, route] of Object.entries(routes)) {
     if (routeName.length === 0) {
       issues.push(routeDeclarationIssue(resource, "routes", "route name must not be empty"))
@@ -71,10 +86,20 @@ function validateRoutes(
       issues.push(routeDeclarationIssue(resource, `routes.${routeName}`, `route must be an object: ${routeName}`))
       continue
     }
-    validateRouteKind(resource, routeName, route.kind, issues)
+    const kind = validateRouteKind(resource, routeName, route.kind, issues)
     validateRouteInputList(resource, routeName, route.inputs, issues)
-    validateRouteInvocations(resource, routeName, route, namespaces, issues)
+    const invocations = validateRouteInvocations(resource, routeName, route, namespaces, issues)
+    if (kind !== undefined && invocations !== undefined) {
+      declaredRoutes.push({
+        name: routeName,
+        kind,
+        call: invocations.call,
+        then: invocations.then,
+      })
+    }
   }
+
+  return declaredRoutes
 }
 
 function validateRouteKind(
@@ -82,10 +107,10 @@ function validateRouteKind(
   routeName: string,
   kind: unknown,
   issues: CamConformanceIssue[],
-): void {
+): RouteKind | undefined {
   // Route kind is protocol control flow: read routes render UI, write routes
   // continue to another route after wallet execution.
-  if (typeof kind === "string" && ROUTE_KINDS.has(kind)) return
+  if (kind === "read" || kind === "write") return kind
 
   issues.push({
     rule: "CAM_ROUTE_KIND_INVALID",
@@ -94,6 +119,7 @@ function validateRouteKind(
     path: `routes.${routeName}.kind`,
     message: `route kind must be read or write: ${routeName}`,
   })
+  return undefined
 }
 
 function validateRouteInputList(
@@ -129,8 +155,8 @@ function validateRouteInvocations(
   route: Record<string, unknown>,
   namespaces: ReadonlyMap<string, NamespaceType>,
   issues: CamConformanceIssue[],
-): void {
-  validateInvocation({
+): { readonly call: DeclaredInvocation, readonly then: DeclaredInvocation } | undefined {
+  const call = validateInvocation({
     resource,
     path: `routes.${routeName}.call`,
     invocation: route.call,
@@ -140,9 +166,9 @@ function validateRouteInvocations(
     issues,
   })
 
-  if (route.kind !== "read" && route.kind !== "write") return
+  if (route.kind !== "read" && route.kind !== "write") return undefined
 
-  validateInvocation({
+  const then = validateInvocation({
     resource,
     path: `routes.${routeName}.then`,
     invocation: route.then,
@@ -151,6 +177,9 @@ function validateRouteInvocations(
     purpose: "route continuation",
     issues,
   })
+
+  if (call === undefined || then === undefined) return undefined
+  return { call, then }
 }
 
 function validateInvocation({
@@ -169,10 +198,10 @@ function validateInvocation({
   readonly allowedTypes: ReadonlySet<NamespaceType>
   readonly purpose: string
   readonly issues: CamConformanceIssue[]
-}): void {
+}): DeclaredInvocation | undefined {
   if (!isRecordObject(invocation)) {
     issues.push(routeInvocationIssue(resource, path, `${purpose} must be an object`))
-    return
+    return undefined
   }
 
   const functionName = invocation.function
@@ -188,13 +217,13 @@ function validateInvocation({
   const namespacePath = `${path}.namespace`
   if (typeof namespace !== "string" || namespace.length === 0) {
     issues.push(routeInvocationIssue(resource, namespacePath, `${purpose} namespace must be a non-empty string`))
-    return
+    return undefined
   }
 
   const namespaceType = namespaces.get(namespace)
   if (namespaceType === undefined) {
     issues.push(routeInvocationIssue(resource, namespacePath, `${purpose} references unknown namespace: ${namespace}`))
-    return
+    return undefined
   }
 
   if (!allowedTypes.has(namespaceType)) {
@@ -203,6 +232,16 @@ function validateInvocation({
       namespacePath,
       `${purpose} references invalid ${namespaceType} namespace: ${namespace}`,
     ))
+  }
+
+  if (typeof functionName !== "string" || functionName.length === 0) return undefined
+  if (!isRecordObject(invocation.args)) return undefined
+  if (!allowedTypes.has(namespaceType)) return undefined
+
+  return {
+    namespace,
+    function: functionName,
+    args: invocation.args,
   }
 }
 

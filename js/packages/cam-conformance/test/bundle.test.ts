@@ -208,6 +208,64 @@ test("route invocations require function names and named args", () => {
   ])
 })
 
+test("route calls must target functions declared by the namespace ABI", () => {
+  const issues = validateEditedMain<{
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((main) => {
+    const entry = main.routes.entry
+    entry.call = {
+      namespace: "contracts.App",
+      function: "missing",
+      args: {},
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call"],
+  ])
+})
+
+test("route call args must match named ABI inputs exactly", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "account",
+          type: "address",
+        },
+      ],
+      outputs: [],
+    },
+  ])
+  const issues = validateEditedMain<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((main, bundle) => {
+    main.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    main.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        extra: "$account.address",
+      },
+    }
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./abi/App.json", abiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.extra"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.account"],
+  ])
+})
+
 test("malformed resource declarations report each bad field", () => {
   const issues = validateEditedMain<{
     readonly namespaces: Record<string, unknown>

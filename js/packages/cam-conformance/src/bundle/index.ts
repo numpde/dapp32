@@ -10,6 +10,9 @@ import type {
 } from "../issues.ts"
 
 import {
+  validateRouteAbiCompatibility,
+} from "../abi/routes.ts"
+import {
   validateNamespaceDeclarations,
 } from "../manifest/namespaces.ts"
 import {
@@ -69,10 +72,17 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     declarations,
     issues,
   })
-  validateRouteDeclarations({
+  const routes = validateRouteDeclarations({
     resource: bundle.mainURI,
     root,
     namespaces,
+    issues,
+  })
+  validateRouteAbiCompatibility({
+    resource: bundle.mainURI,
+    resources: bundle.resources,
+    declarations,
+    routes,
     issues,
   })
   verifyDeclaredUiResource(bundle.resources, declarations, issues)
