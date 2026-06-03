@@ -8,9 +8,11 @@ import {
 } from "../src/index.ts"
 import type {
   CamConformanceBundle,
+  CamConformanceIssue,
 } from "../src/index.ts"
 
 const encoder = new TextEncoder()
+const decoder = new TextDecoder()
 
 test("valid minimal bundle returns no issues", () => {
   assert.deepEqual(validateCamBundle(minimalBundle()), [])
@@ -36,6 +38,315 @@ test("missing declared UI resource returns one precise issue", () => {
   ])
 })
 
+test("invalid root CAM bytes report the caller-supplied main URI", () => {
+  const issues = validateCamBundle({
+    ...minimalBundle(),
+    mainURI: "ipfs://example-cid/app.cam",
+    mainBytes: encoder.encode("{"),
+  })
+
+  assert.equal(issues.length, 1)
+  assert.equal(issues[0]?.rule, "CAM_ROOT_JSON_INVALID")
+  assert.equal(issues[0]?.resource, "ipfs://example-cid/app.cam")
+})
+
+test("runtime CAM parsing is reported after resource checks", () => {
+  const issues = validateEditedMain((main, bundle) => {
+    delete main.entry
+    return {
+      resources: new Map([
+        ["./abi/App.json", mustGetResource(bundle, "./abi/App.json")],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueRules(issues), [
+    "CAM_RESOURCE_MISSING",
+    "CAM_RUNTIME_CAM_INVALID",
+  ])
+})
+
+test("missing entry route is reported as a precise manifest issue", () => {
+  const issues = validateEditedMain((main) => {
+    main.entry = "missing"
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ENTRY_ROUTE_MISSING", "entry"],
+    ["CAM_RUNTIME_CAM_INVALID", "entry"],
+  ])
+})
+
+test("malformed route inventory is reported before runtime compatibility", () => {
+  const issues = validateEditedMain((main) => {
+    main.routes = null
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_DECLARATION_INVALID", "routes"],
+    ["CAM_RUNTIME_CAM_INVALID", "routes"],
+  ])
+})
+
+test("malformed route declarations are reported before runtime compatibility", () => {
+  const issues = validateEditedMain<{
+    readonly routes: Record<string, unknown>
+  }>((main) => {
+    main.routes[""] = {
+      kind: "read",
+      inputs: [],
+      call: {},
+      then: {},
+    }
+    main.routes.broken = null
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_DECLARATION_INVALID", "routes"],
+    ["CAM_ROUTE_DECLARATION_INVALID", "routes.broken"],
+    ["CAM_RUNTIME_CAM_INVALID", "routes"],
+  ])
+})
+
+test("invalid route kind is reported directly", () => {
+  const issues = validateEditedMain<{
+    readonly routes: Record<string, unknown>
+  }>((main) => {
+    const entry = main.routes.entry as Record<string, unknown>
+    entry.kind = "browse"
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_KIND_INVALID", "routes.entry.kind"],
+    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.kind"],
+  ])
+})
+
+test("invalid route input declarations are reported per input", () => {
+  const issues = validateEditedMain<{
+    readonly routes: Record<string, unknown>
+  }>((main) => {
+    main.routes.entry = {
+      kind: "read",
+      inputs: ["serialNumber", "", "serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.1"],
+    ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.2"],
+    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.inputs.1"],
+  ])
+})
+
+test("route invocations must target the correct namespace types", () => {
+  const issues = validateEditedMain<{
+    readonly routes: Record<string, unknown>
+  }>((main) => {
+    main.routes.entry = {
+      kind: "read",
+      inputs: [],
+      call: {
+        namespace: "ui",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "contracts.App",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.call.namespace"],
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then.namespace"],
+    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.call.namespace"],
+  ])
+})
+
+test("route invocations require function names and named args", () => {
+  const issues = validateEditedMain<{
+    readonly routes: Record<string, unknown>
+  }>((main) => {
+    main.routes.entry = {
+      kind: "read",
+      inputs: [],
+      call: {
+        namespace: "contracts.App",
+        function: "",
+        args: [],
+      },
+      then: {
+        namespace: "ui",
+        args: null,
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.call.function"],
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.call.args"],
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then.function"],
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then.args"],
+    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.call.function"],
+  ])
+})
+
+test("malformed resource declarations report each bad field", () => {
+  const issues = validateEditedMain<{
+    readonly namespaces: Record<string, unknown>
+  }>((main, bundle) => {
+    main.namespaces["contracts.App"] = {
+      type: "contract",
+      abiURI: "",
+    }
+    return {
+      resources: new Map([
+        ["./ui.json", mustGetResource(bundle, "./ui.json")],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.App.abiURI"],
+    ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.App.integrity"],
+    ["CAM_RUNTIME_CAM_INVALID", "namespaces.contracts.App.abiURI"],
+  ])
+})
+
+test("undeclared bundle resources are reported as orphans", () => {
+  const bundle = minimalBundle()
+  const resources = new Map(bundle.resources)
+  resources.set("./unused.json", jsonBytes({ unused: true }))
+
+  const issues = validateCamBundle({
+    ...bundle,
+    resources,
+  })
+
+  assert.deepEqual(issues, [
+    {
+      rule: "CAM_RESOURCE_ORPHAN",
+      severity: "error",
+      resource: "./unused.json",
+      message: "bundle resource is not declared by the root CAM document: ./unused.json",
+    },
+  ])
+})
+
+test("conflicting integrity declarations for one URI are reported directly", () => {
+  const issues = validateEditedMain<{
+    readonly namespaces: Record<string, unknown>
+  }>((main) => {
+    main.namespaces["contracts.Other"] = {
+      type: "contract",
+      abiURI: "./abi/App.json",
+      integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+    }
+  })
+
+  assert.equal(issues[0]?.rule, "CAM_RESOURCE_INTEGRITY_CONFLICT")
+  assert.equal(issues[0]?.resource, "./abi/App.json")
+  assert.equal(issues[0]?.path, "namespaces.contracts.Other.integrity")
+})
+
+test("missing UI namespace is reported without hiding runtime incompatibility", () => {
+  const issues = validateEditedMain<{
+    readonly namespaces: Record<string, unknown>
+  }>((main, bundle) => {
+    delete main.namespaces.ui
+    return {
+      resources: new Map([
+        ["./abi/App.json", mustGetResource(bundle, "./abi/App.json")],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueRules(issues), [
+    "CAM_UI_RESOURCE_MISSING",
+    "CAM_ROUTE_INVOCATION_INVALID",
+    "CAM_RUNTIME_CAM_INVALID",
+  ])
+})
+
+test("invalid namespace declarations are reported together", () => {
+  const issues = validateEditedMain<{
+    readonly namespaces: Record<string, unknown>
+  }>((main) => {
+    const appNamespace = main.namespaces["contracts.App"] as Record<string, unknown>
+    const uiNamespace = main.namespaces.ui as Record<string, unknown>
+    main.namespaces[""] = {
+      type: "routes",
+    }
+    main.namespaces.flows = {
+      type: "routes",
+    }
+    main.namespaces.screens = {
+      type: "ui",
+      uri: uiNamespace.uri,
+      integrity: uiNamespace.integrity,
+    }
+    main.namespaces["contracts."] = {
+      type: "contract",
+      abiURI: appNamespace.abiURI,
+      integrity: appNamespace.integrity,
+    }
+    main.namespaces.widgets = {
+      type: "widget",
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces"],
+    ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.flows"],
+    ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.screens"],
+    ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.contracts."],
+    ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.widgets.type"],
+    ["CAM_RUNTIME_CAM_INVALID", "namespaces"],
+  ])
+})
+
+test("invalid namespace names do not declare bundle resources", () => {
+  const invalidAbiBytes = jsonBytes([])
+  const issues = validateEditedMain<{
+    readonly namespaces: Record<string, unknown>
+  }>((main, bundle) => {
+    main.namespaces.Manager = {
+      type: "contract",
+      abiURI: "./abi/Manager.json",
+      integrity: sha256Integrity(invalidAbiBytes),
+    }
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./abi/Manager.json", invalidAbiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.Manager"],
+    ["CAM_RESOURCE_ORPHAN", undefined],
+    ["CAM_RUNTIME_CAM_INVALID", "namespaces.Manager"],
+  ])
+})
+
 test("UI resource integrity mismatch returns one precise issue", () => {
   const issues = validateCamBundle(minimalBundle({
     uiIntegrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -46,7 +357,9 @@ test("UI resource integrity mismatch returns one precise issue", () => {
   assert.equal(issues[0]?.severity, "error")
   assert.equal(issues[0]?.resource, "./ui.json")
   assert.equal(issues[0]?.path, "namespaces.ui.integrity")
-  assert.match(issues[0]?.message ?? "", /CAM resource integrity mismatch/)
+  const issue = issues[0]
+  assert.notEqual(issue, undefined)
+  assert.match(issue.message, /CAM resource integrity mismatch/)
 })
 
 function minimalBundle(overrides: {
@@ -88,7 +401,7 @@ function minimalBundle(overrides: {
       ui: {
         type: "ui",
         uri: "./ui.json",
-        integrity: overrides.uiIntegrity ?? sha256Integrity(uiBytes),
+        integrity: uiIntegrity(overrides, uiBytes),
       },
     },
     routes: {
@@ -121,10 +434,58 @@ function minimalBundle(overrides: {
   }
 }
 
+function mutableMain<T extends Record<string, unknown> = Record<string, unknown>>(bundle: CamConformanceBundle): T {
+  return JSON.parse(decoder.decode(bundle.mainBytes)) as T
+}
+
+function mustGetResource(bundle: CamConformanceBundle, uri: string): Uint8Array {
+  const bytes = bundle.resources.get(uri)
+  if (bytes === undefined) {
+    throw new Error(`test fixture missing resource: ${uri}`)
+  }
+  return bytes
+}
+
+function validateEditedMain<T extends Record<string, unknown> = Record<string, unknown>>(
+  edit: (main: T, bundle: CamConformanceBundle) => Pick<Partial<CamConformanceBundle>, "resources"> | void,
+): readonly CamConformanceIssue[] {
+  const bundle = minimalBundle()
+  const main = mutableMain<T>(bundle)
+  const overrides = edit(main, bundle)
+  if (overrides === undefined) {
+    return validateCamBundle({
+      ...bundle,
+      mainBytes: jsonBytes(main),
+    })
+  }
+
+  return validateCamBundle({
+    ...bundle,
+    ...overrides,
+    mainBytes: jsonBytes(main),
+  })
+}
+
+function issueRules(issues: readonly CamConformanceIssue[]): readonly string[] {
+  return issues.map((issue) => issue.rule)
+}
+
+function issueLocations(issues: readonly CamConformanceIssue[]): readonly (readonly [string, string | undefined])[] {
+  return issues.map((issue) => [issue.rule, issue.path])
+}
+
 function jsonBytes(value: unknown): Uint8Array {
   return encoder.encode(JSON.stringify(value))
 }
 
 function sha256Integrity(bytes: Uint8Array): string {
   return `sha256:0x${createHash("sha256").update(bytes).digest("hex")}`
+}
+
+function uiIntegrity(overrides: { readonly uiIntegrity?: string }, uiBytes: Uint8Array): string {
+  if (overrides.uiIntegrity !== undefined) {
+    return overrides.uiIntegrity
+  }
+
+  return sha256Integrity(uiBytes)
 }

@@ -64,6 +64,35 @@ class ProtocolOwnershipTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_cam_conformance_facets_keep_sourced_imports_isolated(self) -> None:
+        allowed_imports_by_facet = {
+            "bundle": {"@cam/protocol"},
+            "manifest": {"@cam/protocol"},
+            "resources": {"@cam/protocol"},
+            "sourced": {"@cam/core", "@cam/protocol", "@cam/screen"},
+        }
+        failures: list[str] = []
+
+        for path in sorted(repo_path("js/packages/cam-conformance/src").glob("**/*.ts")):
+            relative = path.relative_to(repo_path("js/packages/cam-conformance/src"))
+            facet = relative.parts[0]
+            if facet in allowed_imports_by_facet:
+                allowed_imports = allowed_imports_by_facet[facet]
+            else:
+                allowed_imports = set()
+
+            for specifier, line_number in self.module_specifiers(read_text(path)):
+                if not specifier.startswith("@cam/"):
+                    continue
+                if specifier not in allowed_imports:
+                    failures.append(
+                        f"{path}:{line_number}: conformance facet '{facet}' must not import {specifier}; "
+                        f"allowed @cam imports: {self.format_allowed_imports(allowed_imports)}"
+                    )
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def package_source_files(self) -> list[Path]:
         return sorted(repo_path("js/packages").glob("*/src/**/*.ts"))
 
@@ -82,3 +111,8 @@ class ProtocolOwnershipTest(unittest.TestCase):
             specifiers.append((specifier, text.count("\n", 0, match.start()) + 1))
 
         return specifiers
+
+    def format_allowed_imports(self, allowed_imports: set[str]) -> str:
+        if not allowed_imports:
+            return "none"
+        return ", ".join(sorted(allowed_imports))

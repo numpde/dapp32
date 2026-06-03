@@ -1,10 +1,10 @@
 export type {
   CamConformanceBundle,
-} from "./bundle.ts"
+} from "./bundle/index.ts"
 export {
   assertCamBundle,
   validateCamBundle,
-} from "./bundle.ts"
+} from "./bundle/index.ts"
 export {
   CamConformanceError,
 } from "./issues.ts"

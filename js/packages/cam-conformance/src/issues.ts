@@ -27,7 +27,7 @@ export function issueFromError({
   readonly path?: string
   readonly error: unknown
 }): CamConformanceIssue {
-  const resolvedPath = path ?? errorPath(error)
+  const resolvedPath = path === undefined ? errorPath(error) : path
   const issue = {
     rule,
     severity: "error",
