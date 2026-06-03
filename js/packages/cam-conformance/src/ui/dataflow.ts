@@ -11,6 +11,9 @@ import type {
 import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
+import type {
+  DeclaredUiNode,
+} from "./nodes.ts"
 import {
   forEachUiNode,
   forEachUiString,
@@ -23,9 +26,16 @@ type UiAction = {
   readonly args: Record<string, unknown>
 }
 
+type UiInclude = {
+  readonly path: string
+  readonly function: unknown
+  readonly args: Record<string, unknown>
+}
+
 type UiDataflow = {
   readonly inputNames: ReadonlySet<string>
   readonly actions: readonly UiAction[]
+  readonly includes: readonly UiInclude[]
 }
 
 const EXPRESSION_IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
@@ -34,11 +44,13 @@ export function validateUiDataflow({
   resources,
   declarations,
   routes,
+  uiNodes,
   issues,
 }: {
   readonly resources: ReadonlyMap<string, Uint8Array>
   readonly declarations: readonly ResourceDeclaration[]
   readonly routes: readonly DeclaredRoute[]
+  readonly uiNodes: ReadonlyMap<string, DeclaredUiNode> | undefined
   readonly issues: CamConformanceIssue[]
 }): void {
   const routesByName = new Map(routes.map((route) => [route.name, route]))
@@ -47,6 +59,11 @@ export function validateUiDataflow({
     const dataflow = readUiDataflow(resources.get(declaration.uri))
     if (dataflow === undefined) continue
 
+    if (uiNodes !== undefined) {
+      for (const include of dataflow.includes) {
+        validateIncludeNodeArgs(declaration.uri, include, uiNodes, issues)
+      }
+    }
     for (const action of dataflow.actions) {
       validateActionRouteArgs(declaration.uri, action, routesByName, issues)
       validateActionStateInputs(declaration.uri, action, dataflow.inputNames, issues)
@@ -62,11 +79,13 @@ function readUiDataflow(bytes: Uint8Array | undefined): UiDataflow | undefined {
 
   const inputNames = new Set<string>()
   const actions: UiAction[] = []
-  forEachUiNode(ui.nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, actions))
+  const includes: UiInclude[] = []
+  forEachUiNode(ui.nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, actions, includes))
 
   return {
     inputNames,
     actions,
+    includes,
   }
 }
 
@@ -75,9 +94,13 @@ function collectUiNodeDataflow(
   path: string,
   inputNames: Set<string>,
   actions: UiAction[],
+  includes: UiInclude[],
 ): void {
   if (value.tag === "Input") {
     collectInputName(value, inputNames)
+  }
+  if (value.tag === "Include") {
+    collectInclude(value, path, includes)
   }
   if (value.tag === "Action") {
     collectAction(value, path, actions)
@@ -105,6 +128,48 @@ function collectAction(value: Record<string, unknown>, path: string, actions: Ui
     path,
     function: value.call.function,
     args: value.call.args,
+  })
+}
+
+function collectInclude(value: Record<string, unknown>, path: string, includes: UiInclude[]): void {
+  if (!isRecordObject(value.call)) return
+  if (value.call.namespace !== "ui") return
+  if (!isRecordObject(value.call.args)) return
+
+  includes.push({
+    path,
+    function: value.call.function,
+    args: value.call.args,
+  })
+}
+
+function validateIncludeNodeArgs(
+  resource: string,
+  include: UiInclude,
+  uiNodes: ReadonlyMap<string, DeclaredUiNode>,
+  issues: CamConformanceIssue[],
+): void {
+  if (typeof include.function !== "string") return
+  if (include.function.startsWith("$")) return
+
+  const node = uiNodes.get(include.function)
+  if (node === undefined) {
+    issues.push(dataflowIssue(
+      resource,
+      `${include.path}.call.function`,
+      `UI Include calls unknown UI node: ${include.function}`,
+    ))
+    return
+  }
+  if (node.requires === undefined) return
+
+  validateExactNames({
+    resource,
+    path: `${include.path}.call.args`,
+    expectedNames: node.requires,
+    actualNames: Object.keys(include.args),
+    destination: `UI node ${node.name}`,
+    issues,
   })
 }
 

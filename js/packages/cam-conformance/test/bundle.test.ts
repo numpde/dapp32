@@ -756,6 +756,53 @@ test("UI action state references must be backed by Input names", () => {
   ])
 })
 
+test("UI Includes with literal targets must pass exactly the target node args", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "detail",
+              args: {
+                extra: "x",
+              },
+            },
+          },
+        ],
+      },
+      detail: {
+        tag: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./ui.json", uiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.args.extra"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.args.view"],
+  ])
+})
+
 test("malformed resource declarations report each bad field", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>

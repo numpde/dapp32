@@ -90,20 +90,22 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     namespaces,
     issues,
   })
+  const uiNodes = declaredUiNodes({
+    resources: bundle.resources,
+    declarations,
+    issues,
+  })
   validateRouteHandoffs({
     resource: bundle.rootURI,
     routes,
-    uiNodes: declaredUiNodes({
-      resources: bundle.resources,
-      declarations,
-      issues,
-    }),
+    uiNodes,
     issues,
   })
   validateUiDataflow({
     resources: bundle.resources,
     declarations,
     routes,
+    uiNodes,
     issues,
   })
   validateRouteAbiCompatibility({
