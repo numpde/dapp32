@@ -26,6 +26,7 @@ import {
 } from "../walk.ts"
 import {
   expressionReference,
+  isExpressionIdentifier,
 } from "../expressions/reference.ts"
 
 type UiCall = {
@@ -230,9 +231,10 @@ function referencedStateInput(value: string): string | undefined {
   const reference = expressionReference(value)
   if (reference === undefined) return undefined
 
-  const { root, firstSegment } = reference
+  const { root, segments } = reference
+  const firstSegment = segments[0]
   if (root !== "state") return undefined
-  if (firstSegment === undefined || firstSegment.length === 0) return ""
+  if (firstSegment === undefined || !isExpressionIdentifier(firstSegment)) return ""
   return firstSegment
 }
 

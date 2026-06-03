@@ -14,6 +14,7 @@ import {
 } from "../walk.ts"
 import {
   expressionReference,
+  isExpressionIdentifier,
 } from "../expressions/reference.ts"
 
 export type RouteKind = "read" | "write"
@@ -268,11 +269,12 @@ function validateRouteExpressionString({
   const reference = expressionReference(value)
   if (reference === undefined) return
 
-  const { root, firstSegment } = reference
+  const { root, segments } = reference
+  const firstSegment = segments[0]
   if (
     root === "inputs"
     && firstSegment !== undefined
-    && firstSegment.length > 0
+    && isExpressionIdentifier(firstSegment)
     && !declaredInputs.has(firstSegment)
   ) {
     issues.push(routeExpressionIssue(resource, path, `route expression references undeclared input: ${firstSegment}`))

@@ -2,7 +2,7 @@ const IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
 
 export type ExpressionReference = {
   readonly root: string
-  readonly firstSegment?: string
+  readonly segments: readonly string[]
 }
 
 // Conformance checks inspect expression references without resolving them. The
@@ -11,13 +11,14 @@ export type ExpressionReference = {
 export function expressionReference(value: string): ExpressionReference | undefined {
   if (!value.startsWith("$") || value.startsWith("$$")) return undefined
 
-  const [root, firstSegment] = value.slice(1).split(".")
+  const [root, ...segments] = value.slice(1).split(".")
   if (root === undefined || !IDENTIFIER_RE.test(root)) {
-    return { root: "" }
-  }
-  if (firstSegment !== undefined && !IDENTIFIER_RE.test(firstSegment)) {
-    return { root, firstSegment: "" }
+    return { root: "", segments: [] }
   }
 
-  return { root, firstSegment }
+  return { root, segments }
+}
+
+export function isExpressionIdentifier(value: string): boolean {
+  return IDENTIFIER_RE.test(value)
 }

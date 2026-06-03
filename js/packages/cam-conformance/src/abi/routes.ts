@@ -18,6 +18,9 @@ import {
 import {
   forEachString,
 } from "../walk.ts"
+import {
+  expressionReference,
+} from "../expressions/reference.ts"
 
 type AbiFunction = {
   readonly name: string
@@ -336,10 +339,10 @@ function nonEmptyString(value: unknown): string | undefined {
 }
 
 function outputExpressionSegments(value: string): readonly string[] | undefined {
-  if (value === "$outputs") return []
-  if (!value.startsWith("$outputs.") || value.startsWith("$$")) return undefined
+  const reference = expressionReference(value)
+  if (reference === undefined || reference.root !== "outputs") return undefined
 
-  return value.slice("$outputs.".length).split(".")
+  return reference.segments
 }
 
 function isArrayIndex(value: string | undefined): value is string {
