@@ -1,8 +1,4 @@
 import {
-  CAM_UI_NAMESPACE,
-} from "@cam/protocol"
-
-import {
   CamConformanceError,
 } from "../issues.ts"
 import type {
@@ -144,7 +140,7 @@ function verifyDeclaredUiResource(
   declarations: readonly ResourceDeclaration[],
   issues: CamConformanceIssue[],
 ): void {
-  const declaration = declarations.find((item) => item.namespace === CAM_UI_NAMESPACE)
+  const declaration = declarations.find((item) => item.namespaceType === "ui")
   if (declaration === undefined) return
 
   const bytes = resources.get(declaration.uri)
