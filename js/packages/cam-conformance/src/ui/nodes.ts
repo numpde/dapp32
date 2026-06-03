@@ -1,7 +1,6 @@
 import {
-  isRecordObject,
-  parseJsonBytes,
   UI_NODE_ARGUMENT_KEYS,
+  isRecordObject,
 } from "@cam/protocol"
 
 import type {
@@ -10,6 +9,9 @@ import type {
 import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
+import {
+  readRawUiDocument,
+} from "./document.ts"
 
 export type DeclaredUiNode = {
   readonly name: string
@@ -28,10 +30,7 @@ export function declaredUiNodes({
   const declaration = declarations.find((item) => item.namespaceType === "ui")
   if (declaration === undefined) return undefined
 
-  const bytes = resources.get(declaration.uri)
-  if (bytes === undefined) return undefined
-
-  const ui = parseUiInventory(bytes)
+  const ui = readRawUiDocument(resources.get(declaration.uri))
   if (ui === undefined) return undefined
 
   const nodes = new Map<string, DeclaredUiNode>()
@@ -44,27 +43,6 @@ export function declaredUiNodes({
   }
 
   return nodes
-}
-
-function parseUiInventory(bytes: Uint8Array): { readonly nodes: Record<string, unknown> } | undefined {
-  let ui: unknown
-  let parseFailed = false
-  try {
-    ui = parseJsonBytes(bytes)
-  } catch {
-    parseFailed = true
-  }
-  if (parseFailed) {
-    return undefined
-  }
-
-  if (!isRecordObject(ui) || !isRecordObject(ui.nodes)) {
-    return undefined
-  }
-
-  return {
-    nodes: ui.nodes,
-  }
 }
 
 function nodeRequires(

@@ -1,6 +1,5 @@
 import {
   isRecordObject,
-  parseJsonBytes,
 } from "@cam/protocol"
 
 import type {
@@ -12,6 +11,11 @@ import type {
 import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
+import {
+  forEachUiNode,
+  forEachUiString,
+  readRawUiDocument,
+} from "./document.ts"
 
 type UiAction = {
   readonly path: string
@@ -53,23 +57,12 @@ export function validateUiDataflow({
 function readUiDataflow(bytes: Uint8Array | undefined): UiDataflow | undefined {
   if (bytes === undefined) return undefined
 
-  let ui: unknown
-  let parseFailed = false
-  try {
-    ui = parseJsonBytes(bytes)
-  } catch {
-    parseFailed = true
-  }
-  if (parseFailed) {
-    return undefined
-  }
-  if (!isRecordObject(ui) || !isRecordObject(ui.nodes)) return undefined
+  const ui = readRawUiDocument(bytes)
+  if (ui === undefined) return undefined
 
   const inputNames = new Set<string>()
   const actions: UiAction[] = []
-  for (const [nodeName, node] of Object.entries(ui.nodes)) {
-    collectUiNodeDataflow(node, `nodes.${nodeName}`, inputNames, actions)
-  }
+  forEachUiNode(ui.nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, actions))
 
   return {
     inputNames,
@@ -78,21 +71,16 @@ function readUiDataflow(bytes: Uint8Array | undefined): UiDataflow | undefined {
 }
 
 function collectUiNodeDataflow(
-  value: unknown,
+  value: Record<string, unknown>,
   path: string,
   inputNames: Set<string>,
   actions: UiAction[],
 ): void {
-  if (!isRecordObject(value)) return
-
   if (value.tag === "Input") {
     collectInputName(value, inputNames)
   }
   if (value.tag === "Action") {
     collectAction(value, path, actions)
-  }
-  if (Array.isArray(value.children)) {
-    value.children.forEach((child, index) => collectUiNodeDataflow(child, `${path}.children.${index}`, inputNames, actions))
   }
 }
 
@@ -155,7 +143,8 @@ function validateActionStateInputs(
   inputNames: ReadonlySet<string>,
   issues: CamConformanceIssue[],
 ): void {
-  forEachExpressionString(action.args, `${action.path}.call.args`, (value, path) => {
+  forEachUiString(action.args, (value, suffix) => {
+    const path = `${action.path}.call.args${suffix.length === 0 ? "" : `.${suffix}`}`
     const stateInput = referencedStateInput(value)
     if (stateInput === undefined) return
 
@@ -214,26 +203,6 @@ function validateExactNames({
   for (const name of expected) {
     if (!actual.has(name)) {
       issues.push(dataflowIssue(resource, `${path}.${name}`, `missing UI action argument for ${destination}: ${name}`))
-    }
-  }
-}
-
-function forEachExpressionString(
-  value: unknown,
-  path: string,
-  visit: (value: string, path: string) => void,
-): void {
-  if (typeof value === "string") {
-    visit(value, path)
-    return
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => forEachExpressionString(item, `${path}.${index}`, visit))
-    return
-  }
-  if (isRecordObject(value)) {
-    for (const [name, item] of Object.entries(value)) {
-      forEachExpressionString(item, `${path}.${name}`, visit)
     }
   }
 }

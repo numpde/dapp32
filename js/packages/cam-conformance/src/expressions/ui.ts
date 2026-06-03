@@ -1,5 +1,4 @@
 import {
-  parseJsonBytes,
   UI_CONTEXT_KEYS,
 } from "@cam/protocol"
 
@@ -9,6 +8,10 @@ import type {
 import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
+import {
+  forEachUiString,
+  readRawUiDocument,
+} from "../ui/document.ts"
 
 const EXPRESSION_ROOT_RE = /^\$([A-Za-z][A-Za-z0-9_]*)/
 
@@ -23,36 +26,10 @@ export function validateUiExpressionRoots({
 }): void {
   for (const declaration of declarations) {
     if (declaration.namespaceType !== "ui") continue
-    const bytes = resources.get(declaration.uri)
-    if (bytes === undefined) continue
+    const ui = readRawUiDocument(resources.get(declaration.uri))
+    if (ui === undefined) continue
 
-    let value: unknown
-    try {
-      value = parseJsonBytes(bytes)
-    } catch {
-      continue
-    }
-
-    walkUiStrings(declaration.uri, value, "", issues)
-  }
-}
-
-function walkUiStrings(
-  resource: string,
-  value: unknown,
-  path: string,
-  issues: CamConformanceIssue[],
-): void {
-  if (typeof value === "string") {
-    validateExpressionRoot(resource, value, path, issues)
-    return
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => walkUiStrings(resource, item, joinPath(path, String(index)), issues))
-    return
-  }
-  if (typeof value === "object" && value !== null) {
-    Object.entries(value).forEach(([key, item]) => walkUiStrings(resource, item, joinPath(path, key), issues))
+    forEachUiString(ui.value, (value, path) => validateExpressionRoot(declaration.uri, value, path, issues))
   }
 }
 
@@ -76,8 +53,4 @@ function validateExpressionRoot(
     path,
     message: `UI expression root is not supported: ${reportedRoot}`,
   })
-}
-
-function joinPath(parent: string, child: string): string {
-  return parent.length === 0 ? child : `${parent}.${child}`
 }
