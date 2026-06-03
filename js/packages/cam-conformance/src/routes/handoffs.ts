@@ -7,6 +7,9 @@ import type {
 import type {
   DeclaredUiNode,
 } from "../ui/nodes.ts"
+import {
+  diffNameSets,
+} from "../names.ts"
 
 export function validateRouteHandoffs({
   resource,
@@ -91,20 +94,16 @@ function validateNamedHandoffArgs({
   readonly destination: string
   readonly issues: CamConformanceIssue[]
 }): void {
-  const expected = new Set(expectedNames)
-  const actual = new Set(actualNames)
-
-  for (const name of actual) {
-    if (!expected.has(name)) {
+  diffNameSets({
+    expectedNames,
+    actualNames,
+    onUnexpected: (name) => {
       issues.push(handoffIssue(resource, `${path}.${name}`, `unexpected continuation argument for ${destination}: ${name}`))
-    }
-  }
-
-  for (const name of expected) {
-    if (!actual.has(name)) {
+    },
+    onMissing: (name) => {
       issues.push(handoffIssue(resource, `${path}.${name}`, `missing continuation argument for ${destination}: ${name}`))
-    }
-  }
+    },
+  })
 }
 
 function handoffIssue(resource: string, path: string, message: string): CamConformanceIssue {

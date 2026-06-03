@@ -8,6 +8,9 @@ import type {
 import type {
   DeclaredRoute,
 } from "../manifest/routes.ts"
+import {
+  diffNameSets,
+} from "../names.ts"
 import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
@@ -20,13 +23,7 @@ import {
   readRawUiDocument,
 } from "./document.ts"
 
-type UiAction = {
-  readonly path: string
-  readonly function: unknown
-  readonly args: Record<string, unknown>
-}
-
-type UiInclude = {
+type UiCall = {
   readonly path: string
   readonly function: unknown
   readonly args: Record<string, unknown>
@@ -34,8 +31,8 @@ type UiInclude = {
 
 type UiDataflow = {
   readonly inputNames: ReadonlySet<string>
-  readonly actions: readonly UiAction[]
-  readonly includes: readonly UiInclude[]
+  readonly routeCalls: readonly UiCall[]
+  readonly includeCalls: readonly UiCall[]
 }
 
 const EXPRESSION_IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
@@ -60,11 +57,11 @@ export function validateUiDataflow({
     if (dataflow === undefined) continue
 
     if (uiNodes !== undefined) {
-      for (const include of dataflow.includes) {
+      for (const include of dataflow.includeCalls) {
         validateIncludeNodeArgs(declaration.uri, include, uiNodes, issues)
       }
     }
-    for (const action of dataflow.actions) {
+    for (const action of dataflow.routeCalls) {
       validateActionRouteArgs(declaration.uri, action, routesByName, issues)
       validateActionStateInputs(declaration.uri, action, dataflow.inputNames, issues)
     }
@@ -78,14 +75,14 @@ function readUiDataflow(bytes: Uint8Array | undefined): UiDataflow | undefined {
   if (ui === undefined) return undefined
 
   const inputNames = new Set<string>()
-  const actions: UiAction[] = []
-  const includes: UiInclude[] = []
-  forEachUiNode(ui.nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, actions, includes))
+  const routeCalls: UiCall[] = []
+  const includeCalls: UiCall[] = []
+  forEachUiNode(ui.nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, routeCalls, includeCalls))
 
   return {
     inputNames,
-    actions,
-    includes,
+    routeCalls,
+    includeCalls,
   }
 }
 
@@ -93,17 +90,17 @@ function collectUiNodeDataflow(
   value: Record<string, unknown>,
   path: string,
   inputNames: Set<string>,
-  actions: UiAction[],
-  includes: UiInclude[],
+  routeCalls: UiCall[],
+  includeCalls: UiCall[],
 ): void {
   if (value.tag === "Input") {
     collectInputName(value, inputNames)
   }
   if (value.tag === "Include") {
-    collectInclude(value, path, includes)
+    collectCall(value, path, "ui", includeCalls)
   }
   if (value.tag === "Action") {
-    collectAction(value, path, actions)
+    collectCall(value, path, "routes", routeCalls)
   }
 }
 
@@ -119,24 +116,17 @@ function collectInputName(node: Record<string, unknown>, inputNames: Set<string>
   }
 }
 
-function collectAction(value: Record<string, unknown>, path: string, actions: UiAction[]): void {
+function collectCall(
+  value: Record<string, unknown>,
+  path: string,
+  namespace: "routes" | "ui",
+  calls: UiCall[],
+): void {
   if (!isRecordObject(value.call)) return
-  if (value.call.namespace !== "routes") return
+  if (value.call.namespace !== namespace) return
   if (!isRecordObject(value.call.args)) return
 
-  actions.push({
-    path,
-    function: value.call.function,
-    args: value.call.args,
-  })
-}
-
-function collectInclude(value: Record<string, unknown>, path: string, includes: UiInclude[]): void {
-  if (!isRecordObject(value.call)) return
-  if (value.call.namespace !== "ui") return
-  if (!isRecordObject(value.call.args)) return
-
-  includes.push({
+  calls.push({
     path,
     function: value.call.function,
     args: value.call.args,
@@ -145,7 +135,7 @@ function collectInclude(value: Record<string, unknown>, path: string, includes: 
 
 function validateIncludeNodeArgs(
   resource: string,
-  include: UiInclude,
+  include: UiCall,
   uiNodes: ReadonlyMap<string, DeclaredUiNode>,
   issues: CamConformanceIssue[],
 ): void {
@@ -175,7 +165,7 @@ function validateIncludeNodeArgs(
 
 function validateActionRouteArgs(
   resource: string,
-  action: UiAction,
+  action: UiCall,
   routesByName: ReadonlyMap<string, DeclaredRoute>,
   issues: CamConformanceIssue[],
 ): void {
@@ -204,7 +194,7 @@ function validateActionRouteArgs(
 
 function validateActionStateInputs(
   resource: string,
-  action: UiAction,
+  action: UiCall,
   inputNames: ReadonlySet<string>,
   issues: CamConformanceIssue[],
 ): void {
@@ -256,20 +246,16 @@ function validateExactNames({
   readonly destination: string
   readonly issues: CamConformanceIssue[]
 }): void {
-  const expected = new Set(expectedNames)
-  const actual = new Set(actualNames)
-
-  for (const name of actual) {
-    if (!expected.has(name)) {
-      issues.push(dataflowIssue(resource, `${path}.${name}`, `unexpected UI action argument for ${destination}: ${name}`))
-    }
-  }
-
-  for (const name of expected) {
-    if (!actual.has(name)) {
-      issues.push(dataflowIssue(resource, `${path}.${name}`, `missing UI action argument for ${destination}: ${name}`))
-    }
-  }
+  diffNameSets({
+    expectedNames,
+    actualNames,
+    onUnexpected: (name) => {
+      issues.push(dataflowIssue(resource, `${path}.${name}`, `unexpected UI call argument for ${destination}: ${name}`))
+    },
+    onMissing: (name) => {
+      issues.push(dataflowIssue(resource, `${path}.${name}`, `missing UI call argument for ${destination}: ${name}`))
+    },
+  })
 }
 
 function dataflowIssue(resource: string, path: string, message: string): CamConformanceIssue {
