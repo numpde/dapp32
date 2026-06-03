@@ -19,9 +19,11 @@ import type {
 } from "./nodes.ts"
 import {
   forEachUiNode,
-  forEachUiString,
   readRawUiDocument,
 } from "./document.ts"
+import {
+  forEachString,
+} from "../walk.ts"
 
 type UiCall = {
   readonly path: string
@@ -198,7 +200,7 @@ function validateActionStateInputs(
   inputNames: ReadonlySet<string>,
   issues: CamConformanceIssue[],
 ): void {
-  forEachUiString(action.args, (value, suffix) => {
+  forEachString(action.args, "", (value, suffix) => {
     const path = `${action.path}.call.args${suffix.length === 0 ? "" : `.${suffix}`}`
     const stateInput = referencedStateInput(value)
     if (stateInput === undefined) return

@@ -9,9 +9,11 @@ import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
 import {
-  forEachUiString,
   readRawUiDocument,
 } from "../ui/document.ts"
+import {
+  forEachString,
+} from "../walk.ts"
 
 const EXPRESSION_ROOT_RE = /^\$([A-Za-z][A-Za-z0-9_]*)/
 
@@ -29,7 +31,7 @@ export function validateUiExpressionRoots({
     const ui = readRawUiDocument(resources.get(declaration.uri))
     if (ui === undefined) continue
 
-    forEachUiString(ui.value, (value, path) => validateExpressionRoot(declaration.uri, value, path, issues))
+    forEachString(ui.value, "", (value, path) => validateExpressionRoot(declaration.uri, value, path, issues))
   }
 }
 

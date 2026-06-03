@@ -9,6 +9,9 @@ import type {
   DeclaredNamespace,
   NamespaceType,
 } from "./namespaces.ts"
+import {
+  forEachString,
+} from "../walk.ts"
 
 export type RouteKind = "read" | "write"
 
@@ -220,7 +223,7 @@ function validateRouteExpressionReferences({
   readonly issues: CamConformanceIssue[]
 }): void {
   const declaredInputs = new Set(inputs)
-  forEachExpressionString(callArgs, `routes.${routeName}.call.args`, (value, path) => {
+  forEachString(callArgs, `routes.${routeName}.call.args`, (value, path) => {
     validateRouteExpressionString({
       resource,
       path,
@@ -231,7 +234,7 @@ function validateRouteExpressionReferences({
       issues,
     })
   })
-  forEachExpressionString(thenArgs, `routes.${routeName}.then.args`, (value, path) => {
+  forEachString(thenArgs, `routes.${routeName}.then.args`, (value, path) => {
     validateRouteExpressionString({
       resource,
       path,
@@ -275,28 +278,6 @@ function validateRouteExpressionString({
 
   if (root === "outputs" && !allowOutputs) {
     issues.push(routeExpressionIssue(resource, path, outputErrorMessage))
-  }
-}
-
-function forEachExpressionString(
-  value: unknown,
-  path: string,
-  visit: (value: string, path: string) => void,
-): void {
-  if (typeof value === "string") {
-    visit(value, path)
-    return
-  }
-
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => forEachExpressionString(item, `${path}.${index}`, visit))
-    return
-  }
-
-  if (isRecordObject(value)) {
-    for (const [name, item] of Object.entries(value)) {
-      forEachExpressionString(item, `${path}.${name}`, visit)
-    }
   }
 }
 

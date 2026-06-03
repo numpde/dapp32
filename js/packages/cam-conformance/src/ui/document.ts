@@ -38,13 +38,6 @@ export function forEachUiNode(
   }
 }
 
-export function forEachUiString(
-  value: unknown,
-  visit: (value: string, path: string) => void,
-): void {
-  walkString(value, "", visit)
-}
-
 function walkUiNode(
   value: unknown,
   path: string,
@@ -56,26 +49,4 @@ function walkUiNode(
   if (Array.isArray(value.children)) {
     value.children.forEach((child, index) => walkUiNode(child, `${path}.children.${index}`, visit))
   }
-}
-
-function walkString(
-  value: unknown,
-  path: string,
-  visit: (value: string, path: string) => void,
-): void {
-  if (typeof value === "string") {
-    visit(value, path)
-    return
-  }
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => walkString(item, joinPath(path, String(index)), visit))
-    return
-  }
-  if (typeof value === "object" && value !== null) {
-    Object.entries(value).forEach(([key, item]) => walkString(item, joinPath(path, key), visit))
-  }
-}
-
-function joinPath(parent: string, child: string): string {
-  return parent.length === 0 ? child : `${parent}.${child}`
 }

@@ -12,6 +12,12 @@ import type {
 import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
+import {
+  diffNameSets,
+} from "../names.ts"
+import {
+  forEachString,
+} from "../walk.ts"
 
 type AbiFunction = {
   readonly name: string
@@ -102,20 +108,16 @@ function validateRouteMutability(
 }
 
 function validateRouteArgs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {
-  const expected = new Set(fn.inputNames)
-  const actual = new Set(Object.keys(route.call.args))
-
-  for (const name of actual) {
-    if (!expected.has(name)) {
+  diffNameSets({
+    expectedNames: fn.inputNames,
+    actualNames: Object.keys(route.call.args),
+    onUnexpected: (name) => {
       issues.push(routeAbiIssue(resource, `routes.${route.name}.call.args.${name}`, `unexpected route argument: ${name}`))
-    }
-  }
-
-  for (const name of expected) {
-    if (!actual.has(name)) {
+    },
+    onMissing: (name) => {
       issues.push(routeAbiIssue(resource, `routes.${route.name}.call.args.${name}`, `missing route argument: ${name}`))
-    }
-  }
+    },
+  })
 }
 
 function validateRouteOutputRefs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {
@@ -338,24 +340,6 @@ function outputExpressionSegments(value: string): readonly string[] | undefined 
   if (!value.startsWith("$outputs.") || value.startsWith("$$")) return undefined
 
   return value.slice("$outputs.".length).split(".")
-}
-
-function forEachString(value: unknown, path: string, visit: (value: string, path: string) => void): void {
-  if (typeof value === "string") {
-    visit(value, path)
-    return
-  }
-
-  if (Array.isArray(value)) {
-    value.forEach((item, index) => forEachString(item, `${path}.${index}`, visit))
-    return
-  }
-
-  if (isRecordObject(value)) {
-    for (const [name, item] of Object.entries(value)) {
-      forEachString(item, `${path}.${name}`, visit)
-    }
-  }
 }
 
 function isArrayIndex(value: string | undefined): value is string {
