@@ -5,14 +5,14 @@ import test from "node:test"
 import { parseJsonText } from "@cam/protocol"
 
 import { parseCam } from "../src/index.ts"
-import { checkedInCamManifestPaths, dappsRoot } from "../../../../tests/fixtures/cam/checked-resources.mts"
+import { checkedInCamRootPaths, dappsRoot } from "../../../../tests/fixtures/cam/checked-resources.mts"
 
-test("checked-in CAM manifests parse with the runtime CAM parser", async () => {
-  const manifestPaths = await checkedInCamManifestPaths()
+test("checked-in CAM root documents parse with the runtime CAM parser", async () => {
+  const rootPaths = await checkedInCamRootPaths()
 
-  for (const manifestPath of manifestPaths) {
-    await test(relative(dappsRoot, manifestPath), async () => {
-      parseCam(parseJsonText(await readFile(manifestPath, "utf8")))
+  for (const rootPath of rootPaths) {
+    await test(relative(dappsRoot, rootPath), async () => {
+      parseCam(parseJsonText(await readFile(rootPath, "utf8")))
     })
   }
 })

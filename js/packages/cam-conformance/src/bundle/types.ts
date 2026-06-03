@@ -1,5 +1,5 @@
 export type CamConformanceBundle = {
-  readonly mainURI: string
-  readonly mainBytes: Uint8Array
+  readonly rootURI: string
+  readonly rootBytes: Uint8Array
   readonly resources: ReadonlyMap<string, Uint8Array>
 }

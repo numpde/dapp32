@@ -7,42 +7,42 @@ import test from "node:test"
 import { parseJsonText } from "@cam/protocol"
 
 import { validateCamBundle } from "../src/index.ts"
-import { checkedInCamManifestPaths, dappsRoot } from "../../../../tests/fixtures/cam/checked-resources.mts"
+import { checkedInCamRootPaths, dappsRoot } from "../../../../tests/fixtures/cam/checked-resources.mts"
 
 test("checked-in CAM bundles pass conformance", async () => {
-  const manifestPaths = await checkedInCamManifestPaths()
+  const rootPaths = await checkedInCamRootPaths()
 
-  for (const manifestPath of manifestPaths) {
-    await test(relative(dappsRoot, manifestPath), async () => {
-      const bundle = await checkedInBundle(manifestPath)
+  for (const rootPath of rootPaths) {
+    await test(relative(dappsRoot, rootPath), async () => {
+      const bundle = await checkedInBundle(rootPath)
       assert.deepEqual(validateCamBundle(bundle), [])
     })
   }
 })
 
-async function checkedInBundle(manifestPath: string) {
-  const mainBytes = await readFile(manifestPath)
-  const main = parseJsonText(mainBytes.toString("utf8"))
+async function checkedInBundle(rootPath: string) {
+  const rootBytes = await readFile(rootPath)
+  const root = parseJsonText(rootBytes.toString("utf8"))
   const resources = new Map<string, Uint8Array>()
 
-  for (const uri of declaredLocalResourceURIs(main)) {
-    resources.set(uri, await readFile(resolve(dirname(manifestPath), uri)))
+  for (const uri of declaredLocalResourceURIs(root)) {
+    resources.set(uri, await readFile(resolve(dirname(rootPath), uri)))
   }
 
   return {
-    mainURI: pathToFileURL(manifestPath).href,
-    mainBytes,
+    rootURI: pathToFileURL(rootPath).href,
+    rootBytes,
     resources,
   }
 }
 
-function declaredLocalResourceURIs(main: unknown): readonly string[] {
-  if (!isRecord(main) || !isRecord(main.namespaces)) {
+function declaredLocalResourceURIs(root: unknown): readonly string[] {
+  if (!isRecord(root) || !isRecord(root.namespaces)) {
     return []
   }
 
   const uris: string[] = []
-  for (const namespace of Object.values(main.namespaces)) {
+  for (const namespace of Object.values(root.namespaces)) {
     if (!isRecord(namespace)) continue
 
     if (namespace.type === "contract" && typeof namespace.abiURI === "string") {

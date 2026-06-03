@@ -38,11 +38,11 @@ test("missing declared UI resource returns one precise issue", () => {
   ])
 })
 
-test("invalid root CAM bytes report the caller-supplied main URI", () => {
+test("invalid root CAM bytes report the caller-supplied root URI", () => {
   const issues = validateCamBundle({
     ...minimalBundle(),
-    mainURI: "ipfs://example-cid/app.cam",
-    mainBytes: encoder.encode("{"),
+    rootURI: "ipfs://example-cid/app.cam",
+    rootBytes: encoder.encode("{"),
   })
 
   assert.equal(issues.length, 1)
@@ -51,8 +51,8 @@ test("invalid root CAM bytes report the caller-supplied main URI", () => {
 })
 
 test("runtime CAM parsing is reported after resource checks", () => {
-  const issues = validateEditedMain((main, bundle) => {
-    delete main.entry
+  const issues = validateEditedRoot((root, bundle) => {
+    delete root.entry
     return {
       resources: new Map([
         ["./abi/App.json", mustGetResource(bundle, "./abi/App.json")],
@@ -67,8 +67,8 @@ test("runtime CAM parsing is reported after resource checks", () => {
 })
 
 test("missing entry route is reported as a precise manifest issue", () => {
-  const issues = validateEditedMain((main) => {
-    main.entry = "missing"
+  const issues = validateEditedRoot((root) => {
+    root.entry = "missing"
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -78,8 +78,8 @@ test("missing entry route is reported as a precise manifest issue", () => {
 })
 
 test("malformed route inventory is reported before runtime compatibility", () => {
-  const issues = validateEditedMain((main) => {
-    main.routes = null
+  const issues = validateEditedRoot((root) => {
+    root.routes = null
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -89,16 +89,16 @@ test("malformed route inventory is reported before runtime compatibility", () =>
 })
 
 test("malformed route declarations are reported before runtime compatibility", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>
-  }>((main) => {
-    main.routes[""] = {
+  }>((root) => {
+    root.routes[""] = {
       kind: "read",
       inputs: [],
       call: {},
       then: {},
     }
-    main.routes.broken = null
+    root.routes.broken = null
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -109,10 +109,10 @@ test("malformed route declarations are reported before runtime compatibility", (
 })
 
 test("invalid route kind is reported directly", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>
-  }>((main) => {
-    const entry = main.routes.entry as Record<string, unknown>
+  }>((root) => {
+    const entry = root.routes.entry as Record<string, unknown>
     entry.kind = "browse"
   })
 
@@ -123,10 +123,10 @@ test("invalid route kind is reported directly", () => {
 })
 
 test("invalid route input declarations are reported per input", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>
-  }>((main) => {
-    main.routes.entry = {
+  }>((root) => {
+    root.routes.entry = {
       kind: "read",
       inputs: ["serialNumber", "", "serialNumber"],
       call: {
@@ -152,10 +152,10 @@ test("invalid route input declarations are reported per input", () => {
 })
 
 test("route invocations must target the correct namespace types", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>
-  }>((main) => {
-    main.routes.entry = {
+  }>((root) => {
+    root.routes.entry = {
       kind: "read",
       inputs: [],
       call: {
@@ -181,10 +181,10 @@ test("route invocations must target the correct namespace types", () => {
 })
 
 test("route invocations require function names and named args", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>
-  }>((main) => {
-    main.routes.entry = {
+  }>((root) => {
+    root.routes.entry = {
       kind: "read",
       inputs: [],
       call: {
@@ -209,10 +209,10 @@ test("route invocations require function names and named args", () => {
 })
 
 test("route calls must target functions declared by the namespace ABI", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly routes: Record<string, Record<string, unknown>>
-  }>((main) => {
-    const entry = main.routes.entry
+  }>((root) => {
+    const entry = root.routes.entry
     entry.call = {
       namespace: "contracts.App",
       function: "missing",
@@ -240,12 +240,12 @@ test("route call args must match named ABI inputs exactly", () => {
       outputs: [],
     },
   ])
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
-  }>((main, bundle) => {
-    main.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
-    main.routes.entry.call = {
+  }>((root, bundle) => {
+    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
       args: {
@@ -267,10 +267,10 @@ test("route call args must match named ABI inputs exactly", () => {
 })
 
 test("read route continuations must target declared UI nodes with exact args", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly routes: Record<string, Record<string, unknown>>
-  }>((main) => {
-    main.routes.entry.then = {
+  }>((root) => {
+    root.routes.entry.then = {
       namespace: "ui",
       function: "missing",
       args: {
@@ -285,10 +285,10 @@ test("read route continuations must target declared UI nodes with exact args", (
 })
 
 test("read route continuation args must match UI node requirements exactly", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly routes: Record<string, Record<string, unknown>>
-  }>((main) => {
-    main.routes.entry.then = {
+  }>((root) => {
+    root.routes.entry.then = {
       namespace: "ui",
       function: "app",
       args: {
@@ -325,12 +325,12 @@ test("write route continuations must target declared routes with exact inputs", 
       outputs: [],
     },
   ])
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
-  }>((main, bundle) => {
-    main.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
-    main.routes.entry = {
+  }>((root, bundle) => {
+    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    root.routes.entry = {
       kind: "read",
       inputs: ["serialNumber"],
       call: {
@@ -346,7 +346,7 @@ test("write route continuations must target declared routes with exact inputs", 
         },
       },
     }
-    main.routes.save = {
+    root.routes.save = {
       kind: "write",
       inputs: ["serialNumber"],
       call: {
@@ -379,10 +379,10 @@ test("write route continuations must target declared routes with exact inputs", 
 })
 
 test("malformed resource declarations report each bad field", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>
-  }>((main, bundle) => {
-    main.namespaces["contracts.App"] = {
+  }>((root, bundle) => {
+    root.namespaces["contracts.App"] = {
       type: "contract",
       abiURI: "",
     }
@@ -421,10 +421,10 @@ test("undeclared bundle resources are reported as orphans", () => {
 })
 
 test("conflicting integrity declarations for one URI are reported directly", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>
-  }>((main) => {
-    main.namespaces["contracts.Other"] = {
+  }>((root) => {
+    root.namespaces["contracts.Other"] = {
       type: "contract",
       abiURI: "./abi/App.json",
       integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -437,10 +437,10 @@ test("conflicting integrity declarations for one URI are reported directly", () 
 })
 
 test("missing UI namespace is reported without hiding runtime incompatibility", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>
-  }>((main, bundle) => {
-    delete main.namespaces.ui
+  }>((root, bundle) => {
+    delete root.namespaces.ui
     return {
       resources: new Map([
         ["./abi/App.json", mustGetResource(bundle, "./abi/App.json")],
@@ -456,28 +456,28 @@ test("missing UI namespace is reported without hiding runtime incompatibility", 
 })
 
 test("invalid namespace declarations are reported together", () => {
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>
-  }>((main) => {
-    const appNamespace = main.namespaces["contracts.App"] as Record<string, unknown>
-    const uiNamespace = main.namespaces.ui as Record<string, unknown>
-    main.namespaces[""] = {
+  }>((root) => {
+    const appNamespace = root.namespaces["contracts.App"] as Record<string, unknown>
+    const uiNamespace = root.namespaces.ui as Record<string, unknown>
+    root.namespaces[""] = {
       type: "routes",
     }
-    main.namespaces.flows = {
+    root.namespaces.flows = {
       type: "routes",
     }
-    main.namespaces.screens = {
+    root.namespaces.screens = {
       type: "ui",
       uri: uiNamespace.uri,
       integrity: uiNamespace.integrity,
     }
-    main.namespaces["contracts."] = {
+    root.namespaces["contracts."] = {
       type: "contract",
       abiURI: appNamespace.abiURI,
       integrity: appNamespace.integrity,
     }
-    main.namespaces.widgets = {
+    root.namespaces.widgets = {
       type: "widget",
     }
   })
@@ -494,10 +494,10 @@ test("invalid namespace declarations are reported together", () => {
 
 test("invalid namespace names do not declare bundle resources", () => {
   const invalidAbiBytes = jsonBytes([])
-  const issues = validateEditedMain<{
+  const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>
-  }>((main, bundle) => {
-    main.namespaces.Manager = {
+  }>((root, bundle) => {
+    root.namespaces.Manager = {
       type: "contract",
       abiURI: "./abi/Manager.json",
       integrity: sha256Integrity(invalidAbiBytes),
@@ -556,7 +556,7 @@ function minimalBundle(overrides: {
       outputs: [],
     },
   ])
-  const mainBytes = jsonBytes({
+  const rootBytes = jsonBytes({
     cam: "1.0.0",
     entry: "entry",
     namespaces: {
@@ -595,8 +595,8 @@ function minimalBundle(overrides: {
   })
 
   return {
-    mainURI: "file:///bundle/main.json",
-    mainBytes,
+    rootURI: "file:///bundle/root.json",
+    rootBytes,
     resources: new Map([
       ["./abi/App.json", abiBytes],
       ["./ui.json", uiBytes],
@@ -604,8 +604,8 @@ function minimalBundle(overrides: {
   }
 }
 
-function mutableMain<T extends Record<string, unknown> = Record<string, unknown>>(bundle: CamConformanceBundle): T {
-  return JSON.parse(decoder.decode(bundle.mainBytes)) as T
+function mutableRoot<T extends Record<string, unknown> = Record<string, unknown>>(bundle: CamConformanceBundle): T {
+  return JSON.parse(decoder.decode(bundle.rootBytes)) as T
 }
 
 function mustGetResource(bundle: CamConformanceBundle, uri: string): Uint8Array {
@@ -616,23 +616,23 @@ function mustGetResource(bundle: CamConformanceBundle, uri: string): Uint8Array 
   return bytes
 }
 
-function validateEditedMain<T extends Record<string, unknown> = Record<string, unknown>>(
-  edit: (main: T, bundle: CamConformanceBundle) => Pick<Partial<CamConformanceBundle>, "resources"> | void,
+function validateEditedRoot<T extends Record<string, unknown> = Record<string, unknown>>(
+  edit: (root: T, bundle: CamConformanceBundle) => Pick<Partial<CamConformanceBundle>, "resources"> | void,
 ): readonly CamConformanceIssue[] {
   const bundle = minimalBundle()
-  const main = mutableMain<T>(bundle)
-  const overrides = edit(main, bundle)
+  const root = mutableRoot<T>(bundle)
+  const overrides = edit(root, bundle)
   if (overrides === undefined) {
     return validateCamBundle({
       ...bundle,
-      mainBytes: jsonBytes(main),
+      rootBytes: jsonBytes(root),
     })
   }
 
   return validateCamBundle({
     ...bundle,
     ...overrides,
-    mainBytes: jsonBytes(main),
+    rootBytes: jsonBytes(root),
   })
 }
 

@@ -1,11 +1,36 @@
-import { readdir } from "node:fs/promises"
+import { readFile, readdir } from "node:fs/promises"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 export const dappsRoot = fileURLToPath(new URL("../../../dapps/", import.meta.url))
 
-export async function checkedInCamManifestPaths(): Promise<string[]> {
-  return checkedInDappCamFiles("main.json")
+export async function checkedInCamRootPaths(): Promise<string[]> {
+  const dapps = await readdir(dappsRoot, { withFileTypes: true })
+  const paths: string[] = []
+
+  for (const dapp of dapps) {
+    if (!dapp.isDirectory()) {
+      continue
+    }
+
+    const camDir = await childDirectory(join(dappsRoot, dapp.name), "cam")
+    if (camDir === undefined) {
+      continue
+    }
+
+    for (const entry of await readdir(camDir, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) {
+        continue
+      }
+
+      const candidate = join(camDir, entry.name)
+      if (await isCamRootDocument(candidate)) {
+        paths.push(candidate)
+      }
+    }
+  }
+
+  return paths.sort()
 }
 
 export async function checkedInUiPaths(): Promise<string[]> {
@@ -63,6 +88,25 @@ async function checkedInDappCamFiles(fileName: string): Promise<string[]> {
   }
 
   return paths.sort()
+}
+
+async function isCamRootDocument(path: string): Promise<boolean> {
+  let document: unknown
+  let parseFailed = false
+  try {
+    document = JSON.parse(await readFile(path, "utf8"))
+  } catch {
+    parseFailed = true
+  }
+  if (parseFailed) {
+    return false
+  }
+
+  return isRecord(document) && typeof document.cam === "string"
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 async function childDirectory(parent: string, name: string): Promise<string | undefined> {

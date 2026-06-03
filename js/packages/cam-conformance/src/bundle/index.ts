@@ -54,8 +54,8 @@ export type {
 export function validateCamBundle(bundle: CamConformanceBundle): readonly CamConformanceIssue[] {
   const issues: CamConformanceIssue[] = []
   const rootResult = parseRootCamJson({
-    resource: bundle.mainURI,
-    bytes: bundle.mainBytes,
+    resource: bundle.rootURI,
+    bytes: bundle.rootBytes,
     issues,
   })
   if (!rootResult.ok) {
@@ -64,12 +64,12 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
 
   const root = rootResult.value
   const namespaces = validateNamespaceDeclarations({
-    resource: bundle.mainURI,
+    resource: bundle.rootURI,
     root,
     issues,
   })
   const declarations = declaredResources({
-    resource: bundle.mainURI,
+    resource: bundle.rootURI,
     namespaces,
     issues,
   })
@@ -79,13 +79,13 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   const routes = validateRouteDeclarations({
-    resource: bundle.mainURI,
+    resource: bundle.rootURI,
     root,
     namespaces,
     issues,
   })
   validateRouteHandoffs({
-    resource: bundle.mainURI,
+    resource: bundle.rootURI,
     routes,
     uiNodes: declaredUiNodes({
       resources: bundle.resources,
@@ -94,7 +94,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   validateRouteAbiCompatibility({
-    resource: bundle.mainURI,
+    resource: bundle.rootURI,
     resources: bundle.resources,
     declarations,
     routes,
@@ -102,7 +102,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   })
   verifyDeclaredUiResource(bundle.resources, declarations, issues)
   verifyRuntimeCamCompatibility({
-    resource: bundle.mainURI,
+    resource: bundle.rootURI,
     root,
     issues,
   })
