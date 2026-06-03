@@ -24,6 +24,7 @@ import {
 
 type AbiFunction = {
   readonly name: string
+  readonly signature: string
   readonly stateMutability: "pure" | "view" | "nonpayable" | "payable"
   readonly inputNames: readonly string[]
   readonly outputs: readonly unknown[]
@@ -79,20 +80,61 @@ function validateRouteCallAbi(
   const functions = functionsByNamespace.get(route.call.namespace)
   if (functions === undefined) return
 
-  const matches = functions.get(route.call.function)
-  if (matches === undefined) {
-    issues.push(routeAbiIssue(resource, path, `route function not found in ABI: ${route.call.function}`))
+  const fn = resolveRouteFunction(resource, path, route.call.function, functions, issues)
+  if (fn === undefined) {
     return
   }
-  if (matches.length > 1) {
-    issues.push(routeAbiIssue(resource, `${path}.function`, `route function is overloaded and not supported: ${route.call.function}`))
-    return
-  }
-
-  const fn = matches[0]
   validateRouteMutability(resource, route, fn, issues)
   validateRouteArgs(resource, route, fn, issues)
   validateRouteOutputRefs(resource, route, fn, issues)
+}
+
+function resolveRouteFunction(
+  resource: string,
+  path: string,
+  functionName: string,
+  functions: ReadonlyMap<string, readonly AbiFunction[]>,
+  issues: CamConformanceIssue[],
+): AbiFunction | undefined {
+  if (isFunctionSignature(functionName)) {
+    return resolveRouteFunctionSignature(resource, path, functionName, functions, issues)
+  }
+
+  const matches = functions.get(functionName)
+  if (matches === undefined) {
+    issues.push(routeAbiIssue(resource, path, `route function not found in ABI: ${functionName}`))
+    return undefined
+  }
+  if (matches.length > 1) {
+    issues.push(routeAbiIssue(
+      resource,
+      `${path}.function`,
+      `route function is overloaded; use a full signature such as ${firstSignature(matches)}`,
+    ))
+    return undefined
+  }
+
+  return matches[0]
+}
+
+function resolveRouteFunctionSignature(
+  resource: string,
+  path: string,
+  signature: string,
+  functions: ReadonlyMap<string, readonly AbiFunction[]>,
+  issues: CamConformanceIssue[],
+): AbiFunction | undefined {
+  const matches = Array.from(functions.values()).flat().filter((fn) => fn.signature === signature)
+  if (matches.length === 0) {
+    issues.push(routeAbiIssue(resource, path, `route function signature not found in ABI: ${signature}`))
+    return undefined
+  }
+  if (matches.length > 1) {
+    issues.push(routeAbiIssue(resource, `${path}.function`, `route function signature is duplicated in ABI: ${signature}`))
+    return undefined
+  }
+
+  return matches[0]
 }
 
 function validateRouteMutability(
@@ -253,7 +295,7 @@ function parseAbiFunction(
 
   const name = nonEmptyString(item.name)
   const stateMutability = abiStateMutability(item.stateMutability)
-  const inputNames = abiInputNames(resource, path, item.inputs, issues)
+  const inputs = abiInputs(resource, path, item.inputs, issues)
 
   if (name === undefined) {
     issues.push(abiIssue(resource, `${path}.name`, "ABI function name must be a non-empty string"))
@@ -265,30 +307,32 @@ function parseAbiFunction(
     issues.push(abiIssue(resource, `${path}.outputs`, "ABI function outputs must be an array"))
   }
 
-  if (name === undefined || stateMutability === undefined || inputNames === undefined || !Array.isArray(item.outputs)) {
+  if (name === undefined || stateMutability === undefined || inputs === undefined || !Array.isArray(item.outputs)) {
     return undefined
   }
 
   return {
     name,
+    signature: `${name}(${inputs.types.join(",")})`,
     stateMutability,
-    inputNames,
+    inputNames: inputs.names,
     outputs: item.outputs,
   }
 }
 
-function abiInputNames(
+function abiInputs(
   resource: string,
   path: string,
   inputs: unknown,
   issues: CamConformanceIssue[],
-): readonly string[] | undefined {
+): { readonly names: readonly string[], readonly types: readonly string[] } | undefined {
   if (!Array.isArray(inputs)) {
     issues.push(abiIssue(resource, `${path}.inputs`, "ABI function inputs must be an array"))
     return undefined
   }
 
   const names: string[] = []
+  const types: string[] = []
   for (const [index, input] of inputs.entries()) {
     const inputPath = `${path}.inputs.${index}`
     if (!isRecordObject(input)) {
@@ -301,15 +345,16 @@ function abiInputNames(
       issues.push(abiIssue(resource, `${inputPath}.name`, "ABI inputs used by CAM routes must be named"))
       return undefined
     }
-    if (nonEmptyString(input.type) === undefined) {
-      issues.push(abiIssue(resource, `${inputPath}.type`, "ABI input type must be a non-empty string"))
+    const type = canonicalAbiType(resource, inputPath, input, issues)
+    if (type === undefined) {
       return undefined
     }
 
     names.push(name)
+    types.push(type)
   }
 
-  return names
+  return { names, types }
 }
 
 function functionsByName(functions: readonly AbiFunction[]): ReadonlyMap<string, readonly AbiFunction[]> {
@@ -336,6 +381,57 @@ function abiStateMutability(value: unknown): AbiFunction["stateMutability"] | un
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
+function isFunctionSignature(value: string): boolean {
+  return value.includes("(")
+}
+
+function canonicalAbiType(
+  resource: string,
+  path: string,
+  item: Record<string, unknown>,
+  issues: CamConformanceIssue[],
+): string | undefined {
+  const type = nonEmptyString(item.type)
+  if (type === undefined) {
+    issues.push(abiIssue(resource, `${path}.type`, "ABI input type must be a non-empty string"))
+    return undefined
+  }
+
+  const suffix = tupleArraySuffix(type)
+  if (suffix === undefined) return type
+
+  if (!Array.isArray(item.components)) {
+    issues.push(abiIssue(resource, `${path}.components`, "tuple ABI input must declare components"))
+    return undefined
+  }
+
+  const componentTypes: string[] = []
+  for (const [index, component] of item.components.entries()) {
+    if (!isRecordObject(component)) {
+      issues.push(abiIssue(resource, `${path}.components.${index}`, "tuple ABI component must be an object"))
+      return undefined
+    }
+
+    const componentType = canonicalAbiType(resource, `${path}.components.${index}`, component, issues)
+    if (componentType === undefined) return undefined
+    componentTypes.push(componentType)
+  }
+
+  return `(${componentTypes.join(",")})${suffix}`
+}
+
+function firstSignature(functions: readonly AbiFunction[]): string {
+  const [first] = functions
+  if (first === undefined) return "<signature>"
+  return first.signature
+}
+
+function tupleArraySuffix(type: string): string | undefined {
+  if (type === "tuple") return ""
+  if (/^tuple(\[[0-9]*\])+$/.test(type)) return type.slice("tuple".length)
+  return undefined
 }
 
 function outputExpressionSegments(value: string): readonly string[] | undefined {

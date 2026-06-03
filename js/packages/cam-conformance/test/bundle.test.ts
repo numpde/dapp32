@@ -346,6 +346,46 @@ test("route calls must target functions declared by the namespace ABI", () => {
   ])
 })
 
+test("overloaded route functions require a full signature", () => {
+  const abiBytes = overloadedViewEntryAbiBytes()
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./abi/App.json", abiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.function"],
+  ])
+})
+
+test("full route function signatures disambiguate overloads", () => {
+  const abiBytes = overloadedViewEntryAbiBytes()
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    const entry = root.routes.entry
+    const call = entry.call as Record<string, unknown>
+    call.function = "viewEntry()"
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./abi/App.json", abiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issues, [])
+})
+
 test("route call args must match named ABI inputs exactly", () => {
   const abiBytes = jsonBytes([
     {
@@ -1052,6 +1092,30 @@ function viewOutput(): Record<string, unknown> {
       },
     ],
   }
+}
+
+function overloadedViewEntryAbiBytes(): Uint8Array {
+  return jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [viewOutput()],
+    },
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "account",
+          type: "address",
+        },
+      ],
+      outputs: [viewOutput()],
+    },
+  ])
 }
 
 function mutableRoot<T extends Record<string, unknown> = Record<string, unknown>>(bundle: CamConformanceBundle): T {
