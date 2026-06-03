@@ -8,9 +8,7 @@ export type RawUiDocument = {
   readonly nodes: Record<string, unknown>
 }
 
-export function readRawUiDocument(bytes: Uint8Array | undefined): RawUiDocument | undefined {
-  if (bytes === undefined) return undefined
-
+export function readRawUiDocument(bytes: Uint8Array): RawUiDocument | undefined {
   let value: unknown
   let parseFailed = false
   try {

@@ -30,7 +30,10 @@ export function declaredUiNodes({
   const declaration = declarations.find((item) => item.namespaceType === "ui")
   if (declaration === undefined) return undefined
 
-  const ui = readRawUiDocument(resources.get(declaration.uri))
+  const bytes = resources.get(declaration.uri)
+  if (bytes === undefined) return undefined
+
+  const ui = readRawUiDocument(bytes)
   if (ui === undefined) return undefined
 
   const nodes = new Map<string, DeclaredUiNode>()

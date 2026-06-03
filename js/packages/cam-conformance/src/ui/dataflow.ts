@@ -55,7 +55,10 @@ export function validateUiDataflow({
   const routesByName = new Map(routes.map((route) => [route.name, route]))
   for (const declaration of declarations) {
     if (declaration.namespaceType !== "ui") continue
-    const dataflow = readUiDataflow(resources.get(declaration.uri))
+    const bytes = resources.get(declaration.uri)
+    if (bytes === undefined) continue
+
+    const dataflow = readUiDataflow(bytes)
     if (dataflow === undefined) continue
 
     if (uiNodes !== undefined) {
@@ -70,9 +73,7 @@ export function validateUiDataflow({
   }
 }
 
-function readUiDataflow(bytes: Uint8Array | undefined): UiDataflow | undefined {
-  if (bytes === undefined) return undefined
-
+function readUiDataflow(bytes: Uint8Array): UiDataflow | undefined {
   const ui = readRawUiDocument(bytes)
   if (ui === undefined) return undefined
 

@@ -28,7 +28,10 @@ export function validateUiExpressionRoots({
 }): void {
   for (const declaration of declarations) {
     if (declaration.namespaceType !== "ui") continue
-    const ui = readRawUiDocument(resources.get(declaration.uri))
+    const bytes = resources.get(declaration.uri)
+    if (bytes === undefined) continue
+
+    const ui = readRawUiDocument(bytes)
     if (ui === undefined) continue
 
     forEachString(ui.value, "", (value, path) => validateExpressionRoot(declaration.uri, value, path, issues))
