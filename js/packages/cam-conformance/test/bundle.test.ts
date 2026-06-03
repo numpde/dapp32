@@ -62,7 +62,19 @@ test("runtime CAM parsing is reported after resource checks", () => {
 
   assert.deepEqual(issueRules(issues), [
     "CAM_RESOURCE_MISSING",
+    "CAM_ENTRY_ROUTE_INVALID",
     "CAM_RUNTIME_CAM_INVALID",
+  ])
+})
+
+test("malformed entry route is reported before runtime compatibility", () => {
+  const issues = validateEditedRoot((root) => {
+    root.entry = ""
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ENTRY_ROUTE_INVALID", "entry"],
+    ["CAM_RUNTIME_CAM_INVALID", "entry"],
   ])
 })
 

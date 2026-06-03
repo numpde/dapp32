@@ -65,7 +65,16 @@ function validateEntryRoute(
   routes: Record<string, unknown>,
   issues: CamConformanceIssue[],
 ): void {
-  if (typeof entry !== "string" || entry.length === 0) return
+  if (typeof entry !== "string" || entry.length === 0) {
+    issues.push({
+      rule: "CAM_ENTRY_ROUTE_INVALID",
+      severity: "error",
+      resource,
+      path: "entry",
+      message: "CAM entry route must be a non-empty string",
+    })
+    return
+  }
   if (Object.prototype.hasOwnProperty.call(routes, entry)) return
 
   issues.push({
