@@ -17,6 +17,7 @@ type AbiFunction = {
   readonly name: string
   readonly stateMutability: "pure" | "view" | "nonpayable" | "payable"
   readonly inputNames: readonly string[]
+  readonly outputs: readonly unknown[]
 }
 
 export function validateRouteAbiCompatibility({
@@ -82,6 +83,7 @@ function validateRouteCallAbi(
   const fn = matches[0]
   validateRouteMutability(resource, route, fn, issues)
   validateRouteArgs(resource, route, fn, issues)
+  validateRouteOutputRefs(resource, route, fn, issues)
 }
 
 function validateRouteMutability(
@@ -114,6 +116,88 @@ function validateRouteArgs(resource: string, route: DeclaredRoute, fn: AbiFuncti
       issues.push(routeAbiIssue(resource, `routes.${route.name}.call.args.${name}`, `missing route argument: ${name}`))
     }
   }
+}
+
+function validateRouteOutputRefs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {
+  // This is intentionally reference-driven. The runtime ABI parser owns full ABI
+  // validity; conformance only needs to prove route handoffs do not point at
+  // outputs the called function cannot produce.
+  forEachString(route.then.args, `routes.${route.name}.then.args`, (value, path) => {
+    const segments = outputExpressionSegments(value)
+    if (segments === undefined || segments.length === 0) return
+
+    const [indexSegment, ...fieldSegments] = segments
+    if (!isArrayIndex(indexSegment)) {
+      issues.push(routeAbiIssue(resource, path, "route output reference must start with a numeric output index"))
+      return
+    }
+
+    const output = fn.outputs[Number(indexSegment)]
+    if (output === undefined) {
+      issues.push(routeAbiIssue(resource, path, `route output reference has no ABI output at index ${indexSegment}`))
+      return
+    }
+
+    validateOutputFieldPath(resource, path, output, fieldSegments, issues)
+  })
+}
+
+function validateOutputFieldPath(
+  resource: string,
+  path: string,
+  output: unknown,
+  segments: readonly string[],
+  issues: CamConformanceIssue[],
+): void {
+  const [segment, ...rest] = segments
+  if (segment === undefined) return
+
+  if (!isRecordObject(output)) {
+    issues.push(routeAbiIssue(resource, path, "referenced route output ABI value must be an object"))
+    return
+  }
+
+  const type = nonEmptyString(output.type)
+  if (type === undefined) {
+    issues.push(routeAbiIssue(resource, path, "referenced route output ABI value must declare a type"))
+    return
+  }
+
+  if (type.endsWith("[]")) {
+    if (!isArrayIndex(segment)) {
+      issues.push(routeAbiIssue(resource, path, `route output array reference must use a numeric index before ${segment}`))
+      return
+    }
+
+    validateOutputFieldPath(resource, path, {
+      ...output,
+      type: type.slice(0, -2),
+    }, rest, issues)
+    return
+  }
+
+  if (/\[[0-9]+\]$/.test(type)) {
+    issues.push(routeAbiIssue(resource, path, `fixed-size route output arrays are not supported: ${type}`))
+    return
+  }
+
+  if (type !== "tuple") {
+    issues.push(routeAbiIssue(resource, path, `route output ${type} has no field named ${segment}`))
+    return
+  }
+
+  if (!Array.isArray(output.components)) {
+    issues.push(routeAbiIssue(resource, path, "referenced route output tuple must declare components"))
+    return
+  }
+
+  const component = output.components.find((item) => isRecordObject(item) && item.name === segment)
+  if (component === undefined) {
+    issues.push(routeAbiIssue(resource, path, `route output tuple has no field named ${segment}`))
+    return
+  }
+
+  validateOutputFieldPath(resource, path, component, rest, issues)
 }
 
 function parseAbiFunctions(
@@ -184,6 +268,7 @@ function parseAbiFunction(
     name,
     stateMutability,
     inputNames,
+    outputs: item.outputs,
   }
 }
 
@@ -246,6 +331,35 @@ function abiStateMutability(value: unknown): AbiFunction["stateMutability"] | un
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
+function outputExpressionSegments(value: string): readonly string[] | undefined {
+  if (value === "$outputs") return []
+  if (!value.startsWith("$outputs.") || value.startsWith("$$")) return undefined
+
+  return value.slice("$outputs.".length).split(".")
+}
+
+function forEachString(value: unknown, path: string, visit: (value: string, path: string) => void): void {
+  if (typeof value === "string") {
+    visit(value, path)
+    return
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => forEachString(item, `${path}.${index}`, visit))
+    return
+  }
+
+  if (isRecordObject(value)) {
+    for (const [name, item] of Object.entries(value)) {
+      forEachString(item, `${path}.${name}`, visit)
+    }
+  }
+}
+
+function isArrayIndex(value: string | undefined): value is string {
+  return value === "0" || (value !== undefined && /^[1-9][0-9]*$/.test(value))
 }
 
 function abiIssue(resource: string, path: string | undefined, message: string): CamConformanceIssue {

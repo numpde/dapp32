@@ -96,6 +96,7 @@ function validateRoutes(
         resource,
         routeName,
         inputs,
+        kind,
         callArgs: invocations.call.args,
         thenArgs: invocations.then.args,
         issues,
@@ -205,6 +206,7 @@ function validateRouteExpressionReferences({
   resource,
   routeName,
   inputs,
+  kind,
   callArgs,
   thenArgs,
   issues,
@@ -212,6 +214,7 @@ function validateRouteExpressionReferences({
   readonly resource: string
   readonly routeName: string
   readonly inputs: readonly string[]
+  readonly kind: RouteKind
   readonly callArgs: Record<string, unknown>
   readonly thenArgs: Record<string, unknown>
   readonly issues: CamConformanceIssue[]
@@ -224,6 +227,7 @@ function validateRouteExpressionReferences({
       value,
       declaredInputs,
       allowOutputs: false,
+      outputErrorMessage: "route call arguments cannot reference outputs before the call runs",
       issues,
     })
   })
@@ -233,7 +237,8 @@ function validateRouteExpressionReferences({
       path,
       value,
       declaredInputs,
-      allowOutputs: true,
+      allowOutputs: kind === "read",
+      outputErrorMessage: "write route continuations cannot reference transaction outputs",
       issues,
     })
   })
@@ -245,6 +250,7 @@ function validateRouteExpressionString({
   value,
   declaredInputs,
   allowOutputs,
+  outputErrorMessage,
   issues,
 }: {
   readonly resource: string
@@ -252,6 +258,7 @@ function validateRouteExpressionString({
   readonly value: string
   readonly declaredInputs: ReadonlySet<string>
   readonly allowOutputs: boolean
+  readonly outputErrorMessage: string
   readonly issues: CamConformanceIssue[]
 }): void {
   if (!value.startsWith("$") || value.startsWith("$$")) return
@@ -267,7 +274,7 @@ function validateRouteExpressionString({
   }
 
   if (root === "outputs" && !allowOutputs) {
-    issues.push(routeExpressionIssue(resource, path, "route call arguments cannot reference outputs before the call runs"))
+    issues.push(routeExpressionIssue(resource, path, outputErrorMessage))
   }
 }
 

@@ -203,6 +203,63 @@ test("route call expressions cannot reference outputs before the call runs", () 
   ])
 })
 
+test("write route continuations cannot reference transaction outputs", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [viewOutput()],
+    },
+    {
+      type: "function",
+      name: "save",
+      stateMutability: "nonpayable",
+      inputs: [],
+      outputs: [
+        {
+          name: "serialNumber",
+          type: "string",
+        },
+      ],
+    },
+  ])
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    root.routes.entry.inputs = ["serialNumber"]
+    root.routes.save = {
+      kind: "write",
+      inputs: [],
+      call: {
+        namespace: "contracts.App",
+        function: "save",
+        args: {},
+      },
+      then: {
+        namespace: "routes",
+        function: "entry",
+        args: {
+          serialNumber: "$outputs.0",
+        },
+      },
+    }
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./abi/App.json", abiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_EXPRESSION_INVALID", "routes.save.then.args.serialNumber"],
+  ])
+})
+
 test("route invocations must target the correct namespace types", () => {
   const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>
@@ -289,7 +346,7 @@ test("route call args must match named ABI inputs exactly", () => {
           type: "address",
         },
       ],
-      outputs: [],
+      outputs: [viewOutput()],
     },
   ])
   const issues = validateEditedRoot<{
@@ -315,6 +372,51 @@ test("route call args must match named ABI inputs exactly", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.extra"],
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.account"],
+  ])
+})
+
+test("route continuations must reference ABI-declared output indexes", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [],
+    },
+  ])
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./abi/App.json", abiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.then.args.view"],
+  ])
+})
+
+test("route continuations must reference ABI-declared tuple fields", () => {
+  const issues = validateEditedRoot<{
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root) => {
+    root.routes.entry.then = {
+      namespace: "ui",
+      function: "app",
+      args: {
+        view: "$outputs.0.missingTitle",
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.then.args.view"],
   ])
 })
 
@@ -362,7 +464,7 @@ test("write route continuations must target declared routes with exact inputs", 
       name: "viewEntry",
       stateMutability: "view",
       inputs: [],
-      outputs: [],
+      outputs: [viewOutput()],
     },
     {
       type: "function",
@@ -605,7 +707,7 @@ function minimalBundle(overrides: {
       name: "viewEntry",
       stateMutability: "view",
       inputs: [],
-      outputs: [],
+      outputs: [viewOutput()],
     },
   ])
   const rootBytes = jsonBytes({
@@ -653,6 +755,19 @@ function minimalBundle(overrides: {
       ["./abi/App.json", abiBytes],
       ["./ui.json", uiBytes],
     ]),
+  }
+}
+
+function viewOutput(): Record<string, unknown> {
+  return {
+    name: "view",
+    type: "tuple",
+    components: [
+      {
+        name: "title",
+        type: "string",
+      },
+    ],
   }
 }
 
