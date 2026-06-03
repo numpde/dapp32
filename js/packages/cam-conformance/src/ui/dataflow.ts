@@ -24,6 +24,9 @@ import {
 import {
   forEachString,
 } from "../walk.ts"
+import {
+  expressionReference,
+} from "../expressions/reference.ts"
 
 type UiCall = {
   readonly path: string
@@ -36,8 +39,6 @@ type UiDataflow = {
   readonly routeCalls: readonly UiCall[]
   readonly includeCalls: readonly UiCall[]
 }
-
-const EXPRESSION_IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
 
 export function validateUiDataflow({
   resources,
@@ -226,11 +227,12 @@ function validateActionStateInputs(
 }
 
 function referencedStateInput(value: string): string | undefined {
-  if (!value.startsWith("$") || value.startsWith("$$")) return undefined
+  const reference = expressionReference(value)
+  if (reference === undefined) return undefined
 
-  const [root, firstSegment] = value.slice(1).split(".")
+  const { root, firstSegment } = reference
   if (root !== "state") return undefined
-  if (firstSegment === undefined || !EXPRESSION_IDENTIFIER_RE.test(firstSegment)) return ""
+  if (firstSegment === undefined || firstSegment.length === 0) return ""
   return firstSegment
 }
 

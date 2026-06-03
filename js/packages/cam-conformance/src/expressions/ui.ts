@@ -14,8 +14,9 @@ import {
 import {
   forEachString,
 } from "../walk.ts"
-
-const EXPRESSION_ROOT_RE = /^\$([A-Za-z][A-Za-z0-9_]*)/
+import {
+  expressionReference,
+} from "./reference.ts"
 
 export function validateUiExpressionRoots({
   resources,
@@ -44,12 +45,12 @@ function validateExpressionRoot(
   path: string,
   issues: CamConformanceIssue[],
 ): void {
-  if (!value.startsWith("$") || value.startsWith("$$")) return
+  const reference = expressionReference(value)
+  if (reference === undefined) return
 
-  const match = EXPRESSION_ROOT_RE.exec(value)
-  const root = match?.[1]
-  if (root !== undefined && UI_CONTEXT_KEYS.has(root)) return
-  const reportedRoot = root === undefined ? value : root
+  const root = reference.root
+  if (UI_CONTEXT_KEYS.has(root)) return
+  const reportedRoot = root.length === 0 ? value : root
 
   issues.push({
     rule: "CAM_UI_EXPRESSION_ROOT_INVALID",

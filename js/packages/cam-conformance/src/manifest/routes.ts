@@ -12,6 +12,9 @@ import type {
 import {
   forEachString,
 } from "../walk.ts"
+import {
+  expressionReference,
+} from "../expressions/reference.ts"
 
 export type RouteKind = "read" | "write"
 
@@ -32,8 +35,6 @@ export type DeclaredRoute = {
 const CALL_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["contract"])
 const READ_THEN_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["ui"])
 const WRITE_THEN_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["routes"])
-const EXPRESSION_IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
-
 export function validateRouteDeclarations({
   resource,
   root,
@@ -264,13 +265,14 @@ function validateRouteExpressionString({
   readonly outputErrorMessage: string
   readonly issues: CamConformanceIssue[]
 }): void {
-  if (!value.startsWith("$") || value.startsWith("$$")) return
+  const reference = expressionReference(value)
+  if (reference === undefined) return
 
-  const [root, firstSegment] = value.slice(1).split(".")
+  const { root, firstSegment } = reference
   if (
     root === "inputs"
     && firstSegment !== undefined
-    && EXPRESSION_IDENTIFIER_RE.test(firstSegment)
+    && firstSegment.length > 0
     && !declaredInputs.has(firstSegment)
   ) {
     issues.push(routeExpressionIssue(resource, path, `route expression references undeclared input: ${firstSegment}`))
