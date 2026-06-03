@@ -584,7 +584,7 @@ test("UI expressions must use protocol-owned roots", () => {
             },
             call: {
               namespace: "routes",
-              function: "entry",
+              function: "component",
               args: {
                 serialNumber: "$form.serialNumber",
               },
@@ -596,8 +596,25 @@ test("UI expressions must use protocol-owned roots", () => {
   })
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
     root.namespaces.ui.integrity = sha256Integrity(uiBytes)
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
     return {
       resources: new Map([
         ...bundle.resources,
@@ -609,6 +626,133 @@ test("UI expressions must use protocol-owned roots", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_EXPRESSION_ROOT_INVALID", "nodes.app.children.1.call.args.serialNumber"],
     ["CAM_UI_INVALID", "nodes.app.children.1.call.args.serialNumber"],
+  ])
+})
+
+test("UI actions must pass exactly the target route inputs", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Action",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: "component",
+              args: {
+                extra: "x",
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./ui.json", uiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.args.extra"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.args.serialNumber"],
+  ])
+})
+
+test("UI action state references must be backed by Input names", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Input",
+            props: {
+              name: "serialNumber",
+              label: "Serial number",
+              value: "",
+            },
+          },
+          {
+            tag: "Action",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: "component",
+              args: {
+                serialNumber: "$state.serial",
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./ui.json", uiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.1.call.args.serialNumber"],
   ])
 })
 

@@ -41,6 +41,9 @@ import type {
   CamConformanceBundle,
 } from "./types.ts"
 import {
+  validateUiDataflow,
+} from "../ui/dataflow.ts"
+import {
   validateUiExpressionRoots,
 } from "../expressions/ui.ts"
 import {
@@ -95,6 +98,12 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
       declarations,
       issues,
     }),
+    issues,
+  })
+  validateUiDataflow({
+    resources: bundle.resources,
+    declarations,
+    routes,
     issues,
   })
   validateRouteAbiCompatibility({
