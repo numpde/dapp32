@@ -90,6 +90,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     uiNodes: declaredUiNodes({
       resources: bundle.resources,
       declarations,
+      issues,
     }),
     issues,
   })

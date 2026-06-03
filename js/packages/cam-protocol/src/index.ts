@@ -57,3 +57,7 @@ export {
   CAM_ROUTES_NAMESPACE,
   CAM_UI_NAMESPACE,
 } from "./namespaces.ts"
+
+export {
+  UI_NODE_ARGUMENT_KEYS,
+} from "./ui.ts"

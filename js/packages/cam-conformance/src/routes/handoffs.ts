@@ -42,6 +42,7 @@ function validateUiHandoff(
     issues.push(handoffIssue(resource, `routes.${route.name}.then.function`, `route renders unknown UI node: ${route.then.function}`))
     return
   }
+  if (node.requires === undefined) return
 
   validateNamedHandoffArgs({
     resource,

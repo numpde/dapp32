@@ -532,6 +532,37 @@ test("write route continuations must target declared routes with exact inputs", 
   ])
 })
 
+test("UI node interfaces must use supported argument names", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Text",
+        requires: ["foo"],
+        props: {
+          text: "$view.title",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./ui.json", uiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_NODE_INTERFACE_INVALID", "nodes.app.requires.0"],
+    ["CAM_UI_INVALID", "nodes.app.requires.0"],
+  ])
+})
+
 test("malformed resource declarations report each bad field", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>
