@@ -18,7 +18,7 @@ import {
   parseIntegerType,
 } from "./abi-values.ts"
 import type { AbiTupleParameter, IntegerType } from "./abi-values.ts"
-import { findUniqueAbiFunction } from "./abi-functions.ts"
+import { findUniqueAbiFunction, singleFunctionAbi } from "./abi-functions.ts"
 import { assertClientChain } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
 import type { CamPublicClient, ResolvedCamContract, RouteResult } from "./types.ts"
@@ -59,8 +59,8 @@ export async function callCamRoute({
   try {
     raw = await publicClient.readContract({
       address: contract.address,
-      abi: contract.abi,
-      functionName: routeCall.function,
+      abi: singleFunctionAbi(routeFunction),
+      functionName: routeFunction.name,
       args,
       account,
     })

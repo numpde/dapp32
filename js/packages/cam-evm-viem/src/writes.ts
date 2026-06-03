@@ -1,7 +1,7 @@
 import type { Hex } from "viem"
 
 import { abiFunctionInputs, normalizeAbiArgs } from "./arguments.ts"
-import { findUniqueAbiFunction } from "./abi-functions.ts"
+import { findUniqueAbiFunction, singleFunctionAbi } from "./abi-functions.ts"
 import { CamEvmError } from "./errors.ts"
 import type { CamContractCall, SendCamContractCallOptions, SimulateCamContractCallOptions } from "./types.ts"
 
@@ -67,8 +67,8 @@ function writeRequest(call: CamContractCall): WriteRequest {
 
   return {
     address: call.address,
-    abi: call.abi,
-    functionName: call.function,
+    abi: singleFunctionAbi(fn),
+    functionName: fn.name,
     args: normalizeAbiArgs({
       inputs: abiFunctionInputs(fn, "CAM_WRITE_INVALID_ARGUMENT"),
       args: call.args,

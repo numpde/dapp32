@@ -358,6 +358,38 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
   }))
 })
 
+test("callCamRoute resolves full signatures for overloaded route functions", async () => {
+  const publicClient = createPublicClient(publicClientFixtureOptions({
+    routeResults: {
+      [BIKE_VIEW_ENTRY]: bikeEntryRouteResult(userAddress),
+    },
+  }))
+  const cam = camWithRouteCallFunction(BIKE_ROUTE_ENTRY, `${BIKE_VIEW_ENTRY}(address)`)
+  const abi = overloadedViewEntryAbi()
+
+  await callCamRoute({
+    publicClient,
+    cam,
+    contracts: {
+      [BIKE_UI_NAMESPACE]: {
+        address: uiAddress,
+        abi,
+      },
+    },
+    route: BIKE_ROUTE_ENTRY,
+    context: {
+      host,
+      account: { address: userAddress },
+      inputs: {},
+      outputs: [],
+    },
+  })
+
+  const call = publicClient.calls.at(-1)
+  assert.equal(call?.functionName, BIKE_VIEW_ENTRY)
+  assert.deepEqual(call?.abi, [findAbiFunction(abi, BIKE_VIEW_ENTRY)])
+})
+
 test("callCamRoute normalizes safe number integer outputs from real RPC clients", async () => {
   const result = await callCamRoute({
     publicClient: createPublicClient(publicClientFixtureOptions({
@@ -715,10 +747,11 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
   })
 
   assert.equal(hash, "0x1234")
+  const markMissingAbi = [findAbiFunction(managerAbi, BIKE_MARK_MISSING)]
   assert.deepEqual(walletClient.calls, [
     {
       address: managerAddress,
-      abi: managerAbi,
+      abi: markMissingAbi,
       functionName: BIKE_MARK_MISSING,
       args: [BIKE_SERIAL_NUMBER],
       chain: testChain,
@@ -756,10 +789,37 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
   assert.deepEqual(publicClient.calls, [
     {
       address: managerAddress,
-      abi: managerAbi,
+      abi: markMissingAbi,
       functionName: BIKE_MARK_MISSING,
       args: [BIKE_SERIAL_NUMBER],
       account: userAddress,
+    },
+  ])
+})
+
+test("sendCamContractCall resolves full signatures for overloaded writes", async () => {
+  const walletClient = createWalletClient()
+  const abi = overloadedMarkMissingAbi()
+  await sendCamContractCall({
+    walletClient,
+    chain: testChain,
+    call: {
+      address: managerAddress,
+      abi,
+      function: `${BIKE_MARK_MISSING}(string)`,
+      args: {
+        serialNumber: BIKE_SERIAL_NUMBER,
+      },
+    },
+  })
+
+  assert.deepEqual(walletClient.calls, [
+    {
+      address: managerAddress,
+      abi: [findAbiFunction(abi, BIKE_MARK_MISSING)],
+      functionName: BIKE_MARK_MISSING,
+      args: [BIKE_SERIAL_NUMBER],
+      chain: testChain,
     },
   ])
 })
@@ -880,6 +940,26 @@ function camWithNamespaceIntegrity(namespace: string, bytes: Uint8Array) {
   })
 }
 
+function camWithRouteCallFunction(routeName: string, functionName: string) {
+  const routes = camJson.routes as Record<string, unknown>
+  const route = routes[routeName] as Record<string, unknown>
+  const call = route.call as Record<string, unknown>
+
+  return parseCam({
+    ...camJson,
+    routes: {
+      ...routes,
+      [routeName]: {
+        ...route,
+        call: {
+          ...call,
+          function: functionName,
+        },
+      },
+    },
+  })
+}
+
 function resourceIntegrity(bytes: Uint8Array): string {
   return `sha256:${sha256(bytes)}`
 }
@@ -944,6 +1024,44 @@ function createWalletClient(): CamWalletClient & {
       return "0x1234"
     },
   }
+}
+
+function overloadedViewEntryAbi(): Abi {
+  return [
+    findAbiFunction(uiAbi, BIKE_VIEW_ENTRY),
+    {
+      ...findAbiFunction(uiAbi, BIKE_VIEW_ENTRY),
+      inputs: [
+        {
+          name: "account",
+          type: "address",
+        },
+        {
+          name: "serialNumber",
+          type: "string",
+        },
+      ],
+    },
+  ] as const satisfies Abi
+}
+
+function overloadedMarkMissingAbi(): Abi {
+  return [
+    findAbiFunction(managerAbi, BIKE_MARK_MISSING),
+    {
+      ...findAbiFunction(managerAbi, BIKE_MARK_MISSING),
+      inputs: [
+        {
+          name: "serialNumber",
+          type: "string",
+        },
+        {
+          name: "account",
+          type: "address",
+        },
+      ],
+    },
+  ] as const satisfies Abi
 }
 
 type AbiFunctionItem = Extract<Abi[number], { readonly type: "function" }>
