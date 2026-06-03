@@ -29,6 +29,7 @@ export type DeclaredRoute = {
 const CALL_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["contract"])
 const READ_THEN_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["ui"])
 const WRITE_THEN_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["routes"])
+const EXPRESSION_IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
 
 export function validateRouteDeclarations({
   resource,
@@ -91,6 +92,14 @@ function validateRoutes(
     const inputs = validateRouteInputList(resource, routeName, route.inputs, issues)
     const invocations = validateRouteInvocations(resource, routeName, route, namespaces, issues)
     if (kind !== undefined && inputs !== undefined && invocations !== undefined) {
+      validateRouteExpressionReferences({
+        resource,
+        routeName,
+        inputs,
+        callArgs: invocations.call.args,
+        thenArgs: invocations.then.args,
+        issues,
+      })
       declaredRoutes.push({
         name: routeName,
         kind,
@@ -192,6 +201,98 @@ function validateRouteInvocations(
   return { call, then }
 }
 
+function validateRouteExpressionReferences({
+  resource,
+  routeName,
+  inputs,
+  callArgs,
+  thenArgs,
+  issues,
+}: {
+  readonly resource: string
+  readonly routeName: string
+  readonly inputs: readonly string[]
+  readonly callArgs: Record<string, unknown>
+  readonly thenArgs: Record<string, unknown>
+  readonly issues: CamConformanceIssue[]
+}): void {
+  const declaredInputs = new Set(inputs)
+  forEachExpressionString(callArgs, `routes.${routeName}.call.args`, (value, path) => {
+    validateRouteExpressionString({
+      resource,
+      path,
+      value,
+      declaredInputs,
+      allowOutputs: false,
+      issues,
+    })
+  })
+  forEachExpressionString(thenArgs, `routes.${routeName}.then.args`, (value, path) => {
+    validateRouteExpressionString({
+      resource,
+      path,
+      value,
+      declaredInputs,
+      allowOutputs: true,
+      issues,
+    })
+  })
+}
+
+function validateRouteExpressionString({
+  resource,
+  path,
+  value,
+  declaredInputs,
+  allowOutputs,
+  issues,
+}: {
+  readonly resource: string
+  readonly path: string
+  readonly value: string
+  readonly declaredInputs: ReadonlySet<string>
+  readonly allowOutputs: boolean
+  readonly issues: CamConformanceIssue[]
+}): void {
+  if (!value.startsWith("$") || value.startsWith("$$")) return
+
+  const [root, firstSegment] = value.slice(1).split(".")
+  if (
+    root === "inputs"
+    && firstSegment !== undefined
+    && EXPRESSION_IDENTIFIER_RE.test(firstSegment)
+    && !declaredInputs.has(firstSegment)
+  ) {
+    issues.push(routeExpressionIssue(resource, path, `route expression references undeclared input: ${firstSegment}`))
+  }
+
+  if (root === "outputs" && !allowOutputs) {
+    issues.push(routeExpressionIssue(resource, path, "route call arguments cannot reference outputs before the call runs"))
+  }
+}
+
+function forEachExpressionString(
+  value: unknown,
+  path: string,
+  visit: (value: string, path: string) => void,
+): void {
+  if (typeof value === "string") {
+    visit(value, path)
+    return
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => forEachExpressionString(item, `${path}.${index}`, visit))
+    return
+  }
+
+  if (isRecordObject(value)) {
+    for (const [name, item] of Object.entries(value)) {
+      forEachExpressionString(item, `${path}.${name}`, visit)
+    }
+  }
+}
+
 function validateInvocation({
   resource,
   path,
@@ -278,6 +379,16 @@ function routeDeclarationIssue(resource: string, path: string, message: string):
 function routeInvocationIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return {
     rule: "CAM_ROUTE_INVOCATION_INVALID",
+    severity: "error",
+    resource,
+    path,
+    message,
+  }
+}
+
+function routeExpressionIssue(resource: string, path: string, message: string): CamConformanceIssue {
+  return {
+    rule: "CAM_ROUTE_EXPRESSION_INVALID",
     severity: "error",
     resource,
     path,

@@ -151,6 +151,58 @@ test("invalid route input declarations are reported per input", () => {
   ])
 })
 
+test("route expressions must reference declared route inputs", () => {
+  const issues = validateEditedRoot<{
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root) => {
+    root.routes.entry = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {
+          serialNumber: "$inputs.misspelledSerialNumber",
+        },
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+          serialNumber: "$inputs.misspelledSerialNumber",
+        },
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_EXPRESSION_INVALID", "routes.entry.call.args.serialNumber"],
+    ["CAM_ROUTE_EXPRESSION_INVALID", "routes.entry.then.args.serialNumber"],
+    ["CAM_ROUTE_HANDOFF_MISMATCH", "routes.entry.then.args.serialNumber"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.serialNumber"],
+  ])
+})
+
+test("route call expressions cannot reference outputs before the call runs", () => {
+  const issues = validateEditedRoot<{
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root) => {
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        previous: "$outputs.0",
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_EXPRESSION_INVALID", "routes.entry.call.args.previous"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.previous"],
+  ])
+})
+
 test("route invocations must target the correct namespace types", () => {
   const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>

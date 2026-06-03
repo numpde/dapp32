@@ -26,7 +26,7 @@ async function checkedInBundle(rootPath: string) {
   const resources = new Map<string, Uint8Array>()
 
   for (const uri of declaredLocalResourceURIs(root)) {
-    resources.set(uri, await readFile(resolve(dirname(rootPath), uri)))
+    resources.set(uri, await readFile(localResourcePath(rootPath, uri)))
   }
 
   return {
@@ -34,6 +34,21 @@ async function checkedInBundle(rootPath: string) {
     rootBytes,
     resources,
   }
+}
+
+function localResourcePath(rootPath: string, uri: string): string {
+  const rootDir = dirname(rootPath)
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri) || uri.startsWith("//") || uri.startsWith("/")) {
+    throw new Error(`checked-in CAM resources must be local relative files: ${uri}`)
+  }
+
+  const path = resolve(rootDir, uri)
+  const relativePath = relative(rootDir, path)
+  if (relativePath === "" || relativePath === ".." || relativePath.startsWith("../")) {
+    throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
+  }
+
+  return path
 }
 
 function declaredLocalResourceURIs(root: unknown): readonly string[] {
