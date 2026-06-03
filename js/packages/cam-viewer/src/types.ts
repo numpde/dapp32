@@ -27,7 +27,7 @@ export type CreateCamViewerSessionOptions = {
 export type CamViewerSnapshot = {
   readonly route?: string
   readonly inputs: InertRecord
-  readonly form?: InertRecord
+  readonly state?: InertRecord
   readonly account?: CamViewerAccount
   readonly uiURI?: string
   readonly resolvedUi?: ResolvedUiNode
@@ -35,10 +35,10 @@ export type CamViewerSnapshot = {
 }
 
 export type CamViewerLoadedSnapshot =
-  Omit<CamViewerSnapshot, "form" | "inputs" | "resolvedUi" | "route" | "uiURI" | "values"> & {
+  Omit<CamViewerSnapshot, "state" | "inputs" | "resolvedUi" | "route" | "uiURI" | "values"> & {
     readonly route: string
     readonly inputs: InertRecord
-    readonly form: InertRecord
+    readonly state: InertRecord
     readonly uiURI: string
     readonly resolvedUi: ResolvedUiNode
     readonly values: readonly InertValue[]
@@ -52,7 +52,7 @@ export type CamViewerSession = {
     inputs: InertRecord,
   ) => Promise<CamViewerLoadedSnapshot>
   readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerLoadedSnapshot>
-  readonly updateForm: (patch: InertRecord) => CamViewerLoadedSnapshot
+  readonly updateState: (patch: InertRecord) => CamViewerLoadedSnapshot
   readonly dispatchAction: (action: ResolvedActionNode) => Promise<CamViewerActionResult>
 }
 

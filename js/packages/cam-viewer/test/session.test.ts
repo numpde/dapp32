@@ -138,12 +138,12 @@ test("setAccount reload failures preserve the previous loaded snapshot", async (
   assert.deepEqual(session.snapshot(), before)
 })
 
-test("updateForm resolves route actions, while write routes are surfaced without sending", async () => {
+test("updateState resolves route actions, while write routes are surfaced without sending", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
   const session = createSession(sessionFixtureOptions({ publicClient }))
   await session.load()
 
-  const snapshot = session.updateForm({
+  const snapshot = session.updateState({
     serialNumber: BIKE_SERIAL_NUMBER,
   })
 

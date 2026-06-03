@@ -220,7 +220,7 @@ export function App(): ReactElement {
       setPreparedCall(undefined)
       setLoadState({
         ...ready,
-        snapshot: ready.runtime.session.updateForm({ [name]: value }),
+        snapshot: ready.runtime.session.updateState({ [name]: value }),
       })
     } catch (error) {
       setNotice(errorMessage(error))

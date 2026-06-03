@@ -68,6 +68,7 @@ class ProtocolOwnershipTest(unittest.TestCase):
         allowed_imports_by_facet = {
             "abi": {"@cam/protocol"},
             "bundle": {"@cam/protocol"},
+            "expressions": {"@cam/protocol"},
             "manifest": {"@cam/protocol"},
             "resources": {"@cam/protocol"},
             "routes": {"@cam/protocol"},

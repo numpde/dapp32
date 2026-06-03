@@ -30,6 +30,7 @@ import type {
   ResolvedActionNode,
   ResolvedUiCall,
   ResolvedUiNode,
+  UiRuntimeContext,
   UiDocument,
 } from "@cam/screen"
 
@@ -55,7 +56,7 @@ type CamViewerLoadedState = {
 type CurrentView = {
   readonly route: string
   readonly inputs: InertRecord
-  readonly form: InertRecord
+  readonly state: InertRecord
   readonly resolvedUi: ResolvedUiNode
   readonly values: readonly InertValue[]
 }
@@ -94,7 +95,7 @@ export function createCamViewerSession({
     return {
       ...sessionSnapshot(view.inputs),
       route: view.route,
-      form: cloneViewerData<InertRecord>(view.form, "form"),
+      state: cloneViewerData<InertRecord>(view.state, "state"),
       uiURI: current.uiURI,
       resolvedUi: cloneViewerData<ResolvedUiNode>(view.resolvedUi, "resolvedUi"),
       values: cloneViewerData<readonly InertValue[]>(view.values, "values"),
@@ -152,24 +153,24 @@ export function createCamViewerSession({
     }
   }
 
-  function updateForm(patch: InertRecord): CamViewerLoadedSnapshot {
+  function updateState(patch: InertRecord): CamViewerLoadedSnapshot {
     if (currentView === undefined) {
-      throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded form")
+      throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded state")
     }
 
-    const formPatch = cloneViewerData<InertRecord>(patch, "form")
-    const form = cloneViewerData<InertRecord>(
+    const statePatch = cloneViewerData<InertRecord>(patch, "state")
+    const state = cloneViewerData<InertRecord>(
       {
-        ...currentView.form,
-        ...formPatch,
+        ...currentView.state,
+        ...statePatch,
       },
-      "form",
+      "state",
     )
 
-    const resolvedUi = resolveCurrentUi(currentView.route, currentView.inputs, currentView.values, form)
+    const resolvedUi = resolveCurrentUi(currentView.route, currentView.inputs, currentView.values, state)
     currentView = {
       ...currentView,
-      form,
+      state,
       resolvedUi,
     }
 
@@ -219,14 +220,14 @@ export function createCamViewerSession({
       cam: current.cam,
       contracts: current.contracts,
       route: nextRoute,
-      context: routeContext(routeInputs, [], activeForm()),
+      context: routeContext(routeInputs, []),
     })
 
     const initial = resolveInitialUi(current.cam, nextRoute, routeInputs, routeResult.values)
     currentView = {
       route: nextRoute,
       inputs: routeInputs,
-      form: initial.form,
+      state: initial.state,
       resolvedUi: initial.resolvedUi,
       values: routeResult.values,
     }
@@ -260,35 +261,35 @@ export function createCamViewerSession({
     inputs: InertRecord,
     values: readonly InertValue[],
   ): {
-    readonly form: InertRecord
+    readonly state: InertRecord
     readonly resolvedUi: ResolvedUiNode
   } {
     const current = assertLoaded()
-    const context = routeContext(inputs, values, activeForm())
+    const context = routeContext(inputs, values)
     const then = resolveRouteThen(cam, route, context)
     if (then.namespace !== CAM_UI_NAMESPACE) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
     }
 
     // UI initial resolution is deliberately two-pass: input nodes establish the
-    // form values first, then action nodes can safely read $form.
-    return resolveInitialUiNode(current.ui, then.function, then.args, context)
+    // state values first, then action nodes can safely read $state.
+    return resolveInitialUiNode(current.ui, then.function, then.args, uiContext(inputs, values, activeState()))
   }
 
   function resolveCurrentUi(
     route: string,
     inputs: InertRecord,
     values: readonly InertValue[],
-    form: InertRecord,
+    state: InertRecord,
   ): ResolvedUiNode {
     const current = assertLoaded()
-    const context = routeContext(inputs, values, form)
+    const context = routeContext(inputs, values)
     const then = resolveRouteThen(current.cam, route, context)
     if (then.namespace !== CAM_UI_NAMESPACE) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
     }
 
-    return resolveUiNode(current.ui, then.function, then.args, context)
+    return resolveUiNode(current.ui, then.function, then.args, uiContext(inputs, values, state))
   }
 
   function prepareContractCall(route: string, inputs: InertRecord): CamViewerPreparedContractCall {
@@ -301,7 +302,7 @@ export function createCamViewerSession({
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action route must be declared as write: ${route}`)
     }
 
-    const context = routeContext(inputs, [], activeForm())
+    const context = routeContext(inputs, [])
     const call = resolveRouteCall(current.cam, route, context)
     if (call === undefined || !call.namespace.startsWith(CAM_CONTRACT_NAMESPACE_PREFIX)) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route must call a contract namespace: ${route}`)
@@ -324,24 +325,33 @@ export function createCamViewerSession({
   function routeContext(
     inputs: InertRecord,
     outputs: readonly InertValue[],
-    form: InertRecord,
   ): CamRuntimeContext {
     return createContext({
       host: sessionHost,
       ...(account === undefined ? {} : { account }),
       inputs,
       outputs,
-      form,
     })
   }
 
-  function activeForm(): InertRecord {
+  function uiContext(
+    inputs: InertRecord,
+    outputs: readonly InertValue[],
+    state: InertRecord,
+  ): UiRuntimeContext {
+    return {
+      ...routeContext(inputs, outputs),
+      state,
+    }
+  }
+
+  function activeState(): InertRecord {
     if (currentView !== undefined) {
-      return currentView.form
+      return currentView.state
     }
 
     // Route calls can run before any UI has been resolved, so there may be no
-    // form yet. Use an explicit empty inert record instead of hiding this as a
+    // state yet. Use an explicit empty inert record instead of hiding this as a
     // nullable snapshot fallback.
     return createStringMap<InertValue>()
   }
@@ -359,7 +369,7 @@ export function createCamViewerSession({
     load,
     navigate,
     setAccount,
-    updateForm,
+    updateState,
     dispatchAction,
   }
 }

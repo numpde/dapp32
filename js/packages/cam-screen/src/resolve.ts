@@ -40,20 +40,20 @@ export function resolveInitialUiNode(
   args: InertRecord,
   context: UiRuntimeContext,
 ): {
-  readonly form: InertRecord
+  readonly state: InertRecord
   readonly resolvedUi: ResolvedUiNode
 } {
-  const emptyForm = createStringMap<InertValue>()
+  const emptyState = createStringMap<InertValue>()
   const initialContext = {
     ...context,
-    form: emptyForm,
+    state: emptyState,
   }
   const initialNodes = resolveNamedNode(ui, nodeName, args, initialContext, nodeName, { includeActions: false }, [])
-  const form = createInitialForm(initialNodes)
-  const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, form })
+  const state = createInitialState(initialNodes)
+  const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, state })
 
   return {
-    form,
+    state,
     resolvedUi,
   }
 }
@@ -206,13 +206,13 @@ function resolveInclude(
   return children
 }
 
-function createInitialForm(nodes: readonly ResolvedUiNode[]): InertRecord {
-  const form = createStringMap<InertValue>()
-  appendInitialForm(nodes, form)
-  return form
+function createInitialState(nodes: readonly ResolvedUiNode[]): InertRecord {
+  const state = createStringMap<InertValue>()
+  appendInitialState(nodes, state)
+  return state
 }
 
-function appendInitialForm(nodes: readonly ResolvedUiNode[], form: Record<string, InertValue>): void {
+function appendInitialState(nodes: readonly ResolvedUiNode[], state: Record<string, InertValue>): void {
   for (const node of nodes) {
     if (node.tag === "Input") {
       const name = node.props.name
@@ -223,14 +223,14 @@ function appendInitialForm(nodes: readonly ResolvedUiNode[], form: Record<string
       if (typeof value !== "string") {
         throw new UiError("UI_INVALID_FIELD", `Input props.value must resolve to a string: ${name}`)
       }
-      if (hasOwn(form, name)) {
+      if (hasOwn(state, name)) {
         throw new UiError("UI_INVALID_FIELD", `duplicate input name: ${name}`)
       }
-      form[name] = value
+      state[name] = value
     }
 
     if ("children" in node) {
-      appendInitialForm(node.children, form)
+      appendInitialState(node.children, state)
     }
   }
 }

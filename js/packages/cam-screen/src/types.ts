@@ -74,6 +74,7 @@ export type UiCall = {
 }
 
 export type UiRuntimeContext = CamRuntimeContext & {
+  readonly state: InertRecord
   readonly [key: string]: InertValue | undefined
 }
 

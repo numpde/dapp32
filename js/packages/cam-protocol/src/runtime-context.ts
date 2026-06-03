@@ -10,5 +10,4 @@ export type CamRuntimeContext = {
   }
   readonly inputs: InertRecord
   readonly outputs: readonly InertValue[]
-  readonly form: InertRecord
 }

@@ -41,6 +41,9 @@ import type {
   CamConformanceBundle,
 } from "./types.ts"
 import {
+  validateUiExpressionRoots,
+} from "../expressions/ui.ts"
+import {
   verifyRuntimeUiCompatibility,
 } from "../sourced/ui.ts"
 
@@ -99,6 +102,11 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     resources: bundle.resources,
     declarations,
     routes,
+    issues,
+  })
+  validateUiExpressionRoots({
+    resources: bundle.resources,
+    declarations,
     issues,
   })
   verifyDeclaredUiResource(bundle.resources, declarations, issues)

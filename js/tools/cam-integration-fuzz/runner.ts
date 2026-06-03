@@ -194,7 +194,7 @@ async function main(): Promise<void> {
     event: "entry_loaded",
     route: entry.route,
     inputs: entry.inputs,
-    form: entry.form,
+    state: entry.state,
     values: entry.values,
     actions: actionSummaries(actionNodes(entry.resolvedUi)),
   })
@@ -287,7 +287,6 @@ async function callEveryReadRoute({
         account: { address: account },
         inputs,
         outputs: [],
-        form: {},
       },
     })
     emit({
@@ -323,10 +322,10 @@ async function walkSession({
 
   for (let step = 0; step < steps; step++) {
     const before = requireLoadedSnapshot(session.snapshot())
-    const formPatch = generatedFormPatch(before, account, prng, valueMode)
-    const current = Object.keys(formPatch).length === 0
+    const statePatch = generatedStatePatch(before, account, prng, valueMode)
+    const current = Object.keys(statePatch).length === 0
       ? before
-      : session.updateForm(formPatch)
+      : session.updateState(statePatch)
     assertResolvedSnapshot(current)
 
     const actions = actionNodes(current.resolvedUi)
@@ -337,8 +336,8 @@ async function walkSession({
         step,
         route: current.route,
         inputs: current.inputs,
-        formPatch,
-        form: current.form,
+        statePatch,
+        state: current.state,
         values: current.values,
         actionCount: 0,
         result: "no_actions",
@@ -357,8 +356,8 @@ async function walkSession({
       step,
       route: current.route,
       inputs: current.inputs,
-      formPatch,
-      form: current.form,
+      statePatch,
+      state: current.state,
       values: current.values,
       actionCount: actions.length,
       action: actionSummary(action),
@@ -373,7 +372,7 @@ async function walkSession({
         fromRoute: current.route,
         toRoute: result.snapshot.route,
         inputs: result.snapshot.inputs,
-        form: result.snapshot.form,
+        state: result.snapshot.state,
         values: result.snapshot.values,
         actions: actionSummaries(actionNodes(result.snapshot.resolvedUi)),
       })
@@ -489,7 +488,7 @@ async function handlePreparedWrite({
     fromRoute: call.route,
     toRoute: snapshot.route,
     inputs: snapshot.inputs,
-    form: snapshot.form,
+    state: snapshot.state,
     values: snapshot.values,
     actions: actionSummaries(actionNodes(snapshot.resolvedUi)),
     afterWriteHash: receipt.transactionHash,
@@ -574,7 +573,7 @@ function generatedRouteInputs(
   return toInertValue(inputs) as InertRecord
 }
 
-function generatedFormPatch(
+function generatedStatePatch(
   snapshot: CamViewerSnapshot,
   account: Address,
   prng: Prng,
@@ -582,7 +581,7 @@ function generatedFormPatch(
 ): InertRecord {
   const resolved = snapshot.resolvedUi
   if (resolved === undefined) {
-    throw new Error("cannot generate form values without resolved UI")
+    throw new Error("cannot generate state values without resolved UI")
   }
 
   const patch: Record<string, InertValue> = {}
@@ -622,12 +621,12 @@ function assertResolvedSnapshot(snapshot: CamViewerSnapshot): void {
   }
 }
 
-function requireLoadedSnapshot(snapshot: CamViewerSnapshot): Required<Pick<CamViewerSnapshot, "route" | "form" | "resolvedUi">> & CamViewerSnapshot {
-  if (snapshot.route === undefined || snapshot.form === undefined || snapshot.resolvedUi === undefined) {
+function requireLoadedSnapshot(snapshot: CamViewerSnapshot): Required<Pick<CamViewerSnapshot, "route" | "state" | "resolvedUi">> & CamViewerSnapshot {
+  if (snapshot.route === undefined || snapshot.state === undefined || snapshot.resolvedUi === undefined) {
     throw new Error("viewer snapshot is not loaded")
   }
 
-  return snapshot as Required<Pick<CamViewerSnapshot, "route" | "form" | "resolvedUi">> & CamViewerSnapshot
+  return snapshot as Required<Pick<CamViewerSnapshot, "route" | "state" | "resolvedUi">> & CamViewerSnapshot
 }
 
 function inputNames(node: ResolvedUiNode): readonly string[] {

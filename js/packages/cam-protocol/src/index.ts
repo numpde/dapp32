@@ -59,5 +59,7 @@ export {
 } from "./namespaces.ts"
 
 export {
+  UI_CONTEXT_KEYS,
   UI_NODE_ARGUMENT_KEYS,
+  UI_RUNTIME_ROOTS,
 } from "./ui.ts"

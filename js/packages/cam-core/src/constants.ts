@@ -6,4 +6,4 @@ export {
   CAM_UI_NAMESPACE,
 } from "@cam/protocol"
 
-export const CAM_CONTEXT_KEYS: ReadonlySet<string> = new Set(["host", "account", "inputs", "outputs", "form"])
+export const CAM_CONTEXT_KEYS: ReadonlySet<string> = new Set(["host", "account", "inputs", "outputs"])

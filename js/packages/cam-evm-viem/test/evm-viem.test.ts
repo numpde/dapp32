@@ -325,7 +325,6 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
         serialNumber: BIKE_SERIAL_NUMBER,
       },
       outputs: [],
-      form: {},
     },
   })
 
@@ -382,7 +381,6 @@ test("callCamRoute normalizes safe number integer outputs from real RPC clients"
       account: { address: userAddress },
       inputs: {},
       outputs: [],
-      form: {},
     },
   })
 
@@ -445,7 +443,6 @@ test("callCamRoute rejects non-canonical integer output shapes", async () => {
           account: { address: userAddress },
           inputs: {},
           outputs: [],
-          form: {},
         },
       }),
       (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
@@ -514,7 +511,6 @@ test("callCamRoute normalizes array-like decoded tuple outputs by ABI component 
       account: { address: userAddress },
       inputs: {},
       outputs: [],
-      form: {},
     },
   })
 
@@ -543,7 +539,6 @@ test("callCamRoute treats a single array output as one ABI output", async () => 
           namespace: "ui",
           function: "app",
           args: {
-            form: "$form",
             view: "$outputs.0",
           },
         },
@@ -580,7 +575,6 @@ test("callCamRoute treats a single array output as one ABI output", async () => 
       account: { address: userAddress },
       inputs: {},
       outputs: [],
-      form: {},
     },
   })
 
@@ -611,7 +605,6 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
         account: { address: userAddress },
         inputs: {},
         outputs: [],
-        form: {},
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_FUNCTION_NOT_VIEW",
@@ -630,7 +623,6 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
           serialNumber: BIKE_SERIAL_NUMBER,
         },
         outputs: [],
-        form: {},
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_KIND",
@@ -666,7 +658,6 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
         account: { address: userAddress },
         inputs: {},
         outputs: [],
-        form: {},
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_ARGUMENT",
@@ -701,7 +692,6 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
         account: { address: userAddress },
         inputs: {},
         outputs: [],
-        form: {},
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",

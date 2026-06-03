@@ -563,6 +563,55 @@ test("UI node interfaces must use supported argument names", () => {
   ])
 })
 
+test("UI expressions must use protocol-owned roots", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Text",
+            props: {
+              text: "$$literal",
+            },
+          },
+          {
+            tag: "Action",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: "entry",
+              args: {
+                serialNumber: "$form.serialNumber",
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./ui.json", uiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_EXPRESSION_ROOT_INVALID", "nodes.app.children.1.call.args.serialNumber"],
+    ["CAM_UI_INVALID", "nodes.app.children.1.call.args.serialNumber"],
+  ])
+})
+
 test("malformed resource declarations report each bad field", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>

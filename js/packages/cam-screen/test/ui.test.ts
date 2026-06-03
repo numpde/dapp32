@@ -18,7 +18,7 @@ const context = {
   },
   inputs: {},
   outputs: [],
-  form: {
+  state: {
     serialNumber: "ABC123",
   },
 }
@@ -78,7 +78,7 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
           namespace: "routes",
           function: "component",
           args: {
-            serialNumber: "$form.serialNumber",
+            serialNumber: "$state.serialNumber",
           },
         },
       },
@@ -125,8 +125,8 @@ test("resolveUiNode rejects args that shadow runtime roots", () => {
   })
 
   assert.throws(
-    () => resolveUiNode(ui, "app", inertRecord({ form: {} }), context),
-    /must not shadow runtime root: form/,
+    () => resolveUiNode(ui, "app", inertRecord({ state: {} }), context),
+    /must not shadow runtime root: state/,
   )
 })
 

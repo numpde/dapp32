@@ -296,7 +296,7 @@
         "namespace": "routes",
         "function": "component",
         "args": {
-          "serialNumber": "$form.serialNumber"
+          "serialNumber": "$state.serialNumber"
         }
       }
     },
@@ -312,7 +312,7 @@
         "namespace": "routes",
         "function": "register",
         "args": {
-          "serialNumber": "$form.serialNumber"
+          "serialNumber": "$state.serialNumber"
         }
       }
     },
@@ -328,8 +328,8 @@
         "namespace": "routes",
         "function": "registerComponent",
         "args": {
-          "serialNumber": "$form.serialNumber",
-          "tokenURI": "$form.tokenURI"
+          "serialNumber": "$state.serialNumber",
+          "tokenURI": "$state.tokenURI"
         }
       }
     },
@@ -346,7 +346,7 @@
         "function": "updateComponentMetadata",
         "args": {
           "serialNumber": "$view.serialNumber",
-          "tokenURI": "$form.tokenURI"
+          "tokenURI": "$state.tokenURI"
         }
       }
     },

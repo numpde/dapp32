@@ -82,8 +82,8 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
       case "show":
         render(context.session.snapshot())
         break
-      case "form":
-        printForm(context.session.snapshot())
+      case "state":
+        printState(context.session.snapshot())
         break
       case "values":
         printValues(context.session.snapshot())
@@ -129,7 +129,7 @@ function handleSet(session: CamViewerSession, args: readonly string[]): void {
     throw new Error("usage: set <name> <value>")
   }
 
-  session.updateForm({
+  session.updateState({
     [name]: toInertValue(valueParts.join(" ")),
   })
 }
@@ -272,10 +272,10 @@ function formatError(error: unknown): string {
   return `Error: ${String(error)}\n`
 }
 
-function printForm(snapshot: CamViewerSnapshot): void {
-  let form: unknown = null
-  if (snapshot.form !== undefined) {
-    form = snapshot.form
+function printState(snapshot: CamViewerSnapshot): void {
+  let state: unknown = null
+  if (snapshot.state !== undefined) {
+    state = snapshot.state
   }
 
   output.write(`${JSON.stringify({
@@ -283,7 +283,7 @@ function printForm(snapshot: CamViewerSnapshot): void {
     uiURI: snapshot.uiURI,
     account: snapshot.account,
     inputs: snapshot.inputs,
-    form,
+    state,
   }, jsonReplacer, 2)}\n`)
 }
 
@@ -294,7 +294,7 @@ function printPromptContext(context: TerminalContext): void {
   output.write(`  host: ${context.backend.hostLabel}\n`)
   output.write(`  account: ${accountText(snapshot.account)}\n`)
   output.write(`  inputs: ${formatValue(snapshot.inputs)}\n`)
-  output.write(`  form: ${snapshot.form === undefined ? "(not loaded)" : formatValue(snapshot.form)}\n`)
+  output.write(`  state: ${snapshot.state === undefined ? "(not loaded)" : formatValue(snapshot.state)}\n`)
   output.write(`  values: ${snapshot.values === undefined ? "(not loaded)" : formatValue(snapshot.values)}\n`)
 }
 
@@ -366,14 +366,14 @@ function printHelp(): void {
   output.write([
     "Commands:",
     "  show                  Render the current resolved UI.",
-    "  form                  Print route, UI URI, account, inputs, and form.",
+    "  state                  Print route, UI URI, account, inputs, and state.",
     "  values                Print the current route return values.",
     "  actions               Print resolved actions and their button numbers.",
     "  ui                    Print the resolved UI tree.",
     "  trace                 Print backend contract reads and resource loads.",
     "  trace clear           Clear the trace buffer.",
     "  restart               Reset the backend session and reload the entry route.",
-    "  set <name> <value>    Update local UI form and re-resolve actions.",
+    "  set <name> <value>    Update local UI state and re-resolve actions.",
     "  press <n>             Dispatch a resolved button action.",
     "  help                  Print this help.",
     "  quit                  Exit.",

@@ -34,7 +34,6 @@ test("resolves a CAM route into a plain call descriptor", () => {
       serialNumber: BIKE_SERIAL_NUMBER,
     },
     outputs: [],
-    form: {},
   })
 
   const call = resolveRouteCall(cam, BIKE_ROUTE_COMPONENT, context)
@@ -52,9 +51,6 @@ test("resolves a CAM route into a plain call descriptor", () => {
     outputs: [{
       viewId: "component.found",
     }],
-    form: {
-      serialNumber: BIKE_SERIAL_NUMBER,
-    },
   }))
 
   assert.deepEqual(call, {
@@ -95,7 +91,6 @@ test("rejects invalid CAM versions and unresolved route expressions", () => {
       serialNumber: "ABC123",
     },
     outputs: [],
-    form: {},
   })
 
   assert.throws(
@@ -115,7 +110,6 @@ test("enforces declared route inputs before resolving route calls", () => {
       address: BIKE_ACCOUNT_ADDRESS,
     },
     outputs: [],
-    form: {},
   }
 
   assert.throws(

@@ -39,13 +39,12 @@ export function createContext(input: unknown): CamRuntimeContext {
       : {}),
     inputs: cloneContextRecord(source.inputs, "inputs"),
     outputs: cloneContextArray(source.outputs, "outputs"),
-    form: cloneContextRecord(source.form, "form"),
   }
 }
 
 function rejectUnknownContextFields(source: Record<string, unknown>): void {
-  // Core owns only the data needed to resolve route-call arguments. UI state,
-  // previous call outputs, caches, and renderer-local data belong above core.
+  // Core owns only route-resolution data. UI state, caches, and renderer-local
+  // data belong above core.
   rejectUnknownFields(
     source,
     CAM_CONTEXT_KEYS,

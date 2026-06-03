@@ -1,19 +1,20 @@
 import {
   CAM_ROUTES_NAMESPACE,
   CAM_UI_NAMESPACE,
+  UI_CONTEXT_KEYS,
   UI_NODE_ARGUMENT_KEYS,
+  UI_RUNTIME_ROOTS,
 } from "@cam/protocol"
 
 export {
   CAM_ROUTES_NAMESPACE,
   CAM_UI_NAMESPACE,
+  UI_CONTEXT_KEYS,
   UI_NODE_ARGUMENT_KEYS,
+  UI_RUNTIME_ROOTS,
 }
 
 export const UI_VERSION = "1.0.0"
-
-export const UI_CONTEXT_KEYS: ReadonlySet<string> = new Set(["host", "account", "inputs", "outputs", "form", "view"])
-export const UI_RUNTIME_ROOTS: ReadonlySet<string> = new Set(["host", "account", "inputs", "outputs", "form"])
 
 export const UI_PROP_SCHEMAS = {
   Screen: {
