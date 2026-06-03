@@ -70,7 +70,9 @@ class ProtocolOwnershipTest(unittest.TestCase):
             "bundle": {"@cam/protocol"},
             "manifest": {"@cam/protocol"},
             "resources": {"@cam/protocol"},
+            "routes": {"@cam/protocol"},
             "sourced": {"@cam/core", "@cam/protocol", "@cam/screen"},
+            "ui": {"@cam/protocol"},
         }
         failures: list[str] = []
 

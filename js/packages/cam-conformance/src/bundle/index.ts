@@ -29,8 +29,14 @@ import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
 import {
+  validateRouteHandoffs,
+} from "../routes/handoffs.ts"
+import {
   verifyRuntimeCamCompatibility,
 } from "../sourced/runtime.ts"
+import {
+  declaredUiNodes,
+} from "../ui/nodes.ts"
 import type {
   CamConformanceBundle,
 } from "./types.ts"
@@ -76,6 +82,15 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     resource: bundle.mainURI,
     root,
     namespaces,
+    issues,
+  })
+  validateRouteHandoffs({
+    resource: bundle.mainURI,
+    routes,
+    uiNodes: declaredUiNodes({
+      resources: bundle.resources,
+      declarations,
+    }),
     issues,
   })
   validateRouteAbiCompatibility({

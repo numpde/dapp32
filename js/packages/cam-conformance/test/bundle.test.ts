@@ -266,6 +266,118 @@ test("route call args must match named ABI inputs exactly", () => {
   ])
 })
 
+test("read route continuations must target declared UI nodes with exact args", () => {
+  const issues = validateEditedMain<{
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((main) => {
+    main.routes.entry.then = {
+      namespace: "ui",
+      function: "missing",
+      args: {
+        extra: "$outputs.0",
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_HANDOFF_MISMATCH", "routes.entry.then.function"],
+  ])
+})
+
+test("read route continuation args must match UI node requirements exactly", () => {
+  const issues = validateEditedMain<{
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((main) => {
+    main.routes.entry.then = {
+      namespace: "ui",
+      function: "app",
+      args: {
+        extra: "$outputs.0",
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_HANDOFF_MISMATCH", "routes.entry.then.args.extra"],
+    ["CAM_ROUTE_HANDOFF_MISMATCH", "routes.entry.then.args.view"],
+  ])
+})
+
+test("write route continuations must target declared routes with exact inputs", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [],
+    },
+    {
+      type: "function",
+      name: "save",
+      stateMutability: "nonpayable",
+      inputs: [
+        {
+          name: "serialNumber",
+          type: "string",
+        },
+      ],
+      outputs: [],
+    },
+  ])
+  const issues = validateEditedMain<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((main, bundle) => {
+    main.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    main.routes.entry = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    main.routes.save = {
+      kind: "write",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "save",
+        args: {
+          serialNumber: "$inputs.serialNumber",
+        },
+      },
+      then: {
+        namespace: "routes",
+        function: "entry",
+        args: {
+          extra: "$inputs.serialNumber",
+        },
+      },
+    }
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./abi/App.json", abiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_HANDOFF_MISMATCH", "routes.save.then.args.extra"],
+    ["CAM_ROUTE_HANDOFF_MISMATCH", "routes.save.then.args.serialNumber"],
+  ])
+})
+
 test("malformed resource declarations report each bad field", () => {
   const issues = validateEditedMain<{
     readonly namespaces: Record<string, unknown>

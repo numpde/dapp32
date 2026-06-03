@@ -21,6 +21,7 @@ export type DeclaredInvocation = {
 export type DeclaredRoute = {
   readonly name: string
   readonly kind: RouteKind
+  readonly inputs: readonly string[]
   readonly call: DeclaredInvocation
   readonly then: DeclaredInvocation
 }
@@ -87,12 +88,13 @@ function validateRoutes(
       continue
     }
     const kind = validateRouteKind(resource, routeName, route.kind, issues)
-    validateRouteInputList(resource, routeName, route.inputs, issues)
+    const inputs = validateRouteInputList(resource, routeName, route.inputs, issues)
     const invocations = validateRouteInvocations(resource, routeName, route, namespaces, issues)
-    if (kind !== undefined && invocations !== undefined) {
+    if (kind !== undefined && inputs !== undefined && invocations !== undefined) {
       declaredRoutes.push({
         name: routeName,
         kind,
+        inputs,
         call: invocations.call,
         then: invocations.then,
       })
@@ -127,14 +129,15 @@ function validateRouteInputList(
   routeName: string,
   inputs: unknown,
   issues: CamConformanceIssue[],
-): void {
+): readonly string[] | undefined {
   const path = `routes.${routeName}.inputs`
   if (!Array.isArray(inputs)) {
     issues.push(routeInputIssue(resource, path, `route inputs must be an array: ${routeName}`))
-    return
+    return undefined
   }
 
   const seen = new Set<string>()
+  const validatedInputs: string[] = []
   for (const [index, input] of inputs.entries()) {
     const itemPath = `${path}.${index}`
     if (typeof input !== "string" || input.length === 0) {
@@ -146,7 +149,14 @@ function validateRouteInputList(
       issues.push(routeInputIssue(resource, itemPath, `duplicate route input name: ${input}`))
     }
     seen.add(input)
+    validatedInputs.push(input)
   }
+
+  if (validatedInputs.length !== inputs.length || seen.size !== inputs.length) {
+    return undefined
+  }
+
+  return validatedInputs
 }
 
 function validateRouteInvocations(
