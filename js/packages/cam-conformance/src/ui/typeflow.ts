@@ -163,7 +163,16 @@ function validateBoundValueTypeflow({
   if (typeof value !== "string") return
 
   const candidates = abiValuesForExpression(value, context)
-  if (candidates === undefined || candidates.length === 0) return
+  if (candidates === undefined) return
+  if (candidates.length === 0) {
+    issues.push(conformanceIssue({
+      rule: "CAM_UI_TYPEFLOW_MISMATCH",
+      resource,
+      path,
+      message: `${label} references no ABI-backed value: ${value}`,
+    }))
+    return
+  }
 
   const matching = candidates.find((candidate) => abiValueMatches(candidate, expectation))
   if (matching === undefined) {

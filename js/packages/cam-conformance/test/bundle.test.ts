@@ -824,12 +824,23 @@ test("UI props must be compatible with ABI-backed route output types", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Address",
+        tag: "Fragment",
         requires: ["view"],
-        props: {
-          label: "Owner",
-          address: "$view.owner",
-        },
+        children: [
+          {
+            tag: "Address",
+            props: {
+              label: "Owner",
+              address: "$view.owner",
+            },
+          },
+          {
+            tag: "Text",
+            props: {
+              text: "$view.missingTitle",
+            },
+          },
+        ],
       },
     },
   })
@@ -840,7 +851,8 @@ test("UI props must be compatible with ABI-backed route output types", () => {
   })
 
   assert.deepEqual(issueLocations(issues), [
-    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.props.address"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.props.address"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.props.text"],
   ])
 })
 
