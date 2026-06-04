@@ -14,9 +14,11 @@ contract BicycleComponentManagerScenarioTest is Test {
 
     address private admin = address(this);
     address private registrar = address(0x1001);
+    address private statusAttester = address(0x1002);
     address private owner = address(0x2001);
     address private buyer = address(0x2002);
     address private delegate = address(0x3001);
+    address private stranger = address(0x4001);
 
     string private constant SERIAL = "SCENARIO-FRAME-001";
     string private constant SECOND_SERIAL = "SCENARIO-WHEEL-002";
@@ -24,6 +26,10 @@ contract BicycleComponentManagerScenarioTest is Test {
     string private constant UPDATED_TOKEN_URI = "fixture://bike-nft/scenario/frame-001-updated.json";
     string private constant SECOND_TOKEN_URI = "fixture://bike-nft/scenario/wheel-002.json";
     string private constant BUYER_INFO_URI = "fixture://bike-nft/accounts/buyer.json";
+    string private constant SHOP_TOKEN_URI = "fixture://bike-nft/scenario/shop-updated-frame-001.json";
+    string private constant OWNER_INFO_URI = "fixture://bike-nft/accounts/owner.json";
+    string private constant REGISTRAR_ATTESTATION_URI = "fixture://bike-nft/attestations/registrar-inspection.json";
+    string private constant STATUS_ATTESTATION_URI = "fixture://bike-nft/attestations/status-attester-inspection.json";
 
     string private constant VIEW_COMPONENT_FOUND = "component.found";
     string private constant VIEW_REGISTER_READY = "register.ready";
@@ -36,6 +42,16 @@ contract BicycleComponentManagerScenarioTest is Test {
     string private constant ACTION_CLEAR_COMPONENT_MISSING = "clearComponentMissing";
     string private constant ACTION_RETIRE_COMPONENT = "retireComponent";
 
+    event ComponentAttestationAdded(
+        bytes32 indexed serialHash,
+        bytes32 indexed attestationType,
+        address indexed attester,
+        address tokenContract,
+        uint256 tokenId,
+        string serialNumber,
+        string attestationURI
+    );
+
     function setUp() external {
         components = new BicycleComponents("Bike Components", "BIKE", admin, 0, "", "");
         manager = new BicycleComponentManager(admin, 0, address(components));
@@ -45,6 +61,7 @@ contract BicycleComponentManagerScenarioTest is Test {
         components.grantRole(components.TOKEN_URI_SETTER_ROLE(), address(manager));
 
         manager.grantRole(manager.REGISTRAR_ROLE(), registrar);
+        manager.grantRole(manager.STATUS_ATTESTER_ROLE(), statusAttester);
     }
 
     // A happy-path registrar flow should keep the manager record, ERC721 token,
@@ -203,6 +220,145 @@ contract BicycleComponentManagerScenarioTest is Test {
         );
     }
 
+    // Repair-shop delegation is intentionally narrower than ownership. The UI
+    // should expose only actions the temporary delegate can currently perform,
+    // and expiry should remove those actions without changing component state.
+    function test_repairShopDelegationAdvertisesOnlyCurrentCapabilitiesAndExpiresCleanly() external {
+        registerDefaultComponent();
+
+        uint64 inspectAndReportCapabilities = manager.CAP_UPDATE_METADATA() | manager.CAP_MARK_MISSING();
+        uint48 validUntil = uint48(block.timestamp + 2 days);
+
+        vm.prank(owner);
+        manager.setComponentDelegate(SERIAL, delegate, inspectAndReportCapabilities, validUntil);
+
+        assertActions(
+            ui.viewComponent(SERIAL, delegate).actions,
+            expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA, ACTION_MARK_COMPONENT_MISSING)
+        );
+
+        vm.prank(delegate);
+        manager.setComponentMetadata(SERIAL, SHOP_TOKEN_URI);
+
+        vm.prank(delegate);
+        manager.markMissing(SERIAL);
+
+        BicycleComponentManagerUI.AppView memory shopView = ui.viewComponent(SERIAL, delegate);
+        assertEq(shopView.tokenURI, SHOP_TOKEN_URI, "delegate metadata should be visible");
+        assertEq(
+            uint8(shopView.status),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
+            "delegate should move component to missing"
+        );
+        assertActions(shopView.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA));
+
+        uint64 resolveAndCloseCapabilities = manager.CAP_CLEAR_MISSING() | manager.CAP_RETIRE();
+        vm.prank(owner);
+        manager.setComponentDelegate(SERIAL, delegate, resolveAndCloseCapabilities, uint48(block.timestamp + 3 days));
+
+        assertActions(
+            ui.viewComponent(SERIAL, delegate).actions,
+            expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_CLEAR_COMPONENT_MISSING, ACTION_RETIRE_COMPONENT)
+        );
+
+        vm.warp(validUntil + 4 days);
+
+        assertEq(manager.permissionsOf(delegate, SERIAL), 0, "delegate permissions should expire");
+        assertActions(ui.viewComponent(SERIAL, delegate).actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertEq(
+            uint8(manager.componentStatus(SERIAL)),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
+            "expiry must not alter component status"
+        );
+    }
+
+    // Emergency pause should block representative state-changing manager paths
+    // while preserving read routes for owners, agents, and humans diagnosing the
+    // app.
+    function test_emergencyPauseBlocksWritesButLeavesReadOnlyRoutesUsable() external {
+        registerDefaultComponent();
+
+        vm.prank(owner);
+        manager.setAccountInfo(OWNER_INFO_URI);
+
+        manager.pause();
+
+        BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "pause should not hide registered components");
+        assertEq(view_.ownerInfo, OWNER_INFO_URI, "pause should not hide owner profile data");
+        assertActions(
+            view_.actions,
+            expectedActions(
+                ACTION_LOOKUP_COMPONENT,
+                ACTION_UPDATE_COMPONENT_METADATA,
+                ACTION_MARK_COMPONENT_MISSING,
+                ACTION_RETIRE_COMPONENT
+            )
+        );
+
+        vm.prank(owner);
+        vm.expectRevert();
+        manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
+
+        uint64 updateMetadataCapability = manager.CAP_UPDATE_METADATA();
+        vm.prank(owner);
+        vm.expectRevert();
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, uint48(block.timestamp + 1 days));
+
+        vm.prank(owner);
+        vm.expectRevert();
+        manager.setAccountInfo(BUYER_INFO_URI);
+
+        vm.prank(registrar);
+        vm.expectRevert();
+        manager.addComponentAttestation(SERIAL, keccak256("paused-inspection"), REGISTRAR_ATTESTATION_URI);
+
+        manager.unpause();
+
+        vm.prank(owner);
+        manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
+
+        assertEq(ui.viewComponent(SERIAL, owner).tokenURI, UPDATED_TOKEN_URI, "writes should resume after unpause");
+    }
+
+    // Attestations are provenance events, not hidden component state. Official
+    // notes from the registrar and status attester should emit stable evidence
+    // while ownership, status, and timestamps remain unchanged.
+    function test_officialAttestationsAreEventOnlyProvenanceAndDoNotMutateComponentState() external {
+        registerDefaultComponent();
+
+        bytes32 serialHash = manager.serialHashOf(SERIAL);
+        uint256 tokenId = manager.tokenIdOf(SERIAL);
+        bytes32 inspectionType = keccak256("inspection");
+
+        IBicycleComponentManagerView.ComponentView memory beforeView = manager.componentBySerial(SERIAL);
+
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit ComponentAttestationAdded(
+            serialHash, inspectionType, registrar, address(components), tokenId, SERIAL, REGISTRAR_ATTESTATION_URI
+        );
+        vm.prank(registrar);
+        manager.addComponentAttestation(SERIAL, inspectionType, REGISTRAR_ATTESTATION_URI);
+
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit ComponentAttestationAdded(
+            serialHash, inspectionType, statusAttester, address(components), tokenId, SERIAL, STATUS_ATTESTATION_URI
+        );
+        vm.prank(statusAttester);
+        manager.addComponentAttestation(SERIAL, inspectionType, STATUS_ATTESTATION_URI);
+
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.Unauthorized.selector, stranger, serialHash, 0));
+        manager.addComponentAttestation(SERIAL, inspectionType, "fixture://bike-nft/attestations/forged.json");
+
+        IBicycleComponentManagerView.ComponentView memory afterView = manager.componentBySerial(SERIAL);
+        assertEq(afterView.owner, beforeView.owner, "attestation must not alter owner");
+        assertEq(uint8(afterView.status), uint8(beforeView.status), "attestation must not alter status");
+        assertEq(afterView.tokenURI, beforeView.tokenURI, "attestation must not alter token URI");
+        assertEq(afterView.registeredAt, beforeView.registeredAt, "attestation must not alter registration time");
+        assertEq(afterView.updatedAt, beforeView.updatedAt, "attestation must not alter update time");
+    }
+
     function registerDefaultComponent() private {
         vm.prank(registrar);
         manager.registerComponent(owner, SERIAL, TOKEN_URI);
@@ -225,6 +381,17 @@ contract BicycleComponentManagerScenarioTest is Test {
         actions = new string[](2);
         actions[0] = first;
         actions[1] = second;
+    }
+
+    function expectedActions(string memory first, string memory second, string memory third)
+        private
+        pure
+        returns (string[] memory actions)
+    {
+        actions = new string[](3);
+        actions[0] = first;
+        actions[1] = second;
+        actions[2] = third;
     }
 
     function expectedActions(string memory first, string memory second, string memory third, string memory fourth)
