@@ -1010,6 +1010,11 @@ test("resource declarations reject mutable remote and escaping URIs", () => {
       abiURI: "./",
       integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
     }
+    root.namespaces["contracts.Ipfs"] = {
+      type: "contract",
+      abiURI: "ipfs://../App.json",
+      integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+    }
     root.namespaces.ui.uri = "../ui.json"
     return {
       resources: new Map(),
@@ -1020,6 +1025,7 @@ test("resource declarations reject mutable remote and escaping URIs", () => {
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.App.abiURI"],
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.ui.uri"],
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.Other.abiURI"],
+    ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.Ipfs.abiURI"],
   ])
 })
 

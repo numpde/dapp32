@@ -196,7 +196,7 @@ function validateResourceURI({
   if (isLocalResourceURI(uri)) {
     return true
   }
-  if (uri.startsWith("ipfs://") && uri.length > "ipfs://".length) {
+  if (isIpfsResourceURI(uri)) {
     return true
   }
 
@@ -209,11 +209,21 @@ function validateResourceURI({
 }
 
 function isLocalResourceURI(uri: string): boolean {
-  if (!uri.startsWith("./")) return false
+  const prefix = "./"
+  if (!uri.startsWith(prefix)) return false
 
-  const path = uri.slice("./".length)
+  return isResourcePath(uri.slice(prefix.length))
+}
+
+function isIpfsResourceURI(uri: string): boolean {
+  const prefix = "ipfs://"
+  if (!uri.startsWith(prefix)) return false
+
+  return isResourcePath(uri.slice(prefix.length))
+}
+
+function isResourcePath(path: string): boolean {
   if (path.length === 0 || path.includes("?") || path.includes("#")) return false
-
   return path.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
 }
 
