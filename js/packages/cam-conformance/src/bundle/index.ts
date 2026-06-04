@@ -49,6 +49,9 @@ import {
 import {
   verifyRuntimeUiCompatibility,
 } from "../sourced/ui.ts"
+import {
+  forEachDeclaredUiResourceBytes,
+} from "../ui/resources.ts"
 
 export type {
   CamConformanceBundle,
@@ -127,7 +130,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     declarations,
     issues,
   })
-  verifyDeclaredUiResource(bundle.resources, declarations, issues)
+  verifyDeclaredUiResources(bundle.resources, declarations, issues)
   verifyRuntimeCamCompatibility({
     resource: bundle.rootURI,
     root,
@@ -146,16 +149,14 @@ export function assertCamBundle(bundle: CamConformanceBundle): void {
   }
 }
 
-function verifyDeclaredUiResource(
+function verifyDeclaredUiResources(
   resources: ReadonlyMap<string, Uint8Array>,
   declarations: readonly ResourceDeclaration[],
   issues: CamConformanceIssue[],
 ): void {
-  const declaration = declarations.find((item) => item.namespaceType === "ui")
-  if (declaration === undefined) return
-
-  const bytes = resources.get(declaration.uri)
-  if (bytes !== undefined) {
-    verifyRuntimeUiCompatibility(declaration.uri, bytes, issues)
-  }
+  forEachDeclaredUiResourceBytes({
+    resources,
+    declarations,
+    visit: (resource, bytes) => verifyRuntimeUiCompatibility(resource, bytes, issues),
+  })
 }
