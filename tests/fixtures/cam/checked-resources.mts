@@ -1,5 +1,5 @@
 import { readFile, readdir } from "node:fs/promises"
-import { join } from "node:path"
+import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
 export const dappsRoot = fileURLToPath(new URL("../../../dapps/", import.meta.url))
@@ -30,60 +30,11 @@ export async function checkedInCamRootPaths(): Promise<string[]> {
 }
 
 export async function checkedInUiPaths(): Promise<string[]> {
-  return checkedInDappCamFiles("ui.json")
+  return checkedInResourcePaths("ui")
 }
 
 export async function checkedInAbiPaths(): Promise<string[]> {
-  const dapps = await readdir(dappsRoot, { withFileTypes: true })
-  const paths: string[] = []
-
-  for (const dapp of dapps) {
-    if (!dapp.isDirectory()) {
-      continue
-    }
-
-    const camDir = await childDirectory(join(dappsRoot, dapp.name), "cam")
-    if (camDir === undefined) {
-      continue
-    }
-
-    const abiDir = await childDirectory(camDir, "abi")
-    if (abiDir === undefined) {
-      continue
-    }
-
-    for (const entry of await readdir(abiDir, { withFileTypes: true })) {
-      if (entry.isFile() && entry.name.endsWith(".json")) {
-        paths.push(join(abiDir, entry.name))
-      }
-    }
-  }
-
-  return paths.sort()
-}
-
-async function checkedInDappCamFiles(fileName: string): Promise<string[]> {
-  const dapps = await readdir(dappsRoot, { withFileTypes: true })
-  const paths: string[] = []
-
-  for (const dapp of dapps) {
-    if (!dapp.isDirectory()) {
-      continue
-    }
-
-    const camDir = await childDirectory(join(dappsRoot, dapp.name), "cam")
-    if (camDir === undefined) {
-      continue
-    }
-
-    for (const entry of await readdir(camDir, { withFileTypes: true })) {
-      if (entry.isFile() && entry.name === fileName) {
-        paths.push(join(camDir, entry.name))
-      }
-    }
-  }
-
-  return paths.sort()
+  return checkedInResourcePaths("contract")
 }
 
 function assertCamRootDocument(path: string, document: unknown): void {
@@ -116,4 +67,56 @@ async function childFile(parent: string, name: string): Promise<string | undefin
   }
 
   return undefined
+}
+
+async function checkedInResourcePaths(type: "contract" | "ui"): Promise<string[]> {
+  const paths: string[] = []
+
+  for (const rootPath of await checkedInCamRootPaths()) {
+    const root = JSON.parse(await readFile(rootPath, "utf8"))
+    if (!isRecord(root) || !isRecord(root.namespaces)) {
+      continue
+    }
+
+    for (const namespace of Object.values(root.namespaces)) {
+      if (!isRecord(namespace) || namespace.type !== type) {
+        continue
+      }
+
+      const uri = resourceURI(namespace, type)
+      if (uri !== undefined) {
+        paths.push(localDeclaredResourcePath(rootPath, uri))
+      }
+    }
+  }
+
+  return paths.sort()
+}
+
+function resourceURI(namespace: Record<string, unknown>, type: "contract" | "ui"): string | undefined {
+  const key = type === "contract" ? "abiURI" : "uri"
+  const uri = namespace[key]
+  if (typeof uri === "string" && uri.length > 0) {
+    return uri
+  }
+
+  return undefined
+}
+
+function localDeclaredResourcePath(rootPath: string, uri: string): string {
+  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri) || uri.startsWith("//") || uri.startsWith("/")) {
+    throw new Error(`checked-in CAM resources must be local relative files: ${uri}`)
+  }
+  if (!uri.startsWith("./")) {
+    throw new Error(`checked-in CAM resources must use ./ local URIs: ${uri}`)
+  }
+
+  const rootDir = dirname(rootPath)
+  const path = resolve(rootDir, uri)
+  const relativePath = relative(rootDir, path)
+  if (relativePath === "" || relativePath === ".." || relativePath.startsWith("../")) {
+    throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
+  }
+
+  return path
 }
