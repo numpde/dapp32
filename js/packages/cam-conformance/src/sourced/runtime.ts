@@ -1,4 +1,5 @@
 import {
+  CamError,
   parseCam,
 } from "@cam/core"
 
@@ -25,9 +26,21 @@ export function verifyRuntimeCamCompatibility({
     parseCam(root)
   } catch (error) {
     issues.push(issueFromError({
-      rule: "CAM_RUNTIME_CAM_INVALID",
+      rule: runtimeCamRule(error),
       resource,
       error,
     }))
   }
+}
+
+function runtimeCamRule(error: unknown): string {
+  if (
+    error instanceof CamError
+    && error.code === "CAM_INVALID_FIELD"
+    && error.message.includes("field is not allowed in CAM")
+  ) {
+    return "CAM_MANIFEST_FIELD_UNKNOWN"
+  }
+
+  return "CAM_RUNTIME_CAM_INVALID"
 }

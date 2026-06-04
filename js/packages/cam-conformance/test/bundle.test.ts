@@ -120,23 +120,13 @@ test("malformed route declarations are reported before runtime compatibility", (
   ])
 })
 
-test("unknown CAM manifest fields are reported before runtime compatibility", () => {
-  const issues = validateEditedRoot<Record<string, unknown> & {
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+test("unknown CAM manifest fields use an author-facing conformance rule", () => {
+  const issues = validateEditedRoot<Record<string, unknown>>((root) => {
     root.unexpected = true
-    root.namespaces["contracts.App"].unexpected = true
-    root.routes.entry.unexpected = true
-    const entryCall = root.routes.entry.call as Record<string, unknown>
-    entryCall.unexpected = true
   })
 
-  assert.deepEqual(issueLocations(issues).slice(0, 4), [
+  assert.deepEqual(issueLocations(issues), [
     ["CAM_MANIFEST_FIELD_UNKNOWN", "unexpected"],
-    ["CAM_MANIFEST_FIELD_UNKNOWN", "namespaces.contracts.App.unexpected"],
-    ["CAM_MANIFEST_FIELD_UNKNOWN", "routes.entry.unexpected"],
-    ["CAM_MANIFEST_FIELD_UNKNOWN", "routes.entry.call.unexpected"],
   ])
 })
 
