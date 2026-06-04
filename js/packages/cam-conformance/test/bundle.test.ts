@@ -918,6 +918,83 @@ test("UI props must be compatible with ABI-backed route output types", () => {
   ])
 })
 
+test("UI dynamic call targets must be compatible with ABI-backed route output types", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [
+        {
+          name: "view",
+          type: "tuple",
+          components: [
+            {
+              name: "viewId",
+              type: "uint256",
+            },
+            {
+              name: "actions",
+              type: "string[]",
+            },
+          ],
+        },
+      ],
+    },
+  ])
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "$view.viewId",
+              args: {
+                view: "$view",
+              },
+            },
+          },
+          {
+            tag: "Action",
+            props: {
+              label: "Do it",
+            },
+            call: {
+              namespace: "routes",
+              function: "$view.actions",
+              args: {},
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./abi/App.json", abiBytes],
+        ["./ui.json", uiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.call.function"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.function"],
+  ])
+})
+
 test("malformed resource declarations report each bad field", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>

@@ -28,7 +28,7 @@ import {
 } from "./document.ts"
 
 type AbiContext = ReadonlyMap<string, readonly unknown[]>
-type PropExpectation = "address" | "integer-or-string" | "string"
+type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-string-array"
 
 export function validateUiTypeflow({
   resources,
@@ -98,26 +98,83 @@ function validateUiNodeTypeflow(
   context: AbiContext,
   issues: CamConformanceIssue[],
 ): void {
-  if (typeof node.tag !== "string" || !isUiPropTag(node.tag) || !isRecordObject(node.props)) return
+  if (typeof node.tag !== "string") return
 
-  for (const [name, value] of Object.entries(node.props)) {
-    const expectation = propExpectation(node.tag, name)
-    if (expectation === undefined || typeof value !== "string") continue
+  if (isUiPropTag(node.tag) && isRecordObject(node.props)) {
+    for (const [name, value] of Object.entries(node.props)) {
+      const expectation = propExpectation(node.tag, name)
+      if (expectation !== undefined) {
+        validateBoundValueTypeflow({
+          resource,
+          path: `${path}.props.${name}`,
+          label: `UI ${node.tag}.${name}`,
+          value,
+          expectation,
+          context,
+          issues,
+        })
+      }
+    }
+  }
 
-    const candidates = abiValuesForExpression(value, context)
-    if (candidates === undefined || candidates.length === 0) continue
-
-    const matching = candidates.find((candidate) => abiValueMatches(candidate, expectation))
-    if (matching === undefined) {
-      const [firstCandidate] = candidates
-      issues.push({
-        rule: "CAM_UI_TYPEFLOW_MISMATCH",
-        severity: "error",
+  if (isRecordObject(node.call)) {
+    if (node.tag === "Include") {
+      validateBoundValueTypeflow({
         resource,
-        path: `${path}.props.${name}`,
-        message: `UI ${node.tag}.${name} expects ${expectation}, but ABI provides ${abiTypeName(firstCandidate)}`,
+        path: `${path}.call.function`,
+        label: "UI Include target",
+        value: node.call.function,
+        expectation: "string-or-string-array",
+        context,
+        issues,
       })
     }
+    if (node.tag === "Action") {
+      validateBoundValueTypeflow({
+        resource,
+        path: `${path}.call.function`,
+        label: "UI Action route",
+        value: node.call.function,
+        expectation: "string",
+        context,
+        issues,
+      })
+    }
+  }
+}
+
+function validateBoundValueTypeflow({
+  resource,
+  path,
+  label,
+  value,
+  expectation,
+  context,
+  issues,
+}: {
+  readonly resource: string
+  readonly path: string
+  readonly label: string
+  readonly value: unknown
+  readonly expectation: ValueExpectation
+  readonly context: AbiContext
+  readonly issues: CamConformanceIssue[]
+}): void {
+  if (typeof value !== "string") return
+
+  const candidates = abiValuesForExpression(value, context)
+  if (candidates === undefined || candidates.length === 0) return
+
+  const matching = candidates.find((candidate) => abiValueMatches(candidate, expectation))
+  if (matching === undefined) {
+    const [firstCandidate] = candidates
+    issues.push({
+      rule: "CAM_UI_TYPEFLOW_MISMATCH",
+      severity: "error",
+      resource,
+      path,
+      message: `${label} expects ${expectation}, but ABI provides ${abiTypeName(firstCandidate)}`,
+    })
   }
 }
 
@@ -133,7 +190,7 @@ function abiValuesForExpression(value: string, context: AbiContext): readonly un
     .filter((valueAtPath) => valueAtPath !== undefined)
 }
 
-function propExpectation(tag: UiPropTag, prop: string): PropExpectation | undefined {
+function propExpectation(tag: UiPropTag, prop: string): ValueExpectation | undefined {
   if (tag === "Address" && prop === "address") return "address"
   if (tag === "Nft" && prop === "contractAddress") return "address"
   if (tag === "Nft" && prop === "tokenId") return "integer-or-string"
@@ -141,7 +198,7 @@ function propExpectation(tag: UiPropTag, prop: string): PropExpectation | undefi
   return undefined
 }
 
-function abiValueMatches(value: unknown, expectation: PropExpectation): boolean {
+function abiValueMatches(value: unknown, expectation: ValueExpectation): boolean {
   const type = abiType(value)
   switch (expectation) {
     case "address":
@@ -150,6 +207,8 @@ function abiValueMatches(value: unknown, expectation: PropExpectation): boolean 
       return type === "integer" || type === "string"
     case "string":
       return type === "string"
+    case "string-or-string-array":
+      return type === "string" || type === "string-array"
   }
 }
 
@@ -160,6 +219,7 @@ function abiType(value: unknown): string {
   if (type === "address" || type === "string" || type === "bool" || type === "bytes" || type === "tuple") return type
   if (/^u?int(?:[0-9]+)?$/.test(type)) return "integer"
   if (/^bytes[0-9]+$/.test(type)) return "bytes"
+  if (type === "string[]") return "string-array"
   if (type.endsWith("[]")) return "array"
   return type
 }
