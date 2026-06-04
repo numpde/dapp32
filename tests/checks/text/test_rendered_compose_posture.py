@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import re
+import subprocess
 import unittest
 from typing import Any
 
@@ -11,6 +14,7 @@ from ..common import (
     compose_sequence_or_empty,
     compose_service,
     compose_volume,
+    docker_compose_command,
     read_text,
     rendered_compose_config,
     repo_path,
@@ -30,6 +34,7 @@ VIEWER_TERMINAL_CONTAINER_NAME = "dapps-viewer-terminal-session"
 BIKE_MOCK_CAM_MOUNT = "/work/cam/bike-nft"
 BIKE_NFT_BROADCAST_DIR = "/foundry-broadcast"
 BIKE_NFT_BROADCAST_PATH = f"{BIKE_NFT_BROADCAST_DIR}/DeployBikeNftLocal.s.sol/31337/run-latest.json"
+REQUIRED_COMPOSE_ENV_RE = re.compile(r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*):\?missing_(?P=name)\}")
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE = (
     "compose/bike-nft/local/deploy.yml",
     "compose/bike-nft/local/http.yml",
@@ -92,6 +97,80 @@ def bike_integration_fuzz_env() -> dict[str, str]:
     }
 
 
+def compose_render_scenarios() -> tuple[tuple[str | tuple[str, ...], dict[str, str]], ...]:
+    return (
+        ("compose/anvil.yml", {}),
+        ("compose/bike-nft/local/deploy.yml", standalone_bike_fixture_env()),
+        ("compose/cam.yml", {}),
+        ("compose/cast.yml", {"RPC_URL_FILE": "/tmp/rpc-url"}),
+        ("compose/deps.yml", {}),
+        ("compose/forge-abi.yml", {}),
+        ("compose/forge.yml", {}),
+        ("compose/package-deps.yml", {"PACKAGE_INPUT_DIR": "/tmp/package-input"}),
+        ("compose/packages.yml", {}),
+        ("compose/test/integration-fuzz.yml", integration_fuzz_env()),
+        ("compose/viewer-terminal.yml", mock_viewer_env()),
+        (BIKE_NFT_VIEWER_TERMINAL_COMPOSE, bike_viewer_fixture_env()),
+        (
+            BIKE_NFT_VIEWER_GUI_COMPOSE,
+            {
+                "CAM_URI": f"{BIKE_NFT_GUI_ORIGIN}/cam/main.json",
+                "CAM_HASH": ZERO_HASH,
+                "BIKE_NFT_GUI_BIND_HOST": BIKE_NFT_GUI_BIND_HOST,
+                "BIKE_NFT_GUI_ORIGIN": BIKE_NFT_GUI_ORIGIN,
+                "BIKE_NFT_BROADCAST_DIR": BIKE_NFT_BROADCAST_DIR,
+                "BIKE_NFT_BROADCAST_PATH": BIKE_NFT_BROADCAST_PATH,
+            },
+        ),
+        (BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE, bike_integration_fuzz_env()),
+    )
+
+
+def required_compose_env_names(compose_files: str | tuple[str, ...]) -> tuple[str, ...]:
+    if isinstance(compose_files, str):
+        files = (compose_files,)
+    else:
+        files = compose_files
+
+    names: set[str] = set()
+    for compose_file in files:
+        names.update(REQUIRED_COMPOSE_ENV_RE.findall(read_text(repo_path(compose_file))))
+
+    return tuple(sorted(names))
+
+
+def compose_render_env(env: dict[str, str]) -> dict[str, str]:
+    render_env = os.environ.copy()
+    render_env.update(RENDERED_COMPOSE_FIXTURE_ENV)
+    render_env.update(env)
+    return render_env
+
+
+def compose_config_process(
+    compose_files: str | tuple[str, ...],
+    render_env: dict[str, str],
+) -> subprocess.CompletedProcess[str]:
+    command = docker_compose_command(render_env)
+    if isinstance(compose_files, str):
+        files = (compose_files,)
+    else:
+        files = compose_files
+
+    for compose_file in files:
+        command.extend(["-f", str(repo_path(compose_file))])
+    command.extend(["config", "--format", "json"])
+
+    return subprocess.run(
+        command,
+        cwd=repo_path("."),
+        env=render_env,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
 class RenderedComposePostureTest(unittest.TestCase):
     def test_rendered_compose_fixture_env_is_explicit(self) -> None:
         # This pins the happy-path render fixture so posture tests do not gain
@@ -110,6 +189,26 @@ class RenderedComposePostureTest(unittest.TestCase):
             },
             RENDERED_COMPOSE_FIXTURE_ENV,
         )
+
+    def test_required_compose_env_vars_fail_closed_when_omitted(self) -> None:
+        for compose_files, env in compose_render_scenarios():
+            required_names = required_compose_env_names(compose_files)
+            if not required_names:
+                continue
+
+            for missing_name in required_names:
+                with self.subTest(compose_files=compose_files, missing=missing_name):
+                    render_env = compose_render_env(env)
+                    self.assertIn(missing_name, render_env)
+                    del render_env[missing_name]
+                    result = compose_config_process(compose_files, render_env)
+
+                    self.assertNotEqual(
+                        0,
+                        result.returncode,
+                        f"Compose render unexpectedly succeeded without {missing_name}",
+                    )
+                    self.assertIn(f"missing_{missing_name}", result.stderr + result.stdout)
 
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service["read_only"])
