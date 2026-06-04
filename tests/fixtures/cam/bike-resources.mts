@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs"
+import { parseJsonText } from "../../../js/packages/cam-protocol/src/json.ts"
 
 type JsonObject = Record<string, unknown>
 type BikeInvocationFixture = {
@@ -31,7 +32,7 @@ function readBikeCamJson(relativePath: string): unknown {
   // Package tests exercise the checked-in CAM resources, not hand-copied
   // approximations. That keeps protocol tests aligned with the dapp manifest.
   const url = new URL(`../../../dapps/bike-nft/cam/${relativePath}`, import.meta.url)
-  return JSON.parse(readFileSync(url, "utf8"))
+  return parseJsonText(readFileSync(url, "utf8"))
 }
 
 function readBikeCamBytes(relativePath: string): Uint8Array {
