@@ -17,6 +17,7 @@ JS_ASSIGNMENT_OR_RETURN_DEFAULT_RE = re.compile(
     r"(?:[\"'`{\[]|\d|true|false|null|undefined)"
     r"|\breturn\s+[^;\n|]+?\|\|\s*(?:[\"'`{\[]|\d|true|false|null|undefined)"
 )
+JS_COMPOUND_ASSIGNMENT_DEFAULT_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_.\[\]]*\s*(?:\|\|=|\?\?=)\s*")
 JS_TERNARY_DEFAULT_RE = re.compile(
     r"\b(?:const|let|var)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*"
     r"(?P<truthy>[A-Za-z_][A-Za-z0-9_]*)\s*\?\s*(?P=truthy)\s*:\s*(?:[\"'`{\[]|\d|true|false|null)"
@@ -81,6 +82,8 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
         self.assertRegex("process.env.FOO || 'bar'", JS_ENV_OR_SEARCH_DEFAULT_RE)
         self.assertRegex("const port = configuredPort || '8080'", JS_ASSIGNMENT_OR_RETURN_DEFAULT_RE)
         self.assertRegex("return configuredPort || '8080'", JS_ASSIGNMENT_OR_RETURN_DEFAULT_RE)
+        self.assertRegex("options.port ??= '8080'", JS_COMPOUND_ASSIGNMENT_DEFAULT_RE)
+        self.assertRegex("config.enabled ||= true", JS_COMPOUND_ASSIGNMENT_DEFAULT_RE)
         self.assertRegex("const port = configuredPort ? configuredPort : '8080'", JS_TERNARY_DEFAULT_RE)
         self.assertRegex("const { port = '8080' } = config", JS_DESTRUCTURING_DEFAULT_RE)
         self.assertTrue(js_source_has_parameter_destructuring_default("function run({\n  port = DEFAULT_PORT,\n}: Options) {}"))
@@ -101,6 +104,12 @@ class JsTsSilentDefaultsTest(unittest.TestCase):
         findings.extend(
             line_findings(files, JS_ASSIGNMENT_OR_RETURN_DEFAULT_RE, "JS/TS assignment/return fallback", skip_comments=False)
         )
+        findings.extend(line_findings(
+            files,
+            JS_COMPOUND_ASSIGNMENT_DEFAULT_RE,
+            "JS/TS compound assignment fallback",
+            skip_comments=False,
+        ))
         findings.extend(line_findings(files, JS_TERNARY_DEFAULT_RE, "JS/TS ternary fallback", skip_comments=False))
         findings.extend(line_findings(files, JS_DESTRUCTURING_DEFAULT_RE, "JS/TS destructuring default", skip_comments=False))
         findings.extend(js_parameter_destructuring_default_findings(files))
