@@ -105,7 +105,7 @@ def bike_integration_fuzz_env() -> dict[str, str]:
 def compose_files_with_required_env() -> tuple[str, ...]:
     return tuple(
         path.relative_to(repo_path(".")).as_posix()
-        for path in sorted(repo_path("compose").rglob("*.yml"))
+        for path in sorted((*repo_path("compose").rglob("*.yml"), *repo_path("compose").rglob("*.yaml")))
         if required_compose_env_names(path.relative_to(repo_path(".")).as_posix())
     )
 
