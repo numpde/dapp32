@@ -69,6 +69,16 @@ type Descriptor = {
   readonly allowUnsignedCamHash: boolean
 }
 
+const DESCRIPTOR_KEYS = new Set([
+  "camIntegration",
+  "chainId",
+  "rpcUrl",
+  "camHost",
+  "resourceOrigin",
+  "accounts",
+  "allowUnsignedCamHash",
+])
+
 type RunnerOptions = {
   readonly descriptor: Descriptor
   readonly seed: string
@@ -727,6 +737,7 @@ function readDescriptor(path: string): Descriptor {
   if (!isRecordObject(value)) {
     throw new Error("CAM integration descriptor must be an object")
   }
+  rejectUnknownDescriptorFields(value)
   if (value.camIntegration !== "1.0.0") {
     throw new Error("CAM integration descriptor version must be 1.0.0")
   }
@@ -748,6 +759,14 @@ function readDescriptor(path: string): Descriptor {
       requireEvmAddress(requiredStringValue(account, `descriptor.accounts.${index}`), `descriptor.accounts.${index}`),
     ),
     allowUnsignedCamHash: requiredBoolean(value, "allowUnsignedCamHash", "descriptor.allowUnsignedCamHash"),
+  }
+}
+
+function rejectUnknownDescriptorFields(value: Record<string, unknown>): void {
+  for (const key of Object.keys(value)) {
+    if (!DESCRIPTOR_KEYS.has(key)) {
+      throw new Error(`descriptor.${key}: field is not allowed in CAM integration descriptor`)
+    }
   }
 }
 
