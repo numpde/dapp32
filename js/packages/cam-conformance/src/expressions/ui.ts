@@ -10,8 +10,8 @@ import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
 import {
-  readRawUiDocument,
-} from "../ui/document.ts"
+  forEachRawUiResource,
+} from "../ui/resources.ts"
 import {
   forEachString,
 } from "../walk.ts"
@@ -28,16 +28,13 @@ export function validateUiExpressionRoots({
   readonly declarations: readonly ResourceDeclaration[]
   readonly issues: CamConformanceIssue[]
 }): void {
-  for (const declaration of declarations) {
-    if (declaration.namespaceType !== "ui") continue
-    const bytes = resources.get(declaration.uri)
-    if (bytes === undefined) continue
-
-    const ui = readRawUiDocument(bytes)
-    if (ui === undefined) continue
-
-    forEachString(ui.value, "", (value, path) => validateExpressionRoot(declaration.uri, value, path, issues))
-  }
+  forEachRawUiResource({
+    resources,
+    declarations,
+    visit: (resource, ui) => {
+      forEachString(ui.value, "", (value, path) => validateExpressionRoot(resource, value, path, issues))
+    },
+  })
 }
 
 function validateExpressionRoot(

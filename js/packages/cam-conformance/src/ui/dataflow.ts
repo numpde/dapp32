@@ -20,8 +20,10 @@ import type {
 } from "./nodes.ts"
 import {
   forEachUiNode,
-  readRawUiDocument,
 } from "./document.ts"
+import {
+  forEachRawUiResource,
+} from "./resources.ts"
 import {
   forEachString,
 } from "../walk.ts"
@@ -56,34 +58,30 @@ export function validateUiDataflow({
   readonly issues: CamConformanceIssue[]
 }): void {
   const routesByName = new Map(routes.map((route) => [route.name, route]))
-  for (const declaration of declarations) {
-    if (declaration.namespaceType !== "ui") continue
-    const bytes = resources.get(declaration.uri)
-    if (bytes === undefined) continue
+  forEachRawUiResource({
+    resources,
+    declarations,
+    visit: (resource, ui) => {
+      const dataflow = readUiDataflow(ui.nodes)
 
-    const dataflow = readUiDataflow(bytes)
-    if (dataflow === undefined) continue
-
-    if (uiNodes !== undefined) {
-      for (const include of dataflow.includeCalls) {
-        validateIncludeNodeArgs(declaration.uri, include, uiNodes, issues)
+      if (uiNodes !== undefined) {
+        for (const include of dataflow.includeCalls) {
+          validateIncludeNodeArgs(resource, include, uiNodes, issues)
+        }
       }
-    }
-    for (const action of dataflow.routeCalls) {
-      validateActionRouteArgs(declaration.uri, action, routesByName, issues)
-      validateActionStateInputs(declaration.uri, action, dataflow.inputNames, issues)
-    }
-  }
+      for (const action of dataflow.routeCalls) {
+        validateActionRouteArgs(resource, action, routesByName, issues)
+        validateActionStateInputs(resource, action, dataflow.inputNames, issues)
+      }
+    },
+  })
 }
 
-function readUiDataflow(bytes: Uint8Array): UiDataflow | undefined {
-  const ui = readRawUiDocument(bytes)
-  if (ui === undefined) return undefined
-
+function readUiDataflow(nodes: Record<string, unknown>): UiDataflow {
   const inputNames = new Set<string>()
   const routeCalls: UiCall[] = []
   const includeCalls: UiCall[] = []
-  forEachUiNode(ui.nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, routeCalls, includeCalls))
+  forEachUiNode(nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, routeCalls, includeCalls))
 
   return {
     inputNames,

@@ -11,8 +11,8 @@ import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
 import {
-  readRawUiDocument,
-} from "./document.ts"
+  forEachRawUiResource,
+} from "./resources.ts"
 
 export type DeclaredUiNode = {
   readonly name: string
@@ -28,23 +28,21 @@ export function declaredUiNodes({
   readonly declarations: readonly ResourceDeclaration[]
   readonly issues: CamConformanceIssue[]
 }): ReadonlyMap<string, DeclaredUiNode> | undefined {
-  const declaration = declarations.find((item) => item.namespaceType === "ui")
-  if (declaration === undefined) return undefined
-
-  const bytes = resources.get(declaration.uri)
-  if (bytes === undefined) return undefined
-
-  const ui = readRawUiDocument(bytes)
-  if (ui === undefined) return undefined
-
-  const nodes = new Map<string, DeclaredUiNode>()
-  for (const [name, node] of Object.entries(ui.nodes)) {
-    const requires = nodeRequires(declaration.uri, name, node, issues)
-    nodes.set(name, {
-      name,
-      requires,
-    })
-  }
+  let nodes: Map<string, DeclaredUiNode> | undefined
+  forEachRawUiResource({
+    resources,
+    declarations,
+    visit: (resource, ui) => {
+      nodes = new Map<string, DeclaredUiNode>()
+      for (const [name, node] of Object.entries(ui.nodes)) {
+        const requires = nodeRequires(resource, name, node, issues)
+        nodes.set(name, {
+          name,
+          requires,
+        })
+      }
+    },
+  })
 
   return nodes
 }

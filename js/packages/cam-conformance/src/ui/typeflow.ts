@@ -25,8 +25,10 @@ import type {
 } from "../resources/declarations.ts"
 import {
   forEachUiNode,
-  readRawUiDocument,
 } from "./document.ts"
+import {
+  forEachRawUiResource,
+} from "./resources.ts"
 
 type AbiContext = ReadonlyMap<string, readonly unknown[]>
 type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-string-array"
@@ -47,16 +49,13 @@ export function validateUiTypeflow({
   const context = abiContextForReadRouteContinuations(routes, functionsByNamespace)
   if (context.size === 0) return
 
-  for (const declaration of declarations) {
-    if (declaration.namespaceType !== "ui") continue
-    const bytes = resources.get(declaration.uri)
-    if (bytes === undefined) continue
-
-    const ui = readRawUiDocument(bytes)
-    if (ui === undefined) continue
-
-    forEachUiNode(ui.nodes, (node, path) => validateUiNodeTypeflow(declaration.uri, node, path, context, issues))
-  }
+  forEachRawUiResource({
+    resources,
+    declarations,
+    visit: (resource, ui) => {
+      forEachUiNode(ui.nodes, (node, path) => validateUiNodeTypeflow(resource, node, path, context, issues))
+    },
+  })
 }
 
 function abiContextForReadRouteContinuations(
