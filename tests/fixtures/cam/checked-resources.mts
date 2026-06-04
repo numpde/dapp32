@@ -1,4 +1,4 @@
-import { readFile, readdir } from "node:fs/promises"
+import { lstat, readFile, readdir, realpath } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -85,7 +85,7 @@ async function checkedInResourcePaths(type: "contract" | "ui"): Promise<string[]
 
       const uri = resourceURI(namespace, type)
       if (uri !== undefined) {
-        paths.push(localDeclaredResourcePath(rootPath, uri))
+        paths.push(await localDeclaredResourcePath(rootPath, uri))
       }
     }
   }
@@ -103,7 +103,7 @@ function resourceURI(namespace: Record<string, unknown>, type: "contract" | "ui"
   return undefined
 }
 
-function localDeclaredResourcePath(rootPath: string, uri: string): string {
+async function localDeclaredResourcePath(rootPath: string, uri: string): Promise<string> {
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri) || uri.startsWith("//") || uri.startsWith("/")) {
     throw new Error(`checked-in CAM resources must be local relative files: ${uri}`)
   }
@@ -115,6 +115,25 @@ function localDeclaredResourcePath(rootPath: string, uri: string): string {
   const path = resolve(rootDir, uri)
   const relativePath = relative(rootDir, path)
   if (relativePath === "" || relativePath === ".." || relativePath.startsWith("../")) {
+    throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
+  }
+
+  let currentPath = rootDir
+  for (const segment of relativePath.split("/")) {
+    currentPath = resolve(currentPath, segment)
+    const stat = await lstat(currentPath)
+    if (stat.isSymbolicLink()) {
+      throw new Error(`checked-in CAM resources must not be symlinked: ${uri}`)
+    }
+    if (currentPath === path && !stat.isFile()) {
+      throw new Error(`checked-in CAM resource must be a file: ${uri}`)
+    }
+  }
+
+  const realRoot = await realpath(rootDir)
+  const realResource = await realpath(path)
+  const realRelativePath = relative(realRoot, realResource)
+  if (realRelativePath === "" || realRelativePath === ".." || realRelativePath.startsWith("../")) {
     throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
   }
 
