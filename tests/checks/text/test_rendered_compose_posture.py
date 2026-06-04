@@ -50,10 +50,15 @@ BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE = (
     "compose/bike-nft/local/http.yml",
     "compose/bike-nft/local/test-integration-fuzz.yml",
 )
+CHECK_LIVE_DEPS_EGRESS_COMPOSE = (
+    "compose/deps.yml",
+    "compose/check-live-deps-egress.yml",
+)
 OVERLAY_ONLY_COMPOSE_FILES = {
     "compose/bike-nft/local/test-integration-fuzz.yml",
     "compose/bike-nft/local/viewer-gui.yml",
     "compose/bike-nft/local/viewer-terminal.yml",
+    "compose/check-live-deps-egress.yml",
 }
 
 
@@ -102,18 +107,17 @@ def bike_integration_fuzz_env() -> dict[str, str]:
     }
 
 
-def compose_files_with_required_env() -> tuple[str, ...]:
+def compose_files() -> tuple[str, ...]:
     return tuple(
         path.relative_to(repo_path(".")).as_posix()
         for path in sorted((*repo_path("compose").rglob("*.yml"), *repo_path("compose").rglob("*.yaml")))
-        if required_compose_env_names(path.relative_to(repo_path(".")).as_posix())
     )
 
 
-def compose_required_env_render_units() -> tuple[str | tuple[str, ...], ...]:
+def compose_render_units() -> tuple[str | tuple[str, ...], ...]:
     standalone_units = tuple(
         compose_file
-        for compose_file in compose_files_with_required_env()
+        for compose_file in compose_files()
         if compose_file not in OVERLAY_ONLY_COMPOSE_FILES
     )
     return (
@@ -121,6 +125,23 @@ def compose_required_env_render_units() -> tuple[str | tuple[str, ...], ...]:
         BIKE_NFT_VIEWER_TERMINAL_COMPOSE,
         BIKE_NFT_VIEWER_GUI_COMPOSE,
         BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE,
+        CHECK_LIVE_DEPS_EGRESS_COMPOSE,
+    )
+
+
+def compose_files_with_required_env() -> tuple[str, ...]:
+    return tuple(
+        compose_file
+        for compose_file in compose_files()
+        if required_compose_env_names(compose_file)
+    )
+
+
+def compose_required_env_render_units() -> tuple[str | tuple[str, ...], ...]:
+    return tuple(
+        compose_unit
+        for compose_unit in compose_render_units()
+        if required_compose_env_names(compose_unit)
     )
 
 
@@ -399,16 +420,6 @@ class RenderedComposePostureTest(unittest.TestCase):
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
             ("compose/forge-abi.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
-            ("compose/deps.yml", "soldeer-apply-locked", str(repo_path("dapps/dependencies")), "/work/dependencies"),
-            ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/dependencies")), "/work/dependencies"),
-            ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/soldeer.lock")), "/work/soldeer.lock"),
-            ("compose/deps.yml", "soldeer-apply-update", str(repo_path("dapps/remappings.txt")), "/work/remappings.txt"),
-            (
-                "compose/deps.yml",
-                "soldeer-apply-update",
-                str(repo_path("dapps/dependency-checksums.txt")),
-                "/work/dependency-checksums.txt",
-            ),
             ("compose/package-deps.yml", "package-apply-locked", str(repo_path("js/node_modules")), "/work/node_modules"),
             ("compose/package-deps.yml", "package-apply-update", str(repo_path("js/node_modules")), "/work/node_modules"),
             (
@@ -418,6 +429,22 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "/work/package-lock.json",
             ),
         }
+
+        for compose_unit in compose_render_units():
+            if "compose/deps.yml" not in compose_unit_files(compose_unit):
+                continue
+            expected.update({
+                (compose_unit, "soldeer-apply-locked", str(repo_path("dapps/dependencies")), "/work/dependencies"),
+                (compose_unit, "soldeer-apply-update", str(repo_path("dapps/dependencies")), "/work/dependencies"),
+                (compose_unit, "soldeer-apply-update", str(repo_path("dapps/soldeer.lock")), "/work/soldeer.lock"),
+                (compose_unit, "soldeer-apply-update", str(repo_path("dapps/remappings.txt")), "/work/remappings.txt"),
+                (
+                    compose_unit,
+                    "soldeer-apply-update",
+                    str(repo_path("dapps/dependency-checksums.txt")),
+                    "/work/dependency-checksums.txt",
+                ),
+            })
 
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "cam" / "main.json").is_file():
@@ -440,35 +467,10 @@ class RenderedComposePostureTest(unittest.TestCase):
                 )
 
         actual = set()
-        for compose_file in [
-            "compose/anvil.yml",
-            "compose/bike-nft/local/deploy.yml",
-            "compose/bike-nft/local/http.yml",
-            "compose/test/integration-fuzz.yml",
-            BIKE_NFT_VIEWER_TERMINAL_COMPOSE,
-            BIKE_NFT_VIEWER_GUI_COMPOSE,
-            BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE,
-            "compose/cam.yml",
-            "compose/cast.yml",
-            "compose/checks.yml",
-            "compose/deps.yml",
-            "compose/forge-abi.yml",
-            "compose/forge.yml",
-            "compose/package-deps.yml",
-            "compose/packages.yml",
-            "compose/viewer-terminal.yml",
-        ]:
+        for compose_file in compose_render_units():
             config = rendered_compose_config(
                 compose_file,
-                env={
-                    "PACKAGE_INPUT_DIR": "/tmp/package-input",
-                    "RPC_URL_FILE": "/tmp/rpc-url",
-                    "BIKE_NFT_GUI_ORIGIN": BIKE_NFT_GUI_ORIGIN,
-                    **integration_fuzz_env(),
-                    **bike_viewer_fixture_env(),
-                    **bike_integration_fuzz_env(),
-                    **mock_viewer_env(),
-                },
+                env=compose_render_env(),
             )
             for service_name, config_service in config["services"].items():
                 for volume in compose_sequence_or_empty(config_service, "volumes"):
