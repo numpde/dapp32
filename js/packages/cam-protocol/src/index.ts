@@ -61,5 +61,9 @@ export {
 export {
   UI_CONTEXT_KEYS,
   UI_NODE_ARGUMENT_KEYS,
+  UI_PROP_SCHEMAS,
   UI_RUNTIME_ROOTS,
+} from "./ui.ts"
+export type {
+  UiPropTag,
 } from "./ui.ts"

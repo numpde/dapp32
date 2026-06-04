@@ -12,6 +12,9 @@ export type {
 export { UiError } from "./errors.ts"
 export type { UiErrorCode } from "./errors.ts"
 
+export { UI_PROP_SCHEMAS } from "./constants.ts"
+export type { UiPropTag } from "./constants.ts"
+
 export { parseUi } from "./validate.ts"
 export {
   resolveInitialUiNode,

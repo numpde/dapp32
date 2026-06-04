@@ -3,7 +3,9 @@ import {
   CAM_UI_NAMESPACE,
   UI_CONTEXT_KEYS,
   UI_NODE_ARGUMENT_KEYS,
+  UI_PROP_SCHEMAS,
   UI_RUNTIME_ROOTS,
+  type UiPropTag,
 } from "@cam/protocol"
 
 export {
@@ -11,40 +13,10 @@ export {
   CAM_UI_NAMESPACE,
   UI_CONTEXT_KEYS,
   UI_NODE_ARGUMENT_KEYS,
+  UI_PROP_SCHEMAS,
   UI_RUNTIME_ROOTS,
 }
 
 export const UI_VERSION = "1.0.0"
 
-export const UI_PROP_SCHEMAS = {
-  Screen: {
-    required: ["title"],
-    string: ["title"],
-  },
-  Text: {
-    required: ["text"],
-    string: ["text"],
-  },
-  Input: {
-    required: ["name", "label", "value"],
-    string: ["name", "label", "value"],
-  },
-  Address: {
-    required: ["label", "address"],
-    string: ["label", "address"],
-  },
-  Status: {
-    required: ["label", "value"],
-    string: ["label"],
-  },
-  Nft: {
-    required: ["contractAddress", "tokenId"],
-    string: ["contractAddress"],
-  },
-  Action: {
-    required: ["label"],
-    string: ["label"],
-  },
-} as const
-
-export type UiPropTag = keyof typeof UI_PROP_SCHEMAS
+export type { UiPropTag }
