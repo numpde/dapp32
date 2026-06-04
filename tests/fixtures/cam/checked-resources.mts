@@ -18,16 +18,12 @@ export async function checkedInCamRootPaths(): Promise<string[]> {
       continue
     }
 
-    for (const entry of await readdir(camDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".json")) {
-        continue
-      }
-
-      const candidate = join(camDir, entry.name)
-      if (await isCamRootDocument(candidate)) {
-        paths.push(candidate)
-      }
+    const rootPath = await childFile(camDir, "main.json")
+    if (rootPath === undefined) {
+      throw new Error(`checked-in CAM directory is missing root manifest: ${camDir}/main.json`)
     }
+    assertCamRootDocument(rootPath, JSON.parse(await readFile(rootPath, "utf8")))
+    paths.push(rootPath)
   }
 
   return paths.sort()
@@ -90,19 +86,12 @@ async function checkedInDappCamFiles(fileName: string): Promise<string[]> {
   return paths.sort()
 }
 
-async function isCamRootDocument(path: string): Promise<boolean> {
-  let document: unknown
-  let parseFailed = false
-  try {
-    document = JSON.parse(await readFile(path, "utf8"))
-  } catch {
-    parseFailed = true
-  }
-  if (parseFailed) {
-    return false
+function assertCamRootDocument(path: string, document: unknown): void {
+  if (isRecord(document) && typeof document.cam === "string") {
+    return
   }
 
-  return isRecord(document) && typeof document.cam === "string"
+  throw new Error(`checked-in CAM root manifest must declare cam version: ${path}`)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -112,6 +101,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 async function childDirectory(parent: string, name: string): Promise<string | undefined> {
   for (const entry of await readdir(parent, { withFileTypes: true })) {
     if (entry.isDirectory() && entry.name === name) {
+      return join(parent, entry.name)
+    }
+  }
+
+  return undefined
+}
+
+async function childFile(parent: string, name: string): Promise<string | undefined> {
+  for (const entry of await readdir(parent, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name === name) {
       return join(parent, entry.name)
     }
   }
