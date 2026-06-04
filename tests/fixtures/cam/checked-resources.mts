@@ -1,6 +1,11 @@
 import { lstat, readFile, readdir, realpath } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+// This fixture is typechecked from several package test projects, where the
+// @cam/protocol package name is not resolvable from tests/fixtures. Import the
+// source parser directly so checked-in CAM discovery still uses the one JSON
+// policy that rejects duplicate keys.
+import { parseJsonText } from "../../../js/packages/cam-protocol/src/json.ts"
 
 export const dappsRoot = fileURLToPath(new URL("../../../dapps/", import.meta.url))
 
@@ -22,7 +27,7 @@ export async function checkedInCamRootPaths(): Promise<string[]> {
     if (rootPath === undefined) {
       throw new Error(`checked-in CAM directory is missing root manifest: ${camDir}/main.json`)
     }
-    assertCamRootDocument(rootPath, JSON.parse(await readFile(rootPath, "utf8")))
+    assertCamRootDocument(rootPath, parseJsonText(await readFile(rootPath, "utf8")))
     paths.push(rootPath)
   }
 
@@ -77,7 +82,7 @@ async function checkedInResourcePaths(type: "contract" | "ui"): Promise<string[]
   const paths: string[] = []
 
   for (const rootPath of await checkedInCamRootPaths()) {
-    const root = JSON.parse(await readFile(rootPath, "utf8"))
+    const root = parseJsonText(await readFile(rootPath, "utf8"))
     for (const declaration of checkedInLocalResourceDeclarations(root)) {
       if (declaration.type === type) {
         paths.push(await checkedInLocalResourcePath(rootPath, declaration.uri))
