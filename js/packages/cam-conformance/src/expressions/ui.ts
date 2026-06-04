@@ -17,6 +17,7 @@ import {
 } from "../walk.ts"
 import {
   expressionReference,
+  expressionSyntaxError,
 } from "./reference.ts"
 
 export function validateUiExpressionRoots({
@@ -43,6 +44,17 @@ function validateExpressionRoot(
   path: string,
   issues: CamConformanceIssue[],
 ): void {
+  const syntaxError = expressionSyntaxError(value)
+  if (syntaxError !== undefined) {
+    issues.push(conformanceIssue({
+      rule: "CAM_UI_EXPRESSION_ROOT_INVALID",
+      resource,
+      path,
+      message: syntaxError,
+    }))
+    return
+  }
+
   const reference = expressionReference(value)
   if (reference === undefined) return
 

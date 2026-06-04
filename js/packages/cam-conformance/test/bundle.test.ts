@@ -236,6 +236,10 @@ test("route expressions must use route context roots", () => {
           name: "serialNumber",
           type: "string",
         },
+        {
+          name: "tokenURI",
+          type: "string",
+        },
       ],
       outputs: [viewOutput()],
     },
@@ -244,12 +248,13 @@ test("route expressions must use route context roots", () => {
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.routes.entry.inputs = ["serialNumber"]
+    root.routes.entry.inputs = ["serialNumber", "tokenURI"]
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
       args: {
         serialNumber: "$state.serialNumber",
+        tokenURI: "$inputs.",
       },
     }
     return replaceBundleResources(root, bundle, { abiBytes })
@@ -257,6 +262,7 @@ test("route expressions must use route context roots", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_EXPRESSION_INVALID", "routes.entry.call.args.serialNumber"],
+    ["CAM_ROUTE_EXPRESSION_INVALID", "routes.entry.call.args.tokenURI"],
     ["CAM_RUNTIME_CAM_INVALID", "routes.entry.call.args.serialNumber"],
   ])
 })
@@ -646,6 +652,16 @@ test("UI expressions must use protocol-owned roots", () => {
               },
             },
           },
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "app",
+              args: {
+                view: "$view..title",
+              },
+            },
+          },
         ],
       },
     },
@@ -675,6 +691,7 @@ test("UI expressions must use protocol-owned roots", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_EXPRESSION_ROOT_INVALID", "nodes.app.children.1.call.args.serialNumber"],
+    ["CAM_UI_EXPRESSION_ROOT_INVALID", "nodes.app.children.2.call.args.view"],
     ["CAM_UI_INVALID", "nodes.app.children.1.call.args.serialNumber"],
   ])
 })

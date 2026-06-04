@@ -16,6 +16,7 @@ import {
 } from "../walk.ts"
 import {
   expressionReference,
+  expressionSyntaxError,
   isExpressionIdentifier,
 } from "../expressions/reference.ts"
 
@@ -274,6 +275,12 @@ function validateRouteExpressionString({
   readonly outputErrorMessage: string
   readonly issues: CamConformanceIssue[]
 }): void {
+  const syntaxError = expressionSyntaxError(value)
+  if (syntaxError !== undefined) {
+    issues.push(routeExpressionIssue(resource, path, syntaxError))
+    return
+  }
+
   const reference = expressionReference(value)
   if (reference === undefined) return
 

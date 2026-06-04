@@ -12,13 +12,36 @@ export function expressionReference(value: string): ExpressionReference | undefi
   if (!value.startsWith("$") || value.startsWith("$$")) return undefined
 
   const [root, ...segments] = value.slice(1).split(".")
-  if (root === undefined || !IDENTIFIER_RE.test(root)) {
+  if (root === undefined || !isExpressionIdentifier(root)) {
     return { root: "", segments: [] }
   }
 
   return { root, segments }
 }
 
+export function expressionSyntaxError(value: string): string | undefined {
+  if (!value.startsWith("$") || value.startsWith("$$")) return undefined
+
+  const [root, ...segments] = value.slice(1).split(".")
+  if (
+    root === undefined
+    || !isExpressionIdentifier(root)
+    || segments.some((segment) => !isExpressionSegment(segment))
+  ) {
+    return `invalid expression syntax: ${value}`
+  }
+
+  return undefined
+}
+
 export function isExpressionIdentifier(value: string): boolean {
   return IDENTIFIER_RE.test(value)
+}
+
+function isExpressionSegment(value: string): boolean {
+  return isExpressionIdentifier(value) || isArrayIndex(value)
+}
+
+function isArrayIndex(value: string): boolean {
+  return value === "0" || /^[1-9][0-9]*$/.test(value)
 }
