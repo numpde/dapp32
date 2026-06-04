@@ -38,21 +38,7 @@ export async function checkedInAbiPaths(): Promise<string[]> {
 }
 
 export function checkedInDeclaredLocalResourceURIs(root: unknown): readonly string[] {
-  if (!isRecord(root) || !isRecord(root.namespaces)) {
-    return []
-  }
-
-  const uris: string[] = []
-  for (const namespace of Object.values(root.namespaces)) {
-    if (!isRecord(namespace)) continue
-
-    const uri = resourceURI(namespace, namespace.type)
-    if (uri !== undefined) {
-      uris.push(uri)
-    }
-  }
-
-  return uris
+  return checkedInLocalResourceDeclarations(root).map((declaration) => declaration.uri)
 }
 
 function assertCamRootDocument(path: string, document: unknown): void {
@@ -92,18 +78,9 @@ async function checkedInResourcePaths(type: "contract" | "ui"): Promise<string[]
 
   for (const rootPath of await checkedInCamRootPaths()) {
     const root = JSON.parse(await readFile(rootPath, "utf8"))
-    if (!isRecord(root) || !isRecord(root.namespaces)) {
-      continue
-    }
-
-    for (const namespace of Object.values(root.namespaces)) {
-      if (!isRecord(namespace) || namespace.type !== type) {
-        continue
-      }
-
-      const uri = resourceURI(namespace, type)
-      if (uri !== undefined) {
-        paths.push(await checkedInLocalResourcePath(rootPath, uri))
+    for (const declaration of checkedInLocalResourceDeclarations(root)) {
+      if (declaration.type === type) {
+        paths.push(await checkedInLocalResourcePath(rootPath, declaration.uri))
       }
     }
   }
@@ -111,18 +88,61 @@ async function checkedInResourcePaths(type: "contract" | "ui"): Promise<string[]
   return paths.sort()
 }
 
-function resourceURI(namespace: Record<string, unknown>, type: unknown): string | undefined {
-  if (type !== "contract" && type !== "ui") {
-    return undefined
+type LocalResourceDeclaration = {
+  readonly type: "contract" | "ui"
+  readonly uri: string
+}
+
+function checkedInLocalResourceDeclarations(root: unknown): readonly LocalResourceDeclaration[] {
+  const source = requiredRecord(root, "CAM root")
+  const namespaces = requiredRecord(source.namespaces, "namespaces")
+  const declarations: LocalResourceDeclaration[] = []
+
+  for (const [name, namespace] of Object.entries(namespaces)) {
+    const declaration = localResourceDeclaration(name, namespace)
+    if (declaration !== undefined) {
+      declarations.push(declaration)
+    }
   }
 
-  const key = type === "contract" ? "abiURI" : "uri"
-  const uri = namespace[key]
-  if (typeof uri === "string" && uri.length > 0) {
-    return uri
+  return declarations
+}
+
+function localResourceDeclaration(name: string, value: unknown): LocalResourceDeclaration | undefined {
+  const namespace = requiredRecord(value, `namespaces.${name}`)
+
+  switch (namespace.type) {
+    case "contract":
+      return {
+        type: "contract",
+        uri: requiredNonEmptyString(namespace.abiURI, `namespaces.${name}.abiURI`),
+      }
+    case "ui":
+      return {
+        type: "ui",
+        uri: requiredNonEmptyString(namespace.uri, `namespaces.${name}.uri`),
+      }
+    case "routes":
+      return undefined
+    default:
+      throw new Error(`checked-in CAM namespace has unsupported type at namespaces.${name}.type`)
+  }
+}
+
+function requiredRecord(value: unknown, path: string): Record<string, unknown> {
+  if (isRecord(value)) {
+    return value
   }
 
-  return undefined
+  throw new Error(`checked-in CAM value must be an object: ${path}`)
+}
+
+function requiredNonEmptyString(value: unknown, path: string): string {
+  if (typeof value === "string" && value.length > 0) {
+    return value
+  }
+
+  throw new Error(`checked-in CAM value must be a non-empty string: ${path}`)
 }
 
 export async function checkedInLocalResourcePath(rootPath: string, uri: string): Promise<string> {
