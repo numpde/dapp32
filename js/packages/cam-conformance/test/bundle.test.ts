@@ -1005,6 +1005,11 @@ test("resource declarations reject mutable remote and escaping URIs", () => {
     readonly namespaces: Record<string, Record<string, unknown>>
   }>((root) => {
     root.namespaces["contracts.App"].abiURI = "https://example.test/App.json"
+    root.namespaces["contracts.Other"] = {
+      type: "contract",
+      abiURI: "./",
+      integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+    }
     root.namespaces.ui.uri = "../ui.json"
     return {
       resources: new Map(),
@@ -1014,6 +1019,7 @@ test("resource declarations reject mutable remote and escaping URIs", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.App.abiURI"],
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.ui.uri"],
+    ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.Other.abiURI"],
   ])
 })
 

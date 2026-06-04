@@ -193,7 +193,7 @@ function validateResourceURI({
   readonly uri: string
   readonly issues: CamConformanceIssue[]
 }): boolean {
-  if (uri.startsWith("./") && !uri.includes("/../") && !uri.endsWith("/..")) {
+  if (isLocalResourceURI(uri)) {
     return true
   }
   if (uri.startsWith("ipfs://") && uri.length > "ipfs://".length) {
@@ -206,6 +206,15 @@ function validateResourceURI({
     message: `CAM resource URI must be local ./... or content-addressed ipfs://...: ${uri}`,
   }))
   return false
+}
+
+function isLocalResourceURI(uri: string): boolean {
+  if (!uri.startsWith("./")) return false
+
+  const path = uri.slice("./".length)
+  if (path.length === 0 || path.includes("?") || path.includes("#")) return false
+
+  return path.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
 }
 
 function resourceURIKey(namespace: DeclaredNamespace): "abiURI" | "uri" | undefined {
