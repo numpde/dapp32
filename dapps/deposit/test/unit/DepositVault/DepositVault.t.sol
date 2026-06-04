@@ -1,21 +1,12 @@
 pragma solidity 0.8.35;
 
+import {Test} from "forge-std-1.12.0/src/Test.sol";
+
 import {DepositVault} from "../../../src/DepositVault.sol";
 
 import {Ownable} from "@openzeppelin-contracts-5.6.1/access/Ownable.sol";
 import {Pausable} from "@openzeppelin-contracts-5.6.1/utils/Pausable.sol";
 import {Nonces} from "@openzeppelin-contracts-5.6.1/utils/Nonces.sol";
-
-interface Vm {
-    function addr(uint256 privateKey) external returns (address);
-    function deal(address account, uint256 newBalance) external;
-    function expectEmit(bool checkTopic1, bool checkTopic2, bool checkTopic3, bool checkData, address emitter) external;
-    function expectRevert() external;
-    function expectRevert(bytes calldata revertData) external;
-    function prank(address msgSender) external;
-    function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
-    function warp(uint256 newTimestamp) external;
-}
 
 /// @dev Treasury double that rejects native value, used to prove deposit and sweep failure atomicity.
 contract RejectNativeTreasury {
@@ -28,9 +19,7 @@ contract RejectNativeTreasury {
 /// @dev The SUT should forward exact native amounts to treasury only for current,
 ///      backend-signed intents while preserving nonce, receiptId, signer, owner,
 ///      pause, treasury, and forced-native recovery controls.
-contract DepositVaultTest {
-    Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-
+contract DepositVaultTest is Test {
     uint256 private constant SIGNER_KEY = 0xA11CE;
     uint256 private constant OTHER_SIGNER_KEY = 0xB0B;
 
@@ -375,35 +364,5 @@ contract DepositVaultTest {
 
     function receiptIdFor(address receiptPayer, uint256 nonce) private view returns (bytes32) {
         return keccak256(abi.encode(block.chainid, address(vault), receiptPayer, nonce));
-    }
-
-    function assertEq(uint256 actual, uint256 expected) private pure {
-        if (actual != expected) {
-            revert("uint mismatch");
-        }
-    }
-
-    function assertEq(address actual, address expected) private pure {
-        if (actual != expected) {
-            revert("address mismatch");
-        }
-    }
-
-    function assertEq(bytes32 actual, bytes32 expected) private pure {
-        if (actual != expected) {
-            revert("bytes32 mismatch");
-        }
-    }
-
-    function assertFalse(bool value) private pure {
-        if (value) {
-            revert("expected false");
-        }
-    }
-
-    function assertTrue(bool value) private pure {
-        if (!value) {
-            revert("expected true");
-        }
     }
 }
