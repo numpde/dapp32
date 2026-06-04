@@ -22,7 +22,7 @@ import {
   expressionReference,
 } from "../expressions/reference.ts"
 
-type AbiFunction = {
+export type AbiFunction = {
   readonly name: string
   readonly signature: string
   readonly stateMutability: "pure" | "view" | "nonpayable" | "payable"
@@ -30,30 +30,29 @@ type AbiFunction = {
   readonly outputs: readonly unknown[]
 }
 
+export type ContractFunctionsByNamespace = ReadonlyMap<string, ReadonlyMap<string, readonly AbiFunction[]>>
+
 export function validateRouteAbiCompatibility({
   resource,
-  resources,
-  declarations,
   routes,
+  functionsByNamespace,
   issues,
 }: {
   readonly resource: string
-  readonly resources: ReadonlyMap<string, Uint8Array>
-  readonly declarations: readonly ResourceDeclaration[]
   readonly routes: readonly DeclaredRoute[]
+  readonly functionsByNamespace: ContractFunctionsByNamespace
   readonly issues: CamConformanceIssue[]
 }): void {
-  const functionsByNamespace = contractFunctionsByNamespace(resources, declarations, issues)
   for (const route of routes) {
     validateRouteCallAbi(resource, route, functionsByNamespace, issues)
   }
 }
 
-function contractFunctionsByNamespace(
+export function contractFunctionsByNamespace(
   resources: ReadonlyMap<string, Uint8Array>,
   declarations: readonly ResourceDeclaration[],
   issues: CamConformanceIssue[],
-): ReadonlyMap<string, ReadonlyMap<string, readonly AbiFunction[]>> {
+): ContractFunctionsByNamespace {
   const result = new Map<string, ReadonlyMap<string, readonly AbiFunction[]>>()
   for (const declaration of declarations) {
     if (declaration.namespaceType !== "contract") continue
@@ -68,6 +67,41 @@ function contractFunctionsByNamespace(
   }
 
   return result
+}
+
+export function resolvedAbiFunction(
+  functionName: string,
+  functions: ReadonlyMap<string, readonly AbiFunction[]>,
+): AbiFunction | undefined {
+  if (isFunctionSignature(functionName)) {
+    const matches = Array.from(functions.values()).flat().filter((fn) => fn.signature === functionName)
+    return matches.length === 1 ? matches[0] : undefined
+  }
+
+  const matches = functions.get(functionName)
+  return matches?.length === 1 ? matches[0] : undefined
+}
+
+export function abiOutputAtSegments(output: unknown, segments: readonly string[]): unknown | undefined {
+  const [segment, ...rest] = segments
+  if (segment === undefined) return output
+  if (!isRecordObject(output)) return undefined
+
+  const type = nonEmptyString(output.type)
+  if (type === undefined) return undefined
+
+  if (type.endsWith("[]")) {
+    if (!isArrayIndex(segment)) return undefined
+    return abiOutputAtSegments({
+      ...output,
+      type: type.slice(0, -2),
+    }, rest)
+  }
+  if (type !== "tuple" || !Array.isArray(output.components)) return undefined
+
+  const component = output.components.find((item) => isRecordObject(item) && item.name === segment)
+  if (component === undefined) return undefined
+  return abiOutputAtSegments(component, rest)
 }
 
 function validateRouteCallAbi(

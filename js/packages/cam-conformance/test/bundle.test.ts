@@ -865,6 +865,59 @@ test("UI Includes with literal targets must pass exactly the target node args", 
   ])
 })
 
+test("UI props must be compatible with ABI-backed route output types", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [
+        {
+          name: "view",
+          type: "tuple",
+          components: [
+            {
+              name: "owner",
+              type: "uint256",
+            },
+          ],
+        },
+      ],
+    },
+  ])
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Address",
+        requires: ["view"],
+        props: {
+          label: "Owner",
+          address: "$view.owner",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
+    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
+    return {
+      resources: new Map([
+        ...bundle.resources,
+        ["./abi/App.json", abiBytes],
+        ["./ui.json", uiBytes],
+      ]),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.props.address"],
+  ])
+})
+
 test("malformed resource declarations report each bad field", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>
@@ -884,6 +937,23 @@ test("malformed resource declarations report each bad field", () => {
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.App.abiURI"],
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.App.integrity"],
     ["CAM_RUNTIME_CAM_INVALID", "namespaces.contracts.App.abiURI"],
+  ])
+})
+
+test("resource declarations reject mutable remote and escaping URIs", () => {
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root) => {
+    root.namespaces["contracts.App"].abiURI = "https://example.test/App.json"
+    root.namespaces.ui.uri = "../ui.json"
+    return {
+      resources: new Map(),
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.App.abiURI"],
+    ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.ui.uri"],
   ])
 })
 

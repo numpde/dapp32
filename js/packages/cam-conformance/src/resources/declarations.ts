@@ -166,6 +166,15 @@ function collectNamespaceResource({
   if (declaredURI === undefined || declaredIntegrity === undefined) {
     return
   }
+  const uriIsValid = validateResourceURI({
+    resource,
+    path: `${basePath}.${uriKey}`,
+    uri: declaredURI,
+    issues,
+  })
+  if (!uriIsValid) {
+    return
+  }
 
   declarations.push({
     namespace: namespace.name,
@@ -175,6 +184,32 @@ function collectNamespaceResource({
     uriPath: `${basePath}.${uriKey}`,
     integrityPath: `${basePath}.integrity`,
   })
+}
+
+function validateResourceURI({
+  resource,
+  path,
+  uri,
+  issues,
+}: {
+  readonly resource: string
+  readonly path: string
+  readonly uri: string
+  readonly issues: CamConformanceIssue[]
+}): boolean {
+  if (uri.startsWith("./") && !uri.includes("/../") && !uri.endsWith("/..")) {
+    return true
+  }
+  if (uri.startsWith("ipfs://") && uri.length > "ipfs://".length) {
+    return true
+  }
+
+  issues.push(resourceDeclarationIssue({
+    resource,
+    path,
+    message: `CAM resource URI must be local ./... or content-addressed ipfs://...: ${uri}`,
+  }))
+  return false
 }
 
 function resourceURIKey(namespace: DeclaredNamespace): "abiURI" | "uri" | undefined {

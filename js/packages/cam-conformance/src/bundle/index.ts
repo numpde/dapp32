@@ -6,6 +6,7 @@ import type {
 } from "../issues.ts"
 
 import {
+  contractFunctionsByNamespace,
   validateRouteAbiCompatibility,
 } from "../abi/routes.ts"
 import {
@@ -39,6 +40,9 @@ import type {
 import {
   validateUiDataflow,
 } from "../ui/dataflow.ts"
+import {
+  validateUiTypeflow,
+} from "../ui/typeflow.ts"
 import {
   validateUiExpressionRoots,
 } from "../expressions/ui.ts"
@@ -80,6 +84,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     declarations,
     issues,
   })
+  const functionsByNamespace = contractFunctionsByNamespace(bundle.resources, declarations, issues)
   const routes = validateRouteDeclarations({
     resource: bundle.rootURI,
     root,
@@ -106,9 +111,15 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   })
   validateRouteAbiCompatibility({
     resource: bundle.rootURI,
+    routes,
+    functionsByNamespace,
+    issues,
+  })
+  validateUiTypeflow({
     resources: bundle.resources,
     declarations,
     routes,
+    functionsByNamespace,
     issues,
   })
   validateUiExpressionRoots({
