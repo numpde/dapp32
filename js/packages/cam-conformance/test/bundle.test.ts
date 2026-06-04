@@ -251,7 +251,6 @@ test("write route continuations cannot reference transaction outputs", () => {
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
     root.routes.entry.inputs = ["serialNumber"]
     root.routes.save = {
       kind: "write",
@@ -269,12 +268,7 @@ test("write route continuations cannot reference transaction outputs", () => {
         },
       },
     }
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./abi/App.json", abiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { abiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -361,13 +355,7 @@ test("overloaded route functions require a full signature", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./abi/App.json", abiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { abiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -381,16 +369,10 @@ test("full route function signatures disambiguate overloads", () => {
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
     const entry = root.routes.entry
     const call = entry.call as Record<string, unknown>
     call.function = "viewEntry()"
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./abi/App.json", abiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { abiBytes })
   })
 
   assert.deepEqual(issues, [])
@@ -415,7 +397,6 @@ test("route call args must match named ABI inputs exactly", () => {
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -423,12 +404,7 @@ test("route call args must match named ABI inputs exactly", () => {
         extra: "$account.address",
       },
     }
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./abi/App.json", abiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { abiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -450,13 +426,7 @@ test("route continuations must reference ABI-declared output indexes", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./abi/App.json", abiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { abiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -545,7 +515,6 @@ test("write route continuations must target declared routes with exact inputs", 
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
     root.routes.entry = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -580,12 +549,7 @@ test("write route continuations must target declared routes with exact inputs", 
         },
       },
     }
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./abi/App.json", abiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { abiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -610,13 +574,7 @@ test("UI node interfaces must use supported argument names", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./ui.json", uiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { uiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -660,7 +618,6 @@ test("UI expressions must use protocol-owned roots", () => {
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -677,12 +634,7 @@ test("UI expressions must use protocol-owned roots", () => {
         },
       },
     }
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./ui.json", uiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { uiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -720,7 +672,6 @@ test("UI actions must pass exactly the target route inputs", () => {
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -737,12 +688,7 @@ test("UI actions must pass exactly the target route inputs", () => {
         },
       },
     }
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./ui.json", uiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { uiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -788,7 +734,6 @@ test("UI action state references must be backed by Input names", () => {
     readonly namespaces: Record<string, Record<string, unknown>>
     readonly routes: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -805,12 +750,7 @@ test("UI action state references must be backed by Input names", () => {
         },
       },
     }
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./ui.json", uiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { uiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -850,13 +790,7 @@ test("UI Includes with literal targets must pass exactly the target node args", 
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./ui.json", uiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { uiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -902,15 +836,7 @@ test("UI props must be compatible with ABI-backed route output types", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
-    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./abi/App.json", abiBytes],
-        ["./ui.json", uiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -978,15 +904,7 @@ test("UI dynamic call targets must be compatible with ABI-backed route output ty
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, Record<string, unknown>>
   }>((root, bundle) => {
-    root.namespaces["contracts.App"].integrity = sha256Integrity(abiBytes)
-    root.namespaces.ui.integrity = sha256Integrity(uiBytes)
-    return {
-      resources: new Map([
-        ...bundle.resources,
-        ["./abi/App.json", abiBytes],
-        ["./ui.json", uiBytes],
-      ]),
-    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
   })
 
   assert.deepEqual(issueLocations(issues), [
@@ -1305,6 +1223,29 @@ function validateEditedRoot<T extends Record<string, unknown> = Record<string, u
     ...overrides,
     rootBytes: jsonBytes(root),
   })
+}
+
+function replaceBundleResources(
+  root: { readonly namespaces: Record<string, Record<string, unknown>> },
+  bundle: CamConformanceBundle,
+  replacements: {
+    readonly abiBytes?: Uint8Array
+    readonly uiBytes?: Uint8Array
+  },
+): Pick<Partial<CamConformanceBundle>, "resources"> {
+  const resources = new Map(bundle.resources)
+
+  if (replacements.abiBytes !== undefined) {
+    root.namespaces["contracts.App"].integrity = sha256Integrity(replacements.abiBytes)
+    resources.set("./abi/App.json", replacements.abiBytes)
+  }
+
+  if (replacements.uiBytes !== undefined) {
+    root.namespaces.ui.integrity = sha256Integrity(replacements.uiBytes)
+    resources.set("./ui.json", replacements.uiBytes)
+  }
+
+  return { resources }
 }
 
 function issueRules(issues: readonly CamConformanceIssue[]): readonly string[] {
