@@ -80,6 +80,13 @@ test("rejects invalid CAM versions and unresolved route expressions", () => {
     }),
     (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD",
   )
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      unexpected: true,
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_UNKNOWN_FIELD",
+  )
 
   const cam = parseCam(mainJson)
   const context = createContext({

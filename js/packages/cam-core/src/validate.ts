@@ -4,7 +4,6 @@ import {
   requiredArray,
   requiredNonEmptyString,
   requiredRecord,
-  rejectUnknownFields,
 } from "./guards.ts"
 import { createStringMap, hasOwn } from "@cam/protocol"
 import {
@@ -235,5 +234,10 @@ function rejectUnknownCamFields(
 ): void {
   // V1 is intentionally closed-world. Unknown fields are rejected so older or
   // richer CAM shapes cannot be partially interpreted as stricter V1 documents.
-  rejectUnknownFields(source, allowedKeys, path, (key) => `field is not allowed in CAM ${CAM_VERSION}: ${key}`)
+  for (const key of Object.keys(source)) {
+    if (!allowedKeys.has(key)) {
+      const fieldPath = path.length === 0 ? key : `${path}.${key}`
+      throw new CamError("CAM_UNKNOWN_FIELD", `field is not allowed in CAM ${CAM_VERSION}: ${key}`, fieldPath)
+    }
+  }
 }
