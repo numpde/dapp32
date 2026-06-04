@@ -648,7 +648,7 @@ test("UI expressions must use protocol-owned roots", () => {
               namespace: "routes",
               function: "component",
               args: {
-                serialNumber: "$form.serialNumber",
+                serialNumber: "$external.serialNumber",
               },
             },
           },
