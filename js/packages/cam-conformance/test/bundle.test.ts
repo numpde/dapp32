@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import test from "node:test"
+import { parseJsonText } from "@cam/protocol"
 
 import {
   assertCamBundle,
@@ -1271,7 +1272,7 @@ function overloadedViewEntryAbiBytes(): Uint8Array {
 }
 
 function mutableRoot<T extends Record<string, unknown> = Record<string, unknown>>(bundle: CamConformanceBundle): T {
-  return JSON.parse(decoder.decode(bundle.rootBytes)) as T
+  return parseJsonText(decoder.decode(bundle.rootBytes)) as T
 }
 
 function mustGetResource(bundle: CamConformanceBundle, uri: string): Uint8Array {
