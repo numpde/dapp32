@@ -446,6 +446,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             "compose/bike-nft/local/http.yml",
             "compose/test/integration-fuzz.yml",
             BIKE_NFT_VIEWER_TERMINAL_COMPOSE,
+            BIKE_NFT_VIEWER_GUI_COMPOSE,
             BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE,
             "compose/cam.yml",
             "compose/cast.yml",
@@ -462,6 +463,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 env={
                     "PACKAGE_INPUT_DIR": "/tmp/package-input",
                     "RPC_URL_FILE": "/tmp/rpc-url",
+                    "BIKE_NFT_GUI_ORIGIN": BIKE_NFT_GUI_ORIGIN,
                     **integration_fuzz_env(),
                     **bike_viewer_fixture_env(),
                     **bike_integration_fuzz_env(),
