@@ -89,19 +89,11 @@ contract BicycleComponentManagerScenarioTest is Test {
         assertEq(view_.tokenContract, address(components), "component view token contract mismatch");
         assertEq(view_.tokenId, tokenId, "component view token id mismatch");
         assertEq(view_.tokenURI, TOKEN_URI, "component view token URI mismatch");
-        assertActions(
-            view_.actions,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_MARK_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
+        assertActiveOwnerActions(view_.actions);
 
         view_ = ui.viewRegister(SERIAL, registrar);
         assertEq(view_.viewId, VIEW_REGISTER_BLOCKED, "registered serial should no longer be registerable");
-        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(view_.actions);
 
         vm.prank(owner);
         manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
@@ -132,51 +124,27 @@ contract BicycleComponentManagerScenarioTest is Test {
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
             "delegate should mark component missing before sale"
         );
-        assertActions(
-            ui.viewComponent(SERIAL, delegate).actions,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_CLEAR_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
+        assertMissingOwnerActions(ui.viewComponent(SERIAL, delegate).actions);
 
         vm.prank(owner);
         components.transferFrom(owner, buyer, tokenId);
 
         assertEq(manager.permissionsOf(delegate, SERIAL), 0, "old delegate must lose permissions after sale");
         assertEq(manager.permissionsOf(owner, SERIAL), 0, "old owner must lose permissions after sale");
-        assertActions(ui.viewComponent(SERIAL, delegate).actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(ui.viewComponent(SERIAL, delegate).actions);
 
         BicycleComponentManagerUI.AppView memory buyerView = ui.viewComponent(SERIAL, buyer);
         assertEq(buyerView.owner, buyer, "buyer should become component owner");
         assertEq(buyerView.ownerInfo, BUYER_INFO_URI, "buyer profile should follow current owner");
-        assertActions(
-            buyerView.actions,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_CLEAR_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
+        assertMissingOwnerActions(buyerView.actions);
 
         vm.prank(buyer);
         manager.clearMissing(SERIAL);
-        assertActions(
-            ui.viewComponent(SERIAL, buyer).actions,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_MARK_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
+        assertActiveOwnerActions(ui.viewComponent(SERIAL, buyer).actions);
 
         vm.prank(buyer);
         manager.retireComponent(SERIAL);
-        assertActions(ui.viewComponent(SERIAL, buyer).actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(ui.viewComponent(SERIAL, buyer).actions);
     }
 
     // Component collection rotation is a configuration lifecycle scenario:
@@ -255,18 +223,19 @@ contract BicycleComponentManagerScenarioTest is Test {
         assertActions(shopView.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA));
 
         uint64 resolveAndCloseCapabilities = manager.CAP_CLEAR_MISSING() | manager.CAP_RETIRE();
+        uint48 resolveAndCloseValidUntil = uint48(block.timestamp + 3 days);
         vm.prank(owner);
-        manager.setComponentDelegate(SERIAL, delegate, resolveAndCloseCapabilities, uint48(block.timestamp + 3 days));
+        manager.setComponentDelegate(SERIAL, delegate, resolveAndCloseCapabilities, resolveAndCloseValidUntil);
 
         assertActions(
             ui.viewComponent(SERIAL, delegate).actions,
             expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_CLEAR_COMPONENT_MISSING, ACTION_RETIRE_COMPONENT)
         );
 
-        vm.warp(validUntil + 4 days);
+        vm.warp(resolveAndCloseValidUntil);
 
         assertEq(manager.permissionsOf(delegate, SERIAL), 0, "delegate permissions should expire");
-        assertActions(ui.viewComponent(SERIAL, delegate).actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(ui.viewComponent(SERIAL, delegate).actions);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
@@ -288,15 +257,7 @@ contract BicycleComponentManagerScenarioTest is Test {
         BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "pause should not hide registered components");
         assertEq(view_.ownerInfo, OWNER_INFO_URI, "pause should not hide owner profile data");
-        assertActions(
-            view_.actions,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_MARK_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
+        assertActiveOwnerActions(view_.actions);
 
         vm.prank(owner);
         vm.expectRevert();
@@ -380,7 +341,7 @@ contract BicycleComponentManagerScenarioTest is Test {
             VIEW_REGISTER_BLOCKED,
             "offboarded registrar should see blocked registration"
         );
-        assertActions(ui.viewRegister(SECOND_SERIAL, registrar).actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(ui.viewRegister(SECOND_SERIAL, registrar).actions);
 
         vm.prank(registrar);
         vm.expectRevert();
@@ -418,7 +379,7 @@ contract BicycleComponentManagerScenarioTest is Test {
         assertEq(capabilities, 0, "revoked delegation capabilities should clear");
         assertEq(validUntil, 0, "revoked delegation expiry should clear");
         assertFalse(active, "revoked delegation should be inactive");
-        assertActions(ui.viewComponent(SERIAL, delegate).actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(ui.viewComponent(SERIAL, delegate).actions);
 
         uint64 markMissingCapability = manager.CAP_MARK_MISSING();
         bytes32 serialHash = manager.serialHashOf(SERIAL);
@@ -432,15 +393,7 @@ contract BicycleComponentManagerScenarioTest is Test {
 
         BicycleComponentManagerUI.AppView memory ownerView = ui.viewComponent(SERIAL, owner);
         assertEq(ownerView.tokenURI, SHOP_TOKEN_URI, "revocation should not roll back completed work");
-        assertActions(
-            ownerView.actions,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_MARK_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
+        assertActiveOwnerActions(ownerView.actions);
     }
 
     // Retirement is final registry state even though the ERC721 remains
@@ -459,7 +412,7 @@ contract BicycleComponentManagerScenarioTest is Test {
             uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
             "component should be retired"
         );
-        assertActions(retiredOwnerView.actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(retiredOwnerView.actions);
 
         vm.prank(owner);
         components.transferFrom(owner, buyer, tokenId);
@@ -475,7 +428,7 @@ contract BicycleComponentManagerScenarioTest is Test {
             uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
             "transfer must not revive retired status"
         );
-        assertActions(retiredBuyerView.actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(retiredBuyerView.actions);
 
         vm.prank(buyer);
         vm.expectRevert();
@@ -529,6 +482,34 @@ contract BicycleComponentManagerScenarioTest is Test {
         for (uint256 index; index < expected.length; index++) {
             assertEq(actual[index], expected[index], "action mismatch");
         }
+    }
+
+    function assertLookupOnly(string[] memory actual) private pure {
+        assertActions(actual, expectedActions(ACTION_LOOKUP_COMPONENT));
+    }
+
+    function assertActiveOwnerActions(string[] memory actual) private pure {
+        assertActions(
+            actual,
+            expectedActions(
+                ACTION_LOOKUP_COMPONENT,
+                ACTION_UPDATE_COMPONENT_METADATA,
+                ACTION_MARK_COMPONENT_MISSING,
+                ACTION_RETIRE_COMPONENT
+            )
+        );
+    }
+
+    function assertMissingOwnerActions(string[] memory actual) private pure {
+        assertActions(
+            actual,
+            expectedActions(
+                ACTION_LOOKUP_COMPONENT,
+                ACTION_UPDATE_COMPONENT_METADATA,
+                ACTION_CLEAR_COMPONENT_MISSING,
+                ACTION_RETIRE_COMPONENT
+            )
+        );
     }
 
     function expectedActions(string memory first) private pure returns (string[] memory actions) {
