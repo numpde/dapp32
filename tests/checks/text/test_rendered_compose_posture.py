@@ -35,31 +35,10 @@ BIKE_MOCK_CAM_MOUNT = "/work/cam/bike-nft"
 BIKE_NFT_BROADCAST_DIR = "/foundry-broadcast"
 BIKE_NFT_BROADCAST_PATH = f"{BIKE_NFT_BROADCAST_DIR}/DeployBikeNftLocal.s.sol/31337/run-latest.json"
 REQUIRED_COMPOSE_ENV_RE = re.compile(r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*):\?[^}]+\}")
-BIKE_NFT_VIEWER_TERMINAL_COMPOSE = (
-    "compose/bike-nft/local/deploy.yml",
-    "compose/bike-nft/local/http.yml",
-    "compose/bike-nft/local/viewer-terminal.yml",
+MAKE_COMPOSE_FILES_RE = re.compile(
+    r"^(?P<name>[A-Z0-9_]+_COMPOSE_FILES) := (?P<value>(?:-f \$\(COMPOSE_DIR\)/[-./A-Za-z0-9_]+(?: )*)+)$",
+    re.MULTILINE,
 )
-BIKE_NFT_VIEWER_GUI_COMPOSE = (
-    "compose/bike-nft/local/deploy.yml",
-    "compose/bike-nft/local/http.yml",
-    "compose/bike-nft/local/viewer-gui.yml",
-)
-BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE = (
-    "compose/bike-nft/local/deploy.yml",
-    "compose/bike-nft/local/http.yml",
-    "compose/bike-nft/local/test-integration-fuzz.yml",
-)
-CHECK_LIVE_DEPS_EGRESS_COMPOSE = (
-    "compose/deps.yml",
-    "compose/check-live-deps-egress.yml",
-)
-OVERLAY_ONLY_COMPOSE_FILES = {
-    "compose/bike-nft/local/test-integration-fuzz.yml",
-    "compose/bike-nft/local/viewer-gui.yml",
-    "compose/bike-nft/local/viewer-terminal.yml",
-    "compose/check-live-deps-egress.yml",
-}
 
 
 def standalone_bike_fixture_env() -> dict[str, str]:
@@ -114,18 +93,46 @@ def compose_files() -> tuple[str, ...]:
     )
 
 
+def makefile_compose_units() -> dict[str, tuple[str, ...]]:
+    units: dict[str, tuple[str, ...]] = {}
+    for match in MAKE_COMPOSE_FILES_RE.finditer(read_text(repo_path("Makefile"))):
+        paths = tuple(f"compose/{path}" for path in re.findall(r"-f \$\(COMPOSE_DIR\)/([-./A-Za-z0-9_]+)", match.group("value")))
+        units[match.group("name")] = paths
+
+    return units
+
+
+def makefile_compose_unit(name: str) -> tuple[str, ...]:
+    units = makefile_compose_units()
+    if name not in units:
+        raise AssertionError(f"Makefile does not define {name}")
+
+    return units[name]
+
+
 def compose_render_units() -> tuple[str | tuple[str, ...], ...]:
+    make_units = tuple(makefile_compose_units().values())
+    single_make_unit_files = {
+        unit[0]
+        for unit in make_units
+        if len(unit) == 1
+    }
+    overlay_files = {
+        file
+        for unit in make_units
+        if len(unit) > 1
+        for file in unit
+        if file not in single_make_unit_files
+    }
     standalone_units = tuple(
         compose_file
         for compose_file in compose_files()
-        if compose_file not in OVERLAY_ONLY_COMPOSE_FILES
+        if compose_file not in overlay_files
     )
+
     return (
         *standalone_units,
-        BIKE_NFT_VIEWER_TERMINAL_COMPOSE,
-        BIKE_NFT_VIEWER_GUI_COMPOSE,
-        BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE,
-        CHECK_LIVE_DEPS_EGRESS_COMPOSE,
+        *(unit for unit in make_units if len(unit) > 1),
     )
 
 
@@ -508,7 +515,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_mock_viewer_terminal(compose_service(mock_config, "viewer-terminal-check"))
 
         viewer_config = rendered_compose_config(
-            BIKE_NFT_VIEWER_TERMINAL_COMPOSE,
+            makefile_compose_unit("BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES"),
             env=bike_viewer_fixture_env(),
         )
         cam_http = compose_service(viewer_config, "bike-nft-cam-http")
@@ -571,7 +578,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn("node --experimental-strip-types tools/cam-integration-fuzz/runner.ts", command)
 
         bike_config = rendered_compose_config(
-            BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE,
+            makefile_compose_unit("TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES"),
             env=bike_integration_fuzz_env(),
         )
         deploy = compose_service(bike_config, "deploy-bike-nft-local")
@@ -615,7 +622,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
     def test_bike_nft_local_gui_viewer_is_gatewayed_and_read_only(self) -> None:
         config = rendered_compose_config(
-            BIKE_NFT_VIEWER_GUI_COMPOSE,
+            makefile_compose_unit("BIKE_NFT_VIEWER_GUI_COMPOSE_FILES"),
             env={
                 "CAM_URI": f"{BIKE_NFT_GUI_ORIGIN}/cam/main.json",
                 "CAM_HASH": ZERO_HASH,
