@@ -2,6 +2,10 @@ pragma solidity 0.8.35;
 
 import {DepositVault} from "../../../src/DepositVault.sol";
 
+import {Ownable} from "@openzeppelin-contracts-5.6.1/access/Ownable.sol";
+import {Pausable} from "@openzeppelin-contracts-5.6.1/utils/Pausable.sol";
+import {Nonces} from "@openzeppelin-contracts-5.6.1/utils/Nonces.sol";
+
 interface Vm {
     function addr(uint256 privateKey) external returns (address);
     function deal(address account, uint256 newBalance) external;
@@ -88,13 +92,13 @@ contract DepositVaultTest {
         vm.prank(payer);
         vault.deposit{value: intent.amount}(intent, signature);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Nonces.InvalidAccountNonce.selector, payer, 1));
         vm.prank(payer);
         vault.deposit{value: intent.amount}(intent, signature);
 
         intent = defaultIntent(100 ether, 2);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Nonces.InvalidAccountNonce.selector, payer, 1));
         vm.prank(payer);
         vault.deposit{value: intent.amount}(intent, signIntent(SIGNER_KEY, intent));
 
@@ -121,9 +125,14 @@ contract DepositVaultTest {
         vault.deposit{value: intent.amount}(intent, signature);
 
         DepositVault otherVault = new DepositVault(owner, treasury, intentSigner);
-        signature = signIntentForVault(SIGNER_KEY, intent, address(otherVault));
+        bytes32 wrongDomainDigest = digestForVault(intent, address(otherVault));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(SIGNER_KEY, wrongDomainDigest);
+        signature = abi.encodePacked(r, s, v);
+        address domainMismatchRecovered = ecrecover(digestForVault(intent, address(vault)), v, r, s);
 
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(DepositVault.InvalidIntentSignature.selector, intentSigner, domainMismatchRecovered)
+        );
         vm.prank(payer);
         vault.deposit{value: intent.amount}(intent, signature);
 
@@ -217,25 +226,25 @@ contract DepositVaultTest {
         DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
         bytes memory signature = signIntent(SIGNER_KEY, intent);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, attacker));
         vm.prank(attacker);
         vault.setTreasury(address(0x7200));
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, attacker));
         vm.prank(attacker);
         vault.setIntentSigner(vm.addr(OTHER_SIGNER_KEY));
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, attacker));
         vm.prank(attacker);
         vault.pause();
 
         vault.pause();
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Pausable.EnforcedPause.selector));
         vm.prank(payer);
         vault.deposit{value: intent.amount}(intent, signature);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, attacker));
         vm.prank(attacker);
         vault.unpause();
 
@@ -246,7 +255,7 @@ contract DepositVaultTest {
 
         assertEq(treasury.balance, intent.amount);
 
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, attacker));
         vm.prank(attacker);
         vault.sweepForcedNative();
 
