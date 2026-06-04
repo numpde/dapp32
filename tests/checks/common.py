@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import importlib.util
 import os
 from pathlib import Path
 import re
 import shlex
 import subprocess
-from types import ModuleType
 from typing import Any
 
 from tools.json_policy import strict_json_loads
@@ -111,16 +109,6 @@ def iter_repo_text_files() -> list[Path]:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
-
-def load_python_module(module_name: str, path: Path) -> ModuleType:
-    spec = importlib.util.spec_from_file_location(module_name, path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"could not load {path}")
-
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def rendered_compose_config(compose_file: str | tuple[str, ...], *, env: dict[str, str] | None = None) -> dict[str, Any]:
