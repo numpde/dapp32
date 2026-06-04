@@ -2,6 +2,9 @@ pragma solidity 0.8.35;
 
 import {Test} from "forge-std-1.12.0/src/Test.sol";
 
+import {IAccessControl} from "@openzeppelin-contracts-5.6.1/access/IAccessControl.sol";
+import {Pausable} from "@openzeppelin-contracts-5.6.1/utils/Pausable.sol";
+
 import "../../../src/BicycleComponentManager.sol";
 import "../../../src/BicycleComponentManagerUI.sol";
 import "../../../src/BicycleComponents.sol";
@@ -56,9 +59,12 @@ contract BicycleComponentManagerTest is Test {
     function test_registrationRequiresRegistrarAndManagerViewsReflectTokenState() external {
         uint256 expectedTokenId = manager.tokenIdOf(SERIAL);
         bytes32 expectedSerialHash = manager.serialHashOf(SERIAL);
+        bytes32 registrarRole = manager.REGISTRAR_ROLE();
 
         vm.prank(stranger);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, stranger, registrarRole)
+        );
         manager.registerComponent(owner, SERIAL, TOKEN_URI);
 
         vm.prank(registrar);
@@ -159,9 +165,12 @@ contract BicycleComponentManagerTest is Test {
         BicycleComponents secondComponents = new BicycleComponents("Bike Components 2", "BIKE2", admin, 0, "", "");
         secondComponents.grantRole(secondComponents.MINTER_ROLE(), address(manager));
         secondComponents.grantRole(secondComponents.TOKEN_URI_SETTER_ROLE(), address(manager));
+        bytes32 configurerRole = manager.CONFIGURER_ROLE();
 
         vm.prank(stranger);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, stranger, configurerRole)
+        );
         manager.setComponentsAddress(address(secondComponents));
 
         vm.expectRevert(BicycleComponentManager.ZeroAddress.selector);
@@ -313,7 +322,7 @@ contract BicycleComponentManagerTest is Test {
         manager.pause();
 
         vm.prank(registrar);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.registerComponent(owner, SERIAL, TOKEN_URI);
 
         manager.unpause();
@@ -324,7 +333,7 @@ contract BicycleComponentManagerTest is Test {
         manager.pause();
 
         vm.prank(owner);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.markMissing(SERIAL);
     }
 
