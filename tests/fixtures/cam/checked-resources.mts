@@ -37,6 +37,24 @@ export async function checkedInAbiPaths(): Promise<string[]> {
   return checkedInResourcePaths("contract")
 }
 
+export function checkedInDeclaredLocalResourceURIs(root: unknown): readonly string[] {
+  if (!isRecord(root) || !isRecord(root.namespaces)) {
+    return []
+  }
+
+  const uris: string[] = []
+  for (const namespace of Object.values(root.namespaces)) {
+    if (!isRecord(namespace)) continue
+
+    const uri = resourceURI(namespace, namespace.type)
+    if (uri !== undefined) {
+      uris.push(uri)
+    }
+  }
+
+  return uris
+}
+
 function assertCamRootDocument(path: string, document: unknown): void {
   if (isRecord(document) && typeof document.cam === "string") {
     return
@@ -93,7 +111,11 @@ async function checkedInResourcePaths(type: "contract" | "ui"): Promise<string[]
   return paths.sort()
 }
 
-function resourceURI(namespace: Record<string, unknown>, type: "contract" | "ui"): string | undefined {
+function resourceURI(namespace: Record<string, unknown>, type: unknown): string | undefined {
+  if (type !== "contract" && type !== "ui") {
+    return undefined
+  }
+
   const key = type === "contract" ? "abiURI" : "uri"
   const uri = namespace[key]
   if (typeof uri === "string" && uri.length > 0) {

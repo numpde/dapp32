@@ -8,6 +8,7 @@ import { parseJsonText } from "@cam/protocol"
 
 import { validateCamBundle } from "../src/index.ts"
 import {
+  checkedInDeclaredLocalResourceURIs,
   checkedInCamRootPaths,
   checkedInLocalResourcePath,
   dappsRoot,
@@ -29,7 +30,7 @@ async function checkedInBundle(rootPath: string) {
   const root = parseJsonText(rootBytes.toString("utf8"))
   const resources = new Map<string, Uint8Array>()
 
-  for (const uri of declaredLocalResourceURIs(root)) {
+  for (const uri of checkedInDeclaredLocalResourceURIs(root)) {
     resources.set(uri, await readFile(await checkedInLocalResourcePath(rootPath, uri)))
   }
 
@@ -38,28 +39,4 @@ async function checkedInBundle(rootPath: string) {
     rootBytes,
     resources,
   }
-}
-
-function declaredLocalResourceURIs(root: unknown): readonly string[] {
-  if (!isRecord(root) || !isRecord(root.namespaces)) {
-    return []
-  }
-
-  const uris: string[] = []
-  for (const namespace of Object.values(root.namespaces)) {
-    if (!isRecord(namespace)) continue
-
-    if (namespace.type === "contract" && typeof namespace.abiURI === "string") {
-      uris.push(namespace.abiURI)
-    }
-    if (namespace.type === "ui" && typeof namespace.uri === "string") {
-      uris.push(namespace.uri)
-    }
-  }
-
-  return uris
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
