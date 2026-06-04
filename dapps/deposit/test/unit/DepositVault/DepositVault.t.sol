@@ -275,9 +275,12 @@ contract DepositVaultTest {
     /// @notice Direct transfers are rejected, while forced native value can be swept without a deposit receipt.
     /// @dev Creditable value must pass through deposit; unavoidable forced value uses a separate owner-only path.
     function testRejectsDirectNativeTransferAndOwnerCanSweepForcedNative() external {
-        (bool ok,) = payable(address(vault)).call{value: 1 ether}("");
+        (bool ok, bytes memory revertData) = payable(address(vault)).call{value: 1 ether}("");
 
         assertFalse(ok);
+        assertEq(
+            keccak256(revertData), keccak256(abi.encodeWithSelector(DepositVault.DirectNativeTransferDisabled.selector))
+        );
 
         vm.deal(address(vault), 3 ether);
 
