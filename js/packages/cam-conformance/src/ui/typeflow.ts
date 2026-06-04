@@ -64,7 +64,7 @@ function abiContextForReadRouteContinuations(
 ): AbiContext {
   // Dynamic Include selections can choose different UI nodes at runtime. The
   // static check therefore records every ABI-backed argument shape passed into
-  // UI and rejects prop bindings that are incompatible with all such shapes.
+  // UI and rejects only prop bindings that no known shape can satisfy.
   const context = new Map<string, unknown[]>()
   for (const route of routes) {
     if (route.kind !== "read") continue
@@ -122,14 +122,15 @@ function validateUiNodeTypeflow(
     const candidates = abiValuesForExpression(value, context)
     if (candidates === undefined || candidates.length === 0) continue
 
-    const bad = candidates.find((candidate) => !abiValueMatches(candidate, expectation))
-    if (bad !== undefined) {
+    const matching = candidates.find((candidate) => abiValueMatches(candidate, expectation))
+    if (matching === undefined) {
+      const [firstCandidate] = candidates
       issues.push({
         rule: "CAM_UI_TYPEFLOW_MISMATCH",
         severity: "error",
         resource,
         path: `${path}.props.${name}`,
-        message: `UI ${node.tag}.${name} expects ${expectation}, but ABI provides ${abiTypeName(bad)}`,
+        message: `UI ${node.tag}.${name} expects ${expectation}, but ABI provides ${abiTypeName(firstCandidate)}`,
       })
     }
   }
