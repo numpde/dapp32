@@ -19,6 +19,9 @@ export type {
 export type {
   CamRuntimeContext,
 } from "./runtime-context.ts"
+export {
+  CAM_ROUTE_CONTEXT_KEYS,
+} from "./runtime-context.ts"
 
 export {
   createJsonGuards,

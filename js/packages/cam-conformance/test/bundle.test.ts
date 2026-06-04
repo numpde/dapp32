@@ -225,6 +225,42 @@ test("route call expressions cannot reference outputs before the call runs", () 
   ])
 })
 
+test("route expressions must use route context roots", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "serialNumber",
+          type: "string",
+        },
+      ],
+      outputs: [viewOutput()],
+    },
+  ])
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry.inputs = ["serialNumber"]
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        serialNumber: "$state.serialNumber",
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_EXPRESSION_INVALID", "routes.entry.call.args.serialNumber"],
+    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.call.args.serialNumber"],
+  ])
+})
+
 test("write route continuations cannot reference transaction outputs", () => {
   const abiBytes = jsonBytes([
     {

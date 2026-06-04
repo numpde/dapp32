@@ -1,4 +1,5 @@
 import {
+  CAM_ROUTE_CONTEXT_KEYS,
   isRecordObject,
 } from "@cam/protocol"
 
@@ -278,6 +279,12 @@ function validateRouteExpressionString({
 
   const { root, segments } = reference
   const firstSegment = segments[0]
+  if (!CAM_ROUTE_CONTEXT_KEYS.has(root)) {
+    const reportedRoot = root.length === 0 ? value : root
+    issues.push(routeExpressionIssue(resource, path, `route expression root is not supported: ${reportedRoot}`))
+    return
+  }
+
   if (
     root === "inputs"
     && firstSegment !== undefined
