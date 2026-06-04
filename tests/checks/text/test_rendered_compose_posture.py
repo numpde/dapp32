@@ -50,6 +50,11 @@ BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE = (
     "compose/bike-nft/local/http.yml",
     "compose/bike-nft/local/test-integration-fuzz.yml",
 )
+OVERLAY_ONLY_COMPOSE_FILES = {
+    "compose/bike-nft/local/test-integration-fuzz.yml",
+    "compose/bike-nft/local/viewer-gui.yml",
+    "compose/bike-nft/local/viewer-terminal.yml",
+}
 
 
 def standalone_bike_fixture_env() -> dict[str, str]:
@@ -105,9 +110,30 @@ def compose_files_with_required_env() -> tuple[str, ...]:
     )
 
 
-def required_compose_env_names(compose_file: str) -> tuple[str, ...]:
+def compose_required_env_render_units() -> tuple[str | tuple[str, ...], ...]:
+    standalone_units = tuple(
+        compose_file
+        for compose_file in compose_files_with_required_env()
+        if compose_file not in OVERLAY_ONLY_COMPOSE_FILES
+    )
+    return (
+        *standalone_units,
+        BIKE_NFT_VIEWER_TERMINAL_COMPOSE,
+        BIKE_NFT_VIEWER_GUI_COMPOSE,
+        BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE,
+    )
+
+
+def compose_unit_files(compose_unit: str | tuple[str, ...]) -> tuple[str, ...]:
+    if isinstance(compose_unit, str):
+        return (compose_unit,)
+    return compose_unit
+
+
+def required_compose_env_names(compose_file: str | tuple[str, ...]) -> tuple[str, ...]:
     names: set[str] = set()
-    names.update(REQUIRED_COMPOSE_ENV_RE.findall(read_text(repo_path(compose_file))))
+    for file in compose_unit_files(compose_file):
+        names.update(REQUIRED_COMPOSE_ENV_RE.findall(read_text(repo_path(file))))
 
     return tuple(sorted(names))
 
@@ -128,11 +154,12 @@ def compose_render_env() -> dict[str, str]:
 
 
 def compose_config_process(
-    compose_file: str,
+    compose_file: str | tuple[str, ...],
     render_env: dict[str, str],
 ) -> subprocess.CompletedProcess[str]:
     command = docker_compose_command(render_env)
-    command.extend(["-f", str(repo_path(compose_file))])
+    for file in compose_unit_files(compose_file):
+        command.extend(["-f", str(repo_path(file))])
     command.extend(["config", "--format", "json"])
 
     return subprocess.run(
@@ -166,21 +193,32 @@ class RenderedComposePostureTest(unittest.TestCase):
         )
 
     def test_required_compose_env_vars_fail_closed_when_omitted(self) -> None:
-        for compose_file in compose_files_with_required_env():
-            required_names = required_compose_env_names(compose_file)
+        required_files = set(compose_files_with_required_env())
+        covered_files = {
+            file
+            for compose_unit in compose_required_env_render_units()
+            for file in compose_unit_files(compose_unit)
+        }
+        self.assertEqual(required_files, required_files & covered_files)
+
+        for compose_unit in compose_required_env_render_units():
+            baseline = compose_config_process(compose_unit, compose_render_env())
+            self.assertEqual(0, baseline.returncode, baseline.stderr + baseline.stdout)
+
+            required_names = required_compose_env_names(compose_unit)
             for missing_name in required_names:
-                with self.subTest(compose_file=compose_file, missing=missing_name):
+                with self.subTest(compose_unit=compose_unit, missing=missing_name):
                     render_env = compose_render_env()
                     self.assertIn(missing_name, render_env)
                     del render_env[missing_name]
-                    result = compose_config_process(compose_file, render_env)
+                    result = compose_config_process(compose_unit, render_env)
 
                     self.assertNotEqual(
                         0,
                         result.returncode,
                         f"Compose render unexpectedly succeeded without {missing_name}",
                     )
-                    self.assertNotEqual("", result.stderr + result.stdout)
+                    self.assertIn(missing_name, result.stderr + result.stdout)
 
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service["read_only"])
