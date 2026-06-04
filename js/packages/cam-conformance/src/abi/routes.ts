@@ -104,6 +104,21 @@ export function abiOutputAtSegments(output: unknown, segments: readonly string[]
   return abiOutputAtSegments(component, rest)
 }
 
+export function abiFunctionOutputForExpression(fn: AbiFunction, value: unknown): unknown | undefined {
+  if (typeof value !== "string") return undefined
+
+  const segments = outputExpressionSegments(value)
+  if (segments === undefined) return undefined
+
+  const [index, ...fieldSegments] = segments
+  if (!isArrayIndex(index)) return undefined
+
+  const output = fn.outputs[Number(index)]
+  if (output === undefined) return undefined
+
+  return abiOutputAtSegments(output, fieldSegments)
+}
+
 function validateRouteCallAbi(
   resource: string,
   route: DeclaredRoute,

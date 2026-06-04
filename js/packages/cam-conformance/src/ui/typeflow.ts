@@ -6,8 +6,8 @@ import {
 
 import {
   abiOutputAtSegments,
+  abiFunctionOutputForExpression,
   resolvedAbiFunction,
-  type AbiFunction,
   type ContractFunctionsByNamespace,
 } from "../abi/routes.ts"
 import {
@@ -76,7 +76,7 @@ function abiContextForReadRouteContinuations(
     if (fn === undefined) continue
 
     for (const [name, value] of Object.entries(route.then.args)) {
-      const output = routeOutputValue(fn, value)
+      const output = abiFunctionOutputForExpression(fn, value)
       if (output === undefined) continue
 
       const values = context.get(name)
@@ -89,21 +89,6 @@ function abiContextForReadRouteContinuations(
   }
 
   return context
-}
-
-function routeOutputValue(fn: AbiFunction, value: unknown): unknown | undefined {
-  if (typeof value !== "string") return undefined
-
-  const reference = expressionReference(value)
-  if (reference === undefined || reference.root !== "outputs") return undefined
-
-  const [index, ...segments] = reference.segments
-  if (index === undefined || !isArrayIndex(index)) return undefined
-
-  const output = fn.outputs[Number(index)]
-  if (output === undefined) return undefined
-
-  return abiOutputAtSegments(output, segments)
 }
 
 function validateUiNodeTypeflow(
@@ -186,8 +171,4 @@ function abiTypeName(value: unknown): string {
 
 function isUiPropTag(value: string): value is UiPropTag {
   return Object.hasOwn(UI_PROP_SCHEMAS, value)
-}
-
-function isArrayIndex(value: string): boolean {
-  return value === "0" || /^[1-9][0-9]*$/.test(value)
 }
