@@ -107,17 +107,26 @@ services:
         fi
         forge build --offline "$@"
 
-  # Routine unit tests for every dapp. Repository/source hygiene checks live in
-  # tests/checks and are wired through `make test` before this Forge lane runs.
+  # Routine Solidity tests for every dapp. Unit and scenario tests share the
+  # same offline posture; fuzz and invariant tests keep their heavier lanes.
   forge-test:
     <<: *forge_base
     command:
-      - "forge"
-      - "test"
-      - "--offline"
-      - "--match-path"
-      - "*/test/unit/**/*.sol"
-      - "-vvv"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        found_tests=0
+        for dir in */test/unit */test/scenario; do
+          if [ -d "$$dir" ] && [ -n "$$(find "$$dir" -name '*.sol' -print -quit)" ]; then
+            found_tests=1
+            forge test --offline --match-path "$$dir/**/*.sol" -vvv
+          fi
+        done
+        if [ "$$found_tests" -eq 0 ]; then
+          printf '%s\n' 'forge-test: no dapp unit/scenario test directories found' >&2
+          exit 2
+        fi
 
   # Fuzz tests are separated as a Make target because they are usually heavier
   # than unit tests, but they keep the same offline container posture.
@@ -143,13 +152,23 @@ services:
       - "*/test/invariant/**/*.sol"
       - "-vvv"
 
-  # Coverage is a reporting lane over the same unit-test convention as
-  # forge-test, keeping it out of Soldeer's dependencies/ tree.
+  # Coverage reports over the same routine test convention as forge-test,
+  # keeping it out of Soldeer's dependencies/ tree.
   forge-coverage:
     <<: *forge_base
     command:
-      - "forge"
-      - "coverage"
-      - "--offline"
-      - "--match-path"
-      - "*/test/unit/**/*.sol"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        found_tests=0
+        for dir in */test/unit */test/scenario; do
+          if [ -d "$$dir" ] && [ -n "$$(find "$$dir" -name '*.sol' -print -quit)" ]; then
+            found_tests=1
+            forge coverage --offline --match-path "$$dir/**/*.sol"
+          fi
+        done
+        if [ "$$found_tests" -eq 0 ]; then
+          printf '%s\n' 'forge-coverage: no dapp unit/scenario test directories found' >&2
+          exit 2
+        fi
