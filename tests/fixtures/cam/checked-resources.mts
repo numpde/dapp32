@@ -85,7 +85,7 @@ async function checkedInResourcePaths(type: "contract" | "ui"): Promise<string[]
 
       const uri = resourceURI(namespace, type)
       if (uri !== undefined) {
-        paths.push(await localDeclaredResourcePath(rootPath, uri))
+        paths.push(await checkedInLocalResourcePath(rootPath, uri))
       }
     }
   }
@@ -103,7 +103,7 @@ function resourceURI(namespace: Record<string, unknown>, type: "contract" | "ui"
   return undefined
 }
 
-async function localDeclaredResourcePath(rootPath: string, uri: string): Promise<string> {
+export async function checkedInLocalResourcePath(rootPath: string, uri: string): Promise<string> {
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri) || uri.startsWith("//") || uri.startsWith("/")) {
     throw new Error(`checked-in CAM resources must be local relative files: ${uri}`)
   }

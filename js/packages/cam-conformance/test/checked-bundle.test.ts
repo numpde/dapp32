@@ -1,13 +1,17 @@
 import assert from "node:assert/strict"
-import { lstat, readFile, realpath } from "node:fs/promises"
-import { dirname, relative, resolve } from "node:path"
+import { readFile } from "node:fs/promises"
+import { relative } from "node:path"
 import { pathToFileURL } from "node:url"
 import test from "node:test"
 
 import { parseJsonText } from "@cam/protocol"
 
 import { validateCamBundle } from "../src/index.ts"
-import { checkedInCamRootPaths, dappsRoot } from "../../../../tests/fixtures/cam/checked-resources.mts"
+import {
+  checkedInCamRootPaths,
+  checkedInLocalResourcePath,
+  dappsRoot,
+} from "../../../../tests/fixtures/cam/checked-resources.mts"
 
 test("checked-in CAM bundles pass conformance", async () => {
   const rootPaths = await checkedInCamRootPaths()
@@ -26,7 +30,7 @@ async function checkedInBundle(rootPath: string) {
   const resources = new Map<string, Uint8Array>()
 
   for (const uri of declaredLocalResourceURIs(root)) {
-    resources.set(uri, await readFile(await localResourcePath(rootPath, uri)))
+    resources.set(uri, await readFile(await checkedInLocalResourcePath(rootPath, uri)))
   }
 
   return {
@@ -34,39 +38,6 @@ async function checkedInBundle(rootPath: string) {
     rootBytes,
     resources,
   }
-}
-
-async function localResourcePath(rootPath: string, uri: string): Promise<string> {
-  const rootDir = dirname(rootPath)
-  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri) || uri.startsWith("//") || uri.startsWith("/")) {
-    throw new Error(`checked-in CAM resources must be local relative files: ${uri}`)
-  }
-  if (!uri.startsWith("./")) {
-    throw new Error(`checked-in CAM resources must use ./ local URIs: ${uri}`)
-  }
-
-  const path = resolve(rootDir, uri)
-  const relativePath = relative(rootDir, path)
-  if (relativePath === "" || relativePath === ".." || relativePath.startsWith("../")) {
-    throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
-  }
-
-  let currentPath = rootDir
-  for (const segment of relativePath.split("/")) {
-    currentPath = resolve(currentPath, segment)
-    if ((await lstat(currentPath)).isSymbolicLink()) {
-      throw new Error(`checked-in CAM resources must not be symlinked: ${uri}`)
-    }
-  }
-
-  const realRoot = await realpath(rootDir)
-  const realResource = await realpath(path)
-  const realRelativePath = relative(realRoot, realResource)
-  if (realRelativePath === "" || realRelativePath === ".." || realRelativePath.startsWith("../")) {
-    throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
-  }
-
-  return path
 }
 
 function declaredLocalResourceURIs(root: unknown): readonly string[] {
