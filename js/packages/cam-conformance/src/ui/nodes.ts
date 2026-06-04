@@ -3,8 +3,9 @@ import {
   isRecordObject,
 } from "@cam/protocol"
 
-import type {
-  CamConformanceIssue,
+import {
+  conformanceIssue,
+  type CamConformanceIssue,
 } from "../issues.ts"
 import type {
   ResourceDeclaration,
@@ -89,11 +90,10 @@ function nodeRequires(
 }
 
 function uiNodeInterfaceIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_UI_NODE_INTERFACE_INVALID",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }

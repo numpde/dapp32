@@ -5,8 +5,9 @@ import {
   isRecordObject,
 } from "@cam/protocol"
 
-import type {
-  CamConformanceIssue,
+import {
+  conformanceIssue,
+  type CamConformanceIssue,
 } from "../issues.ts"
 
 export type NamespaceType = "contract" | "routes" | "ui"
@@ -36,13 +37,12 @@ export function validateNamespaceDeclarations({
   }
 
   if (!Object.prototype.hasOwnProperty.call(namespaces, CAM_UI_NAMESPACE)) {
-    issues.push({
+    issues.push(conformanceIssue({
       rule: "CAM_UI_RESOURCE_MISSING",
-      severity: "error",
       resource,
       path: `namespaces.${CAM_UI_NAMESPACE}`,
       message: "CAM bundle must declare a ui namespace",
-    })
+    }))
   }
 
   for (const [name, declaration] of Object.entries(namespaces)) {
@@ -152,11 +152,10 @@ function validateSingletonNamespaceName(
 }
 
 function namespaceIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_NAMESPACE_DECLARATION_INVALID",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }

@@ -5,10 +5,9 @@ import {
 } from "@cam/protocol"
 
 import {
+  conformanceIssue,
   issueFromError,
-} from "../issues.ts"
-import type {
-  CamConformanceIssue,
+  type CamConformanceIssue,
 } from "../issues.ts"
 import type {
   DeclaredNamespace,
@@ -76,13 +75,12 @@ function validateDeclaredResource(
 }
 
 function reportMissingResource(declaration: ResourceDeclaration, issues: CamConformanceIssue[]): void {
-  issues.push({
+  issues.push(conformanceIssue({
     rule: "CAM_RESOURCE_MISSING",
-    severity: "error",
     resource: declaration.uri,
     path: declaration.uriPath,
     message: `declared CAM resource is missing: ${declaration.uri}`,
-  })
+  }))
 }
 
 function reportOrphanResources(
@@ -94,12 +92,11 @@ function reportOrphanResources(
   for (const uri of resources.keys()) {
     if (declaredURIs.has(uri)) continue
 
-    issues.push({
+    issues.push(conformanceIssue({
       rule: "CAM_RESOURCE_ORPHAN",
-      severity: "error",
       resource: uri,
       message: `bundle resource is not declared by the root CAM document: ${uri}`,
-    })
+    }))
   }
 }
 
@@ -119,13 +116,12 @@ function reportIntegrityConflicts(
     }
 
     if (previous.integrity !== declaration.integrity) {
-      issues.push({
+      issues.push(conformanceIssue({
         rule: "CAM_RESOURCE_INTEGRITY_CONFLICT",
-        severity: "error",
         resource: declaration.uri,
         path: declaration.integrityPath,
         message: `resource URI has conflicting integrity declarations: ${declaration.uri}`,
-      })
+      }))
     }
   }
 }
@@ -236,13 +232,12 @@ function resourceDeclarationIssue({
   readonly path: string
   readonly message: string
 }): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_RESOURCE_DECLARATION_INVALID",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }
 
 // Hashing happens here because conformance receives bytes. Hash grammar and

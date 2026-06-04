@@ -3,11 +3,10 @@ import {
   parseJsonBytes,
 } from "@cam/protocol"
 
-import type {
-  CamConformanceIssue,
-} from "../issues.ts"
 import {
+  conformanceIssue,
   errorMessage,
+  type CamConformanceIssue,
 } from "../issues.ts"
 import type {
   DeclaredRoute,
@@ -498,29 +497,19 @@ function isArrayIndex(value: string | undefined): value is string {
 }
 
 function abiIssue(resource: string, path: string | undefined, message: string): CamConformanceIssue {
-  const issue = {
+  return conformanceIssue({
     rule: "CAM_ABI_INVALID",
-    severity: "error",
     resource,
-    message,
-  } satisfies Omit<CamConformanceIssue, "path">
-
-  if (path === undefined) {
-    return issue
-  }
-
-  return {
-    ...issue,
     path,
-  }
+    message,
+  })
 }
 
 function routeAbiIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_ROUTE_ABI_MISMATCH",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }

@@ -16,6 +16,34 @@ export class CamConformanceError extends Error {
   }
 }
 
+export function conformanceIssue({
+  rule,
+  resource,
+  path,
+  message,
+}: {
+  readonly rule: string
+  readonly resource: string
+  readonly path?: string | undefined
+  readonly message: string
+}): CamConformanceIssue {
+  const issue = {
+    rule,
+    severity: "error",
+    resource,
+    message,
+  } satisfies Omit<CamConformanceIssue, "path">
+
+  if (path === undefined) {
+    return issue
+  }
+
+  return {
+    ...issue,
+    path,
+  }
+}
+
 export function issueFromError({
   rule,
   resource,
@@ -28,21 +56,12 @@ export function issueFromError({
   readonly error: unknown
 }): CamConformanceIssue {
   const resolvedPath = path === undefined ? errorPath(error) : path
-  const issue = {
+  return conformanceIssue({
     rule,
-    severity: "error",
     resource,
-    message: errorMessage(error),
-  } satisfies Omit<CamConformanceIssue, "path">
-
-  if (resolvedPath === undefined) {
-    return issue
-  }
-
-  return {
-    ...issue,
     path: resolvedPath,
-  }
+    message: errorMessage(error),
+  })
 }
 
 function errorPath(error: unknown): string | undefined {

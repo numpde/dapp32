@@ -2,8 +2,9 @@ import {
   isRecordObject,
 } from "@cam/protocol"
 
-import type {
-  CamConformanceIssue,
+import {
+  conformanceIssue,
+  type CamConformanceIssue,
 } from "../issues.ts"
 import type {
   DeclaredNamespace,
@@ -66,24 +67,22 @@ function validateEntryRoute(
   issues: CamConformanceIssue[],
 ): void {
   if (typeof entry !== "string" || entry.length === 0) {
-    issues.push({
+    issues.push(conformanceIssue({
       rule: "CAM_ENTRY_ROUTE_INVALID",
-      severity: "error",
       resource,
       path: "entry",
       message: "CAM entry route must be a non-empty string",
-    })
+    }))
     return
   }
   if (Object.prototype.hasOwnProperty.call(routes, entry)) return
 
-  issues.push({
+  issues.push(conformanceIssue({
     rule: "CAM_ENTRY_ROUTE_MISSING",
-    severity: "error",
     resource,
     path: "entry",
     message: `entry route does not exist: ${entry}`,
-  })
+  }))
 }
 
 function validateRoutes(
@@ -138,13 +137,12 @@ function validateRouteKind(
   // continue to another route after wallet execution.
   if (kind === "read" || kind === "write") return kind
 
-  issues.push({
+  issues.push(conformanceIssue({
     rule: "CAM_ROUTE_KIND_INVALID",
-    severity: "error",
     resource,
     path: `routes.${routeName}.kind`,
     message: `route kind must be read or write: ${routeName}`,
-  })
+  }))
   return undefined
 }
 
@@ -358,41 +356,37 @@ function validateInvocation({
 }
 
 function routeInputIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_ROUTE_INPUTS_INVALID",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }
 
 function routeDeclarationIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_ROUTE_DECLARATION_INVALID",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }
 
 function routeInvocationIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_ROUTE_INVOCATION_INVALID",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }
 
 function routeExpressionIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_ROUTE_EXPRESSION_INVALID",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }

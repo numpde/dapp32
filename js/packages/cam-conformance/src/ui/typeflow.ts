@@ -13,8 +13,9 @@ import {
 import {
   expressionReference,
 } from "../expressions/reference.ts"
-import type {
-  CamConformanceIssue,
+import {
+  conformanceIssue,
+  type CamConformanceIssue,
 } from "../issues.ts"
 import type {
   DeclaredRoute,
@@ -168,13 +169,12 @@ function validateBoundValueTypeflow({
   const matching = candidates.find((candidate) => abiValueMatches(candidate, expectation))
   if (matching === undefined) {
     const [firstCandidate] = candidates
-    issues.push({
+    issues.push(conformanceIssue({
       rule: "CAM_UI_TYPEFLOW_MISMATCH",
-      severity: "error",
       resource,
       path,
       message: `${label} expects ${expectation}, but ABI provides ${abiTypeName(firstCandidate)}`,
-    })
+    }))
   }
 }
 

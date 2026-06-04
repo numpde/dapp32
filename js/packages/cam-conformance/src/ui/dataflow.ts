@@ -2,8 +2,9 @@ import {
   isRecordObject,
 } from "@cam/protocol"
 
-import type {
-  CamConformanceIssue,
+import {
+  conformanceIssue,
+  type CamConformanceIssue,
 } from "../issues.ts"
 import type {
   DeclaredRoute,
@@ -266,11 +267,10 @@ function validateExactNames({
 }
 
 function dataflowIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_UI_DATAFLOW_MISMATCH",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }

@@ -1,5 +1,6 @@
-import type {
-  CamConformanceIssue,
+import {
+  conformanceIssue,
+  type CamConformanceIssue,
 } from "../issues.ts"
 import type {
   DeclaredRoute,
@@ -107,11 +108,10 @@ function validateNamedHandoffArgs({
 }
 
 function handoffIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return {
+  return conformanceIssue({
     rule: "CAM_ROUTE_HANDOFF_MISMATCH",
-    severity: "error",
     resource,
     path,
     message,
-  }
+  })
 }

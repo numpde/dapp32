@@ -2,8 +2,9 @@ import {
   UI_CONTEXT_KEYS,
 } from "@cam/protocol"
 
-import type {
-  CamConformanceIssue,
+import {
+  conformanceIssue,
+  type CamConformanceIssue,
 } from "../issues.ts"
 import type {
   ResourceDeclaration,
@@ -52,11 +53,10 @@ function validateExpressionRoot(
   if (UI_CONTEXT_KEYS.has(root)) return
   const reportedRoot = root.length === 0 ? value : root
 
-  issues.push({
+  issues.push(conformanceIssue({
     rule: "CAM_UI_EXPRESSION_ROOT_INVALID",
-    severity: "error",
     resource,
     path,
     message: `UI expression root is not supported: ${reportedRoot}`,
-  })
+  }))
 }
