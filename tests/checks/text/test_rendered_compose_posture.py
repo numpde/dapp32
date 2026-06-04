@@ -94,6 +94,9 @@ def bike_integration_fuzz_env() -> dict[str, str]:
 
 class RenderedComposePostureTest(unittest.TestCase):
     def test_rendered_compose_fixture_env_is_explicit(self) -> None:
+        # This pins the happy-path render fixture so posture tests do not gain
+        # hidden environment inputs. It is deliberately not the fail-closed
+        # check for missing operator variables.
         self.assertEqual(
             {
                 "ABI_PLAN_DIR": "/tmp/abi-plan",

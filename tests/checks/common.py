@@ -14,6 +14,11 @@ from tools.json_policy import strict_json_loads
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCKER_COMPOSE_DEFAULT_RE = re.compile(r"^DOCKER_COMPOSE \?= (?P<command>.+)$", re.MULTILINE)
+# Rendered Compose posture tests need concrete values for required operator
+# inputs before `docker compose config` can produce JSON. These values are test
+# fixtures only: they make the positive render inspectable, but they do not
+# prove that omitted operator inputs fail closed. Negative render checks should
+# own that invariant instead of relying on this fixture map.
 RENDERED_COMPOSE_FIXTURE_ENV = {
     "ABI_PLAN_DIR": "/tmp/abi-plan",
     "ALLOW_UPDATE": "0",
