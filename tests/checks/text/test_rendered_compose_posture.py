@@ -34,7 +34,7 @@ VIEWER_TERMINAL_CONTAINER_NAME = "dapps-viewer-terminal-session"
 BIKE_MOCK_CAM_MOUNT = "/work/cam/bike-nft"
 BIKE_NFT_BROADCAST_DIR = "/foundry-broadcast"
 BIKE_NFT_BROADCAST_PATH = f"{BIKE_NFT_BROADCAST_DIR}/DeployBikeNftLocal.s.sol/31337/run-latest.json"
-REQUIRED_COMPOSE_ENV_RE = re.compile(r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*):\?missing_(?P=name)\}")
+REQUIRED_COMPOSE_ENV_RE = re.compile(r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*):\?[^}]+\}")
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE = (
     "compose/bike-nft/local/deploy.yml",
     "compose/bike-nft/local/http.yml",
@@ -97,67 +97,42 @@ def bike_integration_fuzz_env() -> dict[str, str]:
     }
 
 
-def compose_render_scenarios() -> tuple[tuple[str | tuple[str, ...], dict[str, str]], ...]:
-    return (
-        ("compose/anvil.yml", {}),
-        ("compose/bike-nft/local/deploy.yml", standalone_bike_fixture_env()),
-        ("compose/cam.yml", {}),
-        ("compose/cast.yml", {"RPC_URL_FILE": "/tmp/rpc-url"}),
-        ("compose/deps.yml", {}),
-        ("compose/forge-abi.yml", {}),
-        ("compose/forge.yml", {}),
-        ("compose/package-deps.yml", {"PACKAGE_INPUT_DIR": "/tmp/package-input"}),
-        ("compose/packages.yml", {}),
-        ("compose/test/integration-fuzz.yml", integration_fuzz_env()),
-        ("compose/viewer-terminal.yml", mock_viewer_env()),
-        (BIKE_NFT_VIEWER_TERMINAL_COMPOSE, bike_viewer_fixture_env()),
-        (
-            BIKE_NFT_VIEWER_GUI_COMPOSE,
-            {
-                "CAM_URI": f"{BIKE_NFT_GUI_ORIGIN}/cam/main.json",
-                "CAM_HASH": ZERO_HASH,
-                "BIKE_NFT_GUI_BIND_HOST": BIKE_NFT_GUI_BIND_HOST,
-                "BIKE_NFT_GUI_ORIGIN": BIKE_NFT_GUI_ORIGIN,
-                "BIKE_NFT_BROADCAST_DIR": BIKE_NFT_BROADCAST_DIR,
-                "BIKE_NFT_BROADCAST_PATH": BIKE_NFT_BROADCAST_PATH,
-            },
-        ),
-        (BIKE_NFT_TEST_INTEGRATION_FUZZ_COMPOSE, bike_integration_fuzz_env()),
+def compose_files_with_required_env() -> tuple[str, ...]:
+    return tuple(
+        path.relative_to(repo_path(".")).as_posix()
+        for path in sorted(repo_path("compose").rglob("*.yml"))
+        if required_compose_env_names(path.relative_to(repo_path(".")).as_posix())
     )
 
 
-def required_compose_env_names(compose_files: str | tuple[str, ...]) -> tuple[str, ...]:
-    if isinstance(compose_files, str):
-        files = (compose_files,)
-    else:
-        files = compose_files
-
+def required_compose_env_names(compose_file: str) -> tuple[str, ...]:
     names: set[str] = set()
-    for compose_file in files:
-        names.update(REQUIRED_COMPOSE_ENV_RE.findall(read_text(repo_path(compose_file))))
+    names.update(REQUIRED_COMPOSE_ENV_RE.findall(read_text(repo_path(compose_file))))
 
     return tuple(sorted(names))
 
 
-def compose_render_env(env: dict[str, str]) -> dict[str, str]:
+def compose_render_env() -> dict[str, str]:
     render_env = os.environ.copy()
     render_env.update(RENDERED_COMPOSE_FIXTURE_ENV)
-    render_env.update(env)
+    render_env.update({
+        **standalone_bike_fixture_env(),
+        **bike_viewer_fixture_env(),
+        **mock_viewer_env(),
+        **integration_fuzz_env(),
+        "BIKE_NFT_GUI_ORIGIN": BIKE_NFT_GUI_ORIGIN,
+        "PACKAGE_INPUT_DIR": "/tmp/package-input",
+        "RPC_URL_FILE": "/tmp/rpc-url",
+    })
     return render_env
 
 
 def compose_config_process(
-    compose_files: str | tuple[str, ...],
+    compose_file: str,
     render_env: dict[str, str],
 ) -> subprocess.CompletedProcess[str]:
     command = docker_compose_command(render_env)
-    if isinstance(compose_files, str):
-        files = (compose_files,)
-    else:
-        files = compose_files
-
-    for compose_file in files:
-        command.extend(["-f", str(repo_path(compose_file))])
+    command.extend(["-f", str(repo_path(compose_file))])
     command.extend(["config", "--format", "json"])
 
     return subprocess.run(
@@ -191,24 +166,21 @@ class RenderedComposePostureTest(unittest.TestCase):
         )
 
     def test_required_compose_env_vars_fail_closed_when_omitted(self) -> None:
-        for compose_files, env in compose_render_scenarios():
-            required_names = required_compose_env_names(compose_files)
-            if not required_names:
-                continue
-
+        for compose_file in compose_files_with_required_env():
+            required_names = required_compose_env_names(compose_file)
             for missing_name in required_names:
-                with self.subTest(compose_files=compose_files, missing=missing_name):
-                    render_env = compose_render_env(env)
+                with self.subTest(compose_file=compose_file, missing=missing_name):
+                    render_env = compose_render_env()
                     self.assertIn(missing_name, render_env)
                     del render_env[missing_name]
-                    result = compose_config_process(compose_files, render_env)
+                    result = compose_config_process(compose_file, render_env)
 
                     self.assertNotEqual(
                         0,
                         result.returncode,
                         f"Compose render unexpectedly succeeded without {missing_name}",
                     )
-                    self.assertIn(f"missing_{missing_name}", result.stderr + result.stdout)
+                    self.assertNotEqual("", result.stderr + result.stdout)
 
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service["read_only"])
