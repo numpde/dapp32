@@ -31,11 +31,13 @@ contract BicycleComponentManagerScenarioTest is Test {
     string private constant REGISTRAR_ATTESTATION_URI = "fixture://bike-nft/attestations/registrar-inspection.json";
     string private constant STATUS_ATTESTATION_URI = "fixture://bike-nft/attestations/status-attester-inspection.json";
 
+    string private constant VIEW_ENTRY = "entry";
     string private constant VIEW_COMPONENT_FOUND = "component.found";
     string private constant VIEW_REGISTER_READY = "register.ready";
     string private constant VIEW_REGISTER_BLOCKED = "register.blocked";
 
     string private constant ACTION_LOOKUP_COMPONENT = "lookupComponent";
+    string private constant ACTION_OPEN_REGISTER = "openRegister";
     string private constant ACTION_REGISTER_COMPONENT = "registerComponent";
     string private constant ACTION_UPDATE_COMPONENT_METADATA = "updateComponentMetadata";
     string private constant ACTION_MARK_COMPONENT_MISSING = "markComponentMissing";
@@ -357,6 +359,163 @@ contract BicycleComponentManagerScenarioTest is Test {
         assertEq(afterView.tokenURI, beforeView.tokenURI, "attestation must not alter token URI");
         assertEq(afterView.registeredAt, beforeView.registeredAt, "attestation must not alter registration time");
         assertEq(afterView.updatedAt, beforeView.updatedAt, "attestation must not alter update time");
+    }
+
+    // Registrar roles are operational state, not static manifest truth. The UI
+    // should reflect offboarding immediately, and the manager should reject a
+    // former registrar even if their old links or pages are still open.
+    function test_registrarOffboardingImmediatelyChangesUiAndWriteAuthority() external {
+        BicycleComponentManagerUI.AppView memory entryView = ui.viewEntry(registrar);
+        assertEq(entryView.viewId, VIEW_ENTRY, "entry route mismatch");
+        assertTrue(entryView.canRegister, "registrar should start active");
+        assertActions(entryView.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertEq(ui.viewRegister(SECOND_SERIAL, registrar).viewId, VIEW_REGISTER_READY, "registrar should start ready");
+
+        manager.revokeRole(manager.REGISTRAR_ROLE(), registrar);
+
+        entryView = ui.viewEntry(registrar);
+        assertFalse(entryView.canRegister, "offboarded registrar should lose entry capability");
+        assertEq(
+            ui.viewRegister(SECOND_SERIAL, registrar).viewId,
+            VIEW_REGISTER_BLOCKED,
+            "offboarded registrar should see blocked registration"
+        );
+        assertActions(ui.viewRegister(SECOND_SERIAL, registrar).actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+
+        vm.prank(registrar);
+        vm.expectRevert();
+        manager.registerComponent(owner, SECOND_SERIAL, SECOND_TOKEN_URI);
+
+        manager.grantRole(manager.REGISTRAR_ROLE(), registrar);
+
+        vm.prank(registrar);
+        manager.registerComponent(owner, SECOND_SERIAL, SECOND_TOKEN_URI);
+
+        assertEq(
+            ui.viewComponent(SECOND_SERIAL, owner).viewId, VIEW_COMPONENT_FOUND, "restored registrar should register"
+        );
+    }
+
+    // Revocation is a separate operational path from delegation expiry. A shop
+    // can be cut off immediately without rolling back any legitimate work it
+    // already performed.
+    function test_ownerRevocationCutsOffDelegateImmediatelyWithoutChangingComponentState() external {
+        registerDefaultComponent();
+
+        uint64 allCapabilities = manager.VALID_CAPABILITY_MASK();
+        vm.prank(owner);
+        manager.setComponentDelegate(SERIAL, delegate, allCapabilities, uint48(block.timestamp + 30 days));
+
+        vm.prank(delegate);
+        manager.setComponentMetadata(SERIAL, SHOP_TOKEN_URI);
+
+        vm.prank(owner);
+        manager.revokeComponentDelegate(SERIAL, delegate);
+
+        (address grantor, uint64 capabilities, uint48 validUntil, bool active) =
+            manager.componentDelegation(SERIAL, delegate);
+        assertEq(grantor, address(0), "revoked delegation grantor should clear");
+        assertEq(capabilities, 0, "revoked delegation capabilities should clear");
+        assertEq(validUntil, 0, "revoked delegation expiry should clear");
+        assertFalse(active, "revoked delegation should be inactive");
+        assertActions(ui.viewComponent(SERIAL, delegate).actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+
+        uint64 markMissingCapability = manager.CAP_MARK_MISSING();
+        bytes32 serialHash = manager.serialHashOf(SERIAL);
+        vm.prank(delegate);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.Unauthorized.selector, delegate, serialHash, markMissingCapability
+            )
+        );
+        manager.markMissing(SERIAL);
+
+        BicycleComponentManagerUI.AppView memory ownerView = ui.viewComponent(SERIAL, owner);
+        assertEq(ownerView.tokenURI, SHOP_TOKEN_URI, "revocation should not roll back completed work");
+        assertActions(
+            ownerView.actions,
+            expectedActions(
+                ACTION_LOOKUP_COMPONENT,
+                ACTION_UPDATE_COMPONENT_METADATA,
+                ACTION_MARK_COMPONENT_MISSING,
+                ACTION_RETIRE_COMPONENT
+            )
+        );
+    }
+
+    // Retirement is final registry state even though the ERC721 remains
+    // transferable. Later ownership/profile changes must not revive write
+    // actions or mutable metadata paths.
+    function test_retiredComponentStaysFinalAcrossLaterTransferAndProfileChanges() external {
+        registerDefaultComponent();
+        uint256 tokenId = manager.tokenIdOf(SERIAL);
+
+        vm.prank(owner);
+        manager.retireComponent(SERIAL);
+
+        BicycleComponentManagerUI.AppView memory retiredOwnerView = ui.viewComponent(SERIAL, owner);
+        assertEq(
+            uint8(retiredOwnerView.status),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
+            "component should be retired"
+        );
+        assertActions(retiredOwnerView.actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+
+        vm.prank(owner);
+        components.transferFrom(owner, buyer, tokenId);
+
+        vm.prank(buyer);
+        manager.setAccountInfo(BUYER_INFO_URI);
+
+        BicycleComponentManagerUI.AppView memory retiredBuyerView = ui.viewComponent(SERIAL, buyer);
+        assertEq(retiredBuyerView.owner, buyer, "retired token should still transfer");
+        assertEq(retiredBuyerView.ownerInfo, BUYER_INFO_URI, "retired view should follow current owner profile");
+        assertEq(
+            uint8(retiredBuyerView.status),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
+            "transfer must not revive retired status"
+        );
+        assertActions(retiredBuyerView.actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+
+        vm.prank(buyer);
+        vm.expectRevert();
+        manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
+
+        vm.prank(buyer);
+        vm.expectRevert();
+        manager.markMissing(SERIAL);
+    }
+
+    // The component-token contract is a real dependency, not a passive data
+    // object. Pausing it should block mint/metadata writes while manager reads
+    // and UI projections over already-minted components remain available.
+    function test_componentTokenPauseBlocksTokenWritesButManagerReadRoutesStayAvailable() external {
+        registerDefaultComponent();
+
+        components.pause();
+
+        BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "token pause should not hide existing manager record");
+        assertEq(view_.tokenURI, TOKEN_URI, "token pause should not hide token URI reads");
+
+        vm.prank(registrar);
+        vm.expectRevert();
+        manager.registerComponent(buyer, SECOND_SERIAL, SECOND_TOKEN_URI);
+
+        vm.prank(owner);
+        vm.expectRevert();
+        manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
+
+        components.unpause();
+
+        vm.prank(owner);
+        manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
+
+        vm.prank(registrar);
+        manager.registerComponent(buyer, SECOND_SERIAL, SECOND_TOKEN_URI);
+
+        assertEq(ui.viewComponent(SERIAL, owner).tokenURI, UPDATED_TOKEN_URI, "metadata write should resume");
+        assertEq(ui.viewComponent(SECOND_SERIAL, buyer).viewId, VIEW_COMPONENT_FOUND, "minting should resume");
     }
 
     function registerDefaultComponent() private {
