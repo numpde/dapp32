@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 import unittest
 from pathlib import Path
 
@@ -54,6 +55,12 @@ ALLOWED_MAKE_DEFAULTS = {
     "VIEWER_TERMINAL_CONTAINER_NAME": "$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME)-session",
     "VIEWER_TERMINAL_MOCK": "bike-nft",
 }
+ALLOWED_DOCKER_ARG_DEFAULTS = {
+    "SOLC_VERSION": "0.8.35",
+}
+ALLOWED_DOCKER_ENV_DEFAULTS = {
+    "XDG_DATA_HOME": "/usr/local/share",
+}
 
 
 def ops_files() -> list[Path]:
@@ -100,11 +107,20 @@ class OpsSilentDefaultsTest(unittest.TestCase):
             ["Makefile:1: changed Make default assignment: ANVIL_HOST_PORT ?= 9545"],
             make_default_assignment_findings_for_source("ANVIL_HOST_PORT ?= 9545\n", "Makefile"),
         )
+        self.assertEqual(
+            ["Dockerfile:1: changed Docker ARG default: ARG SOLC_VERSION=0.8.34"],
+            docker_default_findings_for_source("ARG SOLC_VERSION=0.8.34\n", "Dockerfile"),
+        )
+        self.assertEqual(
+            ["Dockerfile:1: unreviewed Docker ENV default: ENV CACHE_DIR=/tmp/cache"],
+            docker_default_findings_for_source("ENV CACHE_DIR=/tmp/cache\n", "Dockerfile"),
+        )
 
     def test_ops_files_do_not_publish_silent_defaults(self) -> None:
         files = ops_files()
         findings: list[str] = []
         findings.extend(make_default_assignment_findings(files))
+        findings.extend(docker_default_findings(files))
         findings.extend(line_findings(files, MAKE_FUNCTION_DEFAULT_RE, "make function fallback"))
         findings.extend(line_findings(files, SHELL_DEFAULT_EXPANSION_RE, "shell/compose interpolation default"))
         findings.extend(self.shell_silent_success_findings(files))
@@ -148,6 +164,17 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         defaults = make_defaults(ROOT / "Makefile")
 
         self.assertEqual(ALLOWED_MAKE_DEFAULTS, defaults)
+
+    def test_allowed_docker_defaults_match_exact_values(self) -> None:
+        defaults = docker_defaults(ops_files())
+
+        self.assertEqual(
+            {
+                "ARG": ALLOWED_DOCKER_ARG_DEFAULTS,
+                "ENV": ALLOWED_DOCKER_ENV_DEFAULTS,
+            },
+            defaults,
+        )
 
     def shell_silent_success_findings(self, files: list[Path]) -> list[str]:
         findings: list[str] = []
@@ -193,6 +220,86 @@ def make_defaults(path: Path) -> dict[str, str]:
         match = MAKE_DEFAULT_ASSIGNMENT_RE.match(line)
         if match is not None:
             defaults[match.group("name")] = match.group("value")
+    return defaults
+
+
+def docker_default_findings(files: list[Path]) -> list[str]:
+    findings: list[str] = []
+    for path in files:
+        findings.extend(docker_default_findings_for_source(path.read_text(encoding="utf-8"), str(path.relative_to(ROOT))))
+    return findings
+
+
+def docker_default_findings_for_source(source: str, label: str) -> list[str]:
+    findings: list[str] = []
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+
+        arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
+        if arg_match is not None and arg_match.group("value") is not None:
+            name = arg_match.group("name")
+            value = arg_match.group("value")
+            if name not in ALLOWED_DOCKER_ARG_DEFAULTS:
+                findings.append(f"{label}:{line_number}: unreviewed Docker ARG default: {stripped}")
+            elif ALLOWED_DOCKER_ARG_DEFAULTS[name] != value:
+                findings.append(f"{label}:{line_number}: changed Docker ARG default: {stripped}")
+
+        env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
+        if env_match is not None:
+            for name, value in docker_env_defaults(env_match.group("body"), label, line_number):
+                if name not in ALLOWED_DOCKER_ENV_DEFAULTS:
+                    findings.append(f"{label}:{line_number}: unreviewed Docker ENV default: {stripped}")
+                elif ALLOWED_DOCKER_ENV_DEFAULTS[name] != value:
+                    findings.append(f"{label}:{line_number}: changed Docker ENV default: {stripped}")
+
+    return findings
+
+
+def docker_defaults(files: list[Path]) -> dict[str, dict[str, str]]:
+    defaults = {
+        "ARG": {},
+        "ENV": {},
+    }
+    for path in files:
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if line.strip().startswith("#"):
+                continue
+            arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
+            if arg_match is not None and arg_match.group("value") is not None:
+                defaults["ARG"][arg_match.group("name")] = arg_match.group("value")
+                continue
+
+            env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
+            if env_match is not None:
+                for name, value in docker_env_defaults(
+                    env_match.group("body"),
+                    str(path.relative_to(ROOT)),
+                    line_number,
+                ):
+                    defaults["ENV"][name] = value
+
+    return defaults
+
+
+def docker_env_defaults(body: str, label: str, line_number: int) -> list[tuple[str, str]]:
+    legacy_match = DOCKER_LEGACY_ENV_TOKEN_RE.match(body)
+    if legacy_match is not None and "=" not in legacy_match.group("name"):
+        return [(legacy_match.group("name"), legacy_match.group("value"))]
+
+    defaults: list[tuple[str, str]] = []
+    try:
+        tokens = shlex.split(body)
+    except ValueError as error:
+        raise AssertionError(f"{label}:{line_number}: unparseable Docker ENV default: ENV {body}") from error
+
+    for token in tokens:
+        if DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token) is None:
+            raise AssertionError(f"{label}:{line_number}: unparseable Docker ENV default: ENV {body}")
+        name, value = token.split("=", 1)
+        defaults.append((name, value))
+
     return defaults
 
 
