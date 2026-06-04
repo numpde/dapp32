@@ -2,6 +2,9 @@ pragma solidity 0.8.35;
 
 import {Test} from "forge-std-1.12.0/src/Test.sol";
 
+import {IAccessControl} from "@openzeppelin-contracts-5.6.1/access/IAccessControl.sol";
+import {Pausable} from "@openzeppelin-contracts-5.6.1/utils/Pausable.sol";
+
 import "../../../src/BicycleComponentManager.sol";
 import "../../../src/BicycleComponentManagerUI.sol";
 import "../../../src/BicycleComponents.sol";
@@ -260,20 +263,20 @@ contract BicycleComponentManagerScenarioTest is Test {
         assertActiveOwnerActions(view_.actions);
 
         vm.prank(owner);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
 
         uint64 updateMetadataCapability = manager.CAP_UPDATE_METADATA();
         vm.prank(owner);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, uint48(block.timestamp + 1 days));
 
         vm.prank(owner);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.setAccountInfo(BUYER_INFO_URI);
 
         vm.prank(registrar);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.addComponentAttestation(SERIAL, keccak256("paused-inspection"), REGISTRAR_ATTESTATION_URI);
 
         manager.unpause();
@@ -332,7 +335,8 @@ contract BicycleComponentManagerScenarioTest is Test {
         assertActions(entryView.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
         assertEq(ui.viewRegister(SECOND_SERIAL, registrar).viewId, VIEW_REGISTER_READY, "registrar should start ready");
 
-        manager.revokeRole(manager.REGISTRAR_ROLE(), registrar);
+        bytes32 registrarRole = manager.REGISTRAR_ROLE();
+        manager.revokeRole(registrarRole, registrar);
 
         entryView = ui.viewEntry(registrar);
         assertFalse(entryView.canRegister, "offboarded registrar should lose entry capability");
@@ -344,10 +348,12 @@ contract BicycleComponentManagerScenarioTest is Test {
         assertLookupOnly(ui.viewRegister(SECOND_SERIAL, registrar).actions);
 
         vm.prank(registrar);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, registrar, registrarRole)
+        );
         manager.registerComponent(owner, SECOND_SERIAL, SECOND_TOKEN_URI);
 
-        manager.grantRole(manager.REGISTRAR_ROLE(), registrar);
+        manager.grantRole(registrarRole, registrar);
 
         vm.prank(registrar);
         manager.registerComponent(owner, SECOND_SERIAL, SECOND_TOKEN_URI);
@@ -431,11 +437,19 @@ contract BicycleComponentManagerScenarioTest is Test {
         assertLookupOnly(retiredBuyerView.actions);
 
         vm.prank(buyer);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
+            )
+        );
         manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
 
         vm.prank(buyer);
-        vm.expectRevert();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
+            )
+        );
         manager.markMissing(SERIAL);
     }
 
@@ -452,11 +466,11 @@ contract BicycleComponentManagerScenarioTest is Test {
         assertEq(view_.tokenURI, TOKEN_URI, "token pause should not hide token URI reads");
 
         vm.prank(registrar);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.registerComponent(buyer, SECOND_SERIAL, SECOND_TOKEN_URI);
 
         vm.prank(owner);
-        vm.expectRevert();
+        vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
 
         components.unpause();
