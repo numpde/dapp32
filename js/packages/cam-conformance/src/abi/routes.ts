@@ -6,6 +6,9 @@ import {
 import type {
   CamConformanceIssue,
 } from "../issues.ts"
+import {
+  errorMessage,
+} from "../issues.ts"
 import type {
   DeclaredRoute,
 } from "../manifest/routes.ts"
@@ -520,8 +523,4 @@ function routeAbiIssue(resource: string, path: string, message: string): CamConf
     path,
     message,
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
