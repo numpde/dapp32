@@ -15,6 +15,9 @@ import {
   validateRouteDeclarations,
 } from "../manifest/routes.ts"
 import {
+  validateManifestShape,
+} from "../manifest/shape.ts"
+import {
   parseRootCamJson,
 } from "../sourced/root.ts"
 import {
@@ -65,6 +68,11 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   }
 
   const root = rootResult.value
+  validateManifestShape({
+    resource: bundle.rootURI,
+    root,
+    issues,
+  })
   const namespaces = validateNamespaceDeclarations({
     resource: bundle.rootURI,
     root,
