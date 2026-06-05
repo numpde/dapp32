@@ -38,6 +38,20 @@ class ProtocolOwnershipTest(unittest.TestCase):
         if existing:
             failures.append("inert value must live in js/packages/cam-protocol only:\n" + "\n".join(existing))
 
+        version_owner = repo_path("js/packages/cam-protocol/src/versions.ts")
+        version_definitions = {
+            "CAM_VERSION": re.compile(r"\b(?:export\s+)?const\s+CAM_VERSION\b"),
+            "UI_VERSION": re.compile(r"\b(?:export\s+)?const\s+UI_VERSION\b"),
+        }
+
+        for path in self.package_source_files():
+            if path == version_owner:
+                continue
+            text = read_text(path)
+            for name, pattern in version_definitions.items():
+                if pattern.search(text):
+                    failures.append(f"{path}: {name} must be defined only in {version_owner}")
+
         if failures:
             self.fail("\n".join(failures))
 

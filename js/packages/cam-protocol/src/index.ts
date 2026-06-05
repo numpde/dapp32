@@ -1,4 +1,9 @@
 export {
+  CAM_VERSION,
+  UI_VERSION,
+} from "./versions.ts"
+
+export {
   createExpressionRuntime,
 } from "./expressions.ts"
 export type {

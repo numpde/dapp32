@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   createExpressionRuntime,
   CamResourceIntegrityError,
+  CAM_VERSION,
   InertValueError,
   parseJsonText,
   readBoundedResponseBytes,
@@ -11,8 +12,14 @@ import {
   requireHttpURL,
   requireSameHttpOrigin,
   toInertValue,
+  UI_VERSION,
   verifySha256ResourceIntegrity,
 } from "../src/index.ts"
+
+test("exports protocol document versions from the protocol package", () => {
+  assert.equal(CAM_VERSION, "1.0.0")
+  assert.equal(UI_VERSION, "1.0.0")
+})
 
 test("resolves expression payloads with caller-owned normalization and errors", () => {
   const runtime = createExpressionRuntime({

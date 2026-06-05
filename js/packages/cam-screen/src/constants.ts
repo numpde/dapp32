@@ -5,6 +5,7 @@ import {
   UI_NODE_ARGUMENT_KEYS,
   UI_PROP_SCHEMAS,
   UI_RUNTIME_ROOTS,
+  UI_VERSION,
   type UiPropTag,
 } from "@cam/protocol"
 
@@ -15,8 +16,7 @@ export {
   UI_NODE_ARGUMENT_KEYS,
   UI_PROP_SCHEMAS,
   UI_RUNTIME_ROOTS,
+  UI_VERSION,
 }
-
-export const UI_VERSION = "1.0.0"
 
 export type { UiPropTag }
