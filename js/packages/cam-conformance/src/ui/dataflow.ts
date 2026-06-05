@@ -29,14 +29,14 @@ import {
 
 type UiCall = {
   readonly path: string
+  readonly namespace: "routes" | "ui"
   readonly function: unknown
   readonly args: Record<string, unknown>
 }
 
 type UiDataflow = {
   readonly inputNames: ReadonlySet<string>
-  readonly routeCalls: readonly UiCall[]
-  readonly includeCalls: readonly UiCall[]
+  readonly calls: readonly UiCall[]
 }
 
 export function validateUiDataflow({
@@ -54,28 +54,28 @@ export function validateUiDataflow({
   for (const [resource, ui] of uiDocuments) {
     const dataflow = readUiDataflow(ui.nodes)
 
-    if (uiNodes !== undefined) {
-      for (const include of dataflow.includeCalls) {
-        validateIncludeNodeArgs(resource, include, uiNodes, issues)
+    for (const call of dataflow.calls) {
+      if (!validateUiCallArgNames(resource, call, issues)) continue
+      if (call.namespace === "ui") {
+        if (uiNodes !== undefined) {
+          validateIncludeNodeArgs(resource, call, uiNodes, issues)
+        }
+      } else {
+        validateActionRouteArgs(resource, call, routesByName, issues)
+        validateActionStateInputs(resource, call, dataflow.inputNames, issues)
       }
-    }
-    for (const action of dataflow.routeCalls) {
-      validateActionRouteArgs(resource, action, routesByName, issues)
-      validateActionStateInputs(resource, action, dataflow.inputNames, issues)
     }
   }
 }
 
 function readUiDataflow(nodes: Record<string, unknown>): UiDataflow {
   const inputNames = new Set<string>()
-  const routeCalls: UiCall[] = []
-  const includeCalls: UiCall[] = []
-  forEachUiNode(nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, routeCalls, includeCalls))
+  const calls: UiCall[] = []
+  forEachUiNode(nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, calls))
 
   return {
     inputNames,
-    routeCalls,
-    includeCalls,
+    calls,
   }
 }
 
@@ -83,17 +83,16 @@ function collectUiNodeDataflow(
   value: Record<string, unknown>,
   path: string,
   inputNames: Set<string>,
-  routeCalls: UiCall[],
-  includeCalls: UiCall[],
+  calls: UiCall[],
 ): void {
   if (value.tag === "Input") {
     collectInputName(value, inputNames)
   }
   if (value.tag === "Include") {
-    collectCall(value, path, "ui", includeCalls)
+    collectCall(value, path, "ui", calls)
   }
   if (value.tag === "Action") {
-    collectCall(value, path, "routes", routeCalls)
+    collectCall(value, path, "routes", calls)
   }
 }
 
@@ -121,9 +120,17 @@ function collectCall(
 
   calls.push({
     path,
+    namespace,
     function: value.call.function,
     args: value.call.args,
   })
+}
+
+function validateUiCallArgNames(resource: string, call: UiCall, issues: CamConformanceIssue[]): boolean {
+  if (!Object.prototype.hasOwnProperty.call(call.args, "")) return true
+
+  issues.push(dataflowIssue(resource, `${call.path}.call.args`, "UI call argument name must not be empty"))
+  return false
 }
 
 function validateIncludeNodeArgs(

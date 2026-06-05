@@ -1018,6 +1018,61 @@ test("UI action state references must be backed by Input names", () => {
   ])
 })
 
+test("UI call arg names must not be empty", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Action",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: "entry",
+              args: {
+                "": "x",
+              },
+            },
+          },
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "detail",
+              args: {
+                "": "$view",
+              },
+            },
+          },
+        ],
+      },
+      detail: {
+        tag: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.args"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.1.call.args"],
+    ["CAM_UI_FIELD_INVALID", "nodes.app.children.0.call.args"],
+  ])
+})
+
 test("UI Includes with literal targets must pass exactly the target node args", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
