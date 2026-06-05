@@ -38,6 +38,22 @@ class CamAbiResourceTest(unittest.TestCase):
             [f"{manifest_path}: refusing symlinked CAM resource path: ./abi/UI.json"],
         )
 
+    def test_abi_uri_must_match_contract_namespace_name(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+
+            wrong_directory = validate_local_abi_uri(manifest_path, "UI", "./generated/UI.json")
+            wrong_basename = validate_local_abi_uri(manifest_path, "UI", "./abi/App.json")
+
+        self.assertEqual(
+            wrong_directory,
+            [f"{manifest_path}: namespaces.contracts.UI.abiURI must be ./abi/UI.json"],
+        )
+        self.assertEqual(
+            wrong_basename,
+            [f"{manifest_path}: namespaces.contracts.UI.abiURI must be ./abi/UI.json"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

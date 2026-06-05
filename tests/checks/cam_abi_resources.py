@@ -58,8 +58,9 @@ def checked_local_abi_path(
     path = contract_abi_uri_path(contract_name)
     if not isinstance(abi_uri, str):
         raise CamAbiResourceError(f"{manifest_path}: {path} must be a string")
-    if not abi_uri.endswith(".json"):
-        raise CamAbiResourceError(f"{manifest_path}: {path} must target a JSON ABI file: {abi_uri}")
+    expected_uri = f"./abi/{contract_name}.json"
+    if abi_uri != expected_uri:
+        raise CamAbiResourceError(f"{manifest_path}: {path} must be {expected_uri}")
 
     try:
         return local_resource_path(manifest_path, abi_uri, path)
