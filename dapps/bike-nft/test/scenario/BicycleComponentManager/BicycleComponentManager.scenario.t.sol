@@ -1,7 +1,5 @@
 pragma solidity 0.8.35;
 
-import {Test} from "forge-std-1.12.0/src/Test.sol";
-
 import {IAccessControl} from "@openzeppelin-contracts-5.6.1/access/IAccessControl.sol";
 import {Pausable} from "@openzeppelin-contracts-5.6.1/utils/Pausable.sol";
 
@@ -9,8 +7,9 @@ import "../../../src/BicycleComponentManager.sol";
 import "../../../src/BicycleComponentManagerUI.sol";
 import "../../../src/BicycleComponents.sol";
 import "../../../src/IBicycleComponentManagerView.sol";
+import "../../support/BicycleComponentManagerTestSupport.sol";
 
-contract BicycleComponentManagerScenarioTest is Test {
+contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSupport {
     BicycleComponents private components;
     BicycleComponentManager private manager;
     BicycleComponentManagerUI private ui;
@@ -33,19 +32,6 @@ contract BicycleComponentManagerScenarioTest is Test {
     string private constant OWNER_INFO_URI = "fixture://bike-nft/accounts/owner.json";
     string private constant REGISTRAR_ATTESTATION_URI = "fixture://bike-nft/attestations/registrar-inspection.json";
     string private constant STATUS_ATTESTATION_URI = "fixture://bike-nft/attestations/status-attester-inspection.json";
-
-    string private constant VIEW_ENTRY = "entry";
-    string private constant VIEW_COMPONENT_FOUND = "component.found";
-    string private constant VIEW_REGISTER_READY = "register.ready";
-    string private constant VIEW_REGISTER_BLOCKED = "register.blocked";
-
-    string private constant ACTION_LOOKUP_COMPONENT = "lookupComponent";
-    string private constant ACTION_OPEN_REGISTER = "openRegister";
-    string private constant ACTION_REGISTER_COMPONENT = "registerComponent";
-    string private constant ACTION_UPDATE_COMPONENT_METADATA = "updateComponentMetadata";
-    string private constant ACTION_MARK_COMPONENT_MISSING = "markComponentMissing";
-    string private constant ACTION_CLEAR_COMPONENT_MISSING = "clearComponentMissing";
-    string private constant ACTION_RETIRE_COMPONENT = "retireComponent";
 
     event ComponentAttestationAdded(
         bytes32 indexed serialHash,
@@ -488,75 +474,5 @@ contract BicycleComponentManagerScenarioTest is Test {
     function registerDefaultComponent() private {
         vm.prank(registrar);
         manager.registerComponent(owner, SERIAL, TOKEN_URI);
-    }
-
-    function assertActions(string[] memory actual, string[] memory expected) private pure {
-        assertEq(actual.length, expected.length, "action count mismatch");
-
-        for (uint256 index; index < expected.length; index++) {
-            assertEq(actual[index], expected[index], "action mismatch");
-        }
-    }
-
-    function assertLookupOnly(string[] memory actual) private pure {
-        assertActions(actual, expectedActions(ACTION_LOOKUP_COMPONENT));
-    }
-
-    function assertActiveOwnerActions(string[] memory actual) private pure {
-        assertActions(
-            actual,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_MARK_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
-    }
-
-    function assertMissingOwnerActions(string[] memory actual) private pure {
-        assertActions(
-            actual,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_CLEAR_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
-    }
-
-    function expectedActions(string memory first) private pure returns (string[] memory actions) {
-        actions = new string[](1);
-        actions[0] = first;
-    }
-
-    function expectedActions(string memory first, string memory second) private pure returns (string[] memory actions) {
-        actions = new string[](2);
-        actions[0] = first;
-        actions[1] = second;
-    }
-
-    function expectedActions(string memory first, string memory second, string memory third)
-        private
-        pure
-        returns (string[] memory actions)
-    {
-        actions = new string[](3);
-        actions[0] = first;
-        actions[1] = second;
-        actions[2] = third;
-    }
-
-    function expectedActions(string memory first, string memory second, string memory third, string memory fourth)
-        private
-        pure
-        returns (string[] memory actions)
-    {
-        actions = new string[](4);
-        actions[0] = first;
-        actions[1] = second;
-        actions[2] = third;
-        actions[3] = fourth;
     }
 }
