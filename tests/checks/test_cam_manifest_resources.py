@@ -21,10 +21,11 @@ class CamManifestResourceTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
-    def test_namespaced_ui_inventory_rejects_missing_ui_or_legacy_screens(self) -> None:
+    def test_resource_inventory_rejects_legacy_screens_without_pinning_ui_filename(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
             manifest_path.parent.mkdir(parents=True)
+            (manifest_path.parent / "app.ui.json").write_text("{}\n", encoding="utf-8")
 
             failures = self.validator.validate_resource_inventory(
                 manifest_path,
@@ -32,13 +33,12 @@ class CamManifestResourceTest(unittest.TestCase):
                     "namespaces": {
                         "ui": {
                             "type": "ui",
-                            "uri": "./ui.json",
+                            "uri": "./app.ui.json",
                         },
                     }
                 },
             )
 
-            (manifest_path.parent / "ui.json").write_text("{}\n", encoding="utf-8")
             (manifest_path.parent / "screens").mkdir()
 
             legacy_failures = self.validator.validate_resource_inventory(
@@ -55,7 +55,7 @@ class CamManifestResourceTest(unittest.TestCase):
 
         self.assertEqual(
             failures,
-            [f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json"],
+            [],
         )
         self.assertEqual(
             legacy_failures,

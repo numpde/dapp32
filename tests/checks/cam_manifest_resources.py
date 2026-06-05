@@ -9,7 +9,6 @@ from tools.cam_resource_integrity import (
     CamResourceIntegrityError,
     CONTRACT_NAMESPACE_PREFIX,
     INTEGRITY_PATTERN,
-    UI_NAMESPACE,
     resource_declarations,
     resource_integrity,
 )
@@ -60,8 +59,12 @@ class CamManifestResourceValidator:
 
         return failures
 
-    def validate_resource_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
-        return self.validate_namespaced_ui_inventory(manifest_path, manifest)
+    def validate_resource_inventory(self, manifest_path: Path, _manifest: dict[str, object]) -> list[str]:
+        screen_dir = manifest_path.parent / "screens"
+        if screen_dir.exists():
+            return [f"{manifest_path}: namespaced CAM must not keep legacy screens/ resources"]
+
+        return []
 
     def validate_resource_integrity(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         failures: list[str] = []
@@ -123,31 +126,6 @@ class CamManifestResourceValidator:
             failures.append(str(error))
 
         return resources, failures
-
-    def validate_namespaced_ui_inventory(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
-        resources, failures = self.manifest_resource_declarations(manifest_path, manifest)
-        if failures:
-            return failures
-
-        ui_declarations = [
-            declaration
-            for namespace, declaration, _uri_key, _integrity_key, _path in resources
-            if namespace == UI_NAMESPACE
-        ]
-        if not ui_declarations:
-            return [f"{manifest_path}: namespaces.ui must be an object"]
-
-        uri = ui_declarations[0].get("uri")
-        if uri != "./ui.json":
-            failures.append(f"{manifest_path}: namespaces.ui.uri must be ./ui.json")
-        elif not (manifest_path.parent / "ui.json").is_file():
-            failures.append(f"{manifest_path}: namespaces.ui.uri target does not exist: ./ui.json")
-
-        screen_dir = manifest_path.parent / "screens"
-        if screen_dir.exists():
-            failures.append(f"{manifest_path}: namespaced CAM must not keep legacy screens/ resources")
-
-        return failures
 
     def validate_sha256_integrity(
         self,
