@@ -31,12 +31,16 @@ export type AbiFunction = {
   readonly name: string
   readonly signature: string
   readonly stateMutability: "pure" | "view" | "nonpayable" | "payable"
-  readonly inputNames: readonly string[]
-  readonly inputs: readonly unknown[]
+  readonly inputs: readonly AbiInput[]
   readonly outputs: readonly unknown[]
 }
 
 export type ContractFunctionsByNamespace = ReadonlyMap<string, ReadonlyMap<string, readonly AbiFunction[]>>
+
+type AbiInput = {
+  readonly name: string
+  readonly type: string
+}
 
 export function validateRouteAbiCompatibility({
   resource,
@@ -209,7 +213,7 @@ function validateRouteMutability(
 
 function validateRouteArgs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {
   diffNameSets({
-    expectedNames: fn.inputNames,
+    expectedNames: fn.inputs.map((input) => input.name),
     actualNames: Object.keys(route.call.args),
     onUnexpected: (name) => {
       issues.push(routeAbiIssue(resource, `routes.${route.name}.call.args.${name}`, `unexpected route argument: ${name}`))
@@ -220,7 +224,6 @@ function validateRouteArgs(resource: string, route: DeclaredRoute, fn: AbiFuncti
   })
 
   for (const input of fn.inputs) {
-    if (!isRecordObject(input) || typeof input.name !== "string") continue
     if (!Object.hasOwn(route.call.args, input.name)) continue
 
     validateRouteArgType(resource, route, input, issues)
@@ -230,24 +233,20 @@ function validateRouteArgs(resource: string, route: DeclaredRoute, fn: AbiFuncti
 function validateRouteArgType(
   resource: string,
   route: DeclaredRoute,
-  input: Record<string, unknown>,
+  input: AbiInput,
   issues: CamConformanceIssue[],
 ): void {
-  const name = String(input.name)
-  const type = typeof input.type === "string" ? input.type : undefined
-  if (type === undefined) return
-
-  const scalarKind = abiScalarKind(type)
+  const scalarKind = abiScalarKind(input.type)
   if (scalarKind === undefined) return
 
-  const value = route.call.args[name]
+  const value = route.call.args[input.name]
   const mismatch = routeArgMismatch(value, scalarKind)
   if (mismatch === undefined) return
 
   issues.push(routeAbiIssue(
     resource,
-    `routes.${route.name}.call.args.${name}`,
-    `route argument ${name} expects ABI ${type}, but ${mismatch}`,
+    `routes.${route.name}.call.args.${input.name}`,
+    `route argument ${input.name} expects ABI ${input.type}, but ${mismatch}`,
   ))
 }
 
@@ -457,10 +456,9 @@ function parseAbiFunction(
 
   return {
     name,
-    signature: `${name}(${inputs.types.join(",")})`,
+    signature: `${name}(${inputs.map((input) => input.type).join(",")})`,
     stateMutability,
-    inputNames: inputs.names,
-    inputs: inputs.values,
+    inputs,
     outputs,
   }
 }
@@ -470,15 +468,13 @@ function abiInputs(
   path: string,
   inputs: unknown,
   issues: CamConformanceIssue[],
-): { readonly names: readonly string[], readonly types: readonly string[], readonly values: readonly unknown[] } | undefined {
+): readonly AbiInput[] | undefined {
   if (!Array.isArray(inputs)) {
     issues.push(abiIssue(resource, `${path}.inputs`, "ABI function inputs must be an array"))
     return undefined
   }
 
-  const names: string[] = []
-  const types: string[] = []
-  const values: unknown[] = []
+  const result: AbiInput[] = []
   for (const [index, input] of inputs.entries()) {
     const inputPath = `${path}.inputs.${index}`
     if (!isRecordObject(input)) {
@@ -496,12 +492,10 @@ function abiInputs(
       return undefined
     }
 
-    names.push(name)
-    types.push(type)
-    values.push(input)
+    result.push({ name, type })
   }
 
-  return { names, types, values }
+  return result
 }
 
 function abiOutputs(
