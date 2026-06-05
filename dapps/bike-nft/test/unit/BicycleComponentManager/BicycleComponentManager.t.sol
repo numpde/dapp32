@@ -60,6 +60,10 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.registerComponent(owner, SERIAL, TOKEN_URI);
 
         vm.prank(registrar);
+        vm.expectRevert(BicycleComponentManager.ZeroAddress.selector);
+        manager.registerComponent(address(0), SERIAL, TOKEN_URI);
+
+        vm.prank(registrar);
         (address tokenContract, uint256 tokenId) = manager.registerComponent(owner, SERIAL, TOKEN_URI);
 
         assertEq(tokenContract, address(components), "component contract mismatch");
