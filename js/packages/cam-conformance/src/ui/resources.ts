@@ -2,9 +2,40 @@ import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
 import {
+  issueFromError,
+  type CamConformanceIssue,
+} from "../issues.ts"
+import {
+  parseRawUiDocument,
   readRawUiDocument,
   type RawUiDocument,
 } from "./document.ts"
+
+export function validateDeclaredUiDocuments({
+  resources,
+  declarations,
+  issues,
+}: {
+  readonly resources: ReadonlyMap<string, Uint8Array>
+  readonly declarations: readonly ResourceDeclaration[]
+  readonly issues: CamConformanceIssue[]
+}): void {
+  forEachDeclaredUiResourceBytes({
+    resources,
+    declarations,
+    visit: (resource, bytes) => {
+      try {
+        parseRawUiDocument(bytes)
+      } catch (error) {
+        issues.push(issueFromError({
+          rule: "CAM_UI_DOCUMENT_INVALID",
+          resource,
+          error,
+        }))
+      }
+    },
+  })
+}
 
 export function forEachRawUiResource({
   resources,

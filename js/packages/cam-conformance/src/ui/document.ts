@@ -8,22 +8,40 @@ export type RawUiDocument = {
   readonly nodes: Record<string, unknown>
 }
 
-export function readRawUiDocument(bytes: Uint8Array): RawUiDocument | undefined {
-  let value: unknown
-  let parseFailed = false
-  try {
-    value = parseJsonBytes(bytes)
-  } catch {
-    parseFailed = true
+class RawUiDocumentError extends Error {
+  readonly path: string | undefined
+
+  constructor(message: string, path?: string) {
+    super(message)
+    this.name = "RawUiDocumentError"
+    this.path = path
   }
-  if (parseFailed) {
-    return undefined
+}
+
+// Granular conformance facets inspect the UI node inventory before the sourced
+// @cam/screen parser runs. Keep this check intentionally shallow: it proves
+// there is a strict JSON object with a nodes map, then lets the runtime parser
+// own the full UI schema.
+export function parseRawUiDocument(bytes: Uint8Array): RawUiDocument {
+  const value = parseJsonBytes(bytes)
+  if (!isRecordObject(value)) {
+    throw new RawUiDocumentError("UI resource must be a JSON object")
   }
-  if (!isRecordObject(value) || !isRecordObject(value.nodes)) return undefined
+  if (!isRecordObject(value.nodes)) {
+    throw new RawUiDocumentError("UI resource nodes must be an object", "nodes")
+  }
 
   return {
     value,
     nodes: value.nodes,
+  }
+}
+
+export function readRawUiDocument(bytes: Uint8Array): RawUiDocument | undefined {
+  try {
+    return parseRawUiDocument(bytes)
+  } catch {
+    return undefined
   }
 }
 

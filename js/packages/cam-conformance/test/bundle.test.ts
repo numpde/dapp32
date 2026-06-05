@@ -39,6 +39,23 @@ test("missing declared UI resource returns one precise issue", () => {
   ])
 })
 
+test("malformed declared UI document inventory is reported before runtime compatibility", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: null,
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DOCUMENT_INVALID", "nodes"],
+    ["CAM_UI_INVALID", "nodes"],
+  ])
+})
+
 test("invalid root CAM bytes report the caller-supplied root URI", () => {
   const issues = validateCamBundle({
     ...minimalBundle(),

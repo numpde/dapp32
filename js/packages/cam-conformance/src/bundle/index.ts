@@ -51,6 +51,7 @@ import {
 } from "../sourced/ui.ts"
 import {
   forEachDeclaredUiResourceBytes,
+  validateDeclaredUiDocuments,
 } from "../ui/resources.ts"
 
 export type {
@@ -83,6 +84,11 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   validateDeclaredResources({
+    resources: bundle.resources,
+    declarations,
+    issues,
+  })
+  validateDeclaredUiDocuments({
     resources: bundle.resources,
     declarations,
     issues,
