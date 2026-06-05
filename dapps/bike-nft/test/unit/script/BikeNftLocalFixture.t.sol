@@ -5,6 +5,10 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 import "../../../script/BikeNftLocalFixture.sol";
 import "../../../src/IBicycleComponentManagerView.sol";
 
+/// @dev Exposes the internal deployment helpers without changing the script
+/// contract's production surface. The caller is deliberately `address(this)`
+/// so the test exercises the same admin/broadcaster precondition as Forge
+/// broadcast scripts.
 contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
     function deployCleanForTest() external returns (Deployment memory deployment) {
         deployment = deployLocalFixture(address(this), "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
@@ -15,6 +19,10 @@ contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
     }
 }
 
+/// @dev The local fixture is shared by developer-facing GUI/terminal scenarios.
+/// This test keeps the two supported modes honest: clean deployment should be
+/// empty, seeded deployment should create demo components in both the manager
+/// record and the component NFT contract.
 contract BikeNftLocalFixtureTest is Test {
     function test_localFixtureCanDeployCleanOrSeededDemoState() external {
         BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
@@ -52,6 +60,9 @@ contract BikeNftLocalFixtureTest is Test {
     ) private view {
         IBicycleComponentManagerView.ComponentView memory component = deployment.manager.componentBySerial(serialNumber);
 
+        // A seeded component is only useful if the manager projection and the
+        // NFT contract agree. Checking both catches fixture drift that a viewer
+        // might otherwise hide behind cached route data.
         assertTrue(component.exists, "seeded component should have a manager record");
         assertEq(
             component.tokenContract, address(deployment.components), "seeded component should use configured contract"

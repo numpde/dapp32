@@ -9,6 +9,9 @@ import "../../../src/BicycleComponents.sol";
 import "../../../src/IBicycleComponentManagerView.sol";
 import "../../support/BicycleComponentManagerTestSupport.sol";
 
+/// @dev Unit coverage for the manager's core authorization and state
+/// transitions. Scenario tests cover longer app stories; this file keeps each
+/// manager boundary small enough that a failing assertion points at one rule.
 contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
     BicycleComponents private components;
     BicycleComponentManager private manager;
@@ -27,6 +30,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
     string private constant TOKEN_URI = "fixture://bike-nft/components/frame-001.json";
     string private constant UPDATED_TOKEN_URI = "fixture://bike-nft/components/frame-001-updated.json";
 
+    /// @dev Each test starts with one configured component collection and one
+    /// read-only UI helper. The manager must own minting and metadata rights on
+    /// the collection before registration can exercise the real dependency.
     function setUp() external {
         components = new BicycleComponents("Bike Components", "BIKE", admin, 0, "", "");
         manager = new BicycleComponentManager(admin, 0, address(components));
@@ -39,6 +45,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.grantRole(manager.STATUS_ATTESTER_ROLE(), statusAttester);
     }
 
+    /// @dev Registration is the root write path. It must reject non-registrars,
+    /// mint the deterministic component token, store the manager record, expose
+    /// the same data through the view interface, and reject serial reuse.
     function test_registrationRequiresRegistrarAndManagerViewsReflectTokenState() external {
         uint256 expectedTokenId = manager.tokenIdOf(SERIAL);
         bytes32 expectedSerialHash = manager.serialHashOf(SERIAL);
@@ -79,6 +88,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.registerComponent(secondOwner, SERIAL, TOKEN_URI);
     }
 
+    /// @dev The UI helper is deliberately read-only, but its returned view IDs
+    /// and actions are protocol data consumed by the CAM manifest. This test
+    /// pins the state-to-view mapping without depending on a renderer.
     function test_uiRouteProjectionSelectsViewsAndValidActions() external {
         BicycleComponentManagerUI.AppView memory view_ = ui.viewEntry(registrar);
         assertEq(view_.viewId, VIEW_ENTRY, "entry view mismatch");
@@ -126,6 +138,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertLookupOnly(view_.actions);
     }
 
+    /// @dev Component collection rotation should affect only future
+    /// registrations. Existing records keep their original token contract so
+    /// historic component lookups remain stable across configuration changes.
     function test_configurerCanChangeComponentAddressForFutureRegistrationsOnly() external {
         registerDefaultComponent();
 
@@ -161,6 +176,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         );
     }
 
+    /// @dev The manager reads through the component collection for owner and
+    /// token URI data. This fixture proves those dependency failures propagate
+    /// instead of silently returning stale or zero-valued manager data.
     function test_registeredComponentViewsPropagateTokenReadFailures() external {
         RevertingReadComponents failingComponents = new RevertingReadComponents();
         manager.setComponentsAddress(address(failingComponents));
@@ -181,6 +199,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.componentBySerial(SECOND_SERIAL);
     }
 
+    /// @dev Empty serials are rejected at every manager boundary that derives a
+    /// serial hash. The UI may represent empty input as a route state, but the
+    /// manager must never register or query it as a real component identity.
     function test_emptySerialNumberIsRejectedAtManagerBoundary() external {
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.serialHashOf("");
@@ -196,6 +217,10 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.registerComponent(owner, "", TOKEN_URI);
     }
 
+    /// @dev Delegation is capability- and owner-scoped. This test checks the
+    /// full lifecycle that makes delegations safe: unauthorized users fail,
+    /// owners and active delegates can write, expiry removes power at the
+    /// boundary timestamp, and token transfer invalidates old-owner grants.
     function test_ownerAndDelegatesCanUpdateMetadataOnlyWhileAuthorizedAndBeforeExpiryOrTransfer() external {
         registerDefaultComponent();
 
@@ -242,6 +267,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertEq(manager.permissionsOf(delegate, SERIAL), 0, "old-owner delegation must not survive transfer");
     }
 
+    /// @dev Missing/retired status updates are separate capabilities. The test
+    /// exercises owner writes first, then delegate writes with the exact
+    /// capability mask needed for the status transitions.
     function test_ownerAndDelegatesCanMoveThroughMissingAndRetiredStatuses() external {
         registerDefaultComponent();
         uint64 markMissingCapability = manager.CAP_MARK_MISSING();
@@ -285,6 +313,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         );
     }
 
+    /// @dev Pause is an emergency write gate on the manager. The test samples
+    /// representative registry writes before and after unpause rather than
+    /// duplicating every paused revert path in this unit file.
     function test_pausedManagerRejectsRegistryWrites() external {
         manager.pause();
 
@@ -304,6 +335,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.markMissing(SERIAL);
     }
 
+    /// @dev Attestations are event provenance rather than component mutation.
+    /// This unit test focuses on who can emit them; the scenario suite checks
+    /// that emitted attestations do not alter stored component state.
     function test_onlyRegistrarOrStatusAttesterCanAddComponentAttestation() external {
         registerDefaultComponent();
 
@@ -321,12 +355,18 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.addComponentAttestation(SERIAL, attestationType, "fixture://attestations/status-attester.json");
     }
 
+    /// @dev Most tests need the same active component baseline. Keeping the
+    /// helper private avoids turning scenario setup into a reusable abstraction
+    /// with hidden assumptions about owner, registrar, and token URI.
     function registerDefaultComponent() private {
         vm.prank(registrar);
         manager.registerComponent(owner, SERIAL, TOKEN_URI);
     }
 }
 
+/// @dev Minimal component-collection double used only to force read failures.
+/// It implements the manager-facing surface but intentionally rejects unrelated
+/// ERC721 approval calls so tests do not accidentally depend on fake behavior.
 contract RevertingReadComponents is IBicycleComponents {
     error ReadsDisabled();
     error TokenAlreadyExists(uint256 tokenId);

@@ -9,6 +9,10 @@ import "../../../src/BicycleComponents.sol";
 import "../../../src/IBicycleComponentManagerView.sol";
 import "../../support/BicycleComponentManagerTestSupport.sol";
 
+/// @dev Scenario coverage for user-facing lifecycle stories that cross manager,
+/// component NFT, roles, delegations, and the read-only UI projection. These
+/// tests intentionally read like app workflows; narrower authorization and
+/// revert checks belong in the unit suite.
 contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSupport {
     BicycleComponents private components;
     BicycleComponentManager private manager;
@@ -43,6 +47,9 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         string attestationURI
     );
 
+    /// @dev Scenarios start from the standard local app shape: one collection,
+    /// one manager, one UI projection, and the two operational roles needed for
+    /// registration/status provenance.
     function setUp() external {
         components = new BicycleComponents("Bike Components", "BIKE", admin, 0, "", "");
         manager = new BicycleComponentManager(admin, 0, address(components));
@@ -471,6 +478,8 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertEq(ui.viewComponent(SECOND_SERIAL, buyer).viewId, VIEW_COMPONENT_FOUND, "minting should resume");
     }
 
+    /// @dev Register the canonical scenario component through the registrar so
+    /// follow-on workflows start from the same active manager/NFT state.
     function registerDefaultComponent() private {
         vm.prank(registrar);
         manager.registerComponent(owner, SERIAL, TOKEN_URI);

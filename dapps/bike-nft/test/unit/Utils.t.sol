@@ -4,7 +4,15 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 
 import "../../src/Utils.sol";
 
+/// @dev Metadata JSON is a public, user-controlled boundary: component names,
+/// descriptions, image URLs, and attributes can be supplied by callers. These
+/// tests protect against invalid JSON and field injection, not just cosmetic
+/// escaping differences.
 contract UtilsTest is Test {
+    /// @dev Cover the three important escaping classes in one focused test:
+    /// quotes/backslashes, short JSON escapes, and generic control characters.
+    /// The final metadata assertion proves the escaping is used at every field
+    /// insertion point in the token URI payload.
     function test_jsonMetadataEscapesUserControlledFieldsAndControlCharacters() external {
         assertStringEq(Utils.escapeJSONString('bike "alpha" \\ beta'), 'bike \\"alpha\\" \\\\ beta');
 
@@ -51,6 +59,8 @@ contract UtilsTest is Test {
         assertStringEq(metadata, expected);
     }
 
+    /// @dev Keep string comparisons explicit so Solidity failures show the
+    /// mismatched JSON text instead of only reporting byte-level inequality.
     function assertStringEq(string memory actual, string memory expected) internal {
         assertEq(actual, expected, "string mismatch");
     }
