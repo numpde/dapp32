@@ -1,7 +1,9 @@
 import {
+  abiScalarKind,
   isFixedAbiArrayType,
   isRecordObject,
   isSupportedAbiScalarType,
+  parseAbiFixedBytesLength,
   parseJsonBytes,
 } from "@cam/protocol"
 
@@ -31,6 +33,7 @@ export type AbiFunction = {
   readonly signature: string
   readonly stateMutability: "pure" | "view" | "nonpayable" | "payable"
   readonly inputNames: readonly string[]
+  readonly inputs: readonly unknown[]
   readonly outputs: readonly unknown[]
 }
 
@@ -216,6 +219,98 @@ function validateRouteArgs(resource: string, route: DeclaredRoute, fn: AbiFuncti
       issues.push(routeAbiIssue(resource, `routes.${route.name}.call.args.${name}`, `missing route argument: ${name}`))
     },
   })
+
+  for (const input of fn.inputs) {
+    if (!isRecordObject(input) || typeof input.name !== "string") continue
+    if (!Object.hasOwn(route.call.args, input.name)) continue
+
+    validateRouteArgType(resource, route, input, issues)
+  }
+}
+
+function validateRouteArgType(
+  resource: string,
+  route: DeclaredRoute,
+  input: Record<string, unknown>,
+  issues: CamConformanceIssue[],
+): void {
+  const name = String(input.name)
+  const type = typeof input.type === "string" ? input.type : undefined
+  if (type === undefined) return
+
+  const scalarKind = abiScalarKind(type)
+  if (scalarKind === undefined) return
+
+  const value = route.call.args[name]
+  const mismatch = routeArgMismatch(value, type, scalarKind)
+  if (mismatch === undefined) return
+
+  issues.push(routeAbiIssue(
+    resource,
+    `routes.${route.name}.call.args.${name}`,
+    `route argument ${name} expects ABI ${type}, but ${mismatch}`,
+  ))
+}
+
+function routeArgMismatch(
+  value: unknown,
+  type: string,
+  expected: "address" | "bool" | "bytes" | "fixed-bytes" | "integer" | "string",
+): string | undefined {
+  if (expected === "string" && typeof value === "string") return undefined
+
+  const known = knownRouteArgValue(value)
+  if (known === undefined) return undefined
+
+  if (expected === "address") {
+    return known.kind === "address" ? undefined : `value is ${known.description}`
+  }
+  if (expected === "bool") {
+    return known.kind === "bool" ? undefined : `value is ${known.description}`
+  }
+  if (expected === "integer") {
+    return known.kind === "integer" ? undefined : `value is ${known.description}`
+  }
+  if (expected === "bytes") {
+    return known.kind === "bytes" ? undefined : `value is ${known.description}`
+  }
+  if (expected === "fixed-bytes") {
+    const fixedBytesLength = parseAbiFixedBytesLength(type)
+    if (known.kind !== "bytes") return `value is ${known.description}`
+    if (fixedBytesLength === undefined || typeof value !== "string") return undefined
+    const byteLength = (value.length - 2) / 2
+    return byteLength === fixedBytesLength ? undefined : `value is ${byteLength} bytes`
+  }
+
+  return known.kind === "string" || known.kind === "address" || known.kind === "bytes" || known.kind === "integer"
+    ? undefined
+    : `value is ${known.description}`
+}
+
+function knownRouteArgValue(value: unknown): { readonly kind: string, readonly description: string } | undefined {
+  if (typeof value === "boolean") return { kind: "bool", description: "a boolean literal" }
+  if (typeof value === "number" && Number.isSafeInteger(value)) return { kind: "integer", description: "an integer literal" }
+
+  if (typeof value !== "string") return undefined
+
+  const reference = expressionReference(value)
+  if (reference !== undefined) {
+    if (reference.root === "account" && reference.segments.join(".") === "address") {
+      return { kind: "address", description: "$account.address" }
+    }
+    if (reference.root === "host" && reference.segments.join(".") === "address") {
+      return { kind: "address", description: "$host.address" }
+    }
+    if (reference.root === "host" && reference.segments.join(".") === "chainId") {
+      return { kind: "string", description: "$host.chainId" }
+    }
+    return undefined
+  }
+
+  if (/^0x[0-9a-fA-F]{40}$/.test(value)) return { kind: "address", description: "an address literal" }
+  if (/^0x(?:[0-9a-fA-F]{2})*$/.test(value)) return { kind: "bytes", description: "a bytes literal" }
+  if (/^-?[0-9]+$/.test(value)) return { kind: "integer", description: "a decimal string literal" }
+  return { kind: "string", description: "a string literal" }
 }
 
 function validateRouteOutputRefs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {
@@ -373,6 +468,7 @@ function parseAbiFunction(
     signature: `${name}(${inputs.types.join(",")})`,
     stateMutability,
     inputNames: inputs.names,
+    inputs: inputs.values,
     outputs,
   }
 }
@@ -382,7 +478,7 @@ function abiInputs(
   path: string,
   inputs: unknown,
   issues: CamConformanceIssue[],
-): { readonly names: readonly string[], readonly types: readonly string[] } | undefined {
+): { readonly names: readonly string[], readonly types: readonly string[], readonly values: readonly unknown[] } | undefined {
   if (!Array.isArray(inputs)) {
     issues.push(abiIssue(resource, `${path}.inputs`, "ABI function inputs must be an array"))
     return undefined
@@ -390,6 +486,7 @@ function abiInputs(
 
   const names: string[] = []
   const types: string[] = []
+  const values: unknown[] = []
   for (const [index, input] of inputs.entries()) {
     const inputPath = `${path}.inputs.${index}`
     if (!isRecordObject(input)) {
@@ -409,9 +506,10 @@ function abiInputs(
 
     names.push(name)
     types.push(type)
+    values.push(input)
   }
 
-  return { names, types }
+  return { names, types, values }
 }
 
 function abiOutputs(

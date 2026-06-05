@@ -502,6 +502,40 @@ test("route call args must match named ABI inputs exactly", () => {
   ])
 })
 
+test("route call args with protocol-known values must match ABI scalar types", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "account",
+          type: "address",
+        },
+      ],
+      outputs: [viewOutput()],
+    },
+  ])
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        account: "$host.chainId",
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.account"],
+  ])
+})
+
 test("route continuations must reference ABI-declared output indexes", () => {
   const abiBytes = jsonBytes([
     {
