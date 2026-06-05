@@ -317,6 +317,57 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         );
     }
 
+    /// @dev `setMissingStatus` is the generic status toggle behind the public
+    /// mark/clear helpers. It must enforce the same capability and status rules
+    /// so clients cannot bypass workflow checks by calling the lower-level API.
+    function test_setMissingStatusUsesSameAuthorizationAndStateMachineAsMarkAndClear() external {
+        registerDefaultComponent();
+
+        bytes32 serialHash = manager.serialHashOf(SERIAL);
+        uint64 markMissingCapability = manager.CAP_MARK_MISSING();
+        uint64 clearMissingCapability = manager.CAP_CLEAR_MISSING();
+
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.Unauthorized.selector, stranger, serialHash, markMissingCapability
+            )
+        );
+        manager.setMissingStatus(SERIAL, true);
+
+        vm.prank(owner);
+        manager.setMissingStatus(SERIAL, true);
+        assertTrue(manager.missingStatus(SERIAL), "owner should mark missing through generic setter");
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Missing
+            )
+        );
+        manager.setMissingStatus(SERIAL, true);
+
+        vm.prank(stranger);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.Unauthorized.selector, stranger, serialHash, clearMissingCapability
+            )
+        );
+        manager.setMissingStatus(SERIAL, false);
+
+        vm.prank(owner);
+        manager.setMissingStatus(SERIAL, false);
+        assertFalse(manager.missingStatus(SERIAL), "owner should clear missing through generic setter");
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Active
+            )
+        );
+        manager.setMissingStatus(SERIAL, false);
+    }
+
     /// @dev Pause is an emergency write gate on the manager. The test samples
     /// representative registry writes before and after unpause rather than
     /// duplicating every paused revert path in this unit file.
