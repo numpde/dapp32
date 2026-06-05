@@ -3,7 +3,6 @@ import {
   isFixedAbiArrayType,
   isRecordObject,
   isSupportedAbiScalarType,
-  parseAbiFixedBytesLength,
   parseJsonBytes,
 } from "@cam/protocol"
 
@@ -242,7 +241,7 @@ function validateRouteArgType(
   if (scalarKind === undefined) return
 
   const value = route.call.args[name]
-  const mismatch = routeArgMismatch(value, type, scalarKind)
+  const mismatch = routeArgMismatch(value, scalarKind)
   if (mismatch === undefined) return
 
   issues.push(routeAbiIssue(
@@ -254,7 +253,6 @@ function validateRouteArgType(
 
 function routeArgMismatch(
   value: unknown,
-  type: string,
   expected: "address" | "bool" | "bytes" | "fixed-bytes" | "integer" | "string",
 ): string | undefined {
   if (expected === "string" && typeof value === "string") return undefined
@@ -275,11 +273,8 @@ function routeArgMismatch(
     return known.kind === "bytes" ? undefined : `value is ${known.description}`
   }
   if (expected === "fixed-bytes") {
-    const fixedBytesLength = parseAbiFixedBytesLength(type)
     if (known.kind !== "bytes") return `value is ${known.description}`
-    if (fixedBytesLength === undefined || typeof value !== "string") return undefined
-    const byteLength = (value.length - 2) / 2
-    return byteLength === fixedBytesLength ? undefined : `value is ${byteLength} bytes`
+    return undefined
   }
 
   return known.kind === "string" || known.kind === "address" || known.kind === "bytes" || known.kind === "integer"
@@ -294,23 +289,20 @@ function knownRouteArgValue(value: unknown): { readonly kind: string, readonly d
   if (typeof value !== "string") return undefined
 
   const reference = expressionReference(value)
-  if (reference !== undefined) {
-    if (reference.root === "account" && reference.segments.join(".") === "address") {
-      return { kind: "address", description: "$account.address" }
-    }
-    if (reference.root === "host" && reference.segments.join(".") === "address") {
-      return { kind: "address", description: "$host.address" }
-    }
-    if (reference.root === "host" && reference.segments.join(".") === "chainId") {
-      return { kind: "string", description: "$host.chainId" }
-    }
+  if (reference === undefined) {
     return undefined
   }
 
-  if (/^0x[0-9a-fA-F]{40}$/.test(value)) return { kind: "address", description: "an address literal" }
-  if (/^0x(?:[0-9a-fA-F]{2})*$/.test(value)) return { kind: "bytes", description: "a bytes literal" }
-  if (/^-?[0-9]+$/.test(value)) return { kind: "integer", description: "a decimal string literal" }
-  return { kind: "string", description: "a string literal" }
+  if (reference.root === "account" && reference.segments.join(".") === "address") {
+    return { kind: "address", description: "$account.address" }
+  }
+  if (reference.root === "host" && reference.segments.join(".") === "address") {
+    return { kind: "address", description: "$host.address" }
+  }
+  if (reference.root === "host" && reference.segments.join(".") === "chainId") {
+    return { kind: "string", description: "$host.chainId" }
+  }
+  return undefined
 }
 
 function validateRouteOutputRefs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {
