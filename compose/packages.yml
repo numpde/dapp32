@@ -70,3 +70,16 @@ services:
       - "npm"
       - "run"
       - "test:workspace"
+
+  cam-conformance-check:
+    <<: *package_base
+    volumes:
+      - ../dapps:/work/dapps:ro
+      - ../js:/input/js:ro
+      - ../js/node_modules:/work/js/node_modules:ro
+      - ../tests/fixtures:/work/tests/fixtures:ro
+    command:
+      - "run-js-workspace"
+      - "npm"
+      - "run"
+      - "test:cam-conformance"

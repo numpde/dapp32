@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .common import read_text
-from tools.json_policy import JsonPolicyError, strict_json_loads
 from tools.cam_resource_integrity import CamResourceIntegrityError, local_resource_path
 
 
@@ -50,32 +48,6 @@ def validate_local_abi_uri(
         failures.append(str(error))
 
     return failures
-
-
-def load_local_abi_array(
-    manifest_path: Path,
-    contract_name: str,
-    abi_uri: object,
-) -> list[object]:
-    resolved = checked_local_abi_path(manifest_path, contract_name, abi_uri)
-    abi_error: JsonPolicyError | None = None
-    try:
-        abi = strict_json_loads(read_text(resolved))
-    except JsonPolicyError as error:
-        abi = None
-        abi_error = error
-
-    if abi_error is not None:
-        raise CamAbiResourceError(
-            f"{manifest_path}: {contract_abi_uri_path(contract_name)} target is invalid JSON: {abi_uri}: {abi_error}"
-        )
-
-    if not isinstance(abi, list):
-        raise CamAbiResourceError(
-            f"{manifest_path}: {contract_abi_uri_path(contract_name)} target must be a JSON ABI array: {abi_uri}"
-        )
-
-    return abi
 
 
 def checked_local_abi_path(

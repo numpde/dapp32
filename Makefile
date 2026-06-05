@@ -92,7 +92,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
 
 help:
 	@printf '%s\n' \
@@ -106,6 +106,7 @@ help:
 	  '  make package-build-check  Validate npm workspace builds offline' \
 	  '  make package-test   Build and test npm workspace packages/apps offline' \
 	  '  make package-ci     Run JS workspace tests and viewer terminal checks offline' \
+	  '  make cam-conformance-check  Validate checked-in CAM bundles offline' \
 	  '  make viewer-terminal-check  Smoke-check the CAM viewer terminal offline' \
 	  '  make viewer-terminal  Run the CAM viewer terminal offline; defaults to VIEWER_TERMINAL_MOCK=bike-nft' \
 	  '  make viewer-terminal-status  Show viewer terminal Compose status' \
@@ -298,6 +299,9 @@ package-test:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
 package-ci: package-test viewer-terminal-check
+
+cam-conformance-check:
+	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
 
 viewer-terminal-check:
 	@$(NON_ROOT_GUARD); \

@@ -496,8 +496,9 @@ class RenderedComposePostureTest(unittest.TestCase):
         verify = compose_service(config, "package-graph-check")
         build = compose_service(config, "package-build-check")
         test = compose_service(config, "package-test")
+        conformance = compose_service(config, "cam-conformance-check")
         self.assertNotIn("package-ci", config["services"])
-        for config_service in [verify, build, test]:
+        for config_service in [verify, build, test, conformance]:
             self.assert_hardened(config_service)
             self.assertEqual("none", config_service.get("network_mode"))
             self.assertEqual("/work/js", config_service.get("working_dir"))
@@ -506,6 +507,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             self.assert_staged_package_workspace(config_service)
 
         self.assert_read_only_volumes(test, "/work/dapps", "/work/tests/fixtures")
+        self.assert_read_only_volumes(conformance, "/work/dapps", "/work/tests/fixtures")
 
         mock_config = rendered_compose_config(
             "compose/viewer-terminal.yml",
