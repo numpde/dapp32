@@ -151,6 +151,34 @@ test("snapshot returns isolated copies of nested route and resolved UI data", as
   assert.equal(mutableRecord(nextSnapshot.resolvedUi?.props).title, "Bicycle component registry")
 })
 
+test("load failures do not expose a partially loaded session", async () => {
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const session = createSession(sessionFixtureOptions({
+    publicClient: {
+      ...publicClient,
+      readContract: (async (request) => {
+        if (request.functionName === BIKE_VIEW_ENTRY) {
+          throw new Error("entry route failed")
+        }
+        return await publicClient.readContract(request)
+      }) as typeof publicClient.readContract,
+    },
+  }))
+
+  await assert.rejects(
+    () => session.load(),
+    (error) => error instanceof Error,
+  )
+  const failedSnapshot = session.snapshot()
+  assert.deepEqual(failedSnapshot.account, { address: userAddress })
+  assert.deepEqual(Object.entries(failedSnapshot.inputs), [])
+  assert.equal("route" in failedSnapshot, false)
+  await assert.rejects(
+    () => session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER }),
+    (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_NOT_LOADED",
+  )
+})
+
 test("setAccount before load fails without mutating the session", async () => {
   const session = createSession(sessionFixtureOptions({}))
 

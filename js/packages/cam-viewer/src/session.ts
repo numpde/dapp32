@@ -121,15 +121,19 @@ export function createCamViewerSession({
     const uiResource = uiResourceDeclaration(loadedCam.cam, loadedCam.camURI)
     const ui = await loadUi(uiResource.uri, uiResource.integrity)
 
-    loadedState = {
+    const nextLoadedState = {
       cam: loadedCam.cam,
       camURI: loadedCam.camURI,
       contracts,
       uiURI: uiResource.uri,
       ui,
     }
+    const nextView = await resolveLoadedView(nextLoadedState, loadedCam.cam.entry, initialRouteInputs)
 
-    return await navigateLoaded(loadedCam.cam.entry, initialRouteInputs)
+    loadedState = nextLoadedState
+    currentView = nextView
+
+    return loadedSnapshot(currentView)
   }
 
   async function navigate(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
@@ -210,6 +214,18 @@ export function createCamViewerSession({
 
   async function navigateLoaded(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
     const current = assertLoaded()
+    const nextView = await resolveLoadedView(current, nextRoute, nextInputs)
+
+    currentView = nextView
+
+    return loadedSnapshot(currentView)
+  }
+
+  async function resolveLoadedView(
+    current: CamViewerLoadedState,
+    nextRoute: string,
+    nextInputs: InertRecord,
+  ): Promise<CurrentView> {
     const routeInputs = cloneViewerData<InertRecord>(nextInputs, "inputs")
     const routeDeclaration = current.cam.routes[nextRoute]
     if (routeDeclaration === undefined || routeDeclaration.kind !== "read") {
@@ -224,16 +240,14 @@ export function createCamViewerSession({
       context: routeContext(routeInputs, []),
     })
 
-    const initial = resolveInitialUi(current.cam, nextRoute, routeInputs, routeResult.values)
-    currentView = {
+    const initial = resolveInitialUi(current, nextRoute, routeInputs, routeResult.values)
+    return {
       route: nextRoute,
       inputs: routeInputs,
       state: initial.state,
       resolvedUi: initial.resolvedUi,
       values: routeResult.values,
     }
-
-    return loadedSnapshot(currentView)
   }
 
   async function loadUi(uri: string, integrity: string): Promise<UiDocument> {
@@ -257,7 +271,7 @@ export function createCamViewerSession({
   }
 
   function resolveInitialUi(
-    cam: CamDocument,
+    current: CamViewerLoadedState,
     route: string,
     inputs: InertRecord,
     values: readonly InertValue[],
@@ -265,9 +279,8 @@ export function createCamViewerSession({
     readonly state: InertRecord
     readonly resolvedUi: ResolvedUiNode
   } {
-    const current = assertLoaded()
     const context = routeContext(inputs, values)
-    const then = resolveRouteThen(cam, route, context)
+    const then = resolveRouteThen(current.cam, route, context)
     if (then.namespace !== CAM_UI_NAMESPACE) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
     }
