@@ -159,6 +159,7 @@ export function createCamViewerSession({
     }
 
     const statePatch = cloneViewerData<InertRecord>(patch, "state")
+    assertStatePatchTargets(currentView.resolvedUi, statePatch)
     const state = cloneViewerData<InertRecord>(
       {
         ...currentView.state,
@@ -273,7 +274,7 @@ export function createCamViewerSession({
 
     // UI initial resolution is deliberately two-pass: input nodes establish the
     // state values first, then action nodes can safely read $state.
-    return resolveInitialUiNode(current.ui, then.function, then.args, uiContext(inputs, values, activeState()))
+    return resolveInitialUiNode(current.ui, then.function, then.args, uiContext(inputs, values, createStringMap<InertValue>()))
   }
 
   function resolveCurrentUi(
@@ -345,17 +346,6 @@ export function createCamViewerSession({
     }
   }
 
-  function activeState(): InertRecord {
-    if (currentView !== undefined) {
-      return currentView.state
-    }
-
-    // Route calls can run before any UI has been resolved, so there may be no
-    // state yet. Use an explicit empty inert record instead of hiding this as a
-    // nullable snapshot fallback.
-    return createStringMap<InertValue>()
-  }
-
   function assertLoaded(): CamViewerLoadedState {
     if (loadedState === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session is not loaded")
@@ -372,6 +362,24 @@ export function createCamViewerSession({
     updateState,
     dispatchAction,
   }
+}
+
+function assertStatePatchTargets(ui: ResolvedUiNode, patch: InertRecord): void {
+  for (const name of Object.keys(patch)) {
+    if (!hasRenderedInput(ui, name)) {
+      throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `CAM viewer state field has no rendered input: ${name}`)
+    }
+  }
+}
+
+function hasRenderedInput(ui: ResolvedUiNode, name: string): boolean {
+  if (ui.tag === "Input") return ui.props.name === name
+
+  if ("children" in ui) {
+    return ui.children.some((child) => hasRenderedInput(child, name))
+  }
+
+  return false
 }
 
 function uiResourceDeclaration(cam: CamDocument, camURI: string): {

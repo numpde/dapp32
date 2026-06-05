@@ -190,6 +190,18 @@ test("setAccount reload failures preserve the previous loaded snapshot", async (
   assert.deepEqual(session.snapshot(), before)
 })
 
+test("updateState rejects fields that are not backed by rendered inputs", async () => {
+  const session = createSession(sessionFixtureOptions({}))
+  const before = await session.load()
+
+  assert.throws(
+    () => session.updateState({ typoSerialNumber: BIKE_SERIAL_NUMBER }),
+    (error) => error instanceof CamViewerError
+      && error.code === "CAM_VIEWER_INVALID_INERT_VALUE",
+  )
+  assert.deepEqual(session.snapshot(), before)
+})
+
 test("updateState resolves route actions, while write routes are surfaced without sending", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
   const session = createSession(sessionFixtureOptions({ publicClient }))
