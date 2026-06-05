@@ -98,6 +98,73 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertEq(ui.viewComponent(SERIAL, owner).tokenURI, UPDATED_TOKEN_URI, "UI route should show updated metadata");
     }
 
+    // This is the compact lifecycle smoke test for the dapp-facing state
+    // machine. It starts from empty/not-found route states, performs the real
+    // manager writes, and checks that each state transition changes the UI
+    // projection an agent would consume.
+    function test_lookupRegisterMissingClearAndRetireLifecycleProjection() external {
+        BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent("", owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "empty lookup should have its own view");
+        assertEq(view_.serialNumber, "", "empty lookup should preserve the submitted serial");
+        assertLookupAndRegisterActions(view_.actions);
+
+        view_ = ui.viewRegister("", registrar);
+        assertEq(view_.viewId, VIEW_REGISTER_EMPTY, "empty registration should have its own view");
+        assertEq(view_.componentsAddress, address(components), "empty registration should expose collection address");
+        assertLookupAndRegisterActions(view_.actions);
+
+        vm.prank(registrar);
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.registerComponent(owner, "", TOKEN_URI);
+
+        view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "unknown serial should be not-found");
+        assertFalse(view_.exists, "unknown serial must not be treated as a component");
+        assertEq(view_.serialNumber, SERIAL, "not-found view should preserve lookup serial");
+        assertLookupAndRegisterActions(view_.actions);
+
+        vm.prank(registrar);
+        manager.registerComponent(owner, SERIAL, TOKEN_URI);
+
+        view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "registered serial should be found");
+        assertEq(uint8(view_.status), uint8(IBicycleComponentManagerView.ComponentStatus.Active), "new component status");
+        assertActiveOwnerActions(view_.actions);
+
+        vm.prank(owner);
+        manager.markMissing(SERIAL);
+
+        view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(
+            uint8(view_.status),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
+            "missing status should project"
+        );
+        assertMissingOwnerActions(view_.actions);
+
+        vm.prank(owner);
+        manager.clearMissing(SERIAL);
+
+        view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(
+            uint8(view_.status),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Active),
+            "clear missing should restore active status"
+        );
+        assertActiveOwnerActions(view_.actions);
+
+        vm.prank(owner);
+        manager.retireComponent(SERIAL);
+
+        view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(
+            uint8(view_.status),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
+            "retired status should project"
+        );
+        assertLookupOnly(view_.actions);
+    }
+
     // A used-bike sale is where ownership, delegation, status, account metadata,
     // and UI actions cross contract boundaries. The old owner/delegate must lose
     // control immediately when the ERC721 owner changes.
