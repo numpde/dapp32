@@ -59,7 +59,6 @@ test("malformed declared UI document inventory is reported before runtime compat
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DOCUMENT_INVALID", "nodes"],
-    ["CAM_UI_FIELD_INVALID", "nodes"],
   ])
 })
 
@@ -76,7 +75,6 @@ test("empty UI node inventory is reported as a document issue", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DOCUMENT_INVALID", "nodes"],
-    ["CAM_UI_FIELD_INVALID", undefined],
   ])
 })
 
