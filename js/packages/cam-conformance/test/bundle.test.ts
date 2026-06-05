@@ -56,6 +56,49 @@ test("malformed declared UI document inventory is reported before runtime compat
   ])
 })
 
+test("empty UI node inventory is reported as a document issue", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {},
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DOCUMENT_INVALID", "nodes"],
+    ["CAM_UI_INVALID", undefined],
+  ])
+})
+
+test("empty UI node names are reported as node inventory issues", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      "": {
+        tag: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_NODE_INTERFACE_INVALID", "nodes"],
+    ["CAM_ROUTE_HANDOFF_MISMATCH", "routes.entry.then.function"],
+    ["CAM_UI_INVALID", "nodes"],
+  ])
+})
+
 test("invalid root CAM bytes report the caller-supplied root URI", () => {
   const issues = validateCamBundle({
     ...minimalBundle(),

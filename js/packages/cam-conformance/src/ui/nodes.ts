@@ -35,6 +35,11 @@ export function declaredUiNodes({
     visit: (resource, ui) => {
       nodes = new Map<string, DeclaredUiNode>()
       for (const [name, node] of Object.entries(ui.nodes)) {
+        if (name.length === 0) {
+          issues.push(uiNodeInterfaceIssue(resource, "nodes", "UI node name must not be empty"))
+          continue
+        }
+
         const requires = nodeRequires(resource, name, node, issues)
         nodes.set(name, {
           name,

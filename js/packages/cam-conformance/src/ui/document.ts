@@ -30,6 +30,9 @@ export function parseRawUiDocument(bytes: Uint8Array): RawUiDocument {
   if (!isRecordObject(value.nodes)) {
     throw new RawUiDocumentError("UI resource nodes must be an object", "nodes")
   }
+  if (Object.keys(value.nodes).length === 0) {
+    throw new RawUiDocumentError("UI resource must declare at least one node", "nodes")
+  }
 
   return {
     value,
