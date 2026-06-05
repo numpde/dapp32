@@ -1,4 +1,5 @@
 import {
+  abiScalarKind,
   UI_PROP_SCHEMAS,
   type UiPropTag,
   isRecordObject,
@@ -225,8 +226,9 @@ function abiType(value: unknown): string {
 
   const type = value.type
   if (type === "address" || type === "string" || type === "bool" || type === "bytes" || type === "tuple") return type
-  if (/^u?int(?:[0-9]+)?$/.test(type)) return "integer"
-  if (/^bytes[0-9]+$/.test(type)) return "bytes"
+  const scalarKind = abiScalarKind(type)
+  if (scalarKind === "integer") return "integer"
+  if (scalarKind === "fixed-bytes") return "bytes"
   if (type === "string[]") return "string-array"
   if (type.endsWith("[]")) return "array"
   return type

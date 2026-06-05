@@ -1,5 +1,7 @@
 import {
+  isFixedAbiArrayType,
   isRecordObject,
+  isSupportedAbiScalarType,
   parseJsonBytes,
 } from "@cam/protocol"
 
@@ -274,7 +276,7 @@ function validateOutputFieldPath(
     return
   }
 
-  if (/\[[0-9]+\]$/.test(type)) {
+  if (isFixedAbiArrayType(type)) {
     issues.push(routeAbiIssue(resource, path, `fixed-size route output arrays are not supported: ${type}`))
     return
   }
@@ -487,14 +489,14 @@ function canonicalAbiType(
     return elementType === undefined ? undefined : `${elementType}[]`
   }
 
-  if (/\[[0-9]+\]$/.test(type)) {
+  if (isFixedAbiArrayType(type)) {
     issues.push(abiIssue(resource, path, `ABI fixed-size arrays are not supported: ${type}`))
     return undefined
   }
 
   const suffix = tupleArraySuffix(type)
   if (suffix === undefined) {
-    if (!isSupportedScalarAbiType(type)) {
+    if (!isSupportedAbiScalarType(type)) {
       issues.push(abiIssue(resource, path, `ABI ${position} type is not supported: ${type}`))
       return undefined
     }
@@ -534,31 +536,6 @@ function firstSignature(functions: readonly AbiFunction[]): string {
 function tupleArraySuffix(type: string): string | undefined {
   if (type === "tuple") return ""
   return undefined
-}
-
-function isSupportedScalarAbiType(type: string): boolean {
-  return type === "string"
-    || type === "address"
-    || type === "bool"
-    || type === "bytes"
-    || isSupportedIntegerType(type)
-    || isSupportedFixedBytesType(type)
-}
-
-function isSupportedIntegerType(type: string): boolean {
-  const match = /^(u?)int([0-9]*)$/.exec(type)
-  if (match === null) return false
-
-  const bits = match[2] === "" ? 256 : Number(match[2])
-  return Number.isInteger(bits) && bits >= 8 && bits <= 256 && bits % 8 === 0
-}
-
-function isSupportedFixedBytesType(type: string): boolean {
-  const match = /^bytes([0-9]+)$/.exec(type)
-  if (match === null) return false
-
-  const bytes = Number(match[1])
-  return Number.isInteger(bytes) && bytes >= 1 && bytes <= 32
 }
 
 function outputExpressionSegments(value: string): readonly string[] | undefined {

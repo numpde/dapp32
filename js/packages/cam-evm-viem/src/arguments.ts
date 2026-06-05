@@ -2,17 +2,16 @@ import { isAddress } from "viem"
 import type { AbiFunction, AbiParameter } from "viem"
 import {
   isRecordObject,
+  parseAbiFixedBytesLength,
+  parseAbiIntegerType,
   toInertValue,
 } from "@cam/protocol"
-import type { InertValue } from "@cam/protocol"
+import type { AbiIntegerType, InertValue } from "@cam/protocol"
 
 import {
   dynamicArrayElement,
   integerBounds,
-  parseFixedBytesLength,
-  parseIntegerType,
 } from "./abi-values.ts"
-import type { IntegerType } from "./abi-values.ts"
 import { CamEvmError } from "./errors.ts"
 
 type ArgumentErrorCode = "CAM_ROUTE_INVALID_ARGUMENT" | "CAM_WRITE_INVALID_ARGUMENT"
@@ -106,7 +105,7 @@ function normalizeAbiArg(
   }
 
   try {
-    const integerType = parseIntegerType(type)
+    const integerType = parseAbiIntegerType(type)
     if (integerType !== undefined) {
       return normalizeInteger(value, errorCode, path, integerType)
     }
@@ -116,7 +115,7 @@ function normalizeAbiArg(
 
   let fixedBytesLength: number | undefined
   try {
-    fixedBytesLength = parseFixedBytesLength(type)
+    fixedBytesLength = parseAbiFixedBytesLength(type)
   } catch (cause) {
     throw invalidArg(errorCode, path, "", cause instanceof Error ? cause.message : String(cause))
   }
@@ -158,7 +157,7 @@ function normalizeAbiArg(
   throw invalidArg(errorCode, path, "", `unsupported ABI input type: ${type}`)
 }
 
-function normalizeInteger(value: InertValue, errorCode: ArgumentErrorCode, path: string, type: IntegerType): bigint {
+function normalizeInteger(value: InertValue, errorCode: ArgumentErrorCode, path: string, type: AbiIntegerType): bigint {
   if (typeof value === "number" && Number.isSafeInteger(value)) {
     return requireIntegerBounds(value, errorCode, path, type)
   }
@@ -170,7 +169,7 @@ function normalizeInteger(value: InertValue, errorCode: ArgumentErrorCode, path:
   throw invalidArg(errorCode, path, "", "expected integer")
 }
 
-function requireIntegerBounds(value: bigint | number, errorCode: ArgumentErrorCode, path: string, type: IntegerType): bigint {
+function requireIntegerBounds(value: bigint | number, errorCode: ArgumentErrorCode, path: string, type: AbiIntegerType): bigint {
   const bigintValue = typeof value === "bigint" ? value : BigInt(value)
   const { min, max } = integerBounds(type)
 

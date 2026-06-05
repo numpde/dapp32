@@ -1,4 +1,16 @@
 export {
+  abiScalarKind,
+  isFixedAbiArrayType,
+  isSupportedAbiScalarType,
+  parseAbiFixedBytesLength,
+  parseAbiIntegerType,
+} from "./abi-types.ts"
+export type {
+  AbiIntegerType,
+  AbiScalarKind,
+} from "./abi-types.ts"
+
+export {
   CAM_VERSION,
   UI_VERSION,
 } from "./versions.ts"

@@ -1,10 +1,13 @@
 import { resolveRouteCall } from "@cam/core"
 import {
   createStringMap,
+  isFixedAbiArrayType,
   isRecordObject,
+  parseAbiFixedBytesLength,
+  parseAbiIntegerType,
 } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
-import type { CamRuntimeContext, InertValue } from "@cam/protocol"
+import type { AbiIntegerType, CamRuntimeContext, InertValue } from "@cam/protocol"
 import { isAddress } from "viem"
 import type { Abi, AbiFunction, AbiParameter, Address } from "viem"
 
@@ -12,12 +15,9 @@ import { abiFunctionInputs, normalizeAbiArgs } from "./arguments.ts"
 import {
   dynamicArrayElement,
   integerBounds,
-  isFixedArrayType,
   isTupleParameter,
-  parseFixedBytesLength,
-  parseIntegerType,
 } from "./abi-values.ts"
-import type { AbiTupleParameter, IntegerType } from "./abi-values.ts"
+import type { AbiTupleParameter } from "./abi-values.ts"
 import { findUniqueAbiFunction, singleFunctionAbi } from "./abi-functions.ts"
 import { assertClientChain } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
@@ -160,7 +160,7 @@ function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string
     return value.map((item, index) => normalizeAbiValue(item, element, `${path}.${index}`))
   }
 
-  if (isFixedArrayType(type)) {
+  if (isFixedAbiArrayType(type)) {
     throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output fixed-size arrays are not supported at ${path}`)
   }
 
@@ -194,7 +194,7 @@ function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string
   }
 
   try {
-    const integerType = parseIntegerType(type)
+    const integerType = parseAbiIntegerType(type)
     if (integerType !== undefined) {
       return normalizeIntegerOutput(value, integerType, path)
     }
@@ -207,7 +207,7 @@ function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string
 
   let fixedBytesLength: number | undefined
   try {
-    fixedBytesLength = parseFixedBytesLength(type)
+    fixedBytesLength = parseAbiFixedBytesLength(type)
   } catch (cause) {
     throw new CamEvmError(
       "CAM_ROUTE_INVALID_RESULT",
@@ -252,7 +252,7 @@ function readTupleComponent(value: unknown, name: string, index: number): unknow
   return undefined
 }
 
-function normalizeIntegerOutput(value: unknown, type: IntegerType, path: string): string {
+function normalizeIntegerOutput(value: unknown, type: AbiIntegerType, path: string): string {
   const integer = integerOutputValue(value, path)
 
   const { min, max } = integerBounds(type)

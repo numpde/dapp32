@@ -2,10 +2,15 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  abiScalarKind,
   createExpressionRuntime,
   CamResourceIntegrityError,
   CAM_VERSION,
   InertValueError,
+  isFixedAbiArrayType,
+  isSupportedAbiScalarType,
+  parseAbiFixedBytesLength,
+  parseAbiIntegerType,
   parseJsonText,
   readBoundedResponseBytes,
   requireHttpOrigin,
@@ -19,6 +24,18 @@ import {
 test("exports protocol document versions from the protocol package", () => {
   assert.equal(CAM_VERSION, "1.0.0")
   assert.equal(UI_VERSION, "1.0.0")
+})
+
+test("owns CAM-supported ABI scalar grammar", () => {
+  assert.deepEqual(parseAbiIntegerType("int8"), { bits: 8, signed: true })
+  assert.deepEqual(parseAbiIntegerType("uint"), { bits: 256, signed: false })
+  assert.equal(parseAbiFixedBytesLength("bytes32"), 32)
+  assert.equal(abiScalarKind("uint256"), "integer")
+  assert.equal(abiScalarKind("bytes32"), "fixed-bytes")
+  assert.equal(isSupportedAbiScalarType("address"), true)
+  assert.equal(isSupportedAbiScalarType("uint257"), false)
+  assert.equal(isSupportedAbiScalarType("bytes33"), false)
+  assert.equal(isFixedAbiArrayType("uint256[2]"), true)
 })
 
 test("resolves expression payloads with caller-owned normalization and errors", () => {
