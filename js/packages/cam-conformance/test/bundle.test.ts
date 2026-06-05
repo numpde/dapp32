@@ -441,6 +441,33 @@ test("route invocations require function names and named args", () => {
   ])
 })
 
+test("route invocation arg names must not be empty", () => {
+  const issues = validateEditedRoot<{
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root) => {
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        "": "$account.address",
+      },
+    }
+    root.routes.entry.then = {
+      namespace: "ui",
+      function: "app",
+      args: {
+        "": "$outputs.0",
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.call.args"],
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then.args"],
+    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.call.args"],
+  ])
+})
+
 test("route calls must target functions declared by the namespace ABI", () => {
   const issues = validateEditedRoot<{
     readonly routes: Record<string, Record<string, unknown>>
