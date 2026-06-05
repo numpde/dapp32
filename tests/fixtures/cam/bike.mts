@@ -105,7 +105,7 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
 
 export function bikeComponentRouteResult(
   serialNumber: string,
-  account = BIKE_ACCOUNT_ADDRESS,
+  account: string,
 ): Record<string, unknown> {
   const exists = serialNumber === BIKE_SERIAL_NUMBER
   const empty = serialNumber.length === 0
@@ -143,7 +143,7 @@ export function bikeComponentRouteResult(
 
 export function bikeRegisterRouteResult(
   serialNumber: string,
-  account = BIKE_ACCOUNT_ADDRESS,
+  account: string,
 ): Record<string, unknown> {
   const hasSerialNumber = serialNumber.length > 0
   const exists = serialNumber === BIKE_SERIAL_NUMBER
