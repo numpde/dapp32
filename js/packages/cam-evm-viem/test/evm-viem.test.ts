@@ -834,6 +834,50 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
   ])
 })
 
+test("sendCamContractCall keeps tuple input component names as inert data", async () => {
+  const walletClient = createWalletClient()
+  const tupleAbi = [
+    {
+      type: "function",
+      name: "writeTuple",
+      stateMutability: "nonpayable",
+      inputs: [{
+        name: "payload",
+        type: "tuple",
+        components: [
+          { name: "__proto__", type: "string" },
+          { name: "value", type: "string" },
+        ],
+      }],
+      outputs: [],
+    },
+  ] as const satisfies Abi
+
+  await sendCamContractCall({
+    walletClient,
+    chain: testChain,
+    call: {
+      address: managerAddress,
+      abi: tupleAbi,
+      function: "writeTuple",
+      args: {
+        payload: toInertValue({
+          ["__proto__"]: "component-name",
+          value: "ordinary-value",
+        }),
+      },
+    },
+  })
+
+  const tupleArg = walletClient.calls[0]?.args?.[0]
+  assert.equal(typeof tupleArg, "object")
+  assert.notEqual(tupleArg, null)
+  assert.equal(Object.getPrototypeOf(tupleArg), null)
+  assert.equal(Object.hasOwn(tupleArg as Record<string, unknown>, "__proto__"), true)
+  assert.equal((tupleArg as Record<string, unknown>)["__proto__"], "component-name")
+  assert.equal((tupleArg as Record<string, unknown>).value, "ordinary-value")
+})
+
 test("sendCamContractCall resolves full signatures for overloaded writes", async () => {
   const walletClient = createWalletClient()
   const abi = overloadedMarkMissingAbi()
