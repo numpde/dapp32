@@ -84,62 +84,46 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertEq(view_.viewId, VIEW_ENTRY, "entry view mismatch");
         assertEq(view_.account, registrar, "entry account mismatch");
         assertTrue(view_.canRegister, "entry account should be allowed to register");
-        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertLookupAndRegisterActions(view_.actions);
 
         view_ = ui.viewComponent("", owner);
         assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "empty component view mismatch");
-        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertLookupAndRegisterActions(view_.actions);
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "missing component view mismatch");
         assertEq(view_.serialNumber, SERIAL, "missing component serial mismatch");
-        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertLookupAndRegisterActions(view_.actions);
 
         view_ = ui.viewRegister("", registrar);
         assertEq(view_.viewId, VIEW_REGISTER_EMPTY, "empty register view mismatch");
-        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertLookupAndRegisterActions(view_.actions);
 
         view_ = ui.viewRegister(SERIAL, registrar);
         assertEq(view_.viewId, VIEW_REGISTER_READY, "ready register view mismatch");
         assertEq(view_.componentsAddress, address(components), "register component address mismatch");
-        assertActions(view_.actions, expectedActions(ACTION_REGISTER_COMPONENT, ACTION_LOOKUP_COMPONENT));
+        assertRegisterReadyActions(view_.actions);
 
         view_ = ui.viewRegister(SERIAL, stranger);
         assertEq(view_.viewId, VIEW_REGISTER_BLOCKED, "unauthorized register view mismatch");
-        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(view_.actions);
 
         registerDefaultComponent();
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "found component view mismatch");
         assertEq(view_.tokenURI, TOKEN_URI, "found component token URI mismatch");
-        assertActions(
-            view_.actions,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_MARK_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
+        assertActiveOwnerActions(view_.actions);
 
         vm.prank(owner);
         manager.markMissing(SERIAL);
 
         view_ = ui.viewComponent(SERIAL, owner);
-        assertActions(
-            view_.actions,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_CLEAR_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
-            )
-        );
+        assertMissingOwnerActions(view_.actions);
 
         view_ = ui.viewRegister(SERIAL, registrar);
         assertEq(view_.viewId, VIEW_REGISTER_BLOCKED, "registered component register view mismatch");
-        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT));
+        assertLookupOnly(view_.actions);
     }
 
     function test_configurerCanChangeComponentAddressForFutureRegistrationsOnly() external {

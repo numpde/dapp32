@@ -62,7 +62,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         BicycleComponentManagerUI.AppView memory view_ = ui.viewRegister(SERIAL, registrar);
         assertEq(view_.viewId, VIEW_REGISTER_READY, "registrar should see registration-ready view");
         assertEq(view_.componentsAddress, address(components), "registration view should expose active collection");
-        assertActions(view_.actions, expectedActions(ACTION_REGISTER_COMPONENT, ACTION_LOOKUP_COMPONENT));
+        assertRegisterReadyActions(view_.actions);
 
         vm.prank(registrar);
         (address tokenContract, uint256 tokenId) = manager.registerComponent(owner, SERIAL, TOKEN_URI);
@@ -318,7 +318,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         BicycleComponentManagerUI.AppView memory entryView = ui.viewEntry(registrar);
         assertEq(entryView.viewId, VIEW_ENTRY, "entry route mismatch");
         assertTrue(entryView.canRegister, "registrar should start active");
-        assertActions(entryView.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+        assertLookupAndRegisterActions(entryView.actions);
         assertEq(ui.viewRegister(SECOND_SERIAL, registrar).viewId, VIEW_REGISTER_READY, "registrar should start ready");
 
         bytes32 registrarRole = manager.REGISTRAR_ROLE();
