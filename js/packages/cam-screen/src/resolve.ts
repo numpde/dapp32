@@ -153,6 +153,12 @@ function resolveNode(
         children: [],
       }]
   }
+
+  return unreachableUiNode(node)
+}
+
+function unreachableUiNode(_node: never): never {
+  throw new UiError("UI_INVALID_FIELD", "unsupported UI node tag")
 }
 
 function resolveElementNode(

@@ -159,6 +159,12 @@ function UiNodeView({
         </button>
       )
   }
+
+  return unreachableUiNode(node)
+}
+
+function unreachableUiNode(_node: never): never {
+  throw new Error("unsupported resolved UI node tag")
 }
 
 function stringProp(props: Record<string, InertValue>, name: string): string {
