@@ -421,6 +421,52 @@ test("full route function signatures disambiguate overloads", () => {
   assert.deepEqual(issues, [])
 })
 
+test("ABI resource validation rejects runtime-invalid function ABI shapes", () => {
+  assert.deepEqual(abiIssueLocationsFor(duplicateViewEntrySignatureAbiBytes()), [
+    ["CAM_ABI_INVALID", "1"],
+  ])
+
+  assert.deepEqual(abiIssueLocationsFor(jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "broken",
+          type: "uint257[]",
+        },
+      ],
+      outputs: [
+        {
+          name: "broken",
+          type: "bytes33",
+        },
+      ],
+    },
+  ])), [
+    ["CAM_ABI_INVALID", "0.inputs.0"],
+    ["CAM_ABI_INVALID", "0.outputs.0"],
+  ])
+
+  assert.deepEqual(abiIssueLocationsFor(jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "broken",
+          type: "uint256[2][]",
+        },
+      ],
+      outputs: [viewOutput()],
+    },
+  ])), [
+    ["CAM_ABI_INVALID", "0.inputs.0"],
+  ])
+})
+
 test("route call args must match named ABI inputs exactly", () => {
   const abiBytes = jsonBytes([
     {
@@ -1269,6 +1315,35 @@ function overloadedViewEntryAbiBytes(): Uint8Array {
       outputs: [viewOutput()],
     },
   ])
+}
+
+function duplicateViewEntrySignatureAbiBytes(): Uint8Array {
+  return jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [viewOutput()],
+    },
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [viewOutput()],
+    },
+  ])
+}
+
+function abiIssueLocationsFor(abiBytes: Uint8Array): readonly (readonly [string, string | undefined])[] {
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  return issueLocations(issues).filter(([rule]) => rule === "CAM_ABI_INVALID")
 }
 
 function mutableRoot<T extends Record<string, unknown> = Record<string, unknown>>(bundle: CamConformanceBundle): T {

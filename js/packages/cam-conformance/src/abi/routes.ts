@@ -321,9 +321,15 @@ function parseAbiFunctions(
   }
 
   const functions: AbiFunction[] = []
+  const signatures = new Set<string>()
   abi.forEach((item, index) => {
     const fn = parseAbiFunction(resource, item, String(index), issues)
     if (fn !== undefined) {
+      if (signatures.has(fn.signature)) {
+        issues.push(abiIssue(resource, String(index), `ABI contains duplicate function signature: ${fn.signature}`))
+        return
+      }
+      signatures.add(fn.signature)
       functions.push(fn)
     }
   })
@@ -347,6 +353,7 @@ function parseAbiFunction(
   const name = nonEmptyString(item.name)
   const stateMutability = abiStateMutability(item.stateMutability)
   const inputs = abiInputs(resource, path, item.inputs, issues)
+  const outputs = abiOutputs(resource, path, item.outputs, issues)
 
   if (name === undefined) {
     issues.push(abiIssue(resource, `${path}.name`, "ABI function name must be a non-empty string"))
@@ -354,11 +361,8 @@ function parseAbiFunction(
   if (stateMutability === undefined) {
     issues.push(abiIssue(resource, `${path}.stateMutability`, "ABI function stateMutability is not supported"))
   }
-  if (!Array.isArray(item.outputs)) {
-    issues.push(abiIssue(resource, `${path}.outputs`, "ABI function outputs must be an array"))
-  }
 
-  if (name === undefined || stateMutability === undefined || inputs === undefined || !Array.isArray(item.outputs)) {
+  if (name === undefined || stateMutability === undefined || inputs === undefined || outputs === undefined) {
     return undefined
   }
 
@@ -367,7 +371,7 @@ function parseAbiFunction(
     signature: `${name}(${inputs.types.join(",")})`,
     stateMutability,
     inputNames: inputs.names,
-    outputs: item.outputs,
+    outputs,
   }
 }
 
@@ -396,7 +400,7 @@ function abiInputs(
       issues.push(abiIssue(resource, `${inputPath}.name`, "ABI inputs used by CAM routes must be named"))
       return undefined
     }
-    const type = canonicalAbiType(resource, inputPath, input, issues)
+    const type = canonicalAbiType(resource, inputPath, input, "input", issues)
     if (type === undefined) {
       return undefined
     }
@@ -406,6 +410,30 @@ function abiInputs(
   }
 
   return { names, types }
+}
+
+function abiOutputs(
+  resource: string,
+  path: string,
+  outputs: unknown,
+  issues: CamConformanceIssue[],
+): readonly unknown[] | undefined {
+  if (!Array.isArray(outputs)) {
+    issues.push(abiIssue(resource, `${path}.outputs`, "ABI function outputs must be an array"))
+    return undefined
+  }
+
+  for (const [index, output] of outputs.entries()) {
+    if (!isRecordObject(output)) {
+      issues.push(abiIssue(resource, `${path}.outputs.${index}`, "ABI output must be an object"))
+      return undefined
+    }
+    if (canonicalAbiType(resource, `${path}.outputs.${index}`, output, "output", issues) === undefined) {
+      return undefined
+    }
+  }
+
+  return outputs
 }
 
 function functionsByName(functions: readonly AbiFunction[]): ReadonlyMap<string, readonly AbiFunction[]> {
@@ -442,19 +470,43 @@ function canonicalAbiType(
   resource: string,
   path: string,
   item: Record<string, unknown>,
+  position: "input" | "output",
   issues: CamConformanceIssue[],
 ): string | undefined {
+  // Keep this surface aligned with the runtime EVM adapter's function ABI
+  // parser. Conformance should reject ABI resources the viewer cannot load,
+  // without becoming a general-purpose Solidity ABI linter.
   const type = nonEmptyString(item.type)
   if (type === undefined) {
-    issues.push(abiIssue(resource, `${path}.type`, "ABI input type must be a non-empty string"))
+    issues.push(abiIssue(resource, `${path}.type`, `ABI ${position} type must be a non-empty string`))
+    return undefined
+  }
+
+  if (type.endsWith("[]")) {
+    const elementType = canonicalAbiType(resource, path, { ...item, type: type.slice(0, -2) }, position, issues)
+    return elementType === undefined ? undefined : `${elementType}[]`
+  }
+
+  if (/\[[0-9]+\]$/.test(type)) {
+    issues.push(abiIssue(resource, path, `ABI fixed-size arrays are not supported: ${type}`))
     return undefined
   }
 
   const suffix = tupleArraySuffix(type)
-  if (suffix === undefined) return type
+  if (suffix === undefined) {
+    if (!isSupportedScalarAbiType(type)) {
+      issues.push(abiIssue(resource, path, `ABI ${position} type is not supported: ${type}`))
+      return undefined
+    }
+    if ("components" in item) {
+      issues.push(abiIssue(resource, `${path}.components`, "ABI components require a tuple type"))
+      return undefined
+    }
+    return type
+  }
 
   if (!Array.isArray(item.components)) {
-    issues.push(abiIssue(resource, `${path}.components`, "tuple ABI input must declare components"))
+    issues.push(abiIssue(resource, `${path}.components`, `tuple ABI ${position} must declare components`))
     return undefined
   }
 
@@ -465,7 +517,7 @@ function canonicalAbiType(
       return undefined
     }
 
-    const componentType = canonicalAbiType(resource, `${path}.components.${index}`, component, issues)
+    const componentType = canonicalAbiType(resource, `${path}.components.${index}`, component, position, issues)
     if (componentType === undefined) return undefined
     componentTypes.push(componentType)
   }
@@ -481,8 +533,32 @@ function firstSignature(functions: readonly AbiFunction[]): string {
 
 function tupleArraySuffix(type: string): string | undefined {
   if (type === "tuple") return ""
-  if (/^tuple(\[[0-9]*\])+$/.test(type)) return type.slice("tuple".length)
   return undefined
+}
+
+function isSupportedScalarAbiType(type: string): boolean {
+  return type === "string"
+    || type === "address"
+    || type === "bool"
+    || type === "bytes"
+    || isSupportedIntegerType(type)
+    || isSupportedFixedBytesType(type)
+}
+
+function isSupportedIntegerType(type: string): boolean {
+  const match = /^(u?)int([0-9]*)$/.exec(type)
+  if (match === null) return false
+
+  const bits = match[2] === "" ? 256 : Number(match[2])
+  return Number.isInteger(bits) && bits >= 8 && bits <= 256 && bits % 8 === 0
+}
+
+function isSupportedFixedBytesType(type: string): boolean {
+  const match = /^bytes([0-9]+)$/.exec(type)
+  if (match === null) return false
+
+  const bytes = Number(match[1])
+  return Number.isInteger(bytes) && bytes >= 1 && bytes <= 32
 }
 
 function outputExpressionSegments(value: string): readonly string[] | undefined {
