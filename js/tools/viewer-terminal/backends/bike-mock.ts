@@ -104,10 +104,14 @@ function mockReadContract(functionName: string, args: readonly InertValue[]): un
       return contractAddress(requireStringArgs(functionName, args, 1)[0])
     case BIKE_VIEW_ENTRY:
       return bikeEntryRouteResult(requireStringArgs(functionName, args, 1)[0])
-    case BIKE_VIEW_COMPONENT:
-      return bikeComponentRouteResult(requireStringArgs(functionName, args, 2)[0])
-    case BIKE_VIEW_REGISTER:
-      return bikeRegisterRouteResult(requireStringArgs(functionName, args, 2)[0])
+    case BIKE_VIEW_COMPONENT: {
+      const routeArgs = requireStringArgs(functionName, args, 2)
+      return bikeComponentRouteResult(routeArgs[0], routeArgs[1])
+    }
+    case BIKE_VIEW_REGISTER: {
+      const routeArgs = requireStringArgs(functionName, args, 2)
+      return bikeRegisterRouteResult(routeArgs[0], routeArgs[1])
+    }
     default:
       throw new Error(`unexpected readContract call: ${functionName}`)
   }

@@ -30,7 +30,9 @@ import {
   BIKE_MARK_MISSING,
   BIKE_ROUTE_COMPONENT,
   BIKE_ROUTE_ENTRY,
+  BIKE_SERIAL_HASH,
   BIKE_SERIAL_NUMBER,
+  BIKE_TOKEN_ID,
   BIKE_UNSIGNED_CAM_HASH,
   BIKE_UI_ABI_URI as uiAbiURI,
   BIKE_UI_ADDRESS as uiAddress,
@@ -332,14 +334,14 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
   assert.deepEqual(publicClient.calls.at(-1)?.args, [BIKE_SERIAL_NUMBER, userAddress])
   assert.deepEqual(result.values[0], toInertValue({
     viewId: "component.found",
-    actions: ["markComponentMissing"],
+    actions: ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"],
     account: userAddress,
     canRegister: true,
     accountInfo: "Mock registrar account",
     exists: true,
-    serialHash: "0x1111111111111111111111111111111111111111111111111111111111111111",
+    serialHash: BIKE_SERIAL_HASH,
     tokenContract: "0x0000000000000000000000000000000000000010",
-    tokenId: "42",
+    tokenId: BIKE_TOKEN_ID.toString(),
     owner: userAddress,
     ownerInfo: "Mock owner account",
     registrar: userAddress,
@@ -348,13 +350,13 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     registeredAt: "1",
     updatedAt: "2",
     serialNumber: BIKE_SERIAL_NUMBER,
-    permissions: "7",
+    permissions: "15",
     isOwner: true,
     canUpdateMetadata: true,
     canMarkMissing: true,
     canClearMissing: false,
     canRetire: true,
-    componentsAddress: "0x0000000000000000000000000000000000000010",
+    componentsAddress: "0x0000000000000000000000000000000000000000",
   }))
 })
 

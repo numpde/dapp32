@@ -20,13 +20,20 @@ import {
   BIKE_MANAGER_ADDRESS as managerAddress,
   BIKE_ROUTE_COMPONENT,
   BIKE_ROUTE_ENTRY,
+  BIKE_SERIAL_HASH,
   BIKE_SERIAL_NUMBER,
+  BIKE_TOKEN_ID,
+  BIKE_UNKNOWN_SERIAL_HASH,
+  BIKE_UNKNOWN_SERIAL_NUMBER,
+  BIKE_UNKNOWN_TOKEN_ID,
   BIKE_UNSIGNED_CAM_HASH,
   BIKE_UI_NAMESPACE,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
+  bikeComponentRouteResult,
   bikeContractAddresses,
   bikeHost,
+  bikeRegisterRouteResult,
   bikeRouteResults,
 } from "../../../../tests/fixtures/cam/bike.mts"
 import { bikeManagerAbi } from "../../../../tests/fixtures/cam/bike-resources.mts"
@@ -39,6 +46,42 @@ import {
 const host: CamHost = bikeHost
 const otherUserAddress = "0x0000000000000000000000000000000000000099"
 const NO_RESOURCE_OVERRIDES = {}
+
+test("bike fixture models the real UI projection branch states", () => {
+  assertBikeProjection(bikeComponentRouteResult("", userAddress), {
+    viewId: "component.empty",
+    actions: ["lookupComponent", "openRegister"],
+  })
+  assertBikeProjection(bikeComponentRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress), {
+    viewId: "component.notFound",
+    actions: ["lookupComponent", "openRegister"],
+    serialHash: BIKE_UNKNOWN_SERIAL_HASH,
+    tokenId: BIKE_UNKNOWN_TOKEN_ID,
+  })
+  assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress), {
+    viewId: "component.found",
+    actions: ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"],
+    serialHash: BIKE_SERIAL_HASH,
+    tokenId: BIKE_TOKEN_ID,
+  })
+
+  assertBikeProjection(bikeRegisterRouteResult("", userAddress), {
+    viewId: "register.empty",
+    actions: ["lookupComponent", "openRegister"],
+  })
+  assertBikeProjection(bikeRegisterRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress), {
+    viewId: "register.ready",
+    actions: ["registerComponent", "lookupComponent"],
+    serialHash: BIKE_UNKNOWN_SERIAL_HASH,
+    tokenId: BIKE_UNKNOWN_TOKEN_ID,
+  })
+  assertBikeProjection(bikeRegisterRouteResult(BIKE_SERIAL_NUMBER, userAddress), {
+    viewId: "register.blocked",
+    actions: ["lookupComponent"],
+    serialHash: BIKE_SERIAL_HASH,
+    tokenId: BIKE_TOKEN_ID,
+  })
+})
 
 test("load resolves host CAM, entry route, UI resource, and entry view", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
@@ -59,11 +102,11 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
       serialNumber: "",
       exists: false,
       serialHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
-      tokenContract: "0x0000000000000000000000000000000000000010",
+      tokenContract: "0x0000000000000000000000000000000000000000",
       tokenId: "0",
-      owner: userAddress,
+      owner: "0x0000000000000000000000000000000000000000",
       ownerInfo: "",
-      registrar: userAddress,
+      registrar: "0x0000000000000000000000000000000000000000",
       status: "0",
       tokenURI: "",
       registeredAt: "0",
@@ -74,7 +117,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
       canMarkMissing: false,
       canClearMissing: false,
       canRetire: false,
-      componentsAddress: "0x0000000000000000000000000000000000000010",
+      componentsAddress: "0x0000000000000000000000000000000000000000",
     },
   ]))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
@@ -174,7 +217,9 @@ test("updateState resolves route actions, while write routes are surfaced withou
   if (!("children" in result.snapshot.resolvedUi)) {
     assert.fail("expected resolved root children")
   }
-  const writeAction = result.snapshot.resolvedUi.children.find((child) => child.tag === "Action")
+  const writeAction = result.snapshot.resolvedUi.children.find((child) =>
+    child.tag === "Action" && child.call.function === "markComponentMissing"
+  )
   assert.equal(writeAction?.tag, "Action")
   if (writeAction?.tag !== "Action") {
     assert.fail("expected resolved write action")
@@ -259,6 +304,15 @@ function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOption
     addresses: bikeContractAddresses,
     routeResults: bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
     ...overrides,
+  }
+}
+
+function assertBikeProjection(
+  actual: Record<string, unknown>,
+  expected: Readonly<Record<string, unknown>>,
+): void {
+  for (const [key, value] of Object.entries(expected)) {
+    assert.deepEqual(actual[key], value)
   }
 }
 

@@ -4,6 +4,7 @@ export const BIKE_ACCOUNT_ADDRESS = "0x0000000000000000000000000000000000000002"
 export const BIKE_UI_ADDRESS = "0x0000000000000000000000000000000000000003"
 export const BIKE_MANAGER_ADDRESS = "0x0000000000000000000000000000000000000004"
 export const BIKE_COMPONENTS_ADDRESS = "0x0000000000000000000000000000000000000010"
+export const BIKE_ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 export const BIKE_UI_CONTRACT = "BicycleComponentManagerUI"
 export const BIKE_MANAGER_CONTRACT = "BicycleComponentManager"
@@ -31,7 +32,12 @@ export const BIKE_MANAGER_ABI_URI = bikeResourceURI(BIKE_RELATIVE_MANAGER_ABI_UR
 export const BIKE_UI_URI = bikeResourceURI(BIKE_RELATIVE_UI_URI)
 
 export const BIKE_SERIAL_NUMBER = "ABC123"
+export const BIKE_UNKNOWN_SERIAL_NUMBER = "UNKNOWN123"
 export const BIKE_ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
+export const BIKE_SERIAL_HASH = "0x1111111111111111111111111111111111111111111111111111111111111111"
+export const BIKE_UNKNOWN_SERIAL_HASH = "0x2222222222222222222222222222222222222222222222222222222222222222"
+export const BIKE_TOKEN_ID = BigInt(BIKE_SERIAL_HASH)
+export const BIKE_UNKNOWN_TOKEN_ID = BigInt(BIKE_UNKNOWN_SERIAL_HASH)
 export const BIKE_UNSIGNED_CAM_HASH = BIKE_ZERO_BYTES32
 
 export const bikeHost = {
@@ -58,26 +64,31 @@ export function bikeRouteResults(
 ): Record<string, unknown> {
   return {
     [BIKE_VIEW_ENTRY]: bikeEntryRouteResult(account),
-    [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber),
-    [BIKE_VIEW_REGISTER]: bikeRegisterRouteResult(serialNumber),
+    [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber, account),
+    [BIKE_VIEW_REGISTER]: bikeRegisterRouteResult(serialNumber, account),
   }
 }
 
+// This fixture mirrors the route projection in BicycleComponentManagerUI, not
+// the whole manager. It deliberately models one registered active component and
+// treats every other non-empty serial as unregistered.
 export function bikeEntryRouteResult(account: string): Record<string, unknown> {
+  const canRegister = bikeCanRegister(account)
+
   return {
     viewId: "entry",
     actions: ["lookupComponent", "openRegister"],
     account,
-    canRegister: true,
-    accountInfo: "Mock registrar account",
+    canRegister,
+    accountInfo: bikeAccountInfo(account),
     serialNumber: "",
     exists: false,
     serialHash: BIKE_ZERO_BYTES32,
-    tokenContract: BIKE_COMPONENTS_ADDRESS,
+    tokenContract: BIKE_ZERO_ADDRESS,
     tokenId: 0n,
-    owner: account,
+    owner: BIKE_ZERO_ADDRESS,
     ownerInfo: "",
-    registrar: account,
+    registrar: BIKE_ZERO_ADDRESS,
     status: 0n,
     tokenURI: "",
     registeredAt: 0n,
@@ -88,63 +99,76 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
     canMarkMissing: false,
     canClearMissing: false,
     canRetire: false,
-    componentsAddress: BIKE_COMPONENTS_ADDRESS,
+    componentsAddress: BIKE_ZERO_ADDRESS,
   }
 }
 
-export function bikeComponentRouteResult(serialNumber: string): Record<string, unknown> {
-  const exists = serialNumber.length > 0
+export function bikeComponentRouteResult(
+  serialNumber: string,
+  account = BIKE_ACCOUNT_ADDRESS,
+): Record<string, unknown> {
+  const exists = serialNumber === BIKE_SERIAL_NUMBER
+  const empty = serialNumber.length === 0
+  const canAct = exists && account === BIKE_ACCOUNT_ADDRESS
 
   return {
-    viewId: exists ? "component.found" : "component.empty",
-    actions: exists ? ["markComponentMissing"] : ["lookupComponent", "openRegister"],
-    account: BIKE_ACCOUNT_ADDRESS,
-    canRegister: true,
-    accountInfo: "Mock registrar account",
+    viewId: empty ? "component.empty" : exists ? "component.found" : "component.notFound",
+    actions: exists
+      ? ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"]
+      : ["lookupComponent", "openRegister"],
+    account,
+    canRegister: bikeCanRegister(account),
+    accountInfo: bikeAccountInfo(account),
     exists,
     serialHash: exists
-      ? "0x1111111111111111111111111111111111111111111111111111111111111111"
-      : BIKE_ZERO_BYTES32,
-    tokenContract: BIKE_COMPONENTS_ADDRESS,
-    tokenId: exists ? 42n : 0n,
-    owner: BIKE_ACCOUNT_ADDRESS,
-    ownerInfo: "Mock owner account",
-    registrar: BIKE_ACCOUNT_ADDRESS,
+      ? BIKE_SERIAL_HASH
+      : empty ? BIKE_ZERO_BYTES32 : BIKE_UNKNOWN_SERIAL_HASH,
+    tokenContract: exists ? BIKE_COMPONENTS_ADDRESS : BIKE_ZERO_ADDRESS,
+    tokenId: exists ? BIKE_TOKEN_ID : empty ? 0n : BIKE_UNKNOWN_TOKEN_ID,
+    owner: exists ? BIKE_ACCOUNT_ADDRESS : BIKE_ZERO_ADDRESS,
+    ownerInfo: exists ? "Mock owner account" : "",
+    registrar: exists ? BIKE_ACCOUNT_ADDRESS : BIKE_ZERO_ADDRESS,
     status: exists ? 1n : 0n,
     tokenURI: exists ? `ipfs://example/token/${serialNumber}` : "",
     registeredAt: exists ? 1n : 0n,
     updatedAt: exists ? 2n : 0n,
     serialNumber,
-    permissions: 7n,
-    isOwner: true,
-    canUpdateMetadata: exists,
-    canMarkMissing: exists,
+    permissions: canAct ? 15n : 0n,
+    isOwner: canAct,
+    canUpdateMetadata: canAct,
+    canMarkMissing: canAct,
     canClearMissing: false,
-    canRetire: exists,
-    componentsAddress: BIKE_COMPONENTS_ADDRESS,
+    canRetire: canAct,
+    componentsAddress: BIKE_ZERO_ADDRESS,
   }
 }
 
-export function bikeRegisterRouteResult(serialNumber: string): Record<string, unknown> {
+export function bikeRegisterRouteResult(
+  serialNumber: string,
+  account = BIKE_ACCOUNT_ADDRESS,
+): Record<string, unknown> {
   const hasSerialNumber = serialNumber.length > 0
+  const exists = serialNumber === BIKE_SERIAL_NUMBER
+  const canRegister = bikeCanRegister(account)
+  const ready = hasSerialNumber && canRegister && !exists
 
   return {
-    viewId: hasSerialNumber ? "register.ready" : "register.empty",
-    actions: hasSerialNumber ? ["registerComponent"] : ["openRegister"],
-    account: BIKE_ACCOUNT_ADDRESS,
-    canRegister: true,
-    exists: false,
-    serialHash: hasSerialNumber
-      ? "0x2222222222222222222222222222222222222222222222222222222222222222"
-      : BIKE_ZERO_BYTES32,
-    tokenId: 0n,
+    viewId: !hasSerialNumber ? "register.empty" : ready ? "register.ready" : "register.blocked",
+    actions: ready
+      ? ["registerComponent", "lookupComponent"]
+      : hasSerialNumber ? ["lookupComponent"] : ["lookupComponent", "openRegister"],
+    account,
+    canRegister,
+    exists,
+    serialHash: hasSerialNumber ? exists ? BIKE_SERIAL_HASH : BIKE_UNKNOWN_SERIAL_HASH : BIKE_ZERO_BYTES32,
+    tokenId: exists ? BIKE_TOKEN_ID : hasSerialNumber ? BIKE_UNKNOWN_TOKEN_ID : 0n,
     componentsAddress: BIKE_COMPONENTS_ADDRESS,
     serialNumber,
-    accountInfo: "Mock registrar account",
-    tokenContract: BIKE_COMPONENTS_ADDRESS,
-    owner: BIKE_ACCOUNT_ADDRESS,
+    accountInfo: bikeAccountInfo(account),
+    tokenContract: BIKE_ZERO_ADDRESS,
+    owner: BIKE_ZERO_ADDRESS,
     ownerInfo: "",
-    registrar: BIKE_ACCOUNT_ADDRESS,
+    registrar: BIKE_ZERO_ADDRESS,
     status: 0n,
     tokenURI: "",
     registeredAt: 0n,
@@ -156,6 +180,14 @@ export function bikeRegisterRouteResult(serialNumber: string): Record<string, un
     canClearMissing: false,
     canRetire: false,
   }
+}
+
+function bikeCanRegister(account: string): boolean {
+  return account === BIKE_ACCOUNT_ADDRESS
+}
+
+function bikeAccountInfo(account: string): string {
+  return bikeCanRegister(account) ? "Mock registrar account" : ""
 }
 
 function bikeResourceURI(relativeURI: string): string {
