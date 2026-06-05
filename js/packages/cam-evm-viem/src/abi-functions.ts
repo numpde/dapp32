@@ -25,7 +25,7 @@ export function findUniqueAbiFunction({
   if (matches.length > 1) {
     throw new CamEvmError(
       ambiguousCode,
-      `CAM ${purpose} function is overloaded and not supported in CAM V1: ${functionName}`,
+      `CAM ${purpose} function is overloaded; use a full signature: ${functionName}`,
     )
   }
 
