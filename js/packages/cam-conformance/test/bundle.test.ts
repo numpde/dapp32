@@ -603,6 +603,40 @@ test("route call args with protocol-known values must match ABI scalar types", (
   ])
 })
 
+test("string route args reject known non-string literals", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "serialNumber",
+          type: "string",
+        },
+      ],
+      outputs: [viewOutput()],
+    },
+  ])
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        serialNumber: 123,
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.serialNumber"],
+  ])
+})
+
 test("route continuations must reference ABI-declared output indexes", () => {
   const abiBytes = jsonBytes([
     {
