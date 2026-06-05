@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from tools.cam_resource_integrity import CamResourceIntegrityError, local_resource_path
+from tools.cam_abi_plan import CamAbiPlanError, generated_abi_name
 
 
 class CamAbiResourceError(ValueError):
@@ -56,14 +57,13 @@ def checked_local_abi_path(
     abi_uri: object,
 ) -> Path:
     path = contract_abi_uri_path(contract_name)
-    if not isinstance(abi_uri, str):
-        raise CamAbiResourceError(f"{manifest_path}: {path} must be a string")
-    expected_uri = f"./abi/{contract_name}.json"
-    if abi_uri != expected_uri:
-        raise CamAbiResourceError(f"{manifest_path}: {path} must be {expected_uri}")
+    try:
+        abi_name = generated_abi_name(manifest_path, contract_name, abi_uri)
+    except CamAbiPlanError as error:
+        raise CamAbiResourceError(str(error)) from error
 
     try:
-        return local_resource_path(manifest_path, abi_uri, path)
+        return local_resource_path(manifest_path, f"./abi/{abi_name}", path)
     except CamResourceIntegrityError as error:
         raise CamAbiResourceError(str(error)) from error
 

@@ -47,7 +47,7 @@ class CamAbiResourceTest(unittest.TestCase):
 
         self.assertEqual(
             wrong_directory,
-            [f"{manifest_path}: namespaces.contracts.UI.abiURI must be ./abi/UI.json"],
+            [f"{manifest_path}: namespaces.contracts.UI.abiURI must target ./abi/UI.json"],
         )
         self.assertEqual(
             wrong_basename,
