@@ -290,7 +290,11 @@ function headerTitle(loadState: LoadState): string {
   }
 
   const title = loadState.snapshot.resolvedUi.props.title
-  return typeof title === "string" ? title : loadState.snapshot.route
+  if (typeof title !== "string") {
+    throw new Error("resolved root UI title must be a string")
+  }
+
+  return title
 }
 
 function requireReadyState(loadState: LoadState): Extract<LoadState, { readonly status: "ready" }> {

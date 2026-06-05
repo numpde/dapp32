@@ -169,7 +169,11 @@ function unreachableUiNode(_node: never): never {
 
 function stringProp(props: Record<string, InertValue>, name: string): string {
   const value = props[name]
-  return typeof value === "string" ? value : formatInertValue(value)
+  if (typeof value !== "string") {
+    throw new Error(`resolved UI prop must be a string: ${name}`)
+  }
+
+  return value
 }
 
 function KeyValue({
