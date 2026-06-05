@@ -23,9 +23,10 @@ export function declaredUiNodes({
   readonly uiDocuments: RawUiDocuments
   readonly issues: CamConformanceIssue[]
 }): ReadonlyMap<string, DeclaredUiNode> | undefined {
-  let nodes: Map<string, DeclaredUiNode> | undefined
+  if (uiDocuments.size === 0) return undefined
+
+  const nodes = new Map<string, DeclaredUiNode>()
   for (const [resource, ui] of uiDocuments) {
-    nodes = new Map<string, DeclaredUiNode>()
     for (const [name, node] of Object.entries(ui.nodes)) {
       if (name.length === 0) {
         issues.push(uiNodeInterfaceIssue(resource, "nodes", "UI node name must not be empty"))
