@@ -59,7 +59,7 @@ test("malformed declared UI document inventory is reported before runtime compat
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DOCUMENT_INVALID", "nodes"],
-    ["CAM_UI_INVALID", "nodes"],
+    ["CAM_UI_FIELD_INVALID", "nodes"],
   ])
 })
 
@@ -76,7 +76,7 @@ test("empty UI node inventory is reported as a document issue", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DOCUMENT_INVALID", "nodes"],
-    ["CAM_UI_INVALID", undefined],
+    ["CAM_UI_FIELD_INVALID", undefined],
   ])
 })
 
@@ -102,7 +102,7 @@ test("empty UI node names are reported as node inventory issues", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_NODE_INTERFACE_INVALID", "nodes"],
     ["CAM_ROUTE_HANDOFF_MISMATCH", "routes.entry.then.function"],
-    ["CAM_UI_INVALID", "nodes"],
+    ["CAM_UI_FIELD_INVALID", "nodes"],
   ])
 })
 
@@ -803,7 +803,7 @@ test("UI node interfaces must use supported argument names", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_NODE_INTERFACE_INVALID", "nodes.app.requires.0"],
-    ["CAM_UI_INVALID", "nodes.app.requires.0"],
+    ["CAM_UI_FIELD_INVALID", "nodes.app.requires.0"],
   ])
 })
 
@@ -874,7 +874,7 @@ test("UI expressions must use protocol-owned roots", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_EXPRESSION_ROOT_INVALID", "nodes.app.children.1.call.args.serialNumber"],
     ["CAM_UI_EXPRESSION_ROOT_INVALID", "nodes.app.children.2.call.args.view"],
-    ["CAM_UI_INVALID", "nodes.app.children.1.call.args.serialNumber"],
+    ["CAM_UI_EXPRESSION_INVALID", "nodes.app.children.1.call.args.serialNumber"],
   ])
 })
 
