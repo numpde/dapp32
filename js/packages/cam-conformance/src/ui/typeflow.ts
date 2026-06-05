@@ -21,28 +21,21 @@ import {
 import type {
   DeclaredRoute,
 } from "../manifest/routes.ts"
-import type {
-  ResourceDeclaration,
-} from "../resources/declarations.ts"
 import {
   forEachUiNode,
 } from "./document.ts"
-import {
-  forEachRawUiResource,
-} from "./resources.ts"
+import type { RawUiDocuments } from "./resources.ts"
 
 type AbiContext = ReadonlyMap<string, readonly unknown[]>
 type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-string-array"
 
 export function validateUiTypeflow({
-  resources,
-  declarations,
+  uiDocuments,
   routes,
   functionsByNamespace,
   issues,
 }: {
-  readonly resources: ReadonlyMap<string, Uint8Array>
-  readonly declarations: readonly ResourceDeclaration[]
+  readonly uiDocuments: RawUiDocuments
   readonly routes: readonly DeclaredRoute[]
   readonly functionsByNamespace: ContractFunctionsByNamespace
   readonly issues: CamConformanceIssue[]
@@ -50,13 +43,9 @@ export function validateUiTypeflow({
   const context = abiContextForReadRouteContinuations(routes, functionsByNamespace)
   if (context.size === 0) return
 
-  forEachRawUiResource({
-    resources,
-    declarations,
-    visit: (resource, ui) => {
-      forEachUiNode(ui.nodes, (node, path) => validateUiNodeTypeflow(resource, node, path, context, issues))
-    },
-  })
+  for (const [resource, ui] of uiDocuments) {
+    forEachUiNode(ui.nodes, (node, path) => validateUiNodeTypeflow(resource, node, path, context, issues))
+  }
 }
 
 function abiContextForReadRouteContinuations(

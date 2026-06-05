@@ -40,14 +40,6 @@ export function parseRawUiDocument(bytes: Uint8Array): RawUiDocument {
   }
 }
 
-export function readRawUiDocument(bytes: Uint8Array): RawUiDocument | undefined {
-  try {
-    return parseRawUiDocument(bytes)
-  } catch {
-    return undefined
-  }
-}
-
 export function forEachUiNode(
   nodes: Record<string, unknown>,
   visit: (node: Record<string, unknown>, path: string) => void,

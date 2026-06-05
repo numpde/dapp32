@@ -7,11 +7,12 @@ import {
 } from "../issues.ts"
 import {
   parseRawUiDocument,
-  readRawUiDocument,
   type RawUiDocument,
 } from "./document.ts"
 
-export function validateDeclaredUiDocuments({
+export type RawUiDocuments = ReadonlyMap<string, RawUiDocument>
+
+export function declaredUiDocuments({
   resources,
   declarations,
   issues,
@@ -19,13 +20,15 @@ export function validateDeclaredUiDocuments({
   readonly resources: ReadonlyMap<string, Uint8Array>
   readonly declarations: readonly ResourceDeclaration[]
   readonly issues: CamConformanceIssue[]
-}): void {
+}): RawUiDocuments {
+  const documents = new Map<string, RawUiDocument>()
+
   forEachDeclaredUiResourceBytes({
     resources,
     declarations,
     visit: (resource, bytes) => {
       try {
-        parseRawUiDocument(bytes)
+        documents.set(resource, parseRawUiDocument(bytes))
       } catch (error) {
         issues.push(issueFromError({
           rule: "CAM_UI_DOCUMENT_INVALID",
@@ -35,30 +38,8 @@ export function validateDeclaredUiDocuments({
       }
     },
   })
-}
 
-export function forEachRawUiResource({
-  resources,
-  declarations,
-  visit,
-}: {
-  readonly resources: ReadonlyMap<string, Uint8Array>
-  readonly declarations: readonly ResourceDeclaration[]
-  readonly visit: (resource: string, ui: RawUiDocument) => void
-}): void {
-  forEachDeclaredUiResourceBytes({
-    resources,
-    declarations,
-    visit: (resource, bytes) => {
-      // Granular UI facets only inspect parseable declared UI resources. Missing
-      // resources and invalid UI bytes are reported by the resource/runtime
-      // facets, so repeating those errors here would make author feedback noisy.
-      const ui = readRawUiDocument(bytes)
-      if (ui === undefined) return
-
-      visit(resource, ui)
-    },
-  })
+  return documents
 }
 
 export function forEachDeclaredUiResourceBytes({

@@ -13,17 +13,12 @@ import {
   diffNameSets,
 } from "../names.ts"
 import type {
-  ResourceDeclaration,
-} from "../resources/declarations.ts"
-import type {
   DeclaredUiNode,
 } from "./nodes.ts"
 import {
   forEachUiNode,
 } from "./document.ts"
-import {
-  forEachRawUiResource,
-} from "./resources.ts"
+import type { RawUiDocuments } from "./resources.ts"
 import {
   forEachString,
 } from "../walk.ts"
@@ -45,36 +40,30 @@ type UiDataflow = {
 }
 
 export function validateUiDataflow({
-  resources,
-  declarations,
+  uiDocuments,
   routes,
   uiNodes,
   issues,
 }: {
-  readonly resources: ReadonlyMap<string, Uint8Array>
-  readonly declarations: readonly ResourceDeclaration[]
+  readonly uiDocuments: RawUiDocuments
   readonly routes: readonly DeclaredRoute[]
   readonly uiNodes: ReadonlyMap<string, DeclaredUiNode> | undefined
   readonly issues: CamConformanceIssue[]
 }): void {
   const routesByName = new Map(routes.map((route) => [route.name, route]))
-  forEachRawUiResource({
-    resources,
-    declarations,
-    visit: (resource, ui) => {
-      const dataflow = readUiDataflow(ui.nodes)
+  for (const [resource, ui] of uiDocuments) {
+    const dataflow = readUiDataflow(ui.nodes)
 
-      if (uiNodes !== undefined) {
-        for (const include of dataflow.includeCalls) {
-          validateIncludeNodeArgs(resource, include, uiNodes, issues)
-        }
+    if (uiNodes !== undefined) {
+      for (const include of dataflow.includeCalls) {
+        validateIncludeNodeArgs(resource, include, uiNodes, issues)
       }
-      for (const action of dataflow.routeCalls) {
-        validateActionRouteArgs(resource, action, routesByName, issues)
-        validateActionStateInputs(resource, action, dataflow.inputNames, issues)
-      }
-    },
-  })
+    }
+    for (const action of dataflow.routeCalls) {
+      validateActionRouteArgs(resource, action, routesByName, issues)
+      validateActionStateInputs(resource, action, dataflow.inputNames, issues)
+    }
+  }
 }
 
 function readUiDataflow(nodes: Record<string, unknown>): UiDataflow {

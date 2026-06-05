@@ -50,8 +50,8 @@ import {
   verifyRuntimeUiCompatibility,
 } from "../sourced/ui.ts"
 import {
+  declaredUiDocuments,
   forEachDeclaredUiResourceBytes,
-  validateDeclaredUiDocuments,
 } from "../ui/resources.ts"
 
 export type {
@@ -88,7 +88,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     declarations,
     issues,
   })
-  validateDeclaredUiDocuments({
+  const uiDocuments = declaredUiDocuments({
     resources: bundle.resources,
     declarations,
     issues,
@@ -101,8 +101,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   const uiNodes = declaredUiNodes({
-    resources: bundle.resources,
-    declarations,
+    uiDocuments,
     issues,
   })
   validateRouteHandoffs({
@@ -112,8 +111,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   validateUiDataflow({
-    resources: bundle.resources,
-    declarations,
+    uiDocuments,
     routes,
     uiNodes,
     issues,
@@ -125,15 +123,13 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   validateUiTypeflow({
-    resources: bundle.resources,
-    declarations,
+    uiDocuments,
     routes,
     functionsByNamespace,
     issues,
   })
   validateUiExpressionRoots({
-    resources: bundle.resources,
-    declarations,
+    uiDocuments,
     issues,
   })
   verifyDeclaredUiResources(bundle.resources, declarations, issues)

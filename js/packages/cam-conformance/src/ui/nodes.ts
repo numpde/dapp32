@@ -8,10 +8,7 @@ import {
   type CamConformanceIssue,
 } from "../issues.ts"
 import type {
-  ResourceDeclaration,
-} from "../resources/declarations.ts"
-import {
-  forEachRawUiResource,
+  RawUiDocuments,
 } from "./resources.ts"
 
 export type DeclaredUiNode = {
@@ -20,34 +17,28 @@ export type DeclaredUiNode = {
 }
 
 export function declaredUiNodes({
-  resources,
-  declarations,
+  uiDocuments,
   issues,
 }: {
-  readonly resources: ReadonlyMap<string, Uint8Array>
-  readonly declarations: readonly ResourceDeclaration[]
+  readonly uiDocuments: RawUiDocuments
   readonly issues: CamConformanceIssue[]
 }): ReadonlyMap<string, DeclaredUiNode> | undefined {
   let nodes: Map<string, DeclaredUiNode> | undefined
-  forEachRawUiResource({
-    resources,
-    declarations,
-    visit: (resource, ui) => {
-      nodes = new Map<string, DeclaredUiNode>()
-      for (const [name, node] of Object.entries(ui.nodes)) {
-        if (name.length === 0) {
-          issues.push(uiNodeInterfaceIssue(resource, "nodes", "UI node name must not be empty"))
-          continue
-        }
-
-        const requires = nodeRequires(resource, name, node, issues)
-        nodes.set(name, {
-          name,
-          requires,
-        })
+  for (const [resource, ui] of uiDocuments) {
+    nodes = new Map<string, DeclaredUiNode>()
+    for (const [name, node] of Object.entries(ui.nodes)) {
+      if (name.length === 0) {
+        issues.push(uiNodeInterfaceIssue(resource, "nodes", "UI node name must not be empty"))
+        continue
       }
-    },
-  })
+
+      const requires = nodeRequires(resource, name, node, issues)
+      nodes.set(name, {
+        name,
+        requires,
+      })
+    }
+  }
 
   return nodes
 }

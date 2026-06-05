@@ -6,12 +6,7 @@ import {
   conformanceIssue,
   type CamConformanceIssue,
 } from "../issues.ts"
-import type {
-  ResourceDeclaration,
-} from "../resources/declarations.ts"
-import {
-  forEachRawUiResource,
-} from "../ui/resources.ts"
+import type { RawUiDocuments } from "../ui/resources.ts"
 import {
   forEachString,
 } from "../walk.ts"
@@ -21,21 +16,15 @@ import {
 } from "./reference.ts"
 
 export function validateUiExpressionRoots({
-  resources,
-  declarations,
+  uiDocuments,
   issues,
 }: {
-  readonly resources: ReadonlyMap<string, Uint8Array>
-  readonly declarations: readonly ResourceDeclaration[]
+  readonly uiDocuments: RawUiDocuments
   readonly issues: CamConformanceIssue[]
 }): void {
-  forEachRawUiResource({
-    resources,
-    declarations,
-    visit: (resource, ui) => {
-      forEachString(ui.value, "", (value, path) => validateExpressionRoot(resource, value, path, issues))
-    },
-  })
+  for (const [resource, ui] of uiDocuments) {
+    forEachString(ui.value, "", (value, path) => validateExpressionRoot(resource, value, path, issues))
+  }
 }
 
 function validateExpressionRoot(
