@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 from .cam_expressions import expression_first_segment, expression_references
 
@@ -28,23 +29,29 @@ def abi_functions(abi: list[object]) -> dict[str, AbiFunction | None]:
         inputs = item.get("inputs")
         if isinstance(name, str) and isinstance(inputs, list):
             outputs = item.get("outputs")
+            input_types = abi_input_types(inputs)
             if name in functions_by_name:
                 functions_by_name[name] = None
-                continue
-
             state_mutability = item.get("stateMutability")
             if not isinstance(state_mutability, str):
                 state_mutability = None
-
             abi_outputs: tuple[object, ...] = ()
             if isinstance(outputs, list):
                 abi_outputs = tuple(outputs)
 
-            functions_by_name[name] = AbiFunction(
+            function = AbiFunction(
                 input_names=abi_input_names(inputs),
                 state_mutability=state_mutability,
                 outputs=abi_outputs,
             )
+            if name not in functions_by_name:
+                functions_by_name[name] = function
+            if input_types is not None:
+                signature = f"{name}({','.join(input_types)})"
+                if signature in functions_by_name:
+                    functions_by_name[signature] = None
+                else:
+                    functions_by_name[signature] = function
     return functions_by_name
 
 
@@ -61,6 +68,49 @@ def abi_input_names(inputs: list[object]) -> tuple[str | None, ...]:
         else:
             names.append(None)
     return tuple(names)
+
+
+def abi_input_types(inputs: list[object]) -> tuple[str, ...] | None:
+    types: list[str] = []
+    for item in inputs:
+        if not isinstance(item, dict):
+            return None
+
+        canonical_type = abi_type(item)
+        if canonical_type is None:
+            return None
+        types.append(canonical_type)
+
+    return tuple(types)
+
+
+def abi_type(item: dict[object, object]) -> str | None:
+    type_name = item.get("type")
+    if not isinstance(type_name, str) or type_name == "":
+        return None
+
+    suffix = tuple_array_suffix(type_name)
+    if suffix is None:
+        return type_name
+
+    components = item.get("components")
+    if not isinstance(components, list):
+        return None
+
+    component_types = abi_input_types(components)
+    if component_types is None:
+        return None
+
+    return f"({','.join(component_types)}){suffix}"
+
+
+def tuple_array_suffix(type_name: str) -> str | None:
+    if type_name == "tuple":
+        return ""
+    if re.fullmatch(r"tuple(?:\[[0-9]*\])+", type_name):
+        return type_name.removeprefix("tuple")
+
+    return None
 
 
 def validate_named_args(

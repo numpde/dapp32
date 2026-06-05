@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from . import cam_abi_usage as abi_usage
 from .cam_manifest_resources import CamManifestResourceValidator
 from tools.cam_abi_plan import build_abi_plan_rows
 
@@ -287,6 +288,16 @@ class CamManifestResourceTest(unittest.TestCase):
             ],
         )
 
+    def test_abi_function_index_keeps_full_signatures_for_overloads(self) -> None:
+        functions = abi_usage.abi_functions([
+            function_abi("viewEntry", [{"name": "account", "type": "address"}]),
+            function_abi("viewEntry", [{"name": "serialNumber", "type": "string"}]),
+        ])
+
+        self.assertIsNone(functions["viewEntry"])
+        self.assertEqual(functions["viewEntry(address)"].input_names, ("account",))
+        self.assertEqual(functions["viewEntry(string)"].input_names, ("serialNumber",))
+
     def test_route_continuation_output_references_must_match_declared_abi_outputs(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
@@ -448,6 +459,16 @@ class CamManifestResourceTest(unittest.TestCase):
 
 def write_json(path: Path, document: object) -> None:
     path.write_text(f"{json.dumps(document, indent=2)}\n", encoding="utf-8")
+
+
+def function_abi(name: str, inputs: list[object]) -> dict[str, object]:
+    return {
+        "type": "function",
+        "name": name,
+        "stateMutability": "view",
+        "inputs": inputs,
+        "outputs": [],
+    }
 
 
 ZERO_SHA256 = "sha256:0x0000000000000000000000000000000000000000000000000000000000000000"
