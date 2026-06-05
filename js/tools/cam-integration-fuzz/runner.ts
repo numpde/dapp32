@@ -24,6 +24,9 @@ import type {
   CamPublicClient,
   CamSimulationClient,
 } from "../../packages/cam-evm-viem/dist/index.js"
+import {
+  createContext,
+} from "../../packages/cam-core/dist/index.js"
 import type {
   CamDocument,
   CamRoute,
@@ -292,12 +295,12 @@ async function callEveryReadRoute({
       cam,
       contracts,
       route: routeName,
-      context: {
+      context: createContext({
         host,
         account: { address: account },
         inputs,
         outputs: [],
-      },
+      }),
     })
     emit({
       event: "read_route_checked",
