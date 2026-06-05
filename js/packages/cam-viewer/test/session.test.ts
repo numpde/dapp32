@@ -64,6 +64,15 @@ test("bike fixture models the real UI projection branch states", () => {
     serialHash: BIKE_SERIAL_HASH,
     tokenId: BIKE_TOKEN_ID,
   })
+  assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, otherUserAddress), {
+    viewId: "component.found",
+    actions: ["lookupComponent"],
+    permissions: 0n,
+    isOwner: false,
+    canUpdateMetadata: false,
+    canMarkMissing: false,
+    canRetire: false,
+  })
 
   assertBikeProjection(bikeRegisterRouteResult("", userAddress), {
     viewId: "register.empty",

@@ -77,7 +77,7 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
 
   return {
     viewId: "entry",
-    actions: ["lookupComponent", "openRegister"],
+    actions: lookupAndRegisterActions(),
     account,
     canRegister,
     accountInfo: bikeAccountInfo(account),
@@ -113,9 +113,7 @@ export function bikeComponentRouteResult(
 
   return {
     viewId: empty ? "component.empty" : exists ? "component.found" : "component.notFound",
-    actions: exists
-      ? ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"]
-      : ["lookupComponent", "openRegister"],
+    actions: exists ? componentActions(canAct) : lookupAndRegisterActions(),
     account,
     canRegister: bikeCanRegister(account),
     accountInfo: bikeAccountInfo(account),
@@ -155,8 +153,8 @@ export function bikeRegisterRouteResult(
   return {
     viewId: !hasSerialNumber ? "register.empty" : ready ? "register.ready" : "register.blocked",
     actions: ready
-      ? ["registerComponent", "lookupComponent"]
-      : hasSerialNumber ? ["lookupComponent"] : ["lookupComponent", "openRegister"],
+      ? registerReadyActions()
+      : hasSerialNumber ? lookupOnlyActions() : lookupAndRegisterActions(),
     account,
     canRegister,
     exists,
@@ -188,6 +186,26 @@ function bikeCanRegister(account: string): boolean {
 
 function bikeAccountInfo(account: string): string {
   return bikeCanRegister(account) ? "Mock registrar account" : ""
+}
+
+function lookupAndRegisterActions(): string[] {
+  return ["lookupComponent", "openRegister"]
+}
+
+function lookupOnlyActions(): string[] {
+  return ["lookupComponent"]
+}
+
+function registerReadyActions(): string[] {
+  return ["registerComponent", "lookupComponent"]
+}
+
+function componentActions(canAct: boolean): string[] {
+  if (!canAct) {
+    return lookupOnlyActions()
+  }
+
+  return ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"]
 }
 
 function bikeResourceURI(relativeURI: string): string {
