@@ -42,6 +42,12 @@ type AbiInput = {
   readonly type: string
 }
 
+type KnownRouteArgKind = "address" | "bool" | "bytes" | "integer" | "string" | "string-literal"
+type KnownRouteArgValue = {
+  readonly kind: KnownRouteArgKind
+  readonly description: string
+}
+
 export function validateRouteAbiCompatibility({
   resource,
   routes,
@@ -261,13 +267,14 @@ function routeArgMismatch(
   if (expected === "string") {
     if (typeof value === "string") return undefined
     if (known === undefined) return undefined
-    return known.kind === "address" || known.kind === "bytes" || known.kind === "string"
+    return known.kind === "address" || known.kind === "bytes" || known.kind === "string" || known.kind === "string-literal"
       ? undefined
       : `value is ${known.description}`
   }
   if (known === undefined) return undefined
 
   if (expected === "address") {
+    if (known.kind === "string-literal") return undefined
     return known.kind === "address" ? undefined : `value is ${known.description}`
   }
   if (expected === "bool") {
@@ -277,9 +284,11 @@ function routeArgMismatch(
     return known.kind === "integer" ? undefined : `value is ${known.description}`
   }
   if (expected === "bytes") {
+    if (known.kind === "string-literal") return undefined
     return known.kind === "bytes" ? undefined : `value is ${known.description}`
   }
   if (expected === "fixed-bytes") {
+    if (known.kind === "string-literal") return undefined
     if (known.kind !== "bytes") return `value is ${known.description}`
     return undefined
   }
@@ -287,7 +296,7 @@ function routeArgMismatch(
   return undefined
 }
 
-function knownRouteArgValue(value: unknown): { readonly kind: string, readonly description: string } | undefined {
+function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
   if (typeof value === "boolean") return { kind: "bool", description: "a boolean literal" }
   if (typeof value === "number" && Number.isSafeInteger(value)) return { kind: "integer", description: "an integer literal" }
 
@@ -295,7 +304,7 @@ function knownRouteArgValue(value: unknown): { readonly kind: string, readonly d
 
   const reference = expressionReference(value)
   if (reference === undefined) {
-    return undefined
+    return { kind: "string-literal", description: "a string literal" }
   }
 
   if (reference.root === "account" && reference.segments.join(".") === "address") {

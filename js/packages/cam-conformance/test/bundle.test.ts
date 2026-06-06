@@ -594,7 +594,7 @@ test("route call args must match named ABI inputs exactly", () => {
   ])
 })
 
-test("route call args with protocol-known values must match ABI scalar types", () => {
+test("route call args with statically classified expression roots must match ABI scalar types", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -625,6 +625,51 @@ test("route call args with protocol-known values must match ABI scalar types", (
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.account"],
+  ])
+})
+
+test("route call literal strings are statically incompatible with non-string scalar args", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "active",
+          type: "bool",
+        },
+        {
+          name: "count",
+          type: "uint256",
+        },
+        {
+          name: "owner",
+          type: "address",
+        },
+      ],
+      outputs: [viewOutput()],
+    },
+  ])
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        active: "true",
+        count: "1",
+        owner: "runtime-validates-address-literals",
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.active"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.count"],
   ])
 })
 
