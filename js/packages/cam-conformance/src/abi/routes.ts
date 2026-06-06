@@ -453,7 +453,13 @@ function parseAbiFunction(
     return undefined
   }
 
-  if (item.type !== "function") return undefined
+  const itemType = nonEmptyString(item.type)
+  if (itemType === undefined) {
+    issues.push(abiIssue(resource, `${path}.type`, "ABI item type must be a non-empty string"))
+    return undefined
+  }
+
+  if (itemType !== "function") return undefined
 
   const name = nonEmptyString(item.name)
   const stateMutability = abiStateMutability(item.stateMutability)
