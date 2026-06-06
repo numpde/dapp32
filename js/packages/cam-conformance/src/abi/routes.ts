@@ -261,8 +261,9 @@ function routeArgMismatch(
   expected: "address" | "bool" | "bytes" | "fixed-bytes" | "integer" | "string",
 ): string | undefined {
   // Only reject values whose runtime shape is statically knowable here. For
-  // example, a literal string may be a valid address or hex byte string, so the
-  // EVM adapter remains the owner of detailed address/bytes validation.
+  // example, a literal string may be a valid address, hex byte string, or
+  // decimal integer, so the EVM adapter remains the owner of detailed
+  // address/bytes/integer validation.
   const known = knownRouteArgValue(value)
   if (expected === "string") {
     if (typeof value === "string") return undefined
@@ -281,6 +282,7 @@ function routeArgMismatch(
     return known.kind === "bool" ? undefined : `value is ${known.description}`
   }
   if (expected === "integer") {
+    if (known.kind === "string-literal") return undefined
     return known.kind === "integer" ? undefined : `value is ${known.description}`
   }
   if (expected === "bytes") {

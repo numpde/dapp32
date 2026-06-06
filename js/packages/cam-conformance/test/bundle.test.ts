@@ -628,7 +628,7 @@ test("route call args with statically classified expression roots must match ABI
   ])
 })
 
-test("route call literal strings are statically incompatible with non-string scalar args", () => {
+test("route call literal strings defer integer and address exactness to runtime", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -669,7 +669,6 @@ test("route call literal strings are statically incompatible with non-string sca
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.active"],
-    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.count"],
   ])
 })
 
