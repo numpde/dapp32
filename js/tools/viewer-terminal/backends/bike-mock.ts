@@ -65,7 +65,7 @@ export function createBikeMockBackend({
 }
 
 function createMockPublicClient(events: DebugEvent[]): TerminalPublicClient {
-  return {
+  const publicClient: TerminalPublicClient = {
     async getChainId(): Promise<number> {
       return 31337
     },
@@ -86,7 +86,9 @@ function createMockPublicClient(events: DebugEvent[]): TerminalPublicClient {
       })
       return result
     },
-  } as TerminalPublicClient
+  }
+
+  return publicClient
 }
 
 function mockReadContract(functionName: string, args: readonly InertValue[]): unknown {
