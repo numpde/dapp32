@@ -495,6 +495,7 @@ async function handlePreparedWrite({
     throw new Error(`write route must continue to routes namespace after transaction: ${call.route}`)
   }
   const snapshot = await session.navigate(call.then.function, call.then.args)
+  assertResolvedSnapshot(snapshot)
   emit({
     event: "navigation",
     run,
@@ -638,6 +639,7 @@ function assertResolvedSnapshot(snapshot: CamViewerSnapshot): void {
 function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoadedSnapshot {
   if (
     snapshot.route === undefined
+    || snapshot.inputs === undefined
     || snapshot.state === undefined
     || snapshot.uiURI === undefined
     || snapshot.resolvedUi === undefined
@@ -646,7 +648,15 @@ function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoadedSnap
     throw new Error("viewer snapshot is not loaded")
   }
 
-  return snapshot
+  return {
+    ...(snapshot.account === undefined ? {} : { account: snapshot.account }),
+    route: snapshot.route,
+    inputs: snapshot.inputs,
+    state: snapshot.state,
+    uiURI: snapshot.uiURI,
+    resolvedUi: snapshot.resolvedUi,
+    values: snapshot.values,
+  }
 }
 
 function inputNames(node: ResolvedUiNode): readonly string[] {
