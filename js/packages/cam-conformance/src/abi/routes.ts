@@ -615,12 +615,18 @@ function canonicalAbiType(
 
   const componentTypes: string[] = []
   for (const [index, component] of item.components.entries()) {
+    const componentPath = `${path}.components.${index}`
     if (!isRecordObject(component)) {
-      issues.push(abiIssue(resource, `${path}.components.${index}`, "tuple ABI component must be an object"))
+      issues.push(abiIssue(resource, componentPath, "tuple ABI component must be an object"))
       return undefined
     }
 
-    const componentType = canonicalAbiType(resource, `${path}.components.${index}`, component, position, issues)
+    if (nonEmptyString(component.name) === undefined) {
+      issues.push(abiIssue(resource, `${componentPath}.name`, "tuple ABI components used by CAM routes must be named"))
+      return undefined
+    }
+
+    const componentType = canonicalAbiType(resource, componentPath, component, position, issues)
     if (componentType === undefined) return undefined
     componentTypes.push(componentType)
   }

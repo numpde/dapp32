@@ -557,6 +557,39 @@ test("ABI resource validation rejects runtime-invalid function ABI shapes", () =
   ])), [
     ["CAM_ABI_INVALID", "0.inputs.0"],
   ])
+
+  assert.deepEqual(abiIssueLocationsFor(jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "inputTuple",
+          type: "tuple",
+          components: [
+            {
+              type: "string",
+            },
+          ],
+        },
+      ],
+      outputs: [
+        {
+          name: "outputTuple",
+          type: "tuple",
+          components: [
+            {
+              type: "string",
+            },
+          ],
+        },
+      ],
+    },
+  ])), [
+    ["CAM_ABI_INVALID", "0.inputs.0.components.0.name"],
+    ["CAM_ABI_INVALID", "0.outputs.0.components.0.name"],
+  ])
 })
 
 test("route call args must match named ABI inputs exactly", () => {
