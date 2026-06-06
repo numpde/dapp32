@@ -271,6 +271,52 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertEq(manager.permissionsOf(delegate, SERIAL), 0, "old-owner delegation must not survive transfer");
     }
 
+    /// @dev Delegations are deliberately narrow grants. This pins the whole
+    /// setup envelope so future changes cannot quietly turn delegation into a
+    /// looser authorization side channel.
+    function test_delegationSetupRejectsInvalidGrantEnvelope() external {
+        registerDefaultComponent();
+
+        bytes32 serialHash = manager.serialHashOf(SERIAL);
+        uint64 updateMetadataCapability = manager.CAP_UPDATE_METADATA();
+        uint64 unknownCapability = manager.VALID_CAPABILITY_MASK() | (1 << 8);
+        uint48 validUntil = uint48(block.timestamp + 1 days);
+        uint48 expiresNow = uint48(block.timestamp);
+        uint48 expiresTooLate = uint48(block.timestamp + manager.maxDelegationDuration() + 1);
+
+        vm.prank(stranger);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.Unauthorized.selector, stranger, serialHash, 0));
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, validUntil);
+
+        vm.prank(owner);
+        vm.expectRevert(BicycleComponentManager.ZeroAddress.selector);
+        manager.setComponentDelegate(SERIAL, address(0), updateMetadataCapability, validUntil);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.InvalidCapabilityMask.selector, 0));
+        manager.setComponentDelegate(SERIAL, delegate, 0, validUntil);
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(BicycleComponentManager.InvalidCapabilityMask.selector, unknownCapability)
+        );
+        manager.setComponentDelegate(SERIAL, delegate, unknownCapability, validUntil);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, expiresNow));
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, expiresNow);
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, expiresTooLate)
+        );
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, expiresTooLate);
+
+        vm.prank(owner);
+        vm.expectRevert(BicycleComponentManager.ZeroAddress.selector);
+        manager.revokeComponentDelegate(SERIAL, address(0));
+    }
+
     /// @dev Missing/retired status updates are separate capabilities. The test
     /// exercises owner writes first, then delegate writes with the exact
     /// capability mask needed for the status transitions.
