@@ -35,8 +35,12 @@ type UiCall = {
 }
 
 type UiDataflow = {
-  readonly inputNames: ReadonlySet<string>
   readonly calls: readonly UiCall[]
+}
+
+type RouteLocalUiData = {
+  readonly inputNames: Set<string>
+  readonly actionPaths: string[]
 }
 
 export function validateUiDataflow({
@@ -53,6 +57,7 @@ export function validateUiDataflow({
   const routesByName = new Map(routes.map((route) => [route.name, route]))
   for (const [resource, ui] of uiDocuments) {
     const dataflow = readUiDataflow(ui.nodes)
+    const actionInputsByPath = routeLocalActionInputs(ui.nodes, routes)
 
     for (const call of dataflow.calls) {
       if (!validateUiCallArgNames(resource, call, issues)) continue
@@ -62,19 +67,17 @@ export function validateUiDataflow({
         }
       } else {
         validateActionRouteArgs(resource, call, routesByName, issues)
-        validateActionStateInputs(resource, call, dataflow.inputNames, issues)
+        validateActionStateInputs(resource, call, actionInputsByPath.get(call.path) ?? [], issues)
       }
     }
   }
 }
 
 function readUiDataflow(nodes: Record<string, unknown>): UiDataflow {
-  const inputNames = new Set<string>()
   const calls: UiCall[] = []
-  forEachUiNode(nodes, (node, path) => collectUiNodeDataflow(node, path, inputNames, calls))
+  forEachUiNode(nodes, (node, path) => collectUiNodeDataflow(node, path, calls))
 
   return {
-    inputNames,
     calls,
   }
 }
@@ -82,29 +85,13 @@ function readUiDataflow(nodes: Record<string, unknown>): UiDataflow {
 function collectUiNodeDataflow(
   value: Record<string, unknown>,
   path: string,
-  inputNames: Set<string>,
   calls: UiCall[],
 ): void {
-  if (value.tag === "Input") {
-    collectInputName(value, inputNames)
-  }
   if (value.tag === "Include") {
     collectCall(value, path, "ui", calls)
   }
   if (value.tag === "Action") {
     collectCall(value, path, "routes", calls)
-  }
-}
-
-function collectInputName(node: Record<string, unknown>, inputNames: Set<string>): void {
-  if (!isRecordObject(node.props)) return
-
-  const name = node.props.name
-  // Only literal Input names can statically prove a $state.<name> reference.
-  // Dynamic names remain runtime-valid, but they cannot satisfy this authoring
-  // conformance check.
-  if (typeof name === "string" && name.length > 0 && !name.startsWith("$")) {
-    inputNames.add(name)
   }
 }
 
@@ -124,6 +111,85 @@ function collectCall(
     function: value.call.function,
     args: value.call.args,
   })
+}
+
+function routeLocalActionInputs(
+  nodes: Record<string, unknown>,
+  routes: readonly DeclaredRoute[],
+): ReadonlyMap<string, readonly ReadonlySet<string>[]> {
+  const result = new Map<string, ReadonlySet<string>[]>()
+  for (const route of routes) {
+    if (route.then.namespace !== "ui") continue
+
+    const rootName = literalCallFunction(route.then.function)
+    if (rootName === undefined) continue
+
+    // Runtime initializes $state from the UI tree selected by the current
+    // route, not from every Input declared anywhere in ui.json.
+    const localData = reachableUiData(nodes, rootName)
+    for (const actionPath of localData.actionPaths) {
+      const matches = result.get(actionPath)
+      if (matches === undefined) {
+        result.set(actionPath, [localData.inputNames])
+      } else {
+        matches.push(localData.inputNames)
+      }
+    }
+  }
+
+  return result
+}
+
+function reachableUiData(nodes: Record<string, unknown>, nodeName: string): RouteLocalUiData {
+  const data: RouteLocalUiData = {
+    inputNames: new Set<string>(),
+    actionPaths: [],
+  }
+  collectNamedUiData(nodes, nodeName, [], data)
+  return data
+}
+
+function collectNamedUiData(
+  nodes: Record<string, unknown>,
+  nodeName: string,
+  stack: readonly string[],
+  data: RouteLocalUiData,
+): void {
+  if (stack.includes(nodeName)) return
+
+  const node = nodes[nodeName]
+  if (!isRecordObject(node)) return
+
+  collectInlineUiData(nodes, node, `nodes.${nodeName}`, [...stack, nodeName], data)
+}
+
+function collectInlineUiData(
+  nodes: Record<string, unknown>,
+  value: unknown,
+  path: string,
+  stack: readonly string[],
+  data: RouteLocalUiData,
+): void {
+  if (!isRecordObject(value)) return
+
+  if (value.tag === "Action") {
+    data.actionPaths.push(path)
+    return
+  }
+
+  const inputName = literalInputName(value)
+  if (inputName !== undefined) data.inputNames.add(inputName)
+
+  if (value.tag === "Include") {
+    const targetName = isRecordObject(value.call) ? literalCallFunction(value.call.function) : undefined
+    if (targetName !== undefined) collectNamedUiData(nodes, targetName, stack, data)
+  }
+
+  if (Array.isArray(value.children)) {
+    value.children.forEach((child, index) => {
+      collectInlineUiData(nodes, child, `${path}.children.${index}`, stack, data)
+    })
+  }
 }
 
 function validateUiCallArgNames(resource: string, call: UiCall, issues: CamConformanceIssue[]): boolean {
@@ -198,10 +264,24 @@ function literalCallFunction(value: unknown): string | undefined {
   return value.startsWith("$$") ? value.slice(1) : value
 }
 
+function literalInputName(node: Record<string, unknown>): string | undefined {
+  if (node.tag !== "Input" || !isRecordObject(node.props)) return undefined
+
+  const name = node.props.name
+  // Runtime initial state can only be proven statically for literal names.
+  // Dynamic Input names may still be runtime-valid, but they cannot justify a
+  // conformance claim that $state.<name> is available in this view.
+  if (typeof name === "string" && name.length > 0 && expressionReference(name) === undefined) {
+    return name.startsWith("$$") ? name.slice(1) : name
+  }
+
+  return undefined
+}
+
 function validateActionStateInputs(
   resource: string,
   action: UiCall,
-  inputNames: ReadonlySet<string>,
+  routeLocalInputNames: readonly ReadonlySet<string>[],
   issues: CamConformanceIssue[],
 ): void {
   forEachString(action.args, "", (value, suffix) => {
@@ -218,11 +298,13 @@ function validateActionStateInputs(
       return
     }
 
-    if (!inputNames.has(stateInput)) {
+    if (routeLocalInputNames.length === 0) return
+
+    if (routeLocalInputNames.some((inputNames) => !inputNames.has(stateInput))) {
       issues.push(dataflowIssue(
         resource,
         path,
-        `UI action references state without a matching Input name: ${stateInput}`,
+        `UI action references state without a matching route-local Input name: ${stateInput}`,
       ))
     }
   })

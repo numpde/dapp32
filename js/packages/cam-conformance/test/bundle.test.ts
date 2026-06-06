@@ -1142,6 +1142,149 @@ test("UI action state references must be backed by Input names", () => {
   ])
 })
 
+test("UI action state references must be backed by route-local rendered inputs", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "edit",
+              args: {
+                view: "$view",
+              },
+            },
+          },
+        ],
+      },
+      edit: {
+        tag: "Action",
+        requires: ["view"],
+        props: {
+          label: "Open",
+        },
+        call: {
+          namespace: "routes",
+          function: "component",
+          args: {
+            serialNumber: "$state.serialNumber",
+          },
+        },
+      },
+      details: {
+        tag: "Input",
+        requires: ["view"],
+        props: {
+          name: "serialNumber",
+          label: "Serial number",
+          value: "",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.edit.call.args.serialNumber"],
+  ])
+})
+
+test("UI action state references may use inputs from the route root tree", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Input",
+            props: {
+              name: "serialNumber",
+              label: "Serial number",
+              value: "",
+            },
+          },
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "actions",
+              args: {
+                view: "$view",
+              },
+            },
+          },
+        ],
+      },
+      actions: {
+        tag: "Action",
+        requires: ["view"],
+        props: {
+          label: "Open",
+        },
+        call: {
+          namespace: "routes",
+          function: "component",
+          args: {
+            serialNumber: "$state.serialNumber",
+          },
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issues, [])
+})
+
 test("UI call arg names must not be empty", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
