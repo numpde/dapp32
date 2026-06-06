@@ -1469,6 +1469,86 @@ test("UI props reject statically incompatible ABI-backed route outputs", () => {
   ])
 })
 
+test("UI props are checked against each route-local continuation shape", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [
+        {
+          name: "view",
+          type: "tuple",
+          components: [
+            {
+              name: "owner",
+              type: "address",
+            },
+          ],
+        },
+      ],
+    },
+    {
+      type: "function",
+      name: "viewDetails",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [
+        {
+          name: "view",
+          type: "tuple",
+          components: [
+            {
+              name: "title",
+              type: "string",
+            },
+          ],
+        },
+      ],
+    },
+  ])
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Address",
+        requires: ["view"],
+        props: {
+          label: "Owner",
+          address: "$view.owner",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.details = {
+      kind: "read",
+      inputs: [],
+      call: {
+        namespace: "contracts.App",
+        function: "viewDetails",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.props.address"],
+  ])
+})
+
 test("UI dynamic call targets reject statically incompatible ABI-backed route outputs", () => {
   const abiBytes = jsonBytes([
     {
