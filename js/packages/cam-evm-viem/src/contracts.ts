@@ -75,7 +75,7 @@ async function resolveContract({
   readonly integrity: string
   readonly loadResource: ResourceLoader
 }): Promise<ResolvedCamContract> {
-  let address: ResolvedCamContract["address"]
+  let address: unknown
   try {
     address = await publicClient.readContract({
       address: host.address,
@@ -87,6 +87,9 @@ async function resolveContract({
     throw new CamEvmError("CAM_HOST_READ_FAILED", `failed to resolve CAM contract address: ${name}`, cause)
   }
 
+  if (typeof address !== "string") {
+    throw new CamEvmError("CAM_CONTRACT_INVALID", `CAM contract address is not a string for ${name}`)
+  }
   if (address.toLowerCase() === ZERO_ADDRESS) {
     throw new CamEvmError("CAM_CONTRACT_UNBOUND", `CAM contract is unbound: ${name}`)
   }

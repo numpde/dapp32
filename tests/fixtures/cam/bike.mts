@@ -13,6 +13,8 @@ export const BIKE_MANAGER_NAMESPACE = `contracts.${BIKE_MANAGER_CONTRACT}`
 export const BIKE_ROUTES_NAMESPACE = "routes"
 export const BIKE_UI_RESOURCE_NAMESPACE = "ui"
 
+export type BikeFixtureAddress = `0x${string}`
+
 export const BIKE_ROUTE_ENTRY = "entry"
 export const BIKE_ROUTE_COMPONENT = "component"
 export const BIKE_ROUTE_REGISTER = "register"
@@ -48,14 +50,17 @@ export const bikeHost = {
 export const bikeContractAddresses = {
   [BIKE_UI_CONTRACT]: BIKE_UI_ADDRESS,
   [BIKE_MANAGER_CONTRACT]: BIKE_MANAGER_ADDRESS,
-} as const
+} satisfies Record<typeof BIKE_UI_CONTRACT | typeof BIKE_MANAGER_CONTRACT, BikeFixtureAddress>
 
-export function bikeAddressForContract(name: string): string {
-  if (!Object.hasOwn(bikeContractAddresses, name)) {
-    throw new Error(`unknown bike fixture contract: ${name}`)
+export function bikeAddressForContract(name: string): BikeFixtureAddress {
+  switch (name) {
+    case BIKE_UI_CONTRACT:
+      return BIKE_UI_ADDRESS
+    case BIKE_MANAGER_CONTRACT:
+      return BIKE_MANAGER_ADDRESS
   }
 
-  return bikeContractAddresses[name as keyof typeof bikeContractAddresses]
+  throw new Error(`unknown bike fixture contract: ${name}`)
 }
 
 export function bikeRouteResults(

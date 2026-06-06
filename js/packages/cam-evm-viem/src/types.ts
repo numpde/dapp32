@@ -1,8 +1,22 @@
-import type { Abi, Address, Chain, Hex, PublicClient } from "viem"
+import type { Abi, Address, Chain, Hex } from "viem"
 import type { CamDocument } from "@cam/core"
 import type { InertValue } from "@cam/protocol"
 
-export type CamPublicClient = Pick<PublicClient, "getChainId" | "readContract">
+// Keep the adapter boundary smaller than viem's full generic PublicClient.
+// Mocks and package consumers should satisfy the CAM read surface, not viem's
+// overload-heavy implementation type.
+export type CamReadContractRequest = {
+  readonly address: Address
+  readonly abi: Abi | readonly unknown[]
+  readonly functionName: string
+  readonly args?: readonly unknown[] | undefined
+  readonly account?: Address | undefined
+}
+
+export type CamPublicClient = {
+  readonly getChainId: () => Promise<number>
+  readonly readContract: (request: CamReadContractRequest) => Promise<unknown>
+}
 
 export type CamHost = {
   readonly chainId: string

@@ -69,10 +69,7 @@ function createMockPublicClient(events: DebugEvent[]): TerminalPublicClient {
     async getChainId(): Promise<number> {
       return 31337
     },
-    async readContract(request: {
-      readonly functionName: string
-      readonly args?: readonly unknown[]
-    }): Promise<unknown> {
+    async readContract(request) {
       const args = request.args === undefined
         ? []
         : request.args.map((arg) => toInertValue(arg))
@@ -130,15 +127,21 @@ function requireStringArgs(
   args: readonly InertValue[],
   length: number,
 ): readonly string[] {
-  if (args.length !== length || args.some((arg) => typeof arg !== "string")) {
+  if (args.length !== length) {
     throw new Error(`${functionName} expected ${length} string argument(s), got ${formatValue(args)}`)
   }
 
-  return args as readonly string[]
+  return args.map((arg) => {
+    if (typeof arg !== "string") {
+      throw new Error(`${functionName} expected ${length} string argument(s), got ${formatValue(args)}`)
+    }
+
+    return arg
+  })
 }
 
 function contractAddress(name: string): MockAddress {
-  return bikeAddressForContract(name) as MockAddress
+  return bikeAddressForContract(name)
 }
 
 function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promise<Uint8Array> {
