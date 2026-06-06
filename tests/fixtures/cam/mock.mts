@@ -29,10 +29,10 @@ export type MockReadContractCall = {
 
 type MockReadContractRequest = {
   readonly address: MockAddress
-  readonly abi?: MockAbi
+  readonly abi?: MockAbi | undefined
   readonly functionName: string
-  readonly args?: readonly unknown[]
-  readonly account?: MockAddress
+  readonly args?: readonly unknown[] | undefined
+  readonly account?: MockAddress | undefined
 }
 
 type MockPublicClientOptions = {
@@ -44,7 +44,7 @@ type MockPublicClientOptions = {
   readonly routeResults: Readonly<Record<string, unknown>>
 }
 
-export function createMockCamPublicClient<ReadContract = (request: MockReadContractRequest) => Promise<unknown>>({
+export function createMockCamPublicClient({
   chainId,
   camURI,
   camHash,
@@ -55,7 +55,7 @@ export function createMockCamPublicClient<ReadContract = (request: MockReadContr
   readonly calls: MockReadContractCall[]
   readonly chainCalls: number
   readonly getChainId: () => Promise<number>
-  readonly readContract: ReadContract
+  readonly readContract: (request: MockReadContractRequest) => Promise<unknown>
 } {
   const calls: MockReadContractCall[] = []
   let chainCalls = 0
@@ -111,7 +111,7 @@ export function createMockCamPublicClient<ReadContract = (request: MockReadContr
       return chainCalls
     },
     getChainId,
-    readContract: readContract as ReadContract,
+    readContract,
   }
 }
 

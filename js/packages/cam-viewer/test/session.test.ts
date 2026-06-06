@@ -156,12 +156,12 @@ test("load failures do not expose a partially loaded session", async () => {
   const session = createSession(sessionFixtureOptions({
     publicClient: {
       ...publicClient,
-      readContract: (async (request) => {
+      async readContract(request) {
         if (request.functionName === BIKE_VIEW_ENTRY) {
           throw new Error("entry route failed")
         }
         return await publicClient.readContract(request)
-      }) as typeof publicClient.readContract,
+      },
     },
   }))
 
@@ -196,7 +196,7 @@ test("setAccount reload failures preserve the previous loaded snapshot", async (
   const session = createSession(sessionFixtureOptions({
     publicClient: {
       ...publicClient,
-      readContract: (async (request) => {
+      async readContract(request) {
         if (request.functionName === BIKE_VIEW_ENTRY) {
           entryCalls += 1
           if (entryCalls > 1) {
@@ -204,7 +204,7 @@ test("setAccount reload failures preserve the previous loaded snapshot", async (
           }
         }
         return await publicClient.readContract(request)
-      }) as typeof publicClient.readContract,
+      },
     },
   }))
 
@@ -314,7 +314,7 @@ function createPublicClient({
 }: PublicClientFixtureOptions) {
   // This fake models raw viem return values before @cam/evm-viem normalizes
   // them to RouteResult.values.
-  return createMockCamPublicClient<CreateCamViewerSessionOptions["publicClient"]["readContract"]>({
+  return createMockCamPublicClient({
     chainId,
     camURI,
     camHash,

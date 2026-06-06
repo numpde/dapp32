@@ -19,7 +19,7 @@ import {
   simulateCamContractCall,
 } from "../src/index.ts"
 import { ICAM_APP_INTERFACE_ID } from "../src/abi.ts"
-import type { CamHost, CamPublicClient, CamSimulationClient, CamWalletClient } from "../src/index.ts"
+import type { CamHost, CamSimulationClient, CamWalletClient } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
@@ -971,7 +971,7 @@ function createPublicClient({
 }: PublicClientFixtureOptions) {
   // This fake models raw viem return values before callCamRoute normalizes
   // them to RouteResult.values.
-  return createMockCamPublicClient<CamPublicClient["readContract"]>({
+  return createMockCamPublicClient({
     chainId,
     camURI,
     camHash,
