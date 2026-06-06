@@ -35,6 +35,7 @@ import {
   createCamViewerSession,
 } from "../../packages/cam-viewer/dist/index.js"
 import type {
+  CamViewerLoadedSnapshot,
   CamViewerPreparedContractCall,
   CamViewerSession,
   CamViewerSnapshot,
@@ -634,12 +635,18 @@ function assertResolvedSnapshot(snapshot: CamViewerSnapshot): void {
   }
 }
 
-function requireLoadedSnapshot(snapshot: CamViewerSnapshot): Required<Pick<CamViewerSnapshot, "route" | "state" | "resolvedUi">> & CamViewerSnapshot {
-  if (snapshot.route === undefined || snapshot.state === undefined || snapshot.resolvedUi === undefined) {
+function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoadedSnapshot {
+  if (
+    snapshot.route === undefined
+    || snapshot.state === undefined
+    || snapshot.uiURI === undefined
+    || snapshot.resolvedUi === undefined
+    || snapshot.values === undefined
+  ) {
     throw new Error("viewer snapshot is not loaded")
   }
 
-  return snapshot as Required<Pick<CamViewerSnapshot, "route" | "state" | "resolvedUi">> & CamViewerSnapshot
+  return snapshot
 }
 
 function inputNames(node: ResolvedUiNode): readonly string[] {
