@@ -1047,6 +1047,40 @@ test("UI actions must pass exactly the target route inputs", () => {
   ])
 })
 
+test("UI action escaped call targets are checked as literal route names", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Action",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: "$$missing",
+              args: {},
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.function"],
+  ])
+})
+
 test("UI action state references must be backed by Input names", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
@@ -1201,6 +1235,37 @@ test("UI Includes with literal targets must pass exactly the target node args", 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.args.extra"],
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.args.view"],
+  ])
+})
+
+test("UI Include escaped call targets are checked as literal node names", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "$$missing",
+              args: {},
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.function"],
   ])
 })
 

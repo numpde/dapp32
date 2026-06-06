@@ -139,15 +139,15 @@ function validateIncludeNodeArgs(
   uiNodes: ReadonlyMap<string, DeclaredUiNode>,
   issues: CamConformanceIssue[],
 ): void {
-  if (typeof include.function !== "string") return
-  if (include.function.startsWith("$")) return
+  const functionName = literalCallFunction(include.function)
+  if (functionName === undefined) return
 
-  const node = uiNodes.get(include.function)
+  const node = uiNodes.get(functionName)
   if (node === undefined) {
     issues.push(dataflowIssue(
       resource,
       `${include.path}.call.function`,
-      `UI Include calls unknown UI node: ${include.function}`,
+      `UI Include calls unknown UI node: ${functionName}`,
     ))
     return
   }
@@ -169,15 +169,15 @@ function validateActionRouteArgs(
   routesByName: ReadonlyMap<string, DeclaredRoute>,
   issues: CamConformanceIssue[],
 ): void {
-  if (typeof action.function !== "string") return
-  if (action.function.startsWith("$")) return
+  const functionName = literalCallFunction(action.function)
+  if (functionName === undefined) return
 
-  const route = routesByName.get(action.function)
+  const route = routesByName.get(functionName)
   if (route === undefined) {
     issues.push(dataflowIssue(
       resource,
       `${action.path}.call.function`,
-      `UI action calls unknown route: ${action.function}`,
+      `UI action calls unknown route: ${functionName}`,
     ))
     return
   }
@@ -190,6 +190,12 @@ function validateActionRouteArgs(
     destination: `route ${route.name}`,
     issues,
   })
+}
+
+function literalCallFunction(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  if (expressionReference(value) !== undefined) return undefined
+  return value.startsWith("$$") ? value.slice(1) : value
 }
 
 function validateActionStateInputs(
