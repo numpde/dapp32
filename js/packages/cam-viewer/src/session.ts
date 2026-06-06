@@ -173,12 +173,13 @@ export function createCamViewerSession({
     )
 
     const resolvedUi = resolveCurrentUi(currentView.route, currentView.inputs, currentView.values, state)
-    currentView = {
+    const nextView: CurrentView = {
       ...currentView,
       state,
       resolvedUi,
     }
 
+    currentView = nextView
     return loadedSnapshot(currentView)
   }
 
