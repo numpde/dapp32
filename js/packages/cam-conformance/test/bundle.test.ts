@@ -1114,7 +1114,7 @@ test("UI Includes with literal targets must pass exactly the target node args", 
   ])
 })
 
-test("UI props must be compatible with ABI-backed route output types", () => {
+test("UI props reject statically incompatible ABI-backed route outputs", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -1171,7 +1171,7 @@ test("UI props must be compatible with ABI-backed route output types", () => {
   ])
 })
 
-test("UI dynamic call targets must be compatible with ABI-backed route output types", () => {
+test("UI dynamic call targets reject statically incompatible ABI-backed route outputs", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",

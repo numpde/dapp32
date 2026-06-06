@@ -145,11 +145,19 @@ Cross-document CAM rules:
   Route call namespaces target declared contract namespaces.
   Route call function names exist in the selected ABI.
   Route args exactly match ABI input names.
+  Statically known route arg values reject obvious ABI scalar mismatches.
   Read routes target view or pure functions.
   Write routes target nonpayable functions until CAM has an explicit value
   model.
   Route continuations target declared UI nodes or declared routes.
   Output expressions used in continuations select existing route outputs.
+  ABI-backed UI handoffs reject statically incompatible output references.
+
+Conformance should not present those checks as complete static typechecking.
+Dynamic expressions, local state, user inputs, wallet accounts, RPC decoder
+outputs, and literal strings that may become addresses or bytes remain runtime
+values. The EVM adapter must still normalize and reject concrete values against
+the ABI before every route read, simulation, and write.
 
 UI and DOM/schema rules:
 
