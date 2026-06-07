@@ -13,6 +13,7 @@ import {
 } from "../abi/routes.ts"
 import {
   expressionReference,
+  staticString,
 } from "../expressions/reference.ts"
 import {
   conformanceIssue,
@@ -65,7 +66,7 @@ function validateRouteTypeflow(
   if (functions === undefined) return
 
   const fn = resolvedAbiFunction(route.call.function, functions)
-  const nodeName = literalFunctionName(route.then.function)
+  const nodeName = staticString(route.then.function)
   if (fn === undefined || nodeName === undefined) return
 
   // Typeflow follows runtime's concrete handoff: route outputs become named UI
@@ -152,7 +153,7 @@ function validateCall(
 
   validateBoundValue(scope, `${path}.call.function`, "UI Include target", node.call.function, "string-or-string-array", context)
 
-  const nodeName = literalFunctionName(node.call.function)
+  const nodeName = staticString(node.call.function)
   if (nodeName === undefined || !isRecordObject(node.call.args)) return
 
   walkNamedNode(
@@ -221,12 +222,6 @@ function valueAtReference(root: string, segments: readonly string[], context: Ab
 
   const value = abiOutputAtSegments(rootValue, segments)
   return value === undefined ? { kind: "missing" } : { kind: "value", value }
-}
-
-function literalFunctionName(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined
-  if (expressionReference(value) !== undefined) return undefined
-  return value.startsWith("$$") ? value.slice(1) : value
 }
 
 function propExpectation(tag: UiPropTag, prop: string): ValueExpectation | undefined {

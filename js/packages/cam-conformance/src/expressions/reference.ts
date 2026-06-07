@@ -38,6 +38,14 @@ export function isExpressionIdentifier(value: string): boolean {
   return IDENTIFIER_RE.test(value)
 }
 
+// Static strings are values conformance can reason about without runtime
+// context. Escaped `$$foo` is static because runtime resolves it to `$foo`.
+export function staticString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  if (expressionReference(value) !== undefined) return undefined
+  return value.startsWith("$$") ? value.slice(1) : value
+}
+
 function isExpressionSegment(value: string): boolean {
   return isExpressionIdentifier(value) || isArrayIndex(value)
 }

@@ -26,6 +26,7 @@ import {
 import {
   expressionReference,
   isExpressionIdentifier,
+  staticString,
 } from "../expressions/reference.ts"
 
 type UiCall = {
@@ -125,7 +126,7 @@ function routeLocalActionInputs(
   for (const route of routes) {
     if (route.then.namespace !== "ui") continue
 
-    const rootName = literalCallFunction(route.then.function)
+    const rootName = staticString(route.then.function)
     if (rootName === undefined) continue
 
     // Runtime initializes $state from the UI tree selected by the current
@@ -185,7 +186,7 @@ function collectInlineUiData(
   if (inputName !== undefined) data.inputNames.add(inputName)
 
   if (value.tag === "Include") {
-    const targetName = isRecordObject(value.call) ? literalCallFunction(value.call.function) : undefined
+    const targetName = isRecordObject(value.call) ? staticString(value.call.function) : undefined
     if (targetName !== undefined) collectNamedUiData(nodes, targetName, stack, data)
   }
 
@@ -221,7 +222,7 @@ function validateIncludeNodeArgs(
   uiNodes: ReadonlyMap<string, DeclaredUiNode>,
   issues: CamConformanceIssue[],
 ): void {
-  const functionName = literalCallFunction(include.function)
+  const functionName = staticString(include.function)
   if (functionName === undefined) return
 
   const node = uiNodes.get(functionName)
@@ -251,7 +252,7 @@ function validateActionRouteArgs(
   routesByName: ReadonlyMap<string, DeclaredRoute>,
   issues: CamConformanceIssue[],
 ): void {
-  const functionName = literalCallFunction(action.function)
+  const functionName = staticString(action.function)
   if (functionName === undefined) return
 
   const route = routesByName.get(functionName)
@@ -274,12 +275,6 @@ function validateActionRouteArgs(
   })
 }
 
-function literalCallFunction(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined
-  if (expressionReference(value) !== undefined) return undefined
-  return value.startsWith("$$") ? value.slice(1) : value
-}
-
 function literalInputName(node: Record<string, unknown>): string | undefined {
   if (node.tag !== "Input" || !isRecordObject(node.props)) return undefined
 
@@ -287,11 +282,8 @@ function literalInputName(node: Record<string, unknown>): string | undefined {
   // Runtime initial state can only be proven statically for literal names.
   // Dynamic Input names may still be runtime-valid, but they cannot justify a
   // conformance claim that $state.<name> is available in this view.
-  if (typeof name === "string" && name.length > 0 && expressionReference(name) === undefined) {
-    return name.startsWith("$$") ? name.slice(1) : name
-  }
-
-  return undefined
+  const staticName = staticString(name)
+  return staticName === "" ? undefined : staticName
 }
 
 function validateActionStateInputs(
