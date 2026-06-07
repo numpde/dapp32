@@ -1,4 +1,5 @@
 import {
+  isExpressionIdentifier,
   isRecordObject,
   UI_RUNTIME_ROOTS,
 } from "@cam/protocol"
@@ -25,7 +26,6 @@ import {
 } from "../walk.ts"
 import {
   expressionReference,
-  isExpressionIdentifier,
   staticString,
   staticStringList,
 } from "../expressions/reference.ts"
@@ -59,7 +59,7 @@ export function validateUiDataflow({
 }): void {
   const routesByName = new Map(routes.map((route) => [route.name, route]))
   for (const [resource, ui] of uiDocuments) {
-    const dataflow = readUiDataflow(ui.nodes)
+    const dataflow = readUiDataflow(resource, ui.nodes, issues)
     const actionInputsByPath = routeLocalActionInputs(ui.nodes, routes)
 
     for (const call of dataflow.calls) {
@@ -79,9 +79,13 @@ export function validateUiDataflow({
   }
 }
 
-function readUiDataflow(nodes: Record<string, unknown>): UiDataflow {
+function readUiDataflow(
+  resource: string,
+  nodes: Record<string, unknown>,
+  issues: CamConformanceIssue[],
+): UiDataflow {
   const calls: UiCall[] = []
-  forEachUiNode(nodes, (node, path) => collectUiNodeDataflow(node, path, calls))
+  forEachUiNode(nodes, (node, path) => collectUiNodeDataflow(resource, node, path, calls, issues))
 
   return {
     calls,
@@ -89,16 +93,34 @@ function readUiDataflow(nodes: Record<string, unknown>): UiDataflow {
 }
 
 function collectUiNodeDataflow(
+  resource: string,
   value: Record<string, unknown>,
   path: string,
   calls: UiCall[],
+  issues: CamConformanceIssue[],
 ): void {
+  validateInputName(resource, value, path, issues)
   if (value.tag === "Include") {
     collectCall(value, path, "ui", calls)
   }
   if (value.tag === "Action") {
     collectCall(value, path, "routes", calls)
   }
+}
+
+function validateInputName(
+  resource: string,
+  value: Record<string, unknown>,
+  path: string,
+  issues: CamConformanceIssue[],
+): void {
+  if (value.tag !== "Input" || !isRecordObject(value.props)) return
+
+  const name = staticString(value.props.name)
+  if (name === undefined) return
+  if (name.length === 0 || isExpressionIdentifier(name)) return
+
+  issues.push(dataflowIssue(resource, `${path}.props.name`, `Input name must be an expression identifier: ${name}`))
 }
 
 function collectCall(
@@ -317,7 +339,8 @@ function literalInputName(node: Record<string, unknown>): string | undefined {
   // Dynamic Input names may still be runtime-valid, but they cannot justify a
   // conformance claim that $state.<name> is available in this view.
   const staticName = staticString(name)
-  return staticName === "" ? undefined : staticName
+  if (staticName === "" || staticName === undefined) return undefined
+  return isExpressionIdentifier(staticName) ? staticName : undefined
 }
 
 function validateActionStateInputs(

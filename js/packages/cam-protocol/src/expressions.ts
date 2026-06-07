@@ -24,6 +24,10 @@ export type ExpressionRuntime<T> = {
 
 const IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
 
+export function isExpressionIdentifier(value: string): boolean {
+  return IDENTIFIER_RE.test(value)
+}
+
 export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>): ExpressionRuntime<T> {
   function validateString(value: string, path?: string): void {
     if (!value.startsWith("$")) {
@@ -37,7 +41,7 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
     const [root, ...pathSegments] = segments
     if (
       root === undefined ||
-      !IDENTIFIER_RE.test(root) ||
+      !isExpressionIdentifier(root) ||
       pathSegments.some((segment) => !isValidExpressionSegment(segment, options.numericSegments))
     ) {
       throw options.error("invalidExpression", `invalid expression syntax: ${value}`, path)
@@ -157,7 +161,7 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
 }
 
 function isValidExpressionSegment(segment: string, numericSegments: boolean): boolean {
-  return IDENTIFIER_RE.test(segment) || (numericSegments && isArrayIndex(segment))
+  return isExpressionIdentifier(segment) || (numericSegments && isArrayIndex(segment))
 }
 
 function isArrayIndex(value: string): boolean {

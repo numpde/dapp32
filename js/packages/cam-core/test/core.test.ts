@@ -87,6 +87,19 @@ test("rejects invalid CAM versions and unresolved route expressions", () => {
     }),
     (error) => error instanceof CamError && error.code === "CAM_UNKNOWN_FIELD",
   )
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      routes: {
+        ...mainJson.routes,
+        entry: {
+          ...mainJson.routes.entry,
+          inputs: ["serial-number"],
+        },
+      },
+    }),
+    /input name must be an expression identifier: serial-number/,
+  )
 
   const cam = parseCam(mainJson)
   const context = createContext({

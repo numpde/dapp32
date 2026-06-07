@@ -11,6 +11,7 @@ import {
   InertValueError,
   isAbiFunctionName,
   isAbiFunctionSignatureReference,
+  isExpressionIdentifier,
   isFixedAbiArrayType,
   isSupportedAbiScalarType,
   parseAbiFixedBytesLength,
@@ -51,6 +52,14 @@ test("owns CAM-supported ABI function reference grammar", () => {
   assert.equal(isAbiFunctionSignatureReference("viewEntry(address"), false)
   assert.equal(isAbiFunctionSignatureReference("viewEntry(address) extra"), false)
   assert.equal(isAbiFunctionSignatureReference("viewEntry (address)"), false)
+})
+
+test("owns expression identifier grammar", () => {
+  assert.equal(isExpressionIdentifier("serialNumber"), true)
+  assert.equal(isExpressionIdentifier("serial_number1"), true)
+  assert.equal(isExpressionIdentifier("_serialNumber"), false)
+  assert.equal(isExpressionIdentifier("serial-number"), false)
+  assert.equal(isExpressionIdentifier("1serialNumber"), false)
 })
 
 test("resolves expression payloads with caller-owned normalization and errors", () => {

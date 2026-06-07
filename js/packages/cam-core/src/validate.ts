@@ -5,7 +5,7 @@ import {
   requiredNonEmptyString,
   requiredRecord,
 } from "./guards.ts"
-import { assertCamSecondaryResourceURI, createStringMap, hasOwn } from "@cam/protocol"
+import { assertCamSecondaryResourceURI, createStringMap, hasOwn, isExpressionIdentifier } from "@cam/protocol"
 import {
   CAM_CONTRACT_NAMESPACE_PREFIX,
   CAM_ROUTES_NAMESPACE,
@@ -189,6 +189,9 @@ function parseInputNames(value: unknown, path: string): readonly string[] {
   for (const [index, item] of source.entries()) {
     const itemPath = `${path}.${index}`
     const name = requiredNonEmptyString(item, itemPath)
+    if (!isExpressionIdentifier(name)) {
+      throw new CamError("CAM_INVALID_FIELD", `input name must be an expression identifier: ${name}`, itemPath)
+    }
     if (seen.has(name)) {
       throw new CamError("CAM_INVALID_FIELD", `duplicate input name: ${name}`, itemPath)
     }

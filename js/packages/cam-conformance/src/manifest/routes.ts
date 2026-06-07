@@ -1,5 +1,6 @@
 import {
   CAM_ROUTE_CONTEXT_KEYS,
+  isExpressionIdentifier,
   isRecordObject,
 } from "@cam/protocol"
 
@@ -17,7 +18,6 @@ import {
 import {
   expressionReference,
   expressionSyntaxError,
-  isExpressionIdentifier,
 } from "../expressions/reference.ts"
 
 export type RouteKind = "read" | "write"
@@ -166,6 +166,10 @@ function validateRouteInputList(
     const itemPath = `${path}.${index}`
     if (typeof input !== "string" || input.length === 0) {
       issues.push(routeInputIssue(resource, itemPath, `route input name must be a non-empty string: ${routeName}`))
+      continue
+    }
+    if (!isExpressionIdentifier(input)) {
+      issues.push(routeInputIssue(resource, itemPath, `route input name must be an expression identifier: ${input}`))
       continue
     }
 

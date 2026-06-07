@@ -1,4 +1,6 @@
-const IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
+import {
+  isExpressionIdentifier,
+} from "@cam/protocol"
 
 export type ExpressionReference = {
   readonly root: string
@@ -32,10 +34,6 @@ export function expressionSyntaxError(value: string): string | undefined {
   }
 
   return undefined
-}
-
-export function isExpressionIdentifier(value: string): boolean {
-  return IDENTIFIER_RE.test(value)
 }
 
 // Static strings are values conformance can reason about without runtime

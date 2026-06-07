@@ -5,6 +5,7 @@ import { toInertValue } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import {
   parseUi,
+  resolveInitialUiNode,
   resolveUiNode,
 } from "../src/index.ts"
 
@@ -127,6 +128,36 @@ test("resolveUiNode rejects args that shadow runtime roots", () => {
   assert.throws(
     () => resolveUiNode(ui, "app", inertRecord({ state: {} }), context),
     /must not shadow runtime root: state/,
+  )
+})
+
+test("resolveInitialUiNode rejects Input names that cannot be referenced from state", () => {
+  const ui = parseUi({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Screen",
+        requires: [],
+        props: {
+          title: "Invalid input",
+        },
+        children: [
+          {
+            tag: "Input",
+            props: {
+              name: "serial-number",
+              label: "Serial number",
+              value: "",
+            },
+          },
+        ],
+      },
+    },
+  })
+
+  assert.throws(
+    () => resolveInitialUiNode(ui, "app", inertRecord({}), context),
+    /Input props.name must resolve to an expression identifier: serial-number/,
   )
 })
 

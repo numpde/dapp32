@@ -19,6 +19,7 @@ export {
 
 export {
   createExpressionRuntime,
+  isExpressionIdentifier,
 } from "./expressions.ts"
 export type {
   ExpressionErrorKind,

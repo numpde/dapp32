@@ -4,6 +4,7 @@ import { resolveValueAtPath } from "./expressions.ts"
 import {
   createStringMap,
   hasOwn,
+  isExpressionIdentifier,
   isRecordObject,
 } from "@cam/protocol"
 import type { InertRecord, InertValue } from "@cam/protocol"
@@ -225,6 +226,9 @@ function appendInitialState(nodes: readonly ResolvedUiNode[], state: Record<stri
       const value = node.props.value
       if (typeof name !== "string" || name.length === 0) {
         throw new UiError("UI_INVALID_FIELD", "Input props.name must resolve to a non-empty string")
+      }
+      if (!isExpressionIdentifier(name)) {
+        throw new UiError("UI_INVALID_FIELD", `Input props.name must resolve to an expression identifier: ${name}`)
       }
       if (typeof value !== "string") {
         throw new UiError("UI_INVALID_FIELD", `Input props.value must resolve to a string: ${name}`)

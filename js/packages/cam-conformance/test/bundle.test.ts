@@ -237,7 +237,7 @@ test("invalid route input declarations are reported per input", () => {
   }>((root) => {
     root.routes.entry = {
       kind: "read",
-      inputs: ["serialNumber", "", "serialNumber"],
+      inputs: ["serialNumber", "", "serial-number", "serialNumber"],
       call: {
         namespace: "contracts.App",
         function: "viewEntry",
@@ -256,6 +256,7 @@ test("invalid route input declarations are reported per input", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.1"],
     ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.2"],
+    ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.3"],
     ["CAM_RUNTIME_CAM_INVALID", "routes.entry.inputs.1"],
   ])
 })
@@ -1252,6 +1253,32 @@ test("UI action state references must be backed by Input names", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.1.call.args.serialNumber"],
+  ])
+})
+
+test("UI literal Input names must be state expression identifiers", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Input",
+        requires: ["view"],
+        props: {
+          name: "serial-number",
+          label: "Serial number",
+          value: "",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.props.name"],
   ])
 })
 
