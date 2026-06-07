@@ -498,6 +498,7 @@ function abiInputs(
   }
 
   const result: AbiInput[] = []
+  const inputNames = new Set<string>()
   for (const [index, input] of inputs.entries()) {
     const inputPath = `${path}.inputs.${index}`
     if (!isRecordObject(input)) {
@@ -510,6 +511,11 @@ function abiInputs(
       issues.push(abiIssue(resource, `${inputPath}.name`, "ABI inputs used by CAM routes must be named"))
       return undefined
     }
+    if (inputNames.has(name)) {
+      issues.push(abiIssue(resource, `${inputPath}.name`, `ABI input name is duplicated: ${name}`))
+      return undefined
+    }
+    inputNames.add(name)
     const type = canonicalAbiType(resource, inputPath, input, "input", issues)
     if (type === undefined) {
       return undefined

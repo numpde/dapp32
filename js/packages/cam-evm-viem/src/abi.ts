@@ -116,6 +116,7 @@ function validateFunctionItem(item: Record<string, unknown>, path: string): void
 
   validateAbiParameters(item.inputs, `${path}.inputs`)
   validateAbiParameters(item.outputs, `${path}.outputs`)
+  validateFunctionInputNames(item.inputs, `${path}.inputs`)
 }
 
 function validateAbiParameters(value: unknown, path: string): void {
@@ -192,6 +193,28 @@ function validateTupleComponentNames(value: unknown, path: string): void {
 
     if (names.has(name)) {
       throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI tuple component name is duplicated: ${path}.${index}.name`)
+    }
+    names.add(name)
+  }
+}
+
+function validateFunctionInputNames(value: unknown, path: string): void {
+  if (!Array.isArray(value)) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI function inputs must be an array: ${path}`)
+  }
+
+  const names = new Set<string>()
+  for (let index = 0; index < value.length; index++) {
+    const input = value[index]
+    if (!isRecordObject(input)) continue
+
+    const name = input.name
+    if (typeof name !== "string" || name.length === 0) {
+      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI inputs used by CAM routes must be named: ${path}.${index}.name`)
+    }
+
+    if (names.has(name)) {
+      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI input name is duplicated: ${path}.${index}.name`)
     }
     names.add(name)
   }

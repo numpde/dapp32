@@ -632,6 +632,27 @@ test("ABI resource validation rejects runtime-invalid function ABI shapes", () =
       stateMutability: "view",
       inputs: [
         {
+          name: "amount",
+          type: "uint256",
+        },
+        {
+          name: "amount",
+          type: "uint256",
+        },
+      ],
+      outputs: [],
+    },
+  ])), [
+    ["CAM_ABI_INVALID", "0.inputs.1.name"],
+  ])
+
+  assert.deepEqual(abiIssueLocationsFor(jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
           name: "input",
           type: "tuple",
           components: [
