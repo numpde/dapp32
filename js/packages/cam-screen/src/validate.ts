@@ -200,9 +200,33 @@ function parseCall(value: unknown, path: string, expectedNamespace: string): UiC
 
   return {
     namespace,
-    function: parseExpressionPayload(source.function, `${path}.function`),
+    function: parseCallFunction(source.function, `${path}.function`, expectedNamespace),
     args: parseInertRecord(requiredRecord(source.args, `${path}.args`), `${path}.args`),
   }
+}
+
+function parseCallFunction(value: unknown, path: string, expectedNamespace: string): InertValue {
+  if (typeof value === "string") {
+    return parseExpressionPayload(value, path)
+  }
+
+  if (expectedNamespace === CAM_UI_NAMESPACE && Array.isArray(value)) {
+    return value.map((item, index) => {
+      if (typeof item !== "string") {
+        throw new UiError("UI_INVALID_FIELD", "Include function array items must be strings", `${path}.${index}`)
+      }
+
+      return parseExpressionPayload(item, `${path}.${index}`)
+    })
+  }
+
+  throw new UiError(
+    "UI_INVALID_FIELD",
+    expectedNamespace === CAM_UI_NAMESPACE
+      ? "Include function must be a string or string array"
+      : "Action function must be a string",
+    path,
+  )
 }
 
 function parseInertRecord(source: Record<string, unknown>, path: string): InertRecord {

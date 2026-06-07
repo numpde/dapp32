@@ -1226,6 +1226,7 @@ test("UI action route targets must be single strings, not arrays", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.function"],
+    ["CAM_UI_FIELD_INVALID", "nodes.app.children.0.call.function"],
   ])
 })
 
@@ -1629,17 +1630,6 @@ test("UI static call targets must not be empty or duplicated", () => {
               args: {},
             },
           },
-          {
-            tag: "Action",
-            props: {
-              label: "Open",
-            },
-            call: {
-              namespace: "routes",
-              function: ["entry", "entry"],
-              args: {},
-            },
-          },
         ],
       },
       detail: {
@@ -1660,7 +1650,6 @@ test("UI static call targets must not be empty or duplicated", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.function"],
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.1.call.function"],
-    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.2.call.function"],
   ])
 })
 

@@ -338,6 +338,47 @@ test("parseUi rejects calls wired to the wrong namespace", () => {
   )
 })
 
+test("parseUi rejects statically invalid call function shapes", () => {
+  assert.throws(
+    () => parseUi({
+      ui: "1.0.0",
+      nodes: {
+        action: {
+          tag: "Action",
+          requires: [],
+          props: {
+            label: "Bad action",
+          },
+          call: {
+            namespace: "routes",
+            function: ["entry"],
+            args: {},
+          },
+        },
+      },
+    }),
+    /Action function must be a string/,
+  )
+
+  assert.throws(
+    () => parseUi({
+      ui: "1.0.0",
+      nodes: {
+        include: {
+          tag: "Include",
+          requires: [],
+          call: {
+            namespace: "ui",
+            function: ["entry", false],
+            args: {},
+          },
+        },
+      },
+    }),
+    /Include function array items must be strings/,
+  )
+})
+
 test("parseUi and resolveUiNode reject invalid tag props", () => {
   assert.throws(
     () => parseUi({
