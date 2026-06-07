@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   abiScalarKind,
+  assertCamResourceSize,
   createExpressionRuntime,
   CamResourceIntegrityError,
   CAM_VERSION,
@@ -108,6 +109,12 @@ test("parseJsonText rejects duplicate object keys before runtime parsing", () =>
 })
 
 test("validates HTTP resource boundaries and bounded response bytes", async () => {
+  assertCamResourceSize(new Uint8Array(2), "https://example.test/small", 2)
+  assert.throws(
+    () => assertCamResourceSize(new Uint8Array(3), "https://example.test/large", 2),
+    /too large/,
+  )
+
   assert.equal(requireHttpURL("https://example.test/cam/main.json", "uri").href, "https://example.test/cam/main.json")
   assert.equal(requireHttpOrigin("https://example.test", "origin"), "https://example.test")
   assert.equal(

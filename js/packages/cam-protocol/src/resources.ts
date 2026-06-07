@@ -86,6 +86,16 @@ export function responseContentLength(response: HttpResponse, uri: string): numb
   return Number(value)
 }
 
+export function assertCamResourceSize(
+  bytes: Uint8Array,
+  uri: string,
+  maxBytes = CAM_RESOURCE_MAX_BYTES,
+): void {
+  if (bytes.byteLength > maxBytes) {
+    throw new Error(`CAM resource is too large: ${uri} has ${bytes.byteLength} bytes; limit is ${maxBytes}`)
+  }
+}
+
 export function verifySha256ResourceIntegrity({
   actualHash,
   integrity,

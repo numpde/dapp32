@@ -57,6 +57,7 @@ export type {
 } from "./json.ts"
 
 export {
+  assertCamResourceSize,
   CamResourceIntegrityError,
   CAM_RESOURCE_MAX_BYTES,
   readBoundedResponseBytes,
