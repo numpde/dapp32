@@ -1,5 +1,6 @@
 import {
   isRecordObject,
+  UI_RUNTIME_ROOTS,
 } from "@cam/protocol"
 
 import {
@@ -196,10 +197,22 @@ function collectInlineUiData(
 }
 
 function validateUiCallArgNames(resource: string, call: UiCall, issues: CamConformanceIssue[]): boolean {
-  if (!Object.prototype.hasOwnProperty.call(call.args, "")) return true
+  let valid = true
+  if (Object.prototype.hasOwnProperty.call(call.args, "")) {
+    issues.push(dataflowIssue(resource, `${call.path}.call.args`, "UI call argument name must not be empty"))
+    valid = false
+  }
 
-  issues.push(dataflowIssue(resource, `${call.path}.call.args`, "UI call argument name must not be empty"))
-  return false
+  if (call.namespace === "ui") {
+    for (const name of Object.keys(call.args)) {
+      if (UI_RUNTIME_ROOTS.has(name)) {
+        issues.push(dataflowIssue(resource, `${call.path}.call.args.${name}`, `UI call argument must not shadow runtime root: ${name}`))
+        valid = false
+      }
+    }
+  }
+
+  return valid
 }
 
 function validateIncludeNodeArgs(

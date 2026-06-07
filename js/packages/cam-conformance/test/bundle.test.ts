@@ -1497,6 +1497,39 @@ test("UI Include escaped call targets are checked as literal node names", () => 
   ])
 })
 
+test("UI Includes must not shadow runtime roots even when the target is dynamic", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "$view.title",
+              args: {
+                state: {},
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.args.state"],
+  ])
+})
+
 test("UI props reject statically incompatible ABI-backed route outputs", () => {
   const abiBytes = jsonBytes([
     {
