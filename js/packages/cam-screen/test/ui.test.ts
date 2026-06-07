@@ -384,6 +384,15 @@ test("resolveUiNode fails closed on missing required arguments and non-string ac
     }), context),
     /call function must resolve to a string/,
   )
+
+  assert.throws(
+    () => resolveUiNode(ui, "action", inertRecord({
+      view: {
+        actions: "",
+      },
+    }), context),
+    /call function must resolve to a non-empty string/,
+  )
 })
 
 function inertRecord(value: unknown): InertRecord {

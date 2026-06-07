@@ -301,6 +301,9 @@ function resolveCall(call: UiCall, context: UiRuntimeContext, path: string): Res
   if (typeof functionName !== "string") {
     throw new UiError("UI_INVALID_FIELD", "call function must resolve to a string", `${path}.function`)
   }
+  if (functionName.length === 0) {
+    throw new UiError("UI_INVALID_FIELD", "call function must resolve to a non-empty string", `${path}.function`)
+  }
 
   return {
     namespace: call.namespace,
