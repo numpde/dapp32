@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { parseCam } from "@cam/core"
-import { toInertValue } from "@cam/protocol"
+import { CAM_RESOURCE_MAX_BYTES, toInertValue } from "@cam/protocol"
 import { sha256, toFunctionSelector } from "viem"
 import type { Abi, Address, Chain, Hex } from "viem"
 
@@ -154,6 +154,21 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
       allowUnsignedCamHash: true,
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_HOST_UNSUPPORTED",
+  )
+
+  await assert.rejects(
+    () => loadCamFromHost({
+      publicClient: createPublicClient(publicClientFixtureOptions({})),
+      host,
+      loadResource: createResourceLoader({
+        [camDocumentURI]: new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1),
+      }),
+      allowUnsignedCamHash: true,
+    }),
+    (error) => error instanceof CamEvmError
+      && error.code === "CAM_RESOURCE_LOAD_FAILED"
+      && error.cause instanceof Error
+      && /too large/.test(error.cause.message),
   )
 })
 
@@ -337,6 +352,29 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
       }),
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
+  )
+
+  const oversizedAbiBytes = new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1)
+  await assert.rejects(
+    () => resolveCamContracts({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        addresses: {
+          [BIKE_UI_CONTRACT]: uiAddress,
+          [BIKE_MANAGER_CONTRACT]: managerAddress,
+        },
+      })),
+      host,
+      camURI: camDocumentURI,
+      cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, oversizedAbiBytes),
+      loadResource: createResourceLoader({
+        [uiAbiURI]: oversizedAbiBytes,
+        [managerAbiURI]: managerAbiBytes,
+      }),
+    }),
+    (error) => error instanceof CamEvmError
+      && error.code === "CAM_RESOURCE_LOAD_FAILED"
+      && error.cause instanceof Error
+      && /too large/.test(error.cause.message),
   )
 })
 
