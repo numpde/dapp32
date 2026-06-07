@@ -46,6 +46,22 @@ export function staticString(value: unknown): string | undefined {
   return value.startsWith("$$") ? value.slice(1) : value
 }
 
+export function staticStringList(value: unknown): readonly string[] | undefined {
+  if (Array.isArray(value)) {
+    const result: string[] = []
+    for (const item of value) {
+      const staticItem = staticString(item)
+      if (staticItem === undefined) return undefined
+      result.push(staticItem)
+    }
+
+    return result
+  }
+
+  const staticValue = staticString(value)
+  return staticValue === undefined ? undefined : [staticValue]
+}
+
 function isExpressionSegment(value: string): boolean {
   return isExpressionIdentifier(value) || isArrayIndex(value)
 }

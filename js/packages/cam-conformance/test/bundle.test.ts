@@ -1497,6 +1497,67 @@ test("UI Include escaped call targets are checked as literal node names", () => 
   ])
 })
 
+test("UI static call targets must not be empty or duplicated", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: ["detail", "detail"],
+              args: {
+                view: "$view",
+              },
+            },
+          },
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "",
+              args: {},
+            },
+          },
+          {
+            tag: "Action",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: ["entry", "entry"],
+              args: {},
+            },
+          },
+        ],
+      },
+      detail: {
+        tag: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.function"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.1.call.function"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.2.call.function"],
+  ])
+})
+
 test("UI Includes must not shadow runtime roots even when the target is dynamic", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",

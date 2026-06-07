@@ -170,6 +170,39 @@ test("resolveUiNode rejects include cycles and undeclared node args", () => {
   )
 })
 
+test("resolveUiNode rejects duplicate or empty Include selections", () => {
+  const ui = parseUi({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Include",
+        requires: ["view"],
+        call: {
+          namespace: "ui",
+          function: "$view.nodes",
+          args: {},
+        },
+      },
+      item: {
+        tag: "Text",
+        requires: [],
+        props: {
+          text: "Item",
+        },
+      },
+    },
+  })
+
+  assert.throws(
+    () => resolveUiNode(ui, "app", inertRecord({ view: { nodes: ["item", "item"] } }), context),
+    /must not duplicate node names: item/,
+  )
+  assert.throws(
+    () => resolveUiNode(ui, "app", inertRecord({ view: { nodes: "" } }), context),
+    /must not contain an empty node name/,
+  )
+})
+
 test("parseUi rejects required arguments outside the UI node interface", () => {
   assert.throws(
     () => parseUi({

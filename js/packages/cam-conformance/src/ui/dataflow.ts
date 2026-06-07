@@ -27,6 +27,7 @@ import {
   expressionReference,
   isExpressionIdentifier,
   staticString,
+  staticStringList,
 } from "../expressions/reference.ts"
 
 type UiCall = {
@@ -222,28 +223,31 @@ function validateIncludeNodeArgs(
   uiNodes: ReadonlyMap<string, DeclaredUiNode>,
   issues: CamConformanceIssue[],
 ): void {
-  const functionName = staticString(include.function)
-  if (functionName === undefined) return
+  const functionNames = staticStringList(include.function)
+  if (functionNames === undefined) return
+  if (!validateStaticCallTargets(resource, `${include.path}.call.function`, "UI Include", functionNames, issues)) return
 
-  const node = uiNodes.get(functionName)
-  if (node === undefined) {
-    issues.push(dataflowIssue(
+  for (const functionName of functionNames) {
+    const node = uiNodes.get(functionName)
+    if (node === undefined) {
+      issues.push(dataflowIssue(
+        resource,
+        `${include.path}.call.function`,
+        `UI Include calls unknown UI node: ${functionName}`,
+      ))
+      continue
+    }
+    if (node.requires === undefined) continue
+
+    validateExactNames({
       resource,
-      `${include.path}.call.function`,
-      `UI Include calls unknown UI node: ${functionName}`,
-    ))
-    return
+      path: `${include.path}.call.args`,
+      expectedNames: node.requires,
+      actualNames: Object.keys(include.args),
+      destination: `UI node ${node.name}`,
+      issues,
+    })
   }
-  if (node.requires === undefined) return
-
-  validateExactNames({
-    resource,
-    path: `${include.path}.call.args`,
-    expectedNames: node.requires,
-    actualNames: Object.keys(include.args),
-    destination: `UI node ${node.name}`,
-    issues,
-  })
 }
 
 function validateActionRouteArgs(
@@ -252,8 +256,15 @@ function validateActionRouteArgs(
   routesByName: ReadonlyMap<string, DeclaredRoute>,
   issues: CamConformanceIssue[],
 ): void {
-  const functionName = staticString(action.function)
-  if (functionName === undefined) return
+  const functionNames = staticStringList(action.function)
+  if (functionNames === undefined) return
+  if (!validateStaticCallTargets(resource, `${action.path}.call.function`, "UI Action route", functionNames, issues)) return
+  if (functionNames.length !== 1) {
+    issues.push(dataflowIssue(resource, `${action.path}.call.function`, "UI Action route must select exactly one route"))
+    return
+  }
+
+  const [functionName] = functionNames
 
   const route = routesByName.get(functionName)
   if (route === undefined) {
@@ -273,6 +284,29 @@ function validateActionRouteArgs(
     destination: `route ${route.name}`,
     issues,
   })
+}
+
+function validateStaticCallTargets(
+  resource: string,
+  path: string,
+  label: string,
+  names: readonly string[],
+  issues: CamConformanceIssue[],
+): boolean {
+  let valid = true
+  const seen = new Set<string>()
+  for (const name of names) {
+    if (name.length === 0) {
+      issues.push(dataflowIssue(resource, path, `${label} target must not be empty`))
+      valid = false
+    } else if (seen.has(name)) {
+      issues.push(dataflowIssue(resource, path, `${label} target must not be duplicated: ${name}`))
+      valid = false
+    }
+    seen.add(name)
+  }
+
+  return valid
 }
 
 function literalInputName(node: Record<string, unknown>): string | undefined {

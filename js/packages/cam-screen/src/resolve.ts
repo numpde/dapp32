@@ -243,14 +243,29 @@ function appendInitialState(nodes: readonly ResolvedUiNode[], state: Record<stri
 
 function selectedNodeNames(value: InertValue, path: string): readonly string[] {
   if (typeof value === "string") {
-    return [value]
+    return checkedSelectedNodeNames([value], path)
   }
 
   if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
-    return value
+    return checkedSelectedNodeNames(value, path)
   }
 
   throw new UiError("UI_INVALID_FIELD", "Include selection must resolve to a string or string array", path)
+}
+
+function checkedSelectedNodeNames(names: readonly string[], path: string): readonly string[] {
+  const seen = new Set<string>()
+  for (const name of names) {
+    if (name.length === 0) {
+      throw new UiError("UI_INVALID_FIELD", "Include selection must not contain an empty node name", path)
+    }
+    if (seen.has(name)) {
+      throw new UiError("UI_INVALID_FIELD", `Include selection must not duplicate node names: ${name}`, path)
+    }
+    seen.add(name)
+  }
+
+  return names
 }
 
 function resolveAction(node: ActionNode, context: UiRuntimeContext, path: string): ResolvedActionNode {
