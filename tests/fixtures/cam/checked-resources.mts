@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url"
 // source parser directly so checked-in CAM discovery still uses the one JSON
 // policy that rejects duplicate keys.
 import { parseJsonText } from "../../../js/packages/cam-protocol/src/json.ts"
+import { assertCamSecondaryResourceURI } from "../../../js/packages/cam-protocol/src/resources.ts"
 
 export const dappsRoot = fileURLToPath(new URL("../../../dapps/", import.meta.url))
 
@@ -151,6 +152,8 @@ function requiredNonEmptyString(value: unknown, path: string): string {
 }
 
 export async function checkedInLocalResourcePath(rootPath: string, uri: string): Promise<string> {
+  assertCamSecondaryResourceURI(uri, "checked-in CAM resource URI")
+
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri) || uri.startsWith("//") || uri.startsWith("/")) {
     throw new Error(`checked-in CAM resources must be local relative files: ${uri}`)
   }
