@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import {
-  CAM_RESOURCE_MAX_BYTES,
   CamResourceIntegrityError,
+  assertCamResourceSize,
   verifySha256ResourceIntegrity,
 } from "@cam/protocol"
 
@@ -76,8 +76,7 @@ function validateDeclaredResource(
     return false
   }
 
-  if (bytes.byteLength > CAM_RESOURCE_MAX_BYTES) {
-    reportOversizedResource(declaration, bytes, issues)
+  if (!validateResourceSize(declaration, bytes, issues)) {
     return false
   }
 
@@ -93,17 +92,23 @@ function reportMissingResource(declaration: ResourceDeclaration, issues: CamConf
   }))
 }
 
-function reportOversizedResource(
+function validateResourceSize(
   declaration: ResourceDeclaration,
   bytes: Uint8Array,
   issues: CamConformanceIssue[],
-): void {
-  issues.push(conformanceIssue({
-    rule: "CAM_RESOURCE_TOO_LARGE",
-    resource: declaration.uri,
-    path: declaration.uriPath,
-    message: `CAM resource is too large: ${declaration.uri} has ${bytes.byteLength} bytes; limit is ${CAM_RESOURCE_MAX_BYTES}`,
-  }))
+): boolean {
+  try {
+    assertCamResourceSize(bytes, declaration.uri)
+    return true
+  } catch (error) {
+    issues.push(issueFromError({
+      rule: "CAM_RESOURCE_TOO_LARGE",
+      resource: declaration.uri,
+      path: declaration.uriPath,
+      error,
+    }))
+    return false
+  }
 }
 
 function reportOrphanResources(
