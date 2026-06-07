@@ -1,5 +1,7 @@
 import {
   abiScalarKind,
+  isAbiFunctionName,
+  isAbiFunctionSignatureReference,
   isFixedAbiArrayType,
   isRecordObject,
   isSupportedAbiScalarType,
@@ -89,10 +91,11 @@ export function resolvedAbiFunction(
   functionName: string,
   functions: ReadonlyMap<string, readonly AbiFunction[]>,
 ): AbiFunction | undefined {
-  if (isFunctionSignature(functionName)) {
+  if (isAbiFunctionSignatureReference(functionName)) {
     const matches = Array.from(functions.values()).flat().filter((fn) => fn.signature === functionName)
     return matches.length === 1 ? matches[0] : undefined
   }
+  if (!isAbiFunctionName(functionName)) return undefined
 
   const matches = functions.get(functionName)
   return matches?.length === 1 ? matches[0] : undefined
@@ -161,8 +164,12 @@ function resolveRouteFunction(
   functions: ReadonlyMap<string, readonly AbiFunction[]>,
   issues: CamConformanceIssue[],
 ): AbiFunction | undefined {
-  if (isFunctionSignature(functionName)) {
+  if (isAbiFunctionSignatureReference(functionName)) {
     return resolveRouteFunctionSignature(resource, path, functionName, functions, issues)
+  }
+  if (!isAbiFunctionName(functionName)) {
+    issues.push(routeAbiIssue(resource, `${path}.function`, `route function must be a name or full signature: ${functionName}`))
+    return undefined
   }
 
   const matches = functions.get(functionName)
@@ -466,14 +473,17 @@ function parseAbiFunction(
   const inputs = abiInputs(resource, path, item.inputs, issues)
   const outputs = abiOutputs(resource, path, item.outputs, issues)
 
+  const validName = name !== undefined && isAbiFunctionName(name)
   if (name === undefined) {
     issues.push(abiIssue(resource, `${path}.name`, "ABI function name must be a non-empty string"))
+  } else if (!validName) {
+    issues.push(abiIssue(resource, `${path}.name`, "ABI function name is not supported"))
   }
   if (stateMutability === undefined) {
     issues.push(abiIssue(resource, `${path}.stateMutability`, "ABI function stateMutability is not supported"))
   }
 
-  if (name === undefined || stateMutability === undefined || inputs === undefined || outputs === undefined) {
+  if (!validName || stateMutability === undefined || inputs === undefined || outputs === undefined) {
     return undefined
   }
 
@@ -575,10 +585,6 @@ function abiStateMutability(value: unknown): AbiFunction["stateMutability"] | un
 
 function nonEmptyString(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined
-}
-
-function isFunctionSignature(value: string): boolean {
-  return value.includes("(")
 }
 
 function canonicalAbiType(

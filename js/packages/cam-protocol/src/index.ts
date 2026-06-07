@@ -1,5 +1,7 @@
 export {
   abiScalarKind,
+  isAbiFunctionName,
+  isAbiFunctionSignatureReference,
   isFixedAbiArrayType,
   isSupportedAbiScalarType,
   parseAbiFixedBytesLength,

@@ -1,6 +1,7 @@
 import type { Abi, AbiFunction, AbiParameter } from "viem"
 import {
   isFixedAbiArrayType,
+  isAbiFunctionName,
   isRecordObject,
   isSupportedAbiScalarType,
   parseAbiFixedBytesLength,
@@ -108,6 +109,9 @@ function validateAbiItem(item: unknown, path: string): void {
 function validateFunctionItem(item: Record<string, unknown>, path: string): void {
   if (typeof item.name !== "string" || item.name.length === 0) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI function must declare a name: ${path}`)
+  }
+  if (!isAbiFunctionName(item.name)) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI function name is not supported: ${path}.name`)
   }
 
   if (!isStateMutability(item.stateMutability)) {

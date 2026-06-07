@@ -1,4 +1,8 @@
 import type { Abi, AbiFunction } from "viem"
+import {
+  isAbiFunctionName,
+  isAbiFunctionSignatureReference,
+} from "@cam/protocol"
 
 import { abiFunctionSignature } from "./abi.ts"
 import { CamEvmError } from "./errors.ts"
@@ -39,9 +43,10 @@ export function singleFunctionAbi(fn: AbiFunction): Abi {
 
 function matchingFunctions(abi: Abi, functionName: string): readonly AbiFunction[] {
   const functions = abi.filter((item): item is AbiFunction => item.type === "function")
-  if (functionName.includes("(")) {
+  if (isAbiFunctionSignatureReference(functionName)) {
     return functions.filter((item) => abiFunctionSignature(item) === functionName)
   }
+  if (!isAbiFunctionName(functionName)) return []
 
   return functions.filter((item) => item.name === functionName)
 }

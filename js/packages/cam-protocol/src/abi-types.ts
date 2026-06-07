@@ -5,10 +5,34 @@ export type AbiIntegerType = {
 
 export type AbiScalarKind = "address" | "bool" | "bytes" | "fixed-bytes" | "integer" | "string"
 
+const ABI_FUNCTION_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
+
 // CAM only supports ABI types whose decoded values can be normalized into
 // inert protocol data without Solidity-specific runtime machinery.
 export function isSupportedAbiScalarType(type: string): boolean {
   return abiScalarKind(type) !== undefined
+}
+
+export function isAbiFunctionName(value: string): boolean {
+  return ABI_FUNCTION_NAME_RE.test(value)
+}
+
+export function isAbiFunctionSignatureReference(value: string): boolean {
+  const openParen = value.indexOf("(")
+  if (openParen <= 0) return false
+  if (!isAbiFunctionName(value.slice(0, openParen))) return false
+  if (!value.endsWith(")") || /\s/.test(value)) return false
+
+  let depth = 0
+  for (let index = openParen; index < value.length; index++) {
+    const character = value[index]
+    if (character === "(") depth += 1
+    if (character === ")") depth -= 1
+    if (depth < 0) return false
+    if (depth === 0 && index !== value.length - 1) return false
+  }
+
+  return depth === 0
 }
 
 export function abiScalarKind(type: string): AbiScalarKind | undefined {

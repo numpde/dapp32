@@ -534,6 +534,22 @@ test("full route function signatures disambiguate overloads", () => {
   assert.deepEqual(issues, [])
 })
 
+test("route function references must be names or full signatures", () => {
+  const issues = validateEditedRoot<{
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root) => {
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry(address",
+      args: {},
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.function"],
+  ])
+})
+
 test("ABI resource validation rejects runtime-invalid function ABI shapes", () => {
   assert.deepEqual(abiIssueLocationsFor(duplicateViewEntrySignatureAbiBytes()), [
     ["CAM_ABI_INVALID", "1"],
@@ -550,6 +566,18 @@ test("ABI resource validation rejects runtime-invalid function ABI shapes", () =
   ])), [
     ["CAM_ABI_INVALID", "0.type"],
     ["CAM_ABI_INVALID", "1.type"],
+  ])
+
+  assert.deepEqual(abiIssueLocationsFor(jsonBytes([
+    {
+      type: "function",
+      name: "view-entry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [],
+    },
+  ])), [
+    ["CAM_ABI_INVALID", "0.name"],
   ])
 
   assert.deepEqual(abiIssueLocationsFor(jsonBytes([

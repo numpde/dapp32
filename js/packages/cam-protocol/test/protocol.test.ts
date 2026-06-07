@@ -9,6 +9,8 @@ import {
   CamResourceIntegrityError,
   CAM_VERSION,
   InertValueError,
+  isAbiFunctionName,
+  isAbiFunctionSignatureReference,
   isFixedAbiArrayType,
   isSupportedAbiScalarType,
   parseAbiFixedBytesLength,
@@ -38,6 +40,17 @@ test("owns CAM-supported ABI scalar grammar", () => {
   assert.equal(isSupportedAbiScalarType("uint257"), false)
   assert.equal(isSupportedAbiScalarType("bytes33"), false)
   assert.equal(isFixedAbiArrayType("uint256[2]"), true)
+})
+
+test("owns CAM-supported ABI function reference grammar", () => {
+  assert.equal(isAbiFunctionName("viewEntry"), true)
+  assert.equal(isAbiFunctionName("_viewEntry1"), true)
+  assert.equal(isAbiFunctionName("view-entry"), false)
+  assert.equal(isAbiFunctionSignatureReference("viewEntry()"), true)
+  assert.equal(isAbiFunctionSignatureReference("viewEntry(address,(uint256,string)[])"), true)
+  assert.equal(isAbiFunctionSignatureReference("viewEntry(address"), false)
+  assert.equal(isAbiFunctionSignatureReference("viewEntry(address) extra"), false)
+  assert.equal(isAbiFunctionSignatureReference("viewEntry (address)"), false)
 })
 
 test("resolves expression payloads with caller-owned normalization and errors", () => {

@@ -265,6 +265,32 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
     (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
   )
 
+  const invalidFunctionNameAbiBytes = encodeJson([{
+    type: "function",
+    name: `${BIKE_VIEW_ENTRY}-bad`,
+    stateMutability: "view",
+    inputs: [],
+    outputs: [],
+  }])
+  await assert.rejects(
+    () => resolveCamContracts({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        addresses: {
+          [BIKE_UI_CONTRACT]: uiAddress,
+          [BIKE_MANAGER_CONTRACT]: managerAddress,
+        },
+      })),
+      host,
+      camURI: camDocumentURI,
+      cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, invalidFunctionNameAbiBytes),
+      loadResource: createResourceLoader({
+        [uiAbiURI]: invalidFunctionNameAbiBytes,
+        [managerAbiURI]: managerAbiBytes,
+      }),
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
+  )
+
   const fixedArrayAbiBytes = encodeJson([{
     type: "function",
     name: BIKE_VIEW_ENTRY,
