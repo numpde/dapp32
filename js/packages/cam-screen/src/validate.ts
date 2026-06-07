@@ -85,7 +85,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       rejectUnexpectedNodeShape(source, SCREEN_NODE_KEYS, path)
       return {
         tag,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Screen.required),
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Screen),
         children: parseChildren(source.children, `${path}.children`),
       }
     case "Fragment":
@@ -98,31 +98,31 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
         tag,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Text.required),
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Text),
       }
     case "Input":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
         tag,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Input.required),
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Input),
       }
     case "Address":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
         tag,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Address.required),
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Address),
       }
     case "Status":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
         tag,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Status.required),
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Status),
       }
     case "Nft":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
         tag,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Nft.required),
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Nft),
       }
     case "Include":
       rejectUnexpectedNodeShape(source, INCLUDE_KEYS, path)
@@ -134,7 +134,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       rejectUnexpectedNodeShape(source, ACTION_KEYS, path)
       return {
         tag,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Action.required),
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Action),
         call: parseCall(source.call, `${path}.call`, CAM_ROUTES_NAMESPACE),
       }
     default:
@@ -177,13 +177,21 @@ function parseChildren(value: unknown, path: string): readonly UiNode[] {
   return requiredArray(value, path).map((child, index) => parseInlineNode(child, `${path}.${index}`))
 }
 
-function parseProps(value: unknown, path: string, allowedKeys: readonly string[]): InertRecord {
+function parseProps(value: unknown, path: string, schema: {
+  readonly required: readonly string[]
+  readonly string: readonly string[]
+}): InertRecord {
   const source = requiredRecord(value, path)
-  rejectUnknownUiFields(source, new Set(allowedKeys), path)
+  rejectUnknownUiFields(source, new Set(schema.required), path)
 
-  for (const key of allowedKeys) {
+  for (const key of schema.required) {
     if (!Object.hasOwn(source, key)) {
       throw new UiError("UI_INVALID_FIELD", `missing required UI prop: ${key}`, path)
+    }
+  }
+  for (const key of schema.string) {
+    if (typeof source[key] !== "string") {
+      throw new UiError("UI_INVALID_FIELD", `UI prop must be a string or expression: ${key}`, `${path}.${key}`)
     }
   }
 

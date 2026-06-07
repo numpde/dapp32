@@ -396,6 +396,27 @@ test("parseUi and resolveUiNode reject invalid tag props", () => {
     /text/,
   )
 
+  assert.throws(
+    () => parseUi({
+      ui: "1.0.0",
+      nodes: {
+        action: {
+          tag: "Action",
+          requires: [],
+          props: {
+            label: false,
+          },
+          call: {
+            namespace: "routes",
+            function: "component",
+            args: {},
+          },
+        },
+      },
+    }),
+    /label/,
+  )
+
   const ui = parseUi({
     ui: "1.0.0",
     nodes: {
