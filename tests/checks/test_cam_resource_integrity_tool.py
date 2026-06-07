@@ -53,24 +53,28 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
         )
 
     def test_refresh_manifest_rejects_resource_escape(self) -> None:
-        with TemporaryDirectory() as tmp:
-            manifest_path = Path(tmp) / "cam" / "main.json"
-            manifest_path.parent.mkdir(parents=True)
-            write_json(
-                manifest_path,
-                {
-                    "namespaces": {
-                        "contracts.UI": {
-                            "type": "contract",
-                            "abiURI": "./../UI.json",
-                            "integrity": ZERO_SHA256,
+        for uri, message in (
+            ("./../UI.json", "must stay under the CAM directory"),
+            ("./%2e%2e/UI.json", "must not contain percent-encoded path text"),
+        ):
+            with self.subTest(uri=uri), TemporaryDirectory() as tmp:
+                manifest_path = Path(tmp) / "cam" / "main.json"
+                manifest_path.parent.mkdir(parents=True)
+                write_json(
+                    manifest_path,
+                    {
+                        "namespaces": {
+                            "contracts.UI": {
+                                "type": "contract",
+                                "abiURI": uri,
+                                "integrity": ZERO_SHA256,
+                            },
                         },
                     },
-                },
-            )
+                )
 
-            with self.assertRaisesRegex(CamResourceIntegrityError, "must stay under the CAM directory"):
-                refresh_manifest(manifest_path)
+                with self.assertRaisesRegex(CamResourceIntegrityError, message):
+                    refresh_manifest(manifest_path)
 
     def test_refresh_manifest_rejects_symlinked_resource_path_components(self) -> None:
         with TemporaryDirectory() as tmp:

@@ -89,7 +89,7 @@ export function responseContentLength(response: HttpResponse, uri: string): numb
 export function assertCamSecondaryResourceURI(uri: string, label: string): void {
   if (isLocalCamSecondaryResourceURI(uri) || isIpfsCamSecondaryResourceURI(uri)) return
 
-  throw new Error(`${label}: CAM resource URI must be local ./... or content-addressed ipfs://...: ${uri}`)
+  throw new Error(`${label}: CAM resource URI must be local ./... or ipfs://...: ${uri}`)
 }
 
 export function assertCamResourceSize(
@@ -118,6 +118,9 @@ function isIpfsCamSecondaryResourceURI(uri: string): boolean {
 
 function isCamResourcePath(path: string): boolean {
   if (path.length === 0 || path.includes("?") || path.includes("#")) return false
+  // CAM manifests should be reviewable as written. Reject percent escapes so
+  // downstream URL/file handlers cannot reinterpret encoded dot or slash forms.
+  if (path.includes("%")) return false
   return path.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
 }
 
