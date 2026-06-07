@@ -5,6 +5,7 @@ import {
   verifyCamResourceIntegrity,
 } from "@cam/evm-viem"
 import {
+  assertCamResourceSize,
   createStringMap,
   parseJsonBytes,
   toInertValue,
@@ -255,6 +256,7 @@ export function createCamViewerSession({
     let bytes: Uint8Array
     try {
       bytes = await loadResource(uri)
+      assertCamResourceSize(bytes, uri)
     } catch (cause) {
       throw new CamViewerError("CAM_VIEWER_UI_LOAD_FAILED", `failed to load CAM UI resource: ${uri}`, cause)
     }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { toInertValue } from "@cam/protocol"
+import { CAM_RESOURCE_MAX_BYTES, toInertValue } from "@cam/protocol"
 import type { InertValue } from "@cam/protocol"
 
 import {
@@ -28,6 +28,7 @@ import {
   BIKE_UNKNOWN_TOKEN_ID,
   BIKE_UNSIGNED_CAM_HASH,
   BIKE_UI_NAMESPACE,
+  BIKE_UI_URI,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
   bikeComponentRouteResult,
@@ -176,6 +177,22 @@ test("load failures do not expose a partially loaded session", async () => {
   await assert.rejects(
     () => session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER }),
     (error) => error instanceof CamViewerError && error.code === "CAM_VIEWER_NOT_LOADED",
+  )
+})
+
+test("load rejects oversized UI resources at the loader boundary", async () => {
+  const session = createSession(sessionFixtureOptions({
+    loadResource: createResourceLoader(bikeResourceBytes({
+      [BIKE_UI_URI]: new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1),
+    })),
+  }))
+
+  await assert.rejects(
+    () => session.load(),
+    (error) => error instanceof CamViewerError
+      && error.code === "CAM_VIEWER_UI_LOAD_FAILED"
+      && error.cause instanceof Error
+      && /too large/.test(error.cause.message),
   )
 })
 
