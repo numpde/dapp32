@@ -1,8 +1,10 @@
 import {
+  CAM_RESOURCE_MAX_BYTES,
   parseJsonBytes,
 } from "@cam/protocol"
 
 import {
+  conformanceIssue,
   issueFromError,
 } from "../issues.ts"
 import type {
@@ -30,6 +32,17 @@ export function parseRootCamJson({
   readonly bytes: Uint8Array
   readonly issues: CamConformanceIssue[]
 }): RootCamJsonResult {
+  if (bytes.byteLength > CAM_RESOURCE_MAX_BYTES) {
+    issues.push(conformanceIssue({
+      rule: "CAM_RESOURCE_TOO_LARGE",
+      resource,
+      message: `CAM resource is too large: ${resource} has ${bytes.byteLength} bytes; limit is ${CAM_RESOURCE_MAX_BYTES}`,
+    }))
+    return {
+      ok: false,
+    }
+  }
+
   try {
     return {
       ok: true,

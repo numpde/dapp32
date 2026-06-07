@@ -79,17 +79,17 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     namespaces,
     issues,
   })
-  validateDeclaredResources({
+  const validDeclarations = validateDeclaredResources({
     resources: bundle.resources,
     declarations,
     issues,
   })
   const uiDocuments = declaredUiDocuments({
     resources: bundle.resources,
-    declarations,
+    declarations: validDeclarations,
     issues,
   })
-  const functionsByNamespace = contractFunctionsByNamespace(bundle.resources, declarations, issues)
+  const functionsByNamespace = contractFunctionsByNamespace(bundle.resources, validDeclarations, issues)
   const routes = validateRouteDeclarations({
     resource: bundle.rootURI,
     root,

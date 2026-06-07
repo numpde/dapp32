@@ -1,5 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import {
+  CAM_RESOURCE_MAX_BYTES,
+} from "@cam/protocol"
 
 import {
   assertCamBundle,
@@ -114,6 +117,24 @@ test("invalid root CAM bytes report the caller-supplied root URI", () => {
   assert.equal(issues.length, 1)
   assert.equal(issues[0]?.rule, "CAM_ROOT_JSON_INVALID")
   assert.equal(issues[0]?.resource, "ipfs://example-cid/app.cam")
+})
+
+test("root CAM bytes must not exceed the runtime resource size cap", () => {
+  const rootBytes = new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1)
+  const issues = validateCamBundle({
+    ...minimalBundle(),
+    rootURI: "ipfs://example-cid/app.cam",
+    rootBytes,
+  })
+
+  assert.deepEqual(issues, [
+    {
+      rule: "CAM_RESOURCE_TOO_LARGE",
+      severity: "error",
+      resource: "ipfs://example-cid/app.cam",
+      message: `CAM resource is too large: ipfs://example-cid/app.cam has ${rootBytes.byteLength} bytes; limit is ${CAM_RESOURCE_MAX_BYTES}`,
+    },
+  ])
 })
 
 test("runtime CAM parsing is reported after resource checks", () => {
@@ -1685,6 +1706,25 @@ test("undeclared bundle resources are reported as orphans", () => {
       severity: "error",
       resource: "./unused.json",
       message: "bundle resource is not declared by the root CAM document: ./unused.json",
+    },
+  ])
+})
+
+test("declared resources must not exceed the runtime resource size cap", () => {
+  const oversizedAbiBytes = new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1)
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { abiBytes: oversizedAbiBytes })
+  })
+
+  assert.deepEqual(issues, [
+    {
+      rule: "CAM_RESOURCE_TOO_LARGE",
+      severity: "error",
+      resource: "./abi/App.json",
+      path: "namespaces.contracts.App.abiURI",
+      message: `CAM resource is too large: ./abi/App.json has ${oversizedAbiBytes.byteLength} bytes; limit is ${CAM_RESOURCE_MAX_BYTES}`,
     },
   ])
 })

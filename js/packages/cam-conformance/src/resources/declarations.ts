@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto"
 import {
+  CAM_RESOURCE_MAX_BYTES,
   CamResourceIntegrityError,
   verifySha256ResourceIntegrity,
 } from "@cam/protocol"
@@ -52,26 +53,35 @@ export function validateDeclaredResources({
   readonly resources: ReadonlyMap<string, Uint8Array>
   readonly declarations: readonly ResourceDeclaration[]
   readonly issues: CamConformanceIssue[]
-}): void {
+}): readonly ResourceDeclaration[] {
+  const validDeclarations: ResourceDeclaration[] = []
   reportIntegrityConflicts(declarations, issues)
   for (const declaration of declarations) {
-    validateDeclaredResource(resources, declaration, issues)
+    if (validateDeclaredResource(resources, declaration, issues)) {
+      validDeclarations.push(declaration)
+    }
   }
   reportOrphanResources(resources, declarations, issues)
+  return validDeclarations
 }
 
 function validateDeclaredResource(
   resources: ReadonlyMap<string, Uint8Array>,
   declaration: ResourceDeclaration,
   issues: CamConformanceIssue[],
-): void {
+): boolean {
   const bytes = resources.get(declaration.uri)
   if (bytes === undefined) {
     reportMissingResource(declaration, issues)
-    return
+    return false
   }
 
-  verifyResourceIntegrity(declaration, bytes, issues)
+  if (bytes.byteLength > CAM_RESOURCE_MAX_BYTES) {
+    reportOversizedResource(declaration, bytes, issues)
+    return false
+  }
+
+  return verifyResourceIntegrity(declaration, bytes, issues)
 }
 
 function reportMissingResource(declaration: ResourceDeclaration, issues: CamConformanceIssue[]): void {
@@ -80,6 +90,19 @@ function reportMissingResource(declaration: ResourceDeclaration, issues: CamConf
     resource: declaration.uri,
     path: declaration.uriPath,
     message: `declared CAM resource is missing: ${declaration.uri}`,
+  }))
+}
+
+function reportOversizedResource(
+  declaration: ResourceDeclaration,
+  bytes: Uint8Array,
+  issues: CamConformanceIssue[],
+): void {
+  issues.push(conformanceIssue({
+    rule: "CAM_RESOURCE_TOO_LARGE",
+    resource: declaration.uri,
+    path: declaration.uriPath,
+    message: `CAM resource is too large: ${declaration.uri} has ${bytes.byteLength} bytes; limit is ${CAM_RESOURCE_MAX_BYTES}`,
   }))
 }
 
@@ -266,13 +289,14 @@ function verifyResourceIntegrity(
   declaration: ResourceDeclaration,
   bytes: Uint8Array,
   issues: CamConformanceIssue[],
-): void {
+): boolean {
   try {
     verifySha256ResourceIntegrity({
       actualHash: sha256Hex(bytes),
       integrity: declaration.integrity,
       uri: declaration.uri,
     })
+    return true
   } catch (error) {
     issues.push(issueFromError({
       rule: error instanceof CamResourceIntegrityError ? error.code : "CAM_RESOURCE_INTEGRITY_INVALID",
@@ -280,6 +304,7 @@ function verifyResourceIntegrity(
       path: declaration.integrityPath,
       error,
     }))
+    return false
   }
 }
 
