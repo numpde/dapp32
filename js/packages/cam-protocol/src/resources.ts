@@ -1,6 +1,6 @@
 export const CAM_RESOURCE_MAX_BYTES = 2 * 1024 * 1024
 const SHA256_INTEGRITY_PREFIX = "sha256:"
-const SHA256_HEX_PATTERN = /^0x[0-9a-fA-F]{64}$/
+const SHA256_HEX_PATTERN = /^0x[0-9a-f]{64}$/
 
 export type CamResourceIntegrityErrorCode =
   | "CAM_RESOURCE_INTEGRITY_INVALID"

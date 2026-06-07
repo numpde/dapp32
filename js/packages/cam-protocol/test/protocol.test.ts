@@ -187,4 +187,14 @@ test("validates sha256 resource integrity strings against caller-owned hashes", 
     (error) => error instanceof CamResourceIntegrityError
       && error.code === "CAM_RESOURCE_INTEGRITY_MISMATCH",
   )
+
+  assert.throws(
+    () => verifySha256ResourceIntegrity({
+      actualHash: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      integrity: "sha256:0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      uri: "./ui.json",
+    }),
+    (error) => error instanceof CamResourceIntegrityError
+      && error.code === "CAM_RESOURCE_INTEGRITY_INVALID",
+  )
 })
