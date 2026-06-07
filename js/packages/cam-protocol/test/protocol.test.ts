@@ -193,10 +193,13 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
 
 test("validates secondary CAM resource URI policy", () => {
   assert.doesNotThrow(() => assertCamSecondaryResourceURI("./abi/App.json", "uri"))
-  assert.doesNotThrow(() => assertCamSecondaryResourceURI("ipfs://example/ui.json", "uri"))
+  assert.doesNotThrow(() => assertCamSecondaryResourceURI("ipfs://QmYwAPJzv5CZsnAzt8auVZRnJQt6P2JxC1ZyQ3GzFZ2q6x/ui.json", "uri"))
+  assert.doesNotThrow(() => assertCamSecondaryResourceURI("ipfs://bafybeigdyrzt5sfp7udm7hu76zryo5bugubxgwf3d2wwuom2gkdcbx3zva/ui.json", "uri"))
 
   for (const uri of [
     "https://example.test/ui.json",
+    "ipfs://example/ui.json",
+    "ipfs://zExampleMultibaseNotAcceptedYet/ui.json",
     "../ui.json",
     "./ui/../x.json",
     "./ui\\secret.json",
@@ -210,7 +213,7 @@ test("validates secondary CAM resource URI policy", () => {
   ]) {
     assert.throws(
       () => assertCamSecondaryResourceURI(uri, "uri"),
-      /local .* ipfs:\/\/\.\.\./,
+      /local .* ipfs:\/\/<CID>/,
     )
   }
 })

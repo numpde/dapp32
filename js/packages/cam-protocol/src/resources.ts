@@ -89,7 +89,7 @@ export function responseContentLength(response: HttpResponse, uri: string): numb
 export function assertCamSecondaryResourceURI(uri: string, label: string): void {
   if (isLocalCamSecondaryResourceURI(uri) || isIpfsCamSecondaryResourceURI(uri)) return
 
-  throw new Error(`${label}: CAM resource URI must be local ./... or ipfs://...: ${uri}`)
+  throw new Error(`${label}: CAM resource URI must be local ./... or ipfs://<CID>/...: ${uri}`)
 }
 
 export function assertCamResourceSize(
@@ -113,7 +113,11 @@ function isIpfsCamSecondaryResourceURI(uri: string): boolean {
   const prefix = "ipfs://"
   if (!uri.startsWith(prefix)) return false
 
-  return isCamResourcePath(uri.slice(prefix.length))
+  const path = uri.slice(prefix.length)
+  if (!isCamResourcePath(path)) return false
+
+  const [root] = path.split("/")
+  return root !== undefined && isSupportedIpfsCid(root)
 }
 
 function isCamResourcePath(path: string): boolean {
@@ -123,6 +127,13 @@ function isCamResourcePath(path: string): boolean {
   // or platform-specific separator forms.
   if (path.includes("%") || path.includes("\\")) return false
   return path.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+}
+
+function isSupportedIpfsCid(value: string): boolean {
+  // CAM V1 accepts the two CID spellings operators most commonly review by
+  // sight: CIDv0 base58btc and CIDv1 base32. Wider multibase support can be
+  // added deliberately when a real manifest needs it.
+  return /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(value) || /^b[a-z2-7]{20,}$/.test(value)
 }
 
 export function verifySha256ResourceIntegrity({
