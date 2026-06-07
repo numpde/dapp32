@@ -98,18 +98,16 @@ function validateResourceSize(
   bytes: Uint8Array,
   issues: CamConformanceIssue[],
 ): boolean {
-  try {
-    assertCamResourceSize(bytes, declaration.uri)
-    return true
-  } catch (error) {
-    issues.push(issueFromError({
+  return validateResourceRule({
+    issues,
+    action: () => assertCamResourceSize(bytes, declaration.uri),
+    issue: (error) => issueFromError({
       rule: "CAM_RESOURCE_TOO_LARGE",
       resource: declaration.uri,
       path: declaration.uriPath,
       error,
-    }))
-    return false
-  }
+    }),
+  })
 }
 
 function reportOrphanResources(
@@ -222,18 +220,16 @@ function validateResourceURI({
   readonly uri: string
   readonly issues: CamConformanceIssue[]
 }): boolean {
-  try {
-    assertCamSecondaryResourceURI(uri, path)
-    return true
-  } catch (error) {
-    issues.push(issueFromError({
+  return validateResourceRule({
+    issues,
+    action: () => assertCamSecondaryResourceURI(uri, path),
+    issue: (error) => issueFromError({
       rule: "CAM_RESOURCE_DECLARATION_INVALID",
       resource,
       path,
       error,
-    }))
-    return false
-  }
+    }),
+  })
 }
 
 function resourceURIKey(namespace: DeclaredNamespace): "abiURI" | "uri" | undefined {
@@ -276,25 +272,42 @@ function verifyResourceIntegrity(
   bytes: Uint8Array,
   issues: CamConformanceIssue[],
 ): boolean {
-  try {
-    verifySha256ResourceIntegrity({
+  return validateResourceRule({
+    issues,
+    action: () => verifySha256ResourceIntegrity({
       actualHash: sha256Hex(bytes),
       integrity: declaration.integrity,
       uri: declaration.uri,
-    })
-    return true
-  } catch (error) {
-    issues.push(issueFromError({
+    }),
+    issue: (error) => issueFromError({
       rule: error instanceof CamResourceIntegrityError ? error.code : "CAM_RESOURCE_INTEGRITY_INVALID",
       resource: declaration.uri,
       path: declaration.integrityPath,
       error,
-    }))
-    return false
-  }
+    }),
+  })
 }
 
 // Node's crypto API returns the digest without the protocol's 0x marker.
 function sha256Hex(bytes: Uint8Array): string {
   return `0x${createHash("sha256").update(bytes).digest("hex")}`
+}
+
+function validateResourceRule({
+  issues,
+  action,
+  issue,
+}: {
+  readonly issues: CamConformanceIssue[]
+  readonly action: () => void
+  readonly issue: (error: unknown) => CamConformanceIssue
+}): boolean {
+  const issueCount = issues.length
+  try {
+    action()
+  } catch (error) {
+    issues.push(issue(error))
+  }
+
+  return issues.length === issueCount
 }

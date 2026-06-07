@@ -67,7 +67,10 @@ export function validateUiDataflow({
         }
       } else {
         validateActionRouteArgs(resource, call, routesByName, issues)
-        validateActionStateInputs(resource, call, actionInputsByPath.get(call.path) ?? [], issues)
+        const localInputs = actionInputsByPath.get(call.path)
+        if (localInputs !== undefined) {
+          validateActionStateInputs(resource, call, localInputs, issues)
+        }
       }
     }
   }
