@@ -56,6 +56,7 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
         for uri, message in (
             ("./../UI.json", "must stay under the CAM directory"),
             ("./%2e%2e/UI.json", "must not contain percent-encoded path text"),
+            ("./abi\\UI.json", "must not contain backslash path separators"),
         ):
             with self.subTest(uri=uri), TemporaryDirectory() as tmp:
                 manifest_path = Path(tmp) / "cam" / "main.json"

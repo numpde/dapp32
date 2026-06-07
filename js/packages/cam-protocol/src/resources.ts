@@ -118,9 +118,10 @@ function isIpfsCamSecondaryResourceURI(uri: string): boolean {
 
 function isCamResourcePath(path: string): boolean {
   if (path.length === 0 || path.includes("?") || path.includes("#")) return false
-  // CAM manifests should be reviewable as written. Reject percent escapes so
-  // downstream URL/file handlers cannot reinterpret encoded dot or slash forms.
-  if (path.includes("%")) return false
+  // CAM manifests should be reviewable as written. Reject percent escapes and
+  // raw backslashes so downstream URL/file handlers cannot reinterpret encoded
+  // or platform-specific separator forms.
+  if (path.includes("%") || path.includes("\\")) return false
   return path.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
 }
 

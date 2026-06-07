@@ -152,6 +152,8 @@ def local_resource_path(manifest_path: Path, uri: object, path: str) -> Path:
         raise CamResourceIntegrityError(f"{manifest_path}: {path} must be a local ./ resource")
     if "%" in uri:
         raise CamResourceIntegrityError(f"{manifest_path}: {path} must not contain percent-encoded path text")
+    if "\\" in uri:
+        raise CamResourceIntegrityError(f"{manifest_path}: {path} must not contain backslash path separators")
 
     relative_path = Path(uri.removeprefix(LOCAL_URI_PREFIX))
     if relative_path.is_absolute() or ".." in relative_path.parts or str(relative_path) == "":

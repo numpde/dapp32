@@ -177,11 +177,13 @@ test("validates secondary CAM resource URI policy", () => {
     "https://example.test/ui.json",
     "../ui.json",
     "./ui/../x.json",
+    "./ui\\secret.json",
     "./%2e%2e/ui.json",
     "./ui%2fsecret.json",
     "./ui%5csecret.json",
     "./ui.json?version=1",
     "ipfs://../ui.json",
+    "ipfs://ui\\secret.json",
     "ipfs://%2e%2e/ui.json",
   ]) {
     assert.throws(
