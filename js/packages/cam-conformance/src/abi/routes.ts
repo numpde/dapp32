@@ -620,6 +620,7 @@ function canonicalAbiType(
   }
 
   const componentTypes: string[] = []
+  const componentNames = new Set<string>()
   for (const [index, component] of item.components.entries()) {
     const componentPath = `${path}.components.${index}`
     if (!isRecordObject(component)) {
@@ -627,10 +628,16 @@ function canonicalAbiType(
       return undefined
     }
 
-    if (nonEmptyString(component.name) === undefined) {
+    const componentName = nonEmptyString(component.name)
+    if (componentName === undefined) {
       issues.push(abiIssue(resource, `${componentPath}.name`, "tuple ABI components used by CAM routes must be named"))
       return undefined
     }
+    if (componentNames.has(componentName)) {
+      issues.push(abiIssue(resource, `${componentPath}.name`, `tuple ABI component name is duplicated: ${componentName}`))
+      return undefined
+    }
+    componentNames.add(componentName)
 
     const componentType = canonicalAbiType(resource, componentPath, component, position, issues)
     if (componentType === undefined) return undefined

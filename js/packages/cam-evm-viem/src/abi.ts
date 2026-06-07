@@ -162,6 +162,7 @@ function validateAbiParameter(value: unknown, path: string): void {
 
   if (value.type.startsWith("tuple")) {
     validateAbiParameters(value.components, `${path}.components`)
+    validateTupleComponentNames(value.components, `${path}.components`)
     return
   }
 
@@ -171,6 +172,28 @@ function validateAbiParameter(value: unknown, path: string): void {
 
   if (!isSupportedAbiScalarType(value.type)) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI parameter type is not supported: ${path}`)
+  }
+}
+
+function validateTupleComponentNames(value: unknown, path: string): void {
+  if (!Array.isArray(value)) {
+    throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI tuple components must be an array: ${path}`)
+  }
+
+  const names = new Set<string>()
+  for (let index = 0; index < value.length; index++) {
+    const component = value[index]
+    if (!isRecordObject(component)) continue
+
+    const name = component.name
+    if (typeof name !== "string" || name.length === 0) {
+      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI tuple components used by CAM routes must be named: ${path}.${index}.name`)
+    }
+
+    if (names.has(name)) {
+      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI tuple component name is duplicated: ${path}.${index}.name`)
+    }
+    names.add(name)
   }
 }
 

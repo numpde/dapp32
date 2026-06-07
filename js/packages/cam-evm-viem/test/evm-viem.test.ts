@@ -354,6 +354,43 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
     (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
   )
 
+  const duplicateTupleComponentAbiBytes = encodeJson([
+    {
+      type: "function",
+      name: BIKE_VIEW_ENTRY,
+      stateMutability: "view",
+      inputs: [],
+      outputs: [
+        {
+          name: "view",
+          type: "tuple",
+          components: [
+            { name: "amount", type: "uint256" },
+            { name: "amount", type: "uint256" },
+          ],
+        },
+      ],
+    },
+  ])
+  await assert.rejects(
+    () => resolveCamContracts({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        addresses: {
+          [BIKE_UI_CONTRACT]: uiAddress,
+          [BIKE_MANAGER_CONTRACT]: managerAddress,
+        },
+      })),
+      host,
+      camURI: camDocumentURI,
+      cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, duplicateTupleComponentAbiBytes),
+      loadResource: createResourceLoader({
+        [uiAbiURI]: duplicateTupleComponentAbiBytes,
+        [managerAbiURI]: managerAbiBytes,
+      }),
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
+  )
+
   const oversizedAbiBytes = new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1)
   await assert.rejects(
     () => resolveCamContracts({
