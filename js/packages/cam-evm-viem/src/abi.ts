@@ -161,7 +161,7 @@ function validateAbiParameter(value: unknown, path: string): void {
     )
   }
 
-  if (value.type.startsWith("tuple")) {
+  if (tupleArraySuffix(value.type) !== undefined) {
     validateAbiParameters(value.components, `${path}.components`)
     validateTupleComponentNames(value.components, `${path}.components`)
     return

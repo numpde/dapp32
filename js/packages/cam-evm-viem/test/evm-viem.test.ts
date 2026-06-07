@@ -291,13 +291,13 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
     (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
   )
 
-  for (const type of ["uint257[]", "bytes33[]", "uint256[2][]"]) {
-    const invalidArrayElementAbiBytes = encodeJson([{
+  for (const type of ["uint257[]", "bytes33[]", "uint256[2][]", "tuple123"]) {
+    const invalidAbiTypeBytes = encodeJson([{
       type: "function",
       name: BIKE_VIEW_ENTRY,
       stateMutability: "view",
       inputs: [],
-      outputs: [{ name: "values", type }],
+      outputs: [{ name: "values", type, components: [{ name: "value", type: "string" }] }],
     }])
     await assert.rejects(
       () => resolveCamContracts({
@@ -309,9 +309,9 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
         })),
         host,
         camURI: camDocumentURI,
-        cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, invalidArrayElementAbiBytes),
+        cam: camWithNamespaceIntegrity(BIKE_UI_NAMESPACE, invalidAbiTypeBytes),
         loadResource: createResourceLoader({
-          [uiAbiURI]: invalidArrayElementAbiBytes,
+          [uiAbiURI]: invalidAbiTypeBytes,
           [managerAbiURI]: managerAbiBytes,
         }),
       }),
