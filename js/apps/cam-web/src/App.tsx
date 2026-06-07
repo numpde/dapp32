@@ -89,7 +89,7 @@ export function App(): ReactElement {
           },
           inputs: {},
           allowUnsignedCamHash: startup.allowUnsignedCamHash,
-          loadResource: createPinnedOriginResourceLoader(),
+          loadResource: createPinnedOriginResourceLoader(startup.resourceOrigin),
         })
         const snapshot = await session.load()
 

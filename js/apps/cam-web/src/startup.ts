@@ -9,6 +9,8 @@ import {
 } from "@cam/evm-viem"
 import {
   readBoundedResponseBytes,
+  requireHttpOrigin,
+  requireSameHttpOrigin,
   requireHttpURL,
 } from "@cam/protocol"
 import type {
@@ -21,15 +23,18 @@ export type StartupOptions = {
   readonly host: CamHost["address"]
   readonly account: CamHost["address"]
   readonly rpcUrl: string
+  readonly resourceOrigin: string
   readonly allowUnsignedCamHash: boolean
 }
 
 export type StartupPolicy = {
+  readonly resourceOrigin: string
   readonly allowUnsignedCamHash: boolean
 }
 
 export type StartupEnv = {
   readonly VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH?: string
+  readonly VITE_CAM_WEB_RESOURCE_ORIGIN?: string
 }
 
 type HostCodeClient = {
@@ -47,12 +52,17 @@ export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOpt
     host: requireEvmAddress(requiredParam(params, "host"), "host"),
     account: requireEvmAddress(requiredParam(params, "account"), "account"),
     rpcUrl: requireHttpURL(requiredParam(params, "rpcUrl"), "rpcUrl").href,
+    resourceOrigin: policy.resourceOrigin,
     allowUnsignedCamHash: policy.allowUnsignedCamHash,
   }
 }
 
 export function readStartupPolicy(env: StartupEnv): StartupPolicy {
   return {
+    resourceOrigin: requireHttpOrigin(
+      requiredEnv(env.VITE_CAM_WEB_RESOURCE_ORIGIN, "VITE_CAM_WEB_RESOURCE_ORIGIN"),
+      "VITE_CAM_WEB_RESOURCE_ORIGIN",
+    ),
     allowUnsignedCamHash: parseRequiredBoolean(
       env.VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH,
       "VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH",
@@ -60,16 +70,11 @@ export function readStartupPolicy(env: StartupEnv): StartupPolicy {
   }
 }
 
-export function createPinnedOriginResourceLoader(): ResourceLoader {
-  let origin: string | undefined
+export function createPinnedOriginResourceLoader(resourceOrigin: string): ResourceLoader {
+  const origin = requireHttpOrigin(resourceOrigin, "resourceOrigin")
 
   return async (uri: string): Promise<Uint8Array> => {
-    const url = requireHttpURL(uri, "CAM resource URI")
-    if (origin === undefined) {
-      origin = url.origin
-    } else if (url.origin !== origin) {
-      throw new Error(`CAM resource escaped pinned origin: ${url.href}`)
-    }
+    const url = requireSameHttpOrigin(uri, origin, "CAM resource URI")
 
     const response = await fetch(url.href, {
       cache: "no-store",
@@ -112,11 +117,16 @@ function requiredParam(params: URLSearchParams, name: string): string {
   return value
 }
 
-function parseRequiredBoolean(value: string | undefined, name: string): boolean {
+function requiredEnv(value: string | undefined, name: string): string {
   if (value === undefined || value.length === 0) {
     throw new Error(`missing environment setting: ${name}`)
   }
 
+  return value
+}
+
+function parseRequiredBoolean(value: string | undefined, name: string): boolean {
+  value = requiredEnv(value, name)
   if (value === "true") return true
   if (value === "false") return false
   throw new Error(`${name}: expected "true" or "false"`)

@@ -47,6 +47,10 @@ services:
       # Local fixture CAMs are deliberately unsigned. This is deployment policy,
       # not a browser URL parameter, so a deep link cannot loosen hash checks.
       VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH: "true"
+      # Browser resource authority is an explicit scenario policy. The app
+      # rejects every CAM/ABI/UI fetch outside this origin, including CamRoot's
+      # first camURI, instead of learning trust from a contract-returned URL.
+      VITE_CAM_WEB_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
       npm_config_cache: /tmp/npm-cache
       npm_config_audit: "false"
       npm_config_fund: "false"

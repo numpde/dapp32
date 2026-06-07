@@ -628,6 +628,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             env={
                 "CAM_URI": f"{BIKE_NFT_GUI_ORIGIN}/cam/main.json",
                 "CAM_HASH": ZERO_HASH,
+                "CAM_VIEWER_RESOURCE_ORIGIN": BIKE_NFT_GUI_ORIGIN,
                 "BIKE_NFT_GUI_BIND_HOST": BIKE_NFT_GUI_BIND_HOST,
                 "BIKE_NFT_GUI_ORIGIN": BIKE_NFT_GUI_ORIGIN,
                 "BIKE_NFT_BROADCAST_DIR": BIKE_NFT_BROADCAST_DIR,
@@ -658,8 +659,10 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_staged_package_workspace(cam_web)
         self.assert_no_volume_target(cam_web, "/work/dapps")
         self.assert_no_volume_target(cam_web, BIKE_NFT_BROADCAST_DIR)
-        self.assertNotIn("PRIVATE_KEY", compose_mapping(cam_web, "environment"))
-        self.assertNotIn("CAM_VIEWER_BROADCAST_PATH", compose_mapping(cam_web, "environment"))
+        cam_web_environment = compose_mapping(cam_web, "environment")
+        self.assertEqual(BIKE_NFT_GUI_ORIGIN, cam_web_environment["VITE_CAM_WEB_RESOURCE_ORIGIN"])
+        self.assertNotIn("PRIVATE_KEY", cam_web_environment)
+        self.assertNotIn("CAM_VIEWER_BROADCAST_PATH", cam_web_environment)
         self.assert_read_only_volumes(viewer_url, BIKE_NFT_BROADCAST_DIR)
         self.assert_bike_broadcast_volume_shared(config, deploy, viewer_url)
         self.assertIn("run-js-workspace", compose_command_text(cam_web))
