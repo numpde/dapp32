@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import {
   CamResourceIntegrityError,
   assertCamResourceSize,
+  assertCamSecondaryResourceURI,
   verifySha256ResourceIntegrity,
 } from "@cam/protocol"
 
@@ -221,38 +222,18 @@ function validateResourceURI({
   readonly uri: string
   readonly issues: CamConformanceIssue[]
 }): boolean {
-  if (isLocalResourceURI(uri)) {
+  try {
+    assertCamSecondaryResourceURI(uri, path)
     return true
+  } catch (error) {
+    issues.push(issueFromError({
+      rule: "CAM_RESOURCE_DECLARATION_INVALID",
+      resource,
+      path,
+      error,
+    }))
+    return false
   }
-  if (isIpfsResourceURI(uri)) {
-    return true
-  }
-
-  issues.push(resourceDeclarationIssue({
-    resource,
-    path,
-    message: `CAM resource URI must be local ./... or content-addressed ipfs://...: ${uri}`,
-  }))
-  return false
-}
-
-function isLocalResourceURI(uri: string): boolean {
-  const prefix = "./"
-  if (!uri.startsWith(prefix)) return false
-
-  return isResourcePath(uri.slice(prefix.length))
-}
-
-function isIpfsResourceURI(uri: string): boolean {
-  const prefix = "ipfs://"
-  if (!uri.startsWith(prefix)) return false
-
-  return isResourcePath(uri.slice(prefix.length))
-}
-
-function isResourcePath(path: string): boolean {
-  if (path.length === 0 || path.includes("?") || path.includes("#")) return false
-  return path.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
 }
 
 function resourceURIKey(namespace: DeclaredNamespace): "abiURI" | "uri" | undefined {

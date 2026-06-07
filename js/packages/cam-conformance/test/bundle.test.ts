@@ -1687,6 +1687,7 @@ test("resource declarations reject mutable remote and escaping URIs", () => {
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.ui.uri"],
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.Other.abiURI"],
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.Ipfs.abiURI"],
+    ["CAM_RUNTIME_CAM_INVALID", "namespaces.contracts.App.abiURI"],
   ])
 })
 
