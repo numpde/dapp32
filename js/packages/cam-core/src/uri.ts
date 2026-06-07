@@ -7,8 +7,8 @@ export function resolveResourceURI(baseURI: string, resourceURI: string): string
   assertURIString(baseURI, "baseURI")
   assertURIString(resourceURI, "resourceURI")
 
-  // Absolute resource references are already resolved. Core still only returns
-  // the string; adapters decide whether a scheme may be fetched.
+  // Absolute references are already resolved. CAM document parsing decides
+  // which resource references may appear in protocol declarations.
   if (SCHEME_RE.test(resourceURI)) {
     return resourceURI
   }

@@ -236,3 +236,35 @@ test("parseCam enforces canonical namespace names and route kinds", () => {
     /invalid routes namespace/,
   )
 })
+
+test("parseCam rejects non-canonical secondary resource URIs", () => {
+  const namespaces = mainJson.namespaces as Record<string, Record<string, unknown>>
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      namespaces: {
+        ...namespaces,
+        [BIKE_UI_NAMESPACE]: {
+          ...namespaces[BIKE_UI_NAMESPACE],
+          abiURI: "https://example.test/BicycleComponentManagerUI.json",
+        },
+      },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_URI",
+  )
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      namespaces: {
+        ...namespaces,
+        ui: {
+          ...namespaces.ui,
+          uri: "../ui.json",
+        },
+      },
+    }),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_URI",
+  )
+})

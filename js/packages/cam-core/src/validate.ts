@@ -5,7 +5,7 @@ import {
   requiredNonEmptyString,
   requiredRecord,
 } from "./guards.ts"
-import { createStringMap, hasOwn } from "@cam/protocol"
+import { assertCamSecondaryResourceURI, createStringMap, hasOwn } from "@cam/protocol"
 import {
   CAM_CONTRACT_NAMESPACE_PREFIX,
   CAM_ROUTES_NAMESPACE,
@@ -98,7 +98,7 @@ function parseContractNamespace(source: Record<string, unknown>, path: string): 
   rejectUnknownCamFields(source, CONTRACT_NAMESPACE_KEYS, path)
   return {
     type: "contract",
-    abiURI: requiredNonEmptyString(source.abiURI, `${path}.abiURI`),
+    abiURI: parseResourceURI(source.abiURI, `${path}.abiURI`),
     integrity: requiredNonEmptyString(source.integrity, `${path}.integrity`),
   }
 }
@@ -120,9 +120,21 @@ function parseUiNamespace(source: Record<string, unknown>, path: string): CamUiN
   rejectUnknownCamFields(source, UI_NAMESPACE_KEYS, path)
   return {
     type: "ui",
-    uri: requiredNonEmptyString(source.uri, `${path}.uri`),
+    uri: parseResourceURI(source.uri, `${path}.uri`),
     integrity: requiredNonEmptyString(source.integrity, `${path}.integrity`),
   }
+}
+
+function parseResourceURI(value: unknown, path: string): string {
+  const uri = requiredNonEmptyString(value, path)
+  try {
+    assertCamSecondaryResourceURI(uri, path)
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause)
+    throw new CamError("CAM_INVALID_URI", message, path)
+  }
+
+  return uri
 }
 
 function parseRoutes(
