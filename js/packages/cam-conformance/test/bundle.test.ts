@@ -1195,6 +1195,40 @@ test("UI action escaped call targets are checked as literal route names", () => 
   ])
 })
 
+test("UI action route targets must be single strings, not arrays", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Action",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: ["entry"],
+              args: {},
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.function"],
+  ])
+})
+
 test("UI action state references must be backed by Input names", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",

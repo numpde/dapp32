@@ -64,6 +64,7 @@ export function validateUiDataflow({
 
     for (const call of dataflow.calls) {
       if (!validateUiCallArgNames(resource, call, issues)) continue
+      if (!validateUiCallFunctionShape(resource, call, issues)) continue
       if (call.namespace === "ui") {
         if (uiNodes !== undefined) {
           validateIncludeNodeArgs(resource, call, uiNodes, issues)
@@ -241,6 +242,25 @@ function validateUiCallArgNames(resource: string, call: UiCall, issues: CamConfo
   }
 
   return valid
+}
+
+function validateUiCallFunctionShape(resource: string, call: UiCall, issues: CamConformanceIssue[]): boolean {
+  if (typeof call.function === "string") return true
+
+  if (call.namespace === "ui" && Array.isArray(call.function)) {
+    if (call.function.every((item) => typeof item === "string")) return true
+    issues.push(dataflowIssue(resource, `${call.path}.call.function`, "UI Include target must be a string or string array"))
+    return false
+  }
+
+  issues.push(dataflowIssue(
+    resource,
+    `${call.path}.call.function`,
+    call.namespace === "ui"
+      ? "UI Include target must be a string or string array"
+      : "UI Action route target must be a string",
+  ))
+  return false
 }
 
 function validateIncludeNodeArgs(
