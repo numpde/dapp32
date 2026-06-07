@@ -58,6 +58,7 @@ export type {
 
 export {
   assertCamResourceSize,
+  assertCamSecondaryResourceURI,
   CamResourceIntegrityError,
   CAM_RESOURCE_MAX_BYTES,
   readBoundedResponseBytes,

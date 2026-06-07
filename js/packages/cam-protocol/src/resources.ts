@@ -86,6 +86,12 @@ export function responseContentLength(response: HttpResponse, uri: string): numb
   return Number(value)
 }
 
+export function assertCamSecondaryResourceURI(uri: string, label: string): void {
+  if (isLocalCamSecondaryResourceURI(uri) || isIpfsCamSecondaryResourceURI(uri)) return
+
+  throw new Error(`${label}: CAM resource URI must be local ./... or content-addressed ipfs://...: ${uri}`)
+}
+
 export function assertCamResourceSize(
   bytes: Uint8Array,
   uri: string,
@@ -94,6 +100,25 @@ export function assertCamResourceSize(
   if (bytes.byteLength > maxBytes) {
     throw new Error(`CAM resource is too large: ${uri} has ${bytes.byteLength} bytes; limit is ${maxBytes}`)
   }
+}
+
+function isLocalCamSecondaryResourceURI(uri: string): boolean {
+  const prefix = "./"
+  if (!uri.startsWith(prefix)) return false
+
+  return isCamResourcePath(uri.slice(prefix.length))
+}
+
+function isIpfsCamSecondaryResourceURI(uri: string): boolean {
+  const prefix = "ipfs://"
+  if (!uri.startsWith(prefix)) return false
+
+  return isCamResourcePath(uri.slice(prefix.length))
+}
+
+function isCamResourcePath(path: string): boolean {
+  if (path.length === 0 || path.includes("?") || path.includes("#")) return false
+  return path.split("/").every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
 }
 
 export function verifySha256ResourceIntegrity({

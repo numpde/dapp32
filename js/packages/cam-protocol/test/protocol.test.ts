@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   abiScalarKind,
   assertCamResourceSize,
+  assertCamSecondaryResourceURI,
   createExpressionRuntime,
   CamResourceIntegrityError,
   CAM_VERSION,
@@ -166,6 +167,24 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
     }, "https://example.test/x"),
     /empty chunk/,
   )
+})
+
+test("validates secondary CAM resource URI policy", () => {
+  assert.doesNotThrow(() => assertCamSecondaryResourceURI("./abi/App.json", "uri"))
+  assert.doesNotThrow(() => assertCamSecondaryResourceURI("ipfs://example/ui.json", "uri"))
+
+  for (const uri of [
+    "https://example.test/ui.json",
+    "../ui.json",
+    "./ui/../x.json",
+    "./ui.json?version=1",
+    "ipfs://../ui.json",
+  ]) {
+    assert.throws(
+      () => assertCamSecondaryResourceURI(uri, "uri"),
+      /local .* ipfs/,
+    )
+  }
 })
 
 test("validates sha256 resource integrity strings against caller-owned hashes", () => {
