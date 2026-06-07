@@ -1261,6 +1261,22 @@ test("UI literal Input names must be state expression identifiers", () => {
     ui: "1.0.0",
     nodes: {
       app: {
+        tag: "Text",
+        requires: ["view"],
+        props: {
+          text: "valid app node",
+        },
+      },
+      empty: {
+        tag: "Input",
+        requires: [],
+        props: {
+          name: "",
+          label: "Empty",
+          value: "",
+        },
+      },
+      invalid: {
         tag: "Input",
         requires: ["view"],
         props: {
@@ -1278,7 +1294,8 @@ test("UI literal Input names must be state expression identifiers", () => {
   })
 
   assert.deepEqual(issueLocations(issues), [
-    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.props.name"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.empty.props.name"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.invalid.props.name"],
   ])
 })
 

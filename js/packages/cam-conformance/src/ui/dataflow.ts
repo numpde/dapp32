@@ -118,7 +118,11 @@ function validateInputName(
 
   const name = staticString(value.props.name)
   if (name === undefined) return
-  if (name.length === 0 || isExpressionIdentifier(name)) return
+  if (name.length === 0) {
+    issues.push(dataflowIssue(resource, `${path}.props.name`, "Input name must not be empty"))
+    return
+  }
+  if (isExpressionIdentifier(name)) return
 
   issues.push(dataflowIssue(resource, `${path}.props.name`, `Input name must be an expression identifier: ${name}`))
 }
