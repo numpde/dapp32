@@ -304,6 +304,36 @@ test("route expressions must reference declared route inputs", () => {
   ])
 })
 
+test("route input expressions must use declared input names, not numeric segments", () => {
+  const issues = validateEditedRoot<{
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root) => {
+    root.routes.entry = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {
+          serialNumber: "$inputs.0",
+        },
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_EXPRESSION_INVALID", "routes.entry.call.args.serialNumber"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.serialNumber"],
+  ])
+})
+
 test("route call expressions cannot reference outputs before the call runs", () => {
   const issues = validateEditedRoot<{
     readonly routes: Record<string, Record<string, unknown>>
@@ -798,7 +828,7 @@ test("route call args with statically classified expression roots must match ABI
   ])
 })
 
-test("route call literal strings defer integer and address exactness to runtime", () => {
+test("route call literal strings must match exact ABI scalar syntax when statically known", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -817,6 +847,14 @@ test("route call literal strings defer integer and address exactness to runtime"
           name: "owner",
           type: "address",
         },
+        {
+          name: "payload",
+          type: "bytes",
+        },
+        {
+          name: "salt",
+          type: "bytes4",
+        },
       ],
       outputs: [viewOutput()],
     },
@@ -831,7 +869,9 @@ test("route call literal strings defer integer and address exactness to runtime"
       args: {
         active: "true",
         count: "1",
-        owner: "runtime-validates-address-literals",
+        owner: "0x0000000000000000000000000000000000000001",
+        payload: "0x1234",
+        salt: "0x12345678",
       },
     }
     return replaceBundleResources(root, bundle, { abiBytes })
@@ -839,6 +879,58 @@ test("route call literal strings defer integer and address exactness to runtime"
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.active"],
+  ])
+})
+
+test("route call invalid literal strings are rejected before runtime", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "count",
+          type: "uint8",
+        },
+        {
+          name: "owner",
+          type: "address",
+        },
+        {
+          name: "payload",
+          type: "bytes",
+        },
+        {
+          name: "salt",
+          type: "bytes4",
+        },
+      ],
+      outputs: [viewOutput()],
+    },
+  ])
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        count: "256",
+        owner: "not-an-address",
+        payload: "0x123",
+        salt: "0x1234",
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.count"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.owner"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.salt"],
   ])
 })
 

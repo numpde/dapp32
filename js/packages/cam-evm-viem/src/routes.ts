@@ -1,5 +1,6 @@
 import { resolveRouteCall } from "@cam/core"
 import {
+  abiIntegerBounds,
   createStringMap,
   isFixedAbiArrayType,
   isRecordObject,
@@ -14,7 +15,6 @@ import type { Abi, AbiFunction, AbiParameter, Address } from "viem"
 import { abiFunctionInputs, normalizeAbiArgs } from "./arguments.ts"
 import {
   dynamicArrayElement,
-  integerBounds,
   isTupleParameter,
 } from "./abi-values.ts"
 import type { AbiTupleParameter } from "./abi-values.ts"
@@ -223,12 +223,24 @@ function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string
 
 function normalizeTupleValue(value: unknown, parameter: AbiTupleParameter, path: string): InertValue {
   const record = createStringMap<InertValue>()
-  parameter.components.forEach((component, index) => {
+  const components = parameter.components.map((component, index) => {
     const name = component.name
     if (name === undefined || name.length === 0) {
       throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI tuple component is unnamed at ${path}.${index}`)
     }
+    return { component, name }
+  })
+  const componentNames = new Set(components.map(({ name }) => name))
 
+  if (isRecordObject(value)) {
+    for (const name of Object.keys(value)) {
+      if (!componentNames.has(name)) {
+        throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route tuple has unexpected component ${name} at ${path}`)
+      }
+    }
+  }
+
+  components.forEach(({ component, name }, index) => {
     const componentValue = readTupleComponent(value, name, index)
     if (componentValue === undefined) {
       throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route tuple is missing component ${name} at ${path}`)
@@ -255,7 +267,7 @@ function readTupleComponent(value: unknown, name: string, index: number): unknow
 function normalizeIntegerOutput(value: unknown, type: AbiIntegerType, path: string): string {
   const integer = integerOutputValue(value, path)
 
-  const { min, max } = integerBounds(type)
+  const { min, max } = abiIntegerBounds(type)
   if (integer < min || integer > max) {
     throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output integer is out of range at ${path}`)
   }

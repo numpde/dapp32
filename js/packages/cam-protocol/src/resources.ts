@@ -159,10 +159,10 @@ function isCidV1(bytes: Uint8Array | undefined): boolean {
   if (codec === undefined || codec.value === 0n) return false
 
   const hashCode = readVarint(bytes, codec.offset)
-  if (hashCode === undefined || hashCode.value === 0n) return false
+  if (hashCode === undefined || hashCode.value !== 0x12n) return false
 
   const hashLength = readVarint(bytes, hashCode.offset)
-  if (hashLength === undefined || hashLength.value === 0n || hashLength.value > BigInt(bytes.length)) return false
+  if (hashLength === undefined || hashLength.value !== 32n) return false
 
   return bytes.length === hashLength.offset + Number(hashLength.value)
 }

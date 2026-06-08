@@ -1,6 +1,7 @@
 import { isAddress } from "viem"
 import type { AbiFunction, AbiParameter } from "viem"
 import {
+  abiIntegerBounds,
   createStringMap,
   isRecordObject,
   parseAbiFixedBytesLength,
@@ -11,7 +12,6 @@ import type { AbiIntegerType, InertValue } from "@cam/protocol"
 
 import {
   dynamicArrayElement,
-  integerBounds,
 } from "./abi-values.ts"
 import { CamEvmError } from "./errors.ts"
 
@@ -186,7 +186,7 @@ function normalizeInteger(value: InertValue, errorCode: ArgumentErrorCode, path:
 
 function requireIntegerBounds(value: bigint | number, errorCode: ArgumentErrorCode, path: string, type: AbiIntegerType): bigint {
   const bigintValue = typeof value === "bigint" ? value : BigInt(value)
-  const { min, max } = integerBounds(type)
+  const { min, max } = abiIntegerBounds(type)
 
   if (bigintValue < min || bigintValue > max) {
     throw invalidArg(errorCode, path, "", `integer is out of range for ${type.signed ? "int" : "uint"}${type.bits}`)

@@ -1,7 +1,4 @@
 import type { AbiParameter } from "viem"
-import type {
-  AbiIntegerType,
-} from "@cam/protocol"
 
 export type AbiTupleParameter = AbiParameter & {
   readonly type: "tuple"
@@ -25,15 +22,4 @@ export function isTupleParameter(parameter: AbiParameter): parameter is AbiTuple
   }
 
   return Array.isArray((parameter as { readonly components?: unknown }).components)
-}
-
-export function integerBounds(type: AbiIntegerType): {
-  readonly min: bigint
-  readonly max: bigint
-} {
-  const bits = BigInt(type.bits)
-  return {
-    min: type.signed ? -(1n << (bits - 1n)) : 0n,
-    max: type.signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n,
-  }
 }

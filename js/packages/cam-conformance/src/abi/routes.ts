@@ -1,11 +1,17 @@
 import {
+  abiIntegerBounds,
   abiScalarKind,
   isAbiFunctionName,
   isAbiFunctionSignatureReference,
   isFixedAbiArrayType,
   isRecordObject,
   isSupportedAbiScalarType,
+  parseAbiFixedBytesLength,
+  parseAbiIntegerType,
   parseJsonBytes,
+} from "@cam/protocol"
+import type {
+  AbiIntegerType,
 } from "@cam/protocol"
 
 import {
@@ -318,7 +324,7 @@ function validateRouteArgValue(
   const scalarKind = abiScalarKind(type)
   if (scalarKind === undefined) return
 
-  const mismatch = routeArgMismatch(value, scalarKind)
+  const mismatch = routeArgMismatch(type, value, scalarKind)
   if (mismatch === undefined) return
 
   reportRouteArgMismatch(resource, path, label, type, mismatch, issues)
@@ -336,13 +342,10 @@ function reportRouteArgMismatch(
 }
 
 function routeArgMismatch(
+  type: string,
   value: unknown,
   expected: "address" | "bool" | "bytes" | "fixed-bytes" | "integer" | "string",
 ): string | undefined {
-  // Only reject values whose runtime shape is statically knowable here. For
-  // example, a literal string may be a valid address, hex byte string, or
-  // decimal integer, so the EVM adapter remains the owner of detailed
-  // address/bytes/integer validation.
   const known = knownRouteArgValue(value)
   if (expected === "string") {
     if (typeof value === "string") return undefined
@@ -354,27 +357,60 @@ function routeArgMismatch(
   if (known === undefined) return undefined
 
   if (expected === "address") {
-    if (known.kind === "string-literal") return undefined
+    if (known.kind === "string-literal") {
+      return isCanonicalAddressLiteral(value) ? undefined : "string literal is not an address"
+    }
     return known.kind === "address" ? undefined : `value is ${known.description}`
   }
   if (expected === "bool") {
     return known.kind === "bool" ? undefined : `value is ${known.description}`
   }
   if (expected === "integer") {
-    if (known.kind === "string-literal") return undefined
+    if (known.kind === "string-literal") {
+      const integerType = parseAbiIntegerType(type)
+      return integerType !== undefined && isCanonicalIntegerLiteral(value, integerType)
+        ? undefined
+        : `string literal is not in range for ${type}`
+    }
     return known.kind === "integer" ? undefined : `value is ${known.description}`
   }
   if (expected === "bytes") {
-    if (known.kind === "string-literal") return undefined
+    if (known.kind === "string-literal") {
+      return isHexBytesLiteral(value) ? undefined : "string literal is not hex bytes"
+    }
     return known.kind === "bytes" ? undefined : `value is ${known.description}`
   }
   if (expected === "fixed-bytes") {
-    if (known.kind === "string-literal") return undefined
+    if (known.kind === "string-literal") {
+      const fixedBytesLength = parseAbiFixedBytesLength(type)
+      return fixedBytesLength !== undefined && isHexBytesLiteral(value, fixedBytesLength)
+        ? undefined
+        : `string literal is not ${type}`
+    }
     if (known.kind !== "bytes") return `value is ${known.description}`
     return undefined
   }
 
   return undefined
+}
+
+function isCanonicalAddressLiteral(value: unknown): boolean {
+  return typeof value === "string" && /^0x[0-9a-f]{40}$/.test(value)
+}
+
+function isCanonicalIntegerLiteral(value: unknown, type: AbiIntegerType): boolean {
+  if (typeof value !== "string" || !/^-?[0-9]+$/.test(value)) return false
+
+  const integer = BigInt(value)
+  const { min, max } = abiIntegerBounds(type)
+  return integer >= min && integer <= max
+}
+
+function isHexBytesLiteral(value: unknown, fixedBytesLength?: number): boolean {
+  if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) return false
+  const byteLength = value.length - 2
+  if (byteLength % 2 !== 0) return false
+  return fixedBytesLength === undefined || byteLength / 2 === fixedBytesLength
 }
 
 function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {

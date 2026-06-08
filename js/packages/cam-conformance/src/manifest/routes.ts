@@ -299,10 +299,12 @@ function validateRouteExpressionString({
   if (
     root === "inputs"
     && firstSegment !== undefined
-    && isExpressionIdentifier(firstSegment)
-    && !declaredInputs.has(firstSegment)
   ) {
-    issues.push(routeExpressionIssue(resource, path, `route expression references undeclared input: ${firstSegment}`))
+    if (!isExpressionIdentifier(firstSegment)) {
+      issues.push(routeExpressionIssue(resource, path, `route expression input segment must be a declared name: ${firstSegment}`))
+    } else if (!declaredInputs.has(firstSegment)) {
+      issues.push(routeExpressionIssue(resource, path, `route expression references undeclared input: ${firstSegment}`))
+    }
   }
 
   if (root === "outputs" && !allowOutputs) {

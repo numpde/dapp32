@@ -62,6 +62,17 @@ export function parseAbiFixedBytesLength(type: string): number | undefined {
   return undefined
 }
 
+export function abiIntegerBounds(type: AbiIntegerType): {
+  readonly min: bigint
+  readonly max: bigint
+} {
+  const bits = BigInt(type.bits)
+  return {
+    min: type.signed ? -(1n << (bits - 1n)) : 0n,
+    max: type.signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n,
+  }
+}
+
 export function isFixedAbiArrayType(type: string): boolean {
   return /\[[0-9]+\]$/.test(type)
 }

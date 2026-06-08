@@ -24,6 +24,12 @@ export function declaredUiNodes({
   readonly issues: CamConformanceIssue[]
 }): ReadonlyMap<string, DeclaredUiNode> | undefined {
   if (uiDocuments.size === 0) return undefined
+  if (uiDocuments.size > 1) {
+    for (const resource of uiDocuments.keys()) {
+      issues.push(uiNodeInterfaceIssue(resource, undefined, "CAM V1 supports exactly one UI document"))
+    }
+    return undefined
+  }
 
   const nodes = new Map<string, DeclaredUiNode>()
   for (const [resource, ui] of uiDocuments) {
@@ -84,7 +90,7 @@ function nodeRequires(
   return requires
 }
 
-function uiNodeInterfaceIssue(resource: string, path: string, message: string): CamConformanceIssue {
+function uiNodeInterfaceIssue(resource: string, path: string | undefined, message: string): CamConformanceIssue {
   return conformanceIssue({
     rule: "CAM_UI_NODE_INTERFACE_INVALID",
     resource,

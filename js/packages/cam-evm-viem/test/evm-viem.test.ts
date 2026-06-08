@@ -719,6 +719,35 @@ test("callCamRoute normalizes array-like decoded tuple outputs by ABI component 
     status: "1",
     owner: userAddress,
   }))
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        routeResults: {
+          [tupleFunction]: {
+            status: 1,
+            owner: userAddress,
+            extra: "rejected",
+          },
+        },
+      })),
+      cam,
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: uiAddress,
+          abi,
+        },
+      },
+      route: tupleRoute,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+  )
 })
 
 test("callCamRoute treats a single array output as one ABI output", async () => {

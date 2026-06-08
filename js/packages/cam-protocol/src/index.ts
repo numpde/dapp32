@@ -1,4 +1,5 @@
 export {
+  abiIntegerBounds,
   abiScalarKind,
   isAbiFunctionName,
   isAbiFunctionSignatureReference,
