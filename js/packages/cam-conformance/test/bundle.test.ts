@@ -1067,13 +1067,20 @@ test("UI expressions must use protocol-owned roots", () => {
             tag: "Include",
             call: {
               namespace: "ui",
-              function: "app",
+              function: "detail",
               args: {
                 view: "$view..title",
               },
             },
           },
         ],
+      },
+      detail: {
+        tag: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
       },
     },
   })
@@ -1287,7 +1294,7 @@ test("UI action state references must be backed by Input names", () => {
   })
 
   assert.deepEqual(issueLocations(issues), [
-    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.1.call.args.serialNumber"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.serialNumber"],
   ])
 })
 
@@ -1403,7 +1410,7 @@ test("UI action state references must be backed by route-local rendered inputs",
   })
 
   assert.deepEqual(issueLocations(issues), [
-    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.edit.call.args.serialNumber"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.edit.call.args.serialNumber"],
   ])
 })
 
@@ -1915,6 +1922,276 @@ test("UI Includes reject deterministically invalid literal Include arg selectors
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.panel.call.function"],
+  ])
+})
+
+test("UI typeflow rejects deterministic Include cycles", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Include",
+        requires: ["view"],
+        call: {
+          namespace: "ui",
+          function: "app",
+          args: {
+            view: "$view",
+          },
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.app"],
+  ])
+})
+
+test("UI Includes validate resolved selector targets and args", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "$view.missing",
+              args: {},
+            },
+          },
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "$view.detail",
+              args: {},
+            },
+          },
+        ],
+      },
+      detail: {
+        tag: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            missing: "missing",
+            detail: "detail",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.call.function"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.view"],
+  ])
+})
+
+test("UI typeflow walks static Include arrays", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Include",
+        requires: ["view"],
+        call: {
+          namespace: "ui",
+          function: ["ownerPanel"],
+          args: {
+            view: {
+              owner: 123,
+            },
+          },
+        },
+      },
+      ownerPanel: {
+        tag: "Address",
+        requires: ["view"],
+        props: {
+          label: "Owner",
+          address: "$view.owner",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.ownerPanel.props.address"],
+  ])
+})
+
+test("UI typeflow validates known dynamic Action routes", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Action",
+        requires: ["view"],
+        props: {
+          label: "Open",
+        },
+        call: {
+          namespace: "routes",
+          function: "$view.route",
+          args: {},
+        },
+      },
+      done: {
+        tag: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "done",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            route: "component",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.args.serialNumber"],
+  ])
+})
+
+test("UI typeflow checks state references through resolved Include selectors", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Include",
+        requires: ["view"],
+        call: {
+          namespace: "ui",
+          function: "$view.nodes",
+          args: {
+            view: "$view",
+          },
+        },
+      },
+      done: {
+        tag: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+      edit: {
+        tag: "Action",
+        requires: ["view"],
+        props: {
+          label: "Open",
+        },
+        call: {
+          namespace: "routes",
+          function: "component",
+          args: {
+            serialNumber: "$state.serialNumber",
+          },
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "done",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            nodes: "edit",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.edit.call.args.serialNumber"],
   ])
 })
 

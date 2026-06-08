@@ -22,10 +22,6 @@ import {
 } from "./document.ts"
 import type { RawUiDocuments } from "./resources.ts"
 import {
-  forEachString,
-} from "../walk.ts"
-import {
-  expressionReference,
   staticString,
   staticStringList,
 } from "../expressions/reference.ts"
@@ -39,11 +35,6 @@ type UiCall = {
 
 type UiDataflow = {
   readonly calls: readonly UiCall[]
-}
-
-type RouteLocalUiData = {
-  readonly inputNames: Set<string>
-  readonly actionPaths: string[]
 }
 
 export function validateUiDataflow({
@@ -60,7 +51,6 @@ export function validateUiDataflow({
   const routesByName = new Map(routes.map((route) => [route.name, route]))
   for (const [resource, ui] of uiDocuments) {
     const dataflow = readUiDataflow(resource, ui.nodes, issues)
-    const actionInputsByPath = routeLocalActionInputs(ui.nodes, routes)
 
     for (const call of dataflow.calls) {
       if (!validateUiCallArgNames(resource, call, issues)) continue
@@ -71,10 +61,6 @@ export function validateUiDataflow({
         }
       } else {
         validateActionRouteArgs(resource, call, routesByName, issues)
-        const localInputs = actionInputsByPath.get(call.path)
-        if (localInputs !== undefined) {
-          validateActionStateInputs(resource, call, localInputs, issues)
-        }
       }
     }
   }
@@ -144,85 +130,6 @@ function collectCall(
     function: value.call.function,
     args: value.call.args,
   })
-}
-
-function routeLocalActionInputs(
-  nodes: Record<string, unknown>,
-  routes: readonly DeclaredRoute[],
-): ReadonlyMap<string, readonly ReadonlySet<string>[]> {
-  const result = new Map<string, ReadonlySet<string>[]>()
-  for (const route of routes) {
-    if (route.then.namespace !== "ui") continue
-
-    const rootName = staticString(route.then.function)
-    if (rootName === undefined) continue
-
-    // Runtime initializes $state from the UI tree selected by the current
-    // route, not from every Input declared anywhere in ui.json.
-    const localData = reachableUiData(nodes, rootName)
-    for (const actionPath of localData.actionPaths) {
-      const matches = result.get(actionPath)
-      if (matches === undefined) {
-        result.set(actionPath, [localData.inputNames])
-      } else {
-        matches.push(localData.inputNames)
-      }
-    }
-  }
-
-  return result
-}
-
-function reachableUiData(nodes: Record<string, unknown>, nodeName: string): RouteLocalUiData {
-  const data: RouteLocalUiData = {
-    inputNames: new Set<string>(),
-    actionPaths: [],
-  }
-  collectNamedUiData(nodes, nodeName, [], data)
-  return data
-}
-
-function collectNamedUiData(
-  nodes: Record<string, unknown>,
-  nodeName: string,
-  stack: readonly string[],
-  data: RouteLocalUiData,
-): void {
-  if (stack.includes(nodeName)) return
-
-  const node = nodes[nodeName]
-  if (!isRecordObject(node)) return
-
-  collectInlineUiData(nodes, node, `nodes.${nodeName}`, [...stack, nodeName], data)
-}
-
-function collectInlineUiData(
-  nodes: Record<string, unknown>,
-  value: unknown,
-  path: string,
-  stack: readonly string[],
-  data: RouteLocalUiData,
-): void {
-  if (!isRecordObject(value)) return
-
-  if (value.tag === "Action") {
-    data.actionPaths.push(path)
-    return
-  }
-
-  const inputName = literalInputName(value)
-  if (inputName !== undefined) data.inputNames.add(inputName)
-
-  if (value.tag === "Include") {
-    const targetName = isRecordObject(value.call) ? staticString(value.call.function) : undefined
-    if (targetName !== undefined) collectNamedUiData(nodes, targetName, stack, data)
-  }
-
-  if (Array.isArray(value.children)) {
-    value.children.forEach((child, index) => {
-      collectInlineUiData(nodes, child, `${path}.children.${index}`, stack, data)
-    })
-  }
 }
 
 function validateUiCallArgNames(resource: string, call: UiCall, issues: CamConformanceIssue[]): boolean {
@@ -353,61 +260,6 @@ function validateStaticCallTargets(
   }
 
   return valid
-}
-
-function literalInputName(node: Record<string, unknown>): string | undefined {
-  if (node.tag !== "Input" || !isRecordObject(node.props)) return undefined
-
-  const name = node.props.name
-  // Runtime initial state can only be proven statically for literal names.
-  // Dynamic Input names may still be runtime-valid, but they cannot justify a
-  // conformance claim that $state.<name> is available in this view.
-  const staticName = staticString(name)
-  if (staticName === "" || staticName === undefined) return undefined
-  return isExpressionIdentifier(staticName) ? staticName : undefined
-}
-
-function validateActionStateInputs(
-  resource: string,
-  action: UiCall,
-  routeLocalInputNames: readonly ReadonlySet<string>[],
-  issues: CamConformanceIssue[],
-): void {
-  forEachString(action.args, "", (value, suffix) => {
-    const path = `${action.path}.call.args${suffix.length === 0 ? "" : `.${suffix}`}`
-    const stateInput = referencedStateInput(value)
-    if (stateInput === undefined) return
-
-    if (stateInput.length === 0) {
-      issues.push(dataflowIssue(
-        resource,
-        path,
-        "UI action state expression must name an input",
-      ))
-      return
-    }
-
-    if (routeLocalInputNames.length === 0) return
-
-    if (routeLocalInputNames.some((inputNames) => !inputNames.has(stateInput))) {
-      issues.push(dataflowIssue(
-        resource,
-        path,
-        `UI action references state without a matching route-local Input name: ${stateInput}`,
-      ))
-    }
-  })
-}
-
-function referencedStateInput(value: string): string | undefined {
-  const reference = expressionReference(value)
-  if (reference === undefined) return undefined
-
-  const { root, segments } = reference
-  const firstSegment = segments[0]
-  if (root !== "state") return undefined
-  if (firstSegment === undefined || !isExpressionIdentifier(firstSegment)) return ""
-  return firstSegment
 }
 
 function validateExactNames({

@@ -1,5 +1,6 @@
 import {
   abiScalarKind,
+  isExpressionIdentifier,
   UI_PROP_SCHEMAS,
   type UiPropTag,
   isRecordObject,
@@ -14,6 +15,7 @@ import {
 import {
   expressionReference,
   staticString,
+  staticStringList,
 } from "../expressions/reference.ts"
 import {
   conformanceIssue,
@@ -22,6 +24,12 @@ import {
 import type {
   DeclaredRoute,
 } from "../manifest/routes.ts"
+import {
+  diffNameSets,
+} from "../names.ts"
+import {
+  forEachString,
+} from "../walk.ts"
 import type { RawUiDocuments } from "./resources.ts"
 
 type AbiContext = ReadonlyMap<string, unknown>
@@ -32,10 +40,16 @@ type AbiLookup =
 type Scope = {
   readonly resource: string
   readonly nodes: Record<string, unknown>
+  readonly routesByName: ReadonlyMap<string, DeclaredRoute>
+  readonly reported: Set<string>
   readonly issues: CamConformanceIssue[]
 }
 type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-string-array"
 type ValueResolver = (value: unknown) => unknown | undefined
+type IncludeSelection = {
+  readonly names: readonly string[]
+  readonly resolved: boolean
+}
 const UNKNOWN_VALUE = { type: "unknown" } as const
 
 export function validateUiTypeflow({
@@ -49,8 +63,9 @@ export function validateUiTypeflow({
   readonly functionsByNamespace: ContractFunctionsByNamespace
   readonly issues: CamConformanceIssue[]
 }): void {
+  const routesByName = new Map(routes.map((route) => [route.name, route]))
   for (const [resource, ui] of uiDocuments) {
-    const scope = { resource, nodes: ui.nodes, issues }
+    const scope = { resource, nodes: ui.nodes, routesByName, reported: new Set<string>(), issues }
     for (const route of routes) {
       validateRouteTypeflow(scope, route, functionsByNamespace)
     }
@@ -73,12 +88,15 @@ function validateRouteTypeflow(
 
   // Typeflow follows runtime's concrete handoff: route outputs become named UI
   // args, and literal Includes pass a new typed arg set to the selected node.
-  // Dynamic Include targets are checked for selector type only.
+  // When selectors resolve to literal call args, it walks those targets too.
+  const context = contextForArgs(route.then.args, (value) => abiFunctionOutputForExpression(fn, value))
+  const inputNames = routeInputNames(scope, nodeName, context)
   walkNamedNode(
     scope,
     nodeName,
     `nodes.${nodeName}`,
-    contextForArgs(route.then.args, (value) => abiFunctionOutputForExpression(fn, value)),
+    context,
+    inputNames,
     [],
   )
 }
@@ -88,14 +106,18 @@ function walkNamedNode(
   nodeName: string,
   path: string,
   context: AbiContext,
+  inputNames: ReadonlySet<string>,
   stack: readonly string[],
 ): void {
-  if (stack.includes(nodeName)) return
+  if (stack.includes(nodeName)) {
+    reportTypeflowIssue(scope, path, `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`)
+    return
+  }
 
   const node = scope.nodes[nodeName]
   if (!isRecordObject(node)) return
 
-  walkNode(scope, node, path, context, [...stack, nodeName])
+  walkNode(scope, node, path, context, inputNames, [...stack, nodeName])
 }
 
 function walkNode(
@@ -103,18 +125,19 @@ function walkNode(
   node: Record<string, unknown>,
   path: string,
   context: AbiContext,
+  inputNames: ReadonlySet<string>,
   stack: readonly string[],
 ): void {
   const tag = node.tag
   if (typeof tag !== "string") return
 
   validateProps(scope, tag, node, path, context)
-  validateCall(scope, tag, node, path, context, stack)
+  validateCall(scope, tag, node, path, context, inputNames, stack)
 
   if (!Array.isArray(node.children)) return
   node.children.forEach((child, index) => {
     if (isRecordObject(child)) {
-      walkNode(scope, child, `${path}.children.${index}`, context, stack)
+      walkNode(scope, child, `${path}.children.${index}`, context, inputNames, stack)
     }
   })
 }
@@ -142,30 +165,53 @@ function validateCall(
   node: Record<string, unknown>,
   path: string,
   context: AbiContext,
+  inputNames: ReadonlySet<string>,
   stack: readonly string[],
 ): void {
   if (!isRecordObject(node.call)) return
 
   if (tag === "Action") {
     validateBoundValue(scope, `${path}.call.function`, "UI Action route", node.call.function, "string", context)
+    validateKnownActionRoute(scope, path, node.call.function, node.call.args, context)
+    if (isRecordObject(node.call.args)) {
+      validateActionStateInputs(scope, path, node.call.args, inputNames)
+    }
     return
   }
 
   if (tag !== "Include") return
 
   validateBoundValue(scope, `${path}.call.function`, "UI Include target", node.call.function, "string-or-string-array", context)
-  validateKnownIncludeSelector(scope, `${path}.call.function`, node.call.function, context)
+  const selection = includeSelection(node.call.function, context)
+  if (selection === undefined) return
 
-  const nodeName = staticString(node.call.function)
-  if (nodeName === undefined || !isRecordObject(node.call.args)) return
+  if (selection.resolved) {
+    if (!validateIncludeSelection(scope, `${path}.call.function`, selection.names)) return
+  }
+  if (!isRecordObject(node.call.args)) return
 
-  walkNamedNode(
-    scope,
-    nodeName,
-    `${path}.${nodeName}`,
-    contextForArgs(node.call.args, (value) => valueFromExpression(value, context)),
-    stack,
-  )
+  for (const nodeName of selection.names) {
+    const target = scope.nodes[nodeName]
+    if (!isRecordObject(target)) {
+      if (selection.resolved) {
+        reportTypeflowIssue(scope, `${path}.call.function`, `UI Include calls unknown UI node: ${nodeName}`)
+      }
+      continue
+    }
+
+    if (selection.resolved) {
+      validateNodeArgs(scope, `${path}.call.args`, target, nodeName, Object.keys(node.call.args))
+    }
+
+    walkNamedNode(
+      scope,
+      nodeName,
+      `${path}.${nodeName}`,
+      contextForArgs(node.call.args, (value) => valueFromExpression(value, context)),
+      inputNames,
+      stack,
+    )
+  }
 }
 
 function validateBoundValue(
@@ -184,16 +230,16 @@ function validateBoundValue(
   const lookup = valueAtReference(reference.root, reference.segments, context)
   if (lookup.kind === "unknown") return
   if (lookup.kind === "missing") {
-    scope.issues.push(typeflowIssue(scope.resource, path, `${label} references no ABI-backed value: ${value}`))
+    reportTypeflowIssue(scope, path, `${label} references no ABI-backed value: ${value}`)
     return
   }
 
   if (!abiValueMatches(lookup.value, expectation)) {
-    scope.issues.push(typeflowIssue(
-      scope.resource,
+    reportTypeflowIssue(
+      scope,
       path,
       `${label} expects ${expectation}, but ABI provides ${abiTypeName(lookup.value)}`,
-    ))
+    )
   }
 }
 
@@ -266,24 +312,125 @@ function valueAtReference(root: string, segments: readonly string[], context: Ab
   return value === undefined ? { kind: "missing" } : { kind: "value", value }
 }
 
-function validateKnownIncludeSelector(
+function routeInputNames(scope: Scope, nodeName: string, context: AbiContext): ReadonlySet<string> {
+  const inputNames = new Set<string>()
+  collectRouteInputs(scope, nodeName, context, [], inputNames)
+  return inputNames
+}
+
+function collectRouteInputs(
+  scope: Scope,
+  nodeName: string,
+  context: AbiContext,
+  stack: readonly string[],
+  inputNames: Set<string>,
+): void {
+  if (stack.includes(nodeName)) return
+
+  const node = scope.nodes[nodeName]
+  if (!isRecordObject(node)) return
+
+  collectNodeInputs(scope, node, context, [...stack, nodeName], inputNames)
+}
+
+function collectNodeInputs(
+  scope: Scope,
+  node: Record<string, unknown>,
+  context: AbiContext,
+  stack: readonly string[],
+  inputNames: Set<string>,
+): void {
+  if (node.tag === "Action") return
+
+  const inputName = literalInputName(node)
+  if (inputName !== undefined) inputNames.add(inputName)
+
+  if (node.tag === "Include" && isRecordObject(node.call) && isRecordObject(node.call.args)) {
+    const selection = includeSelection(node.call.function, context)
+    if (selection !== undefined) {
+      const nextContext = contextForArgs(node.call.args, (value) => valueFromExpression(value, context))
+      for (const nodeName of selection.names) {
+        collectRouteInputs(scope, nodeName, nextContext, stack, inputNames)
+      }
+    }
+  }
+
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      if (isRecordObject(child)) collectNodeInputs(scope, child, context, stack, inputNames)
+    }
+  }
+}
+
+function includeSelection(value: unknown, context: AbiContext): IncludeSelection | undefined {
+  const staticNames = staticStringList(value)
+  if (staticNames !== undefined) {
+    return {
+      names: staticNames,
+      resolved: false,
+    }
+  }
+
+  const names = knownSelectorNames(value, context)
+  return names === undefined
+    ? undefined
+    : {
+      names,
+      resolved: true,
+    }
+}
+
+function validateIncludeSelection(
   scope: Scope,
   path: string,
-  value: unknown,
-  context: AbiContext,
-): void {
-  const names = knownSelectorNames(value, context)
-  if (names === undefined) return
-
+  names: readonly string[],
+): boolean {
+  let valid = true
   const seen = new Set<string>()
   for (const name of names) {
     if (name.length === 0) {
-      scope.issues.push(typeflowIssue(scope.resource, path, "UI Include target must not be empty"))
+      reportTypeflowIssue(scope, path, "UI Include target must not be empty")
+      valid = false
     } else if (seen.has(name)) {
-      scope.issues.push(typeflowIssue(scope.resource, path, `UI Include target must not be duplicated: ${name}`))
+      reportTypeflowIssue(scope, path, `UI Include target must not be duplicated: ${name}`)
+      valid = false
     }
     seen.add(name)
   }
+
+  return valid
+}
+
+function validateKnownActionRoute(
+  scope: Scope,
+  path: string,
+  value: unknown,
+  args: unknown,
+  context: AbiContext,
+): void {
+  const routeName = knownActionRouteName(value, context)
+  if (routeName === undefined || !isRecordObject(args)) return
+
+  const route = scope.routesByName.get(routeName)
+  if (route === undefined) {
+    reportTypeflowIssue(scope, `${path}.call.function`, `UI action calls unknown route: ${routeName}`)
+    return
+  }
+
+  validateExactNames({
+    scope,
+    path: `${path}.call.args`,
+    expectedNames: route.inputs,
+    actualNames: Object.keys(args),
+    destination: `route ${route.name}`,
+  })
+}
+
+function knownActionRouteName(value: unknown, context: AbiContext): string | undefined {
+  if (staticString(value) !== undefined) return undefined
+
+  const names = knownSelectorNames(value, context)
+  return names?.length === 1 ? names[0] : undefined
 }
 
 function knownSelectorNames(value: unknown, context: AbiContext): readonly string[] | undefined {
@@ -307,6 +454,92 @@ function knownSelectorNames(value: unknown, context: AbiContext): readonly strin
   }
 
   return undefined
+}
+
+function validateNodeArgs(
+  scope: Scope,
+  path: string,
+  node: Record<string, unknown>,
+  nodeName: string,
+  actualNames: readonly string[],
+): void {
+  if (!Array.isArray(node.requires) || !node.requires.every((item) => typeof item === "string")) return
+
+  validateExactNames({
+    scope,
+    path,
+    expectedNames: node.requires,
+    actualNames,
+    destination: `UI node ${nodeName}`,
+  })
+}
+
+function validateActionStateInputs(
+  scope: Scope,
+  path: string,
+  args: Record<string, unknown>,
+  inputNames: ReadonlySet<string>,
+): void {
+  forEachString(args, "", (value, suffix) => {
+    const stateInput = referencedStateInput(value)
+    if (stateInput === undefined) return
+
+    const argPath = `${path}.call.args${suffix.length === 0 ? "" : `.${suffix}`}`
+    if (stateInput.length === 0) {
+      reportTypeflowIssue(scope, argPath, "UI action state expression must name an input")
+      return
+    }
+    if (!inputNames.has(stateInput)) {
+      reportTypeflowIssue(
+        scope,
+        argPath,
+        `UI action references state without a matching route-local Input name: ${stateInput}`,
+      )
+    }
+  })
+}
+
+function referencedStateInput(value: string): string | undefined {
+  const reference = expressionReference(value)
+  if (reference === undefined) return undefined
+
+  const { root, segments } = reference
+  const firstSegment = segments[0]
+  if (root !== "state") return undefined
+  if (firstSegment === undefined || !isExpressionIdentifier(firstSegment)) return ""
+  return firstSegment
+}
+
+function literalInputName(node: Record<string, unknown>): string | undefined {
+  if (node.tag !== "Input" || !isRecordObject(node.props)) return undefined
+
+  const name = staticString(node.props.name)
+  return name !== undefined && isExpressionIdentifier(name) ? name : undefined
+}
+
+function validateExactNames({
+  scope,
+  path,
+  expectedNames,
+  actualNames,
+  destination,
+}: {
+  readonly scope: Scope
+  readonly path: string
+  readonly expectedNames: readonly string[]
+  readonly actualNames: readonly string[]
+  readonly destination: string
+}): void {
+  diffNameSets({
+    expectedNames,
+    actualNames,
+    onUnexpected: (name) => {
+      reportTypeflowIssue(scope, `${path}.${name}`, `unexpected UI call argument for ${destination}: ${name}`)
+    },
+    onMissing: (name) => {
+      reportTypeflowIssue(scope, `${path}.${name}`, `missing UI call argument for ${destination}: ${name}`)
+    },
+  })
 }
 
 function valueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
@@ -365,6 +598,14 @@ function isUnknownValue(value: unknown): boolean {
 
 function isUiPropTag(value: string): value is UiPropTag {
   return Object.hasOwn(UI_PROP_SCHEMAS, value)
+}
+
+function reportTypeflowIssue(scope: Scope, path: string, message: string): void {
+  const key = `${path}\0${message}`
+  if (scope.reported.has(key)) return
+
+  scope.reported.add(key)
+  scope.issues.push(typeflowIssue(scope.resource, path, message))
 }
 
 function typeflowIssue(resource: string, path: string, message: string): CamConformanceIssue {
