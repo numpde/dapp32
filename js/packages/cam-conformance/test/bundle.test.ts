@@ -25,6 +25,16 @@ import {
 
 const encoder = new TextEncoder()
 
+function viewTextNode() {
+  return {
+    tag: "Text",
+    requires: ["view"],
+    props: {
+      text: "$view.title",
+    },
+  }
+}
+
 test("valid minimal bundle returns no issues", () => {
   assert.deepEqual(validateCamBundle(minimalBundle()), [])
   assert.doesNotThrow(() => assertCamBundle(minimalBundle()))
@@ -1137,6 +1147,7 @@ test("UI actions must pass exactly the target route inputs", () => {
           },
         ],
       },
+      done: viewTextNode(),
     },
   })
   const issues = validateEditedRoot<{
@@ -1153,7 +1164,7 @@ test("UI actions must pass exactly the target route inputs", () => {
       },
       then: {
         namespace: "ui",
-        function: "app",
+        function: "done",
         args: {
           view: "$outputs.0",
         },
@@ -1189,6 +1200,7 @@ test("UI action escaped call targets are checked as literal route names", () => 
           },
         ],
       },
+      done: viewTextNode(),
     },
   })
   const issues = validateEditedRoot<{
@@ -1223,6 +1235,7 @@ test("UI action route targets must be single strings, not arrays", () => {
           },
         ],
       },
+      done: viewTextNode(),
     },
   })
   const issues = validateEditedRoot<{
@@ -1268,6 +1281,7 @@ test("UI action state references must be backed by Input names", () => {
           },
         ],
       },
+      done: viewTextNode(),
     },
   })
   const issues = validateEditedRoot<{
@@ -1284,7 +1298,7 @@ test("UI action state references must be backed by Input names", () => {
       },
       then: {
         namespace: "ui",
-        function: "app",
+        function: "done",
         args: {
           view: "$outputs.0",
         },
@@ -1384,6 +1398,7 @@ test("UI action state references must be backed by route-local rendered inputs",
           value: "",
         },
       },
+      done: viewTextNode(),
     },
   })
   const issues = validateEditedRoot<{
@@ -1400,7 +1415,7 @@ test("UI action state references must be backed by route-local rendered inputs",
       },
       then: {
         namespace: "ui",
-        function: "app",
+        function: "done",
         args: {
           view: "$outputs.0",
         },
@@ -1482,6 +1497,221 @@ test("UI action state references may use inputs from the route root tree", () =>
   })
 
   assert.deepEqual(issues, [])
+})
+
+test("UI typeflow rejects duplicate rendered Input names", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Input",
+            props: {
+              name: "serialNumber",
+              label: "Serial number",
+              value: "",
+            },
+          },
+          {
+            tag: "Input",
+            props: {
+              name: "serialNumber",
+              label: "Duplicate serial number",
+              value: "",
+            },
+          },
+        ],
+      },
+      done: viewTextNode(),
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.props.name"],
+  ])
+})
+
+test("UI typeflow resolves known dynamic Input names", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Input",
+            props: {
+              name: "$view.inputName",
+              label: "Serial number",
+              value: "",
+            },
+          },
+          {
+            tag: "Action",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: "component",
+              args: {
+                serialNumber: "$state.serialNumber",
+              },
+            },
+          },
+        ],
+      },
+      done: viewTextNode(),
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "done",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            inputName: "serialNumber",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issues, [])
+})
+
+test("UI typeflow rejects known dynamic invalid Input names", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Input",
+        requires: ["view"],
+        props: {
+          name: "$view.inputName",
+          label: "Serial number",
+          value: "",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            inputName: "serial-number",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.props.name"],
+  ])
+})
+
+test("UI typeflow keeps route-specific diagnostics distinct", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Action",
+        requires: ["view"],
+        props: {
+          label: "Open",
+        },
+        call: {
+          namespace: "routes",
+          function: "component",
+          args: {
+            serialNumber: "$state.serialNumber",
+          },
+        },
+      },
+      done: viewTextNode(),
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.args.serialNumber"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.args.serialNumber"],
+  ])
+  assert.deepEqual(issues.map((issue) => issue.message), [
+    "route entry: UI action references state without a matching route-local Input name: serialNumber",
+    "route component: UI action references state without a matching route-local Input name: serialNumber",
+  ])
 })
 
 test("UI call arg names must not be empty", () => {
@@ -2068,13 +2298,7 @@ test("UI typeflow validates known dynamic Action routes", () => {
           args: {},
         },
       },
-      done: {
-        tag: "Text",
-        requires: ["view"],
-        props: {
-          text: "$view.title",
-        },
-      },
+      done: viewTextNode(),
     },
   })
   const issues = validateEditedRoot<{
@@ -2132,13 +2356,7 @@ test("UI typeflow checks state references through resolved Include selectors", (
           },
         },
       },
-      done: {
-        tag: "Text",
-        requires: ["view"],
-        props: {
-          text: "$view.title",
-        },
-      },
+      done: viewTextNode(),
       edit: {
         tag: "Action",
         requires: ["view"],

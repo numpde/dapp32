@@ -41,6 +41,7 @@ type Scope = {
   readonly resource: string
   readonly nodes: Record<string, unknown>
   readonly routesByName: ReadonlyMap<string, DeclaredRoute>
+  readonly routeName: string
   readonly reported: Set<string>
   readonly issues: CamConformanceIssue[]
 }
@@ -65,8 +66,8 @@ export function validateUiTypeflow({
 }): void {
   const routesByName = new Map(routes.map((route) => [route.name, route]))
   for (const [resource, ui] of uiDocuments) {
-    const scope = { resource, nodes: ui.nodes, routesByName, reported: new Set<string>(), issues }
     for (const route of routes) {
+      const scope = { resource, nodes: ui.nodes, routesByName, routeName: route.name, reported: new Set<string>(), issues }
       validateRouteTypeflow(scope, route, functionsByNamespace)
     }
   }
@@ -314,13 +315,14 @@ function valueAtReference(root: string, segments: readonly string[], context: Ab
 
 function routeInputNames(scope: Scope, nodeName: string, context: AbiContext): ReadonlySet<string> {
   const inputNames = new Set<string>()
-  collectRouteInputs(scope, nodeName, context, [], inputNames)
+  collectRouteInputs(scope, nodeName, `nodes.${nodeName}`, context, [], inputNames)
   return inputNames
 }
 
 function collectRouteInputs(
   scope: Scope,
   nodeName: string,
+  path: string,
   context: AbiContext,
   stack: readonly string[],
   inputNames: Set<string>,
@@ -330,34 +332,40 @@ function collectRouteInputs(
   const node = scope.nodes[nodeName]
   if (!isRecordObject(node)) return
 
-  collectNodeInputs(scope, node, context, [...stack, nodeName], inputNames)
+  collectNodeInputs(scope, node, path, context, [...stack, nodeName], inputNames)
 }
 
 function collectNodeInputs(
   scope: Scope,
   node: Record<string, unknown>,
+  path: string,
   context: AbiContext,
   stack: readonly string[],
   inputNames: Set<string>,
 ): void {
   if (node.tag === "Action") return
 
-  const inputName = literalInputName(node)
-  if (inputName !== undefined) inputNames.add(inputName)
+  const inputName = resolvedInputName(scope, node, `${path}.props.name`, context)
+  if (inputName !== undefined) {
+    if (inputNames.has(inputName)) {
+      reportTypeflowIssue(scope, `${path}.props.name`, `duplicate rendered Input name: ${inputName}`)
+    }
+    inputNames.add(inputName)
+  }
 
   if (node.tag === "Include" && isRecordObject(node.call) && isRecordObject(node.call.args)) {
     const selection = includeSelection(node.call.function, context)
     if (selection !== undefined) {
       const nextContext = contextForArgs(node.call.args, (value) => valueFromExpression(value, context))
       for (const nodeName of selection.names) {
-        collectRouteInputs(scope, nodeName, nextContext, stack, inputNames)
+        collectRouteInputs(scope, nodeName, `${path}.${nodeName}`, nextContext, stack, inputNames)
       }
     }
   }
 
   if (Array.isArray(node.children)) {
-    for (const child of node.children) {
-      if (isRecordObject(child)) collectNodeInputs(scope, child, context, stack, inputNames)
+    for (const [index, child] of node.children.entries()) {
+      if (isRecordObject(child)) collectNodeInputs(scope, child, `${path}.children.${index}`, context, stack, inputNames)
     }
   }
 }
@@ -510,11 +518,39 @@ function referencedStateInput(value: string): string | undefined {
   return firstSegment
 }
 
-function literalInputName(node: Record<string, unknown>): string | undefined {
+function resolvedInputName(
+  scope: Scope,
+  node: Record<string, unknown>,
+  path: string,
+  context: AbiContext,
+): string | undefined {
   if (node.tag !== "Input" || !isRecordObject(node.props)) return undefined
 
-  const name = staticString(node.props.name)
-  return name !== undefined && isExpressionIdentifier(name) ? name : undefined
+  const name = staticString(node.props.name) ?? knownLiteralString(node.props.name, context)
+  if (name === undefined) return undefined
+  if (name.length === 0) {
+    reportTypeflowIssue(scope, path, "Input name must not be empty")
+    return undefined
+  }
+  if (!isExpressionIdentifier(name)) {
+    reportTypeflowIssue(scope, path, `Input name must be an expression identifier: ${name}`)
+    return undefined
+  }
+
+  return name
+}
+
+function knownLiteralString(value: unknown, context: AbiContext): string | undefined {
+  if (typeof value !== "string") return undefined
+
+  const reference = expressionReference(value)
+  if (reference === undefined) return undefined
+
+  const lookup = valueAtReference(reference.root, reference.segments, context)
+  if (lookup.kind !== "value" || !isRecordObject(lookup.value)) return undefined
+  return lookup.value.type === "literal-string" && typeof lookup.value.value === "string"
+    ? lookup.value.value
+    : undefined
 }
 
 function validateExactNames({
@@ -605,7 +641,7 @@ function reportTypeflowIssue(scope: Scope, path: string, message: string): void 
   if (scope.reported.has(key)) return
 
   scope.reported.add(key)
-  scope.issues.push(typeflowIssue(scope.resource, path, message))
+  scope.issues.push(typeflowIssue(scope.resource, path, `route ${scope.routeName}: ${message}`))
 }
 
 function typeflowIssue(resource: string, path: string, message: string): CamConformanceIssue {
