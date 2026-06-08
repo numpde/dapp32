@@ -200,6 +200,8 @@ test("validates secondary CAM resource URI policy", () => {
   for (const uri of [
     "https://example.test/ui.json",
     "ipfs://example/ui.json",
+    "ipfs://Qm11111111111111111111111111111111111111111111/ui.json",
+    "ipfs://bzzzzzzzzzzzzzzzzzzzz/ui.json",
     "ipfs://zExampleMultibaseNotAcceptedYet/ui.json",
     "../ui.json",
     "./ui/../x.json",

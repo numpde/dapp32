@@ -1,6 +1,8 @@
 export const CAM_RESOURCE_MAX_BYTES = 2 * 1024 * 1024
 const SHA256_INTEGRITY_PREFIX = "sha256:"
 const SHA256_HEX_PATTERN = /^0x[0-9a-f]{64}$/
+const BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567"
+const BASE58BTC_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 export type CamResourceIntegrityErrorCode =
   | "CAM_RESOURCE_INTEGRITY_INVALID"
@@ -133,7 +135,101 @@ function isSupportedIpfsCid(value: string): boolean {
   // CAM V1 accepts the two CID spellings operators most commonly review by
   // sight: CIDv0 base58btc and CIDv1 base32. Wider multibase support can be
   // added deliberately when a real manifest needs it.
-  return /^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(value) || /^b[a-z2-7]{20,}$/.test(value)
+  if (/^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(value)) {
+    return isCidV0Sha256(decodeBase58btc(value))
+  }
+  if (/^b[a-z2-7]{20,}$/.test(value)) {
+    return isCidV1(decodeBase32(value.slice(1)))
+  }
+
+  return false
+}
+
+function isCidV0Sha256(bytes: Uint8Array | undefined): boolean {
+  return bytes !== undefined && bytes.length === 34 && bytes[0] === 0x12 && bytes[1] === 0x20
+}
+
+function isCidV1(bytes: Uint8Array | undefined): boolean {
+  if (bytes === undefined) return false
+
+  const version = readVarint(bytes, 0)
+  if (version === undefined || version.value !== 1n) return false
+
+  const codec = readVarint(bytes, version.offset)
+  if (codec === undefined || codec.value === 0n) return false
+
+  const hashCode = readVarint(bytes, codec.offset)
+  if (hashCode === undefined || hashCode.value === 0n) return false
+
+  const hashLength = readVarint(bytes, hashCode.offset)
+  if (hashLength === undefined || hashLength.value === 0n || hashLength.value > BigInt(bytes.length)) return false
+
+  return bytes.length === hashLength.offset + Number(hashLength.value)
+}
+
+function decodeBase32(value: string): Uint8Array | undefined {
+  const bytes: number[] = []
+  let buffer = 0
+  let bits = 0
+
+  for (const char of value) {
+    const digit = BASE32_ALPHABET.indexOf(char)
+    if (digit < 0) return undefined
+
+    buffer = (buffer << 5) | digit
+    bits += 5
+    while (bits >= 8) {
+      bits -= 8
+      bytes.push((buffer >> bits) & 0xff)
+    }
+  }
+
+  if (bits > 0 && (buffer & ((1 << bits) - 1)) !== 0) return undefined
+  return new Uint8Array(bytes)
+}
+
+function decodeBase58btc(value: string): Uint8Array | undefined {
+  const bytes = [0]
+
+  for (const char of value) {
+    const digit = BASE58BTC_ALPHABET.indexOf(char)
+    if (digit < 0) return undefined
+
+    let carry = digit
+    for (let index = 0; index < bytes.length; index += 1) {
+      carry += bytes[index] * 58
+      bytes[index] = carry & 0xff
+      carry >>= 8
+    }
+    while (carry > 0) {
+      bytes.push(carry & 0xff)
+      carry >>= 8
+    }
+  }
+
+  for (const char of value) {
+    if (char !== "1") break
+    bytes.push(0)
+  }
+
+  return new Uint8Array(bytes.reverse())
+}
+
+function readVarint(bytes: Uint8Array, offset: number): { readonly value: bigint, readonly offset: number } | undefined {
+  let value = 0n
+  let shift = 0n
+
+  for (let index = offset; index < bytes.length; index += 1) {
+    const byte = bytes[index]
+    value |= BigInt(byte & 0x7f) << shift
+    if ((byte & 0x80) === 0) {
+      return { value, offset: index + 1 }
+    }
+    shift += 7n
+    if (shift > 63n) return undefined
+  }
+
+  return undefined
 }
 
 export function verifySha256ResourceIntegrity({
