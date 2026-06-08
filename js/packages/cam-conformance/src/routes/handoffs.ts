@@ -1,7 +1,18 @@
 import {
+  isRecordObject,
+} from "@cam/protocol"
+import {
   conformanceIssue,
   type CamConformanceIssue,
 } from "../issues.ts"
+import {
+  abiArgValueMismatches,
+  resolvedAbiFunction,
+  type ContractFunctionsByNamespace,
+} from "../abi/routes.ts"
+import {
+  knownRouteCallValue,
+} from "../expressions/known-route-call.ts"
 import type {
   DeclaredRoute,
 } from "../manifest/routes.ts"
@@ -16,11 +27,13 @@ export function validateRouteHandoffs({
   resource,
   routes,
   uiNodes,
+  functionsByNamespace,
   issues,
 }: {
   readonly resource: string
   readonly routes: readonly DeclaredRoute[]
   readonly uiNodes: ReadonlyMap<string, DeclaredUiNode> | undefined
+  readonly functionsByNamespace: ContractFunctionsByNamespace
   readonly issues: CamConformanceIssue[]
 }): void {
   const routesByName = new Map(routes.map((route) => [route.name, route]))
@@ -31,7 +44,7 @@ export function validateRouteHandoffs({
       validateUiHandoff(resource, route, uiNodes, issues)
       continue
     }
-    validateRouteHandoff(resource, route, routesByName, issues)
+    validateRouteHandoff(resource, route, routesByName, functionsByNamespace, issues)
   }
 }
 
@@ -62,6 +75,7 @@ function validateRouteHandoff(
   resource: string,
   route: DeclaredRoute,
   routesByName: ReadonlyMap<string, DeclaredRoute>,
+  functionsByNamespace: ContractFunctionsByNamespace,
   issues: CamConformanceIssue[],
 ): void {
   const nextRoute = routesByName.get(route.then.function)
@@ -78,6 +92,68 @@ function validateRouteHandoff(
     destination: `route ${nextRoute.name}`,
     issues,
   })
+  validateRouteHandoffAbi(resource, route, nextRoute, functionsByNamespace, issues)
+}
+
+function validateRouteHandoffAbi(
+  resource: string,
+  route: DeclaredRoute,
+  nextRoute: DeclaredRoute,
+  functionsByNamespace: ContractFunctionsByNamespace,
+  issues: CamConformanceIssue[],
+): void {
+  const functions = functionsByNamespace.get(nextRoute.call.namespace)
+  if (functions === undefined) return
+
+  const fn = resolvedAbiFunction(nextRoute.call.function, functions)
+  if (fn === undefined) return
+
+  for (const input of fn.inputs) {
+    if (!Object.hasOwn(nextRoute.call.args, input.name)) continue
+
+    const resolved = knownRouteCallValue(nextRoute.call.args[input.name], (segments) => {
+      const value = valueAtSegments(route.then.args, segments)
+      return value === undefined
+        ? undefined
+        : {
+          value,
+          pathSuffix: segments.map((segment) => `.${segment}`).join(""),
+        }
+    })
+    if (resolved === undefined) continue
+
+    for (const mismatch of abiArgValueMismatches(input.name, resolved.value, input.abi)) {
+      issues.push(handoffIssue(
+        resource,
+        `routes.${route.name}.then.args${sourcePathForMismatch(resolved, mismatch.pathSuffix)}`,
+        mismatch.message,
+      ))
+    }
+  }
+}
+
+function sourcePathForMismatch(
+  value: { readonly paths: ReadonlyMap<string, string>, readonly pathSuffix: string },
+  pathSuffix: string,
+): string {
+  const sourcePath = value.paths.get(pathSuffix)
+  return sourcePath === undefined ? `${value.pathSuffix}${pathSuffix}` : sourcePath
+}
+
+function valueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
+  const [segment, ...rest] = segments
+  if (segment === undefined) return value
+  if (Array.isArray(value) && isArrayIndex(segment)) {
+    return valueAtSegments(value[Number(segment)], rest)
+  }
+  if (isRecordObject(value) && Object.hasOwn(value, segment)) {
+    return valueAtSegments(value[segment], rest)
+  }
+  return undefined
+}
+
+function isArrayIndex(value: string): boolean {
+  return value === "0" || /^[1-9][0-9]*$/.test(value)
 }
 
 function validateNamedHandoffArgs({

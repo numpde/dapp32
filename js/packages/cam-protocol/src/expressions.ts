@@ -7,12 +7,16 @@ import {
 } from "./json.ts"
 
 export type ExpressionErrorKind = "invalidField" | "invalidExpression" | "unresolvedValue"
+export type ExpressionErrorDetails = {
+  readonly expression?: string
+  readonly root?: string
+}
 
 export type ExpressionRuntimeOptions<T> = {
   readonly roots: ReadonlySet<string>
   readonly numericSegments: boolean
   readonly normalize: (value: unknown, path: string) => T
-  readonly error: (kind: ExpressionErrorKind, message: string, path?: string) => Error
+  readonly error: (kind: ExpressionErrorKind, message: string, path?: string, details?: ExpressionErrorDetails) => Error
 }
 
 export type ExpressionRuntime<T> = {
@@ -129,12 +133,12 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
     for (const segment of segments) {
       current = readExpressionSegment(current, segment)
       if (current === undefined) {
-        throw options.error("unresolvedValue", `unresolved expression: ${value}`, path)
+        throw options.error("unresolvedValue", `unresolved expression: ${value}`, path, { expression: value, root })
       }
     }
 
     if (current === undefined) {
-      throw options.error("unresolvedValue", `unresolved expression: ${value}`, path)
+      throw options.error("unresolvedValue", `unresolved expression: ${value}`, path, { expression: value, root })
     }
 
     return current

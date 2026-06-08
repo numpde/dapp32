@@ -7,6 +7,7 @@ import {
   parseUi,
   resolveInitialUiNode,
   resolveUiNode,
+  UiError,
 } from "../src/index.ts"
 
 const context = {
@@ -128,6 +129,41 @@ test("resolveUiNode rejects args that shadow runtime roots", () => {
   assert.throws(
     () => resolveUiNode(ui, "app", inertRecord({ state: {} }), context),
     /must not shadow runtime root: state/,
+  )
+})
+
+test("resolveUiNode reports unresolved account as structured error details", () => {
+  const ui = parseUi({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Action",
+        requires: [],
+        props: {
+          label: "Use account",
+        },
+        call: {
+          namespace: "routes",
+          function: "entry",
+          args: {
+            account: "$account.address",
+          },
+        },
+      },
+    },
+  })
+  const anonymousContext = {
+    host: context.host,
+    inputs: context.inputs,
+    outputs: context.outputs,
+    state: context.state,
+  }
+
+  assert.throws(
+    () => resolveUiNode(ui, "app", inertRecord({}), anonymousContext),
+    (error) => error instanceof UiError
+      && error.code === "UI_UNRESOLVED_VALUE"
+      && error.unresolvedRoot === "account",
   )
 })
 

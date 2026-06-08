@@ -393,7 +393,7 @@ export function createCamViewerSession({
       account === undefined
       && cause instanceof UiError
       && cause.code === "UI_UNRESOLVED_VALUE"
-      && cause.message.includes("$account")
+      && cause.unresolvedRoot === "account"
     ) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "CAM UI requires an account", cause)
     }

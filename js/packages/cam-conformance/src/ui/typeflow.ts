@@ -19,6 +19,10 @@ import {
   staticStringList,
 } from "../expressions/reference.ts"
 import {
+  knownRouteCallValue,
+  type KnownRouteCallValue,
+} from "../expressions/known-route-call.ts"
+import {
   conformanceIssue,
   type CamConformanceIssue,
 } from "../issues.ts"
@@ -278,16 +282,16 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
     return { type: "literal-string", value }
   }
 
-  if (typeof value === "boolean") return { type: "bool" }
-  if (typeof value === "number") return { type: Number.isSafeInteger(value) ? "uint256" : "number" }
-  if (value === null) return { type: "null" }
+  if (typeof value === "boolean") return { type: "bool", value }
+  if (typeof value === "number") return { type: Number.isSafeInteger(value) ? "uint256" : "number", value }
+  if (value === null) return { type: "null", value }
 
   if (Array.isArray(value)) {
     if (value.every((item) => typeof item === "string" && expressionReference(item) === undefined)) {
       return { type: "literal-string[]", items: value }
     }
     const itemShapes = value.map((item) => knownValueShape(item, resolve))
-    return itemShapes.some(isUnknownValue) ? UNKNOWN_VALUE : { type: "array" }
+    return itemShapes.some((item) => item === undefined || isUnknownValue(item)) ? UNKNOWN_VALUE : { type: "array", items: itemShapes }
   }
 
   if (!isRecordObject(value)) return undefined
@@ -475,7 +479,12 @@ function validateActionRouteAbi(
     if (resolved === undefined) continue
 
     for (const mismatch of abiArgValueMismatches(input.name, resolved.value, input.abi)) {
-      reportTypeflowIssue(scope, `${path}.call.args${resolved.pathSuffix}${mismatch.pathSuffix}`, mismatch.message)
+      const inputPath = resolved.paths.get(mismatch.pathSuffix)
+      reportTypeflowIssue(
+        scope,
+        `${path}.call.args${inputPath === undefined ? `${resolved.pathSuffix}${mismatch.pathSuffix}` : inputPath}`,
+        mismatch.message,
+      )
     }
   }
 }
@@ -484,22 +493,19 @@ function actionValueForRouteCall(
   routeArg: unknown,
   actionArgs: Record<string, unknown>,
   context: AbiContext,
-): { readonly value: unknown, readonly pathSuffix: string } | undefined {
-  if (typeof routeArg !== "string") return undefined
+): KnownRouteCallValue | undefined {
+  return knownRouteCallValue(routeArg, (segments) => {
+    const actionValue = rawValueAtSegments(actionArgs, segments)
+    if (actionValue === undefined) return undefined
 
-  const reference = expressionReference(routeArg)
-  if (reference === undefined || reference.root !== "inputs") return undefined
-
-  const actionValue = rawValueAtSegments(actionArgs, reference.segments)
-  if (actionValue === undefined) return undefined
-
-  const value = knownActionLiteral(actionValue, context)
-  return value === undefined
-    ? undefined
-    : {
-      value,
-      pathSuffix: reference.segments.map((segment) => `.${segment}`).join(""),
-    }
+    const literal = knownActionLiteral(actionValue, context)
+    return literal === undefined
+      ? undefined
+      : {
+        value: literal,
+        pathSuffix: segments.map((segment) => `.${segment}`).join(""),
+      }
+  })
 }
 
 function knownActionLiteral(value: unknown, context: AbiContext): unknown | undefined {
@@ -532,11 +538,31 @@ function literalFromKnownValue(value: unknown): unknown | undefined {
   if (!isRecordObject(value)) return undefined
   if (value.type === "literal-string" && typeof value.value === "string") return value.value
   if (
+    (value.type === "bool" || value.type === "uint256" || value.type === "number" || value.type === "null")
+    && Object.hasOwn(value, "value")
+  ) {
+    return value.value
+  }
+  if (
     value.type === "literal-string[]"
     && Array.isArray(value.items)
     && value.items.every((item) => typeof item === "string")
   ) {
     return value.items
+  }
+  if (value.type === "array" && Array.isArray(value.items)) {
+    const items = value.items.map(literalFromKnownValue)
+    return items.some((item) => item === undefined) ? undefined : items
+  }
+  if (value.type === "tuple" && Array.isArray(value.components)) {
+    const record: Record<string, unknown> = {}
+    for (const component of value.components) {
+      if (!isRecordObject(component) || typeof component.name !== "string") return undefined
+      const literal = literalFromKnownValue(component)
+      if (literal === undefined) return undefined
+      record[component.name] = literal
+    }
+    return record
   }
 
   return undefined

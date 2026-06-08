@@ -156,7 +156,7 @@ function isCidV1(bytes: Uint8Array | undefined): boolean {
   if (version === undefined || version.value !== 1) return false
 
   const codec = readVarint(bytes, version.offset)
-  if (codec === undefined || codec.value === 0) return false
+  if (codec === undefined || !isSupportedCidCodec(codec.value)) return false
 
   const hashCode = readVarint(bytes, codec.offset)
   if (hashCode === undefined || hashCode.value !== 0x12) return false
@@ -165,6 +165,12 @@ function isCidV1(bytes: Uint8Array | undefined): boolean {
   if (hashLength === undefined || hashLength.value !== 32) return false
 
   return bytes.length === hashLength.offset + Number(hashLength.value)
+}
+
+function isSupportedCidCodec(value: number): boolean {
+  // Keep CAM resource CIDs to ordinary IPFS file/blob forms. Broader codecs can
+  // be added deliberately when a real manifest needs them.
+  return value === 0x55 || value === 0x70
 }
 
 function decodeBase32(value: string): Uint8Array | undefined {

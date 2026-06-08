@@ -104,6 +104,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     resource: bundle.rootURI,
     routes,
     uiNodes,
+    functionsByNamespace,
     issues,
   })
   validateUiDataflow({

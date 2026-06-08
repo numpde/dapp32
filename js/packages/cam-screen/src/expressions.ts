@@ -27,14 +27,16 @@ const UI_EXPRESSIONS = createExpressionRuntime({
       throw error
     }
   },
-  error(kind, message, path) {
+  error(kind, message, path, details) {
     switch (kind) {
       case "invalidField":
         return new UiError("UI_INVALID_FIELD", message, path)
       case "invalidExpression":
         return new UiError("UI_INVALID_EXPRESSION", message, path)
       case "unresolvedValue":
-        return new UiError("UI_UNRESOLVED_VALUE", message, path)
+        return details?.root === undefined
+          ? new UiError("UI_UNRESOLVED_VALUE", message, path)
+          : new UiError("UI_UNRESOLVED_VALUE", message, path, { unresolvedRoot: details.root })
     }
   },
 })
