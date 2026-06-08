@@ -1743,6 +1743,87 @@ test("UI props reject statically incompatible ABI-backed route outputs", () => {
   ])
 })
 
+test("UI props reject statically incompatible literal route handoff args", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Address",
+        requires: ["view"],
+        props: {
+          label: "Owner",
+          address: "$view.owner",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            owner: 123,
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.props.address"],
+  ])
+})
+
+test("UI props reject statically incompatible literal Include args", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Include",
+            call: {
+              namespace: "ui",
+              function: "ownerPanel",
+              args: {
+                view: {
+                  owner: 123,
+                },
+              },
+            },
+          },
+        ],
+      },
+      ownerPanel: {
+        tag: "Address",
+        requires: ["view"],
+        props: {
+          label: "Owner",
+          address: "$view.owner",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.ownerPanel.props.address"],
+  ])
+})
+
 test("UI props are checked against each route-local continuation shape", () => {
   const abiBytes = jsonBytes([
     {

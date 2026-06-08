@@ -35,6 +35,8 @@ type Scope = {
   readonly issues: CamConformanceIssue[]
 }
 type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-string-array"
+type ValueResolver = (value: unknown) => unknown | undefined
+const UNKNOWN_VALUE = { type: "unknown" } as const
 
 export function validateUiTypeflow({
   uiDocuments,
@@ -196,14 +198,51 @@ function validateBoundValue(
 
 function contextForArgs(
   args: Record<string, unknown>,
-  resolve: (value: unknown) => unknown | undefined,
+  resolve: ValueResolver,
 ): AbiContext {
   const context = new Map<string, unknown>()
   for (const [name, value] of Object.entries(args)) {
-    const resolved = resolve(value)
+    const resolved = knownValueShape(value, resolve)
     if (resolved !== undefined) context.set(name, resolved)
   }
   return context
+}
+
+function knownValueShape(value: unknown, resolve: ValueResolver): unknown | undefined {
+  const resolved = resolve(value)
+  if (resolved !== undefined) return resolved
+
+  // Runtime merges literal call args into the UI context. Conformance should
+  // reject deterministic literal mismatches while leaving true expressions as
+  // unknown, because their runtime value is supplied by another context root.
+  if (typeof value === "string") {
+    if (expressionReference(value) !== undefined) return UNKNOWN_VALUE
+    return { type: "literal-string" }
+  }
+
+  if (typeof value === "boolean") return { type: "bool" }
+  if (typeof value === "number") return { type: Number.isSafeInteger(value) ? "uint256" : "number" }
+  if (value === null) return { type: "null" }
+
+  if (Array.isArray(value)) {
+    if (value.every((item) => typeof item === "string" && expressionReference(item) === undefined)) {
+      return { type: "literal-string[]" }
+    }
+    const itemShapes = value.map((item) => knownValueShape(item, resolve))
+    return itemShapes.some(isUnknownValue) ? UNKNOWN_VALUE : { type: "array" }
+  }
+
+  if (!isRecordObject(value)) return undefined
+
+  const components = Object.entries(value).flatMap(([name, item]) => {
+    const shape = knownValueShape(item, resolve)
+    return isRecordObject(shape) ? [{ name, ...shape }] : []
+  })
+
+  return {
+    type: "tuple",
+    components,
+  }
 }
 
 function valueFromExpression(value: unknown, context: AbiContext): unknown | undefined {
@@ -219,9 +258,19 @@ function valueFromExpression(value: unknown, context: AbiContext): unknown | und
 function valueAtReference(root: string, segments: readonly string[], context: AbiContext): AbiLookup {
   const rootValue = context.get(root)
   if (rootValue === undefined) return { kind: "unknown" }
+  if (isUnknownValue(rootValue)) return { kind: "unknown" }
 
-  const value = abiOutputAtSegments(rootValue, segments)
+  const value = valueAtSegments(rootValue, segments)
+  if (isUnknownValue(value)) return { kind: "unknown" }
   return value === undefined ? { kind: "missing" } : { kind: "value", value }
+}
+
+function valueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
+  const [segment, ...rest] = segments
+  if (segment === undefined || isUnknownValue(value)) return value
+
+  const nextValue = abiOutputAtSegments(value, [segment])
+  return nextValue === undefined ? undefined : valueAtSegments(nextValue, rest)
 }
 
 function propExpectation(tag: UiPropTag, prop: string): ValueExpectation | undefined {
@@ -236,13 +285,13 @@ function abiValueMatches(value: unknown, expectation: ValueExpectation): boolean
   const type = abiType(value)
   switch (expectation) {
     case "address":
-      return type === "address"
+      return type === "address" || type === "literal-string"
     case "integer-or-string":
-      return type === "integer" || type === "string"
+      return type === "integer" || type === "string" || type === "literal-string"
     case "string":
-      return type === "string"
+      return type === "string" || type === "literal-string"
     case "string-or-string-array":
-      return type === "string" || type === "string-array"
+      return type === "string" || type === "string-array" || type === "literal-string" || type === "literal-string-array"
   }
 }
 
@@ -250,6 +299,8 @@ function abiType(value: unknown): string {
   if (!isRecordObject(value) || typeof value.type !== "string") return "unknown"
 
   const type = value.type
+  if (type === "literal-string") return type
+  if (type === "literal-string[]") return "literal-string-array"
   if (type === "address" || type === "string" || type === "bool" || type === "bytes" || type === "tuple") return type
   const scalarKind = abiScalarKind(type)
   if (scalarKind === "integer") return "integer"
@@ -262,6 +313,10 @@ function abiType(value: unknown): string {
 function abiTypeName(value: unknown): string {
   if (isRecordObject(value) && typeof value.type === "string") return value.type
   return "unknown"
+}
+
+function isUnknownValue(value: unknown): boolean {
+  return isRecordObject(value) && value.type === UNKNOWN_VALUE.type
 }
 
 function isUiPropTag(value: string): value is UiPropTag {
