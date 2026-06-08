@@ -25,6 +25,7 @@ export { parseCam } from "./validate.ts"
 export { createContext } from "./context.ts"
 
 export {
+  routeRequiresAccount,
   resolveRouteCall,
   resolveRouteThen,
 } from "./routes.ts"

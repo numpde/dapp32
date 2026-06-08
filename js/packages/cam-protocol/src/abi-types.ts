@@ -62,15 +62,38 @@ export function parseAbiFixedBytesLength(type: string): number | undefined {
   return undefined
 }
 
-export function abiIntegerBounds(type: AbiIntegerType): {
-  readonly min: bigint
-  readonly max: bigint
-} {
-  const bits = BigInt(type.bits)
-  return {
-    min: type.signed ? -(1n << (bits - 1n)) : 0n,
-    max: type.signed ? (1n << (bits - 1n)) - 1n : (1n << bits) - 1n,
+export function isAbiAddressValue(value: unknown): value is string {
+  // Address validation is structural here. Checksums are a display/review aid;
+  // CAM ABI normalization only needs an exact 20-byte hex value.
+  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value)
+}
+
+export function isAbiIntegerValue(value: unknown, type: AbiIntegerType): value is number | string {
+  let integer: NormalizedDecimalInteger | undefined
+  if (typeof value === "number" && Number.isSafeInteger(value)) {
+    integer = normalizeDecimalInteger(String(value))
+  } else if (typeof value === "string" && /^-?[0-9]+$/.test(value)) {
+    integer = normalizeDecimalInteger(value)
+  } else {
+    return false
   }
+  if (integer === undefined) return false
+
+  const positiveLimit = decimalPowerOfTwo(type.signed ? type.bits - 1 : type.bits)
+  if (integer.negative) {
+    return type.signed && compareUnsignedDecimal(integer.digits, positiveLimit) <= 0
+  }
+
+  const max = decimalMinusOne(positiveLimit)
+  return compareUnsignedDecimal(integer.digits, max) <= 0
+}
+
+export function isAbiBytesValue(value: unknown, fixedBytesLength?: number): value is string {
+  if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) return false
+
+  const byteLength = value.length - 2
+  if (byteLength % 2 !== 0) return false
+  return fixedBytesLength === undefined || byteLength / 2 === fixedBytesLength
 }
 
 export function isFixedAbiArrayType(type: string): boolean {
@@ -95,4 +118,68 @@ function supportedAbiFixedBytesLength(type: string): number | undefined {
 
   const bytes = Number(match[1])
   return Number.isInteger(bytes) && bytes >= 1 && bytes <= 32 ? bytes : undefined
+}
+
+type NormalizedDecimalInteger = {
+  readonly negative: boolean
+  readonly digits: string
+}
+
+function normalizeDecimalInteger(value: string): NormalizedDecimalInteger | undefined {
+  const negative = value.startsWith("-")
+  let digits = negative ? value.slice(1) : value
+  if (digits.length === 0 || !/^[0-9]+$/.test(digits)) return undefined
+
+  digits = digits.replace(/^0+/, "")
+  if (digits === "") return { negative: false, digits: "0" }
+  return { negative, digits }
+}
+
+const DECIMAL_POWERS_OF_TWO = new Map<number, string>()
+
+function decimalPowerOfTwo(exponent: number): string {
+  const cached = DECIMAL_POWERS_OF_TWO.get(exponent)
+  if (cached !== undefined) return cached
+
+  let value = "1"
+  for (let index = 0; index < exponent; index += 1) {
+    value = decimalDouble(value)
+  }
+
+  DECIMAL_POWERS_OF_TWO.set(exponent, value)
+  return value
+}
+
+function decimalDouble(value: string): string {
+  let carry = 0
+  let result = ""
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    const digit = Number(value[index]) * 2 + carry
+    result = String(digit % 10) + result
+    carry = Math.floor(digit / 10)
+  }
+
+  return carry === 0 ? result : String(carry) + result
+}
+
+function decimalMinusOne(value: string): string {
+  const digits = value.split("")
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    if (digits[index] !== "0") {
+      digits[index] = String(Number(digits[index]) - 1)
+      break
+    }
+    digits[index] = "9"
+  }
+
+  const result = digits.join("").replace(/^0+/, "")
+  return result === "" ? "0" : result
+}
+
+function compareUnsignedDecimal(left: string, right: string): -1 | 0 | 1 {
+  if (left.length < right.length) return -1
+  if (left.length > right.length) return 1
+  if (left < right) return -1
+  if (left > right) return 1
+  return 0
 }

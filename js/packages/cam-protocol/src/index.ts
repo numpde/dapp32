@@ -1,8 +1,10 @@
 export {
-  abiIntegerBounds,
   abiScalarKind,
+  isAbiAddressValue,
+  isAbiBytesValue,
   isAbiFunctionName,
   isAbiFunctionSignatureReference,
+  isAbiIntegerValue,
   isFixedAbiArrayType,
   isSupportedAbiScalarType,
   parseAbiFixedBytesLength,

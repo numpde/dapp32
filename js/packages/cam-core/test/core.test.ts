@@ -6,6 +6,7 @@ import {
   CamError,
   createContext,
   parseCam,
+  routeRequiresAccount,
   resolveRouteCall,
   resolveRouteThen,
 } from "../src/index.ts"
@@ -22,6 +23,7 @@ import { bikeCamJson as mainJson } from "../../../../tests/fixtures/cam/bike-res
 
 test("resolves a CAM route into a plain call descriptor", () => {
   const cam = parseCam(mainJson)
+  assert.equal(routeRequiresAccount(cam, BIKE_ROUTE_COMPONENT), true)
   const context = createContext({
     host: {
       chainId: BIKE_HOST_CHAIN_ID,

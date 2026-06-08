@@ -1,8 +1,9 @@
-import { isAddress } from "viem"
 import type { AbiFunction, AbiParameter } from "viem"
 import {
-  abiIntegerBounds,
   createStringMap,
+  isAbiAddressValue,
+  isAbiBytesValue,
+  isAbiIntegerValue,
   isRecordObject,
   parseAbiFixedBytesLength,
   parseAbiIntegerType,
@@ -96,8 +97,8 @@ function normalizeAbiArg(
   }
 
   if (type === "address") {
-    if (typeof value !== "string" || !isAddress(value)) throw invalidArg(errorCode, path, "", "expected address")
-    return value
+    if (!isAbiAddressValue(value)) throw invalidArg(errorCode, path, "", "expected address")
+    return value.toLowerCase()
   }
 
   if (type === "bool") {
@@ -121,15 +122,7 @@ function normalizeAbiArg(
     throw invalidArg(errorCode, path, "", cause instanceof Error ? cause.message : String(cause))
   }
   if (type === "bytes" || fixedBytesLength !== undefined) {
-    if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) {
-      throw invalidArg(errorCode, path, "", `expected hex bytes for ${type}`)
-    }
-    if ((value.length - 2) % 2 !== 0) {
-      throw invalidArg(errorCode, path, "", `expected whole-byte hex value for ${type}`)
-    }
-    if (fixedBytesLength !== undefined && (value.length - 2) / 2 !== fixedBytesLength) {
-      throw invalidArg(errorCode, path, "", `expected ${fixedBytesLength} byte hex value for ${type}`)
-    }
+    if (!isAbiBytesValue(value, fixedBytesLength)) throw invalidArg(errorCode, path, "", `expected hex bytes for ${type}`)
     return value
   }
 
@@ -173,26 +166,8 @@ function normalizeAbiArg(
 }
 
 function normalizeInteger(value: InertValue, errorCode: ArgumentErrorCode, path: string, type: AbiIntegerType): bigint {
-  if (typeof value === "number" && Number.isSafeInteger(value)) {
-    return requireIntegerBounds(value, errorCode, path, type)
-  }
-
-  if (typeof value === "string" && /^-?[0-9]+$/.test(value)) {
-    return requireIntegerBounds(BigInt(value), errorCode, path, type)
-  }
-
-  throw invalidArg(errorCode, path, "", "expected integer")
-}
-
-function requireIntegerBounds(value: bigint | number, errorCode: ArgumentErrorCode, path: string, type: AbiIntegerType): bigint {
-  const bigintValue = typeof value === "bigint" ? value : BigInt(value)
-  const { min, max } = abiIntegerBounds(type)
-
-  if (bigintValue < min || bigintValue > max) {
-    throw invalidArg(errorCode, path, "", `integer is out of range for ${type.signed ? "int" : "uint"}${type.bits}`)
-  }
-
-  return bigintValue
+  if (!isAbiIntegerValue(value, type)) throw invalidArg(errorCode, path, "", "expected integer")
+  return BigInt(value)
 }
 
 function tupleComponents(

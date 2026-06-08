@@ -1086,7 +1086,7 @@ test("sendCamContractCall resolves full signatures for overloaded writes", async
   ])
 })
 
-test("sendCamContractCall rejects odd-length dynamic bytes", async () => {
+test("sendCamContractCall rejects invalid dynamic bytes", async () => {
   const walletClient = createWalletClient()
   const bytesAbi = [
     {
@@ -1111,7 +1111,7 @@ test("sendCamContractCall rejects odd-length dynamic bytes", async () => {
         },
       },
     }),
-    /expected whole-byte hex value/,
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
   )
 })
 

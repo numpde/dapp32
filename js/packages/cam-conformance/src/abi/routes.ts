@@ -1,17 +1,16 @@
 import {
-  abiIntegerBounds,
   abiScalarKind,
+  isAbiAddressValue,
+  isAbiBytesValue,
   isAbiFunctionName,
   isAbiFunctionSignatureReference,
+  isAbiIntegerValue,
   isFixedAbiArrayType,
   isRecordObject,
   isSupportedAbiScalarType,
   parseAbiFixedBytesLength,
   parseAbiIntegerType,
   parseJsonBytes,
-} from "@cam/protocol"
-import type {
-  AbiIntegerType,
 } from "@cam/protocol"
 
 import {
@@ -51,7 +50,7 @@ type AbiInput = {
   readonly abi: Record<string, unknown>
 }
 
-type KnownRouteArgKind = "address" | "array" | "bool" | "bytes" | "integer" | "null" | "object" | "string" | "string-literal"
+type KnownRouteArgKind = "address" | "array" | "bool" | "bytes" | "integer" | "null" | "number" | "object" | "string" | "string-literal"
 type KnownRouteArgValue = {
   readonly kind: KnownRouteArgKind
   readonly description: string
@@ -274,7 +273,8 @@ function validateRouteArgValue(
   if (type.endsWith("[]")) {
     if (isUnknownExpression(value)) return
     if (!Array.isArray(value)) {
-      reportRouteArgMismatch(resource, path, label, type, knownRouteArgValue(value)?.description ?? "not an array", issues)
+      const known = knownRouteArgValue(value)
+      reportRouteArgMismatch(resource, path, label, type, known === undefined ? "not an array" : known.description, issues)
       return
     }
 
@@ -288,7 +288,8 @@ function validateRouteArgValue(
   if (type === "tuple") {
     if (isUnknownExpression(value)) return
     if (!isRecordObject(value)) {
-      reportRouteArgMismatch(resource, path, label, type, knownRouteArgValue(value)?.description ?? "not an object", issues)
+      const known = knownRouteArgValue(value)
+      reportRouteArgMismatch(resource, path, label, type, known === undefined ? "not an object" : known.description, issues)
       return
     }
 
@@ -358,7 +359,7 @@ function routeArgMismatch(
 
   if (expected === "address") {
     if (known.kind === "string-literal") {
-      return isCanonicalAddressLiteral(value) ? undefined : "string literal is not an address"
+      return isAbiAddressValue(value) ? undefined : "string literal is not an address"
     }
     return known.kind === "address" ? undefined : `value is ${known.description}`
   }
@@ -366,24 +367,24 @@ function routeArgMismatch(
     return known.kind === "bool" ? undefined : `value is ${known.description}`
   }
   if (expected === "integer") {
-    if (known.kind === "string-literal") {
+    if (known.kind === "integer" || known.kind === "string-literal") {
       const integerType = parseAbiIntegerType(type)
-      return integerType !== undefined && isCanonicalIntegerLiteral(value, integerType)
+      return integerType !== undefined && isAbiIntegerValue(value, integerType)
         ? undefined
-        : `string literal is not in range for ${type}`
+        : `value is not in range for ${type}`
     }
-    return known.kind === "integer" ? undefined : `value is ${known.description}`
+    return `value is ${known.description}`
   }
   if (expected === "bytes") {
     if (known.kind === "string-literal") {
-      return isHexBytesLiteral(value) ? undefined : "string literal is not hex bytes"
+      return isAbiBytesValue(value) ? undefined : "string literal is not hex bytes"
     }
     return known.kind === "bytes" ? undefined : `value is ${known.description}`
   }
   if (expected === "fixed-bytes") {
     if (known.kind === "string-literal") {
       const fixedBytesLength = parseAbiFixedBytesLength(type)
-      return fixedBytesLength !== undefined && isHexBytesLiteral(value, fixedBytesLength)
+      return fixedBytesLength !== undefined && isAbiBytesValue(value, fixedBytesLength)
         ? undefined
         : `string literal is not ${type}`
     }
@@ -394,28 +395,10 @@ function routeArgMismatch(
   return undefined
 }
 
-function isCanonicalAddressLiteral(value: unknown): boolean {
-  return typeof value === "string" && /^0x[0-9a-f]{40}$/.test(value)
-}
-
-function isCanonicalIntegerLiteral(value: unknown, type: AbiIntegerType): boolean {
-  if (typeof value !== "string" || !/^-?[0-9]+$/.test(value)) return false
-
-  const integer = BigInt(value)
-  const { min, max } = abiIntegerBounds(type)
-  return integer >= min && integer <= max
-}
-
-function isHexBytesLiteral(value: unknown, fixedBytesLength?: number): boolean {
-  if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) return false
-  const byteLength = value.length - 2
-  if (byteLength % 2 !== 0) return false
-  return fixedBytesLength === undefined || byteLength / 2 === fixedBytesLength
-}
-
 function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
   if (typeof value === "boolean") return { kind: "bool", description: "a boolean literal" }
   if (typeof value === "number" && Number.isSafeInteger(value)) return { kind: "integer", description: "an integer literal" }
+  if (typeof value === "number") return { kind: "number", description: "an unsafe number literal" }
   if (value === null) return { kind: "null", description: "null" }
   if (Array.isArray(value)) return { kind: "array", description: "an array literal" }
   if (isRecordObject(value)) return { kind: "object", description: "an object literal" }

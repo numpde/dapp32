@@ -33,6 +33,14 @@ export function resolveRouteThen(
   }
 }
 
+export function routeRequiresAccount(cam: CamDocument, routeName: string): boolean {
+  const route = routeForName(cam, routeName)
+  // This is a preflight extractor, not another expression parser. Validation
+  // owns expression grammar; this only answers whether an anonymous session can
+  // attempt the route at all.
+  return argsReferenceAccount(route.call.args) || argsReferenceAccount(route.then.args)
+}
+
 function routeForName(cam: CamDocument, routeName: string) {
   if (!hasOwn(cam.routes, routeName)) {
     throw new CamError("CAM_INVALID_FIELD", `route does not exist: ${routeName}`, `routes.${routeName}`)
@@ -59,4 +67,25 @@ function assertRouteInputs(route: CamRoute, routeName: string, context: CamRunti
       throw new CamError("CAM_INVALID_FIELD", `unexpected route input: ${name}`, `routes.${routeName}.inputs`)
     }
   }
+}
+
+function argsReferenceAccount(value: unknown): boolean {
+  if (typeof value === "string") return expressionRoot(value) === "account"
+
+  if (Array.isArray(value)) {
+    return value.some((item) => argsReferenceAccount(item))
+  }
+
+  if (value !== null && typeof value === "object") {
+    return Object.values(value).some((item) => argsReferenceAccount(item))
+  }
+
+  return false
+}
+
+function expressionRoot(value: string): string | undefined {
+  if (!value.startsWith("$") || value.startsWith("$$")) return undefined
+
+  const [root] = value.slice(1).split(".")
+  return root
 }

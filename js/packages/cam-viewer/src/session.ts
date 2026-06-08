@@ -16,6 +16,7 @@ import {
   CAM_UI_NAMESPACE,
   createContext,
   resolveResourceURI,
+  routeRequiresAccount,
   resolveRouteCall,
   resolveRouteThen,
 } from "@cam/core"
@@ -233,6 +234,7 @@ export function createCamViewerSession({
     if (routeDeclaration === undefined || routeDeclaration.kind !== "read") {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM navigation route must be declared as read: ${nextRoute}`)
     }
+    assertRouteAccountAvailable(current.cam, nextRoute)
 
     const routeResult = await callCamRoute({
       publicClient,
@@ -318,6 +320,7 @@ export function createCamViewerSession({
     if (routeDeclaration.kind !== "write") {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action route must be declared as write: ${route}`)
     }
+    assertRouteAccountAvailable(current.cam, route)
 
     const context = routeContext(inputs, [])
     const call = resolveRouteCall(current.cam, route, context)
@@ -368,6 +371,12 @@ export function createCamViewerSession({
     }
 
     return loadedState
+  }
+
+  function assertRouteAccountAvailable(cam: CamDocument, route: string): void {
+    if (account === undefined && routeRequiresAccount(cam, route)) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM route requires an account: ${route}`)
+    }
   }
 
   return {

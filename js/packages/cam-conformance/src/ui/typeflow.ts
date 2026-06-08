@@ -526,7 +526,8 @@ function resolvedInputName(
 ): string | undefined {
   if (node.tag !== "Input" || !isRecordObject(node.props)) return undefined
 
-  const name = staticString(node.props.name) ?? knownLiteralString(node.props.name, context)
+  const staticName = staticString(node.props.name)
+  const name = staticName === undefined ? knownLiteralString(node.props.name, context) : staticName
   if (name === undefined) return undefined
   if (name.length === 0) {
     reportTypeflowIssue(scope, path, "Input name must not be empty")

@@ -869,7 +869,7 @@ test("route call literal strings must match exact ABI scalar syntax when statica
       args: {
         active: "true",
         count: "1",
-        owner: "0x0000000000000000000000000000000000000001",
+        owner: "0x0000000000000000000000000000000000000aAa",
         payload: "0x1234",
         salt: "0x12345678",
       },
@@ -931,6 +931,46 @@ test("route call invalid literal strings are rejected before runtime", () => {
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.owner"],
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload"],
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.salt"],
+  ])
+})
+
+test("route call numeric integer literals must fit ABI range exactly", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "small",
+          type: "uint8",
+        },
+        {
+          name: "precise",
+          type: "uint256",
+        },
+      ],
+      outputs: [viewOutput()],
+    },
+  ])
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        small: 256,
+        precise: Number.MAX_SAFE_INTEGER + 1,
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.small"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.precise"],
   ])
 })
 

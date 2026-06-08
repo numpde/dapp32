@@ -140,6 +140,25 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
   ])
 })
 
+test("load rejects routes that require an account when none is available", async () => {
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const session = createCamViewerSession({
+    publicClient,
+    host,
+    inputs: {},
+    allowUnsignedCamHash: true,
+    loadResource: createResourceLoader(bikeResourceBytes(NO_RESOURCE_OVERRIDES)),
+  })
+
+  await assert.rejects(
+    () => session.load(),
+    (error) => error instanceof CamViewerError
+      && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED"
+      && /requires an account/.test(error.message),
+  )
+  assert.equal(publicClient.calls.some((call) => call.functionName === BIKE_VIEW_ENTRY), false)
+})
+
 test("snapshot returns isolated copies of nested route and resolved UI data", async () => {
   const session = createSession(sessionFixtureOptions({}))
   const snapshot = await session.load()

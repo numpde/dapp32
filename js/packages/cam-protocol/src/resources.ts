@@ -153,16 +153,16 @@ function isCidV1(bytes: Uint8Array | undefined): boolean {
   if (bytes === undefined) return false
 
   const version = readVarint(bytes, 0)
-  if (version === undefined || version.value !== 1n) return false
+  if (version === undefined || version.value !== 1) return false
 
   const codec = readVarint(bytes, version.offset)
-  if (codec === undefined || codec.value === 0n) return false
+  if (codec === undefined || codec.value === 0) return false
 
   const hashCode = readVarint(bytes, codec.offset)
-  if (hashCode === undefined || hashCode.value !== 0x12n) return false
+  if (hashCode === undefined || hashCode.value !== 0x12) return false
 
   const hashLength = readVarint(bytes, hashCode.offset)
-  if (hashLength === undefined || hashLength.value !== 32n) return false
+  if (hashLength === undefined || hashLength.value !== 32) return false
 
   return bytes.length === hashLength.offset + Number(hashLength.value)
 }
@@ -215,18 +215,19 @@ function decodeBase58btc(value: string): Uint8Array | undefined {
   return new Uint8Array(bytes.reverse())
 }
 
-function readVarint(bytes: Uint8Array, offset: number): { readonly value: bigint, readonly offset: number } | undefined {
-  let value = 0n
-  let shift = 0n
+function readVarint(bytes: Uint8Array, offset: number): { readonly value: number, readonly offset: number } | undefined {
+  let value = 0
+  let multiplier = 1
 
   for (let index = offset; index < bytes.length; index += 1) {
     const byte = bytes[index]
-    value |= BigInt(byte & 0x7f) << shift
+    value += (byte & 0x7f) * multiplier
+    if (!Number.isSafeInteger(value)) return undefined
     if ((byte & 0x80) === 0) {
       return { value, offset: index + 1 }
     }
-    shift += 7n
-    if (shift > 63n) return undefined
+    multiplier *= 128
+    if (!Number.isSafeInteger(multiplier)) return undefined
   }
 
   return undefined

@@ -1,7 +1,8 @@
 import { resolveRouteCall } from "@cam/core"
 import {
-  abiIntegerBounds,
   createStringMap,
+  isAbiAddressValue,
+  isAbiIntegerValue,
   isFixedAbiArrayType,
   isRecordObject,
   parseAbiFixedBytesLength,
@@ -180,10 +181,10 @@ function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string
   }
 
   if (type === "address") {
-    if (typeof value !== "string" || !isAddress(value)) {
+    if (!isAbiAddressValue(value)) {
       throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output expected address at ${path}`)
     }
-    return value
+    return value.toLowerCase()
   }
 
   if (type === "bool") {
@@ -267,8 +268,7 @@ function readTupleComponent(value: unknown, name: string, index: number): unknow
 function normalizeIntegerOutput(value: unknown, type: AbiIntegerType, path: string): string {
   const integer = integerOutputValue(value, path)
 
-  const { min, max } = abiIntegerBounds(type)
-  if (integer < min || integer > max) {
+  if (!isAbiIntegerValue(integer.toString(), type)) {
     throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output integer is out of range at ${path}`)
   }
 

@@ -9,8 +9,11 @@ import {
   CamResourceIntegrityError,
   CAM_VERSION,
   InertValueError,
+  isAbiAddressValue,
+  isAbiBytesValue,
   isAbiFunctionName,
   isAbiFunctionSignatureReference,
+  isAbiIntegerValue,
   isExpressionIdentifier,
   isFixedAbiArrayType,
   isSupportedAbiScalarType,
@@ -41,6 +44,16 @@ test("owns CAM-supported ABI scalar grammar", () => {
   assert.equal(isSupportedAbiScalarType("uint257"), false)
   assert.equal(isSupportedAbiScalarType("bytes33"), false)
   assert.equal(isFixedAbiArrayType("uint256[2]"), true)
+  assert.equal(isAbiAddressValue("0x0000000000000000000000000000000000000001"), true)
+  assert.equal(isAbiAddressValue("0x0000000000000000000000000000000000000aAa"), true)
+  assert.equal(isAbiAddressValue("0x00000000000000000000000000000000000000ZZ"), false)
+  assert.equal(isAbiIntegerValue("255", { bits: 8, signed: false }), true)
+  assert.equal(isAbiIntegerValue(256, { bits: 8, signed: false }), false)
+  assert.equal(isAbiIntegerValue(Number.MAX_SAFE_INTEGER + 1, { bits: 256, signed: false }), false)
+  assert.equal(isAbiBytesValue("0x1234"), true)
+  assert.equal(isAbiBytesValue("0x123"), false)
+  assert.equal(isAbiBytesValue("0x1234", 2), true)
+  assert.equal(isAbiBytesValue("0x1234", 4), false)
 })
 
 test("owns CAM-supported ABI function reference grammar", () => {
