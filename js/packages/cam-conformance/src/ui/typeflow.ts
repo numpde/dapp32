@@ -21,6 +21,7 @@ import {
 import {
   knownRouteCallValue,
   type KnownRouteCallValue,
+  type KnownRouteCallSource,
 } from "../expressions/known-route-call.ts"
 import {
   conformanceIssue,
@@ -57,7 +58,7 @@ type IncludeSelection = {
   readonly names: readonly string[]
   readonly resolved: boolean
 }
-const UNKNOWN_VALUE = { type: "unknown" } as const
+const UNKNOWN_VALUE = { type: "unknown", value: "$unknown" } as const
 
 export function validateUiTypeflow({
   uiDocuments,
@@ -291,7 +292,7 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
       return { type: "literal-string[]", items: value }
     }
     const itemShapes = value.map((item) => knownValueShape(item, resolve))
-    return itemShapes.some((item) => item === undefined || isUnknownValue(item)) ? UNKNOWN_VALUE : { type: "array", items: itemShapes }
+    return itemShapes.some((item) => item === undefined) ? UNKNOWN_VALUE : { type: "array", items: itemShapes }
   }
 
   if (!isRecordObject(value)) return undefined
@@ -436,9 +437,7 @@ function validateKnownActionRoute(
 
   const route = scope.routesByName.get(routeName)
   if (route === undefined) {
-    if (staticRouteName === undefined) {
-      reportTypeflowIssue(scope, `${path}.call.function`, `UI action calls unknown route: ${routeName}`)
-    }
+    reportTypeflowIssue(scope, `${path}.call.function`, `UI action calls unknown route: ${routeName}`)
     return
   }
 
@@ -479,14 +478,27 @@ function validateActionRouteAbi(
     if (resolved === undefined) continue
 
     for (const mismatch of abiArgValueMismatches(input.name, resolved.value, input.abi)) {
-      const inputPath = resolved.paths.get(mismatch.pathSuffix)
+      const inputPath = actionPathForMismatch(resolved, mismatch.pathSuffix)
+      if (inputPath === undefined) continue
       reportTypeflowIssue(
         scope,
-        `${path}.call.args${inputPath === undefined ? `${resolved.pathSuffix}${mismatch.pathSuffix}` : inputPath}`,
+        `${path}.call.args${inputPath}`,
         mismatch.message,
       )
     }
   }
+}
+
+function actionPathForMismatch(value: KnownRouteCallValue, pathSuffix: string): string | undefined {
+  const source = sourceForMismatch(value, pathSuffix)
+  return source.owner === "input" ? source.pathSuffix : undefined
+}
+
+function sourceForMismatch(value: KnownRouteCallValue, pathSuffix: string): KnownRouteCallSource {
+  const source = value.paths.get(pathSuffix)
+  return source === undefined
+    ? { owner: value.source.owner, pathSuffix: `${value.source.pathSuffix}${pathSuffix}` }
+    : source
 }
 
 function actionValueForRouteCall(
@@ -536,6 +548,7 @@ function knownActionLiteral(value: unknown, context: AbiContext): unknown | unde
 
 function literalFromKnownValue(value: unknown): unknown | undefined {
   if (!isRecordObject(value)) return undefined
+  if (isUnknownValue(value)) return UNKNOWN_VALUE.value
   if (value.type === "literal-string" && typeof value.value === "string") return value.value
   if (
     (value.type === "bool" || value.type === "uint256" || value.type === "number" || value.type === "null")

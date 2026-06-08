@@ -221,11 +221,6 @@ function validateActionRouteArgs(
 
   const route = routesByName.get(functionName)
   if (route === undefined) {
-    issues.push(dataflowIssue(
-      resource,
-      `${action.path}.call.function`,
-      `UI action calls unknown route: ${functionName}`,
-    ))
     return
   }
 

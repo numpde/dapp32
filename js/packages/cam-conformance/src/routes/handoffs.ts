@@ -12,6 +12,8 @@ import {
 } from "../abi/routes.ts"
 import {
   knownRouteCallValue,
+  type KnownRouteCallSource,
+  type KnownRouteCallValue,
 } from "../expressions/known-route-call.ts"
 import type {
   DeclaredRoute,
@@ -123,21 +125,23 @@ function validateRouteHandoffAbi(
     if (resolved === undefined) continue
 
     for (const mismatch of abiArgValueMismatches(input.name, resolved.value, input.abi)) {
+      const source = sourceForMismatch(resolved, mismatch.pathSuffix)
       issues.push(handoffIssue(
         resource,
-        `routes.${route.name}.then.args${sourcePathForMismatch(resolved, mismatch.pathSuffix)}`,
+        source.owner === "input"
+          ? `routes.${route.name}.then.args${source.pathSuffix}`
+          : `routes.${nextRoute.name}.call.args.${input.name}${source.pathSuffix}`,
         mismatch.message,
       ))
     }
   }
 }
 
-function sourcePathForMismatch(
-  value: { readonly paths: ReadonlyMap<string, string>, readonly pathSuffix: string },
-  pathSuffix: string,
-): string {
-  const sourcePath = value.paths.get(pathSuffix)
-  return sourcePath === undefined ? `${value.pathSuffix}${pathSuffix}` : sourcePath
+function sourceForMismatch(value: KnownRouteCallValue, pathSuffix: string): KnownRouteCallSource {
+  const source = value.paths.get(pathSuffix)
+  return source === undefined
+    ? { owner: value.source.owner, pathSuffix: `${value.source.pathSuffix}${pathSuffix}` }
+    : source
 }
 
 function valueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
