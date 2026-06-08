@@ -39,16 +39,13 @@ type UiDataflow = {
 
 export function validateUiDataflow({
   uiDocuments,
-  routes,
   uiNodes,
   issues,
 }: {
   readonly uiDocuments: RawUiDocuments
-  readonly routes: readonly DeclaredRoute[]
   readonly uiNodes: ReadonlyMap<string, DeclaredUiNode> | undefined
   readonly issues: CamConformanceIssue[]
 }): void {
-  const routesByName = new Map(routes.map((route) => [route.name, route]))
   for (const [resource, ui] of uiDocuments) {
     const dataflow = readUiDataflow(resource, ui.nodes, issues)
 
@@ -60,7 +57,7 @@ export function validateUiDataflow({
           validateIncludeNodeArgs(resource, call, uiNodes, issues)
         }
       } else {
-        validateActionRouteArgs(resource, call, routesByName, issues)
+        validateActionRouteTarget(resource, call, issues)
       }
     }
   }
@@ -203,10 +200,9 @@ function validateIncludeNodeArgs(
   }
 }
 
-function validateActionRouteArgs(
+function validateActionRouteTarget(
   resource: string,
   action: UiCall,
-  routesByName: ReadonlyMap<string, DeclaredRoute>,
   issues: CamConformanceIssue[],
 ): void {
   const functionNames = staticStringList(action.function)
@@ -217,21 +213,6 @@ function validateActionRouteArgs(
     return
   }
 
-  const [functionName] = functionNames
-
-  const route = routesByName.get(functionName)
-  if (route === undefined) {
-    return
-  }
-
-  validateExactNames({
-    resource,
-    path: `${action.path}.call.args`,
-    expectedNames: route.inputs,
-    actualNames: Object.keys(action.args),
-    destination: `route ${route.name}`,
-    issues,
-  })
 }
 
 function validateStaticCallTargets(

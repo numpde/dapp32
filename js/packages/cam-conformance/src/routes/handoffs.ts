@@ -126,11 +126,10 @@ function validateRouteHandoffAbi(
 
     for (const mismatch of abiArgValueMismatches(input.name, resolved.value, input.abi)) {
       const source = sourceForMismatch(resolved, mismatch.pathSuffix)
+      if (source.owner === "route") continue
       issues.push(handoffIssue(
         resource,
-        source.owner === "input"
-          ? `routes.${route.name}.then.args${source.pathSuffix}`
-          : `routes.${nextRoute.name}.call.args.${input.name}${source.pathSuffix}`,
+        `routes.${route.name}.then.args${source.pathSuffix}`,
         mismatch.message,
       ))
     }

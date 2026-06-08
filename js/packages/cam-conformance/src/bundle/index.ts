@@ -109,7 +109,6 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   })
   validateUiDataflow({
     uiDocuments,
-    routes,
     uiNodes,
     issues,
   })

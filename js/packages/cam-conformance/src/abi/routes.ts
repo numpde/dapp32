@@ -33,6 +33,11 @@ import {
 import {
   expressionReference,
 } from "../expressions/reference.ts"
+import {
+  isKnownStaticStringValue,
+  knownStaticStringContent,
+  UNKNOWN_ROUTE_CALL_VALUE,
+} from "../expressions/known-route-call.ts"
 
 export type AbiFunction = {
   readonly name: string
@@ -295,6 +300,7 @@ function collectAbiArgValueMismatches(
 ): void {
   const type = nonEmptyString(parameter.type)
   if (type === undefined) return
+  if (isUnknownRouteCallValue(value)) return
 
   if (type.endsWith("[]")) {
     if (isUnknownExpression(value)) return
@@ -382,6 +388,7 @@ function routeArgMismatch(
   const known = knownRouteArgValue(value)
   if (expected === "string") {
     if (typeof value === "string") return undefined
+    if (isKnownStaticStringValue(value)) return undefined
     if (known === undefined) return undefined
     return known.kind === "address" || known.kind === "bytes" || known.kind === "string" || known.kind === "string-literal"
       ? undefined
@@ -391,7 +398,7 @@ function routeArgMismatch(
 
   if (expected === "address") {
     if (known.kind === "string-literal") {
-      return isAbiAddressValue(value) ? undefined : "string literal is not an address"
+      return isAbiAddressValue(staticScalarString(value)) ? undefined : "string literal is not an address"
     }
     return known.kind === "address" ? undefined : `value is ${known.description}`
   }
@@ -401,7 +408,7 @@ function routeArgMismatch(
   if (expected === "integer") {
     if (known.kind === "integer" || known.kind === "string-literal") {
       const integerType = parseAbiIntegerType(type)
-      return integerType !== undefined && isAbiIntegerValue(value, integerType)
+      return integerType !== undefined && isAbiIntegerValue(staticScalarString(value), integerType)
         ? undefined
         : `value is not in range for ${type}`
     }
@@ -409,14 +416,14 @@ function routeArgMismatch(
   }
   if (expected === "bytes") {
     if (known.kind === "string-literal") {
-      return isAbiBytesValue(value) ? undefined : "string literal is not hex bytes"
+      return isAbiBytesValue(staticScalarString(value)) ? undefined : "string literal is not hex bytes"
     }
     return known.kind === "bytes" ? undefined : `value is ${known.description}`
   }
   if (expected === "fixed-bytes") {
     if (known.kind === "string-literal") {
       const fixedBytesLength = parseAbiFixedBytesLength(type)
-      return fixedBytesLength !== undefined && isAbiBytesValue(value, fixedBytesLength)
+      return fixedBytesLength !== undefined && isAbiBytesValue(staticScalarString(value), fixedBytesLength)
         ? undefined
         : `string literal is not ${type}`
     }
@@ -428,6 +435,8 @@ function routeArgMismatch(
 }
 
 function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
+  if (isUnknownRouteCallValue(value)) return undefined
+  if (isKnownStaticStringValue(value)) return { kind: "string-literal", description: "a string literal" }
   if (typeof value === "boolean") return { kind: "bool", description: "a boolean literal" }
   if (typeof value === "number" && Number.isSafeInteger(value)) return { kind: "integer", description: "an integer literal" }
   if (typeof value === "number") return { kind: "number", description: "an unsafe number literal" }
@@ -456,6 +465,14 @@ function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
 
 function isUnknownExpression(value: unknown): boolean {
   return typeof value === "string" && expressionReference(value) !== undefined && knownRouteArgValue(value) === undefined
+}
+
+function isUnknownRouteCallValue(value: unknown): boolean {
+  return value === UNKNOWN_ROUTE_CALL_VALUE
+}
+
+function staticScalarString(value: unknown): unknown {
+  return isKnownStaticStringValue(value) ? knownStaticStringContent(value) : value
 }
 
 function validateRouteOutputRefs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {

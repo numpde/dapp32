@@ -13,6 +13,11 @@ export type KnownRouteCallValue = {
   readonly paths: ReadonlyMap<string, KnownRouteCallSource>
 }
 
+export type KnownStaticStringValue = {
+  readonly type: "static-string"
+  readonly value: string
+}
+
 export type KnownRouteCallSource = {
   readonly owner: "input" | "route"
   readonly pathSuffix: string
@@ -22,6 +27,8 @@ export type KnownInputValue = {
   readonly value: unknown
   readonly pathSuffix: string
 }
+
+export const UNKNOWN_ROUTE_CALL_VALUE: unique symbol = Symbol("CAM_CONFORMANCE_UNKNOWN_ROUTE_CALL_VALUE")
 
 export type KnownInputResolver = (segments: readonly string[]) => KnownInputValue | undefined
 
@@ -38,7 +45,7 @@ function knownRouteCallValueAt(
   if (typeof routeArg === "string") {
     const reference = expressionReference(routeArg)
     if (reference === undefined) {
-      return knownLiteralValue(staticString(routeArg), { owner: "route", pathSuffix: sourcePath }, routePath)
+      return knownLiteralValue(staticStringValue(routeArg), { owner: "route", pathSuffix: sourcePath }, routePath)
     }
     if (reference.root !== "inputs") return undefined
 
@@ -71,8 +78,12 @@ function knownLiteralValue(
   routePath: string,
 ): KnownRouteCallValue | undefined {
   if (typeof value === "string") {
-    const staticValue = staticString(value)
+    const staticValue = staticStringValue(value)
     return leafValue(staticValue === undefined ? value : staticValue, source, routePath)
+  }
+
+  if (value === UNKNOWN_ROUTE_CALL_VALUE || isKnownStaticStringValue(value)) {
+    return leafValue(value, source, routePath)
   }
 
   if (value === null || typeof value === "boolean" || typeof value === "number") {
@@ -134,8 +145,22 @@ function leafValue(value: unknown, source: KnownRouteCallSource, routePath: stri
   }
 }
 
-function unknownExpression(): string {
-  return "$unknown"
+function unknownExpression(): typeof UNKNOWN_ROUTE_CALL_VALUE {
+  return UNKNOWN_ROUTE_CALL_VALUE
+}
+
+export function isKnownStaticStringValue(value: unknown): value is KnownStaticStringValue {
+  return isRecordObject(value) && value.type === "static-string" && typeof value.value === "string"
+}
+
+export function knownStaticStringContent(value: string | KnownStaticStringValue): string {
+  return typeof value === "string" ? value : value.value
+}
+
+function staticStringValue(value: string): string | KnownStaticStringValue | undefined {
+  const result = staticString(value)
+  if (result === undefined) return undefined
+  return result.startsWith("$") ? { type: "static-string", value: result } : result
 }
 
 function mergePaths(target: Map<string, KnownRouteCallSource>, source: ReadonlyMap<string, KnownRouteCallSource>): void {

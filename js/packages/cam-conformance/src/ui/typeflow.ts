@@ -19,9 +19,12 @@ import {
   staticStringList,
 } from "../expressions/reference.ts"
 import {
+  isKnownStaticStringValue,
   knownRouteCallValue,
+  type KnownStaticStringValue,
   type KnownRouteCallValue,
   type KnownRouteCallSource,
+  UNKNOWN_ROUTE_CALL_VALUE,
 } from "../expressions/known-route-call.ts"
 import {
   conformanceIssue,
@@ -58,7 +61,7 @@ type IncludeSelection = {
   readonly names: readonly string[]
   readonly resolved: boolean
 }
-const UNKNOWN_VALUE = { type: "unknown", value: "$unknown" } as const
+const UNKNOWN_VALUE = { type: "unknown", value: UNKNOWN_ROUTE_CALL_VALUE } as const
 
 export function validateUiTypeflow({
   uiDocuments,
@@ -342,7 +345,10 @@ function collectRouteInputs(
   stack: readonly string[],
   inputNames: Set<string>,
 ): void {
-  if (stack.includes(nodeName)) return
+  if (stack.includes(nodeName)) {
+    reportTypeflowIssue(scope, path, `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`)
+    return
+  }
 
   const node = scope.nodes[nodeName]
   if (!isRecordObject(node)) return
@@ -441,15 +447,13 @@ function validateKnownActionRoute(
     return
   }
 
-  if (staticRouteName === undefined) {
-    validateExactNames({
-      scope,
-      path: `${path}.call.args`,
-      expectedNames: route.inputs,
-      actualNames: Object.keys(args),
-      destination: `route ${route.name}`,
-    })
-  }
+  validateExactNames({
+    scope,
+    path: `${path}.call.args`,
+    expectedNames: route.inputs,
+    actualNames: Object.keys(args),
+    destination: `route ${route.name}`,
+  })
   validateActionRouteAbi(scope, path, route, args, context)
 }
 
@@ -523,10 +527,10 @@ function actionValueForRouteCall(
 function knownActionLiteral(value: unknown, context: AbiContext): unknown | undefined {
   if (typeof value === "string") {
     const reference = expressionReference(value)
-    if (reference === undefined) return staticString(value)
+    if (reference === undefined) return staticActionString(value)
 
     const lookup = valueAtReference(reference.root, reference.segments, context)
-    if (lookup.kind !== "value") return undefined
+    if (lookup.kind !== "value") return UNKNOWN_ROUTE_CALL_VALUE
     return literalFromKnownValue(lookup.value)
   }
 
@@ -549,7 +553,7 @@ function knownActionLiteral(value: unknown, context: AbiContext): unknown | unde
 function literalFromKnownValue(value: unknown): unknown | undefined {
   if (!isRecordObject(value)) return undefined
   if (isUnknownValue(value)) return UNKNOWN_VALUE.value
-  if (value.type === "literal-string" && typeof value.value === "string") return value.value
+  if (value.type === "literal-string" && typeof value.value === "string") return staticActionString(value.value)
   if (
     (value.type === "bool" || value.type === "uint256" || value.type === "number" || value.type === "null")
     && Object.hasOwn(value, "value")
@@ -579,6 +583,12 @@ function literalFromKnownValue(value: unknown): unknown | undefined {
   }
 
   return undefined
+}
+
+function staticActionString(value: string): string | KnownStaticStringValue | undefined {
+  const result = staticString(value)
+  if (result === undefined) return undefined
+  return result.startsWith("$") ? { type: "static-string", value: result } : result
 }
 
 function knownSelectorNames(value: unknown, context: AbiContext): readonly string[] | undefined {
@@ -709,7 +719,7 @@ function validateExactNames({
 }): void {
   diffNameSets({
     expectedNames,
-    actualNames,
+    actualNames: actualNames.filter((name) => name.length > 0),
     onUnexpected: (name) => {
       reportTypeflowIssue(scope, `${path}.${name}`, `unexpected UI call argument for ${destination}: ${name}`)
     },
@@ -767,6 +777,7 @@ function abiValueMatches(value: unknown, expectation: ValueExpectation): boolean
 }
 
 function abiType(value: unknown): string {
+  if (isKnownStaticStringValue(value)) return "literal-string"
   if (!isRecordObject(value) || typeof value.type !== "string") return "unknown"
 
   const type = value.type
@@ -782,6 +793,7 @@ function abiType(value: unknown): string {
 }
 
 function abiTypeName(value: unknown): string {
+  if (isKnownStaticStringValue(value)) return "literal-string"
   if (isRecordObject(value) && typeof value.type === "string") return value.type
   return "unknown"
 }
