@@ -2,6 +2,7 @@ import { resolveRouteCall } from "@cam/core"
 import {
   createStringMap,
   isAbiAddressValue,
+  isAbiBytesValue,
   isAbiIntegerValue,
   isFixedAbiArrayType,
   isRecordObject,
@@ -239,6 +240,10 @@ function normalizeTupleValue(value: unknown, parameter: AbiTupleParameter, path:
         throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route tuple has unexpected component ${name} at ${path}`)
       }
     }
+  } else if (Array.isArray(value)) {
+    if (value.length !== components.length) {
+      throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route tuple has unexpected array length at ${path}`)
+    }
   }
 
   components.forEach(({ component, name }, index) => {
@@ -291,14 +296,8 @@ function integerOutputValue(value: unknown, path: string): bigint {
 }
 
 function normalizeBytesOutput(value: unknown, type: string, fixedBytesLength: number | undefined, path: string): string {
-  if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) {
+  if (!isAbiBytesValue(value, fixedBytesLength)) {
     throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output expected hex bytes for ${type} at ${path}`)
-  }
-  if ((value.length - 2) % 2 !== 0) {
-    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output expected whole-byte hex for ${type} at ${path}`)
-  }
-  if (fixedBytesLength !== undefined && (value.length - 2) / 2 !== fixedBytesLength) {
-    throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route output expected ${fixedBytesLength} byte hex for ${type} at ${path}`)
   }
 
   return value

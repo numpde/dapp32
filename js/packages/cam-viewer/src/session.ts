@@ -23,6 +23,7 @@ import {
 import type { CamDocument } from "@cam/core"
 import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 import {
+  UiError,
   parseUi,
   resolveInitialUiNode,
   resolveUiNode,
@@ -292,7 +293,11 @@ export function createCamViewerSession({
 
     // UI initial resolution is deliberately two-pass: input nodes establish the
     // state values first, then action nodes can safely read $state.
-    return resolveInitialUiNode(current.ui, then.function, then.args, uiContext(inputs, values, createStringMap<InertValue>()))
+    try {
+      return resolveInitialUiNode(current.ui, then.function, then.args, uiContext(inputs, values, createStringMap<InertValue>()))
+    } catch (cause) {
+      throw accountAwareUiError(cause)
+    }
   }
 
   function resolveCurrentUi(
@@ -308,7 +313,11 @@ export function createCamViewerSession({
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
     }
 
-    return resolveUiNode(current.ui, then.function, then.args, uiContext(inputs, values, state))
+    try {
+      return resolveUiNode(current.ui, then.function, then.args, uiContext(inputs, values, state))
+    } catch (cause) {
+      throw accountAwareUiError(cause)
+    }
   }
 
   function prepareContractCall(route: string, inputs: InertRecord): CamViewerPreparedContractCall {
@@ -377,6 +386,19 @@ export function createCamViewerSession({
     if (account === undefined && routeRequiresAccount(cam, route)) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM route requires an account: ${route}`)
     }
+  }
+
+  function accountAwareUiError(cause: unknown): never {
+    if (
+      account === undefined
+      && cause instanceof UiError
+      && cause.code === "UI_UNRESOLVED_VALUE"
+      && cause.message.includes("$account")
+    ) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "CAM UI requires an account", cause)
+    }
+
+    throw cause
   }
 
   return {

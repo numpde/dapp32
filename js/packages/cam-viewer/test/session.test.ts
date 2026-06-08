@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { createHash } from "node:crypto"
 import test from "node:test"
 
 import { CAM_RESOURCE_MAX_BYTES, toInertValue } from "@cam/protocol"
@@ -27,6 +28,7 @@ import {
   BIKE_UNKNOWN_SERIAL_NUMBER,
   BIKE_UNKNOWN_TOKEN_ID,
   BIKE_UNSIGNED_CAM_HASH,
+  BIKE_UI_ABI_URI,
   BIKE_UI_NAMESPACE,
   BIKE_UI_URI,
   BIKE_VIEW_COMPONENT,
@@ -42,6 +44,7 @@ import {
   bikeResourceBytes,
   createMockCamPublicClient,
   createMockResourceLoader as createResourceLoader,
+  encodeJson,
 } from "../../../../tests/fixtures/cam/mock.mts"
 
 const host: CamHost = bikeHost
@@ -157,6 +160,129 @@ test("load rejects routes that require an account when none is available", async
       && /requires an account/.test(error.message),
   )
   assert.equal(publicClient.calls.some((call) => call.functionName === BIKE_VIEW_ENTRY), false)
+})
+
+test("load rejects UI actions that require an account when none is available", async () => {
+  const publicClient = createPublicClient(publicClientFixtureOptions({
+    routeResults: {
+      viewEntry: {
+        title: "Anonymous entry",
+      },
+    },
+  }))
+  const abiBytes = encodeJson([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{
+        name: "view",
+        type: "tuple",
+        components: [{ name: "title", type: "string" }],
+      }],
+    },
+    {
+      type: "function",
+      name: "save",
+      stateMutability: "nonpayable",
+      inputs: [{ name: "owner", type: "address" }],
+      outputs: [],
+    },
+  ])
+  const uiBytes = encodeJson({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [{
+          tag: "Action",
+          props: {
+            label: "Save",
+          },
+          call: {
+            namespace: "routes",
+            function: "save",
+            args: {
+              owner: "$account.address",
+            },
+          },
+        }],
+      },
+    },
+  })
+  const camBytes = encodeJson({
+    cam: "1.0.0",
+    entry: "entry",
+    namespaces: {
+      [BIKE_UI_NAMESPACE]: {
+        type: "contract",
+        abiURI: "./abi/BicycleComponentManagerUI.json",
+        integrity: sha256Integrity(abiBytes),
+      },
+      ui: {
+        type: "ui",
+        uri: "./ui.json",
+        integrity: sha256Integrity(uiBytes),
+      },
+      routes: {
+        type: "routes",
+      },
+    },
+    routes: {
+      entry: {
+        kind: "read",
+        inputs: [],
+        call: {
+          namespace: BIKE_UI_NAMESPACE,
+          function: "viewEntry",
+          args: {},
+        },
+        then: {
+          namespace: "ui",
+          function: "app",
+          args: {
+            view: "$outputs.0",
+          },
+        },
+      },
+      save: {
+        kind: "write",
+        inputs: ["owner"],
+        call: {
+          namespace: BIKE_UI_NAMESPACE,
+          function: "save",
+          args: {
+            owner: "$inputs.owner",
+          },
+        },
+        then: {
+          namespace: "routes",
+          function: "entry",
+          args: {},
+        },
+      },
+    },
+  })
+  const session = createCamViewerSession({
+    publicClient,
+    host,
+    inputs: {},
+    allowUnsignedCamHash: true,
+    loadResource: createResourceLoader({
+      [camURI]: camBytes,
+      [BIKE_UI_ABI_URI]: abiBytes,
+      [BIKE_UI_URI]: uiBytes,
+    }),
+  })
+
+  await assert.rejects(
+    () => session.load(),
+    (error) => error instanceof CamViewerError
+      && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED"
+      && /UI requires an account/.test(error.message),
+  )
 })
 
 test("snapshot returns isolated copies of nested route and resolved UI data", async () => {
@@ -410,4 +536,8 @@ function mutableRecord(value: unknown): Record<string, unknown> {
 
 function inert(value: unknown): InertValue {
   return toInertValue(value)
+}
+
+function sha256Integrity(bytes: Uint8Array): string {
+  return `sha256:0x${createHash("sha256").update(bytes).digest("hex")}`
 }

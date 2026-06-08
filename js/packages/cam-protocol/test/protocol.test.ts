@@ -216,6 +216,7 @@ test("validates secondary CAM resource URI policy", () => {
     "ipfs://Qm11111111111111111111111111111111111111111111/ui.json",
     "ipfs://bzzzzzzzzzzzzzzzzzzzz/ui.json",
     "ipfs://bafkrgiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/ui.json",
+    "ipfs://bqeafkeraaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/ui.json",
     "ipfs://zExampleMultibaseNotAcceptedYet/ui.json",
     "../ui.json",
     "./ui/../x.json",

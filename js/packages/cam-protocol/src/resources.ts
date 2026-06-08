@@ -224,6 +224,7 @@ function readVarint(bytes: Uint8Array, offset: number): { readonly value: number
     value += (byte & 0x7f) * multiplier
     if (!Number.isSafeInteger(value)) return undefined
     if ((byte & 0x80) === 0) {
+      if (index > offset && byte === 0) return undefined
       return { value, offset: index + 1 }
     }
     multiplier *= 128

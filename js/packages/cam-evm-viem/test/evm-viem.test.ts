@@ -651,6 +651,67 @@ test("callCamRoute rejects non-canonical integer output shapes", async () => {
   }
 })
 
+test("callCamRoute rejects invalid bytes output shapes", async () => {
+  const bytesRoute = "bytesRoute"
+  const bytesFunction = "viewBytes"
+  const cam = parseCam({
+    ...camJson,
+    routes: {
+      ...camJson.routes,
+      [bytesRoute]: {
+        kind: "read",
+        inputs: [],
+        call: {
+          namespace: BIKE_UI_NAMESPACE,
+          function: bytesFunction,
+          args: {},
+        },
+        then: {
+          namespace: "ui",
+          function: "app",
+          args: {
+            view: "$outputs.0",
+          },
+        },
+      },
+    },
+  })
+  const abi = [
+    {
+      type: "function",
+      name: bytesFunction,
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{ name: "value", type: "bytes" }],
+    },
+  ] as const satisfies Abi
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        routeResults: {
+          [bytesFunction]: "0xabc",
+        },
+      })),
+      cam,
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: uiAddress,
+          abi,
+        },
+      },
+      route: bytesRoute,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+  )
+})
+
 test("callCamRoute normalizes array-like decoded tuple outputs by ABI component name", async () => {
   const tupleRoute = "tupleRoute"
   const tupleFunction = "viewTuple"
@@ -729,6 +790,31 @@ test("callCamRoute normalizes array-like decoded tuple outputs by ABI component 
             owner: userAddress,
             extra: "rejected",
           },
+        },
+      })),
+      cam,
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: uiAddress,
+          abi,
+        },
+      },
+      route: tupleRoute,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+  )
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        routeResults: {
+          [tupleFunction]: [1, userAddress, "rejected"],
         },
       })),
       cam,

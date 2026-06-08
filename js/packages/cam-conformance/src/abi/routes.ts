@@ -55,6 +55,10 @@ type KnownRouteArgValue = {
   readonly kind: KnownRouteArgKind
   readonly description: string
 }
+export type AbiArgValueMismatch = {
+  readonly pathSuffix: string
+  readonly message: string
+}
 
 export function validateRouteAbiCompatibility({
   resource,
@@ -267,6 +271,28 @@ function validateRouteArgValue(
   parameter: Record<string, unknown>,
   issues: CamConformanceIssue[],
 ): void {
+  for (const mismatch of abiArgValueMismatches(label, value, parameter)) {
+    issues.push(routeAbiIssue(resource, `${path}${mismatch.pathSuffix}`, mismatch.message))
+  }
+}
+
+export function abiArgValueMismatches(
+  label: string,
+  value: unknown,
+  parameter: Record<string, unknown>,
+): readonly AbiArgValueMismatch[] {
+  const mismatches: AbiArgValueMismatch[] = []
+  collectAbiArgValueMismatches("", label, value, parameter, mismatches)
+  return mismatches
+}
+
+function collectAbiArgValueMismatches(
+  pathSuffix: string,
+  label: string,
+  value: unknown,
+  parameter: Record<string, unknown>,
+  mismatches: AbiArgValueMismatch[],
+): void {
   const type = nonEmptyString(parameter.type)
   if (type === undefined) return
 
@@ -274,13 +300,13 @@ function validateRouteArgValue(
     if (isUnknownExpression(value)) return
     if (!Array.isArray(value)) {
       const known = knownRouteArgValue(value)
-      reportRouteArgMismatch(resource, path, label, type, known === undefined ? "not an array" : known.description, issues)
+      mismatches.push(argValueMismatch(pathSuffix, label, type, known === undefined ? "not an array" : known.description))
       return
     }
 
     const element = { ...parameter, type: type.slice(0, -2) }
     value.forEach((item, index) => {
-      validateRouteArgValue(resource, `${path}.${index}`, `${label}.${index}`, item, element, issues)
+      collectAbiArgValueMismatches(`${pathSuffix}.${index}`, `${label}.${index}`, item, element, mismatches)
     })
     return
   }
@@ -289,7 +315,7 @@ function validateRouteArgValue(
     if (isUnknownExpression(value)) return
     if (!isRecordObject(value)) {
       const known = knownRouteArgValue(value)
-      reportRouteArgMismatch(resource, path, label, type, known === undefined ? "not an object" : known.description, issues)
+      mismatches.push(argValueMismatch(pathSuffix, label, type, known === undefined ? "not an object" : known.description))
       return
     }
 
@@ -300,23 +326,28 @@ function validateRouteArgValue(
       expectedNames: components.map((component) => nonEmptyString(component.name)).filter((name): name is string => name !== undefined),
       actualNames: Object.keys(value),
       onUnexpected: (name) => {
-        issues.push(routeAbiIssue(resource, `${path}.${name}`, `unexpected tuple component for ${label}: ${name}`))
+        mismatches.push({
+          pathSuffix: `${pathSuffix}.${name}`,
+          message: `unexpected tuple component for ${label}: ${name}`,
+        })
       },
       onMissing: (name) => {
-        issues.push(routeAbiIssue(resource, `${path}.${name}`, `missing tuple component for ${label}: ${name}`))
+        mismatches.push({
+          pathSuffix: `${pathSuffix}.${name}`,
+          message: `missing tuple component for ${label}: ${name}`,
+        })
       },
     })
 
     for (const component of components) {
       const componentName = nonEmptyString(component.name)
       if (componentName === undefined || !Object.hasOwn(value, componentName)) continue
-      validateRouteArgValue(
-        resource,
-        `${path}.${componentName}`,
+      collectAbiArgValueMismatches(
+        `${pathSuffix}.${componentName}`,
         `${label}.${componentName}`,
         value[componentName],
         component,
-        issues,
+        mismatches,
       )
     }
     return
@@ -328,18 +359,19 @@ function validateRouteArgValue(
   const mismatch = routeArgMismatch(type, value, scalarKind)
   if (mismatch === undefined) return
 
-  reportRouteArgMismatch(resource, path, label, type, mismatch, issues)
+  mismatches.push(argValueMismatch(pathSuffix, label, type, mismatch))
 }
 
-function reportRouteArgMismatch(
-  resource: string,
-  path: string,
+function argValueMismatch(
+  pathSuffix: string,
   label: string,
   type: string,
   mismatch: string,
-  issues: CamConformanceIssue[],
-): void {
-  issues.push(routeAbiIssue(resource, path, `route argument ${label} expects ABI ${type}, but ${mismatch}`))
+): AbiArgValueMismatch {
+  return {
+    pathSuffix,
+    message: `route argument ${label} expects ABI ${type}, but ${mismatch}`,
+  }
 }
 
 function routeArgMismatch(

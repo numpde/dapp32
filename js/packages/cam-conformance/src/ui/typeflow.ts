@@ -7,6 +7,7 @@ import {
 } from "@cam/protocol"
 
 import {
+  abiArgValueMismatches,
   abiOutputAtSegments,
   abiFunctionOutputForExpression,
   resolvedAbiFunction,
@@ -41,6 +42,7 @@ type Scope = {
   readonly resource: string
   readonly nodes: Record<string, unknown>
   readonly routesByName: ReadonlyMap<string, DeclaredRoute>
+  readonly functionsByNamespace: ContractFunctionsByNamespace
   readonly routeName: string
   readonly reported: Set<string>
   readonly issues: CamConformanceIssue[]
@@ -67,7 +69,15 @@ export function validateUiTypeflow({
   const routesByName = new Map(routes.map((route) => [route.name, route]))
   for (const [resource, ui] of uiDocuments) {
     for (const route of routes) {
-      const scope = { resource, nodes: ui.nodes, routesByName, routeName: route.name, reported: new Set<string>(), issues }
+      const scope = {
+        resource,
+        nodes: ui.nodes,
+        routesByName,
+        functionsByNamespace,
+        routeName: route.name,
+        reported: new Set<string>(),
+        issues,
+      }
       validateRouteTypeflow(scope, route, functionsByNamespace)
     }
   }
@@ -416,29 +426,120 @@ function validateKnownActionRoute(
   args: unknown,
   context: AbiContext,
 ): void {
-  const routeName = knownActionRouteName(value, context)
+  const staticRouteName = staticString(value)
+  const routeName = staticRouteName === undefined ? knownActionRouteName(value, context) : staticRouteName
   if (routeName === undefined || !isRecordObject(args)) return
 
   const route = scope.routesByName.get(routeName)
   if (route === undefined) {
-    reportTypeflowIssue(scope, `${path}.call.function`, `UI action calls unknown route: ${routeName}`)
+    if (staticRouteName === undefined) {
+      reportTypeflowIssue(scope, `${path}.call.function`, `UI action calls unknown route: ${routeName}`)
+    }
     return
   }
 
-  validateExactNames({
-    scope,
-    path: `${path}.call.args`,
-    expectedNames: route.inputs,
-    actualNames: Object.keys(args),
-    destination: `route ${route.name}`,
-  })
+  if (staticRouteName === undefined) {
+    validateExactNames({
+      scope,
+      path: `${path}.call.args`,
+      expectedNames: route.inputs,
+      actualNames: Object.keys(args),
+      destination: `route ${route.name}`,
+    })
+  }
+  validateActionRouteAbi(scope, path, route, args, context)
 }
 
 function knownActionRouteName(value: unknown, context: AbiContext): string | undefined {
-  if (staticString(value) !== undefined) return undefined
-
   const names = knownSelectorNames(value, context)
   return names?.length === 1 ? names[0] : undefined
+}
+
+function validateActionRouteAbi(
+  scope: Scope,
+  path: string,
+  route: DeclaredRoute,
+  actionArgs: Record<string, unknown>,
+  context: AbiContext,
+): void {
+  const functions = scope.functionsByNamespace.get(route.call.namespace)
+  if (functions === undefined) return
+
+  const fn = resolvedAbiFunction(route.call.function, functions)
+  if (fn === undefined) return
+
+  for (const input of fn.inputs) {
+    if (!Object.hasOwn(route.call.args, input.name)) continue
+
+    const resolved = actionValueForRouteCall(route.call.args[input.name], actionArgs, context)
+    if (resolved === undefined) continue
+
+    for (const mismatch of abiArgValueMismatches(input.name, resolved.value, input.abi)) {
+      reportTypeflowIssue(scope, `${path}.call.args${resolved.pathSuffix}${mismatch.pathSuffix}`, mismatch.message)
+    }
+  }
+}
+
+function actionValueForRouteCall(
+  routeArg: unknown,
+  actionArgs: Record<string, unknown>,
+  context: AbiContext,
+): { readonly value: unknown, readonly pathSuffix: string } | undefined {
+  if (typeof routeArg !== "string") return undefined
+
+  const reference = expressionReference(routeArg)
+  if (reference === undefined || reference.root !== "inputs") return undefined
+
+  const actionValue = rawValueAtSegments(actionArgs, reference.segments)
+  if (actionValue === undefined) return undefined
+
+  const value = knownActionLiteral(actionValue, context)
+  return value === undefined
+    ? undefined
+    : {
+      value,
+      pathSuffix: reference.segments.map((segment) => `.${segment}`).join(""),
+    }
+}
+
+function knownActionLiteral(value: unknown, context: AbiContext): unknown | undefined {
+  if (typeof value === "string") {
+    const reference = expressionReference(value)
+    if (reference === undefined) return staticString(value)
+
+    const lookup = valueAtReference(reference.root, reference.segments, context)
+    if (lookup.kind !== "value") return undefined
+    return literalFromKnownValue(lookup.value)
+  }
+
+  if (value === null || typeof value === "boolean" || typeof value === "number") return value
+  if (Array.isArray(value)) {
+    const items = value.map((item) => knownActionLiteral(item, context))
+    return items.some((item) => item === undefined) ? undefined : items
+  }
+  if (!isRecordObject(value)) return undefined
+
+  const record: Record<string, unknown> = {}
+  for (const [name, item] of Object.entries(value)) {
+    const resolved = knownActionLiteral(item, context)
+    if (resolved === undefined) return undefined
+    record[name] = resolved
+  }
+  return record
+}
+
+function literalFromKnownValue(value: unknown): unknown | undefined {
+  if (!isRecordObject(value)) return undefined
+  if (value.type === "literal-string" && typeof value.value === "string") return value.value
+  if (
+    value.type === "literal-string[]"
+    && Array.isArray(value.items)
+    && value.items.every((item) => typeof item === "string")
+  ) {
+    return value.items
+  }
+
+  return undefined
 }
 
 function knownSelectorNames(value: unknown, context: AbiContext): readonly string[] | undefined {
@@ -585,6 +686,23 @@ function valueAtSegments(value: unknown, segments: readonly string[]): unknown |
 
   const nextValue = abiOutputAtSegments(value, [segment])
   return nextValue === undefined ? undefined : valueAtSegments(nextValue, rest)
+}
+
+function rawValueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
+  const [segment, ...rest] = segments
+  if (segment === undefined) return value
+  if (Array.isArray(value) && isArrayIndex(segment)) {
+    return rawValueAtSegments(value[Number(segment)], rest)
+  }
+  if (isRecordObject(value) && Object.hasOwn(value, segment)) {
+    return rawValueAtSegments(value[segment], rest)
+  }
+
+  return undefined
+}
+
+function isArrayIndex(value: string): boolean {
+  return value === "0" || /^[1-9][0-9]*$/.test(value)
 }
 
 function propExpectation(tag: UiPropTag, prop: string): ValueExpectation | undefined {

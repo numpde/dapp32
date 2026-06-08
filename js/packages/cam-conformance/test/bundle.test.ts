@@ -1366,6 +1366,80 @@ test("UI actions must pass exactly the target route inputs", () => {
   ])
 })
 
+test("UI action literal args are ABI-checked through the target route", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [viewOutput()],
+    },
+    {
+      type: "function",
+      name: "saveAmount",
+      stateMutability: "nonpayable",
+      inputs: [
+        {
+          name: "amount",
+          type: "uint8",
+        },
+      ],
+      outputs: [],
+    },
+  ])
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            tag: "Action",
+            props: {
+              label: "Save",
+            },
+            call: {
+              namespace: "routes",
+              function: "saveAmount",
+              args: {
+                amount: 256,
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.saveAmount = {
+      kind: "write",
+      inputs: ["amount"],
+      call: {
+        namespace: "contracts.App",
+        function: "saveAmount",
+        args: {
+          amount: "$inputs.amount",
+        },
+      },
+      then: {
+        namespace: "routes",
+        function: "entry",
+        args: {},
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.call.args.amount"],
+  ])
+})
+
 test("UI action escaped call targets are checked as literal route names", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
