@@ -1824,6 +1824,100 @@ test("UI props reject statically incompatible literal Include args", () => {
   ])
 })
 
+test("UI Includes reject deterministically invalid literal route handoff selectors", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Include",
+        requires: ["view"],
+        call: {
+          namespace: "ui",
+          function: "$view.nodes",
+          args: {},
+        },
+      },
+      item: {
+        tag: "Text",
+        requires: [],
+        props: {
+          text: "Item",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            nodes: ["item", "item"],
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
+  ])
+})
+
+test("UI Includes reject deterministically invalid literal Include arg selectors", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        tag: "Include",
+        requires: [],
+        call: {
+          namespace: "ui",
+          function: "panel",
+          args: {
+            view: {
+              nodes: "",
+            },
+          },
+        },
+      },
+      panel: {
+        tag: "Include",
+        requires: ["view"],
+        call: {
+          namespace: "ui",
+          function: "$view.nodes",
+          args: {},
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {},
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.panel.call.function"],
+  ])
+})
+
 test("UI props are checked against each route-local continuation shape", () => {
   const abiBytes = jsonBytes([
     {

@@ -154,6 +154,7 @@ function validateCall(
   if (tag !== "Include") return
 
   validateBoundValue(scope, `${path}.call.function`, "UI Include target", node.call.function, "string-or-string-array", context)
+  validateKnownIncludeSelector(scope, `${path}.call.function`, node.call.function, context)
 
   const nodeName = staticString(node.call.function)
   if (nodeName === undefined || !isRecordObject(node.call.args)) return
@@ -217,7 +218,7 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
   // unknown, because their runtime value is supplied by another context root.
   if (typeof value === "string") {
     if (expressionReference(value) !== undefined) return UNKNOWN_VALUE
-    return { type: "literal-string" }
+    return { type: "literal-string", value }
   }
 
   if (typeof value === "boolean") return { type: "bool" }
@@ -226,7 +227,7 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
 
   if (Array.isArray(value)) {
     if (value.every((item) => typeof item === "string" && expressionReference(item) === undefined)) {
-      return { type: "literal-string[]" }
+      return { type: "literal-string[]", items: value }
     }
     const itemShapes = value.map((item) => knownValueShape(item, resolve))
     return itemShapes.some(isUnknownValue) ? UNKNOWN_VALUE : { type: "array" }
@@ -263,6 +264,49 @@ function valueAtReference(root: string, segments: readonly string[], context: Ab
   const value = valueAtSegments(rootValue, segments)
   if (isUnknownValue(value)) return { kind: "unknown" }
   return value === undefined ? { kind: "missing" } : { kind: "value", value }
+}
+
+function validateKnownIncludeSelector(
+  scope: Scope,
+  path: string,
+  value: unknown,
+  context: AbiContext,
+): void {
+  const names = knownSelectorNames(value, context)
+  if (names === undefined) return
+
+  const seen = new Set<string>()
+  for (const name of names) {
+    if (name.length === 0) {
+      scope.issues.push(typeflowIssue(scope.resource, path, "UI Include target must not be empty"))
+    } else if (seen.has(name)) {
+      scope.issues.push(typeflowIssue(scope.resource, path, `UI Include target must not be duplicated: ${name}`))
+    }
+    seen.add(name)
+  }
+}
+
+function knownSelectorNames(value: unknown, context: AbiContext): readonly string[] | undefined {
+  if (typeof value !== "string") return undefined
+
+  const reference = expressionReference(value)
+  if (reference === undefined) return undefined
+
+  const lookup = valueAtReference(reference.root, reference.segments, context)
+  if (lookup.kind !== "value" || !isRecordObject(lookup.value)) return undefined
+
+  if (lookup.value.type === "literal-string" && typeof lookup.value.value === "string") {
+    return [lookup.value.value]
+  }
+  if (
+    lookup.value.type === "literal-string[]"
+    && Array.isArray(lookup.value.items)
+    && lookup.value.items.every((item) => typeof item === "string")
+  ) {
+    return lookup.value.items
+  }
+
+  return undefined
 }
 
 function valueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
