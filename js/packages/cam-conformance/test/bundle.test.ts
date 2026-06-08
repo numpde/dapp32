@@ -876,6 +876,61 @@ test("string route args reject known non-string literals", () => {
   ])
 })
 
+test("route call literal tuple and array args are checked recursively", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [
+        {
+          name: "payload",
+          type: "tuple",
+          components: [
+            {
+              name: "serialNumber",
+              type: "string",
+            },
+            {
+              name: "counts",
+              type: "uint256[]",
+            },
+            {
+              name: "owner",
+              type: "address",
+            },
+          ],
+        },
+      ],
+      outputs: [viewOutput()],
+    },
+  ])
+  const issues = validateEditedRoot<{
+    readonly namespaces: Record<string, Record<string, unknown>>
+    readonly routes: Record<string, Record<string, unknown>>
+  }>((root, bundle) => {
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        payload: {
+          serialNumber: 123,
+          counts: [1, false],
+          extra: "x",
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.extra"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.owner"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.serialNumber"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.counts.1"],
+  ])
+})
+
 test("route continuations must reference ABI-declared output indexes", () => {
   const abiBytes = jsonBytes([
     {

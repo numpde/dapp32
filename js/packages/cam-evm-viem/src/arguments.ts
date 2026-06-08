@@ -136,6 +136,20 @@ function normalizeAbiArg(
   if (type === "tuple") {
     if (!isRecordObject(value)) throw invalidArg(errorCode, path, "", "expected object for tuple")
     const components = tupleComponents(parameter, errorCode, path)
+    const componentNames = new Set<string>()
+    for (const component of components) {
+      const componentName = component.name
+      if (componentName === undefined || componentName.length === 0) {
+        throw invalidArg(errorCode, path, "", "tuple components must be named")
+      }
+      componentNames.add(componentName)
+    }
+    for (const name of Object.keys(value)) {
+      if (!componentNames.has(name)) {
+        throw invalidArg(errorCode, path, name, "tuple has unexpected component")
+      }
+    }
+
     const tuple = createStringMap<unknown>()
     for (const component of components) {
       const componentName = component.name

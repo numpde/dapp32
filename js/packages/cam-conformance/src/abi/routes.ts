@@ -42,9 +42,10 @@ export type ContractFunctionsByNamespace = ReadonlyMap<string, ReadonlyMap<strin
 type AbiInput = {
   readonly name: string
   readonly type: string
+  readonly abi: Record<string, unknown>
 }
 
-type KnownRouteArgKind = "address" | "bool" | "bytes" | "integer" | "string" | "string-literal"
+type KnownRouteArgKind = "address" | "array" | "bool" | "bytes" | "integer" | "null" | "object" | "string" | "string-literal"
 type KnownRouteArgValue = {
   readonly kind: KnownRouteArgKind
   readonly description: string
@@ -249,18 +250,89 @@ function validateRouteArgType(
   input: AbiInput,
   issues: CamConformanceIssue[],
 ): void {
-  const scalarKind = abiScalarKind(input.type)
+  const value = route.call.args[input.name]
+  validateRouteArgValue(resource, `routes.${route.name}.call.args.${input.name}`, input.name, value, input.abi, issues)
+}
+
+function validateRouteArgValue(
+  resource: string,
+  path: string,
+  label: string,
+  value: unknown,
+  parameter: Record<string, unknown>,
+  issues: CamConformanceIssue[],
+): void {
+  const type = nonEmptyString(parameter.type)
+  if (type === undefined) return
+
+  if (type.endsWith("[]")) {
+    if (isUnknownExpression(value)) return
+    if (!Array.isArray(value)) {
+      reportRouteArgMismatch(resource, path, label, type, knownRouteArgValue(value)?.description ?? "not an array", issues)
+      return
+    }
+
+    const element = { ...parameter, type: type.slice(0, -2) }
+    value.forEach((item, index) => {
+      validateRouteArgValue(resource, `${path}.${index}`, `${label}.${index}`, item, element, issues)
+    })
+    return
+  }
+
+  if (type === "tuple") {
+    if (isUnknownExpression(value)) return
+    if (!isRecordObject(value)) {
+      reportRouteArgMismatch(resource, path, label, type, knownRouteArgValue(value)?.description ?? "not an object", issues)
+      return
+    }
+
+    const components = abiComponents(parameter)
+    if (components === undefined) return
+
+    diffNameSets({
+      expectedNames: components.map((component) => nonEmptyString(component.name)).filter((name): name is string => name !== undefined),
+      actualNames: Object.keys(value),
+      onUnexpected: (name) => {
+        issues.push(routeAbiIssue(resource, `${path}.${name}`, `unexpected tuple component for ${label}: ${name}`))
+      },
+      onMissing: (name) => {
+        issues.push(routeAbiIssue(resource, `${path}.${name}`, `missing tuple component for ${label}: ${name}`))
+      },
+    })
+
+    for (const component of components) {
+      const componentName = nonEmptyString(component.name)
+      if (componentName === undefined || !Object.hasOwn(value, componentName)) continue
+      validateRouteArgValue(
+        resource,
+        `${path}.${componentName}`,
+        `${label}.${componentName}`,
+        value[componentName],
+        component,
+        issues,
+      )
+    }
+    return
+  }
+
+  const scalarKind = abiScalarKind(type)
   if (scalarKind === undefined) return
 
-  const value = route.call.args[input.name]
   const mismatch = routeArgMismatch(value, scalarKind)
   if (mismatch === undefined) return
 
-  issues.push(routeAbiIssue(
-    resource,
-    `routes.${route.name}.call.args.${input.name}`,
-    `route argument ${input.name} expects ABI ${input.type}, but ${mismatch}`,
-  ))
+  reportRouteArgMismatch(resource, path, label, type, mismatch, issues)
+}
+
+function reportRouteArgMismatch(
+  resource: string,
+  path: string,
+  label: string,
+  type: string,
+  mismatch: string,
+  issues: CamConformanceIssue[],
+): void {
+  issues.push(routeAbiIssue(resource, path, `route argument ${label} expects ABI ${type}, but ${mismatch}`))
 }
 
 function routeArgMismatch(
@@ -308,6 +380,9 @@ function routeArgMismatch(
 function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
   if (typeof value === "boolean") return { kind: "bool", description: "a boolean literal" }
   if (typeof value === "number" && Number.isSafeInteger(value)) return { kind: "integer", description: "an integer literal" }
+  if (value === null) return { kind: "null", description: "null" }
+  if (Array.isArray(value)) return { kind: "array", description: "an array literal" }
+  if (isRecordObject(value)) return { kind: "object", description: "an object literal" }
 
   if (typeof value !== "string") return undefined
 
@@ -326,6 +401,10 @@ function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
     return { kind: "string", description: "$host.chainId" }
   }
   return undefined
+}
+
+function isUnknownExpression(value: unknown): boolean {
+  return typeof value === "string" && expressionReference(value) !== undefined && knownRouteArgValue(value) === undefined
 }
 
 function validateRouteOutputRefs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {
@@ -531,10 +610,16 @@ function abiInputs(
       return undefined
     }
 
-    result.push({ name, type })
+    result.push({ name, type, abi: input })
   }
 
   return result
+}
+
+function abiComponents(parameter: Record<string, unknown>): readonly Record<string, unknown>[] | undefined {
+  return Array.isArray(parameter.components) && parameter.components.every(isRecordObject)
+    ? parameter.components
+    : undefined
 }
 
 function abiOutputs(

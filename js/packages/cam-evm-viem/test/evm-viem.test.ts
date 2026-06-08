@@ -1008,6 +1008,26 @@ test("sendCamContractCall keeps tuple input component names as inert data", asyn
   assert.equal(Object.hasOwn(tupleArg as Record<string, unknown>, "__proto__"), true)
   assert.equal((tupleArg as Record<string, unknown>)["__proto__"], "component-name")
   assert.equal((tupleArg as Record<string, unknown>).value, "ordinary-value")
+
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      chain: testChain,
+      call: {
+        address: managerAddress,
+        abi: tupleAbi,
+        function: "writeTuple",
+        args: {
+          payload: toInertValue({
+            ["__proto__"]: "component-name",
+            value: "ordinary-value",
+            extra: "rejected",
+          }),
+        },
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
+  )
 })
 
 test("sendCamContractCall resolves full signatures for overloaded writes", async () => {
