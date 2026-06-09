@@ -13,13 +13,13 @@ import {
   bikeUiBytes,
 } from "./bike-resources.mts"
 
-export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
-export type MockAddress = `0x${string}`
-export type MockHash = `0x${string}`
-export type MockAbi = readonly unknown[]
+type MockAddress = `0x${string}`
+type MockHash = `0x${string}`
+type MockAbi = readonly unknown[]
 
-export type MockReadContractCall = {
+type MockReadContractCall = {
   readonly address: MockAddress
   readonly abi?: MockAbi
   readonly functionName: string
@@ -142,7 +142,7 @@ export function encodeJson(value: unknown): Uint8Array {
   return encodeText(JSON.stringify(value))
 }
 
-export function encodeText(value: string): Uint8Array {
+function encodeText(value: string): Uint8Array {
   return new TextEncoder().encode(value)
 }
 
