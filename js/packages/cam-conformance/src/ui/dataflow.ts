@@ -33,10 +33,6 @@ type UiCall = {
   readonly args: Record<string, unknown>
 }
 
-type UiDataflow = {
-  readonly calls: readonly UiCall[]
-}
-
 export function validateUiDataflow({
   uiDocuments,
   uiNodes,
@@ -47,9 +43,9 @@ export function validateUiDataflow({
   readonly issues: CamConformanceIssue[]
 }): void {
   for (const [resource, ui] of uiDocuments) {
-    const dataflow = readUiDataflow(resource, ui.nodes, issues)
+    const calls = uiCalls(resource, ui.nodes, issues)
 
-    for (const call of dataflow.calls) {
+    for (const call of calls) {
       if (!validateUiCallArgNames(resource, call, issues)) continue
       if (!validateUiCallFunctionShape(resource, call, issues)) continue
       if (call.namespace === "ui") {
@@ -63,17 +59,14 @@ export function validateUiDataflow({
   }
 }
 
-function readUiDataflow(
+function uiCalls(
   resource: string,
   nodes: Record<string, unknown>,
   issues: CamConformanceIssue[],
-): UiDataflow {
+): readonly UiCall[] {
   const calls: UiCall[] = []
   forEachUiNode(nodes, (node, path) => collectUiNodeDataflow(resource, node, path, calls, issues))
-
-  return {
-    calls,
-  }
+  return calls
 }
 
 function collectUiNodeDataflow(
