@@ -1,0 +1,626 @@
+Project status and next work
+Date: 2026-06-09
+
+Purpose
+-------
+
+This note records where the rebuild branch stands after the CAM protocol,
+viewer, conformance, local viewer, and bike-nft scenario work. It also expands
+the next work areas into concrete tracks.
+
+The project is now past the "can this idea work at all?" phase. The useful
+question is narrower:
+
+    Can contract-published CAM bundles be validated, loaded, rendered, walked,
+    and used to prepare writes without bespoke frontend trust or hidden dapp
+    assumptions?
+
+The answer is "mostly, for the local bike-nft path." The remaining work should
+tighten the validation and scenario layers, not add more surface area.
+
+
+Current shape
+-------------
+
+Repository posture:
+
+    main is clean locally and far ahead of origin.
+    The repo is Docker-first through Makefile targets.
+    JS workspace state lives under js/.
+    Solidity dependency state lives under dapps/.
+    Local fixtures are Compose-scoped rather than repo-root mounted by default.
+
+Main dapp:
+
+    dapps/bike-nft/
+      src/        Solidity app contracts
+      script/     local fixture deployment scripts
+      test/       unit and scenario coverage
+      cam/        contract-published CAM resources
+
+Current bike CAM resource shape:
+
+    dapps/bike-nft/cam/main.json
+    dapps/bike-nft/cam/ui.json
+    dapps/bike-nft/cam/abi/BicycleComponentManager.json
+    dapps/bike-nft/cam/abi/BicycleComponentManagerUI.json
+
+The CAM no longer uses many branch-specific screen files. The contract returns
+view/action identifiers and data; ui.json declares the portable UI catalog.
+
+JS protocol stack:
+
+    @cam/protocol
+      Inert values, strict JSON, expression/resource/hash primitives.
+
+    @cam/core
+      CAM manifest parsing, namespace validation, route call/continuation
+      resolution.
+
+    @cam/evm-viem
+      EVM host loading, contract namespace resolution, ABI parsing, route
+      reads, write preparation/simulation/send helpers.
+
+    @cam/screen
+      UI resource parsing and headless UI node resolution.
+
+    @cam/viewer
+      Headless CAM session: load host, navigate routes, resolve UI, update
+      local state, dispatch actions.
+
+    @cam/conformance
+      Builder-facing CAM bundle validation across main.json, ui.json, ABIs,
+      resources, routes, handoffs, UI dataflow, and UI typeflow.
+
+Apps and tools:
+
+    js/apps/cam-web
+      Browser viewer for the local CAM path. It is still a thin renderer around
+      the viewer/session packages.
+
+    js/tools/viewer-terminal
+      Debug terminal for mock and local-RPC sessions.
+
+    js/tools/cam-integration-fuzz
+      Generic random-walk integration runner over a deployed CAM host.
+
+
+What is already strong
+----------------------
+
+1. Protocol boundaries are much stricter.
+
+   JSON parsing rejects duplicate keys. Resource size and URI policies are
+   explicit. ABI inputs and outputs are normalized against ABI declarations.
+   Route outputs are converted to inert values before UI/viewer layers consume
+   them.
+
+2. CAM bundle conformance has become a real authoring gate.
+
+   It catches malformed resources, bad namespace declarations, route/ABI
+   mismatches, route handoff mistakes, UI Include/Action errors, local state
+   holes, deterministic type mismatches, cycles, duplicate rendered inputs, and
+   known dynamic selector failures.
+
+3. Bike NFT has meaningful contract scenario tests now.
+
+   The scenario suite covers registration, lookup states, missing/clear/retire,
+   used-bike sale behavior, delegation expiry/ownership transfer, component
+   collection rollover, account info, attestations, and UI projection alignment.
+
+4. Local operation is runnable.
+
+   The Makefile has local Anvil/deploy/http/viewer-terminal/viewer-gui and
+   integration-fuzz targets. The browser viewer can talk to the local RPC
+   through the local gateway path.
+
+5. The project has learned a useful discipline.
+
+   Most recent fixes were not "patch one bug" fixes. They tightened ownership
+   of whole bug classes: boundary normalization, silent defaults, URI policy,
+   ABI shape, UI dataflow, and deterministic conformance diagnostics.
+
+
+Primary next areas
+------------------
+
+1. Bike NFT scenario tests
+
+Why it matters:
+
+    The protocol stack is only as credible as the flagship dapp that exercises
+    it. Bike NFT is the real app-shaped proving ground. Mock-only tests are
+    useful for package boundaries, but business states must be proven through
+    real Solidity contracts and the read-only UI projection.
+
+Current state:
+
+    Unit and scenario tests exist and cover much more than the initial fixture.
+    The tests already use a useful split:
+
+        unit tests     -> one manager rule per test
+        scenario tests -> app workflow stories crossing contracts and UI view
+
+What still deserves focus:
+
+    Empty serial rejection across every write path and UI route state.
+    Register -> lookup found -> update metadata -> lookup updated.
+    Lookup not-found with preserved serial and correct actions.
+    Mark missing -> clear missing -> retire, including blocked follow-up writes.
+    Delegation capability subsets for each write action.
+    Delegation expiry at exact boundary timestamps.
+    Ownership transfer invalidating old owner/delegate permissions.
+    Component collection rollover preserving old records.
+    Attestation provenance and authorization boundaries.
+    Pause behavior, if pause is intended to cover all mutating paths.
+    UI projection action lists for every important business state.
+
+Good next slice:
+
+    Add or refine one scenario file around "agent-visible workflows":
+
+        route view before write
+        write
+        route view after write
+        assert viewId, actions, status, owner, token URI, and permissions
+
+    Avoid one-off tests that assert only an internal variable. The high-value
+    tests should prove the contract state and CAM-facing projection stay
+    aligned.
+
+How to avoid sprawl:
+
+    Keep helper assertions in BicycleComponentManagerTestSupport.
+    Prefer long workflow tests only when the workflow crosses contracts.
+    Keep isolated authorization/revert cases in unit tests.
+    Do not add JS mocks for business facts that can be checked against real
+    Solidity contracts.
+
+
+2. Generic integration fuzz as the bridge layer
+
+Why it matters:
+
+    Package tests prove local functions. Solidity tests prove contracts.
+    Browser tests prove one renderer. The missing middle is:
+
+        deployed host -> real RPC -> real CAM resources -> real ABI decoding
+        -> viewer session -> UI actions -> write simulation or execution
+
+    That is where prior bugs such as ABI integer output shape mismatches show
+    up.
+
+Current state:
+
+    js/tools/cam-integration-fuzz exists.
+    Makefile exposes generic and bike-specific targets:
+
+        make test-integration-fuzz
+        make test-integration-fuzz-bike-nft
+        make test-integration-fuzz-with-writes-bike-nft
+
+    The runner already reads a descriptor, loads the CAM host, resolves
+    contracts, walks routes/actions, mutates local state, and simulates or sends
+    writes depending on mode.
+
+What still deserves focus:
+
+    Make the JSON trace maximally useful for debugging:
+
+        run
+        step
+        route
+        route inputs
+        resolved view/action ids
+        state patch
+        selected action
+        write request
+        simulation result
+        receipt or structured rejection
+
+    Keep broad read-only fuzz and positive write fuzz separate. Broad mode
+    should include edge values and expected rejections. Write-positive mode
+    should generate values intended to execute successfully against the local
+    fixture.
+
+    Grow generic value generation from ABI and UI state facts, not bike-specific
+    constants. Name-aware hints are acceptable only when they are generic:
+
+        serialNumber -> string corpus
+        tokenURI     -> URI-like string corpus
+        owner/account -> descriptor account
+
+Good next slice:
+
+    Add replay ergonomics:
+
+        seed
+        run index
+        step count
+        descriptor hash or path
+        last successful snapshot summary
+
+    A failing integration fuzz run should be easy to reproduce without reading
+    a long Compose log.
+
+How to avoid sprawl:
+
+    Keep the runner generic.
+    Put bike-specific deployment and resource serving in Compose.
+    Do not let the runner know seeded demo serials unless a future workflow
+    descriptor deliberately supplies them.
+    Do not turn fuzz into a browser test.
+
+
+3. Conformance author diagnostics
+
+Why it matters:
+
+    Builders and agents need precise failures before publishing a CAM bundle.
+    Runtime validation must still exist, but runtime errors are too late and
+    often too contextual for authoring.
+
+Current state:
+
+    @cam/conformance is substantial. It validates bundle resources, CAM
+    declarations, ABI usage, route handoffs, UI inventory, UI dataflow, UI
+    typeflow, known dynamic Includes/Actions, local state, and checked-in bike
+    CAM bundles.
+
+Main risk:
+
+    Conformance can become a second runtime if it reimplements too much.
+    The discipline should be:
+
+        Runtime packages own primitive validity.
+        Conformance owns cross-document publication facts.
+        Conformance may do conservative static checks, but must not claim full
+        runtime typechecking for dynamic values.
+
+What still deserves focus:
+
+    Improve diagnostics where conformance can prove a deterministic failure.
+    Avoid exact duplicates of runtime checks unless they add author location or
+    cross-document context.
+    Keep issue codes stable and specific.
+    Continue replacing broad fallback runtime errors with targeted author-facing
+    issues only when the targeted rule is clearly owned by conformance.
+
+Good next slice:
+
+    Review `@cam/conformance` for rule ownership:
+
+        Is this a primitive parse rule?
+        Is this a cross-document rule?
+        Is this a runtime-only concrete value rule?
+        Does this issue point to the author-editable field?
+
+    Delete or merge checks that answer the same question in two places without
+    improving the error.
+
+How to avoid sprawl:
+
+    Do not add new folders for every finding.
+    Keep passes small and named by invariant, not by incident.
+    Prefer a shared helper only after two call sites prove the same concept.
+    Keep tests sacred: each conformance test should encode one durable
+    publication rule.
+
+
+4. UI schema stabilization
+
+Why it matters:
+
+    ui.json is the portable presentation/action contract for humans, agents,
+    terminal tools, and React. If its vocabulary stays unstable, every package
+    and test will keep chasing drift.
+
+Current state:
+
+    The current UI resource is a small UI tree with nodes, Includes,
+    Actions, props, local state, and route calls. It deliberately avoids
+    arbitrary JavaScript and renderer-specific behavior.
+
+Decision:
+
+    Use a small element-tree UI schema, but do not encode React itself.
+
+    The node discriminator should be `element`, not `component`.
+
+    Principle:
+
+        A UI document is a tree of portable UI elements.
+        Each node declares which element it is.
+        A renderer maps known element names to implementation components.
+
+    This keeps vocabulary boundaries crisp:
+
+        element   -> UI protocol vocabulary
+        component -> bike NFT domain object
+        contract  -> Solidity execution object
+        route     -> CAM navigation/call object
+
+    `component` would be natural in a React-only setting, but it is the wrong
+    public schema word here because the flagship dapp is about bicycle
+    components. More importantly, CAM is not naming a concrete React component
+    implementation. It is naming a portable UI element type.
+
+    The chosen vocabulary is:
+
+        element
+        props
+        state
+        state.key
+        state.defaultValue
+        $state
+        call
+        children
+        requires
+        nodes
+
+    The chosen element names are:
+
+        Screen
+        Fragment
+        Text
+        TextField
+        Address
+        Status
+        Nft
+        Include
+        Button
+
+    This replaces the current public vocabulary:
+
+        tag    -> element
+        Input  -> TextField
+        Action -> Button
+
+    `props` are render inputs. `state` is local editable viewer state. `call`
+    is route or UI invocation. `children` is composition.
+
+    A stateful text field should look like:
+
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Serial number"
+          },
+          "state": {
+            "key": "serialNumber",
+            "defaultValue": "$view.serialNumber"
+          }
+        }
+
+    A button should read the live editable value from `$state`:
+
+        {
+          "element": "Button",
+          "props": {
+            "label": "Look up component"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "component",
+            "args": {
+              "serialNumber": "$state.serialNumber"
+            }
+          }
+        }
+
+    The invariant is:
+
+        Contract outputs initialize local state.
+        Local viewer state owns live editable values.
+        Actions read live values from state.
+        Props are display inputs, not event handlers or authority.
+
+    This maps naturally to React without making CAM a React serialization
+    format:
+
+        <TextField
+          {...node.props}
+          value={state[node.state.key]}
+          onChange={(value) => updateState(node.state.key, value)}
+        />
+
+Rejected alternatives:
+
+    Keep current tag/Input/Action shape.
+      Too much of the old source-of-truth confusion remains, especially
+      Input.props.value as state initialization.
+
+    Raw React-like JSON with value/defaultValue in props.
+      Too easy to encode controlled/uncontrolled DOM mistakes directly into the
+      protocol.
+
+    Implicit form or field model.
+      Compact, but it hides where defaults come from and blurs route inputs,
+      view outputs, and local state.
+
+    Contract-returned UI parts.
+      Gives Solidity too much presentation responsibility. The contract should
+      select view/action/data, not construct a UI tree.
+
+What still deserves focus:
+
+    Apply the vocabulary in one deliberate migration.
+    Remove the old vocabulary instead of supporting both.
+    Make sure every interactive element has one state authority.
+    Ensure conformance rejects stale tag/Input/Action/value vocabulary after the
+    migration lands.
+
+Good next slice:
+
+    Migrate ui.json, @cam/screen, @cam/viewer, cam-web, viewer-terminal,
+    integration fuzz, and @cam/conformance together.
+
+    Do not add compatibility shims. No dual vocabulary.
+
+How to avoid sprawl:
+
+    Do not add conditional rendering or layout logic until a real renderer
+    proves the need.
+    Do not reintroduce branch-specific screen files just to avoid designing the
+    small UI contract.
+    Do not invent a general UI language beyond the elements this project can
+    validate.
+
+
+5. Runtime boundary hardening and single ownership
+
+Why it matters:
+
+    Most serious bugs found so far were ownership bugs:
+
+        Two places thought they owned the same validation.
+        One layer trusted a caller to have enforced a policy.
+        A runtime value crossed a boundary before normalization.
+
+Current state:
+
+    Many boundaries are now strict: ABI parsing, ABI values, resource size,
+    URI policy, JSON duplicates, route inputs, UI roots, account/chain checks,
+    write simulation, and resource integrity.
+
+What still deserves focus:
+
+    Periodically scan for duplicated grammar or policy:
+
+        URI/resource policy
+        ABI scalar grammar
+        integer/bytes/address validation
+        route/function reference parsing
+        UI expression roots
+        environment/descriptor parsing
+
+    The preferred shape is:
+
+        one primitive owner
+        many callers
+        conformance imports or delegates when appropriate
+        repo checks enforce ownership boundaries
+
+Good next slice:
+
+    Audit the runtime packages for any function accepting `unknown` or raw
+    bytes. Each one should answer:
+
+        What boundary is this?
+        Which schema owns this value?
+        Is the value normalized immediately?
+        What canonical shape leaves this function?
+
+How to avoid sprawl:
+
+    Do not create a helper package for every shared line of code.
+    Centralize only stable primitives.
+    Keep application-specific checks out of protocol packages.
+    Prefer deleting duplicate checks to adding a third abstraction.
+
+
+6. Ops and Docker posture
+
+Why it matters:
+
+    The repository explicitly treats Make/Compose as part of the security
+    model. If local workflows require broad mounts, hidden network, or
+    uncontrolled writes, the protocol trust model is undercut by the operator
+    path.
+
+Current state:
+
+    The Docker posture is much stronger than at the start:
+
+        dependency stage/apply separation
+        read-only source mounts for package execution
+        JS workspace isolated under js/
+        explicit local bike-nft Compose overlays
+        checks for rendered Compose posture
+        silent-default scanners for ops/Python/JS-TS
+
+What still deserves focus:
+
+    Keep Compose stack inventory derived from Make where possible.
+    Keep writable host binds rare and tested.
+    Keep package-backed tools in their own runtime boundary when needed.
+    Keep local fixture keys obviously non-secret.
+    Keep resource-serving paths narrow and explicit.
+
+Good next slice:
+
+    Review local viewer GUI and terminal Compose services after UI schema
+    stabilization. They should mount only what they execute or serve, and their
+    environment should be explicit without duplicating operator policy in tests.
+
+How to avoid sprawl:
+
+    Do not add new Compose files unless the runtime boundary is actually new.
+    Do not add Make aliases that hide important policy differences.
+    Do not let tests become large text snapshots when a rendered or parsed
+    invariant can prove the same thing.
+
+
+Suggested order
+---------------
+
+1. Stabilize the UI vocabulary.
+
+   This reduces churn in conformance, viewer, terminal, web, and checked CAM
+   resources. Do this before large new UI-facing tests.
+
+2. Add one high-value bike-nft scenario slice.
+
+   Focus on real business states and CAM-facing projection after writes.
+
+3. Improve integration fuzz replay/debug output.
+
+   Make failures faster to understand before increasing run counts.
+
+4. Prune conformance after the above.
+
+   Once UI names settle and scenario gaps are clearer, remove duplicate or weak
+   conformance checks rather than expanding them reflexively.
+
+5. Re-run the full confidence path.
+
+   Narrow checks first, then:
+
+        make package-test
+        make checks
+        make test-integration-fuzz-bike-nft
+        make test-integration-fuzz-with-writes-bike-nft
+
+   Full `make test` or `make ci` should be used when touching Solidity,
+   Compose, dependency policy, or shared runtime primitives.
+
+
+Principles to keep applying
+---------------------------
+
+Prefer invariants over incidents.
+
+    "Reject duplicate tuple field names" is better than "fix this one ABI."
+
+Prefer one owner over parallel validators.
+
+    If two checks know the same grammar, one of them is probably wrong
+    eventually.
+
+Prefer real contracts for business behavior.
+
+    Mocks should test package mechanics, not the truth of the bike dapp.
+
+Prefer precise author errors over broad runtime fallback.
+
+    But only when conformance truly owns the cross-document rule.
+
+Prefer deletion after stabilization.
+
+    Once a better protocol shape lands, remove old vocabulary, old tests, and
+    compatibility paths. The branch has no compatibility obligation yet.
+
+Prefer small durable tests.
+
+    A sacred test should make one future mistake physically hard. A large test
+    that mirrors implementation details is a liability.

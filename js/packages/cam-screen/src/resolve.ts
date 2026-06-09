@@ -9,9 +9,9 @@ import {
 } from "@cam/protocol"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
-  ActionNode,
+  ButtonNode,
   IncludeNode,
-  ResolvedActionNode,
+  ResolvedButtonNode,
   ResolvedElementNode,
   ResolvedUiCall,
   ResolvedUiNode,
@@ -27,7 +27,10 @@ export function resolveUiNode(
   args: InertRecord,
   context: UiRuntimeContext,
 ): ResolvedUiNode {
-  const resolved = resolveNamedNode(ui, nodeName, args, context, nodeName, { includeActions: true }, [])
+  const resolved = resolveNamedNode(ui, nodeName, args, context, nodeName, {
+    includeActions: true,
+    includeStateDefault: false,
+  }, [])
   if (resolved.length !== 1) {
     throw new UiError("UI_INVALID_FIELD", `UI node did not resolve to one root node: ${nodeName}`, nodeName)
   }
@@ -49,7 +52,10 @@ export function resolveInitialUiNode(
     ...context,
     state: emptyState,
   }
-  const initialNodes = resolveNamedNode(ui, nodeName, args, initialContext, nodeName, { includeActions: false }, [])
+  const initialNodes = resolveNamedNode(ui, nodeName, args, initialContext, nodeName, {
+    includeActions: false,
+    includeStateDefault: true,
+  }, [])
   const state = createInitialState(initialNodes)
   const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, state })
 
@@ -82,6 +88,7 @@ function resolveNamedNode(
 
 type ResolveOptions = {
   readonly includeActions: boolean
+  readonly includeStateDefault: boolean
 }
 
 function contextForNode(
@@ -135,22 +142,28 @@ function resolveNode(
   options: ResolveOptions,
   stack: readonly string[],
 ): readonly ResolvedUiNode[] {
-  switch (node.tag) {
+  switch (node.element) {
     case "Include":
       return resolveInclude(ui, node, context, path, options, stack)
-    case "Action":
+    case "Button":
       return options.includeActions ? [resolveAction(node, context, path)] : []
     case "Screen":
     case "Fragment":
       return [resolveElementNode(ui, node, context, path, options, stack)]
     case "Text":
-    case "Input":
     case "Address":
     case "Status":
     case "Nft":
       return [{
-        tag: node.tag,
-        props: resolveProps(node.tag, node.props, context, `${path}.props`),
+        element: node.element,
+        props: resolveProps(node.element, node.props, context, `${path}.props`),
+        children: [],
+      }]
+    case "TextField":
+      return [{
+        element: node.element,
+        props: resolveProps(node.element, node.props, context, `${path}.props`),
+        state: resolveStateBinding(node.state, context, `${path}.state`, options),
         children: [],
       }]
   }
@@ -159,12 +172,12 @@ function resolveNode(
 }
 
 function unreachableUiNode(_node: never): never {
-  throw new UiError("UI_INVALID_FIELD", "unsupported UI node tag")
+  throw new UiError("UI_INVALID_FIELD", "unsupported UI node element")
 }
 
 function resolveElementNode(
   ui: UiDocument,
-  node: Extract<UiNode, { readonly tag: "Screen" | "Fragment" }>,
+  node: Extract<UiNode, { readonly element: "Screen" | "Fragment" }>,
   context: UiRuntimeContext,
   path: string,
   options: ResolveOptions,
@@ -177,9 +190,9 @@ function resolveElementNode(
   }
 
   return {
-    tag: node.tag,
-    props: node.tag === "Screen"
-      ? resolveProps(node.tag, node.props, context, `${path}.props`)
+    element: node.element,
+    props: node.element === "Screen"
+      ? resolveProps(node.element, node.props, context, `${path}.props`)
       : createStringMap<InertValue>(),
     children,
   }
@@ -202,7 +215,7 @@ function resolveInclude(
   const children: ResolvedUiNode[] = []
 
   for (const nodeName of nodeNames) {
-    if (!options.includeActions && ui.nodes[nodeName]?.tag === "Action") {
+    if (!options.includeActions && ui.nodes[nodeName]?.element === "Button") {
       continue
     }
 
@@ -221,27 +234,66 @@ function createInitialState(nodes: readonly ResolvedUiNode[]): InertRecord {
 
 function appendInitialState(nodes: readonly ResolvedUiNode[], state: Record<string, InertValue>): void {
   for (const node of nodes) {
-    if (node.tag === "Input") {
-      const name = node.props.name
-      const value = node.props.value
-      if (typeof name !== "string" || name.length === 0) {
-        throw new UiError("UI_INVALID_FIELD", "Input props.name must resolve to a non-empty string")
+    if (node.element === "TextField") {
+      const { key, defaultValue } = requireStateDefault(node)
+      if (hasOwn(state, key)) {
+        throw new UiError("UI_INVALID_FIELD", `duplicate input name: ${key}`)
       }
-      if (!isExpressionIdentifier(name)) {
-        throw new UiError("UI_INVALID_FIELD", `Input props.name must resolve to an expression identifier: ${name}`)
-      }
-      if (typeof value !== "string") {
-        throw new UiError("UI_INVALID_FIELD", `Input props.value must resolve to a string: ${name}`)
-      }
-      if (hasOwn(state, name)) {
-        throw new UiError("UI_INVALID_FIELD", `duplicate input name: ${name}`)
-      }
-      state[name] = value
+      state[key] = defaultValue
     }
 
     if ("children" in node) {
       appendInitialState(node.children, state)
     }
+  }
+}
+
+function requireStateDefault(node: ResolvedUiNode): {
+  readonly key: string
+  readonly defaultValue: string
+} {
+  if (node.element !== "TextField" || node.state === undefined || node.state.defaultValue === undefined) {
+    throw new UiError("UI_INVALID_FIELD", "TextField state.defaultValue was not resolved")
+  }
+
+  return {
+    key: node.state.key,
+    defaultValue: node.state.defaultValue,
+  }
+}
+
+function resolveStateBinding(
+  state: {
+    readonly key: InertValue
+    readonly defaultValue: InertValue
+  },
+  context: UiRuntimeContext,
+  path: string,
+  options: ResolveOptions,
+): {
+  readonly key: string
+  readonly defaultValue?: string
+} {
+  const key = resolveValueAtPath(state.key, context, `${path}.key`)
+  if (typeof key !== "string" || key.length === 0) {
+    throw new UiError("UI_INVALID_FIELD", "TextField state.key must resolve to a non-empty string", `${path}.key`)
+  }
+  if (!isExpressionIdentifier(key)) {
+    throw new UiError("UI_INVALID_FIELD", `TextField state.key must resolve to an expression identifier: ${key}`, `${path}.key`)
+  }
+
+  if (!options.includeStateDefault) {
+    return { key }
+  }
+
+  const defaultValue = resolveValueAtPath(state.defaultValue, context, `${path}.defaultValue`)
+  if (typeof defaultValue !== "string") {
+    throw new UiError("UI_INVALID_FIELD", `TextField state.defaultValue must resolve to a string: ${key}`, `${path}.defaultValue`)
+  }
+
+  return {
+    key,
+    defaultValue,
   }
 }
 
@@ -272,22 +324,22 @@ function checkedSelectedNodeNames(names: readonly string[], path: string): reado
   return names
 }
 
-function resolveAction(node: ActionNode, context: UiRuntimeContext, path: string): ResolvedActionNode {
+function resolveAction(node: ButtonNode, context: UiRuntimeContext, path: string): ResolvedButtonNode {
   return {
-    tag: "Action",
-    props: resolveProps(node.tag, node.props, context, `${path}.props`),
+    element: "Button",
+    props: resolveProps(node.element, node.props, context, `${path}.props`),
     call: resolveCall(node.call, context, `${path}.call`),
   }
 }
 
 function resolveProps(
-  tag: keyof typeof UI_PROP_SCHEMAS,
+  element: keyof typeof UI_PROP_SCHEMAS,
   props: InertRecord,
   context: UiRuntimeContext,
   path: string,
 ): InertRecord {
   const resolved = resolveRecord(props, context, path)
-  for (const name of UI_PROP_SCHEMAS[tag].string) {
+  for (const name of UI_PROP_SCHEMAS[element].string) {
     requireStringProp(resolved, name, path)
   }
 

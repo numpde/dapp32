@@ -14,9 +14,9 @@ export const UI_PROP_SCHEMAS = {
     required: ["text"],
     string: ["text"],
   },
-  Input: {
-    required: ["name", "label", "value"],
-    string: ["name", "label", "value"],
+  TextField: {
+    required: ["label"],
+    string: ["label"],
   },
   Address: {
     required: ["label", "address"],
@@ -30,10 +30,10 @@ export const UI_PROP_SCHEMAS = {
     required: ["contractAddress", "tokenId"],
     string: ["contractAddress"],
   },
-  Action: {
+  Button: {
     required: ["label"],
     string: ["label"],
   },
 } as const
 
-export type UiPropTag = keyof typeof UI_PROP_SCHEMAS
+export type UiPropElement = keyof typeof UI_PROP_SCHEMAS

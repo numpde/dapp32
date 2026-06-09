@@ -103,8 +103,8 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
   const snapshot = await session.load()
 
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
-  assert.equal(snapshot.resolvedUi.tag, "Screen")
-  assert.equal(snapshot.resolvedUi.children[0]?.tag, "Fragment")
+  assert.equal(snapshot.resolvedUi.element, "Screen")
+  assert.equal(snapshot.resolvedUi.children[0]?.element, "Fragment")
   assert.deepEqual(snapshot.values, inert([
     {
       viewId: "entry",
@@ -194,10 +194,10 @@ test("load rejects UI actions that require an account when none is available", a
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [{
-          tag: "Action",
+          element: "Button",
           props: {
             label: "Save",
           },
@@ -405,9 +405,9 @@ test("updateState resolves route actions, while write routes are surfaced withou
   if (!("children" in snapshot.resolvedUi)) {
     assert.fail("expected resolved root children")
   }
-  const action = snapshot.resolvedUi.children.find((child) => child.tag === "Action")
-  assert.equal(action?.tag, "Action")
-  if (action?.tag !== "Action") {
+  const action = snapshot.resolvedUi.children.find((child) => child.element === "Button")
+  assert.equal(action?.element, "Button")
+  if (action?.element !== "Button") {
     assert.fail("expected resolved action")
   }
   assert.equal(action.call.function, BIKE_ROUTE_COMPONENT)
@@ -429,10 +429,10 @@ test("updateState resolves route actions, while write routes are surfaced withou
     assert.fail("expected resolved root children")
   }
   const writeAction = result.snapshot.resolvedUi.children.find((child) =>
-    child.tag === "Action" && child.call.function === "markComponentMissing"
+    child.element === "Button" && child.call.function === "markComponentMissing"
   )
-  assert.equal(writeAction?.tag, "Action")
-  if (writeAction?.tag !== "Action") {
+  assert.equal(writeAction?.element, "Button")
+  if (writeAction?.element !== "Button") {
     assert.fail("expected resolved write action")
   }
 

@@ -19,7 +19,7 @@ export function minimalBundle(overrides: {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Text",
+        element: "Text",
         requires: ["view"],
         props: {
           text: "$view.title",

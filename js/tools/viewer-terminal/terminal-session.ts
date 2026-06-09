@@ -9,7 +9,7 @@ import {
   toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
-  ResolvedActionNode,
+  ResolvedButtonNode,
   ResolvedUiNode,
 } from "../../packages/cam-screen/dist/index.js"
 
@@ -180,9 +180,12 @@ function render(snapshot: CamViewerSnapshot): void {
     output.write("\n(no resolved UI)\n\n")
     return
   }
+  if (snapshot.state === undefined) {
+    throw new Error("viewer snapshot has resolved UI but no state")
+  }
 
-  const buttons: ResolvedActionNode[] = []
-  renderNode(snapshot.resolvedUi, buttons)
+  const buttons: ResolvedButtonNode[] = []
+  renderNode(snapshot.resolvedUi, snapshot.state, buttons)
 
   if (buttons.length > 0) {
     output.write("\nActions\n")
@@ -196,20 +199,21 @@ function render(snapshot: CamViewerSnapshot): void {
 
 function renderNode(
   node: ResolvedUiNode,
-  buttons: ResolvedActionNode[],
+  state: Record<string, unknown>,
+  buttons: ResolvedButtonNode[],
 ): void {
-  switch (node.tag) {
+  switch (node.element) {
     case "Screen":
     case "Fragment":
       for (const child of node.children) {
-        renderNode(child, buttons)
+        renderNode(child, state, buttons)
       }
       return
     case "Text":
       output.write(`\n${formatValue(node.props.text)}\n`)
       return
-    case "Input":
-      output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.value)}\n`)
+    case "TextField":
+      output.write(`${formatValue(node.props.label)}: ${formatValue(textFieldValue(node, state))}\n`)
       return
     case "Address":
       output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.address)}\n`)
@@ -220,24 +224,32 @@ function renderNode(
     case "Nft":
       output.write(`NFT: ${formatValue(node.props.contractAddress)} #${formatValue(node.props.tokenId)}\n`)
       return
-    case "Action":
+    case "Button":
       buttons.push(node)
       return
   }
 }
 
-function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedActionNode[] {
+function textFieldValue(node: ResolvedUiNode, state: Record<string, unknown>): unknown {
+  if (node.element !== "TextField" || node.state === undefined) {
+    return ""
+  }
+
+  return state[node.state.key]
+}
+
+function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonNode[] {
   if (snapshot.resolvedUi === undefined) {
     throw new Error("viewer has no resolved UI")
   }
 
-  const buttons: ResolvedActionNode[] = []
+  const buttons: ResolvedButtonNode[] = []
   collectButtons(snapshot.resolvedUi, buttons)
   return buttons
 }
 
-function collectButtons(node: ResolvedUiNode, buttons: ResolvedActionNode[]): void {
-  if (node.tag === "Action") {
+function collectButtons(node: ResolvedUiNode, buttons: ResolvedButtonNode[]): void {
+  if (node.element === "Button") {
     buttons.push(node)
     return
   }
@@ -247,7 +259,7 @@ function collectButtons(node: ResolvedUiNode, buttons: ResolvedActionNode[]): vo
   }
 }
 
-function labelForAction(action: ResolvedActionNode): string {
+function labelForAction(action: ResolvedButtonNode): string {
   const label = action.props.label
   return typeof label === "string" ? label : formatValue(action.props)
 }

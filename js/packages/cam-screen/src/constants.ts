@@ -6,7 +6,7 @@ import {
   UI_PROP_SCHEMAS,
   UI_RUNTIME_ROOTS,
   UI_VERSION,
-  type UiPropTag,
+  type UiPropElement,
 } from "@cam/protocol"
 
 export {
@@ -19,4 +19,4 @@ export {
   UI_VERSION,
 }
 
-export type { UiPropTag }
+export type { UiPropElement }

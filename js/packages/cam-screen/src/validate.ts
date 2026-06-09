@@ -18,14 +18,16 @@ import type { InertRecord, InertValue } from "@cam/protocol"
 import type { UiCall, UiDocument, UiNode } from "./types.ts"
 
 const UI_TOP_LEVEL_KEYS = new Set(["ui", "nodes"])
-const NAMED_NODE_KEYS = new Set(["requires", "tag", "props", "children", "call"])
-const INLINE_NODE_KEYS = new Set(["tag", "props", "children", "call"])
+const NAMED_NODE_KEYS = new Set(["requires", "element", "props", "state", "children", "call"])
+const INLINE_NODE_KEYS = new Set(["element", "props", "state", "children", "call"])
 const CALL_KEYS = new Set(["namespace", "function", "args"])
-const SCREEN_NODE_KEYS = new Set(["tag", "props", "children"])
-const FRAGMENT_KEYS = new Set(["tag", "children"])
-const PROPS_ONLY_KEYS = new Set(["tag", "props"])
-const INCLUDE_KEYS = new Set(["tag", "call"])
-const ACTION_KEYS = new Set(["tag", "props", "call"])
+const STATE_KEYS = new Set(["key", "defaultValue"])
+const SCREEN_NODE_KEYS = new Set(["element", "props", "children"])
+const FRAGMENT_KEYS = new Set(["element", "children"])
+const PROPS_ONLY_KEYS = new Set(["element", "props"])
+const TEXT_FIELD_KEYS = new Set(["element", "props", "state"])
+const INCLUDE_KEYS = new Set(["element", "call"])
+const BUTTON_KEYS = new Set(["element", "props", "call"])
 
 export function parseUi(input: unknown): UiDocument {
   const source = requiredRecord(input, "")
@@ -78,67 +80,68 @@ function parseInlineNode(input: unknown, path: string): UiNode {
 }
 
 function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
-  const tag = requiredNonEmptyString(source.tag, `${path}.tag`)
+  const element = requiredNonEmptyString(source.element, `${path}.element`)
 
-  switch (tag) {
+  switch (element) {
     case "Screen":
       rejectUnexpectedNodeShape(source, SCREEN_NODE_KEYS, path)
       return {
-        tag,
+        element,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Screen),
         children: parseChildren(source.children, `${path}.children`),
       }
     case "Fragment":
       rejectUnexpectedNodeShape(source, FRAGMENT_KEYS, path)
       return {
-        tag,
+        element,
         children: parseChildren(source.children, `${path}.children`),
       }
     case "Text":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
-        tag,
+        element,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Text),
       }
-    case "Input":
-      rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
+    case "TextField":
+      rejectUnexpectedNodeShape(source, TEXT_FIELD_KEYS, path)
       return {
-        tag,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Input),
+        element,
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.TextField),
+        state: parseStateBinding(source.state, `${path}.state`),
       }
     case "Address":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
-        tag,
+        element,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Address),
       }
     case "Status":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
-        tag,
+        element,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Status),
       }
     case "Nft":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
-        tag,
+        element,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Nft),
       }
     case "Include":
       rejectUnexpectedNodeShape(source, INCLUDE_KEYS, path)
       return {
-        tag,
+        element,
         call: parseCall(source.call, `${path}.call`, CAM_UI_NAMESPACE),
       }
-    case "Action":
-      rejectUnexpectedNodeShape(source, ACTION_KEYS, path)
+    case "Button":
+      rejectUnexpectedNodeShape(source, BUTTON_KEYS, path)
       return {
-        tag,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Action),
+        element,
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Button),
         call: parseCall(source.call, `${path}.call`, CAM_ROUTES_NAMESPACE),
       }
     default:
-      throw new UiError("UI_INVALID_FIELD", `unknown UI node tag: ${tag}`, `${path}.tag`)
+      throw new UiError("UI_INVALID_FIELD", `unknown UI node element: ${element}`, `${path}.element`)
   }
 }
 
@@ -198,6 +201,26 @@ function parseProps(value: unknown, path: string, schema: {
   return parseInertRecord(source, path)
 }
 
+function parseStateBinding(value: unknown, path: string): {
+  readonly key: InertValue
+  readonly defaultValue: InertValue
+} {
+  const source = requiredRecord(value, path)
+  rejectUnknownUiFields(source, STATE_KEYS, path)
+
+  if (!Object.hasOwn(source, "key")) {
+    throw new UiError("UI_INVALID_FIELD", "missing required UI state field: key", path)
+  }
+  if (!Object.hasOwn(source, "defaultValue")) {
+    throw new UiError("UI_INVALID_FIELD", "missing required UI state field: defaultValue", path)
+  }
+
+  return {
+    key: parseExpressionPayload(source.key, `${path}.key`),
+    defaultValue: parseExpressionPayload(source.defaultValue, `${path}.defaultValue`),
+  }
+}
+
 function parseCall(value: unknown, path: string, expectedNamespace: string): UiCall {
   const source = requiredRecord(value, path)
   rejectUnknownUiFields(source, CALL_KEYS, path)
@@ -232,7 +255,7 @@ function parseCallFunction(value: unknown, path: string, expectedNamespace: stri
     "UI_INVALID_FIELD",
     expectedNamespace === CAM_UI_NAMESPACE
       ? "Include function must be a string or string array"
-      : "Action function must be a string",
+      : "Button function must be a string",
     path,
   )
 }

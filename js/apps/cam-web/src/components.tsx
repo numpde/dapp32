@@ -2,7 +2,7 @@ import type { ReactElement } from "react"
 
 import type { InertValue } from "@cam/protocol"
 import type {
-  ResolvedActionNode,
+  ResolvedButtonNode,
   ResolvedUiNode,
 } from "@cam/screen"
 import type {
@@ -53,7 +53,7 @@ export function UiView({
   onInput,
 }: {
   readonly snapshot: CamViewerLoadedSnapshot
-  readonly onAction: (action: ResolvedActionNode) => Promise<void>
+  readonly onAction: (action: ResolvedButtonNode) => Promise<void>
   readonly onInput: (name: string, value: string) => void
 }): ReactElement {
   return (
@@ -63,7 +63,7 @@ export function UiView({
         <span>{snapshot.uiURI}</span>
       </div>
       <div className="elements">
-        <UiNodeView node={snapshot.resolvedUi} onAction={onAction} onInput={onInput} />
+        <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} onAction={onAction} onInput={onInput} />
       </div>
     </section>
   )
@@ -104,32 +104,34 @@ export function PreparedCallView({
 
 function UiNodeView({
   node,
+  state,
   onAction,
   onInput,
 }: {
   readonly node: ResolvedUiNode
-  readonly onAction: (action: ResolvedActionNode) => Promise<void>
+  readonly state: Record<string, InertValue>
+  readonly onAction: (action: ResolvedButtonNode) => Promise<void>
   readonly onInput: (name: string, value: string) => void
 }): ReactElement {
-  switch (node.tag) {
+  switch (node.element) {
     case "Screen":
     case "Fragment":
       return (
         <>
           {node.children.map((child, index) => (
-            <UiNodeView key={index} node={child} onAction={onAction} onInput={onInput} />
+            <UiNodeView key={index} node={child} state={state} onAction={onAction} onInput={onInput} />
           ))}
         </>
       )
     case "Text":
       return <p className="text-row">{stringProp(node.props, "text")}</p>
-    case "Input": {
-      const name = stringProp(node.props, "name")
+    case "TextField": {
+      const name = stateKey(node)
       return (
         <label className="field">
           <span>{stringProp(node.props, "label")}</span>
           <input
-            value={stringProp(node.props, "value")}
+            value={stateString(state, name)}
             onChange={(event) => onInput(name, event.currentTarget.value)}
           />
         </label>
@@ -146,7 +148,7 @@ function UiNodeView({
           <KeyValue label="Token ID" value={formatInertValue(node.props.tokenId)} mono={false} />
         </div>
       )
-    case "Action":
+    case "Button":
       return (
         <button
           className="action-button"
@@ -164,7 +166,24 @@ function UiNodeView({
 }
 
 function unreachableUiNode(_node: never): never {
-  throw new Error("unsupported resolved UI node tag")
+  throw new Error("unsupported resolved UI node element")
+}
+
+function stateKey(node: ResolvedUiNode): string {
+  if (node.element !== "TextField" || node.state === undefined) {
+    throw new Error("resolved TextField node has no state key")
+  }
+
+  return node.state.key
+}
+
+function stateString(state: Record<string, InertValue>, name: string): string {
+  const value = state[name]
+  if (typeof value !== "string") {
+    throw new Error(`viewer state field must be a string: ${name}`)
+  }
+
+  return value
 }
 
 function stringProp(props: Record<string, InertValue>, name: string): string {

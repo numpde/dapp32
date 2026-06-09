@@ -93,5 +93,5 @@ export {
   UI_RUNTIME_ROOTS,
 } from "./ui.ts"
 export type {
-  UiPropTag,
+  UiPropElement,
 } from "./ui.ts"

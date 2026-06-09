@@ -84,10 +84,10 @@ function collectUiNodeDataflow(
   issues: CamConformanceIssue[],
 ): void {
   validateInputName(resource, value, path, issues)
-  if (value.tag === "Include") {
+  if (value.element === "Include") {
     collectCall(value, path, "ui", calls)
   }
-  if (value.tag === "Action") {
+  if (value.element === "Button") {
     collectCall(value, path, "routes", calls)
   }
 }
@@ -98,17 +98,17 @@ function validateInputName(
   path: string,
   issues: CamConformanceIssue[],
 ): void {
-  if (value.tag !== "Input" || !isRecordObject(value.props)) return
+  if (value.element !== "TextField" || !isRecordObject(value.state)) return
 
-  const name = staticString(value.props.name)
+  const name = staticString(value.state.key)
   if (name === undefined) return
   if (name.length === 0) {
-    issues.push(dataflowIssue(resource, `${path}.props.name`, "Input name must not be empty"))
+    issues.push(dataflowIssue(resource, `${path}.state.key`, "TextField state key must not be empty"))
     return
   }
   if (isExpressionIdentifier(name)) return
 
-  issues.push(dataflowIssue(resource, `${path}.props.name`, `Input name must be an expression identifier: ${name}`))
+  issues.push(dataflowIssue(resource, `${path}.state.key`, `TextField state key must be an expression identifier: ${name}`))
 }
 
 function collectCall(
@@ -162,7 +162,7 @@ function validateUiCallFunctionShape(resource: string, call: UiCall, issues: Cam
     `${call.path}.call.function`,
     call.namespace === "ui"
       ? "UI Include target must be a string or string array"
-      : "UI Action route target must be a string",
+      : "UI Button route target must be a string",
   ))
   return false
 }
@@ -207,9 +207,9 @@ function validateActionRouteTarget(
 ): void {
   const functionNames = staticStringList(action.function)
   if (functionNames === undefined) return
-  if (!validateStaticCallTargets(resource, `${action.path}.call.function`, "UI Action route", functionNames, issues)) return
+  if (!validateStaticCallTargets(resource, `${action.path}.call.function`, "UI Button route", functionNames, issues)) return
   if (functionNames.length !== 1) {
-    issues.push(dataflowIssue(resource, `${action.path}.call.function`, "UI Action route must select exactly one route"))
+    issues.push(dataflowIssue(resource, `${action.path}.call.function`, "UI Button route must select exactly one route"))
     return
   }
 

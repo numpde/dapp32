@@ -9,60 +9,61 @@ export type UiNode =
   | ScreenNode
   | FragmentNode
   | TextNode
-  | InputNode
+  | TextFieldNode
   | AddressNode
   | StatusNode
   | NftNode
   | IncludeNode
-  | ActionNode
+  | ButtonNode
 
 export type UiNodeBase = {
   readonly requires?: readonly string[]
 }
 
 export type ScreenNode = UiNodeBase & {
-  readonly tag: "Screen"
+  readonly element: "Screen"
   readonly props: InertRecord
   readonly children: readonly UiNode[]
 }
 
 export type FragmentNode = UiNodeBase & {
-  readonly tag: "Fragment"
+  readonly element: "Fragment"
   readonly children: readonly UiNode[]
 }
 
 export type TextNode = UiNodeBase & {
-  readonly tag: "Text"
+  readonly element: "Text"
   readonly props: InertRecord
 }
 
-export type InputNode = UiNodeBase & {
-  readonly tag: "Input"
+export type TextFieldNode = UiNodeBase & {
+  readonly element: "TextField"
   readonly props: InertRecord
+  readonly state: UiStateBinding
 }
 
 export type AddressNode = UiNodeBase & {
-  readonly tag: "Address"
+  readonly element: "Address"
   readonly props: InertRecord
 }
 
 export type StatusNode = UiNodeBase & {
-  readonly tag: "Status"
+  readonly element: "Status"
   readonly props: InertRecord
 }
 
 export type NftNode = UiNodeBase & {
-  readonly tag: "Nft"
+  readonly element: "Nft"
   readonly props: InertRecord
 }
 
 export type IncludeNode = UiNodeBase & {
-  readonly tag: "Include"
+  readonly element: "Include"
   readonly call: UiCall
 }
 
-export type ActionNode = UiNodeBase & {
-  readonly tag: "Action"
+export type ButtonNode = UiNodeBase & {
+  readonly element: "Button"
   readonly props: InertRecord
   readonly call: UiCall
 }
@@ -73,6 +74,11 @@ export type UiCall = {
   readonly args: InertRecord
 }
 
+export type UiStateBinding = {
+  readonly key: InertValue
+  readonly defaultValue: InertValue
+}
+
 export type UiRuntimeContext = CamRuntimeContext & {
   readonly state: InertRecord
   readonly [key: string]: InertValue | undefined
@@ -80,16 +86,22 @@ export type UiRuntimeContext = CamRuntimeContext & {
 
 export type ResolvedUiNode =
   | ResolvedElementNode
-  | ResolvedActionNode
+  | ResolvedButtonNode
 
 export type ResolvedElementNode = {
-  readonly tag: Exclude<UiNode["tag"], "Include" | "Action">
+  readonly element: Exclude<UiNode["element"], "Include" | "Button">
   readonly props: InertRecord
+  readonly state?: ResolvedUiStateBinding
   readonly children: readonly ResolvedUiNode[]
 }
 
-export type ResolvedActionNode = {
-  readonly tag: "Action"
+export type ResolvedUiStateBinding = {
+  readonly key: string
+  readonly defaultValue?: string
+}
+
+export type ResolvedButtonNode = {
+  readonly element: "Button"
   readonly props: InertRecord
   readonly call: ResolvedUiCall
 }

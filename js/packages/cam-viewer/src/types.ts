@@ -6,7 +6,7 @@ import type {
   ResourceLoader,
 } from "@cam/evm-viem"
 import type {
-  ResolvedActionNode,
+  ResolvedButtonNode,
   ResolvedUiCall,
   ResolvedUiNode,
 } from "@cam/screen"
@@ -53,7 +53,7 @@ export type CamViewerSession = {
   ) => Promise<CamViewerLoadedSnapshot>
   readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerLoadedSnapshot>
   readonly updateState: (patch: InertRecord) => CamViewerLoadedSnapshot
-  readonly dispatchAction: (action: ResolvedActionNode) => Promise<CamViewerActionResult>
+  readonly dispatchAction: (action: ResolvedButtonNode) => Promise<CamViewerActionResult>
 }
 
 export type CamViewerActionResult =

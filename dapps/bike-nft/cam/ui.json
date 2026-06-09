@@ -2,7 +2,7 @@
   "ui": "1.0.0",
   "nodes": {
     "app": {
-      "tag": "Screen",
+      "element": "Screen",
       "requires": [
         "view"
       ],
@@ -11,7 +11,7 @@
       },
       "children": [
         {
-          "tag": "Include",
+          "element": "Include",
           "call": {
             "namespace": "ui",
             "function": "$view.viewId",
@@ -21,7 +21,7 @@
           }
         },
         {
-          "tag": "Include",
+          "element": "Include",
           "call": {
             "namespace": "ui",
             "function": "$view.actions",
@@ -36,34 +36,36 @@
       "requires": [
         "view"
       ],
-      "tag": "Fragment",
+      "element": "Fragment",
       "children": [
         {
-          "tag": "Text",
+          "element": "Text",
           "props": {
             "text": "Look up a component by the serial number stamped on the bicycle."
           }
         },
         {
-          "tag": "Address",
+          "element": "Address",
           "props": {
             "label": "Connected account",
             "address": "$view.account"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Can register components",
             "value": "$view.canRegister"
           }
         },
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "serialNumber",
-            "label": "Serial number",
-            "value": "$view.serialNumber"
+            "label": "Serial number"
+          },
+          "state": {
+            "key": "serialNumber",
+            "defaultValue": "$view.serialNumber"
           }
         }
       ]
@@ -72,20 +74,22 @@
       "requires": [
         "view"
       ],
-      "tag": "Fragment",
+      "element": "Fragment",
       "children": [
         {
-          "tag": "Text",
+          "element": "Text",
           "props": {
             "text": "Enter a bicycle component serial number."
           }
         },
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "serialNumber",
-            "label": "Serial number",
-            "value": "$view.serialNumber"
+            "label": "Serial number"
+          },
+          "state": {
+            "key": "serialNumber",
+            "defaultValue": "$view.serialNumber"
           }
         }
       ]
@@ -94,18 +98,20 @@
       "requires": [
         "view"
       ],
-      "tag": "Fragment",
+      "element": "Fragment",
       "children": [
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "serialNumber",
-            "label": "Serial number",
-            "value": "$view.serialNumber"
+            "label": "Serial number"
+          },
+          "state": {
+            "key": "serialNumber",
+            "defaultValue": "$view.serialNumber"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Registered",
             "value": false
@@ -117,61 +123,65 @@
       "requires": [
         "view"
       ],
-      "tag": "Fragment",
+      "element": "Fragment",
       "children": [
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "serialNumber",
-            "label": "Serial number",
-            "value": "$view.serialNumber"
+            "label": "Serial number"
+          },
+          "state": {
+            "key": "serialNumber",
+            "defaultValue": "$view.serialNumber"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Status",
             "value": "$view.status"
           }
         },
         {
-          "tag": "Address",
+          "element": "Address",
           "props": {
             "label": "Owner",
             "address": "$view.owner"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Owner info",
             "value": "$view.ownerInfo"
           }
         },
         {
-          "tag": "Nft",
+          "element": "Nft",
           "props": {
             "contractAddress": "$view.tokenContract",
             "tokenId": "$view.tokenId"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Token URI",
             "value": "$view.tokenURI"
           }
         },
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "tokenURI",
-            "label": "New token URI",
-            "value": "$view.tokenURI"
+            "label": "New token URI"
+          },
+          "state": {
+            "key": "tokenURI",
+            "defaultValue": "$view.tokenURI"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Serial hash",
             "value": "$view.serialHash"
@@ -183,28 +193,32 @@
       "requires": [
         "view"
       ],
-      "tag": "Fragment",
+      "element": "Fragment",
       "children": [
         {
-          "tag": "Text",
+          "element": "Text",
           "props": {
             "text": "Enter a serial number before preparing registration."
           }
         },
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "serialNumber",
-            "label": "Serial number",
-            "value": "$view.serialNumber"
+            "label": "Serial number"
+          },
+          "state": {
+            "key": "serialNumber",
+            "defaultValue": "$view.serialNumber"
           }
         },
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "tokenURI",
-            "label": "Token URI",
-            "value": "$view.tokenURI"
+            "label": "Token URI"
+          },
+          "state": {
+            "key": "tokenURI",
+            "defaultValue": "$view.tokenURI"
           }
         }
       ]
@@ -213,33 +227,37 @@
       "requires": [
         "view"
       ],
-      "tag": "Fragment",
+      "element": "Fragment",
       "children": [
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "serialNumber",
-            "label": "Serial number",
-            "value": "$view.serialNumber"
+            "label": "Serial number"
+          },
+          "state": {
+            "key": "serialNumber",
+            "defaultValue": "$view.serialNumber"
           }
         },
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "tokenURI",
-            "label": "Token URI",
-            "value": "$view.tokenURI"
+            "label": "Token URI"
+          },
+          "state": {
+            "key": "tokenURI",
+            "defaultValue": "$view.tokenURI"
           }
         },
         {
-          "tag": "Address",
+          "element": "Address",
           "props": {
             "label": "Component contract",
             "address": "$view.componentsAddress"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Account info",
             "value": "$view.accountInfo"
@@ -251,32 +269,34 @@
       "requires": [
         "view"
       ],
-      "tag": "Fragment",
+      "element": "Fragment",
       "children": [
         {
-          "tag": "Input",
+          "element": "TextField",
           "props": {
-            "name": "serialNumber",
-            "label": "Serial number",
-            "value": "$view.serialNumber"
+            "label": "Serial number"
+          },
+          "state": {
+            "key": "serialNumber",
+            "defaultValue": "$view.serialNumber"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Connected account can register",
             "value": "$view.canRegister"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Component already exists",
             "value": "$view.exists"
           }
         },
         {
-          "tag": "Status",
+          "element": "Status",
           "props": {
             "label": "Account info",
             "value": "$view.accountInfo"
@@ -288,7 +308,7 @@
       "requires": [
         "view"
       ],
-      "tag": "Action",
+      "element": "Button",
       "props": {
         "label": "Look up component"
       },
@@ -304,7 +324,7 @@
       "requires": [
         "view"
       ],
-      "tag": "Action",
+      "element": "Button",
       "props": {
         "label": "Register component"
       },
@@ -320,7 +340,7 @@
       "requires": [
         "view"
       ],
-      "tag": "Action",
+      "element": "Button",
       "props": {
         "label": "Prepare registration"
       },
@@ -337,7 +357,7 @@
       "requires": [
         "view"
       ],
-      "tag": "Action",
+      "element": "Button",
       "props": {
         "label": "Prepare metadata update"
       },
@@ -354,7 +374,7 @@
       "requires": [
         "view"
       ],
-      "tag": "Action",
+      "element": "Button",
       "props": {
         "label": "Prepare missing report"
       },
@@ -370,7 +390,7 @@
       "requires": [
         "view"
       ],
-      "tag": "Action",
+      "element": "Button",
       "props": {
         "label": "Prepare missing clear"
       },
@@ -386,7 +406,7 @@
       "requires": [
         "view"
       ],
-      "tag": "Action",
+      "element": "Button",
       "props": {
         "label": "Prepare retirement"
       },

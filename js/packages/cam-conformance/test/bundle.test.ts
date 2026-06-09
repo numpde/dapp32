@@ -27,7 +27,7 @@ const encoder = new TextEncoder()
 
 function viewTextNode() {
   return {
-    tag: "Text",
+    element: "Text",
     requires: ["view"],
     props: {
       text: "$view.title",
@@ -96,7 +96,7 @@ test("empty UI node names are reported as node inventory issues", () => {
     ui: "1.0.0",
     nodes: {
       "": {
-        tag: "Text",
+        element: "Text",
         requires: ["view"],
         props: {
           text: "$view.title",
@@ -1361,7 +1361,7 @@ test("UI node interfaces must use supported argument names", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Text",
+        element: "Text",
         requires: ["foo"],
         props: {
           text: "$view.title",
@@ -1386,17 +1386,17 @@ test("UI expressions must use protocol-owned roots", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Text",
+            element: "Text",
             props: {
               text: "$$literal",
             },
           },
           {
-            tag: "Action",
+            element: "Button",
             props: {
               label: "Open",
             },
@@ -1409,7 +1409,7 @@ test("UI expressions must use protocol-owned roots", () => {
             },
           },
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "detail",
@@ -1421,7 +1421,7 @@ test("UI expressions must use protocol-owned roots", () => {
         ],
       },
       detail: {
-        tag: "Text",
+        element: "Text",
         requires: ["view"],
         props: {
           text: "$view.title",
@@ -1459,16 +1459,16 @@ test("UI expressions must use protocol-owned roots", () => {
   ])
 })
 
-test("UI actions must pass exactly the target route inputs", () => {
+test("UI Buttons must pass exactly the target route inputs", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Action",
+            element: "Button",
             props: {
               label: "Open",
             },
@@ -1514,12 +1514,12 @@ test("UI actions must pass exactly the target route inputs", () => {
   ])
 })
 
-test("UI action route existence is checked by typeflow for static targets", () => {
+test("UI Button route existence is checked by typeflow for static targets", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Open",
@@ -1543,7 +1543,7 @@ test("UI action route existence is checked by typeflow for static targets", () =
   ])
 })
 
-test("UI action literal args are ABI-checked through the target route", () => {
+test("UI Button literal args are ABI-checked through the target route", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -1569,11 +1569,11 @@ test("UI action literal args are ABI-checked through the target route", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Action",
+            element: "Button",
             props: {
               label: "Save",
             },
@@ -1617,7 +1617,7 @@ test("UI action literal args are ABI-checked through the target route", () => {
   ])
 })
 
-test("UI action literal args are ABI-checked through nested route call values", () => {
+test("UI Button literal args are ABI-checked through nested route call values", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -1653,7 +1653,7 @@ test("UI action literal args are ABI-checked through nested route call values", 
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Save",
@@ -1700,7 +1700,7 @@ test("UI action literal args are ABI-checked through nested route call values", 
   ])
 })
 
-test("UI action ABI aggregate mismatches point at the action argument", () => {
+test("UI Button ABI aggregate mismatches point at the action argument", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -1732,7 +1732,7 @@ test("UI action ABI aggregate mismatches point at the action argument", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Save",
@@ -1775,7 +1775,7 @@ test("UI action ABI aggregate mismatches point at the action argument", () => {
   ])
 })
 
-test("UI action ABI checks preserve known fields in direct aggregate args", () => {
+test("UI Button ABI checks preserve known fields in direct aggregate args", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -1811,7 +1811,7 @@ test("UI action ABI checks preserve known fields in direct aggregate args", () =
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Save",
@@ -1857,7 +1857,7 @@ test("UI action ABI checks preserve known fields in direct aggregate args", () =
   ])
 })
 
-test("UI action ABI checks escaped dollar literals as literal strings", () => {
+test("UI Button ABI checks escaped dollar literals as literal strings", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -1883,7 +1883,7 @@ test("UI action ABI checks escaped dollar literals as literal strings", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Save",
@@ -1926,7 +1926,7 @@ test("UI action ABI checks escaped dollar literals as literal strings", () => {
   ])
 })
 
-test("UI action ABI checks preserve literal values passed through Includes", () => {
+test("UI Button ABI checks preserve literal values passed through Includes", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -1962,7 +1962,7 @@ test("UI action ABI checks preserve literal values passed through Includes", () 
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Include",
+        element: "Include",
         requires: ["view"],
         call: {
           namespace: "ui",
@@ -1978,7 +1978,7 @@ test("UI action ABI checks preserve literal values passed through Includes", () 
         },
       },
       writer: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Save",
@@ -2021,16 +2021,16 @@ test("UI action ABI checks preserve literal values passed through Includes", () 
   ])
 })
 
-test("UI action escaped call targets are checked as literal route names", () => {
+test("UI Button escaped call targets are checked as literal route names", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Action",
+            element: "Button",
             props: {
               label: "Open",
             },
@@ -2056,16 +2056,16 @@ test("UI action escaped call targets are checked as literal route names", () => 
   ])
 })
 
-test("UI action route targets must be single strings, not arrays", () => {
+test("UI Button route targets must be single strings, not arrays", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Action",
+            element: "Button",
             props: {
               label: "Open",
             },
@@ -2092,24 +2092,26 @@ test("UI action route targets must be single strings, not arrays", () => {
   ])
 })
 
-test("UI action state references must be backed by Input names", () => {
+test("UI Button state references must be backed by TextField state keys", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Input",
+            element: "TextField",
             props: {
-              name: "serialNumber",
               label: "Serial number",
-              value: "",
+            },
+            state: {
+              key: "serialNumber",
+              defaultValue: "",
             },
           },
           {
-            tag: "Action",
+            element: "Button",
             props: {
               label: "Open",
             },
@@ -2154,33 +2156,37 @@ test("UI action state references must be backed by Input names", () => {
   ])
 })
 
-test("UI literal Input names must be state expression identifiers", () => {
+test("UI literal TextField state keys must be state expression identifiers", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Text",
+        element: "Text",
         requires: ["view"],
         props: {
           text: "valid app node",
         },
       },
       empty: {
-        tag: "Input",
+        element: "TextField",
         requires: [],
         props: {
-          name: "",
           label: "Empty",
-          value: "",
+        },
+        state: {
+          key: "",
+          defaultValue: "",
         },
       },
       invalid: {
-        tag: "Input",
+        element: "TextField",
         requires: ["view"],
         props: {
-          name: "serial-number",
           label: "Serial number",
-          value: "",
+        },
+        state: {
+          key: "serial-number",
+          defaultValue: "",
         },
       },
     },
@@ -2192,21 +2198,21 @@ test("UI literal Input names must be state expression identifiers", () => {
   })
 
   assert.deepEqual(issueLocations(issues), [
-    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.empty.props.name"],
-    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.invalid.props.name"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.empty.state.key"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.invalid.state.key"],
   ])
 })
 
-test("UI action state references must be backed by route-local rendered inputs", () => {
+test("UI Button state references must be backed by route-local rendered inputs", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "edit",
@@ -2218,7 +2224,7 @@ test("UI action state references must be backed by route-local rendered inputs",
         ],
       },
       edit: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Open",
@@ -2232,12 +2238,14 @@ test("UI action state references must be backed by route-local rendered inputs",
         },
       },
       details: {
-        tag: "Input",
+        element: "TextField",
         requires: ["view"],
         props: {
-          name: "serialNumber",
           label: "Serial number",
-          value: "",
+        },
+        state: {
+          key: "serialNumber",
+          defaultValue: "",
         },
       },
       done: viewTextNode(),
@@ -2271,24 +2279,26 @@ test("UI action state references must be backed by route-local rendered inputs",
   ])
 })
 
-test("UI action state references may use inputs from the route root tree", () => {
+test("UI Button state references may use inputs from the route root tree", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Input",
+            element: "TextField",
             props: {
-              name: "serialNumber",
               label: "Serial number",
-              value: "",
+            },
+            state: {
+              key: "serialNumber",
+              defaultValue: "",
             },
           },
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "actions",
@@ -2300,7 +2310,7 @@ test("UI action state references may use inputs from the route root tree", () =>
         ],
       },
       actions: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Open",
@@ -2341,28 +2351,32 @@ test("UI action state references may use inputs from the route root tree", () =>
   assert.deepEqual(issues, [])
 })
 
-test("UI typeflow rejects duplicate rendered Input names", () => {
+test("UI typeflow rejects duplicate rendered TextField state keys", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Input",
+            element: "TextField",
             props: {
-              name: "serialNumber",
               label: "Serial number",
-              value: "",
+            },
+            state: {
+              key: "serialNumber",
+              defaultValue: "",
             },
           },
           {
-            tag: "Input",
+            element: "TextField",
             props: {
-              name: "serialNumber",
               label: "Duplicate serial number",
-              value: "",
+            },
+            state: {
+              key: "serialNumber",
+              defaultValue: "",
             },
           },
         ],
@@ -2377,28 +2391,30 @@ test("UI typeflow rejects duplicate rendered Input names", () => {
   })
 
   assert.deepEqual(issueLocations(issues), [
-    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.props.name"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.state.key"],
   ])
 })
 
-test("UI typeflow resolves known dynamic Input names", () => {
+test("UI typeflow resolves known dynamic TextField state keys", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Input",
+            element: "TextField",
             props: {
-              name: "$view.inputName",
               label: "Serial number",
-              value: "",
+            },
+            state: {
+              key: "$view.inputName",
+              defaultValue: "",
             },
           },
           {
-            tag: "Action",
+            element: "Button",
             props: {
               label: "Open",
             },
@@ -2453,17 +2469,19 @@ test("UI typeflow resolves known dynamic Input names", () => {
   assert.deepEqual(issues, [])
 })
 
-test("UI typeflow rejects known dynamic invalid Input names", () => {
+test("UI typeflow rejects known dynamic invalid TextField state keys", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Input",
+        element: "TextField",
         requires: ["view"],
         props: {
-          name: "$view.inputName",
           label: "Serial number",
-          value: "",
+        },
+        state: {
+          key: "$view.inputName",
+          defaultValue: "",
         },
       },
     },
@@ -2488,7 +2506,7 @@ test("UI typeflow rejects known dynamic invalid Input names", () => {
   })
 
   assert.deepEqual(issueLocations(issues), [
-    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.props.name"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.state.key"],
   ])
 })
 
@@ -2497,7 +2515,7 @@ test("UI typeflow keeps route-specific diagnostics distinct", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Open",
@@ -2551,8 +2569,8 @@ test("UI typeflow keeps route-specific diagnostics distinct", () => {
     ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.args.serialNumber"],
   ])
   assert.deepEqual(issues.map((issue) => issue.message), [
-    "route entry: UI action references state without a matching route-local Input name: serialNumber",
-    "route component: UI action references state without a matching route-local Input name: serialNumber",
+    "route entry: UI Button references state without a matching route-local TextField state key: serialNumber",
+    "route component: UI Button references state without a matching route-local TextField state key: serialNumber",
   ])
 })
 
@@ -2561,11 +2579,11 @@ test("UI call arg names must not be empty", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Action",
+            element: "Button",
             props: {
               label: "Open",
             },
@@ -2578,7 +2596,7 @@ test("UI call arg names must not be empty", () => {
             },
           },
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "detail",
@@ -2590,7 +2608,7 @@ test("UI call arg names must not be empty", () => {
         ],
       },
       detail: {
-        tag: "Text",
+        element: "Text",
         requires: ["view"],
         props: {
           text: "$view.title",
@@ -2616,11 +2634,11 @@ test("UI Includes with literal targets must pass exactly the target node args", 
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "detail",
@@ -2632,7 +2650,7 @@ test("UI Includes with literal targets must pass exactly the target node args", 
         ],
       },
       detail: {
-        tag: "Text",
+        element: "Text",
         requires: ["view"],
         props: {
           text: "$view.title",
@@ -2657,11 +2675,11 @@ test("UI Include escaped call targets are checked as literal node names", () => 
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "$$missing",
@@ -2688,11 +2706,11 @@ test("UI static call targets must not be empty or duplicated", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: ["detail", "detail"],
@@ -2702,7 +2720,7 @@ test("UI static call targets must not be empty or duplicated", () => {
             },
           },
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "",
@@ -2712,7 +2730,7 @@ test("UI static call targets must not be empty or duplicated", () => {
         ],
       },
       detail: {
-        tag: "Text",
+        element: "Text",
         requires: ["view"],
         props: {
           text: "$view.title",
@@ -2737,11 +2755,11 @@ test("UI Includes must not shadow runtime roots even when the target is dynamic"
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "$view.title",
@@ -2790,18 +2808,18 @@ test("UI props reject statically incompatible ABI-backed route outputs", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Address",
+            element: "Address",
             props: {
               label: "Owner",
               address: "$view.owner",
             },
           },
           {
-            tag: "Text",
+            element: "Text",
             props: {
               text: "$view.missingTitle",
             },
@@ -2827,7 +2845,7 @@ test("UI props reject statically incompatible literal route handoff args", () =>
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Address",
+        element: "Address",
         requires: ["view"],
         props: {
           label: "Owner",
@@ -2865,11 +2883,11 @@ test("UI props reject statically incompatible literal Include args", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "ownerPanel",
@@ -2883,7 +2901,7 @@ test("UI props reject statically incompatible literal Include args", () => {
         ],
       },
       ownerPanel: {
-        tag: "Address",
+        element: "Address",
         requires: ["view"],
         props: {
           label: "Owner",
@@ -2908,7 +2926,7 @@ test("UI Includes reject deterministically invalid literal route handoff selecto
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Include",
+        element: "Include",
         requires: ["view"],
         call: {
           namespace: "ui",
@@ -2917,7 +2935,7 @@ test("UI Includes reject deterministically invalid literal route handoff selecto
         },
       },
       item: {
-        tag: "Text",
+        element: "Text",
         requires: [],
         props: {
           text: "Item",
@@ -2954,7 +2972,7 @@ test("UI Includes reject deterministically invalid literal Include arg selectors
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Include",
+        element: "Include",
         requires: [],
         call: {
           namespace: "ui",
@@ -2967,7 +2985,7 @@ test("UI Includes reject deterministically invalid literal Include arg selectors
         },
       },
       panel: {
-        tag: "Include",
+        element: "Include",
         requires: ["view"],
         call: {
           namespace: "ui",
@@ -3002,7 +3020,7 @@ test("UI typeflow rejects deterministic Include cycles", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Include",
+        element: "Include",
         requires: ["view"],
         call: {
           namespace: "ui",
@@ -3030,11 +3048,11 @@ test("UI Includes validate resolved selector targets and args", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "$view.missing",
@@ -3042,7 +3060,7 @@ test("UI Includes validate resolved selector targets and args", () => {
             },
           },
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "$view.detail",
@@ -3052,7 +3070,7 @@ test("UI Includes validate resolved selector targets and args", () => {
         ],
       },
       detail: {
-        tag: "Text",
+        element: "Text",
         requires: ["view"],
         props: {
           text: "$view.title",
@@ -3091,7 +3109,7 @@ test("UI typeflow walks static Include arrays", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Include",
+        element: "Include",
         requires: ["view"],
         call: {
           namespace: "ui",
@@ -3104,7 +3122,7 @@ test("UI typeflow walks static Include arrays", () => {
         },
       },
       ownerPanel: {
-        tag: "Address",
+        element: "Address",
         requires: ["view"],
         props: {
           label: "Owner",
@@ -3124,12 +3142,12 @@ test("UI typeflow walks static Include arrays", () => {
   ])
 })
 
-test("UI typeflow validates known dynamic Action routes", () => {
+test("UI typeflow validates known dynamic Button routes", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Open",
@@ -3188,7 +3206,7 @@ test("UI typeflow checks state references through resolved Include selectors", (
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Include",
+        element: "Include",
         requires: ["view"],
         call: {
           namespace: "ui",
@@ -3200,7 +3218,7 @@ test("UI typeflow checks state references through resolved Include selectors", (
       },
       done: viewTextNode(),
       edit: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Open",
@@ -3298,7 +3316,7 @@ test("UI props are checked against each route-local continuation shape", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Address",
+        element: "Address",
         requires: ["view"],
         props: {
           label: "Owner",
@@ -3364,11 +3382,11 @@ test("UI dynamic call targets reject statically incompatible ABI-backed route ou
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "$view.viewId",
@@ -3378,7 +3396,7 @@ test("UI dynamic call targets reject statically incompatible ABI-backed route ou
             },
           },
           {
-            tag: "Action",
+            element: "Button",
             props: {
               label: "Do it",
             },

@@ -41,7 +41,7 @@ import type {
   CamViewerSnapshot,
 } from "../../packages/cam-viewer/dist/index.js"
 import type {
-  ResolvedActionNode,
+  ResolvedButtonNode,
   ResolvedUiNode,
 } from "../../packages/cam-screen/dist/index.js"
 import {
@@ -549,13 +549,13 @@ function createWriteContext(options: RunnerOptions, account: Address): WriteCont
   }
 }
 
-function actionSummaries(actions: readonly ResolvedActionNode[]): readonly JsonObject[] {
+function actionSummaries(actions: readonly ResolvedButtonNode[]): readonly JsonObject[] {
   return actions.map((action) => actionSummary(action))
 }
 
-function actionSummary(action: ResolvedActionNode): JsonObject {
+function actionSummary(action: ResolvedButtonNode): JsonObject {
   return {
-    tag: action.tag,
+    element: action.element,
     props: action.props,
     call: action.call,
   }
@@ -662,20 +662,20 @@ function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoadedSnap
 function inputNames(node: ResolvedUiNode): readonly string[] {
   const names = new Set<string>()
   visitNodes(node, (candidate) => {
-    if (candidate.tag !== "Input") return
-    const name = candidate.props.name
+    if (candidate.element !== "TextField") return
+    const name = candidate.state?.key
     if (typeof name !== "string" || name.length === 0) {
-      throw new Error("resolved Input node has no non-empty name")
+      throw new Error("resolved TextField node has no non-empty state key")
     }
     names.add(name)
   })
   return [...names].sort()
 }
 
-function actionNodes(node: ResolvedUiNode): readonly ResolvedActionNode[] {
-  const actions: ResolvedActionNode[] = []
+function actionNodes(node: ResolvedUiNode): readonly ResolvedButtonNode[] {
+  const actions: ResolvedButtonNode[] = []
   visitNodes(node, (candidate) => {
-    if (candidate.tag === "Action") {
+    if (candidate.element === "Button") {
       actions.push(candidate)
     }
   })

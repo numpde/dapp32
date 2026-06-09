@@ -1,5 +1,5 @@
 export type {
-  ResolvedActionNode,
+  ResolvedButtonNode,
   ResolvedElementNode,
   ResolvedUiCall,
   ResolvedUiNode,

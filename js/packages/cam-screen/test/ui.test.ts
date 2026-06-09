@@ -30,14 +30,14 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Screen",
+        element: "Screen",
         requires: ["view"],
         props: {
           title: "Bicycle component registry",
         },
         children: [
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "$view.viewId",
@@ -47,7 +47,7 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
             },
           },
           {
-            tag: "Include",
+            element: "Include",
             call: {
               namespace: "ui",
               function: "$view.actions",
@@ -57,21 +57,23 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
         ],
       },
       entry: {
-        tag: "Fragment",
+        element: "Fragment",
         requires: ["view"],
         children: [
           {
-            tag: "Input",
+            element: "TextField",
             props: {
-              name: "serialNumber",
               label: "Serial number",
-              value: "$view.serialNumber",
+            },
+            state: {
+              key: "serialNumber",
+              defaultValue: "$view.serialNumber",
             },
           },
         ],
       },
       lookupComponent: {
-        tag: "Action",
+        element: "Button",
         requires: [],
         props: {
           label: "Look up component",
@@ -95,17 +97,16 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
     },
   }), context)
 
-  assert.equal(resolved.tag, "Screen")
+  assert.equal(resolved.element, "Screen")
   assert.equal(resolved.props.title, "Bicycle component registry")
   assert.equal(resolved.children.length, 2)
 
   const [view, action] = resolved.children
-  assert.equal(view?.tag, "Fragment")
-  assert.equal(view?.children[0]?.tag, "Input")
-  assert.equal(view?.children[0]?.props.name, "serialNumber")
-  assert.equal(view?.children[0]?.props.value, "")
+  assert.equal(view?.element, "Fragment")
+  assert.equal(view?.children[0]?.element, "TextField")
+  assert.equal(view?.children[0]?.state?.key, "serialNumber")
 
-  assert.equal(action?.tag, "Action")
+  assert.equal(action?.element, "Button")
   assert.equal(action?.props.label, "Look up component")
   assert.equal(action?.call.namespace, "routes")
   assert.equal(action?.call.function, "component")
@@ -117,7 +118,7 @@ test("resolveUiNode rejects args that shadow runtime roots", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Text",
+        element: "Text",
         requires: [],
         props: {
           text: "shadow",
@@ -137,7 +138,7 @@ test("resolveUiNode reports unresolved account as structured error details", () 
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Action",
+        element: "Button",
         requires: [],
         props: {
           label: "Use account",
@@ -167,23 +168,25 @@ test("resolveUiNode reports unresolved account as structured error details", () 
   )
 })
 
-test("resolveInitialUiNode rejects Input names that cannot be referenced from state", () => {
+test("resolveInitialUiNode rejects TextField state keys that cannot be referenced from state", () => {
   const ui = parseUi({
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Screen",
+        element: "Screen",
         requires: [],
         props: {
           title: "Invalid input",
         },
         children: [
           {
-            tag: "Input",
+            element: "TextField",
             props: {
-              name: "serial-number",
               label: "Serial number",
-              value: "",
+            },
+            state: {
+              key: "serial-number",
+              defaultValue: "",
             },
           },
         ],
@@ -193,7 +196,7 @@ test("resolveInitialUiNode rejects Input names that cannot be referenced from st
 
   assert.throws(
     () => resolveInitialUiNode(ui, "app", inertRecord({}), context),
-    /Input props.name must resolve to an expression identifier: serial-number/,
+    /TextField state.key must resolve to an expression identifier: serial-number/,
   )
 })
 
@@ -202,7 +205,7 @@ test("resolveUiNode rejects include cycles and undeclared node args", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Include",
+        element: "Include",
         requires: [],
         call: {
           namespace: "ui",
@@ -222,7 +225,7 @@ test("resolveUiNode rejects include cycles and undeclared node args", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Text",
+        element: "Text",
         requires: [],
         props: {
           text: "strict",
@@ -242,7 +245,7 @@ test("resolveUiNode rejects duplicate or empty Include selections", () => {
     ui: "1.0.0",
     nodes: {
       app: {
-        tag: "Include",
+        element: "Include",
         requires: ["view"],
         call: {
           namespace: "ui",
@@ -251,7 +254,7 @@ test("resolveUiNode rejects duplicate or empty Include selections", () => {
         },
       },
       item: {
-        tag: "Text",
+        element: "Text",
         requires: [],
         props: {
           text: "Item",
@@ -276,7 +279,7 @@ test("parseUi rejects required arguments outside the UI node interface", () => {
       ui: "1.0.0",
       nodes: {
         app: {
-          tag: "Text",
+          element: "Text",
           requires: ["foo"],
           props: {
             text: "unsupported argument",
@@ -304,7 +307,7 @@ test("parseUi rejects stale screen-era and control fields", () => {
       title: "Metadata-like top-level fields are not UI nodes",
       nodes: {
         entry: {
-          tag: "Text",
+          element: "Text",
           requires: [],
           props: {
             text: "Registered",
@@ -320,7 +323,7 @@ test("parseUi rejects stale screen-era and control fields", () => {
       ui: "1.0.0",
       nodes: {
         entry: {
-          tag: "Text",
+          element: "Text",
           requires: [],
           props: {
             text: "Registered",
@@ -339,7 +342,7 @@ test("parseUi rejects calls wired to the wrong namespace", () => {
       ui: "1.0.0",
       nodes: {
         include: {
-          tag: "Include",
+          element: "Include",
           requires: [],
           call: {
             namespace: "routes",
@@ -357,7 +360,7 @@ test("parseUi rejects calls wired to the wrong namespace", () => {
       ui: "1.0.0",
       nodes: {
         action: {
-          tag: "Action",
+          element: "Button",
           requires: [],
           props: {
             label: "Bad action",
@@ -380,7 +383,7 @@ test("parseUi rejects statically invalid call function shapes", () => {
       ui: "1.0.0",
       nodes: {
         action: {
-          tag: "Action",
+          element: "Button",
           requires: [],
           props: {
             label: "Bad action",
@@ -393,7 +396,7 @@ test("parseUi rejects statically invalid call function shapes", () => {
         },
       },
     }),
-    /Action function must be a string/,
+    /Button function must be a string/,
   )
 
   assert.throws(
@@ -401,7 +404,7 @@ test("parseUi rejects statically invalid call function shapes", () => {
       ui: "1.0.0",
       nodes: {
         include: {
-          tag: "Include",
+          element: "Include",
           requires: [],
           call: {
             namespace: "ui",
@@ -415,13 +418,13 @@ test("parseUi rejects statically invalid call function shapes", () => {
   )
 })
 
-test("parseUi and resolveUiNode reject invalid tag props", () => {
+test("parseUi and resolveUiNode reject invalid element props", () => {
   assert.throws(
     () => parseUi({
       ui: "1.0.0",
       nodes: {
         text: {
-          tag: "Text",
+          element: "Text",
           requires: [],
           props: {
             label: "not a text prop",
@@ -437,7 +440,7 @@ test("parseUi and resolveUiNode reject invalid tag props", () => {
       ui: "1.0.0",
       nodes: {
         action: {
-          tag: "Action",
+          element: "Button",
           requires: [],
           props: {
             label: false,
@@ -457,7 +460,7 @@ test("parseUi and resolveUiNode reject invalid tag props", () => {
     ui: "1.0.0",
     nodes: {
       action: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "$view.label",
@@ -486,7 +489,7 @@ test("resolveUiNode fails closed on missing required arguments and non-string ac
     ui: "1.0.0",
     nodes: {
       action: {
-        tag: "Action",
+        element: "Button",
         requires: ["view"],
         props: {
           label: "Broken",

@@ -2,7 +2,7 @@ import {
   abiScalarKind,
   isExpressionIdentifier,
   UI_PROP_SCHEMAS,
-  type UiPropTag,
+  type UiPropElement,
   isRecordObject,
 } from "@cam/protocol"
 
@@ -147,11 +147,11 @@ function walkNode(
   inputNames: ReadonlySet<string>,
   stack: readonly string[],
 ): void {
-  const tag = node.tag
-  if (typeof tag !== "string") return
+  const element = node.element
+  if (typeof element !== "string") return
 
-  validateProps(scope, tag, node, path, context)
-  validateCall(scope, tag, node, path, context, inputNames, stack)
+  validateProps(scope, element, node, path, context)
+  validateCall(scope, element, node, path, context, inputNames, stack)
 
   if (!Array.isArray(node.children)) return
   node.children.forEach((child, index) => {
@@ -163,24 +163,24 @@ function walkNode(
 
 function validateProps(
   scope: Scope,
-  tag: string,
+  element: string,
   node: Record<string, unknown>,
   path: string,
   context: AbiContext,
 ): void {
-  if (!isUiPropTag(tag) || !isRecordObject(node.props)) return
+  if (!isUiPropElement(element) || !isRecordObject(node.props)) return
 
   for (const [name, value] of Object.entries(node.props)) {
-    const expectation = propExpectation(tag, name)
+    const expectation = propExpectation(element, name)
     if (expectation !== undefined) {
-      validateBoundValue(scope, `${path}.props.${name}`, `UI ${tag}.${name}`, value, expectation, context)
+      validateBoundValue(scope, `${path}.props.${name}`, `UI ${element}.${name}`, value, expectation, context)
     }
   }
 }
 
 function validateCall(
   scope: Scope,
-  tag: string,
+  element: string,
   node: Record<string, unknown>,
   path: string,
   context: AbiContext,
@@ -189,8 +189,8 @@ function validateCall(
 ): void {
   if (!isRecordObject(node.call)) return
 
-  if (tag === "Action") {
-    validateBoundValue(scope, `${path}.call.function`, "UI Action route", node.call.function, "string", context)
+  if (element === "Button") {
+    validateBoundValue(scope, `${path}.call.function`, "UI Button route", node.call.function, "string", context)
     validateKnownActionRoute(scope, path, node.call.function, node.call.args, context)
     if (isRecordObject(node.call.args)) {
       validateActionStateInputs(scope, path, node.call.args, inputNames)
@@ -198,7 +198,7 @@ function validateCall(
     return
   }
 
-  if (tag !== "Include") return
+  if (element !== "Include") return
 
   validateBoundValue(scope, `${path}.call.function`, "UI Include target", node.call.function, "string-or-string-array", context)
   const selection = includeSelection(node.call.function, context)
@@ -364,17 +364,17 @@ function collectNodeInputs(
   stack: readonly string[],
   inputNames: Set<string>,
 ): void {
-  if (node.tag === "Action") return
+  if (node.element === "Button") return
 
-  const inputName = resolvedInputName(scope, node, `${path}.props.name`, context)
+  const inputName = resolvedInputName(scope, node, `${path}.state.key`, context)
   if (inputName !== undefined) {
     if (inputNames.has(inputName)) {
-      reportTypeflowIssue(scope, `${path}.props.name`, `duplicate rendered Input name: ${inputName}`)
+      reportTypeflowIssue(scope, `${path}.state.key`, `duplicate rendered TextField state key: ${inputName}`)
     }
     inputNames.add(inputName)
   }
 
-  if (node.tag === "Include" && isRecordObject(node.call) && isRecordObject(node.call.args)) {
+  if (node.element === "Include" && isRecordObject(node.call) && isRecordObject(node.call.args)) {
     const selection = includeSelection(node.call.function, context)
     if (selection !== undefined) {
       const nextContext = contextForArgs(node.call.args, (value) => valueFromExpression(value, context))
@@ -443,7 +443,7 @@ function validateKnownActionRoute(
 
   const route = scope.routesByName.get(routeName)
   if (route === undefined) {
-    reportTypeflowIssue(scope, `${path}.call.function`, `UI action calls unknown route: ${routeName}`)
+    reportTypeflowIssue(scope, `${path}.call.function`, `UI Button calls unknown route: ${routeName}`)
     return
   }
 
@@ -644,14 +644,14 @@ function validateActionStateInputs(
 
     const argPath = `${path}.call.args${suffix.length === 0 ? "" : `.${suffix}`}`
     if (stateInput.length === 0) {
-      reportTypeflowIssue(scope, argPath, "UI action state expression must name an input")
+      reportTypeflowIssue(scope, argPath, "UI Button state expression must name an input")
       return
     }
     if (!inputNames.has(stateInput)) {
       reportTypeflowIssue(
         scope,
         argPath,
-        `UI action references state without a matching route-local Input name: ${stateInput}`,
+        `UI Button references state without a matching route-local TextField state key: ${stateInput}`,
       )
     }
   })
@@ -674,17 +674,17 @@ function resolvedInputName(
   path: string,
   context: AbiContext,
 ): string | undefined {
-  if (node.tag !== "Input" || !isRecordObject(node.props)) return undefined
+  if (node.element !== "TextField" || !isRecordObject(node.state)) return undefined
 
-  const staticName = staticString(node.props.name)
-  const name = staticName === undefined ? knownLiteralString(node.props.name, context) : staticName
+  const staticName = staticString(node.state.key)
+  const name = staticName === undefined ? knownLiteralString(node.state.key, context) : staticName
   if (name === undefined) return undefined
   if (name.length === 0) {
-    reportTypeflowIssue(scope, path, "Input name must not be empty")
+    reportTypeflowIssue(scope, path, "TextField state key must not be empty")
     return undefined
   }
   if (!isExpressionIdentifier(name)) {
-    reportTypeflowIssue(scope, path, `Input name must be an expression identifier: ${name}`)
+    reportTypeflowIssue(scope, path, `TextField state key must be an expression identifier: ${name}`)
     return undefined
   }
 
@@ -754,11 +754,11 @@ function isArrayIndex(value: string): boolean {
   return value === "0" || /^[1-9][0-9]*$/.test(value)
 }
 
-function propExpectation(tag: UiPropTag, prop: string): ValueExpectation | undefined {
-  if (tag === "Address" && prop === "address") return "address"
-  if (tag === "Nft" && prop === "contractAddress") return "address"
-  if (tag === "Nft" && prop === "tokenId") return "integer-or-string"
-  if ((UI_PROP_SCHEMAS[tag].string as readonly string[]).includes(prop)) return "string"
+function propExpectation(element: UiPropElement, prop: string): ValueExpectation | undefined {
+  if (element === "Address" && prop === "address") return "address"
+  if (element === "Nft" && prop === "contractAddress") return "address"
+  if (element === "Nft" && prop === "tokenId") return "integer-or-string"
+  if ((UI_PROP_SCHEMAS[element].string as readonly string[]).includes(prop)) return "string"
   return undefined
 }
 
@@ -802,7 +802,7 @@ function isUnknownValue(value: unknown): boolean {
   return isRecordObject(value) && value.type === UNKNOWN_VALUE.type
 }
 
-function isUiPropTag(value: string): value is UiPropTag {
+function isUiPropElement(value: string): value is UiPropElement {
   return Object.hasOwn(UI_PROP_SCHEMAS, value)
 }
 

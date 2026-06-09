@@ -9,7 +9,7 @@ import {
   simulateCamContractCall,
 } from "@cam/evm-viem"
 import type {
-  ResolvedActionNode,
+  ResolvedButtonNode,
 } from "@cam/screen"
 import {
   createCamViewerSession,
@@ -121,7 +121,7 @@ export function App(): ReactElement {
     }
   }, [])
 
-  async function dispatch(action: ResolvedActionNode): Promise<void> {
+  async function dispatch(action: ResolvedButtonNode): Promise<void> {
     const ready = requireReadyState(loadState)
     setNotice(undefined)
     setPreparedCall(undefined)

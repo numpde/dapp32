@@ -30,7 +30,7 @@ import {
 } from "@cam/screen"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type {
-  ResolvedActionNode,
+  ResolvedButtonNode,
   ResolvedUiCall,
   ResolvedUiNode,
   UiRuntimeContext,
@@ -186,7 +186,7 @@ export function createCamViewerSession({
     return loadedSnapshot(currentView)
   }
 
-  async function dispatchAction(action: ResolvedActionNode): Promise<CamViewerActionResult> {
+  async function dispatchAction(action: ResolvedButtonNode): Promise<CamViewerActionResult> {
     assertLoaded()
 
     if (action.call.namespace !== CAM_ROUTES_NAMESPACE) {
@@ -420,7 +420,7 @@ function assertStatePatchTargets(ui: ResolvedUiNode, patch: InertRecord): void {
 }
 
 function hasRenderedInput(ui: ResolvedUiNode, name: string): boolean {
-  if (ui.tag === "Input") return ui.props.name === name
+  if (ui.element === "TextField") return ui.state?.key === name
 
   if ("children" in ui) {
     return ui.children.some((child) => hasRenderedInput(child, name))
