@@ -10,8 +10,6 @@ export const BIKE_UI_CONTRACT = "BicycleComponentManagerUI"
 export const BIKE_MANAGER_CONTRACT = "BicycleComponentManager"
 export const BIKE_UI_NAMESPACE = `contracts.${BIKE_UI_CONTRACT}`
 export const BIKE_MANAGER_NAMESPACE = `contracts.${BIKE_MANAGER_CONTRACT}`
-export const BIKE_ROUTES_NAMESPACE = "routes"
-export const BIKE_UI_RESOURCE_NAMESPACE = "ui"
 
 export type BikeFixtureAddress = `0x${string}`
 
@@ -26,16 +24,16 @@ export const BIKE_MARK_MISSING = "markMissing"
 
 export const BIKE_CAM_URI = "ipfs://example/main.json"
 
-export const BIKE_RELATIVE_UI_ABI_URI = "./abi/BicycleComponentManagerUI.json"
-export const BIKE_RELATIVE_MANAGER_ABI_URI = "./abi/BicycleComponentManager.json"
-export const BIKE_RELATIVE_UI_URI = "./ui.json"
+const BIKE_RELATIVE_UI_ABI_URI = "./abi/BicycleComponentManagerUI.json"
+const BIKE_RELATIVE_MANAGER_ABI_URI = "./abi/BicycleComponentManager.json"
+const BIKE_RELATIVE_UI_URI = "./ui.json"
 export const BIKE_UI_ABI_URI = bikeResourceURI(BIKE_RELATIVE_UI_ABI_URI)
 export const BIKE_MANAGER_ABI_URI = bikeResourceURI(BIKE_RELATIVE_MANAGER_ABI_URI)
 export const BIKE_UI_URI = bikeResourceURI(BIKE_RELATIVE_UI_URI)
 
 export const BIKE_SERIAL_NUMBER = "ABC123"
 export const BIKE_UNKNOWN_SERIAL_NUMBER = "UNKNOWN123"
-export const BIKE_ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
+const BIKE_ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
 export const BIKE_SERIAL_HASH = "0x1111111111111111111111111111111111111111111111111111111111111111"
 export const BIKE_UNKNOWN_SERIAL_HASH = "0x2222222222222222222222222222222222222222222222222222222222222222"
 export const BIKE_TOKEN_ID = BigInt(BIKE_SERIAL_HASH)
