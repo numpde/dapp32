@@ -318,7 +318,7 @@ async function waitForReceipt(
     throw new Error(
       [
         `Transaction was sent, but the viewer did not see a receipt on ${ready.runtime.startup.rpcUrl} within ${RECEIPT_WAIT_TIMEOUT_MS / 1000}s.`,
-        diagnosis ?? "Check that the wallet is using the same local RPC as the viewer.",
+        receiptTimeoutAdvice(diagnosis),
       ].join(" "),
       { cause },
     )
@@ -330,27 +330,45 @@ async function submittedTransactionDiagnosis(
   txHash: `0x${string}`,
   options: { readonly includePendingAdvice: boolean },
 ): Promise<string | undefined> {
-  try {
-    const tx = await ready.runtime.publicClient.getTransaction({ hash: txHash })
-    if (tx.blockNumber !== null) return undefined
+  const tx = await readSubmittedTransaction(ready, txHash)
+  if (tx.blockNumber !== null) return undefined
 
-    const pendingNonce = await ready.runtime.publicClient.getTransactionCount({
-      address: tx.from,
-      blockTag: "pending",
-    })
-    if (tx.nonce > pendingNonce) {
-      return nonceGapMessage(tx.nonce, pendingNonce)
-    }
-    if (!options.includePendingAdvice) {
-      return undefined
-    }
-
-    return tx.nonce === pendingNonce
-      ? `The transaction is known by the local RPC but is still pending at nonce ${tx.nonce}. Check whether local mining is paused or the wallet left the transaction in the mempool.`
-      : `The transaction nonce ${tx.nonce} is lower than the local pending nonce ${pendingNonce}. The wallet may have shown a stale or replaced transaction hash.`
-  } catch {
+  const pendingNonce = await ready.runtime.publicClient.getTransactionCount({
+    address: tx.from,
+    blockTag: "pending",
+  })
+  if (tx.nonce > pendingNonce) {
+    return nonceGapMessage(tx.nonce, pendingNonce)
+  }
+  if (!options.includePendingAdvice) {
     return undefined
   }
+
+  return tx.nonce === pendingNonce
+    ? `The transaction is known by the local RPC but is still pending at nonce ${tx.nonce}. Check whether local mining is paused or the wallet left the transaction in the mempool.`
+    : `The transaction nonce ${tx.nonce} is lower than the local pending nonce ${pendingNonce}. The wallet may have shown a stale or replaced transaction hash.`
+}
+
+async function readSubmittedTransaction(
+  ready: Extract<LoadState, { readonly status: "ready" }>,
+  txHash: `0x${string}`,
+): ReturnType<AppPublicClient["getTransaction"]> {
+  try {
+    return await ready.runtime.publicClient.getTransaction({ hash: txHash })
+  } catch (cause) {
+    throw new Error(
+      `The wallet returned a transaction hash, but the viewer could not read that transaction from ${ready.runtime.startup.rpcUrl}.`,
+      { cause },
+    )
+  }
+}
+
+function receiptTimeoutAdvice(diagnosis: string | undefined): string {
+  if (diagnosis !== undefined) {
+    return diagnosis
+  }
+
+  return "Check that the wallet is using the same local RPC as the viewer."
 }
 
 function nonceGapMessage(txNonce: number, pendingNonce: number): string {
