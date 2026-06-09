@@ -60,6 +60,9 @@ type AppRuntime = {
   readonly session: CamViewerSession
 }
 
+const RECEIPT_WAIT_TIMEOUT_MS = 20_000
+const RECEIPT_POLLING_INTERVAL_MS = 500
+
 export function App(): ReactElement {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
   const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
@@ -194,9 +197,7 @@ export function App(): ReactElement {
       })
       setNotice(`Transaction sent: ${txHash}`)
 
-      const receipt = await ready.runtime.publicClient.waitForTransactionReceipt({
-        hash: txHash,
-      })
+      const receipt = await waitForReceipt(ready, txHash)
       if (receipt.status !== "success") {
         throw new Error(`Transaction reverted: ${txHash}`)
       }
@@ -282,6 +283,24 @@ export function App(): ReactElement {
       ) : null}
     </main>
   )
+}
+
+async function waitForReceipt(
+  ready: Extract<LoadState, { readonly status: "ready" }>,
+  txHash: `0x${string}`,
+): ReturnType<AppPublicClient["waitForTransactionReceipt"]> {
+  try {
+    return await ready.runtime.publicClient.waitForTransactionReceipt({
+      hash: txHash,
+      pollingInterval: RECEIPT_POLLING_INTERVAL_MS,
+      timeout: RECEIPT_WAIT_TIMEOUT_MS,
+    })
+  } catch (cause) {
+    throw new Error(
+      `Transaction was sent, but the viewer did not see a receipt on ${ready.runtime.startup.rpcUrl} within ${RECEIPT_WAIT_TIMEOUT_MS / 1000}s. Check that the wallet is using the same local RPC as the viewer.`,
+      { cause },
+    )
+  }
 }
 
 function headerTitle(loadState: LoadState): string {
