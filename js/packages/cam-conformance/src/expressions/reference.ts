@@ -2,7 +2,7 @@ import {
   isExpressionIdentifier,
 } from "@cam/protocol"
 
-export type ExpressionReference = {
+type ExpressionReference = {
   readonly root: string
   readonly segments: readonly string[]
 }

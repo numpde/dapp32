@@ -23,7 +23,7 @@ export type KnownRouteCallSource = {
   readonly pathSuffix: string
 }
 
-export type KnownInputValue = {
+type KnownInputValue = {
   readonly value: unknown
   readonly pathSuffix: string
 }
