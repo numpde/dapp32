@@ -530,16 +530,13 @@ function knownActionLiteral(value: unknown, context: AbiContext): unknown | unde
 
   if (value === null || typeof value === "boolean" || typeof value === "number") return value
   if (Array.isArray(value)) {
-    const items = value.map((item) => knownActionLiteral(item, context))
-    return items.some((item) => item === undefined) ? undefined : items
+    return value.map((item) => knownOrUnknown(knownActionLiteral(item, context)))
   }
   if (!isRecordObject(value)) return undefined
 
   const record: Record<string, unknown> = {}
   for (const [name, item] of Object.entries(value)) {
-    const resolved = knownActionLiteral(item, context)
-    if (resolved === undefined) return undefined
-    record[name] = resolved
+    record[name] = knownOrUnknown(knownActionLiteral(item, context))
   }
   return record
 }
@@ -562,21 +559,22 @@ function literalFromKnownValue(value: unknown): unknown | undefined {
     return value.items
   }
   if (value.type === "array" && Array.isArray(value.items)) {
-    const items = value.items.map(literalFromKnownValue)
-    return items.some((item) => item === undefined) ? undefined : items
+    return value.items.map((item) => knownOrUnknown(literalFromKnownValue(item)))
   }
   if (value.type === "tuple" && Array.isArray(value.components)) {
     const record: Record<string, unknown> = {}
     for (const component of value.components) {
       if (!isRecordObject(component) || typeof component.name !== "string") return undefined
-      const literal = literalFromKnownValue(component)
-      if (literal === undefined) return undefined
-      record[component.name] = literal
+      record[component.name] = knownOrUnknown(literalFromKnownValue(component))
     }
     return record
   }
 
   return undefined
+}
+
+function knownOrUnknown(value: unknown | undefined): unknown {
+  return value === undefined ? UNKNOWN_ROUTE_CALL_VALUE : value
 }
 
 function staticActionString(value: string): string | KnownStaticStringValue | undefined {
