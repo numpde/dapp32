@@ -42,7 +42,7 @@ export function declaredUiDocuments({
   return documents
 }
 
-export function forEachDeclaredUiResourceBytes({
+function forEachDeclaredUiResourceBytes({
   resources,
   declarations,
   visit,
