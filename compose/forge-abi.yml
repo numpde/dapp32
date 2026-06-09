@@ -44,6 +44,7 @@ services:
     volumes:
       - ../dapps:/work/dapps:ro
       - ../tools/cam_abi_plan.py:/work/tools/cam_abi_plan.py:ro
+      - ../tools/cam_resource_integrity.py:/work/tools/cam_resource_integrity.py:ro
       - ../tools/forge-abi-plan.py:/work/tools/forge-abi-plan.py:ro
       - ../tools/json_policy.py:/work/tools/json_policy.py:ro
       - ${ABI_PLAN_DIR:?missing_ABI_PLAN_DIR}:/work/abi-plan:rw
