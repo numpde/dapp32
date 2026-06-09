@@ -9,7 +9,7 @@ Bike NFT business expectations, seeded serial numbers, or contract-specific
 assertions. It should ask a narrower and more fundamental question:
 
     Given a deployed CAM host, can a generic runner load the live CAM, resolve
-    resources, call read routes, resolve UI nodes, walk actions, and prepare or
+    resources, call read routes, resolve UI nodes, press buttons, and prepare or
     simulate writes without violating the CAM protocol?
 
 This is an integration fuzz layer, not a Solidity fuzz layer and not a browser
@@ -91,8 +91,8 @@ The CAM itself supplies the executable map:
     route calls
     route continuations
     UI nodes
-    UI actions
-    UI input names
+    UI buttons
+    UI TextField state keys
 
 The runner should discover behavior from the live CAM, not from dapp-specific
 scripts.
@@ -107,12 +107,12 @@ The invariant is:
 
 More explicitly:
 
-    Starting from CamRoot and an account, every route/action path selected by
+    Starting from CamRoot and an account, every route/button path selected by
     the runner must either resolve to a valid next CAM state, prepare a valid
     write, produce a structured expected failure, or be rejected by the protocol
     validator with a useful error.
 
-Crashes, unresolved expressions, bad ABI output shapes, unknown actions,
+Crashes, unresolved expressions, bad ABI output shapes, unknown buttons,
 untyped reverts, and renderer-visible protocol garbage are failures.
 
 
@@ -135,15 +135,15 @@ One deterministic run should do this:
 12. Normalize real decoded ABI outputs.
 13. Resolve the route continuation.
 14. Resolve the UI tree.
-15. Collect resolved Action nodes and Input nodes.
-16. Generate or mutate form values.
-17. Pick an action using the seeded pseudo-random generator.
-18. If the action targets a read route, navigate.
-19. If the action targets a write route, prepare and simulate the write.
+15. Collect resolved Button nodes and TextField state keys.
+16. Generate or mutate state values.
+17. Pick a button using the seeded pseudo-random generator.
+18. If the button targets a read route, navigate.
+19. If the button targets a write route, prepare and simulate the write.
 20. Record the transition and repeat until the step limit.
 
 This is a random walk over the live CAM graph. The randomness is only in value
-generation and action selection. The run must be reproducible from:
+generation and button selection. The run must be reproducible from:
 
     seed
     run index
@@ -165,8 +165,8 @@ The runner should print:
     step index
     route
     inputs
-    action selected
-    form patch
+    button selected
+    state patch
     write simulation result or error
 
 Then the same seed should reproduce the same path.
@@ -179,7 +179,7 @@ later if it earns its keep.
 Generated values
 ----------------
 
-The runner should generate values from route input names, UI Input names, and
+The runner should generate values from route input names, UI TextField state keys, and
 ABI types. It should be deterministic and conservative.
 
 Generic values:
@@ -240,16 +240,16 @@ The runner can assert a lot without knowing the dapp:
    - Include nodes terminate.
    - selected UI nodes exist.
    - required UI args are present.
-   - resolved props satisfy tag schemas.
+   - resolved props satisfy element schemas.
    - no unresolved expression leaks into resolved UI.
    - no raw control object is exposed as display text.
 
-6. Action boundary
-   - every resolved Action calls the routes namespace.
+6. Button boundary
+   - every resolved Button calls the routes namespace.
    - target route exists.
-   - action args match target route inputs.
-   - read actions navigate.
-   - write actions prepare a contract call.
+   - button args match target route inputs.
+   - read buttons navigate.
+   - write buttons prepare a contract call.
    - write simulations either succeed or produce a structured revert.
 
 
@@ -261,7 +261,7 @@ It cannot prove business intent.
 It will not know:
 
     seeded component DEMO-FRAME-001 should exist
-    registrar should see exactly these actions
+    registrar should see exactly these buttons
     non-registrar must not register
     marking missing should remove markMissing and add clearMissing
     a specific token ID should be minted
@@ -363,8 +363,8 @@ Minimum assertions:
     call every read route at least once
     normalize every returned ABI value
     resolve every returned UI continuation
-    resolve every visible action
-    prepare and simulate at least one write action if any write action is
+    resolve every visible button
+    prepare and simulate at least one write button if any write button is
     reachable
 
 This would catch the current status integer bug without requiring dapp-specific
@@ -379,7 +379,7 @@ Stage 1: Generic smoke walk
     resolution, write preparation/simulation.
 
 Stage 2: Corpus and shrinking
-    Keep failing seeds. Add a small failure reducer for route/action sequences.
+    Keep failing seeds. Add a small failure reducer for route/button sequences.
 
 Stage 3: Dapp-owned workflows
     Add optional CAM-adjacent workflow files for business expectations. The same
@@ -405,7 +405,7 @@ Do not let the generic runner become a hidden Bike NFT test.
 
 If an assertion mentions a dapp concept, it belongs in a dapp workflow file.
 If an assertion mentions CAM protocol shape, resource integrity, ABI decoding,
-UI resolution, route inputs, actions, or write simulation, it belongs in the
+UI resolution, route inputs, buttons, or write simulation, it belongs in the
 generic runner.
 
 That separation keeps the first integration layer maximally reusable while

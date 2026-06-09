@@ -713,9 +713,9 @@ done when runtime validation, static checks, and the relevant tests agree.
 
    [ ] Node ids are unique.
 
-   [ ] Node tags are from the closed supported set.
+   [ ] Node elements are from the closed supported set.
 
-   [ ] Node props are closed per tag.
+   [ ] Node props are closed per element.
 
    [ ] Required props are checked before resolution where possible.
 
@@ -729,9 +729,9 @@ done when runtime validation, static checks, and the relevant tests agree.
 
    [ ] Include args cannot shadow runtime roots.
 
-   [ ] Action calls can target only route namespaces.
+   [ ] Button calls can target only route namespaces.
 
-   [ ] Action call args are validated against target route inputs.
+   [ ] Button call args are validated against target route inputs.
 
    [ ] UI expressions resolve only from allowed UI roots.
 
@@ -740,7 +740,7 @@ done when runtime validation, static checks, and the relevant tests agree.
 
    Tests:
 
-       [ ] unknown tag rejected
+       [ ] unknown element rejected
        [ ] unknown prop rejected
        [ ] missing required prop rejected
        [ ] resolved string prop rejects non-string value
@@ -748,12 +748,12 @@ done when runtime validation, static checks, and the relevant tests agree.
        [ ] Include missing arg rejected
        [ ] Include extra arg rejected
        [ ] Include runtime-root shadow rejected
-       [ ] Action route arg typo rejected
+       [ ] Button route arg typo rejected
 
 
 7. Viewer/session boundary
 
-   [ ] createCamViewerSession validates host, account, inputs, form, and policy.
+   [ ] createCamViewerSession validates host, account, inputs, state, and policy.
 
    [ ] session.load uses createContext or the canonical context validator.
 

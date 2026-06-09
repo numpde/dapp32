@@ -98,7 +98,7 @@ What is already strong
 2. CAM bundle conformance has become a real authoring gate.
 
    It catches malformed resources, bad namespace declarations, route/ABI
-   mismatches, route handoff mistakes, UI Include/Action errors, local state
+   mismatches, route handoff mistakes, UI include/button errors, local state
    holes, deterministic type mismatches, cycles, duplicate rendered inputs, and
    known dynamic selector failures.
 

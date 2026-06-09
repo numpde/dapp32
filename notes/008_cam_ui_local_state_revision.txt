@@ -1,5 +1,5 @@
-CAM UI local state revision plan
-================================
+CAM UI local state revision
+===========================
 
 Purpose
 -------
@@ -19,8 +19,8 @@ The durable invariant should be:
   Actions read live interactive values from viewer state.
   Renderers never read editable live values from contract/view props.
 
-This note is a revision plan. The current implementation still uses the older
-`tag`/`Input`/`form` vocabulary in several places.
+This note records the state-ownership invariant behind the UI schema revision.
+The migration has landed with the `element`/`TextField`/`Button` vocabulary.
 
 
 Non-goals
@@ -32,9 +32,8 @@ resources.
 Do not invent a second UI framework. The manifest should describe a small,
 portable component tree that maps naturally to React and other renderers.
 
-Do not preserve backwards compatibility with the current `form`/`Input` shape
-unless a migration tool is deliberately added later. The current branch is still
-early enough to simplify the protocol.
+Do not preserve backwards compatibility with the old `form`/`Input` shape
+unless a migration tool is deliberately added later.
 
 
 Vocabulary
@@ -42,18 +41,20 @@ Vocabulary
 
 Use React-aligned concepts, but keep protocol and renderer boundaries clear.
 
-`component`
-  The known renderer component to instantiate, such as `Screen`, `Fragment`,
+`element`
+  The portable UI element to instantiate, such as `Screen`, `Fragment`,
   `Text`, `TextField`, `Status`, `Address`, `Nft`, `Button`, or `Include`.
-  This replaces the current `tag` field.
+  This replaced the old `tag` field. `component` is intentionally avoided in
+  the schema because the flagship dapp uses component as a business-domain
+  noun.
 
 `props`
   Resolved render props. These are display/presentation inputs for a known
-  component and should be safe for a renderer to spread at the component
-  boundary. They must not contain live editable values or event behavior.
+  element and should be safe for a renderer to spread at the renderer boundary.
+  They must not contain live editable values or event behavior.
 
 `state`
-  Optional local viewer-state wiring for interactive components. A node with
+  Optional local viewer-state wiring for interactive elements. A node with
   `state` participates in viewer-local state. A node without `state` does not.
 
 `state.key`
@@ -65,7 +66,7 @@ Use React-aligned concepts, but keep protocol and renderer boundaries clear.
   state. It is not the live React value after initialization.
 
 `call`
-  Action behavior. A UI node may call the `routes` namespace. Contract calls
+  Button behavior. A UI node may call the `routes` namespace. Contract calls
   still go through CAM routes, not directly through UI nodes.
 
 `children`
@@ -82,7 +83,7 @@ A text field should look like:
 
 ```json
 {
-  "component": "TextField",
+  "element": "TextField",
   "props": {
     "label": "Serial number",
     "placeholder": "Frame serial"
@@ -94,11 +95,11 @@ A text field should look like:
 }
 ```
 
-An action should read the live value from `$state`:
+A button should read the live value from `$state`:
 
 ```json
 {
-  "component": "Button",
+  "element": "Button",
   "props": {
     "label": "Look up component"
   },
@@ -116,7 +117,7 @@ An include remains composition only:
 
 ```json
 {
-  "component": "Include",
+  "element": "Include",
   "call": {
     "namespace": "ui",
     "function": "$view.viewId",
@@ -176,7 +177,7 @@ Viewer/session flow:
 2. If the state key is not present in the current route-local state, seed it.
 3. Return a snapshot containing the current local state.
 4. On edits, update the viewer state.
-5. Re-resolve action arguments and render props against the updated state.
+5. Re-resolve button arguments and render props against the updated state.
 
 Minimal React mapping:
 
@@ -216,7 +217,7 @@ Validation rules
 
 The parser should be closed-world:
 
-- reject unknown components;
+- reject unknown elements;
 - reject stale `tag`;
 - reject stale `$form`;
 - reject `props.name`, `props.value`, `props.defaultValue`,
@@ -225,9 +226,9 @@ The parser should be closed-world:
   meaning. For stateful controls, initialization belongs in
   `state.defaultValue`;
 - require `state.key` and `state.defaultValue` on stateful controls;
-- reject `state` on components that do not participate in local state;
-- reject `call` on components that are not actions or includes;
-- reject `children` on leaf components;
+- reject `state` on elements that do not participate in local state;
+- reject `call` on elements that are not buttons or includes;
+- reject `children` on leaf elements;
 - reject duplicate state keys within one resolved UI tree unless the protocol
   deliberately adds shared-control semantics later.
 
@@ -241,17 +242,17 @@ Resolver rules
 
 Initial UI resolution:
 
-- resolve all stateful nodes without actions first;
+- resolve all stateful nodes without button calls first;
 - collect state keys and resolved default values;
 - seed the route-local viewer state;
-- resolve the full UI with actions using that state.
+- resolve the full UI with button calls using that state.
 
 Current UI resolution:
 
 - keep existing viewer state;
 - do not overwrite viewer state from `state.defaultValue`;
 - expose enough state metadata for renderers to wire controlled components;
-- resolve action calls from `$state`.
+- resolve button calls from `$state`.
 
 Navigation:
 
@@ -271,7 +272,7 @@ Migration steps
    - `$form.*` -> `$state.*`.
 
 2. Revise `@cam/screen` types and parser:
-   - `tag` -> `component`;
+   - `tag` -> `element`;
    - `Input` -> `TextField`;
    - editable wiring moves from `props.name` and `props.value` to
      `state.key` and `state.defaultValue`.
@@ -279,7 +280,7 @@ Migration steps
 3. Revise `@cam/screen` resolver:
    - stateful nodes seed local state on initial resolution;
    - current resolution uses existing state;
-   - action calls resolve `$state.*`.
+   - button calls resolve `$state.*`.
 
 4. Revise `@cam/viewer`:
    - expose `snapshot.state`;
@@ -291,10 +292,10 @@ Migration steps
    - terminal commands and debug output say `state`, not `form`.
 
 6. Revise `dapps/bike-nft/cam/ui.json`:
-   - replace `tag` with `component`;
+   - replace `tag` with `element`;
    - replace `Input` with `TextField`;
    - move input initialization into `state.defaultValue`;
-   - replace `$form.*` action arguments with `$state.*`.
+   - replace `$form.*` button arguments with `$state.*`.
 
 7. Revise docs that still describe `form`, especially
    `dapps/bike-nft/cam/README.md` and older notes if they are used as operator
@@ -319,7 +320,7 @@ Test: live state beats default on re-resolution.
 - re-resolution keeps `snapshot.state.serialNumber = "ABC123"`;
 - the resolved control metadata still points at `state.key = "serialNumber"`.
 
-Test: actions read live state.
+Test: buttons read live state.
 
 - Given a button whose call args use `$state.serialNumber`;
 - and local state `serialNumber = "ABC123"`;
@@ -331,7 +332,7 @@ Negative tests:
 - stale `tag` is rejected;
 - stale `$form.*` is rejected;
 - `TextField` without `state` is rejected;
-- non-stateful component with `state` is rejected;
+- non-stateful element with `state` is rejected;
 - editable live values in `props` are rejected;
 - duplicate state keys in one resolved tree are rejected.
 

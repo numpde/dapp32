@@ -35,7 +35,7 @@ Viewer implementers
   viewer may expect to consume.
 
 Agents and automation
-  Run it before interpreting route actions or using CAM resources as a tool
+  Run it before pressing UI buttons or using CAM resources as a tool
   surface. Agents need precise structural failures, not visual debugging.
 
 This repository
@@ -120,7 +120,7 @@ Use:
     shapes.
 
   @cam/screen
-    UI document parsing, UI node shape, Include/action rules, UI state rules.
+    UI document parsing, UI node shape, Include/Button rules, UI state rules.
 
   @cam/evm-viem
     ABI parsing, ABI input/output normalization, EVM route/write compatibility.
@@ -161,12 +161,12 @@ the ABI before every route read, simulation, and write.
 
 UI and DOM/schema rules:
 
-  UI actions target declared CAM routes.
+  UI buttons target declared CAM routes.
   UI Includes target declared UI nodes.
   UI Includes cannot form cycles.
-  UI node props are closed and tag/component-specific.
+  UI node props are closed and element-specific.
   UI state defaults are declared through the protocol state contract.
-  Stale vocabulary is rejected once the new UI state model lands.
+  Stale tag/Input/Action vocabulary is rejected.
 
 The package may validate DOM-facing descriptors, but it must not validate a
 specific DOM implementation. The test target is the protocol tree that a React,
@@ -240,7 +240,7 @@ First real tests should be:
   route arg not present in ABI fails
   read route targeting mutable ABI function fails
   write route targeting payable ABI function fails
-  UI action targeting unknown route fails
+  UI button targeting unknown route fails
   UI Include cycle fails
   UI state/defaultValue invariant fails when malformed
 
