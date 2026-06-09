@@ -20,10 +20,10 @@ import {
 } from "../expressions/reference.ts"
 import {
   isKnownStaticStringValue,
+  knownRouteCallSource,
   knownRouteCallValue,
   type KnownStaticStringValue,
   type KnownRouteCallValue,
-  type KnownRouteCallSource,
   UNKNOWN_ROUTE_CALL_VALUE,
 } from "../expressions/known-route-call.ts"
 import {
@@ -495,15 +495,8 @@ function validateActionRouteAbi(
 }
 
 function actionPathForMismatch(value: KnownRouteCallValue, pathSuffix: string): string | undefined {
-  const source = sourceForMismatch(value, pathSuffix)
+  const source = knownRouteCallSource(value, pathSuffix)
   return source.owner === "input" ? source.pathSuffix : undefined
-}
-
-function sourceForMismatch(value: KnownRouteCallValue, pathSuffix: string): KnownRouteCallSource {
-  const source = value.paths.get(pathSuffix)
-  return source === undefined
-    ? { owner: value.source.owner, pathSuffix: `${value.source.pathSuffix}${pathSuffix}` }
-    : source
 }
 
 function actionValueForRouteCall(

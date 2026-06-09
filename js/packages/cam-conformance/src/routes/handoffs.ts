@@ -11,9 +11,8 @@ import {
   type ContractFunctionsByNamespace,
 } from "../abi/routes.ts"
 import {
+  knownRouteCallSource,
   knownRouteCallValue,
-  type KnownRouteCallSource,
-  type KnownRouteCallValue,
 } from "../expressions/known-route-call.ts"
 import type {
   DeclaredRoute,
@@ -128,7 +127,7 @@ function validateRouteHandoffAbi(
     if (resolved === undefined) continue
 
     for (const mismatch of abiArgValueMismatches(input.name, resolved.value, input.abi)) {
-      const source = sourceForMismatch(resolved, mismatch.pathSuffix)
+      const source = knownRouteCallSource(resolved, mismatch.pathSuffix)
       if (source.owner === "route") continue
       issues.push(handoffIssue(
         resource,
@@ -137,13 +136,6 @@ function validateRouteHandoffAbi(
       ))
     }
   }
-}
-
-function sourceForMismatch(value: KnownRouteCallValue, pathSuffix: string): KnownRouteCallSource {
-  const source = value.paths.get(pathSuffix)
-  return source === undefined
-    ? { owner: value.source.owner, pathSuffix: `${value.source.pathSuffix}${pathSuffix}` }
-    : source
 }
 
 function validateNamedHandoffArgs({

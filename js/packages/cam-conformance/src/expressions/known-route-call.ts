@@ -36,6 +36,13 @@ export function knownRouteCallValue(routeArg: unknown, resolveInput: KnownInputR
   return knownRouteCallValueAt(routeArg, resolveInput, "", "")
 }
 
+export function knownRouteCallSource(value: KnownRouteCallValue, pathSuffix: string): KnownRouteCallSource {
+  const source = value.paths.get(pathSuffix)
+  return source === undefined
+    ? { owner: value.source.owner, pathSuffix: `${value.source.pathSuffix}${pathSuffix}` }
+    : source
+}
+
 function knownRouteCallValueAt(
   routeArg: unknown,
   resolveInput: KnownInputResolver,
