@@ -38,6 +38,7 @@ import {
 } from "../names.ts"
 import {
   forEachString,
+  rawValueAtSegments,
 } from "../walk.ts"
 import type { RawUiDocuments } from "./resources.ts"
 
@@ -735,23 +736,6 @@ function valueAtSegments(value: unknown, segments: readonly string[]): unknown |
 
   const nextValue = abiOutputAtSegments(value, [segment])
   return nextValue === undefined ? undefined : valueAtSegments(nextValue, rest)
-}
-
-function rawValueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
-  const [segment, ...rest] = segments
-  if (segment === undefined) return value
-  if (Array.isArray(value) && isArrayIndex(segment)) {
-    return rawValueAtSegments(value[Number(segment)], rest)
-  }
-  if (isRecordObject(value) && Object.hasOwn(value, segment)) {
-    return rawValueAtSegments(value[segment], rest)
-  }
-
-  return undefined
-}
-
-function isArrayIndex(value: string): boolean {
-  return value === "0" || /^[1-9][0-9]*$/.test(value)
 }
 
 function propExpectation(element: UiPropElement, prop: string): ValueExpectation | undefined {

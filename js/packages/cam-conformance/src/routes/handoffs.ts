@@ -24,6 +24,9 @@ import type {
 import {
   diffNameSets,
 } from "../names.ts"
+import {
+  rawValueAtSegments,
+} from "../walk.ts"
 
 export function validateRouteHandoffs({
   resource,
@@ -114,7 +117,7 @@ function validateRouteHandoffAbi(
     if (!Object.hasOwn(nextRoute.call.args, input.name)) continue
 
     const resolved = knownRouteCallValue(nextRoute.call.args[input.name], (segments) => {
-      const value = valueAtSegments(route.then.args, segments)
+      const value = rawValueAtSegments(route.then.args, segments)
       return value === undefined
         ? undefined
         : {
@@ -141,22 +144,6 @@ function sourceForMismatch(value: KnownRouteCallValue, pathSuffix: string): Know
   return source === undefined
     ? { owner: value.source.owner, pathSuffix: `${value.source.pathSuffix}${pathSuffix}` }
     : source
-}
-
-function valueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
-  const [segment, ...rest] = segments
-  if (segment === undefined) return value
-  if (Array.isArray(value) && isArrayIndex(segment)) {
-    return valueAtSegments(value[Number(segment)], rest)
-  }
-  if (isRecordObject(value) && Object.hasOwn(value, segment)) {
-    return valueAtSegments(value[segment], rest)
-  }
-  return undefined
-}
-
-function isArrayIndex(value: string): boolean {
-  return value === "0" || /^[1-9][0-9]*$/.test(value)
 }
 
 function validateNamedHandoffArgs({

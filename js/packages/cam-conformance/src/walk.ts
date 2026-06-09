@@ -20,6 +20,19 @@ export function forEachString(
   }
 }
 
+export function rawValueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
+  const [segment, ...rest] = segments
+  if (segment === undefined) return value
+  if (Array.isArray(value) && isArrayIndex(segment)) {
+    return rawValueAtSegments(value[Number(segment)], rest)
+  }
+  if (isRecordObject(value) && Object.hasOwn(value, segment)) {
+    return rawValueAtSegments(value[segment], rest)
+  }
+
+  return undefined
+}
+
 function isRecordObject(value: unknown): value is Record<string, unknown> {
   // Keep this helper local: generic conformance facets are deliberately not
   // coupled to runtime protocol packages, and the repo checks enforce that.
@@ -33,4 +46,8 @@ function isRecordObject(value: unknown): value is Record<string, unknown> {
 
 function joinPath(parent: string, key: string): string {
   return parent === "" ? key : `${parent}.${key}`
+}
+
+function isArrayIndex(value: string): boolean {
+  return value === "0" || /^[1-9][0-9]*$/.test(value)
 }
