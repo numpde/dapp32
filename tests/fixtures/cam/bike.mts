@@ -15,7 +15,6 @@ export type BikeFixtureAddress = `0x${string}`
 
 export const BIKE_ROUTE_ENTRY = "entry"
 export const BIKE_ROUTE_COMPONENT = "component"
-export const BIKE_ROUTE_REGISTER = "register"
 
 export const BIKE_VIEW_ENTRY = "viewEntry"
 export const BIKE_VIEW_COMPONENT = "viewComponent"
