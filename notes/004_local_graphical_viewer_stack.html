@@ -252,12 +252,11 @@
     <div class="shell">
       <h1>Local Graphical Viewer Stack</h1>
       <p class="lede">
-        Updated 2026-06-01. The GUI viewer should reuse the current local bike
-        fixture discipline: exact read-only mounts, local-only throwaway keys,
-        Docker-managed infrastructure, and protocol logic kept in CAM packages.
-        The main difference from the terminal viewer is that a browser cannot
-        use Docker-internal service names, so the GUI stack needs one
-        loopback-only browser gateway.
+        Updated 2026-06-09. The local GUI viewer is an implemented bike NFT
+        scenario: Docker starts Anvil, deploys the fixture, serves checked-in
+        CAM resources, runs the React viewer, and exposes exactly one browser
+        gateway. Protocol logic stays in CAM packages; the browser is only a
+        renderer and wallet boundary.
       </p>
     </div>
   </header>
@@ -267,14 +266,14 @@
       <div class="panel">
         <h2>Goal</h2>
         <p>
-          Add a graphical host for the protocol path first proven by the
+          Document the graphical host for the protocol path first proven by the
           terminal:
           <code>CamRoot -&gt; CAM -&gt; route call -&gt; UI catalog -&gt; resolved UI tree</code>.
         </p>
         <p>
-          The GUI should be a consumer of <code>@cam/viewer</code>,
+          The GUI is a consumer of <code>@cam/viewer</code>,
           <code>@cam/screen</code>, <code>@cam/evm-viem</code>, and
-          <code>@cam/core</code>. It should not own protocol parsing,
+          <code>@cam/core</code>. It does not own protocol parsing,
           expression resolution, route execution, or UI semantics.
         </p>
       </div>
@@ -285,7 +284,7 @@
           The current terminal stack can stay Docker-internal because the
           terminal process runs inside Docker. The GUI runs in a host browser.
           Therefore, browser-facing RPC, CAM resources, and the Vite dev server
-          should be reached through one configured browser origin.
+          are reached through one configured browser origin.
         </p>
         <p>
           Default to <code>127.0.0.1</code> port publishing. If the browser runs
@@ -298,31 +297,41 @@
     </section>
 
     <section>
-      <h2>Current Building Blocks</h2>
+      <h2>Current Files</h2>
       <div class="matrix">
         <table>
           <thead>
             <tr>
               <th>File</th>
               <th>Current job</th>
-              <th>GUI implication</th>
+              <th>Boundary</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td><code>compose/bike-nft/local/deploy.yml</code></td>
               <td>Starts internal Anvil and deploys the local bike fixture with an obvious throwaway key.</td>
-              <td>Reusable, but the GUI scenario must pass a browser-reachable <code>CAM_URI</code>.</td>
+              <td>Receives a browser-reachable <code>CAM_URI</code> from the GUI Make target.</td>
             </tr>
             <tr>
-          <td><code>compose/bike-nft/local/http.yml</code></td>
-          <td>Serves <code>dapps/bike-nft/cam</code> internally for Docker consumers.</td>
-              <td>Reusable with a GUI overlay that routes <code>/cam/</code> through the browser gateway.</td>
+              <td><code>compose/bike-nft/local/http.yml</code></td>
+              <td>Serves <code>dapps/bike-nft/cam</code> internally for Docker consumers.</td>
+              <td>The GUI gateway exposes it as same-origin <code>/cam/</code>.</td>
             </tr>
             <tr>
               <td><code>compose/bike-nft/local/viewer-terminal.yml</code></td>
               <td>Runs the real-RPC terminal inside Docker, reads Forge broadcast JSON from a named volume.</td>
-              <td>Do not mutate into a GUI file. Add a sibling GUI overlay with a separate service and port policy.</td>
+              <td>Kept separate because it is an interactive Docker terminal, not a browser scenario.</td>
+            </tr>
+            <tr>
+              <td><code>compose/bike-nft/local/viewer-gui.yml</code></td>
+              <td>Runs <code>cam-web</code>, prints the browser URL, and exposes a same-origin gateway.</td>
+              <td>Owns the browser-facing port policy and no deployment logic.</td>
+            </tr>
+            <tr>
+              <td><code>js/apps/cam-web</code></td>
+              <td>Renders resolved CAM UI with React and sends writes through an injected wallet.</td>
+              <td>Imports CAM packages; it does not duplicate protocol validators.</td>
             </tr>
           </tbody>
         </table>
@@ -330,13 +339,13 @@
     </section>
 
     <section>
-      <h2>Recommended Services</h2>
+      <h2>Running Services</h2>
       <div class="flow">
         <div class="service">
           <div class="service-name">bike-nft-anvil</div>
           <div class="service-body">
             <p>
-              Runs the local EVM chain. In the GUI overlay it stays internal;
+              Runs the local EVM chain. In the GUI stack it stays internal;
               the browser reaches it through gateway path <code>/rpc</code>.
             </p>
             <p class="muted">
@@ -350,8 +359,8 @@
           <div class="service-name">deploy-bike-nft-local</div>
           <div class="service-body">
             <p>
-              One-shot Foundry deploy job. It should keep the narrowed mounts
-              already used by <code>deploy.yml</code>:
+              One-shot Foundry deploy job. It keeps the narrowed mounts in
+              <code>deploy.yml</code>:
               <code>foundry.toml</code>, <code>remappings.txt</code>,
               <code>dependencies/</code>, <code>bike-nft/</code>, and
               <code>cam/</code>, all read-only.
@@ -368,7 +377,7 @@
           <div class="service-name">bike-nft-cam-http</div>
           <div class="service-body">
             <p>
-              Serves checked-in CAM resources internally. In the GUI overlay,
+              Serves checked-in CAM resources internally. In the GUI stack,
               the browser reaches those files through gateway path
               <code>/cam/</code>, and <code>CamRoot.camURI()</code> points at
               that browser-reachable route.
@@ -385,9 +394,9 @@
           <div class="service-name">cam-web</div>
           <div class="service-body">
             <p>
-              Runs the graphical viewer app from <code>js/apps/cam-web</code>. In
-              local dev, keep Vite Docker-internal and expose only the gateway.
-              Keep Vite host checks enabled; do not use broad
+              Runs the graphical viewer app from <code>js/apps/cam-web</code>.
+              Vite stays Docker-internal and only the gateway is exposed. Keep
+              Vite host checks enabled; do not use broad
               <code>allowedHosts: true</code>.
             </p>
             <p class="muted">
@@ -494,29 +503,30 @@
           <h2>Use Vite + React</h2>
           <p>
             This viewer is a static client-side tool, not a server-rendered
-            product. A small Vite + React app is the right first GUI. Keep it
-            inside the shared <code>js/</code> workspace.
+            product. The local GUI is a small Vite + React app inside the
+            shared <code>js/</code> workspace.
           </p>
           <p>
-            Vite environment variables are build-time client inputs. Use them
-            only for non-sensitive defaults. Local chain addresses and
-            deployment state should come from the browser URL or from the chain,
-            not from a baked Vite build.
+            Vite environment variables are scenario policy, not secrets. The
+            GUI uses them for unsigned-CAM policy and the pinned resource
+            origin. Local chain addresses and deployment state come from the
+            browser URL or from the chain, not from a baked Vite build.
           </p>
         </div>
 
         <div class="callout">
           <h2>Keep React Boring</h2>
           <p>
-            React should own interaction state, form controls, and rendering.
-            CAM session state comes from <code>@cam/viewer</code>. Screen
-            semantics come from <code>@cam/screen</code>. EVM reads come from
-            <code>@cam/evm-viem</code>.
+            React owns rendering and DOM events. CAM session state comes from
+            <code>@cam/viewer</code>. UI element semantics come from
+            <code>@cam/screen</code>: <code>TextField.state</code> wires local
+            state, and <code>Button.call</code> dispatches through CAM routes.
+            EVM reads come from <code>@cam/evm-viem</code>.
           </p>
           <p>
-            Wallet connection belongs at the app edge. React can ask
-            <code>@cam/viewer</code> for a prepared contract call, but the
-            injected wallet remains the only sender.
+            Wallet connection belongs at the app edge. React asks
+            <code>@cam/viewer</code> for a prepared contract call, simulates it,
+            and sends only through the injected browser wallet.
           </p>
         </div>
       </div>
@@ -618,16 +628,22 @@
 
     <section class="grid">
       <div class="callout">
-        <h2>First Compose Draft</h2>
+        <h2>How To Run</h2>
         <p>
-          Add a sibling overlay, not a mutation of the terminal overlay:
-          <code>compose/bike-nft/local/viewer-gui.yml</code>.
+          Start the local graphical scenario with:
+          <code>make bike-nft-viewer-gui</code>.
         </p>
         <p>
-          It should compose with <code>deploy.yml</code> and <code>http.yml</code>,
-          publish one configured gateway port, make <code>CamRoot.camURI()</code>
-          browser-reachable, then run
-          <code>js/apps/cam-web</code> through the staged JS workspace.
+          The target composes <code>deploy.yml</code>, <code>http.yml</code>,
+          and <code>viewer-gui.yml</code>. It starts Anvil and CAM HTTP,
+          deploys the fixture, prints the browser URL, then runs
+          <code>cam-web</code> and the gateway in the foreground.
+        </p>
+        <p>
+          Stop and remove the scenario with
+          <code>make bike-nft-viewer-gui-down</code>. If the browser is not on
+          the same host, set both <code>BIKE_NFT_GUI_BIND_HOST</code> and
+          <code>BIKE_NFT_GUI_ORIGIN</code> deliberately.
         </p>
       </div>
 
@@ -645,16 +661,14 @@
     </section>
 
     <section>
-      <h2>Definition Of Done</h2>
+      <h2>Operational Checks</h2>
       <div class="panel">
         <ul>
-          <li><code>js/apps/cam-web</code> exists as a Vite + React workspace app.</li>
-          <li>The GUI stack starts with one configured gateway port, loopback by default.</li>
-          <li><code>CamRoot.camURI()</code> is browser-reachable in the GUI scenario.</li>
-          <li>The viewer reads URL startup parameters rather than bundled deployment addresses.</li>
-          <li>The GUI renders UI nodes through <code>@cam/viewer</code> and <code>@cam/screen</code>.</li>
-          <li>No GUI runtime service has secrets, repo-root mounts, Docker socket access, or dependency-install authority.</li>
-          <li>Rendered Compose posture tests assert the GUI ports, mounts, and no-secret boundary.</li>
+          <li><code>make package-test</code> builds and tests CAM packages plus <code>cam-web</code>.</li>
+          <li><code>make checks</code> asserts repository and Compose posture, including GUI stack mounts and ports.</li>
+          <li><code>make bike-nft-viewer-gui</code> prints a URL with <code>chainId</code>, <code>host</code>, <code>account</code>, and <code>rpcUrl</code>.</li>
+          <li>The browser loads <code>/cam/main.json</code> and <code>/rpc</code> through the same configured origin.</li>
+          <li>Writes are prepared and simulated by the app, then sent only through an injected wallet.</li>
         </ul>
       </div>
     </section>
