@@ -22,7 +22,6 @@ type BikeCamFixture = JsonObject & {
 export const bikeCamJson = readBikeCamJson("main.json") as BikeCamFixture
 export const bikeUiAbi = readBikeCamJson("abi/BicycleComponentManagerUI.json") as readonly JsonObject[]
 export const bikeManagerAbi = readBikeCamJson("abi/BicycleComponentManager.json") as readonly JsonObject[]
-export const bikeUiJson = readBikeCamJson("ui.json") as JsonObject
 export const bikeCamBytes = readBikeCamBytes("main.json")
 export const bikeUiAbiBytes = readBikeCamBytes("abi/BicycleComponentManagerUI.json")
 export const bikeManagerAbiBytes = readBikeCamBytes("abi/BicycleComponentManager.json")
