@@ -551,8 +551,8 @@ function knownActionLiteral(value: unknown, context: AbiContext): unknown | unde
 }
 
 function literalFromKnownValue(value: unknown): unknown | undefined {
+  if (isUnknownValue(value)) return UNKNOWN_ROUTE_CALL_VALUE
   if (!isRecordObject(value)) return undefined
-  if (isUnknownValue(value)) return UNKNOWN_VALUE.value
   if (value.type === "literal-string" && typeof value.value === "string") return staticActionString(value.value)
   if (
     (value.type === "bool" || value.type === "uint256" || value.type === "number" || value.type === "null")
@@ -799,7 +799,8 @@ function abiTypeName(value: unknown): string {
 }
 
 function isUnknownValue(value: unknown): boolean {
-  return isRecordObject(value) && value.type === UNKNOWN_VALUE.type
+  return value === UNKNOWN_ROUTE_CALL_VALUE
+    || (isRecordObject(value) && value.type === UNKNOWN_VALUE.type && value.value === UNKNOWN_ROUTE_CALL_VALUE)
 }
 
 function isUiPropElement(value: string): value is UiPropElement {
