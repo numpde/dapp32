@@ -120,7 +120,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
       owner: "0x0000000000000000000000000000000000000000",
       ownerInfo: "",
       registrar: "0x0000000000000000000000000000000000000000",
-      status: "0",
+      statusId: "none",
       tokenURI: "",
       registeredAt: "0",
       updatedAt: "0",

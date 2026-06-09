@@ -36,6 +36,11 @@ contract BicycleComponentManagerUI {
     string private constant ACTION_CLEAR_COMPONENT_MISSING = "clearComponentMissing";
     string private constant ACTION_RETIRE_COMPONENT = "retireComponent";
 
+    string private constant STATUS_NONE = "none";
+    string private constant STATUS_ACTIVE = "active";
+    string private constant STATUS_MISSING = "missing";
+    string private constant STATUS_RETIRED = "retired";
+
     /// @notice Semantic view state consumed by the CAM UI schema.
     /// @dev
     /// `viewId` selects a manifest-owned UI node. `actions` selects manifest-owned
@@ -54,7 +59,7 @@ contract BicycleComponentManagerUI {
         address owner;
         string ownerInfo;
         address registrar;
-        IBicycleComponentManagerView.ComponentStatus status;
+        string statusId;
         string tokenURI;
         uint48 registeredAt;
         uint48 updatedAt;
@@ -70,6 +75,7 @@ contract BicycleComponentManagerUI {
 
     error ZeroAddress();
     error ManagerHasNoCode(address managerAddress);
+    error UnsupportedComponentStatus(IBicycleComponentManagerView.ComponentStatus status);
     error DoesNotAcceptPayments();
     error UnknownFunction(bytes4 selector);
 
@@ -82,7 +88,7 @@ contract BicycleComponentManagerUI {
 
     /// @notice Route projection for the application entry view.
     function viewEntry(address account) external view returns (AppView memory view_) {
-        _setAccountView(view_, account);
+        _setBaseView(view_, account);
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
         view_.actions = _lookupAndRegisterActions();
@@ -90,7 +96,7 @@ contract BicycleComponentManagerUI {
 
     /// @notice Route projection for component lookup and detail views.
     function viewComponent(string calldata serialNumber, address account) external view returns (AppView memory view_) {
-        _setAccountView(view_, account);
+        _setBaseView(view_, account);
 
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_COMPONENT_EMPTY;
@@ -106,7 +112,7 @@ contract BicycleComponentManagerUI {
 
     /// @notice Route projection for component registration views.
     function viewRegister(string calldata serialNumber, address account) external view returns (AppView memory view_) {
-        _setAccountView(view_, account);
+        _setBaseView(view_, account);
         view_.componentsAddress = manager.componentsAddress();
         view_.serialNumber = serialNumber;
         view_.tokenURI = "";
@@ -121,6 +127,7 @@ contract BicycleComponentManagerUI {
         view_.exists = component.exists;
         view_.serialHash = component.serialHash;
         view_.tokenId = component.tokenId;
+        view_.statusId = _componentStatusId(component.status);
 
         if (view_.canRegister && !view_.exists) {
             view_.viewId = VIEW_REGISTER_READY;
@@ -131,8 +138,11 @@ contract BicycleComponentManagerUI {
         }
     }
 
-    function _setAccountView(AppView memory view_, address account) internal view {
+    function _setBaseView(AppView memory view_, address account) internal view {
         view_.account = account;
+        // The manager stores status as a Solidity enum, but CAM view data must
+        // expose stable semantic IDs so generic renderers never decode ordinals.
+        view_.statusId = _componentStatusId(IBicycleComponentManagerView.ComponentStatus.None);
 
         // Intentional default: address(0) leaves canRegister=false and
         // accountInfo="" through Solidity struct defaults. That is convenient
@@ -152,7 +162,7 @@ contract BicycleComponentManagerUI {
         view_.tokenId = component.tokenId;
         view_.owner = component.owner;
         view_.registrar = component.registrar;
-        view_.status = component.status;
+        view_.statusId = _componentStatusId(component.status);
         view_.tokenURI = component.tokenURI;
         view_.registeredAt = component.registeredAt;
         view_.updatedAt = component.updatedAt;
@@ -177,6 +187,19 @@ contract BicycleComponentManagerUI {
             view_.canClearMissing = manager.canClearMissing(account, serialNumber);
             view_.canRetire = manager.canRetire(account, serialNumber);
         }
+    }
+
+    function _componentStatusId(IBicycleComponentManagerView.ComponentStatus status)
+        internal
+        pure
+        returns (string memory)
+    {
+        if (status == IBicycleComponentManagerView.ComponentStatus.None) return STATUS_NONE;
+        if (status == IBicycleComponentManagerView.ComponentStatus.Active) return STATUS_ACTIVE;
+        if (status == IBicycleComponentManagerView.ComponentStatus.Missing) return STATUS_MISSING;
+        if (status == IBicycleComponentManagerView.ComponentStatus.Retired) return STATUS_RETIRED;
+
+        revert UnsupportedComponentStatus(status);
     }
 
     function _lookupAndRegisterActions() internal pure returns (string[] memory actions) {

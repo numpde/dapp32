@@ -139,7 +139,7 @@
           "element": "Status",
           "props": {
             "label": "Status",
-            "value": "$view.status"
+            "value": "$view.statusId"
           }
         },
         {

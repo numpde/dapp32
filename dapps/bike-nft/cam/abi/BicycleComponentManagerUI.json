@@ -113,9 +113,9 @@
             "internalType": "address"
           },
           {
-            "name": "status",
-            "type": "uint8",
-            "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+            "name": "statusId",
+            "type": "string",
+            "internalType": "string"
           },
           {
             "name": "tokenURI",
@@ -254,9 +254,9 @@
             "internalType": "address"
           },
           {
-            "name": "status",
-            "type": "uint8",
-            "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+            "name": "statusId",
+            "type": "string",
+            "internalType": "string"
           },
           {
             "name": "tokenURI",
@@ -400,9 +400,9 @@
             "internalType": "address"
           },
           {
-            "name": "status",
-            "type": "uint8",
-            "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
+            "name": "statusId",
+            "type": "string",
+            "internalType": "string"
           },
           {
             "name": "tokenURI",
@@ -488,6 +488,17 @@
         "name": "selector",
         "type": "bytes4",
         "internalType": "bytes4"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "UnsupportedComponentStatus",
+    "inputs": [
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum IBicycleComponentManagerView.ComponentStatus"
       }
     ]
   },

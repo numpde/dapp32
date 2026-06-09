@@ -128,7 +128,12 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "registered serial should be found");
-        assertEq(uint8(view_.status), uint8(IBicycleComponentManagerView.ComponentStatus.Active), "new component status");
+        assertEq(
+            uint8(manager.componentStatus(SERIAL)),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Active),
+            "new component status"
+        );
+        assertEq(view_.statusId, "active", "new component semantic status");
         assertActiveOwnerActions(view_.actions);
 
         vm.prank(owner);
@@ -136,10 +141,11 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(
-            uint8(view_.status),
+            uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
-            "missing status should project"
+            "missing status should persist"
         );
+        assertEq(view_.statusId, "missing", "missing semantic status should project");
         assertMissingOwnerActions(view_.actions);
 
         vm.prank(owner);
@@ -147,10 +153,11 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(
-            uint8(view_.status),
+            uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Active),
             "clear missing should restore active status"
         );
+        assertEq(view_.statusId, "active", "clear missing should restore semantic active status");
         assertActiveOwnerActions(view_.actions);
 
         vm.prank(owner);
@@ -158,10 +165,11 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(
-            uint8(view_.status),
+            uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
-            "retired status should project"
+            "retired status should persist"
         );
+        assertEq(view_.statusId, "retired", "retired semantic status should project");
         assertLookupOnly(view_.actions);
     }
 
@@ -279,10 +287,11 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         BicycleComponentManagerUI.AppView memory shopView = ui.viewComponent(SERIAL, delegate);
         assertEq(shopView.tokenURI, SHOP_TOKEN_URI, "delegate metadata should be visible");
         assertEq(
-            uint8(shopView.status),
+            uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
             "delegate should move component to missing"
         );
+        assertEq(shopView.statusId, "missing", "delegate missing semantic status");
         assertActions(shopView.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA));
 
         uint64 resolveAndCloseCapabilities = manager.CAP_CLEAR_MISSING() | manager.CAP_RETIRE();
@@ -474,10 +483,11 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
 
         BicycleComponentManagerUI.AppView memory retiredOwnerView = ui.viewComponent(SERIAL, owner);
         assertEq(
-            uint8(retiredOwnerView.status),
+            uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
             "component should be retired"
         );
+        assertEq(retiredOwnerView.statusId, "retired", "owner retired semantic status");
         assertLookupOnly(retiredOwnerView.actions);
 
         vm.prank(owner);
@@ -490,10 +500,11 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertEq(retiredBuyerView.owner, buyer, "retired token should still transfer");
         assertEq(retiredBuyerView.ownerInfo, BUYER_INFO_URI, "retired view should follow current owner profile");
         assertEq(
-            uint8(retiredBuyerView.status),
+            uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
             "transfer must not revive retired status"
         );
+        assertEq(retiredBuyerView.statusId, "retired", "transfer must not revive semantic status");
         assertLookupOnly(retiredBuyerView.actions);
 
         vm.prank(buyer);

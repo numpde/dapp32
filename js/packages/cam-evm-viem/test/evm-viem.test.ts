@@ -512,7 +512,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     owner: userAddress,
     ownerInfo: "Mock owner account",
     registrar: userAddress,
-    status: "1",
+    statusId: "active",
     tokenURI: `ipfs://example/token/${BIKE_SERIAL_NUMBER}`,
     registeredAt: "1",
     updatedAt: "2",
@@ -560,23 +560,21 @@ test("callCamRoute resolves full signatures for overloaded route functions", asy
 })
 
 test("callCamRoute normalizes safe number integer outputs from real RPC clients", async () => {
+  const fixture = integerOutputRouteFixture()
   const result = await callCamRoute({
     publicClient: createPublicClient(publicClientFixtureOptions({
       routeResults: {
-        [BIKE_VIEW_ENTRY]: {
-          ...bikeEntryRouteResult(userAddress),
-          status: 0,
-        },
+        [fixture.functionName]: 0,
       },
     })),
-    cam: parseCam(camJson),
+    cam: fixture.cam,
     contracts: {
       [BIKE_UI_NAMESPACE]: {
         address: uiAddress,
-        abi: uiAbi,
+        abi: fixture.abi,
       },
     },
-    route: BIKE_ROUTE_ENTRY,
+    route: fixture.route,
     context: {
       host,
       account: { address: userAddress },
@@ -585,60 +583,28 @@ test("callCamRoute normalizes safe number integer outputs from real RPC clients"
     },
   })
 
-  assert.equal((result.values[0] as Record<string, unknown>).status, "0")
+  assert.equal(result.values[0], "0")
 })
 
 test("callCamRoute rejects non-canonical integer output shapes", async () => {
-  const integerRoute = "integerRoute"
-  const integerFunction = "viewInteger"
-  const cam = parseCam({
-    ...camJson,
-    routes: {
-      ...camJson.routes,
-      [integerRoute]: {
-        kind: "read",
-        inputs: [],
-        call: {
-          namespace: BIKE_UI_NAMESPACE,
-          function: integerFunction,
-          args: {},
-        },
-        then: {
-          namespace: "ui",
-          function: "app",
-          args: {
-            view: "$outputs.0",
-          },
-        },
-      },
-    },
-  })
-  const abi = [
-    {
-      type: "function",
-      name: integerFunction,
-      stateMutability: "view",
-      inputs: [],
-      outputs: [{ name: "value", type: "uint256" }],
-    },
-  ] as const satisfies Abi
+  const fixture = integerOutputRouteFixture()
 
   for (const value of [Number.MAX_SAFE_INTEGER + 1, "1"]) {
     await assert.rejects(
       () => callCamRoute({
         publicClient: createPublicClient(publicClientFixtureOptions({
           routeResults: {
-            [integerFunction]: value,
+            [fixture.functionName]: value,
           },
         })),
-        cam,
+        cam: fixture.cam,
         contracts: {
           [BIKE_UI_NAMESPACE]: {
             address: uiAddress,
-            abi,
+            abi: fixture.abi,
           },
         },
-        route: integerRoute,
+        route: fixture.route,
         context: {
           host,
           account: { address: userAddress },
@@ -1306,6 +1272,52 @@ function camWithRouteCallFunction(routeName: string, functionName: string) {
       },
     },
   })
+}
+
+function integerOutputRouteFixture(): {
+  readonly route: string
+  readonly functionName: string
+  readonly cam: ReturnType<typeof parseCam>
+  readonly abi: Abi
+} {
+  const route = "integerRoute"
+  const functionName = "viewInteger"
+
+  return {
+    route,
+    functionName,
+    cam: parseCam({
+      ...camJson,
+      routes: {
+        ...camJson.routes,
+        [route]: {
+          kind: "read",
+          inputs: [],
+          call: {
+            namespace: BIKE_UI_NAMESPACE,
+            function: functionName,
+            args: {},
+          },
+          then: {
+            namespace: "ui",
+            function: "app",
+            args: {
+              view: "$outputs.0",
+            },
+          },
+        },
+      },
+    }),
+    abi: [
+      {
+        type: "function",
+        name: functionName,
+        stateMutability: "view",
+        inputs: [],
+        outputs: [{ name: "value", type: "uint256" }],
+      },
+    ] as const satisfies Abi,
+  }
 }
 
 function resourceIntegrity(bytes: Uint8Array): string {
