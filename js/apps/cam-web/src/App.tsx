@@ -179,6 +179,8 @@ export function App(): ReactElement {
       return
     }
 
+    let submittedTxHash: `0x${string}` | undefined
+
     setSending(true)
     setNotice(undefined)
     try {
@@ -195,7 +197,15 @@ export function App(): ReactElement {
         chain: walletChain(ready.runtime.startup),
         call,
       })
+      submittedTxHash = txHash
       setNotice(`Transaction sent: ${txHash}`)
+
+      const nonceGap = await submittedTransactionDiagnosis(ready, txHash, {
+        includePendingAdvice: false,
+      })
+      if (nonceGap !== undefined) {
+        throw new Error(nonceGap)
+      }
 
       const receipt = await waitForReceipt(ready, txHash)
       if (receipt.status !== "success") {
@@ -209,7 +219,13 @@ export function App(): ReactElement {
         setLoadState({ ...ready, snapshot })
       }
     } catch (error) {
-      setNotice(errorMessage(error))
+      if (submittedTxHash !== undefined) {
+        const message = errorMessage(error)
+        setPreparedCall(undefined)
+        setNotice(message.includes(submittedTxHash) ? message : `${message} Transaction hash: ${submittedTxHash}.`)
+      } else {
+        setNotice(errorMessage(error))
+      }
     } finally {
       setSending(false)
     }
@@ -296,11 +312,49 @@ async function waitForReceipt(
       timeout: RECEIPT_WAIT_TIMEOUT_MS,
     })
   } catch (cause) {
+    const diagnosis = await submittedTransactionDiagnosis(ready, txHash, {
+      includePendingAdvice: true,
+    })
     throw new Error(
-      `Transaction was sent, but the viewer did not see a receipt on ${ready.runtime.startup.rpcUrl} within ${RECEIPT_WAIT_TIMEOUT_MS / 1000}s. Check that the wallet is using the same local RPC as the viewer.`,
+      [
+        `Transaction was sent, but the viewer did not see a receipt on ${ready.runtime.startup.rpcUrl} within ${RECEIPT_WAIT_TIMEOUT_MS / 1000}s.`,
+        diagnosis ?? "Check that the wallet is using the same local RPC as the viewer.",
+      ].join(" "),
       { cause },
     )
   }
+}
+
+async function submittedTransactionDiagnosis(
+  ready: Extract<LoadState, { readonly status: "ready" }>,
+  txHash: `0x${string}`,
+  options: { readonly includePendingAdvice: boolean },
+): Promise<string | undefined> {
+  try {
+    const tx = await ready.runtime.publicClient.getTransaction({ hash: txHash })
+    if (tx.blockNumber !== null) return undefined
+
+    const pendingNonce = await ready.runtime.publicClient.getTransactionCount({
+      address: tx.from,
+      blockTag: "pending",
+    })
+    if (tx.nonce > pendingNonce) {
+      return nonceGapMessage(tx.nonce, pendingNonce)
+    }
+    if (!options.includePendingAdvice) {
+      return undefined
+    }
+
+    return tx.nonce === pendingNonce
+      ? `The transaction is known by the local RPC but is still pending at nonce ${tx.nonce}. Check whether local mining is paused or the wallet left the transaction in the mempool.`
+      : `The transaction nonce ${tx.nonce} is lower than the local pending nonce ${pendingNonce}. The wallet may have shown a stale or replaced transaction hash.`
+  } catch {
+    return undefined
+  }
+}
+
+function nonceGapMessage(txNonce: number, pendingNonce: number): string {
+  return `The transaction is queued behind a nonce gap: the wallet submitted nonce ${txNonce}, but the local chain is still waiting for nonce ${pendingNonce}. Clear the wallet's local activity/nonce state for this fixture chain, or submit/cancel the missing nonce first.`
 }
 
 function headerTitle(loadState: LoadState): string {
