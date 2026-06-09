@@ -237,7 +237,7 @@ function appendInitialState(nodes: readonly ResolvedUiNode[], state: Record<stri
     if (node.element === "TextField") {
       const { key, defaultValue } = requireStateDefault(node)
       if (hasOwn(state, key)) {
-        throw new UiError("UI_INVALID_FIELD", `duplicate input name: ${key}`)
+        throw new UiError("UI_INVALID_FIELD", `duplicate TextField state key: ${key}`)
       }
       state[key] = defaultValue
     }

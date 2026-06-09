@@ -454,7 +454,7 @@ async function handlePreparedWrite({
       error: error.message,
     })
     if (writeContext.kind === "local-fixture") {
-      throw new Error(`presented write action failed simulation: ${call.route}: ${error.message}`)
+      throw new Error(`presented write button failed simulation: ${call.route}: ${error.message}`)
     }
     return
   }

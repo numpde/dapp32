@@ -162,7 +162,7 @@ test("load rejects routes that require an account when none is available", async
   assert.equal(publicClient.calls.some((call) => call.functionName === BIKE_VIEW_ENTRY), false)
 })
 
-test("load rejects UI actions that require an account when none is available", async () => {
+test("load rejects UI buttons that require an account when none is available", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({
     routeResults: {
       viewEntry: {
@@ -428,16 +428,16 @@ test("updateState resolves route actions, while write routes are surfaced withou
   if (!("children" in result.snapshot.resolvedUi)) {
     assert.fail("expected resolved root children")
   }
-  const writeAction = result.snapshot.resolvedUi.children.find((child) =>
+  const writeButton = result.snapshot.resolvedUi.children.find((child) =>
     child.element === "Button" && child.call.function === "markComponentMissing"
   )
-  assert.equal(writeAction?.element, "Button")
-  if (writeAction?.element !== "Button") {
-    assert.fail("expected resolved write action")
+  assert.equal(writeButton?.element, "Button")
+  if (writeButton?.element !== "Button") {
+    assert.fail("expected resolved write button")
   }
 
   const callsBefore = publicClient.calls.length
-  const contractResult = await session.dispatchAction(writeAction)
+  const contractResult = await session.dispatchAction(writeButton)
 
   assert.equal(contractResult.type, "contractCall")
   if (contractResult.type !== "contractCall") {
