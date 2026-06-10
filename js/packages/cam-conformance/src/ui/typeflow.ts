@@ -87,7 +87,7 @@ export function validateUiTypeflow({
         reported: new Set<string>(),
         issues,
       }
-      validateRouteTypeflow(scope, route, functionsByNamespace)
+      validateRouteTypeflow(scope, route)
     }
   }
 }
@@ -95,11 +95,10 @@ export function validateUiTypeflow({
 function validateRouteTypeflow(
   scope: Scope,
   route: DeclaredRoute,
-  functionsByNamespace: ContractFunctionsByNamespace,
 ): void {
   if (route.kind !== "read") return
 
-  const functions = functionsByNamespace.get(route.call.namespace)
+  const functions = scope.functionsByNamespace.get(route.call.namespace)
   if (functions === undefined) return
 
   const fn = resolvedAbiFunction(route.call.function, functions)
