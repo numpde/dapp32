@@ -300,7 +300,7 @@ function collectAbiArgValueMismatches(
 ): void {
   const type = nonEmptyString(parameter.type)
   if (type === undefined) return
-  if (isUnknownRouteCallValue(value)) return
+  if (value === UNKNOWN_ROUTE_CALL_VALUE) return
 
   if (type.endsWith("[]")) {
     if (isUnknownExpression(value)) return
@@ -435,7 +435,7 @@ function routeArgMismatch(
 }
 
 function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
-  if (isUnknownRouteCallValue(value)) return undefined
+  if (value === UNKNOWN_ROUTE_CALL_VALUE) return undefined
   if (isKnownStaticStringValue(value)) return { kind: "string-literal", description: "a string literal" }
   if (typeof value === "boolean") return { kind: "bool", description: "a boolean literal" }
   if (typeof value === "number" && Number.isSafeInteger(value)) return { kind: "integer", description: "an integer literal" }
@@ -465,10 +465,6 @@ function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
 
 function isUnknownExpression(value: unknown): boolean {
   return typeof value === "string" && expressionReference(value) !== undefined && knownRouteArgValue(value) === undefined
-}
-
-function isUnknownRouteCallValue(value: unknown): boolean {
-  return value === UNKNOWN_ROUTE_CALL_VALUE
 }
 
 function staticScalarString(value: unknown): unknown {
