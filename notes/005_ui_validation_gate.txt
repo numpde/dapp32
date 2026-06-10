@@ -125,13 +125,14 @@ Fuzzing should not replace real integration tests. It should make each layer
 more hostile to hidden assumptions.
 
 
-The missing integration gate
-----------------------------
+Real-RPC integration gate
+-------------------------
 
-The repo needs a Docker-backed real-RPC integration lane. It should use the same
-local scenario pieces as the manual viewer, but turn them into assertions.
+The repo now has Docker-backed real-RPC integration lanes. They use the same
+local scenario pieces as the manual viewer, but run as assertions instead of
+operator inspection.
 
-Implemented first target:
+Read-only target:
 
     make test-integration-fuzz-bike-nft
 
@@ -150,7 +151,7 @@ Runtime shape:
     7. It asserts resolved UI data, prepared calls, and, in write mode,
        successful simulation for exposed write actions.
 
-This should be a test service, not a manual terminal. It should have:
+This remains a test service, not a manual terminal. Its posture should stay:
 
 - no host port by default;
 - no repository root mount;
@@ -162,7 +163,7 @@ This should be a test service, not a manual terminal. It should have:
 - no dependency installation;
 - no browser unless it is the explicit browser lane.
 
-The first regression test should cover the exact failure:
+The first regression class is now covered by this layer:
 
     viewEntry(account) from real Anvil normalizes AppView.status to the
     canonical inert value expected by CAM, without relying on mocked bigint
