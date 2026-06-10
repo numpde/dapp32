@@ -23,40 +23,22 @@ export function declaredUiDocuments({
 }): RawUiDocuments {
   const documents = new Map<string, RawUiDocument>()
 
-  forEachDeclaredUiResourceBytes({
-    resources,
-    declarations,
-    visit: (resource, bytes) => {
-      try {
-        documents.set(resource, parseRawUiDocument(bytes))
-      } catch (error) {
-        issues.push(issueFromError({
-          rule: "CAM_UI_DOCUMENT_INVALID",
-          resource,
-          error,
-        }))
-      }
-    },
-  })
-
-  return documents
-}
-
-function forEachDeclaredUiResourceBytes({
-  resources,
-  declarations,
-  visit,
-}: {
-  readonly resources: ReadonlyMap<string, Uint8Array>
-  readonly declarations: readonly ResourceDeclaration[]
-  readonly visit: (resource: string, bytes: Uint8Array) => void
-}): void {
   for (const declaration of declarations) {
     if (declaration.namespaceType !== "ui") continue
 
     const bytes = resources.get(declaration.uri)
     if (bytes === undefined) continue
 
-    visit(declaration.uri, bytes)
+    try {
+      documents.set(declaration.uri, parseRawUiDocument(bytes))
+    } catch (error) {
+      issues.push(issueFromError({
+        rule: "CAM_UI_DOCUMENT_INVALID",
+        resource: declaration.uri,
+        error,
+      }))
+    }
   }
+
+  return documents
 }
