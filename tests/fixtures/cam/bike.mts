@@ -11,7 +11,7 @@ export const BIKE_MANAGER_CONTRACT = "BicycleComponentManager"
 export const BIKE_UI_NAMESPACE = `contracts.${BIKE_UI_CONTRACT}`
 export const BIKE_MANAGER_NAMESPACE = `contracts.${BIKE_MANAGER_CONTRACT}`
 
-export type BikeFixtureAddress = `0x${string}`
+type BikeFixtureAddress = `0x${string}`
 
 export const BIKE_ROUTE_ENTRY = "entry"
 export const BIKE_ROUTE_COMPONENT = "component"
