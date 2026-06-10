@@ -3,7 +3,6 @@ import { createHash } from "node:crypto"
 import test from "node:test"
 
 import { CAM_RESOURCE_MAX_BYTES, toInertValue } from "@cam/protocol"
-import type { InertValue } from "@cam/protocol"
 
 import {
   createCamViewerSession,
@@ -105,7 +104,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
   assert.equal(snapshot.resolvedUi.element, "Screen")
   assert.equal(snapshot.resolvedUi.children[0]?.element, "Fragment")
-  assert.deepEqual(snapshot.values, inert([
+  assert.deepEqual(snapshot.values, toInertValue([
     {
       viewId: "entry",
       actions: ["lookupComponent", "openRegister"],
@@ -532,10 +531,6 @@ function mutableRecord(value: unknown): Record<string, unknown> {
   assert.notEqual(value, null)
   assert.equal(Array.isArray(value), false)
   return value as Record<string, unknown>
-}
-
-function inert(value: unknown): InertValue {
-  return toInertValue(value)
 }
 
 function sha256Integrity(bytes: Uint8Array): string {
