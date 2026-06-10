@@ -762,8 +762,7 @@ function canonicalAbiType(
     return undefined
   }
 
-  const suffix = tupleArraySuffix(type)
-  if (suffix === undefined) {
+  if (type !== "tuple") {
     if (!isSupportedAbiScalarType(type)) {
       issues.push(abiIssue(resource, path, `ABI ${position} type is not supported: ${type}`))
       return undefined
@@ -805,18 +804,13 @@ function canonicalAbiType(
     componentTypes.push(componentType)
   }
 
-  return `(${componentTypes.join(",")})${suffix}`
+  return `(${componentTypes.join(",")})`
 }
 
 function firstSignature(functions: readonly AbiFunction[]): string {
   const [first] = functions
   if (first === undefined) return "<signature>"
   return first.signature
-}
-
-function tupleArraySuffix(type: string): string | undefined {
-  if (type === "tuple") return ""
-  return undefined
 }
 
 function outputExpressionSegments(value: string): readonly string[] | undefined {
