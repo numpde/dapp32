@@ -52,7 +52,7 @@ The repo currently has useful but incomplete layers:
    driven bridge tests over the exact route/viewer/resource path that manual
    local scenarios exercise.
 
-This leaves a gap exactly where the bug occurred:
+The important boundary is the one where the original bug occurred:
 
     real contract -> real ABI -> real viem decoding -> CAM value normalization
     -> UI resolution -> renderer
