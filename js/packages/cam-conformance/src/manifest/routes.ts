@@ -20,9 +20,9 @@ import {
   expressionSyntaxError,
 } from "../expressions/reference.ts"
 
-export type RouteKind = "read" | "write"
+type RouteKind = "read" | "write"
 
-export type DeclaredInvocation = {
+type DeclaredInvocation = {
   readonly namespace: string
   readonly function: string
   readonly args: Record<string, unknown>

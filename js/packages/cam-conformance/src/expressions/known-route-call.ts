@@ -30,7 +30,7 @@ type KnownInputValue = {
 
 export const UNKNOWN_ROUTE_CALL_VALUE: unique symbol = Symbol("CAM_CONFORMANCE_UNKNOWN_ROUTE_CALL_VALUE")
 
-export type KnownInputResolver = (segments: readonly string[]) => KnownInputValue | undefined
+type KnownInputResolver = (segments: readonly string[]) => KnownInputValue | undefined
 
 export function knownRouteCallValue(routeArg: unknown, resolveInput: KnownInputResolver): KnownRouteCallValue | undefined {
   return knownRouteCallValueAt(routeArg, resolveInput, "", "")
