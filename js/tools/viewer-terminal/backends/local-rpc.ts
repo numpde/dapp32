@@ -132,7 +132,7 @@ function findCreatedContract(transactions: readonly unknown[], contractName: str
       && tx.contractName === contractName
       && typeof tx.contractAddress === "string"
     ) {
-      return requiredAddress(tx.contractAddress, `transactions[].${contractName}.contractAddress`)
+      return requireEvmAddress(tx.contractAddress, `transactions[].${contractName}.contractAddress`)
     }
   }
 
@@ -141,7 +141,7 @@ function findCreatedContract(transactions: readonly unknown[], contractName: str
 
 function firstReceiptSender(receipts: readonly unknown[]): CamHost["address"] {
   const receipt = requiredRecord(receipts[0], "receipts.0")
-  return requiredAddress(requiredString(receipt, "from", "receipts.0.from"), "receipts.0.from")
+  return requireEvmAddress(requiredString(receipt, "from", "receipts.0.from"), "receipts.0.from")
 }
 
 function requiredChainNumber(value: unknown): number {
@@ -150,8 +150,4 @@ function requiredChainNumber(value: unknown): number {
   }
 
   return value
-}
-
-function requiredAddress(value: string, path: string): CamHost["address"] {
-  return requireEvmAddress(value, path)
 }
