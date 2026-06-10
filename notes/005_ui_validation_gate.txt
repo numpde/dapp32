@@ -33,8 +33,9 @@ The repo currently has useful but incomplete layers:
    import policy, Docker posture, and silent-default patterns.
 
 2. Solidity unit tests
-   They test selected contract behavior. Forge fuzz and invariant lanes exist,
-   but the bike app does not yet have meaningful fuzz/invariant coverage.
+   They test selected contract behavior. The bike app now also has scenario
+   tests for app-shaped workflows that cross registration, lookup, status
+   changes, permissions, and UI projection.
 
 3. TypeScript package tests
    They test CAM parsing, UI parsing, route resolution, EVM adapter behavior,
@@ -42,9 +43,14 @@ The repo currently has useful but incomplete layers:
    paths use mocked viem values.
 
 4. Local viewer targets
-   They are useful manual scenarios. They boot Anvil, deploy a fixture, serve
-   CAM resources, and open a terminal or GUI. They are not yet assertion-driven
-   integration tests.
+   They remain useful manual scenarios. They boot Anvil, deploy a fixture,
+   serve CAM resources, and open a terminal or GUI.
+
+5. CAM integration fuzz targets
+   They deploy or attach to a CAM host, load the real CAM bundle, walk resolved
+   UI actions, and optionally simulate or send writes. These are assertion-
+   driven bridge tests over the exact route/viewer/resource path that manual
+   local scenarios exercise.
 
 This leaves a gap exactly where the bug occurred:
 
