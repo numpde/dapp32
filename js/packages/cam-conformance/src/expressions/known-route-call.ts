@@ -120,7 +120,7 @@ function knownArrayValue(
 
   for (const [index, item] of value.entries()) {
     const itemValue = resolve(item, index)
-    result.push(itemValue === undefined ? unknownExpression() : itemValue.value)
+    result.push(itemValue === undefined ? UNKNOWN_ROUTE_CALL_VALUE : itemValue.value)
     if (itemValue !== undefined) mergePaths(paths, itemValue.paths)
   }
 
@@ -137,7 +137,7 @@ function knownRecordValue(
 
   for (const [name, item] of Object.entries(value)) {
     const itemValue = resolve(item, name)
-    result[name] = itemValue === undefined ? unknownExpression() : itemValue.value
+    result[name] = itemValue === undefined ? UNKNOWN_ROUTE_CALL_VALUE : itemValue.value
     if (itemValue !== undefined) mergePaths(paths, itemValue.paths)
   }
 
@@ -150,10 +150,6 @@ function leafValue(value: unknown, source: KnownRouteCallSource, routePath: stri
     source,
     paths: new Map([[routePath, source]]),
   }
-}
-
-function unknownExpression(): typeof UNKNOWN_ROUTE_CALL_VALUE {
-  return UNKNOWN_ROUTE_CALL_VALUE
 }
 
 export function isKnownStaticStringValue(value: unknown): value is KnownStaticStringValue {
