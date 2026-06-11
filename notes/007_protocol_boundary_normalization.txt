@@ -867,7 +867,7 @@ done when runtime validation, static checks, and the relevant tests agree.
 
     [ ] Random walk emits structured JSON for every step.
 
-    [ ] Random walk emits route, inputs, form, values, action, and result.
+    [ ] Random walk emits route, inputs, state, values, action, and result.
 
     [ ] Generated values are deterministic from seed.
 
