@@ -53,7 +53,7 @@ export function validateUiDataflow({
           validateIncludeNodeArgs(resource, call, uiNodes, issues)
         }
       } else {
-        validateActionRouteTarget(resource, call, issues)
+        validateActionRouteShape(resource, call, issues)
       }
     }
   }
@@ -193,7 +193,7 @@ function validateIncludeNodeArgs(
   }
 }
 
-function validateActionRouteTarget(
+function validateActionRouteShape(
   resource: string,
   action: UiCall,
   issues: CamConformanceIssue[],
