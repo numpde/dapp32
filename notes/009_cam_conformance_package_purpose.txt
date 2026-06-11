@@ -72,8 +72,8 @@ Target shape:
 
 ```ts
 export type CamConformanceBundle = {
-  readonly mainURI: string
-  readonly mainBytes: Uint8Array
+  readonly rootURI: string
+  readonly rootBytes: Uint8Array
   readonly resources: ReadonlyMap<string, Uint8Array>
 }
 ```
@@ -201,20 +201,38 @@ Keep the package shaped around rule groups:
 js/packages/cam-conformance/
   src/
     index.ts
-    bundle.ts
     issues.ts
-    checks/
-      json.ts
-      main.ts
-      resources.ts
-      abi.ts
-      routes.ts
+    bundle/
+      index.ts
+      types.ts
+    sourced/
+      root.ts
+      runtime.ts
       ui.ts
-      ui-state.ts
+    manifest/
+      namespaces.ts
+      routes.ts
+    resources/
+      declarations.ts
+    abi/
+      routes.ts
+    routes/
+      handoffs.ts
+    ui/
+      document.ts
+      resources.ts
+      nodes.ts
+      dataflow.ts
+      typeflow.ts
+    expressions/
+      reference.ts
+      known-route-call.ts
+      ui.ts
 ```
 
-Do not create all files upfront. Add each file only when it contains a real rule
-with a real test.
+The current layout deliberately separates sourced/runtime compatibility checks
+from independently-authored conformance facets. New files should still be earned
+by a real rule with a real test.
 
 
 Sacred test discipline
@@ -231,7 +249,7 @@ Avoid large bike fixtures unless the rule specifically needs a realistic bundle.
 Avoid placeholder tests that only prove package wiring. A typecheck-only package
 is better than a meaningless test.
 
-First real tests should be:
+The initial real tests covered:
 
   valid minimal bundle passes
   duplicate JSON key fails
@@ -268,10 +286,10 @@ local implementation detail; CAM bundles may come from build artifacts, IPFS
 staging, or agents.
 
 
-Definition of done for the first slice
---------------------------------------
+First slice status
+------------------
 
-The first implementation slice is complete when:
+The first implementation slice is complete:
 
   @cam/conformance has no placeholder tests.
   validateCamBundle accepts bytes and resource names.
@@ -281,4 +299,6 @@ The first implementation slice is complete when:
   The package uses existing parser/value primitives instead of reimplementing
   them.
 
-Only after that should we add route/ABI/UI-state conformance rules.
+Route, ABI, UI dataflow, and UI typeflow conformance rules now exist. Further
+work should deepen diagnostics or remove drift, not expand the package shape by
+default.
