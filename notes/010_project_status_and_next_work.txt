@@ -370,7 +370,7 @@ Decision:
         Include
         Button
 
-    This replaces the current public vocabulary:
+    This replaced the earlier tentative vocabulary:
 
         tag    -> element
         Input  -> TextField
@@ -426,7 +426,7 @@ Decision:
 
 Rejected alternatives:
 
-    Keep current tag/Input/Action shape.
+    Keep the old tag/Input/Action shape.
       Too much of the old source-of-truth confusion remains, especially
       Input.props.value as state initialization.
 
