@@ -49,6 +49,9 @@ import {
 import {
   declaredUiDocuments,
 } from "../ui/resources.ts"
+import type {
+  RawUiDocuments,
+} from "../ui/resources.ts"
 
 export type {
   CamConformanceBundle,
@@ -149,7 +152,7 @@ export function assertCamBundle(bundle: CamConformanceBundle): void {
 
 function verifyDeclaredUiResources(
   resources: ReadonlyMap<string, Uint8Array>,
-  uiDocuments: ReadonlyMap<string, unknown>,
+  uiDocuments: RawUiDocuments,
   issues: CamConformanceIssue[],
 ): void {
   for (const resource of uiDocuments.keys()) {
