@@ -1,7 +1,4 @@
 import {
-  isRecordObject,
-} from "@cam/protocol"
-import {
   conformanceIssue,
   type CamConformanceIssue,
 } from "../issues.ts"
