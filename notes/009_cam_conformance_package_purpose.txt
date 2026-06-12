@@ -154,10 +154,9 @@ Cross-document CAM rules:
   ABI-backed UI handoffs reject statically incompatible output references.
 
 Conformance should not present those checks as complete static typechecking.
-Dynamic expressions, local state, user inputs, wallet accounts, RPC decoder
-outputs, and literal strings that may become addresses or bytes remain runtime
-values. The EVM adapter must still normalize and reject concrete values against
-the ABI before every route read, simulation, and write.
+Dynamic expressions, local state, user inputs, wallet accounts, and RPC decoder
+outputs remain runtime values. The EVM adapter must still normalize and reject
+concrete values against the ABI before every route read, simulation, and write.
 
 UI and DOM/schema rules:
 
