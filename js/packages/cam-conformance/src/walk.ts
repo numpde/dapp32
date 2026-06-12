@@ -34,8 +34,9 @@ export function rawValueAtSegments(value: unknown, segments: readonly string[]):
 }
 
 function isRecordObject(value: unknown): value is Record<string, unknown> {
-  // Keep this helper local: generic conformance facets are deliberately not
-  // coupled to runtime protocol packages, and the repo checks enforce that.
+  // Keep root shared helpers dependency-free. Facet folders may import
+  // @cam/protocol where they own protocol-level checks, but this file stays
+  // usable from any conformance facet without widening that facet's imports.
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return false
   }
