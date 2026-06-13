@@ -397,7 +397,8 @@
         Smart contracts enforce dapp rules, but the workflow a human or agent
         follows is usually encoded in a custom website: what to display, what to
         collect from the user, what a button does, and what should happen after
-        a transaction.
+        a transaction. Every team rebuilds that UI layer even when the contract
+        already knows the relevant state and permissions.
       </p>
       <p>
         dapp32 moves that workflow description into declarative manifest data
@@ -478,7 +479,8 @@ make bike-nft-viewer-gui
           <p>
             <code>@cam/protocol</code>, <code>@cam/core</code>,
             <code>@cam/screen</code>, <code>@cam/evm-viem</code>,
-            <code>@cam/viewer</code>, and <code>@cam/conformance</code>.
+            <code>@cam/viewer</code>, and <code>@cam/conformance</code> parse,
+            validate, resolve, and test CAM bundles.
           </p>
         </article>
         <article class="card">
@@ -538,159 +540,156 @@ make bike-nft-viewer-gui
     <section id="related">
       <h2>Adjacent ideas</h2>
       <p class="narrow">
-        The useful comparison is by layer. Most adjacent work solves naming,
-        transport, wallet execution, or distribution. dapp32 focuses on the
-        missing middle: a contract-published declarative workflow that a
-        generic client can render and execute without trusting arbitrary app
-        JavaScript.
+        These projects are useful reference points, but most solve a neighboring
+        layer: naming, resource transport, signatures, transaction submission,
+        or distribution. dapp32 is about the UI/workflow layer a contract can
+        publish for a shared viewer.
       </p>
       <div class="grid two">
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-5169">TokenScript / ERC-5169</a></h3>
           <p>
-            <strong>Useful here:</strong> contract-discovered client resources
-            are the right starting point, and token-aware UIs are a proven need.
+            <strong>What it is:</strong> a way for token contracts to expose
+            client-side resources, commonly associated with token-aware wallet
+            experiences.
           </p>
           <p>
-            <strong>Not enough:</strong> dapp32 wants a small validated workflow
-            grammar, not an open-ended script surface tied mainly to token
-            rendering.
+            <strong>Gap for dapp32:</strong> it is token- and script-oriented.
+            The problem here is a small declarative UI/workflow manifest that a
+            generic viewer can validate before rendering.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-4804">ERC-4804 <code>web3://</code></a></h3>
           <p>
-            <strong>Useful here:</strong> contract-addressed reads and URI
-            resolution are a natural way to fetch onchain or contract-mediated
-            resources.
+            <strong>What it is:</strong> a URL scheme for reading resources
+            through Ethereum contract calls.
           </p>
           <p>
-            <strong>Not enough:</strong> a URL can locate data; it does not
-            define routes, typed arguments, UI nodes, write preparation, or
-            workflow conformance.
+            <strong>Gap for dapp32:</strong> it tells a client how to fetch
+            something, not what UI to render, which reads to run, which inputs to
+            collect, or which wallet action to prepare.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-3668">CCIP Read / ERC-3668</a></h3>
           <p>
-            <strong>Useful here:</strong> OffchainLookup is a strong pattern for
-            contract-authorized offchain reads with explicit verification back
-            onchain.
+            <strong>What it is:</strong> a contract-authorized offchain lookup
+            pattern using <code>OffchainLookup</code> and callback verification.
           </p>
           <p>
-            <strong>Not enough:</strong> it is a read delegation mechanism, not
-            a declarative app contract, screen model, or user-action grammar.
+            <strong>Gap for dapp32:</strong> it helps a contract obtain or
+            verify offchain data. It does not define the app's screens,
+            navigation, form inputs, or action grammar.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-1577">ENS contenthash</a></h3>
           <p>
-            <strong>Useful here:</strong> names can point to content-addressed
-            app resources, which is valuable for publication and review.
+            <strong>What it is:</strong> an ENS record for pointing a name at
+            content-addressed resources such as IPFS or Swarm content.
           </p>
           <p>
-            <strong>Not enough:</strong> contenthash answers where bytes live;
-            dapp32 still needs to say what those bytes mean to a viewer, wallet,
-            or agent.
+            <strong>Gap for dapp32:</strong> it locates bytes. It does not say
+            whether those bytes are a safe UI manifest, how to validate them, or
+            how they map to contract reads and wallet actions.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-4337">ERC-4337 account abstraction</a></h3>
           <p>
-            <strong>Useful here:</strong> UserOperations, bundlers, and paymaster
-            flows are good execution targets for prepared CAM writes.
+            <strong>What it is:</strong> an account-abstraction system built
+            around smart accounts, UserOperations, bundlers, and paymasters.
           </p>
           <p>
-            <strong>Not enough:</strong> account abstraction changes how actions
-            are paid for and submitted; it does not tell a client which actions
-            an app exposes or how to validate them.
+            <strong>Gap for dapp32:</strong> it changes how transactions are
+            authorized, paid for, and submitted. It starts after the UI/workflow
+            has already produced an action.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-5792">EIP-5792 wallet call batches</a></h3>
           <p>
-            <strong>Useful here:</strong> wallet capabilities and batched calls
-            are a clean handoff once a CAM viewer has prepared write requests.
+            <strong>What it is:</strong> a wallet API for sending and tracking
+            one or more calls, with wallet capability discovery.
           </p>
           <p>
-            <strong>Not enough:</strong> it starts at the wallet API boundary;
-            dapp32 is concerned with how a contract-published workflow produces
-            those requests safely.
+            <strong>Gap for dapp32:</strong> it is a good handoff target, but it
+            does not define how the dapp publishes the UI flow that leads to
+            those calls.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-712">EIP-712 typed data</a></h3>
           <p>
-            <strong>Useful here:</strong> typed signing is the right primitive
-            for reviewable approvals, delegations, attestations, and agent
-            authorizations.
+            <strong>What it is:</strong> a standard for typed, human-readable
+            structured data that wallets can present before signing.
           </p>
           <p>
-            <strong>Not enough:</strong> it describes data to sign, not the
-            route graph, rendered workflow, or contract-backed state model that
-            leads to a signing request.
+            <strong>Gap for dapp32:</strong> it describes a signing payload. It
+            does not describe the app UI, route graph, or contract-backed flow
+            that produces that payload.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-681">ERC-681 transaction requests</a></h3>
           <p>
-            <strong>Useful here:</strong> simple call/payment links are useful
-            for QR codes and narrow one-shot interactions.
+            <strong>What it is:</strong> a URI format for payment and
+            transaction requests.
           </p>
           <p>
-            <strong>Not enough:</strong> dapp32 targets multi-step,
-            contract-defined workflows with typed reads, screens, actions, and
-            conformance checks.
+            <strong>Gap for dapp32:</strong> it is useful for one action or one
+            QR code. It is not a multi-screen dapp workflow with reads, inputs,
+            validation, and follow-up actions.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-1193">EIP-1193</a> / <a href="https://eips.ethereum.org/EIPS/eip-6963">EIP-6963</a></h3>
           <p>
-            <strong>Useful here:</strong> provider APIs and multi-wallet
-            discovery are ordinary browser integration points for a CAM viewer.
+            <strong>What they are:</strong> browser/provider standards for
+            talking to wallets and discovering multiple injected wallets.
           </p>
           <p>
-            <strong>Not enough:</strong> they standardize wallet access, not the
-            app workflow or manifest semantics a wallet-adjacent client should
-            interpret.
+            <strong>Gap for dapp32:</strong> they are wallet plumbing. They do
+            not define the app's screens, contract reads, input model, or
+            prepared action semantics.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://solana.com/docs/advanced/actions">Solana Actions / Blinks</a></h3>
           <p>
-            <strong>Useful here:</strong> they show demand for portable action
-            surfaces that clients can preview, render, and turn into
-            transactions.
+            <strong>What they are:</strong> API-driven action descriptors that
+            clients can render as buttons, links, and transaction flows in the
+            Solana ecosystem.
           </p>
           <p>
-            <strong>Not enough:</strong> they are API/server-oriented; dapp32
-            anchors the workflow and validation boundary in the Ethereum
-            contract itself.
+            <strong>Gap for dapp32:</strong> they prove the action-surface need,
+            but the authority is an API endpoint. dapp32 anchors the UI/workflow
+            pointer and validation boundary in an Ethereum contract.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://miniapps.farcaster.xyz/">Farcaster Mini Apps</a></h3>
           <p>
-            <strong>Useful here:</strong> Mini Apps are a strong distribution
-            and client-container story for user-facing crypto experiences.
+            <strong>What they are:</strong> web apps packaged for Farcaster
+            clients, with social context, distribution, and client integration.
           </p>
           <p>
-            <strong>Not enough:</strong> they intentionally provide an app
-            runtime; dapp32 explores the smaller protocol layer a generic client
-            could interpret before any app-specific runtime is trusted.
+            <strong>Gap for dapp32:</strong> they are a useful container for
+            apps, but still assume an app runtime. dapp32 targets the smaller
+            contract-defined UI/workflow layer underneath.
           </p>
         </article>
         <article class="card">
           <h3><a href="https://eips.ethereum.org/EIPS/eip-7572">ERC-7572 contract metadata</a></h3>
           <p>
-            <strong>Useful here:</strong> contract-level metadata is another
-            precedent for contracts publishing machine-readable resources about
-            themselves.
+            <strong>What it is:</strong> a contract-level metadata URI pattern
+            for describing a contract or collection.
           </p>
           <p>
-            <strong>Not enough:</strong> metadata describes a contract; dapp32
-            needs an executable-but-declarative workflow that generic viewers can
-            validate step by step.
+            <strong>Gap for dapp32:</strong> metadata describes what a contract
+            is. It does not define an interactive UI flow a shared viewer can
+            execute step by step.
           </p>
         </article>
       </div>
