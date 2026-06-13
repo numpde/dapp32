@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>dapp32 - Contract-defined workflows</title>
-  <meta name="description" content="dapp32 explores contract-published declarative workflows that generic viewers, wallets, and agents can validate and interpret without arbitrary app JavaScript.">
+  <meta name="description" content="dapp32 lets contracts point to a pinned UI/workflow manifest that generic viewers can render, so dapp developers do not need to build a full custom frontend.">
   <style>
     :root {
       color-scheme: light;
@@ -340,12 +340,12 @@
     <div class="shell hero">
       <div>
         <p class="eyebrow">Contract-defined workflows</p>
-        <h1>Contract-published workflows for generic clients.</h1>
+        <h1>The contract defines the UI.</h1>
         <p class="lede">
-          dapp32 is a research prototype for a narrower dapp interface:
-          Ethereum contracts publish hash-pinned CAM bundles that generic
-          viewers, wallets, and agents can validate, render, and use to prepare
-          actions without trusting bespoke frontend JavaScript.
+          dapp32 lets an Ethereum contract point to a pinned offchain CAM
+          manifest that defines the dapp's screens, reads, inputs, and wallet
+          actions. Developers can run the open dapp32 viewer, embed it, or use a
+          hosted viewer they trust instead of building a whole custom frontend.
         </p>
         <div class="actions">
           <a class="button primary" href="https://github.com/numpde/dapp32/tree/main">Source</a>
@@ -400,10 +400,10 @@
         a transaction.
       </p>
       <p>
-        That website becomes an unverified offchain interpreter of the
-        contract-governed workflow. dapp32 moves the workflow description into
-        declarative, validated data published by the contract for generic
-        viewers, wallets, and agents.
+        dapp32 moves that workflow description into declarative manifest data
+        published by the contract. A generic viewer validates the manifest,
+        renders the UI, and prepares wallet actions from the contract-defined
+        flow.
       </p>
     </section>
 
@@ -413,9 +413,9 @@
         <article class="card">
           <h3>Contract-anchored manifests</h3>
           <p>
-            A host contract points to a CAM bundle. The root manifest and
-            secondary ABI/UI resources are integrity checked before a client
-            renders or prepares anything.
+            A host contract points to a pinned CAM bundle. The app's screens,
+            reads, and actions live in reviewable manifest data instead of a
+            custom frontend codebase.
           </p>
         </article>
         <article class="card">
@@ -431,7 +431,8 @@
           <p>
             The UI resource describes portable nodes such as text, fields,
             addresses, status rows, NFT references, includes, and actions. It is
-            data, not an arbitrary app runtime.
+            data a shared viewer can render, not an app-specific runtime every
+            project must rebuild.
           </p>
         </article>
       </div>
