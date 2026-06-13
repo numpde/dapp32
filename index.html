@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>dapp32 - Contract-defined workflows</title>
-  <meta name="description" content="dapp32 lets contracts point to a pinned UI/workflow manifest that generic viewers can render, so dapp developers do not need to build a full custom frontend.">
+  <meta name="description" content="dapp32 lets contracts point to a pinned UI/workflow manifest that generic viewers and agents can interpret, so dapp developers do not need to build a full custom frontend.">
   <style>
     :root {
       color-scheme: light;
@@ -344,8 +344,10 @@
         <p class="lede">
           dapp32 lets an Ethereum contract point to a pinned offchain CAM
           manifest that defines the dapp's screens, reads, inputs, and wallet
-          actions. Developers can run the open dapp32 viewer, embed it, or use a
-          hosted viewer they trust instead of building a whole custom frontend.
+          actions. That interface can be rendered as a graphical UI or exposed
+          as a minimal API for agents. Developers can run the open dapp32 viewer,
+          embed it, or use a hosted viewer they trust instead of building a
+          whole custom frontend.
         </p>
         <div class="actions">
           <a class="button primary" href="https://github.com/numpde/dapp32/tree/main">Source</a>
@@ -402,9 +404,9 @@
       </p>
       <p>
         dapp32 moves that workflow description into declarative manifest data
-        published by the contract. A generic viewer validates the manifest,
-        renders the UI, and prepares wallet actions from the contract-defined
-        flow.
+        published by the contract. A generic viewer validates the manifest, then
+        renders a human UI or exposes the same flow as a barebones agent API
+        before preparing wallet actions.
       </p>
     </section>
 
@@ -431,9 +433,9 @@
           <h3>Small UI model</h3>
           <p>
             The UI resource describes portable nodes such as text, fields,
-            addresses, status rows, NFT references, includes, and actions. It is
-            data a shared viewer can render, not an app-specific runtime every
-            project must rebuild.
+            addresses, status rows, NFT references, includes, and actions. Those
+            nodes can become graphical controls or a minimal machine interface,
+            not an app-specific runtime every project must rebuild.
           </p>
         </article>
       </div>
@@ -543,7 +545,7 @@ make bike-nft-viewer-gui
         These projects are useful reference points, but most solve a neighboring
         layer: naming, resource transport, signatures, transaction submission,
         or distribution. dapp32 is about the UI/workflow layer a contract can
-        publish for a shared viewer.
+        publish for a shared viewer or agent-facing interface.
       </p>
       <div class="grid two">
         <article class="card">
