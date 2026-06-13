@@ -141,22 +141,21 @@
       text-decoration: none;
     }
 
-    .theme-switch {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--muted);
-      font-size: 0.9rem;
-      white-space: nowrap;
-    }
-
-    .theme-switch select {
+    .theme-toggle {
       min-height: 34px;
+      padding: 6px 10px;
       border: 1px solid var(--line);
       border-radius: 6px;
       background: var(--panel);
       color: var(--ink);
       font: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--green);
     }
 
     header {
@@ -409,14 +408,9 @@
           <a href="#related">Related</a>
           <a href="#archive">Archive</a>
         </nav>
-        <label class="theme-switch">
-          <span>Theme</span>
-          <select id="theme-choice" aria-label="Theme">
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </label>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-live="polite">
+          Theme
+        </button>
       </div>
     </div>
   </div>
@@ -760,41 +754,48 @@ make bike-nft-viewer-gui
   <script>
     (function () {
       var key = "dapp32-theme"
-      var choice = document.getElementById("theme-choice")
-      if (!choice) return
+      var button = document.getElementById("theme-toggle")
+      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+      if (!button) return
 
       function storedTheme() {
         try {
           var value = localStorage.getItem(key)
-          return value === "light" || value === "dark" ? value : "system"
+          return value === "light" || value === "dark" ? value : null
         } catch (error) {
-          return "system"
+          return null
         }
       }
 
       function applyTheme(value) {
-        if (value === "light" || value === "dark") {
-          document.documentElement.dataset.theme = value
-          try {
-            localStorage.setItem(key, value)
-          } catch (error) {
-            return
-          }
-          return
-        }
-
-        document.documentElement.removeAttribute("data-theme")
+        document.documentElement.dataset.theme = value
         try {
-          localStorage.removeItem(key)
+          localStorage.setItem(key, value)
         } catch (error) {
           return
         }
       }
 
-      choice.value = storedTheme()
-      choice.addEventListener("change", function () {
-        applyTheme(choice.value)
+      function effectiveTheme() {
+        return storedTheme() || (systemTheme.matches ? "dark" : "light")
+      }
+
+      function updateButton() {
+        var nextTheme = effectiveTheme() === "dark" ? "Light" : "Dark"
+        button.textContent = nextTheme + " mode"
+        button.setAttribute("aria-label", "Switch to " + nextTheme.toLowerCase() + " mode")
+      }
+
+      button.addEventListener("click", function () {
+        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
+        updateButton()
       })
+
+      systemTheme.addEventListener("change", function () {
+        if (!storedTheme()) updateButton()
+      })
+
+      updateButton()
     })()
   </script>
 </body>
