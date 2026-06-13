@@ -547,149 +547,112 @@ make bike-nft-viewer-gui
       </p>
       <div class="grid two">
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-5169">TokenScript / ERC-5169</a></h3>
           <p>
-            <strong>What it is:</strong> a way for token contracts to expose
-            client-side resources, commonly associated with token-aware wallet
-            experiences.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> it is token- and script-oriented.
-            The problem here is a small declarative UI/workflow manifest that a
-            generic viewer can validate before rendering.
+            <a href="https://eips.ethereum.org/EIPS/eip-5169">TokenScript / ERC-5169</a>
+            lets token contracts expose client-side resources, commonly for
+            token-aware wallet experiences. It is useful precedent for
+            contract-discovered UI material, but dapp32 needs a small
+            declarative UI/workflow manifest a generic viewer can validate
+            before rendering.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-4804">ERC-4804 <code>web3://</code></a></h3>
           <p>
-            <strong>What it is:</strong> a URL scheme for reading resources
-            through Ethereum contract calls.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> it tells a client how to fetch
-            something, not what UI to render, which reads to run, which inputs to
-            collect, or which wallet action to prepare.
+            <a href="https://eips.ethereum.org/EIPS/eip-4804">ERC-4804 <code>web3://</code></a>
+            is a URL scheme for reading resources through Ethereum contract
+            calls. It tells a client how to fetch something, not what UI to
+            render, which reads to run, which inputs to collect, or which wallet
+            action to prepare.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-3668">CCIP Read / ERC-3668</a></h3>
           <p>
-            <strong>What it is:</strong> a contract-authorized offchain lookup
-            pattern using <code>OffchainLookup</code> and callback verification.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> it helps a contract obtain or
-            verify offchain data. It does not define the app's screens,
-            navigation, form inputs, or action grammar.
+            <a href="https://eips.ethereum.org/EIPS/eip-3668">CCIP Read / ERC-3668</a>
+            is a contract-authorized offchain lookup pattern using
+            <code>OffchainLookup</code> and callback verification. It helps a
+            contract obtain or verify offchain data, but it does not define the
+            app's screens, navigation, form inputs, or action grammar.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-1577">ENS contenthash</a></h3>
           <p>
-            <strong>What it is:</strong> an ENS record for pointing a name at
-            content-addressed resources such as IPFS or Swarm content.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> it locates bytes. It does not say
-            whether those bytes are a safe UI manifest, how to validate them, or
-            how they map to contract reads and wallet actions.
+            <a href="https://eips.ethereum.org/EIPS/eip-1577">ENS contenthash</a>
+            points a name at content-addressed resources such as IPFS or Swarm
+            content. It locates bytes, but it does not say whether those bytes
+            are a safe UI manifest, how to validate them, or how they map to
+            contract reads and wallet actions.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-4337">ERC-4337 account abstraction</a></h3>
           <p>
-            <strong>What it is:</strong> an account-abstraction system built
-            around smart accounts, UserOperations, bundlers, and paymasters.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> it changes how transactions are
-            authorized, paid for, and submitted. It starts after the UI/workflow
-            has already produced an action.
+            <a href="https://eips.ethereum.org/EIPS/eip-4337">ERC-4337 account abstraction</a>
+            is an account-abstraction system built around smart accounts,
+            UserOperations, bundlers, and paymasters. It changes how
+            transactions are authorized, paid for, and submitted; it starts
+            after the UI/workflow has already produced an action.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-5792">EIP-5792 wallet call batches</a></h3>
           <p>
-            <strong>What it is:</strong> a wallet API for sending and tracking
-            one or more calls, with wallet capability discovery.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> it is a good handoff target, but it
-            does not define how the dapp publishes the UI flow that leads to
-            those calls.
+            <a href="https://eips.ethereum.org/EIPS/eip-5792">EIP-5792 wallet call batches</a>
+            is a wallet API for sending and tracking one or more calls, with
+            wallet capability discovery. It is a good handoff target after a
+            viewer prepares calls, but it does not define how the dapp publishes
+            the UI flow that leads to those calls.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-712">EIP-712 typed data</a></h3>
           <p>
-            <strong>What it is:</strong> a standard for typed, human-readable
-            structured data that wallets can present before signing.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> it describes a signing payload. It
-            does not describe the app UI, route graph, or contract-backed flow
-            that produces that payload.
+            <a href="https://eips.ethereum.org/EIPS/eip-712">EIP-712 typed data</a>
+            is a standard for typed, human-readable structured data that wallets
+            can present before signing. It describes a signing payload, not the
+            app UI, route graph, or contract-backed flow that produces that
+            payload.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-681">ERC-681 transaction requests</a></h3>
           <p>
-            <strong>What it is:</strong> a URI format for payment and
-            transaction requests.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> it is useful for one action or one
-            QR code. It is not a multi-screen dapp workflow with reads, inputs,
-            validation, and follow-up actions.
+            <a href="https://eips.ethereum.org/EIPS/eip-681">ERC-681 transaction requests</a>
+            is a URI format for payment and transaction requests. It is useful
+            for one action or one QR code; it is not a multi-screen dapp workflow
+            with reads, inputs, validation, and follow-up actions.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-1193">EIP-1193</a> / <a href="https://eips.ethereum.org/EIPS/eip-6963">EIP-6963</a></h3>
           <p>
-            <strong>What they are:</strong> browser/provider standards for
-            talking to wallets and discovering multiple injected wallets.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> they are wallet plumbing. They do
-            not define the app's screens, contract reads, input model, or
-            prepared action semantics.
+            <a href="https://eips.ethereum.org/EIPS/eip-1193">EIP-1193</a> and
+            <a href="https://eips.ethereum.org/EIPS/eip-6963">EIP-6963</a> are
+            browser/provider standards for talking to wallets and discovering
+            multiple injected wallets. They are wallet plumbing; they do not
+            define the app's screens, contract reads, input model, or prepared
+            action semantics.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://solana.com/docs/advanced/actions">Solana Actions / Blinks</a></h3>
           <p>
-            <strong>What they are:</strong> API-driven action descriptors that
-            clients can render as buttons, links, and transaction flows in the
-            Solana ecosystem.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> they prove the action-surface need,
-            but the authority is an API endpoint. dapp32 anchors the UI/workflow
-            pointer and validation boundary in an Ethereum contract.
+            <a href="https://solana.com/docs/advanced/actions">Solana Actions / Blinks</a>
+            are API-driven action descriptors that clients can render as
+            buttons, links, and transaction flows in the Solana ecosystem. They
+            prove the action-surface need, but the authority is an API endpoint;
+            dapp32 anchors the UI/workflow pointer and validation boundary in an
+            Ethereum contract.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://miniapps.farcaster.xyz/">Farcaster Mini Apps</a></h3>
           <p>
-            <strong>What they are:</strong> web apps packaged for Farcaster
-            clients, with social context, distribution, and client integration.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> they are a useful container for
-            apps, but still assume an app runtime. dapp32 targets the smaller
+            <a href="https://miniapps.farcaster.xyz/">Farcaster Mini Apps</a>
+            are web apps packaged for Farcaster clients, with social context,
+            distribution, and client integration. They are a useful container for
+            apps, but still assume an app runtime; dapp32 targets the smaller
             contract-defined UI/workflow layer underneath.
           </p>
         </article>
         <article class="card">
-          <h3><a href="https://eips.ethereum.org/EIPS/eip-7572">ERC-7572 contract metadata</a></h3>
           <p>
-            <strong>What it is:</strong> a contract-level metadata URI pattern
-            for describing a contract or collection.
-          </p>
-          <p>
-            <strong>Gap for dapp32:</strong> metadata describes what a contract
-            is. It does not define an interactive UI flow a shared viewer can
-            execute step by step.
+            <a href="https://eips.ethereum.org/EIPS/eip-7572">ERC-7572 contract metadata</a>
+            is a contract-level metadata URI pattern for describing a contract or
+            collection. Metadata describes what a contract is; it does not define
+            an interactive UI flow a shared viewer can execute step by step.
           </p>
         </article>
       </div>
