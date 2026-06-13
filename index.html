@@ -400,7 +400,8 @@
       <p>
         That frontend is usually an unverified offchain interpreter of the
         contract's workflow. dapp32 asks whether the contract can publish that
-        workflow as validated data for generic viewers, wallets, and agents.
+        workflow as validated manifest data for generic viewers, wallets, and
+        agents.
       </p>
     </section>
 
@@ -439,7 +440,7 @@
         <li><code>@cam/viewer</code> provides a headless session for route navigation, local state, and action dispatch.</li>
         <li><code>@cam/conformance</code> validates checked CAM bundles across manifest, ABI, resource, route, UI, and typeflow boundaries.</li>
         <li>The bike NFT demo deploys locally, serves CAM resources, and runs in a graphical viewer.</li>
-        <li>A generic integration-fuzz runner walks live CAM deployments with optional local fixture writes.</li>
+        <li>A generic integration-fuzz runner walks deployed CAM hosts; the current checked path targets the local bike NFT fixture.</li>
       </ul>
     </section>
 
@@ -450,7 +451,8 @@
           The current path is Docker-backed through the Makefile. Dependency
           installation is explicit and may take time. The GUI target starts a
           local Anvil chain, deploys the bike NFT fixture, serves CAM resources,
-          and launches the React viewer through a local gateway.
+          and launches the React viewer through a local gateway. The target
+          prints the URL to open in your browser.
         </p>
       </div>
       <pre class="code-block"><span>git clone https://github.com/numpde/dapp32.git
@@ -458,7 +460,8 @@ cd dapp32
 make deps
 make package-deps
 make cam-conformance-check
-make bike-nft-viewer-gui</span></pre>
+make bike-nft-viewer-gui
+# open the printed http://127.0.0.1:5173/... URL</span></pre>
     </section>
 
     <section>
