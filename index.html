@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>dapp32 - Contract-defined workflows</title>
-  <meta name="description" content="dapp32 explores contract-published, hash-pinned CAM manifests that generic viewers, wallets, and agents can validate, render, and use to prepare dapp actions.">
+  <meta name="description" content="dapp32 explores whether Ethereum contracts can publish validated declarative workflows that generic viewers, wallets, and agents can interpret without arbitrary app JavaScript.">
   <style>
     :root {
       color-scheme: light;
@@ -327,9 +327,10 @@
       <a class="brand" href="#">dapp32</a>
       <nav aria-label="Primary">
         <a href="#approach">Approach</a>
-        <a href="#status">Status</a>
+        <a href="#status">Evidence</a>
         <a href="#try">Try it</a>
         <a href="#roadmap">Roadmap</a>
+        <a href="#related">Related</a>
         <a href="#archive">Archive</a>
       </nav>
     </div>
@@ -339,12 +340,13 @@
     <div class="shell hero">
       <div>
         <p class="eyebrow">Contract-defined workflows</p>
-        <h1>Generic clients for contract-published workflows.</h1>
+        <h1>Can contracts publish workflows generic clients can trust?</h1>
         <p class="lede">
-          dapp32 explores CAM bundles: contract-published, hash-pinned app
-          manifests that let generic clients render dapp views, navigate read
-          routes, and prepare writes without trusting bespoke frontend
-          JavaScript.
+          dapp32 is a research prototype for technical evaluators asking whether
+          Ethereum contracts can describe app workflows directly. It uses
+          contract-published, hash-pinned CAM bundles that generic viewers,
+          wallets, and agents can validate, render, and use to prepare actions
+          without trusting bespoke frontend JavaScript.
         </p>
         <div class="actions">
           <a class="button primary" href="https://github.com/numpde/dapp32/tree/main">View current rebuild</a>
@@ -391,17 +393,17 @@
 
   <main class="shell">
     <section id="problem" class="narrow">
-      <h2>Problem</h2>
+      <h2>Why this matters</h2>
       <p>
-        Smart contracts enforce dapp rules, but users and agents still depend on
-        custom websites to know what to display, what to ask for, what a button
-        does, and what should happen after a transaction.
+        Smart contracts enforce dapp rules, but the workflow a human or agent
+        follows is usually encoded in a custom website: what to display, what to
+        ask for, what a button does, and what should happen after a transaction.
       </p>
       <p>
-        That frontend is usually an unverified offchain interpreter of the
-        contract's workflow. dapp32 asks whether the contract can publish that
-        workflow as validated manifest data for generic viewers, wallets, and
-        agents.
+        That website becomes an unverified offchain interpreter of the
+        contract-governed workflow. dapp32 asks how much of that workflow can
+        instead be published by the contract as declarative, validated data for
+        generic viewers, wallets, and agents.
       </p>
     </section>
 
@@ -411,36 +413,39 @@
         <article class="card">
           <h3>Contract-anchored manifests</h3>
           <p>
-            The host contract points to a CAM bundle. The root manifest and
-            secondary ABI/UI resources are integrity checked before use.
+            A host contract points to a CAM bundle. The root manifest and
+            secondary ABI/UI resources are integrity checked before a client
+            renders or prepares anything.
           </p>
         </article>
         <article class="card">
           <h3>Routes before rendering</h3>
           <p>
-            Read routes call view functions and pass outputs into a UI catalog.
-            Write routes prepare ABI calls for simulation and wallet review.
+            Reads are explicit route calls into contract views. Their outputs
+            flow into a declarative UI catalog. Writes become prepared ABI calls
+            for simulation and wallet review.
           </p>
         </article>
         <article class="card">
           <h3>Small UI model</h3>
           <p>
-            The UI resource is declarative: text, fields, addresses, status
-            rows, NFT references, includes, and buttons. No arbitrary app JS.
+            The UI resource describes portable nodes such as text, fields,
+            addresses, status rows, NFT references, includes, and actions. It is
+            data, not an arbitrary app runtime.
           </p>
         </article>
       </div>
     </section>
 
     <section id="status">
-      <h2>What works today</h2>
+      <h2>Current evidence</h2>
       <ul class="status-list">
-        <li>CAM protocol packages parse manifests, UI resources, expressions, and inert values.</li>
-        <li>The viem adapter loads CAM hosts, verifies resources, resolves contract namespaces, reads routes, and prepares writes.</li>
-        <li><code>@cam/viewer</code> provides a headless session for route navigation, local state, and action dispatch.</li>
-        <li><code>@cam/conformance</code> validates checked CAM bundles across manifest, ABI, resource, route, UI, and typeflow boundaries.</li>
-        <li>The bike NFT demo deploys locally, serves CAM resources, and runs in a graphical viewer.</li>
-        <li>A generic integration-fuzz runner walks deployed CAM hosts; the current checked path targets the local bike NFT fixture.</li>
+        <li>The local bike NFT scenario deploys a real contract fixture, serves CAM resources, and runs in a graphical viewer.</li>
+        <li>Runtime packages load CAM hosts, verify resources, resolve contract namespaces, read routes, and prepare writes.</li>
+        <li><code>@cam/viewer</code> provides a headless state machine that a terminal, web app, wallet, or agent can drive.</li>
+        <li><code>@cam/conformance</code> catches authoring errors across manifests, ABI usage, resources, routes, UI, and typeflow.</li>
+        <li>The React viewer is deliberately thin: DOM and wallet interaction stay outside the protocol packages.</li>
+        <li>A generic integration-fuzz runner walks deployed CAM hosts to catch workflow failures that static checks miss.</li>
       </ul>
     </section>
 
@@ -465,7 +470,7 @@ make bike-nft-viewer-gui
     </section>
 
     <section>
-      <h2>Project pieces</h2>
+      <h2>What is in the repo</h2>
       <div class="grid">
         <article class="card">
           <h3>Protocol packages</h3>
@@ -495,35 +500,35 @@ make bike-nft-viewer-gui
     </section>
 
     <section id="roadmap">
-      <h2>Funding roadmap</h2>
+      <h2>What funding would buy</h2>
       <div class="grid two">
         <article class="card">
           <h3>Stabilize CAM v0.1</h3>
           <p>
-            Tighten the manifest and UI specs, document authoring rules, and
-            keep conformance diagnostics precise enough for builders to fix
-            bundles before deployment.
+            Freeze a small manifest/UI surface, document the authoring model,
+            and keep the trust boundary narrow enough for independent review.
           </p>
         </article>
         <article class="card">
-          <h3>Improve builder tooling</h3>
+          <h3>Make validation useful to builders</h3>
           <p>
-            Turn the current validation and integration-fuzz lanes into a clear
-            publication workflow for teams building contract-defined apps.
+            Turn conformance and integration fuzzing into a clear publication
+            workflow with precise diagnostics before a contract points users at
+            a CAM bundle.
           </p>
         </article>
         <article class="card">
-          <h3>Prove generality</h3>
+          <h3>Prove the model outside one demo</h3>
           <p>
-            Add a second non-bike demo so CAM is not overfit to one registry
-            workflow.
+            Add a second serious dapp so CAM is tested against another contract
+            shape, permission model, and user workflow.
           </p>
         </article>
         <article class="card">
-          <h3>Harden wallet and agent boundaries</h3>
+          <h3>Harden wallet and agent handoff</h3>
           <p>
-            Continue refining prepared writes, simulation diagnostics, and the
-            interface generic clients use before asking a wallet or agent to act.
+            Refine prepared writes, simulation diagnostics, and the interface a
+            generic client uses before asking a wallet or agent to act.
           </p>
         </article>
       </div>
