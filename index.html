@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>dapp32 - Contract-defined workflows</title>
-  <meta name="description" content="dapp32 explores whether Ethereum contracts can publish validated declarative workflows that generic viewers, wallets, and agents can interpret without arbitrary app JavaScript.">
+  <meta name="description" content="dapp32 explores contract-published declarative workflows that generic viewers, wallets, and agents can validate and interpret without arbitrary app JavaScript.">
   <style>
     :root {
       color-scheme: light;
@@ -328,7 +328,7 @@
       <nav aria-label="Primary">
         <a href="#approach">Approach</a>
         <a href="#status">Evidence</a>
-        <a href="#try">Try it</a>
+        <a href="#try">Local demo</a>
         <a href="#roadmap">Roadmap</a>
         <a href="#related">Related</a>
         <a href="#archive">Archive</a>
@@ -340,17 +340,16 @@
     <div class="shell hero">
       <div>
         <p class="eyebrow">Contract-defined workflows</p>
-        <h1>Can contracts publish workflows generic clients can trust?</h1>
+        <h1>Contract-published workflows for generic clients.</h1>
         <p class="lede">
-          dapp32 is a research prototype for technical evaluators asking whether
-          Ethereum contracts can describe app workflows directly. It uses
-          contract-published, hash-pinned CAM bundles that generic viewers,
-          wallets, and agents can validate, render, and use to prepare actions
-          without trusting bespoke frontend JavaScript.
+          dapp32 is a research prototype for a narrower dapp interface:
+          Ethereum contracts publish hash-pinned CAM bundles that generic
+          viewers, wallets, and agents can validate, render, and use to prepare
+          actions without trusting bespoke frontend JavaScript.
         </p>
         <div class="actions">
-          <a class="button primary" href="https://github.com/numpde/dapp32/tree/main">View current rebuild</a>
-          <a class="button" href="#try">Run locally</a>
+          <a class="button primary" href="https://github.com/numpde/dapp32/tree/main">Source</a>
+          <a class="button" href="#try">Local demo</a>
           <a class="button" href="https://github.com/numpde/dapp32/tree/poc">Historical PoC</a>
         </div>
       </div>
@@ -397,13 +396,14 @@
       <p>
         Smart contracts enforce dapp rules, but the workflow a human or agent
         follows is usually encoded in a custom website: what to display, what to
-        ask for, what a button does, and what should happen after a transaction.
+        collect from the user, what a button does, and what should happen after
+        a transaction.
       </p>
       <p>
         That website becomes an unverified offchain interpreter of the
-        contract-governed workflow. dapp32 asks how much of that workflow can
-        instead be published by the contract as declarative, validated data for
-        generic viewers, wallets, and agents.
+        contract-governed workflow. dapp32 moves the workflow description into
+        declarative, validated data published by the contract for generic
+        viewers, wallets, and agents.
       </p>
     </section>
 
@@ -451,7 +451,7 @@
 
     <section id="try" class="split">
       <div>
-        <h2>Try the current rebuild</h2>
+        <h2>Local demo</h2>
         <p>
           The current path is Docker-backed through the Makefile. Dependency
           installation is explicit and may take time. The GUI target starts a
@@ -500,7 +500,7 @@ make bike-nft-viewer-gui
     </section>
 
     <section id="roadmap">
-      <h2>What funding would buy</h2>
+      <h2>Next milestones</h2>
       <div class="grid two">
         <article class="card">
           <h3>Stabilize CAM v0.1</h3>
@@ -528,7 +528,7 @@ make bike-nft-viewer-gui
           <h3>Harden wallet and agent handoff</h3>
           <p>
             Refine prepared writes, simulation diagnostics, and the interface a
-            generic client uses before asking a wallet or agent to act.
+            generic client uses before handing work to a wallet or agent.
           </p>
         </article>
       </div>
@@ -539,9 +539,9 @@ make bike-nft-viewer-gui
       <p class="narrow">
         The useful comparison is by layer. Most adjacent work solves naming,
         transport, wallet execution, or distribution. dapp32 focuses on the
-        missing middle: can an Ethereum contract publish a validated,
-        declarative workflow that a generic client can render and execute
-        without trusting arbitrary app JavaScript?
+        missing middle: a contract-published declarative workflow that a
+        generic client can render and execute without trusting arbitrary app
+        JavaScript.
       </p>
       <div class="grid two">
         <article class="card">
@@ -663,8 +663,8 @@ make bike-nft-viewer-gui
           </p>
           <p>
             <strong>Not enough:</strong> they are API/server-oriented; dapp32
-            asks whether the Ethereum contract itself can anchor the workflow
-            and validation boundary.
+            anchors the workflow and validation boundary in the Ethereum
+            contract itself.
           </p>
         </article>
         <article class="card">
