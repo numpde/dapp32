@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>dapp32 - Contract-defined workflows</title>
+  <meta name="description" content="dapp32 explores contract-published, hash-pinned CAM manifests that generic viewers, wallets, and agents can validate, render, and use to prepare dapp actions.">
   <style>
     :root {
       color-scheme: light;
@@ -338,11 +339,12 @@
     <div class="shell hero">
       <div>
         <p class="eyebrow">Contract-defined workflows</p>
-        <h1>Generic viewers for contract-published app flows.</h1>
+        <h1>Generic clients for contract-published workflows.</h1>
         <p class="lede">
-          dapp32 explores CAM: a contract-published, hash-pinned manifest format
-          that lets generic clients render dapp views, navigate read routes, and
-          prepare writes without trusting bespoke frontend JavaScript.
+          dapp32 explores CAM bundles: contract-published, hash-pinned app
+          manifests that let generic clients render dapp views, navigate read
+          routes, and prepare writes without trusting bespoke frontend
+          JavaScript.
         </p>
         <div class="actions">
           <a class="button primary" href="https://github.com/numpde/dapp32/tree/main">View current rebuild</a>
@@ -351,8 +353,8 @@
         </div>
       </div>
 
-      <aside class="protocol-panel" aria-label="CAM flow summary">
-        <h2>Current CAM flow</h2>
+      <aside class="protocol-panel" aria-label="CAM workflow summary">
+        <h2>Current CAM workflow</h2>
         <div class="rail">
           <div class="rail-row">
             <span>1</span>
@@ -397,9 +399,8 @@
       </p>
       <p>
         That frontend is usually an unverified offchain interpreter of the
-        contract's workflow. dapp32 asks whether the workflow itself can be
-        published by the contract, validated as data, and consumed by generic
-        wallets, viewers, and agents.
+        contract's workflow. dapp32 asks whether the contract can publish that
+        workflow as validated data for generic viewers, wallets, and agents.
       </p>
     </section>
 
@@ -446,9 +447,10 @@
       <div>
         <h2>Try the current rebuild</h2>
         <p>
-          The current path is Docker-backed through the Makefile. The GUI target
-          starts a local Anvil chain, deploys the bike NFT fixture, serves CAM
-          resources, and launches the React viewer through a local gateway.
+          The current path is Docker-backed through the Makefile. Dependency
+          installation is explicit and may take time. The GUI target starts a
+          local Anvil chain, deploys the bike NFT fixture, serves CAM resources,
+          and launches the React viewer through a local gateway.
         </p>
       </div>
       <pre class="code-block"><span>git clone https://github.com/numpde/dapp32.git
