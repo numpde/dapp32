@@ -142,20 +142,59 @@
     }
 
     .theme-toggle {
-      min-height: 34px;
-      padding: 6px 10px;
+      position: relative;
+      display: inline-grid;
+      grid-template-columns: 1fr 1fr;
+      place-items: center;
+      width: 66px;
+      height: 34px;
+      padding: 0 7px;
       border: 1px solid var(--line);
-      border-radius: 6px;
+      border-radius: 999px;
       background: var(--panel);
       color: var(--ink);
       font: inherit;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
       cursor: pointer;
-      white-space: nowrap;
+      box-shadow: inset 0 1px 2px rgba(23, 32, 43, 0.08);
     }
 
     .theme-toggle:hover {
       border-color: var(--green);
+    }
+
+    .theme-toggle:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--green), transparent 68%);
+      outline-offset: 2px;
+    }
+
+    .theme-toggle::before {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 4px 10px rgba(17, 107, 95, 0.25);
+      transition: transform 160ms ease;
+    }
+
+    .theme-toggle[data-theme-state="dark"]::before {
+      transform: translateX(32px);
+    }
+
+    .theme-toggle span {
+      position: relative;
+      z-index: 1;
+      line-height: 1;
+      color: var(--muted);
+    }
+
+    .theme-toggle[data-theme-state="light"] .theme-sun,
+    .theme-toggle[data-theme-state="dark"] .theme-moon {
+      color: #ffffff;
     }
 
     header {
@@ -408,8 +447,9 @@
           <a href="#related">Related</a>
           <a href="#archive">Archive</a>
         </nav>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-live="polite">
-          Theme
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
+          <span class="theme-sun" aria-hidden="true">☀</span>
+          <span class="theme-moon" aria-hidden="true">☾</span>
         </button>
       </div>
     </div>
@@ -781,9 +821,11 @@ make bike-nft-viewer-gui
       }
 
       function updateButton() {
-        var nextTheme = effectiveTheme() === "dark" ? "Light" : "Dark"
-        button.textContent = nextTheme + " mode"
-        button.setAttribute("aria-label", "Switch to " + nextTheme.toLowerCase() + " mode")
+        var currentTheme = effectiveTheme()
+        var nextTheme = currentTheme === "dark" ? "light" : "dark"
+        button.dataset.themeState = currentTheme
+        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
+        button.setAttribute("title", "Switch to " + nextTheme + " mode")
       }
 
       button.addEventListener("click", function () {
