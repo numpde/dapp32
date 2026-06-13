@@ -7,17 +7,66 @@
   <meta name="description" content="dapp32 lets contracts point to a pinned UI/workflow manifest that generic viewers and agents can interpret, so dapp developers do not need to build a full custom frontend.">
   <style>
     :root {
-      color-scheme: light;
+      color-scheme: light dark;
       --ink: #1b2430;
       --muted: #647386;
       --soft: #f5f7fa;
       --panel: #ffffff;
+      --chrome: #fbfcfe;
       --line: #d8e0ea;
       --green: #116b5f;
       --blue: #244f86;
       --rust: #a44631;
       --code: #edf2f7;
+      --callout: #fffaf7;
+      --callout-ink: #55342d;
+      --code-block: #16202c;
+      --code-block-ink: #e9f0f7;
       --shadow: 0 16px 34px rgba(23, 32, 43, 0.08);
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --ink: #e8eef6;
+        --muted: #a7b4c5;
+        --soft: #0f141b;
+        --panel: #151c25;
+        --chrome: #111820;
+        --line: #2a3442;
+        --green: #5cc1aa;
+        --blue: #8bb7f0;
+        --rust: #e18a72;
+        --code: #202a36;
+        --callout: #281b18;
+        --callout-ink: #f0c1b4;
+        --code-block: #070b10;
+        --code-block-ink: #e5edf6;
+        --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --ink: #e8eef6;
+      --muted: #a7b4c5;
+      --soft: #0f141b;
+      --panel: #151c25;
+      --chrome: #111820;
+      --line: #2a3442;
+      --green: #5cc1aa;
+      --blue: #8bb7f0;
+      --rust: #e18a72;
+      --code: #202a36;
+      --callout: #281b18;
+      --callout-ink: #f0c1b4;
+      --code-block: #070b10;
+      --code-block-ink: #e5edf6;
+      --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
     }
 
     * {
@@ -57,7 +106,7 @@
 
     .topbar {
       border-bottom: 1px solid var(--line);
-      background: #fbfcfe;
+      background: var(--chrome);
     }
 
     .topbar .shell {
@@ -81,14 +130,38 @@
       font-size: 0.94rem;
     }
 
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
     nav a {
       color: var(--muted);
       text-decoration: none;
     }
 
+    .theme-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .theme-switch select {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+    }
+
     header {
       padding: 56px 0 44px;
-      background: #fbfcfe;
+      background: var(--chrome);
       border-bottom: 1px solid var(--line);
     }
 
@@ -258,8 +331,8 @@
     .callout {
       padding: 16px 18px;
       border-left: 4px solid var(--rust);
-      background: #fffaf7;
-      color: #55342d;
+      background: var(--callout);
+      color: var(--callout-ink);
     }
 
     .callout p {
@@ -273,8 +346,8 @@
       padding: 16px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #16202c;
-      color: #e9f0f7;
+      background: var(--code-block);
+      color: var(--code-block-ink);
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 0.92rem;
       line-height: 1.55;
@@ -302,21 +375,49 @@
         justify-content: center;
         padding: 14px 0;
       }
+
+      .topbar-actions {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 12px;
+      }
     }
   </style>
+  <script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem("dapp32-theme")
+        if (storedTheme === "light" || storedTheme === "dark") {
+          document.documentElement.dataset.theme = storedTheme
+        }
+      } catch (error) {
+        document.documentElement.removeAttribute("data-theme")
+      }
+    })()
+  </script>
 </head>
 <body>
   <div class="topbar">
     <div class="shell">
       <a class="brand" href="#">dapp32</a>
-      <nav aria-label="Primary">
-        <a href="#approach">Approach</a>
-        <a href="#status">Evidence</a>
-        <a href="#try">Local demo</a>
-        <a href="#roadmap">Roadmap</a>
-        <a href="#related">Related</a>
-        <a href="#archive">Archive</a>
-      </nav>
+      <div class="topbar-actions">
+        <nav aria-label="Primary">
+          <a href="#approach">Approach</a>
+          <a href="#status">Evidence</a>
+          <a href="#try">Local demo</a>
+          <a href="#roadmap">Roadmap</a>
+          <a href="#related">Related</a>
+          <a href="#archive">Archive</a>
+        </nav>
+        <label class="theme-switch">
+          <span>Theme</span>
+          <select id="theme-choice" aria-label="Theme">
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+      </div>
     </div>
   </div>
 
@@ -656,5 +757,45 @@ make bike-nft-viewer-gui
       </div>
     </section>
   </main>
+  <script>
+    (function () {
+      var key = "dapp32-theme"
+      var choice = document.getElementById("theme-choice")
+      if (!choice) return
+
+      function storedTheme() {
+        try {
+          var value = localStorage.getItem(key)
+          return value === "light" || value === "dark" ? value : "system"
+        } catch (error) {
+          return "system"
+        }
+      }
+
+      function applyTheme(value) {
+        if (value === "light" || value === "dark") {
+          document.documentElement.dataset.theme = value
+          try {
+            localStorage.setItem(key, value)
+          } catch (error) {
+            return
+          }
+          return
+        }
+
+        document.documentElement.removeAttribute("data-theme")
+        try {
+          localStorage.removeItem(key)
+        } catch (error) {
+          return
+        }
+      }
+
+      choice.value = storedTheme()
+      choice.addEventListener("change", function () {
+        applyTheme(choice.value)
+      })
+    })()
+  </script>
 </body>
 </html>
