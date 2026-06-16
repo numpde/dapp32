@@ -78,6 +78,11 @@ export function validateUiTypeflow({
 }): void {
   const routesByName = new Map(routes.map((route) => [route.name, route]))
   for (const [resource, ui] of uiDocuments) {
+    // Route-local validation is critical: the same UI graph can be rendered from
+    // multiple route outputs, and each route can make different arguments
+    // available at runtime. We must validate each (resource, route) pair
+    // independently so unresolved or missing state/input bindings are surfaced
+    // at the correct workflow boundary.
     for (const route of routes) {
       const scope = {
         resource,
