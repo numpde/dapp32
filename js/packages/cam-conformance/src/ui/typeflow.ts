@@ -294,15 +294,21 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
     if (value.every((item) => typeof item === "string" && expressionReference(item) === undefined)) {
       return { type: "literal-string[]", items: value }
     }
-    const itemShapes = value.map((item) => knownValueShape(item, resolve))
-    return itemShapes.some((item) => item === undefined) ? UNKNOWN_VALUE : { type: "array", items: itemShapes }
+
+    // Preserve every child element and mark only that element unknown so
+    // partially-known aggregates can still be validated at route boundaries.
+    return {
+      type: "array",
+      items: value.map((item) => knownValueShape(item, resolve) ?? UNKNOWN_VALUE),
+    }
   }
 
   if (!isRecordObject(value)) return undefined
 
-  const components = Object.entries(value).flatMap(([name, item]) => {
-    const shape = knownValueShape(item, resolve)
-    return isRecordObject(shape) ? [{ name, ...shape }] : []
+  const components = Object.entries(value).map(([name, item]) => {
+    const shape = knownValueShape(item, resolve) ?? UNKNOWN_VALUE
+    const knownShape = isRecordObject(shape) ? shape : UNKNOWN_VALUE
+    return { name, ...knownShape }
   })
 
   return {
