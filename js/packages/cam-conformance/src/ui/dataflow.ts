@@ -1,19 +1,12 @@
 import {
   isExpressionIdentifier,
   isRecordObject,
-  UI_RUNTIME_ROOTS,
 } from "@cam/protocol"
 
 import {
   conformanceIssue,
   type CamConformanceIssue,
 } from "../issues.ts"
-import type {
-  DeclaredRoute,
-} from "../manifest/routes.ts"
-import {
-  diffNameSets,
-} from "../names.ts"
 import type {
   DeclaredUiNode,
 } from "./nodes.ts"
@@ -25,6 +18,12 @@ import {
   staticString,
   staticStringList,
 } from "../expressions/reference.ts"
+import {
+  validateExpectedArgumentNames,
+  validateStaticCallTargets,
+  validateUiCallArgNames,
+  validateUiCallFunctionShape,
+} from "./calls.ts"
 
 type UiCall = {
   readonly path: string
@@ -46,8 +45,26 @@ export function validateUiDataflow({
     const calls = uiCalls(resource, ui.nodes, issues)
 
     for (const call of calls) {
-      if (!validateUiCallArgNames(resource, call, issues)) continue
-      if (!validateUiCallFunctionShape(resource, call, issues)) continue
+      if (!validateUiCallArgNames({
+        resource,
+        path: call.path,
+        namespace: call.namespace,
+        args: call.args,
+        issues,
+        rule: "CAM_UI_DATAFLOW_MISMATCH",
+      })) {
+        continue
+      }
+      if (!validateUiCallFunctionShape({
+        resource,
+        path: call.path,
+        namespace: call.namespace,
+        value: call.function,
+        issues,
+        rule: "CAM_UI_DATAFLOW_MISMATCH",
+      })) {
+        continue
+      }
       if (call.namespace === "ui") {
         if (uiNodes !== undefined) {
           validateIncludeNodeArgs(resource, call, uiNodes, issues)
@@ -122,44 +139,6 @@ function collectCall(
   })
 }
 
-function validateUiCallArgNames(resource: string, call: UiCall, issues: CamConformanceIssue[]): boolean {
-  let valid = true
-  if (Object.prototype.hasOwnProperty.call(call.args, "")) {
-    issues.push(dataflowIssue(resource, `${call.path}.call.args`, "UI call argument name must not be empty"))
-    valid = false
-  }
-
-  if (call.namespace === "ui") {
-    for (const name of Object.keys(call.args)) {
-      if (UI_RUNTIME_ROOTS.has(name)) {
-        issues.push(dataflowIssue(resource, `${call.path}.call.args.${name}`, `UI call argument must not shadow runtime root: ${name}`))
-        valid = false
-      }
-    }
-  }
-
-  return valid
-}
-
-function validateUiCallFunctionShape(resource: string, call: UiCall, issues: CamConformanceIssue[]): boolean {
-  if (typeof call.function === "string") return true
-
-  if (call.namespace === "ui" && Array.isArray(call.function)) {
-    if (call.function.every((item) => typeof item === "string")) return true
-    issues.push(dataflowIssue(resource, `${call.path}.call.function`, "UI Include target must be a string or string array"))
-    return false
-  }
-
-  issues.push(dataflowIssue(
-    resource,
-    `${call.path}.call.function`,
-    call.namespace === "ui"
-      ? "UI Include target must be a string or string array"
-      : "UI Button route target must be a string",
-  ))
-  return false
-}
-
 function validateIncludeNodeArgs(
   resource: string,
   include: UiCall,
@@ -168,7 +147,16 @@ function validateIncludeNodeArgs(
 ): void {
   const functionNames = staticStringList(include.function)
   if (functionNames === undefined) return
-  if (!validateStaticCallTargets(resource, `${include.path}.call.function`, "UI Include", functionNames, issues)) return
+  if (!validateStaticCallTargets({
+    resource,
+    path: `${include.path}.call.function`,
+    label: "UI Include",
+    names: functionNames,
+    issues,
+    rule: "CAM_UI_DATAFLOW_MISMATCH",
+  })) {
+    return
+  }
 
   for (const functionName of functionNames) {
     const node = uiNodes.get(functionName)
@@ -182,13 +170,15 @@ function validateIncludeNodeArgs(
     }
     if (node.requires === undefined) continue
 
-    validateExactNames({
+    validateExpectedArgumentNames({
       resource,
       path: `${include.path}.call.args`,
       expectedNames: node.requires,
       actualNames: Object.keys(include.args),
       destination: `UI node ${node.name}`,
       issues,
+      rule: "CAM_UI_DATAFLOW_MISMATCH",
+      filterEmptyActualNames: false,
     })
   }
 }
@@ -200,62 +190,21 @@ function validateActionRouteShape(
 ): void {
   const functionNames = staticStringList(action.function)
   if (functionNames === undefined) return
-  if (!validateStaticCallTargets(resource, `${action.path}.call.function`, "UI Button route", functionNames, issues)) return
+  if (!validateStaticCallTargets({
+    resource,
+    path: `${action.path}.call.function`,
+    label: "UI Button route",
+    names: functionNames,
+    issues,
+    rule: "CAM_UI_DATAFLOW_MISMATCH",
+  })) {
+    return
+  }
   if (functionNames.length !== 1) {
     issues.push(dataflowIssue(resource, `${action.path}.call.function`, "UI Button route must select exactly one route"))
     return
   }
 
-}
-
-function validateStaticCallTargets(
-  resource: string,
-  path: string,
-  label: string,
-  names: readonly string[],
-  issues: CamConformanceIssue[],
-): boolean {
-  let valid = true
-  const seen = new Set<string>()
-  for (const name of names) {
-    if (name.length === 0) {
-      issues.push(dataflowIssue(resource, path, `${label} target must not be empty`))
-      valid = false
-    } else if (seen.has(name)) {
-      issues.push(dataflowIssue(resource, path, `${label} target must not be duplicated: ${name}`))
-      valid = false
-    }
-    seen.add(name)
-  }
-
-  return valid
-}
-
-function validateExactNames({
-  resource,
-  path,
-  expectedNames,
-  actualNames,
-  destination,
-  issues,
-}: {
-  readonly resource: string
-  readonly path: string
-  readonly expectedNames: readonly string[]
-  readonly actualNames: readonly string[]
-  readonly destination: string
-  readonly issues: CamConformanceIssue[]
-}): void {
-  diffNameSets({
-    expectedNames,
-    actualNames,
-    onUnexpected: (name) => {
-      issues.push(dataflowIssue(resource, `${path}.${name}`, `unexpected UI call argument for ${destination}: ${name}`))
-    },
-    onMissing: (name) => {
-      issues.push(dataflowIssue(resource, `${path}.${name}`, `missing UI call argument for ${destination}: ${name}`))
-    },
-  })
 }
 
 function dataflowIssue(resource: string, path: string, message: string): CamConformanceIssue {

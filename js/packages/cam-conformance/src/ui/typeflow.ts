@@ -34,13 +34,14 @@ import type {
   DeclaredRoute,
 } from "../manifest/routes.ts"
 import {
-  diffNameSets,
-} from "../names.ts"
-import {
   forEachString,
   rawValueAtSegments,
 } from "../walk.ts"
 import type { RawUiDocuments } from "./resources.ts"
+import {
+  validateExpectedArgumentNames,
+  validateStaticCallTargets,
+} from "./calls.ts"
 
 type AbiContext = ReadonlyMap<string, unknown>
 type AbiLookup =
@@ -420,20 +421,14 @@ function validateIncludeSelection(
   path: string,
   names: readonly string[],
 ): boolean {
-  let valid = true
-  const seen = new Set<string>()
-  for (const name of names) {
-    if (name.length === 0) {
-      reportTypeflowIssue(scope, path, "UI Include target must not be empty")
-      valid = false
-    } else if (seen.has(name)) {
-      reportTypeflowIssue(scope, path, `UI Include target must not be duplicated: ${name}`)
-      valid = false
-    }
-    seen.add(name)
-  }
-
-  return valid
+  return validateStaticCallTargets({
+    resource: scope.resource,
+    path,
+    label: "UI Include",
+    names,
+    issues: scope.issues,
+    rule: "CAM_UI_TYPEFLOW_MISMATCH",
+  })
 }
 
 function validateKnownActionRoute(
@@ -453,12 +448,15 @@ function validateKnownActionRoute(
     return
   }
 
-  validateExactNames({
-    scope,
+  validateExpectedArgumentNames({
+    resource: scope.resource,
     path: `${path}.call.args`,
     expectedNames: route.inputs,
     actualNames: Object.keys(args),
     destination: `route ${route.name}`,
+    issues: scope.issues,
+    rule: "CAM_UI_TYPEFLOW_MISMATCH",
+    filterEmptyActualNames: true,
   })
   validateActionRouteAbi(scope, path, route, args, context)
 }
@@ -620,12 +618,15 @@ function validateNodeArgs(
 ): void {
   if (!Array.isArray(node.requires) || !node.requires.every((item) => typeof item === "string")) return
 
-  validateExactNames({
-    scope,
+  validateExpectedArgumentNames({
+    resource: scope.resource,
     path,
     expectedNames: node.requires,
     actualNames,
     destination: `UI node ${nodeName}`,
+    issues: scope.issues,
+    rule: "CAM_UI_TYPEFLOW_MISMATCH",
+    filterEmptyActualNames: true,
   })
 }
 
@@ -699,31 +700,6 @@ function knownLiteralString(value: unknown, context: AbiContext): string | undef
   return lookup.value.type === "literal-string" && typeof lookup.value.value === "string"
     ? lookup.value.value
     : undefined
-}
-
-function validateExactNames({
-  scope,
-  path,
-  expectedNames,
-  actualNames,
-  destination,
-}: {
-  readonly scope: Scope
-  readonly path: string
-  readonly expectedNames: readonly string[]
-  readonly actualNames: readonly string[]
-  readonly destination: string
-}): void {
-  diffNameSets({
-    expectedNames,
-    actualNames: actualNames.filter((name) => name.length > 0),
-    onUnexpected: (name) => {
-      reportTypeflowIssue(scope, `${path}.${name}`, `unexpected UI call argument for ${destination}: ${name}`)
-    },
-    onMissing: (name) => {
-      reportTypeflowIssue(scope, `${path}.${name}`, `missing UI call argument for ${destination}: ${name}`)
-    },
-  })
 }
 
 function valueAtSegments(value: unknown, segments: readonly string[]): unknown | undefined {
