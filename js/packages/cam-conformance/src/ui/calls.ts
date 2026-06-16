@@ -9,7 +9,11 @@ import {
   UI_RUNTIME_ROOTS,
 } from "@cam/protocol"
 
+// Shared invariants for all CAM UI call validation paths.
+// These rules are used by both dataflow and typeflow so call-shape checks
+// cannot diverge between static and resolved validation passes.
 export type UiCallNamespace = "routes" | "ui"
+export type UiCallValidationRule = "CAM_UI_DATAFLOW_MISMATCH" | "CAM_UI_TYPEFLOW_MISMATCH"
 
 export function validateUiCallArgNames({
   resource,
@@ -24,7 +28,7 @@ export function validateUiCallArgNames({
   readonly namespace: UiCallNamespace
   readonly args: Record<string, unknown>
   readonly issues: CamConformanceIssue[]
-  readonly rule: string
+  readonly rule: UiCallValidationRule
 }): boolean {
   // Callers must not pass "" keys; this is invalid regardless of namespace and
   // blocks silent behavior where route/input binding silently drops an arg.
@@ -60,7 +64,7 @@ export function validateUiCallFunctionShape({
   readonly namespace: UiCallNamespace
   readonly value: unknown
   readonly issues: CamConformanceIssue[]
-  readonly rule: string
+  readonly rule: UiCallValidationRule
 }): boolean {
   if (typeof value === "string") return true
 
@@ -96,7 +100,7 @@ export function validateStaticCallTargets({
   readonly label: string
   readonly names: readonly string[]
   readonly issues: CamConformanceIssue[]
-  readonly rule: string
+  readonly rule: UiCallValidationRule
 }): boolean {
   let valid = true
   const seen = new Set<string>()
@@ -130,7 +134,7 @@ export function validateExpectedArgumentNames({
   readonly actualNames: readonly string[]
   readonly destination: string
   readonly issues: CamConformanceIssue[]
-  readonly rule: string
+  readonly rule: UiCallValidationRule
   readonly filterEmptyActualNames: boolean
 }): void {
   // Route/UI handoff checks are name-set contracts. Empty keys are validated in
@@ -148,7 +152,7 @@ export function validateExpectedArgumentNames({
   })
 }
 
-function callIssue(resource: string, rule: string, path: string, message: string): CamConformanceIssue {
+function callIssue(resource: string, rule: UiCallValidationRule, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
     rule,
     resource,

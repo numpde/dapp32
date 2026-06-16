@@ -23,11 +23,12 @@ import {
   validateStaticCallTargets,
   validateUiCallArgNames,
   validateUiCallFunctionShape,
+  type UiCallNamespace,
 } from "./calls.ts"
 
 type UiCall = {
   readonly path: string
-  readonly namespace: "routes" | "ui"
+  readonly namespace: UiCallNamespace
   readonly function: unknown
   readonly args: Record<string, unknown>
 }
