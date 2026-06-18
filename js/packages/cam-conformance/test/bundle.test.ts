@@ -2784,6 +2784,17 @@ test("UI static call targets must not be empty or duplicated", () => {
               args: {},
             },
           },
+          {
+            element: "Button",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: "",
+              args: {},
+            },
+          },
         ],
       },
       detail: {
@@ -2802,6 +2813,7 @@ test("UI static call targets must not be empty or duplicated", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.function"],
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.1.call.function"],
+    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.2.call.function"],
   ])
 })
 
@@ -3471,6 +3483,45 @@ test("UI typeflow validates known dynamic Button routes", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.args.serialNumber"],
+  ])
+})
+
+test("UI typeflow rejects known dynamic empty Button routes", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Button",
+        requires: ["view"],
+        props: {
+          label: "Open",
+        },
+        call: {
+          namespace: "routes",
+          function: "$view.route",
+          args: {},
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            route: "",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
   ])
 })
 

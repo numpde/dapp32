@@ -502,7 +502,9 @@ function validateKnownActionRoute(
   context: AbiContext,
 ): void {
   const staticRouteName = staticString(value)
-  const routeName = staticRouteName === undefined ? knownActionRouteName(value, context) : staticRouteName
+  if (staticRouteName !== undefined && staticRouteName.length === 0) return
+
+  const routeName = staticRouteName === undefined ? knownActionRouteName(scope, path, value, context) : staticRouteName
   if (routeName === undefined || !isRecordObject(args)) return
 
   const route = scope.routesByName.get(routeName)
@@ -524,9 +526,18 @@ function validateKnownActionRoute(
   validateActionRouteAbi(scope, path, route, args, context)
 }
 
-function knownActionRouteName(value: unknown, context: AbiContext): string | undefined {
+function knownActionRouteName(
+  scope: Scope,
+  path: string,
+  value: unknown,
+  context: AbiContext,
+): string | undefined {
   const names = knownSelectorNames(value, context)
   if (names === undefined || names.hasUnknown || names.names.length !== 1) return undefined
+  if (names.names[0].length === 0) {
+    reportTypeflowIssue(scope, `${path}.call.function`, "UI Button route target must not be empty")
+    return undefined
+  }
   return names.names[0]
 }
 
