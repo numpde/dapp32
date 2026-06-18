@@ -319,7 +319,7 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
 
   if (Array.isArray(value)) {
     if (value.every((item) => typeof item === "string" && expressionReference(item) === undefined)) {
-      return { type: "literal-string[]", items: value }
+      return { type: "literal-string[]", items: value.map((item) => staticString(item) ?? item) }
     }
 
     // Preserve every child element and mark only that element unknown so

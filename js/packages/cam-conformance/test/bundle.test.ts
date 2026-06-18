@@ -3100,6 +3100,49 @@ test("UI Includes resolve escaped route handoff selector literals before validat
   ])
 })
 
+test("UI Includes resolve escaped route handoff selector arrays before validation", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Include",
+        requires: ["view"],
+        call: {
+          namespace: "ui",
+          function: "$view.nodes",
+          args: {},
+        },
+      },
+      "$$item": {
+        element: "Text",
+        requires: [],
+        props: {
+          text: "Wrong spelling",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            nodes: ["$$item"],
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
+  ])
+})
+
 test("UI Includes reject deterministically invalid literal Include arg selectors", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
