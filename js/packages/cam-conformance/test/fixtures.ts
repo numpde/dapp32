@@ -12,6 +12,16 @@ import type {
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
+export type RootWithNamespaces = {
+  readonly namespaces: Record<string, Record<string, unknown>>
+}
+
+export type RootWithRoutes = {
+  readonly routes: Record<string, Record<string, unknown>>
+}
+
+export type RootWithNamespacesAndRoutes = RootWithNamespaces & RootWithRoutes
+
 export function minimalBundle(overrides: {
   readonly uiIntegrity?: string
 } = {}): CamConformanceBundle {

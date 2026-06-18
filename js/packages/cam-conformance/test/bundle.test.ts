@@ -23,6 +23,11 @@ import {
   viewEntryFunction,
   viewOutput,
 } from "./fixtures.ts"
+import type {
+  RootWithNamespaces,
+  RootWithNamespacesAndRoutes,
+  RootWithRoutes,
+} from "./fixtures.ts"
 
 const encoder = new TextEncoder()
 
@@ -65,9 +70,7 @@ test("malformed declared UI document inventory is reported before runtime compat
     ui: "1.0.0",
     nodes: null,
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -81,9 +84,7 @@ test("empty UI node inventory is reported as a document issue", () => {
     ui: "1.0.0",
     nodes: {},
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -105,9 +106,7 @@ test("empty UI node names are reported as node inventory issues", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -273,9 +272,7 @@ test("invalid route input declarations are reported per input", () => {
 })
 
 test("route expressions must reference declared route inputs", () => {
-  const issues = validateEditedRoot<{
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithRoutes>((root) => {
     root.routes.entry = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -306,9 +303,7 @@ test("route expressions must reference declared route inputs", () => {
 })
 
 test("route input expressions must use declared input names, not numeric segments", () => {
-  const issues = validateEditedRoot<{
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithRoutes>((root) => {
     root.routes.entry = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -336,9 +331,7 @@ test("route input expressions must use declared input names, not numeric segment
 })
 
 test("route call expressions cannot reference outputs before the call runs", () => {
-  const issues = validateEditedRoot<{
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithRoutes>((root) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -373,10 +366,7 @@ test("route expressions must use route context roots", () => {
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry.inputs = ["serialNumber", "tokenURI"]
     root.routes.entry.call = {
       namespace: "contracts.App",
@@ -412,10 +402,7 @@ test("write route continuations cannot reference transaction outputs", () => {
       ],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry.inputs = ["serialNumber"]
     root.routes.save = {
       kind: "write",
@@ -499,9 +486,7 @@ test("route invocations require function names and named args", () => {
 })
 
 test("route invocation arg names must not be empty", () => {
-  const issues = validateEditedRoot<{
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithRoutes>((root) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -526,9 +511,7 @@ test("route invocation arg names must not be empty", () => {
 })
 
 test("route calls must target functions declared by the namespace ABI", () => {
-  const issues = validateEditedRoot<{
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithRoutes>((root) => {
     const entry = root.routes.entry
     entry.call = {
       namespace: "contracts.App",
@@ -544,9 +527,7 @@ test("route calls must target functions declared by the namespace ABI", () => {
 
 test("overloaded route functions require a full signature", () => {
   const abiBytes = overloadedViewEntryAbiBytes()
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { abiBytes })
   })
 
@@ -557,10 +538,7 @@ test("overloaded route functions require a full signature", () => {
 
 test("full route function signatures disambiguate overloads", () => {
   const abiBytes = overloadedViewEntryAbiBytes()
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     const entry = root.routes.entry
     const call = entry.call as Record<string, unknown>
     call.function = "viewEntry()"
@@ -571,9 +549,7 @@ test("full route function signatures disambiguate overloads", () => {
 })
 
 test("route function references must be names or full signatures", () => {
-  const issues = validateEditedRoot<{
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithRoutes>((root) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry(address",
@@ -769,10 +745,7 @@ test("route call args must match named ABI inputs exactly", () => {
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -804,10 +777,7 @@ test("route call args with statically classified expression roots must match ABI
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -854,10 +824,7 @@ test("route call literal strings must match exact ABI scalar syntax when statica
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -904,10 +871,7 @@ test("route call invalid literal strings are rejected before runtime", () => {
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -948,10 +912,7 @@ test("route call numeric integer literals must fit ABI range exactly", () => {
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -984,10 +945,7 @@ test("string route args reject known non-string literals", () => {
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -1032,10 +990,7 @@ test("route call literal tuple and array args are checked recursively", () => {
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry.call = {
       namespace: "contracts.App",
       function: "viewEntry",
@@ -1068,9 +1023,7 @@ test("route continuations must reference ABI-declared output indexes", () => {
       outputs: [],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { abiBytes })
   })
 
@@ -1080,9 +1033,7 @@ test("route continuations must reference ABI-declared output indexes", () => {
 })
 
 test("route continuations must reference ABI-declared tuple fields", () => {
-  const issues = validateEditedRoot<{
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithRoutes>((root) => {
     root.routes.entry.then = {
       namespace: "ui",
       function: "app",
@@ -1098,9 +1049,7 @@ test("route continuations must reference ABI-declared tuple fields", () => {
 })
 
 test("read route continuations must target declared UI nodes with exact args", () => {
-  const issues = validateEditedRoot<{
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithRoutes>((root) => {
     root.routes.entry.then = {
       namespace: "ui",
       function: "missing",
@@ -1116,9 +1065,7 @@ test("read route continuations must target declared UI nodes with exact args", (
 })
 
 test("read route continuation args must match UI node requirements exactly", () => {
-  const issues = validateEditedRoot<{
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithRoutes>((root) => {
     root.routes.entry.then = {
       namespace: "ui",
       function: "app",
@@ -1150,10 +1097,7 @@ test("write route continuations must target declared routes with exact inputs", 
       outputs: [],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -1220,10 +1164,7 @@ test("write route continuation literal args are checked against the next route A
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.saveAmount = {
       kind: "write",
       inputs: [],
@@ -1299,10 +1240,7 @@ test("write route continuation partially known nested args still report ABI fail
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.savePayload = {
       kind: "write",
       inputs: ["note"],
@@ -1371,10 +1309,7 @@ test("write route continuation partially known array args still report ABI failu
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.saveValues = {
       kind: "write",
       inputs: ["value"],
@@ -1440,10 +1375,7 @@ test("write route continuation ABI diagnostics distinguish route literals from h
       outputs: [viewOutput()],
     },
   ])
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.saveAmount = {
       kind: "write",
       inputs: [],
@@ -1497,9 +1429,7 @@ test("UI node interfaces must use supported argument names", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -1557,10 +1487,7 @@ test("UI expressions must use protocol-owned roots", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -1613,10 +1540,7 @@ test("UI Buttons must pass exactly the target route inputs", () => {
       done: viewTextNode(),
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -1660,9 +1584,7 @@ test("UI Button route existence is checked by typeflow for static targets", () =
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -1711,10 +1633,7 @@ test("UI Button literal args are ABI-checked through the target route", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.saveAmount = {
       kind: "write",
       inputs: ["amount"],
@@ -1785,10 +1704,7 @@ test("UI Button literal args are ABI-checked through nested route call values", 
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.savePayload = {
       kind: "write",
       inputs: ["amount", "note"],
@@ -1863,10 +1779,7 @@ test("UI Button ABI aggregate mismatches point at the action argument", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.savePayload = {
       kind: "write",
       inputs: ["payload"],
@@ -1945,10 +1858,7 @@ test("UI Button ABI checks preserve known fields in direct aggregate args", () =
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.savePayload = {
       kind: "write",
       inputs: ["payload"],
@@ -2017,10 +1927,7 @@ test("UI Button ABI checks preserve known fields in direct array args", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.saveValues = {
       kind: "write",
       inputs: ["values"],
@@ -2086,10 +1993,7 @@ test("UI Button ABI checks escaped dollar literals as literal strings", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.saveAmount = {
       kind: "write",
       inputs: ["amount"],
@@ -2181,10 +2085,7 @@ test("UI Button ABI checks preserve literal values passed through Includes", () 
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.savePayload = {
       kind: "write",
       inputs: ["payload"],
@@ -2233,9 +2134,7 @@ test("UI Button escaped call targets are checked as literal route names", () => 
       done: viewTextNode(),
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -2268,9 +2167,7 @@ test("UI Button route targets must be single strings, not arrays", () => {
       done: viewTextNode(),
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -2316,10 +2213,7 @@ test("UI Button state references must be backed by TextField state keys", () => 
       done: viewTextNode(),
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -2379,9 +2273,7 @@ test("UI literal TextField state keys must be state expression identifiers", () 
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -2439,10 +2331,7 @@ test("UI Button state references must be backed by route-local rendered inputs",
       done: viewTextNode(),
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -2513,10 +2402,7 @@ test("UI Button state references may use inputs from the route root tree", () =>
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -2572,9 +2458,7 @@ test("UI typeflow rejects duplicate rendered TextField state keys", () => {
       done: viewTextNode(),
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -2619,10 +2503,7 @@ test("UI typeflow resolves known dynamic TextField state keys", () => {
       done: viewTextNode(),
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -2674,10 +2555,7 @@ test("UI typeflow rejects known dynamic invalid TextField state keys", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry = {
       ...root.routes.entry,
       then: {
@@ -2719,10 +2597,7 @@ test("UI typeflow keeps route-specific diagnostics distinct", () => {
       done: viewTextNode(),
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -2804,9 +2679,7 @@ test("UI call arg names must not be empty", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -2846,9 +2719,7 @@ test("UI Includes with literal targets must pass exactly the target node args", 
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -2878,9 +2749,7 @@ test("UI Include escaped call targets are checked as literal node names", () => 
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -2926,9 +2795,7 @@ test("UI static call targets must not be empty or duplicated", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -2960,9 +2827,7 @@ test("UI Includes must not shadow runtime roots even when the target is dynamic"
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -3016,9 +2881,7 @@ test("UI props reject statically incompatible ABI-backed route outputs", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
   })
 
@@ -3042,10 +2905,7 @@ test("UI props reject statically incompatible literal route handoff args", () =>
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry = {
       ...root.routes.entry,
       then: {
@@ -3098,9 +2958,7 @@ test("UI props reject statically incompatible literal Include args", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -3131,10 +2989,7 @@ test("UI Includes reject deterministically invalid literal route handoff selecto
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry = {
       ...root.routes.entry,
       then: {
@@ -3183,10 +3038,7 @@ test("UI Includes reject deterministically invalid literal Include arg selectors
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry = {
       ...root.routes.entry,
       then: {
@@ -3250,10 +3102,7 @@ test("UI Includes validate known targets from mixed selector lists", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry = {
       ...root.routes.entry,
       then: {
@@ -3291,9 +3140,7 @@ test("UI typeflow rejects deterministic Include cycles", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -3337,10 +3184,7 @@ test("UI Includes validate resolved selector targets and args", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.entry = {
       ...root.routes.entry,
       then: {
@@ -3390,9 +3234,7 @@ test("UI typeflow walks static Include arrays", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { uiBytes })
   })
 
@@ -3420,10 +3262,7 @@ test("UI typeflow validates known dynamic Button routes", () => {
       done: viewTextNode(),
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -3492,10 +3331,7 @@ test("UI typeflow checks state references through resolved Include selectors", (
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.component = {
       kind: "read",
       inputs: ["serialNumber"],
@@ -3584,10 +3420,7 @@ test("UI props are checked against each route-local continuation shape", () => {
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-    readonly routes: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
     root.routes.details = {
       kind: "read",
       inputs: [],
@@ -3669,9 +3502,7 @@ test("UI dynamic call targets reject statically incompatible ABI-backed route ou
       },
     },
   })
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
   })
 
@@ -3704,9 +3535,7 @@ test("malformed resource declarations report each bad field", () => {
 })
 
 test("resource declarations reject mutable remote and escaping URIs", () => {
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root) => {
     root.namespaces["contracts.App"].abiURI = "https://example.test/App.json"
     root.namespaces["contracts.Other"] = {
       type: "contract",
@@ -3761,9 +3590,7 @@ test("undeclared bundle resources are reported as orphans", () => {
 
 test("declared resources must not exceed the runtime resource size cap", () => {
   const oversizedAbiBytes = new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1)
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { abiBytes: oversizedAbiBytes })
   })
 
