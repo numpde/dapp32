@@ -79,25 +79,18 @@ class ProtocolOwnershipTest(unittest.TestCase):
             self.fail("\n".join(failures))
 
     def test_cam_conformance_facets_keep_sourced_imports_isolated(self) -> None:
-        allowed_imports_by_facet = {
-            "abi": {"@cam/protocol"},
-            "bundle": {"@cam/protocol"},
-            "expressions": {"@cam/protocol"},
-            "manifest": {"@cam/protocol"},
-            "resources": {"@cam/protocol"},
-            "routes": {"@cam/protocol"},
-            "sourced": {"@cam/core", "@cam/protocol", "@cam/screen"},
-            "ui": {"@cam/protocol"},
-        }
         failures: list[str] = []
 
         for path in sorted(repo_path("js/packages/cam-conformance/src").glob("**/*.ts")):
             relative = path.relative_to(repo_path("js/packages/cam-conformance/src"))
             facet = relative.parts[0]
-            if facet in allowed_imports_by_facet:
-                allowed_imports = allowed_imports_by_facet[facet]
+            # Only sourced/ is allowed to call into runtime parsers. Every
+            # other conformance facet should stay granular and protocol-owned,
+            # including future facets that do not exist yet.
+            if facet == "sourced":
+                allowed_imports = {"@cam/core", "@cam/protocol", "@cam/screen"}
             else:
-                allowed_imports = set()
+                allowed_imports = {"@cam/protocol"}
 
             for specifier, line_number in self.module_specifiers(read_text(path)):
                 if not specifier.startswith("@cam/"):
