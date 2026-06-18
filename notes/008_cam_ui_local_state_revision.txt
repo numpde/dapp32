@@ -30,7 +30,7 @@ Do not put React, JSX, functions, event handlers, or arbitrary JavaScript in CAM
 resources.
 
 Do not invent a second UI framework. The manifest should describe a small,
-portable component tree that maps naturally to React and other renderers.
+portable element tree that maps naturally to React and other renderers.
 
 Do not preserve backwards compatibility with the old `form`/`Input` shape
 unless a migration tool is deliberately added later.
@@ -129,7 +129,7 @@ An include remains composition only:
 ```
 
 `Include` must not own state. If included content needs state, the included
-component should contain a stateful child.
+node should contain a stateful child.
 
 
 Why defaultValue still belongs
@@ -222,7 +222,7 @@ The parser should be closed-world:
 - reject stale `$form`;
 - reject `props.name`, `props.value`, `props.defaultValue`,
   `props.checked`, and `props.defaultChecked` on all nodes unless a future
-  display component explicitly needs one of those names for a non-editable
+  display element explicitly needs one of those names for a non-editable
   meaning. For stateful controls, initialization belongs in
   `state.defaultValue`;
 - require `state.key` and `state.defaultValue` on stateful controls;
