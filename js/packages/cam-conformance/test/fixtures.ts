@@ -28,13 +28,7 @@ export function minimalBundle(overrides: {
     },
   })
   const abiBytes = jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
   ])
   const rootBytes = jsonBytes({
     cam: "1.0.0",
@@ -109,13 +103,7 @@ export function viewEntryFunction(): Record<string, unknown> {
 
 export function overloadedViewEntryAbiBytes(): Uint8Array {
   return jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
     {
       type: "function",
       name: "viewEntry",
@@ -133,20 +121,8 @@ export function overloadedViewEntryAbiBytes(): Uint8Array {
 
 export function duplicateViewEntrySignatureAbiBytes(): Uint8Array {
   return jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
+    viewEntryFunction(),
   ])
 }
 
