@@ -532,8 +532,8 @@ function validateRouteRootCardinality(scope: Scope, nodeName: string, context: A
   if (hasInvalidSelectionNames(selection.names)) return
   if (selection.names.some((name) => !isRecordObject(scope.nodes[name]))) return
 
-  // Nested Includes splice children, but the viewer route boundary must resolve
-  // to one root node. Catch deterministic multi-root route screens here.
+  // Nested Includes splice children, but a route render still has one UI root.
+  // Catch deterministic multi-root selections before the viewer resolves them.
   reportTypeflowIssue(scope, `nodes.${nodeName}.call.function`, "route root UI node must resolve to exactly one node")
 }
 
