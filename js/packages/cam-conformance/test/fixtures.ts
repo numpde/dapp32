@@ -97,6 +97,16 @@ export function viewOutput(): Record<string, unknown> {
   }
 }
 
+export function viewEntryFunction(): Record<string, unknown> {
+  return {
+    type: "function",
+    name: "viewEntry",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [viewOutput()],
+  }
+}
+
 export function overloadedViewEntryAbiBytes(): Uint8Array {
   return jsonBytes([
     {

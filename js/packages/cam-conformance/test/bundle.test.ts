@@ -20,6 +20,7 @@ import {
   replaceBundleResources,
   sha256Integrity,
   validateEditedRoot,
+  viewEntryFunction,
   viewOutput,
 } from "./fixtures.ts"
 
@@ -397,13 +398,7 @@ test("route expressions must use route context roots", () => {
 
 test("write route continuations cannot reference transaction outputs", () => {
   const abiBytes = jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
     {
       type: "function",
       name: "save",
@@ -1141,13 +1136,7 @@ test("read route continuation args must match UI node requirements exactly", () 
 
 test("write route continuations must target declared routes with exact inputs", () => {
   const abiBytes = jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
     {
       type: "function",
       name: "save",
@@ -1210,13 +1199,7 @@ test("write route continuations must target declared routes with exact inputs", 
 
 test("write route continuation literal args are checked against the next route ABI call", () => {
   const abiBytes = jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
     {
       type: "function",
       name: "saveAmount",
@@ -1285,13 +1268,7 @@ test("write route continuation literal args are checked against the next route A
 
 test("write route continuation partially known nested args still report ABI failures", () => {
   const abiBytes = jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
     {
       type: "function",
       name: "savePayload",
@@ -1373,13 +1350,7 @@ test("write route continuation partially known nested args still report ABI fail
 
 test("write route continuation partially known array args still report ABI failures", () => {
   const abiBytes = jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
     {
       type: "function",
       name: "saveValues",
@@ -1448,13 +1419,7 @@ test("write route continuation partially known array args still report ABI failu
 
 test("write route continuation ABI diagnostics distinguish route literals from handoff args", () => {
   const abiBytes = jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
     {
       type: "function",
       name: "saveAmount",
@@ -1708,13 +1673,7 @@ test("UI Button route existence is checked by typeflow for static targets", () =
 
 test("UI Button literal args are ABI-checked through the target route", () => {
   const abiBytes = jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
     {
       type: "function",
       name: "saveAmount",
@@ -1782,13 +1741,7 @@ test("UI Button literal args are ABI-checked through the target route", () => {
 
 test("UI Button literal args are ABI-checked through nested route call values", () => {
   const abiBytes = jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [viewOutput()],
-    },
+    viewEntryFunction(),
     {
       type: "function",
       name: "savePayload",
