@@ -15,6 +15,7 @@ import {
 } from "../abi/routes.ts"
 import {
   expressionReference,
+  expressionSyntaxError,
   staticString,
   staticStringList,
 } from "../expressions/reference.ts"
@@ -213,6 +214,9 @@ function validateCall(
   allowRecurse: boolean,
 ): void {
   if (!isRecordObject(node.call)) return
+  if (isRecordObject(node.call.args)) {
+    validateCallArgReferences(scope, path, node.call.args, context)
+  }
 
   if (element === "Button") {
     validateBoundValue(scope, `${path}.call.function`, "UI Button route", node.call.function, "string", context)
@@ -287,6 +291,28 @@ function validateBoundValue(
       `${label} expects ${expectation}, but ABI provides ${abiTypeName(lookup.value)}`,
     )
   }
+}
+
+function validateCallArgReferences(
+  scope: Scope,
+  path: string,
+  args: Record<string, unknown>,
+  context: AbiContext,
+): void {
+  // UI call args are resolved before dispatch. If a route-local value shape is
+  // already known, a missing field is deterministic author error; genuinely
+  // unknown roots stay dynamic and are left to runtime.
+  forEachString(args, "", (value, suffix) => {
+    const reference = expressionReference(value)
+    if (reference === undefined) return
+    if (expressionSyntaxError(value) !== undefined) return
+
+    const lookup = valueAtReference(reference.root, reference.segments, context)
+    if (lookup.kind !== "missing") return
+
+    const argPath = `${path}.call.args${suffix.length === 0 ? "" : `.${suffix}`}`
+    reportTypeflowIssue(scope, argPath, `UI call argument references no known value: ${value}`)
+  })
 }
 
 function contextForArgs(

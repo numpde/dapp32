@@ -1698,7 +1698,7 @@ test("UI Button literal args are ABI-checked through nested route call values", 
           function: "savePayload",
           args: {
             amount: 256,
-            note: "$view.dynamicNote",
+            note: "note",
           },
         },
       },
@@ -1851,7 +1851,7 @@ test("UI Button ABI checks preserve known fields in direct aggregate args", () =
           args: {
             payload: {
               amount: 256,
-              note: "$view.dynamicNote",
+              note: "note",
             },
           },
         },
@@ -1920,7 +1920,7 @@ test("UI Button ABI checks preserve known fields in direct array args", () => {
           args: {
             values: [
               256,
-              "$view.dynamicValue",
+              1,
             ],
           },
         },
@@ -2063,7 +2063,7 @@ test("UI Button ABI checks preserve literal values passed through Includes", () 
             view: {
               payload: {
                 amount: 256,
-                note: "$view.dynamicNote",
+                note: "note",
               },
             },
           },
@@ -3011,6 +3011,89 @@ test("UI props reject statically incompatible literal Include args", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.ownerPanel.props.address"],
+  ])
+})
+
+test("UI call args reject route-local missing references before runtime", () => {
+  const abiBytes = jsonBytes([
+    viewEntryFunction(),
+    {
+      type: "function",
+      name: "saveSerial",
+      stateMutability: "nonpayable",
+      inputs: [
+        {
+          name: "serialNumber",
+          type: "string",
+        },
+      ],
+      outputs: [],
+    },
+  ])
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            element: "Include",
+            call: {
+              namespace: "ui",
+              function: "summary",
+              args: {
+                view: "$view.missing",
+              },
+            },
+          },
+          {
+            element: "Button",
+            props: {
+              label: "Save",
+            },
+            call: {
+              namespace: "routes",
+              function: "saveSerial",
+              args: {
+                serialNumber: "$view.missing",
+              },
+            },
+          },
+        ],
+      },
+      summary: {
+        element: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.saveSerial = {
+      kind: "write",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "saveSerial",
+        args: {
+          serialNumber: "$inputs.serialNumber",
+        },
+      },
+      then: {
+        namespace: "routes",
+        function: "entry",
+        args: {},
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.call.args.view"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.serialNumber"],
   ])
 })
 
