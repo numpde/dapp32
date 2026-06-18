@@ -2813,7 +2813,7 @@ test("UI Include escaped call targets are checked as literal node names", () => 
   ])
 })
 
-test("UI static call targets must not be empty or duplicated", () => {
+test("UI known call targets must not be empty or duplicated", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {

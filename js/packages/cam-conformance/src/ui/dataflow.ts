@@ -20,7 +20,7 @@ import {
 } from "../expressions/reference.ts"
 import {
   validateExpectedArgumentNames,
-  validateStaticCallTargets,
+  validateKnownCallTargets,
   validateUiCallArgNames,
   validateUiCallFunctionShape,
   type UiCallNamespace,
@@ -148,7 +148,7 @@ function validateIncludeNodeArgs(
 ): void {
   const functionNames = staticStringList(include.function)
   if (functionNames === undefined) return
-  if (!validateStaticCallTargets({
+  if (!validateKnownCallTargets({
     resource,
     path: `${include.path}.call.function`,
     label: "UI Include",
@@ -192,7 +192,7 @@ function validateStaticButtonRouteTarget(
   const routeName = staticString(button.function)
   if (routeName === undefined) return
 
-  validateStaticCallTargets({
+  validateKnownCallTargets({
     resource,
     path: `${button.path}.call.function`,
     label: "UI Button route",

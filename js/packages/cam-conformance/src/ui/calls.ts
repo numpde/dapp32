@@ -87,7 +87,7 @@ export function validateUiCallFunctionShape({
   return false
 }
 
-export function validateStaticCallTargets({
+export function validateKnownCallTargets({
   resource,
   path,
   label,

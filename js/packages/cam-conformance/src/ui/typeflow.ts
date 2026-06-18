@@ -41,7 +41,7 @@ import {
 import type { RawUiDocuments } from "./resources.ts"
 import {
   validateExpectedArgumentNames,
-  validateStaticCallTargets,
+  validateKnownCallTargets,
 } from "./calls.ts"
 
 type AbiContext = ReadonlyMap<string, unknown>
@@ -551,7 +551,7 @@ function validateIncludeSelection(
   path: string,
   selection: IncludeSelection,
 ): boolean {
-  return validateStaticCallTargets({
+  return validateKnownCallTargets({
     resource: scope.resource,
     path,
     label: "UI Include",
