@@ -1,5 +1,5 @@
 import { lstat, readFile, readdir, realpath } from "node:fs/promises"
-import { dirname, join, relative, resolve } from "node:path"
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 // This fixture is typechecked from several package test projects, where the
 // @cam/protocol package name is not resolvable from tests/fixtures. Import the
@@ -164,7 +164,7 @@ export async function checkedInLocalResourcePath(rootPath: string, uri: string):
   const rootDir = dirname(rootPath)
   const path = resolve(rootDir, uri)
   const relativePath = relative(rootDir, path)
-  if (relativePath === "" || relativePath === ".." || relativePath.startsWith("../")) {
+  if (isEscapingRelativePath(relativePath)) {
     throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
   }
 
@@ -183,9 +183,13 @@ export async function checkedInLocalResourcePath(rootPath: string, uri: string):
   const realRoot = await realpath(rootDir)
   const realResource = await realpath(path)
   const realRelativePath = relative(realRoot, realResource)
-  if (realRelativePath === "" || realRelativePath === ".." || realRelativePath.startsWith("../")) {
+  if (isEscapingRelativePath(realRelativePath)) {
     throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
   }
 
   return path
+}
+
+function isEscapingRelativePath(value: string): boolean {
+  return value === "" || value === ".." || value.startsWith(`..${sep}`) || isAbsolute(value)
 }
