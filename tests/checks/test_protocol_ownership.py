@@ -93,6 +93,11 @@ class ProtocolOwnershipTest(unittest.TestCase):
                 allowed_imports = {"@cam/protocol"}
 
             for specifier, line_number in self.module_specifiers(read_text(path)):
+                if self.imports_conformance_sourced_facet(specifier) and facet != "bundle" and facet != "sourced":
+                    failures.append(
+                        f"{path}:{line_number}: conformance facet '{facet}' must not import sourced runtime checks; "
+                        "route through the bundle orchestrator instead"
+                    )
                 if not specifier.startswith("@cam/"):
                     continue
                 if specifier not in allowed_imports:
@@ -112,6 +117,9 @@ class ProtocolOwnershipTest(unittest.TestCase):
         package_src = repo_path("js/packages") / package_name / "src"
         target = (importer.parent / specifier).resolve()
         return target == package_src or package_src in target.parents
+
+    def imports_conformance_sourced_facet(self, specifier: str) -> bool:
+        return "/sourced/" in specifier or specifier.startswith("../sourced/")
 
     def module_specifiers(self, text: str) -> list[tuple[str, int]]:
         specifiers: list[tuple[str, int]] = []
