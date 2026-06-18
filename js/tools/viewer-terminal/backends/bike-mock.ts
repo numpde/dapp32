@@ -1,5 +1,5 @@
 import { readFile, realpath, stat } from "node:fs/promises"
-import { isAbsolute, relative } from "node:path"
+import { isAbsolute, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type {
@@ -176,11 +176,15 @@ async function checkedMockCamFilePath(uri: URL): Promise<string> {
   // The mock backend is still a file loader, so string-prefix URL checks are
   // not enough. Resolve symlinks first and enforce the checked-in CAM subtree
   // as a filesystem boundary.
-  if (relativePath === "" || relativePath.startsWith("..") || isAbsolute(relativePath)) {
+  if (isEscapingRelativePath(relativePath)) {
     throw new Error(`bike mock terminal can only load checked-in bike CAM files: ${uri.href}`)
   }
 
   return resourcePath
+}
+
+function isEscapingRelativePath(value: string): boolean {
+  return value === "" || value === ".." || value.startsWith(`..${sep}`) || isAbsolute(value)
 }
 
 function formatValue(value: unknown): string {
