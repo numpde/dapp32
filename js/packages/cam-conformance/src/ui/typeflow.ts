@@ -65,7 +65,6 @@ type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-
 type ValueResolver = (value: unknown) => unknown | undefined
 type IncludeSelection = {
   readonly names: readonly string[]
-  readonly hasUnknown: boolean
   readonly resolved: boolean
 }
 const UNKNOWN_VALUE = { type: "unknown", value: UNKNOWN_ROUTE_CALL_VALUE } as const
@@ -438,7 +437,6 @@ function includeSelection(value: unknown, context: AbiContext): IncludeSelection
   if (staticNames !== undefined) {
     return {
       names: staticNames,
-      hasUnknown: false,
       resolved: false,
     }
   }
@@ -449,7 +447,6 @@ function includeSelection(value: unknown, context: AbiContext): IncludeSelection
 
   return {
     names: selectorNames.names,
-    hasUnknown: selectorNames.hasUnknown,
     resolved: true,
   }
 }
