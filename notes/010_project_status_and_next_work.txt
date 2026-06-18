@@ -264,7 +264,7 @@ Current state:
 
     @cam/conformance is substantial. It validates bundle resources, CAM
     declarations, ABI usage, route handoffs, UI inventory, UI dataflow, UI
-    typeflow, known dynamic Includes/Actions, local state, and checked-in bike
+    typeflow, known dynamic Include/Button calls, local state, and checked-in bike
     CAM bundles.
 
 Main risk:
@@ -318,7 +318,7 @@ Why it matters:
 Current state:
 
     The current UI resource is a small UI tree with nodes, Includes,
-    Actions, props, local state, and route calls. It deliberately avoids
+    Buttons, props, local state, and route calls. It deliberately avoids
     arbitrary JavaScript and renderer-specific behavior.
 
 Decision:
@@ -444,18 +444,19 @@ Rejected alternatives:
 
 What still deserves focus:
 
-    Apply the vocabulary in one deliberate migration.
-    Remove the old vocabulary instead of supporting both.
     Make sure every interactive element has one state authority.
-    Ensure conformance rejects stale tag/Input/Action/value vocabulary after the
-    migration lands.
+    Keep conformance, @cam/screen, viewer, terminal, web, and checked CAM
+    resources aligned around the current vocabulary:
+
+        element
+        Button
+        TextField.state
+        $state
 
 Good next slice:
 
-    Migrate ui.json, @cam/screen, @cam/viewer, cam-web, viewer-terminal,
-    integration fuzz, and @cam/conformance together.
-
-    Do not add compatibility shims. No dual vocabulary.
+    Audit for any remaining old vocabulary or compatibility shims. Delete them
+    rather than supporting both shapes.
 
 How to avoid sprawl:
 
@@ -564,10 +565,11 @@ How to avoid sprawl:
 Suggested order
 ---------------
 
-1. Stabilize the UI vocabulary.
+1. Keep the UI vocabulary stable.
 
-   This reduces churn in conformance, viewer, terminal, web, and checked CAM
-   resources. Do this before large new UI-facing tests.
+   The migration has landed. Resist new vocabulary unless it removes a real
+   ambiguity across conformance, viewer, terminal, web, and checked CAM
+   resources.
 
 2. Add one high-value bike-nft scenario slice.
 
@@ -579,7 +581,7 @@ Suggested order
 
 4. Prune conformance after the above.
 
-   Once UI names settle and scenario gaps are clearer, remove duplicate or weak
+   Since UI names are now settled, remove duplicate or weak
    conformance checks rather than expanding them reflexively.
 
 5. Re-run the full confidence path.
