@@ -173,12 +173,16 @@ function materializeTemplateValues(
 
     if (value === null || typeof value === "number" || typeof value === "boolean") return value
     if (Array.isArray(value)) {
-      return value.map((item) => materializeExpression(item, resolve) ?? UNKNOWN_ROUTE_CALL_VALUE)
+      return value.map((item) => {
+        const resolved = materializeExpression(item, resolve)
+        return resolved === undefined ? UNKNOWN_ROUTE_CALL_VALUE : resolved
+      })
     }
     if (isRecordObject(value)) {
       const output: Record<string, unknown> = {}
       for (const [name, item] of Object.entries(value)) {
-        output[name] = materializeExpression(item, resolve) ?? UNKNOWN_ROUTE_CALL_VALUE
+        const resolved = materializeExpression(item, resolve)
+        output[name] = resolved === undefined ? UNKNOWN_ROUTE_CALL_VALUE : resolved
       }
       return output
     }

@@ -130,6 +130,7 @@ function validateRouteTypeflow(
     context,
     inputNames,
     [],
+    true,
   )
 }
 
@@ -140,7 +141,7 @@ function walkNamedNode(
   context: AbiContext,
   inputNames: ReadonlySet<string>,
   stack: readonly string[],
-  allowRecurse = true,
+  allowRecurse: boolean,
 ): void {
   const node = scope.nodes[nodeName]
   if (!isRecordObject(node)) return
@@ -290,6 +291,7 @@ function validateCall(
         contextForArgs(node.call.args, (value) => valueFromExpression(value, context)),
         inputNames,
         stack,
+        true,
       )
     }
   }
@@ -376,21 +378,30 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
 
   if (Array.isArray(value)) {
     if (value.every((item) => typeof item === "string" && expressionReference(item) === undefined)) {
-      return { type: "literal-string[]", items: value.map((item) => staticString(item) ?? item) }
+      return {
+        type: "literal-string[]",
+        items: value.map((item) => {
+          const resolved = staticString(item)
+          return resolved === undefined ? item : resolved
+        }),
+      }
     }
 
     // Preserve every child element and mark only that element unknown so
     // partially-known aggregates can still be validated at route boundaries.
     return {
       type: "array",
-      items: value.map((item) => knownValueShape(item, resolve) ?? UNKNOWN_VALUE),
+      items: value.map((item) => {
+        const shape = knownValueShape(item, resolve)
+        return shape === undefined ? UNKNOWN_VALUE : shape
+      }),
     }
   }
 
   if (!isRecordObject(value)) return undefined
 
   const components = Object.entries(value).map(([name, item]) => {
-    const shape = knownValueShape(item, resolve) ?? UNKNOWN_VALUE
+    const shape = knownValueShape(item, resolve)
     const knownShape = isRecordObject(shape) ? shape : UNKNOWN_VALUE
     // Literal object field names define the UI context shape. A child may be an
     // ABI output with its own name, but that name is provenance, not this field.
@@ -789,7 +800,7 @@ function knownSelectorArrayNames(
         if (lookup.kind === "value") {
           const child = valueToSelectorNames(lookup.value)
           names.push(...child.names)
-          hasUnknown ||= child.hasUnknown
+          hasUnknown = hasUnknown || child.hasUnknown
           continue
         }
       }
@@ -818,7 +829,7 @@ function valueToSelectorNames(value: unknown): KnownSelectorInfo {
       for (const item of value.items) {
         const child = valueToSelectorNames(item)
         names.push(...child.names)
-        hasUnknown ||= child.hasUnknown
+        hasUnknown = hasUnknown || child.hasUnknown
       }
       return { names, hasUnknown }
     }
