@@ -843,10 +843,10 @@ function errorMessage(error: unknown): string {
   if (!(error instanceof Error)) {
     return String(error)
   }
-  if (error.stack !== undefined && error.stack.length > 0) {
-    return error.stack
-  }
 
+  // The runner emits JSON events consumed by humans and CI logs. Keep failures
+  // replay-focused instead of leaking container-local stack paths into the
+  // event stream.
   return error.message
 }
 
