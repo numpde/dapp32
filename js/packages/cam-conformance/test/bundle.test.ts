@@ -3057,7 +3057,7 @@ test("UI Includes reject deterministically invalid literal route handoff selecto
   ])
 })
 
-test("UI Includes resolve escaped route handoff selector literals before validation", () => {
+test("UI Includes resolve escaped route handoff selectors before validation", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
@@ -3079,68 +3079,27 @@ test("UI Includes resolve escaped route handoff selector literals before validat
       },
     },
   })
-  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
-    root.routes.entry = {
-      ...root.routes.entry,
-      then: {
-        namespace: "ui",
-        function: "app",
-        args: {
-          view: {
-            nodes: "$$item",
-          },
-        },
-      },
-    }
-    return replaceBundleResources(root, bundle, { uiBytes })
-  })
-
-  assert.deepEqual(issueLocations(issues), [
-    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
-  ])
-})
-
-test("UI Includes resolve escaped route handoff selector arrays before validation", () => {
-  const uiBytes = jsonBytes({
-    ui: "1.0.0",
-    nodes: {
-      app: {
-        element: "Include",
-        requires: ["view"],
-        call: {
+  for (const nodes of ["$$item", ["$$item"]]) {
+    const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+      root.routes.entry = {
+        ...root.routes.entry,
+        then: {
           namespace: "ui",
-          function: "$view.nodes",
-          args: {},
-        },
-      },
-      "$$item": {
-        element: "Text",
-        requires: [],
-        props: {
-          text: "Wrong spelling",
-        },
-      },
-    },
-  })
-  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
-    root.routes.entry = {
-      ...root.routes.entry,
-      then: {
-        namespace: "ui",
-        function: "app",
-        args: {
-          view: {
-            nodes: ["$$item"],
+          function: "app",
+          args: {
+            view: {
+              nodes,
+            },
           },
         },
-      },
-    }
-    return replaceBundleResources(root, bundle, { uiBytes })
-  })
+      }
+      return replaceBundleResources(root, bundle, { uiBytes })
+    })
 
-  assert.deepEqual(issueLocations(issues), [
-    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
-  ])
+    assert.deepEqual(issueLocations(issues), [
+      ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
+    ])
+  }
 })
 
 test("UI Includes reject deterministically invalid literal Include arg selectors", () => {
