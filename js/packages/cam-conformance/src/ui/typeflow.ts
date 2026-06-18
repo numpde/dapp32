@@ -66,6 +66,7 @@ type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-
 type ValueResolver = (value: unknown) => unknown | undefined
 type IncludeSelection = {
   readonly names: readonly string[]
+  readonly hasUnknown: boolean
   readonly resolved: boolean
 }
 const UNKNOWN_VALUE = { type: "unknown", value: UNKNOWN_ROUTE_CALL_VALUE } as const
@@ -120,6 +121,7 @@ function validateRouteTypeflow(
   // args, and literal Includes pass a new typed arg set to the selected node.
   // When selectors resolve to literal call args, it walks those targets too.
   const context = contextForArgs(route.then.args, (value) => abiFunctionOutputForExpression(fn, value))
+  validateRouteRootCardinality(scope, nodeName, context)
   const inputNames = routeInputNames(scope, nodeName, context)
   walkNamedNode(
     scope,
@@ -494,6 +496,7 @@ function includeSelection(value: unknown, context: AbiContext): IncludeSelection
   if (staticNames !== undefined) {
     return {
       names: staticNames,
+      hasUnknown: false,
       resolved: false,
     }
   }
@@ -504,8 +507,31 @@ function includeSelection(value: unknown, context: AbiContext): IncludeSelection
 
   return {
     names: selectorNames.names,
+    hasUnknown: selectorNames.hasUnknown,
     resolved: true,
   }
+}
+
+function validateRouteRootCardinality(scope: Scope, nodeName: string, context: AbiContext): void {
+  const node = scope.nodes[nodeName]
+  if (!isRecordObject(node) || node.element !== "Include" || !isRecordObject(node.call)) return
+
+  const selection = includeSelection(node.call.function, context)
+  if (selection === undefined || selection.hasUnknown || selection.names.length === 1) return
+  if (hasInvalidStaticTargets(selection.names)) return
+
+  // Nested Includes splice children, but the viewer route boundary must resolve
+  // to one root node. Catch deterministic multi-root route screens here.
+  reportTypeflowIssue(scope, `nodes.${nodeName}.call.function`, "route root UI node must resolve to exactly one node")
+}
+
+function hasInvalidStaticTargets(names: readonly string[]): boolean {
+  const seen = new Set<string>()
+  for (const name of names) {
+    if (name.length === 0 || seen.has(name)) return true
+    seen.add(name)
+  }
+  return false
 }
 
 function validateIncludeSelection(

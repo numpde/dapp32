@@ -3364,6 +3364,51 @@ test("UI Includes validate known targets from mixed selector lists", () => {
   ])
 })
 
+test("route root UI node must resolve to one root node", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Include",
+        requires: ["view"],
+        call: {
+          namespace: "ui",
+          function: ["summary", "actions"],
+          args: {
+            view: "$view",
+          },
+        },
+      },
+      summary: {
+        element: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+      actions: {
+        element: "Button",
+        requires: ["view"],
+        props: {
+          label: "Refresh",
+        },
+        call: {
+          namespace: "routes",
+          function: "entry",
+          args: {},
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
+  ])
+})
+
 test("UI typeflow rejects deterministic Include cycles", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
