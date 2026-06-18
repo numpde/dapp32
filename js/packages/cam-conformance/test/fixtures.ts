@@ -137,9 +137,7 @@ export function duplicateViewEntrySignatureAbiBytes(): Uint8Array {
 }
 
 export function abiIssueLocationsFor(abiBytes: Uint8Array): readonly (readonly [string, string | undefined])[] {
-  const issues = validateEditedRoot<{
-    readonly namespaces: Record<string, Record<string, unknown>>
-  }>((root, bundle) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { abiBytes })
   })
 
@@ -179,7 +177,7 @@ export function validateEditedRoot<T extends Record<string, unknown> = Record<st
 }
 
 export function replaceBundleResources(
-  root: { readonly namespaces: Record<string, Record<string, unknown>> },
+  root: RootWithNamespaces,
   bundle: CamConformanceBundle,
   replacements: {
     readonly abiBytes?: Uint8Array
