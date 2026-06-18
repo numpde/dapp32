@@ -10,10 +10,10 @@ FORBIDDEN_NAME_PATTERNS = [
     re.compile("dapp" + "32", re.IGNORECASE),
 ]
 
-ALLOWED_FORBIDDEN_NAME_LITERALS = [
+ALLOWED_FORBIDDEN_NAME_LITERALS = (
     # The site path is an externally visible address, not prose branding.
     "https://numpde.github.io/dapp" + "32/",
-]
+)
 
 LICENSE_MARKERS = [
     "SPDX-" + "License-Identifier",
@@ -31,10 +31,10 @@ SECRET_PATTERNS = [
 
 class RepositoryHygieneTest(unittest.TestCase):
     def test_forbidden_text_patterns_are_absent(self) -> None:
-        self.assert_no_matches(FORBIDDEN_NAME_PATTERNS, "forbidden project name")
+        self.assert_no_matches(FORBIDDEN_NAME_PATTERNS, "forbidden project name", ALLOWED_FORBIDDEN_NAME_LITERALS)
         markers = [re.compile(re.escape(marker)) for marker in LICENSE_MARKERS]
-        self.assert_no_matches(markers, "license marker")
-        self.assert_no_matches(SECRET_PATTERNS, "secret pattern")
+        self.assert_no_matches(markers, "license marker", ())
+        self.assert_no_matches(SECRET_PATTERNS, "secret pattern", ())
 
     def test_js_build_outputs_are_not_materialized_on_host(self) -> None:
         failures: list[str] = []
@@ -49,14 +49,14 @@ class RepositoryHygieneTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
-    def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str) -> None:
+    def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
         for path in iter_repo_text_files():
             text = read_text(path)
             for line_number, line in enumerate(text.splitlines(), start=1):
                 line_to_check = line
-                for allowed in ALLOWED_FORBIDDEN_NAME_LITERALS:
+                for allowed in allowed_literals:
                     line_to_check = line_to_check.replace(allowed, "")
                 if any(pattern.search(line_to_check) for pattern in patterns):
                     failures.append(f"{path}:{line_number}: {label}")
