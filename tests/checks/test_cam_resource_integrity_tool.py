@@ -1,15 +1,29 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from .common import read_text, repo_path
 from tools.cam_resource_integrity import CamResourceIntegrityError, MAX_CAM_RESOURCE_BYTES, refresh_manifest
 from tools.json_policy import read_strict_json
 
 
 class CamResourceIntegrityToolTest(unittest.TestCase):
+    def test_python_resource_size_cap_matches_protocol_runtime_cap(self) -> None:
+        protocol_source = read_text(repo_path("js/packages/cam-protocol/src/resources.ts"))
+        match = re.search(r"export const CAM_RESOURCE_MAX_BYTES = (?P<expression>[0-9 *]+)$", protocol_source, re.MULTILINE)
+        self.assertIsNotNone(match, "CAM_RESOURCE_MAX_BYTES must stay a simple numeric expression")
+        assert match is not None
+
+        # The Python refresh tool cannot import TypeScript, but it must enforce
+        # the same byte cap as runtime loaders so a manifest cannot pass one
+        # publication lane and fail the viewer.
+        protocol_limit = numeric_product(match.group("expression"))
+        self.assertEqual(protocol_limit, MAX_CAM_RESOURCE_BYTES)
+
     def test_refresh_manifest_updates_contract_and_ui_resource_hashes(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
@@ -184,6 +198,14 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
 
 
 ZERO_SHA256 = "sha256:0x0000000000000000000000000000000000000000000000000000000000000000"
+
+
+def numeric_product(expression: str) -> int:
+    result = 1
+    for term in expression.split("*"):
+        result *= int(term.strip())
+
+    return result
 
 
 def write_json(path: Path, document: object) -> None:
