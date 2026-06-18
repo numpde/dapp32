@@ -72,6 +72,8 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   }
 
   const root = rootResult.value
+  // Structural inventory comes first so later facets can reason from declared
+  // namespaces/resources/routes instead of rediscovering manifest shape.
   const namespaces = validateNamespaceDeclarations({
     resource: bundle.rootURI,
     root,
@@ -103,6 +105,9 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     uiDocuments,
     issues,
   })
+  // Cross-resource checks use the inventory above to report author-facing
+  // paths. Keep these before sourced runtime compatibility so builders see the
+  // specific contract they violated, not only that a runtime parser rejected it.
   validateRouteHandoffs({
     resource: bundle.rootURI,
     routes,
@@ -131,6 +136,8 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     uiDocuments,
     issues,
   })
+  // Sourced checks are compatibility guards against the runtime packages. They
+  // should stay late: useful, but less granular than conformance-owned facets.
   verifyDeclaredUiResources(bundle.resources, uiDocuments, issues)
   verifyRuntimeCamCompatibility({
     resource: bundle.rootURI,
