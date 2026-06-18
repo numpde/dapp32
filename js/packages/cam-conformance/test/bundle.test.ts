@@ -1567,7 +1567,7 @@ test("UI Buttons must pass exactly the target route inputs", () => {
   ])
 })
 
-test("UI Button route existence is checked by typeflow for static targets", () => {
+test("UI Button route existence is checked for literal targets", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
@@ -3540,7 +3540,7 @@ test("UI Includes validate resolved selector targets and args", () => {
   ])
 })
 
-test("UI typeflow walks static Include arrays", () => {
+test("UI typeflow walks literal Include arrays", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
