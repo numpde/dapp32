@@ -285,7 +285,7 @@ def docker_defaults(files: list[Path]) -> dict[str, dict[str, str]]:
 
 def docker_env_defaults(body: str, label: str, line_number: int) -> list[tuple[str, str]]:
     legacy_match = DOCKER_LEGACY_ENV_TOKEN_RE.match(body)
-    if legacy_match is not None and "=" not in legacy_match.group("name"):
+    if legacy_match is not None:
         return [(legacy_match.group("name"), legacy_match.group("value"))]
 
     defaults: list[tuple[str, str]] = []
