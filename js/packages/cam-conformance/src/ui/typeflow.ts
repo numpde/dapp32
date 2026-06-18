@@ -310,7 +310,7 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
   // unknown, because their runtime value is supplied by another context root.
   if (typeof value === "string") {
     if (expressionReference(value) !== undefined) return UNKNOWN_VALUE
-    return { type: "literal-string", value }
+    return { type: "literal-string", value: staticString(value) }
   }
 
   if (typeof value === "boolean") return { type: "bool", value }
