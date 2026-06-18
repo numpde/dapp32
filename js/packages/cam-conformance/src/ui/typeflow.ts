@@ -176,6 +176,7 @@ function walkNode(
   if (typeof element !== "string") return
 
   validateProps(scope, element, node, path, context)
+  validateStateBinding(scope, element, node, path, context)
   validateCall(scope, element, node, path, context, inputNames, stack, allowRecurse)
 
   if (!Array.isArray(node.children)) return
@@ -201,6 +202,34 @@ function validateProps(
       validateBoundValue(scope, `${path}.props.${name}`, `UI ${element}.${name}`, value, expectation, context)
     }
   }
+}
+
+function validateStateBinding(
+  scope: Scope,
+  element: string,
+  node: Record<string, unknown>,
+  path: string,
+  context: AbiContext,
+): void {
+  if (element !== "TextField" || !isRecordObject(node.state)) return
+
+  // Initial state is built by resolving TextField defaults before any action
+  // runs, so deterministic non-string defaults are load-time authoring errors.
+  const value = node.state.defaultValue
+  const valuePath = `${path}.state.defaultValue`
+  if (typeof value === "string") {
+    validateBoundValue(scope, valuePath, "TextField state.defaultValue", value, "string", context)
+    return
+  }
+
+  const known = knownValueShape(value, (item) => valueFromExpression(item, context))
+  if (known === undefined || isUnknownValue(known) || abiValueMatches(known, "string")) return
+
+  reportTypeflowIssue(
+    scope,
+    valuePath,
+    `TextField state.defaultValue expects string, but value is ${abiTypeName(known)}`,
+  )
 }
 
 function validateCall(

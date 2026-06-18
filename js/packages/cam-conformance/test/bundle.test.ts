@@ -2576,6 +2576,60 @@ test("UI typeflow rejects known dynamic invalid TextField state keys", () => {
   ])
 })
 
+test("UI typeflow rejects non-string TextField state defaults", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            element: "TextField",
+            props: {
+              label: "Literal",
+            },
+            state: {
+              key: "literalDefault",
+              defaultValue: 123,
+            },
+          },
+          {
+            element: "TextField",
+            props: {
+              label: "Route",
+            },
+            state: {
+              key: "routeDefault",
+              defaultValue: "$view.defaultValue",
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            defaultValue: 123,
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.state.defaultValue"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.state.defaultValue"],
+  ])
+})
+
 test("UI typeflow keeps route-specific diagnostics distinct", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
