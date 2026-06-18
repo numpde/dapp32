@@ -138,21 +138,28 @@ class DependencyMetadataTest(unittest.TestCase):
         return SOLDEER_ARCHIVE_SUFFIX_RE[name]
 
     def remapped_openzeppelin_versions(self) -> dict[str, str]:
-        versions = {
-            match.group("name"): match.group("version")
-            for line in read_text(repo_path("dapps/remappings.txt")).splitlines()
-            if (match := REMAPPING_RE.match(line))
-        }
+        versions = self.unique_dependency_versions(repo_path("dapps/remappings.txt"), REMAPPING_RE, "remapping")
         self.assertEqual(set(OZ_PACKAGES), set(versions), "expected exactly one remapping for each OpenZeppelin package")
         return versions
 
     def checksummed_openzeppelin_versions(self) -> dict[str, str]:
-        versions = {
-            match.group("name"): match.group("version")
-            for line in read_text(repo_path("dapps/dependency-checksums.txt")).splitlines()
-            if (match := CHECKSUM_RE.match(line))
-        }
+        versions = self.unique_dependency_versions(
+            repo_path("dapps/dependency-checksums.txt"),
+            CHECKSUM_RE,
+            "checksum",
+        )
         self.assertEqual(set(OZ_PACKAGES), set(versions), "expected exactly one checksum for each OpenZeppelin package")
+        return versions
+
+    def unique_dependency_versions(self, path: Path, pattern: re.Pattern[str], label: str) -> dict[str, str]:
+        versions: dict[str, str] = {}
+        for line_number, line in enumerate(read_text(path).splitlines(), start=1):
+            match = pattern.match(line)
+            if match is None:
+                continue
+            name = match.group("name")
+            self.assertNotIn(name, versions, f"{path}:{line_number}: duplicate {label} for {name}")
+            versions[name] = match.group("version")
         return versions
 
     def imported_openzeppelin_versions(self) -> dict[str, set[str]]:
