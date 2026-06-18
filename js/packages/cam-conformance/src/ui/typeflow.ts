@@ -21,9 +21,9 @@ import {
 } from "../expressions/reference.ts"
 import {
   isKnownStaticStringValue,
+  knownStaticStringValue,
   knownRouteCallSource,
   knownRouteCallValue,
-  type KnownStaticStringValue,
   type KnownRouteCallValue,
   UNKNOWN_ROUTE_CALL_VALUE,
 } from "../expressions/known-route-call.ts"
@@ -666,7 +666,7 @@ function actionValueForRouteCall(
 function knownActionLiteral(value: unknown, context: AbiContext): unknown | undefined {
   if (typeof value === "string") {
     const reference = expressionReference(value)
-    if (reference === undefined) return staticActionString(value)
+    if (reference === undefined) return knownStaticStringValue(value)
 
     const lookup = valueAtReference(reference.root, reference.segments, context)
     if (lookup.kind !== "value") return UNKNOWN_ROUTE_CALL_VALUE
@@ -689,7 +689,7 @@ function knownActionLiteral(value: unknown, context: AbiContext): unknown | unde
 function literalFromKnownValue(value: unknown): unknown | undefined {
   if (isUnknownValue(value)) return UNKNOWN_ROUTE_CALL_VALUE
   if (!isRecordObject(value)) return undefined
-  if (value.type === "literal-string" && typeof value.value === "string") return staticActionString(value.value)
+  if (value.type === "literal-string" && typeof value.value === "string") return knownStaticStringValue(value.value)
   if (
     (value.type === "bool" || value.type === "uint256" || value.type === "number" || value.type === "null")
     && Object.hasOwn(value, "value")
@@ -720,12 +720,6 @@ function literalFromKnownValue(value: unknown): unknown | undefined {
 
 function knownOrUnknown(value: unknown | undefined): unknown {
   return value === undefined ? UNKNOWN_ROUTE_CALL_VALUE : value
-}
-
-function staticActionString(value: string): string | KnownStaticStringValue | undefined {
-  const result = staticString(value)
-  if (result === undefined) return undefined
-  return result.startsWith("$") ? { type: "static-string", value: result } : result
 }
 
 function knownSelectorNames(value: unknown, context: AbiContext): KnownSelectorInfo | undefined {

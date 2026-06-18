@@ -52,7 +52,7 @@ function knownRouteCallValueAt(
   if (typeof routeArg === "string") {
     const reference = expressionReference(routeArg)
     if (reference === undefined) {
-      return knownLiteralValue(staticStringValue(routeArg), { owner: "route", pathSuffix: sourcePath }, routePath)
+      return knownLiteralValue(knownStaticStringValue(routeArg), { owner: "route", pathSuffix: sourcePath }, routePath)
     }
     if (reference.root !== "inputs") return undefined
 
@@ -85,7 +85,7 @@ function knownLiteralValue(
   routePath: string,
 ): KnownRouteCallValue | undefined {
   if (typeof value === "string") {
-    const staticValue = staticStringValue(value)
+    const staticValue = knownStaticStringValue(value)
     return leafValue(staticValue === undefined ? value : staticValue, source, routePath)
   }
 
@@ -160,7 +160,7 @@ export function knownStaticStringContent(value: string | KnownStaticStringValue)
   return typeof value === "string" ? value : value.value
 }
 
-function staticStringValue(value: string): string | KnownStaticStringValue | undefined {
+export function knownStaticStringValue(value: string): string | KnownStaticStringValue | undefined {
   const result = staticString(value)
   if (result === undefined) return undefined
   return result.startsWith("$") ? { type: "static-string", value: result } : result
