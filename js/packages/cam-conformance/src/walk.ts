@@ -33,6 +33,10 @@ export function rawValueAtSegments(value: unknown, segments: readonly string[]):
   return undefined
 }
 
+export function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined
+}
+
 function isRecordObject(value: unknown): value is Record<string, unknown> {
   // Keep root shared helpers dependency-free. Facet folders may import
   // @cam/protocol where they own protocol-level checks, but this file stays

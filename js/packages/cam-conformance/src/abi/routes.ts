@@ -29,6 +29,7 @@ import {
 } from "../names.ts"
 import {
   forEachString,
+  nonEmptyString,
 } from "../walk.ts"
 import {
   expressionReference,
@@ -730,10 +731,6 @@ function abiStateMutability(value: unknown): AbiFunction["stateMutability"] | un
   }
 
   return undefined
-}
-
-function nonEmptyString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined
 }
 
 function canonicalAbiType(

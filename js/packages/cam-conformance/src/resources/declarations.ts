@@ -14,6 +14,9 @@ import {
 import type {
   DeclaredNamespace,
 } from "../manifest/namespaces.ts"
+import {
+  nonEmptyString,
+} from "../walk.ts"
 
 export type ResourceDeclaration = {
   readonly namespace: string
@@ -241,10 +244,6 @@ function resourceURIKey(namespace: DeclaredNamespace): "abiURI" | "uri" | undefi
     case "routes":
       return undefined
   }
-}
-
-function nonEmptyString(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined
 }
 
 function resourceDeclarationIssue({
