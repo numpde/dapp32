@@ -3409,6 +3409,52 @@ test("route root UI node must resolve to one root node", () => {
   ])
 })
 
+test("route root cardinality is not reported when Include target is missing", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Include",
+        requires: ["view"],
+        call: {
+          namespace: "ui",
+          function: "$view.nodes",
+          args: {
+            view: "$view",
+          },
+        },
+      },
+      summary: {
+        element: "Text",
+        requires: ["view"],
+        props: {
+          text: "$view.title",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            nodes: ["summary", "missing"],
+            title: "Component",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
+  ])
+})
+
 test("UI typeflow rejects deterministic Include cycles", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",

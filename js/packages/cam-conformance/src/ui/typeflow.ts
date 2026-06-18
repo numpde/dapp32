@@ -519,6 +519,7 @@ function validateRouteRootCardinality(scope: Scope, nodeName: string, context: A
   const selection = includeSelection(node.call.function, context)
   if (selection === undefined || selection.hasUnknown || selection.names.length === 1) return
   if (hasInvalidStaticTargets(selection.names)) return
+  if (selection.names.some((name) => !isRecordObject(scope.nodes[name]))) return
 
   // Nested Includes splice children, but the viewer route boundary must resolve
   // to one root node. Catch deterministic multi-root route screens here.
