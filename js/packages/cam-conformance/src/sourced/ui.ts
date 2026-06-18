@@ -14,7 +14,7 @@ import type {
 } from "../issues.ts"
 
 // UI readability is sourced from @cam/screen. Granular UI conformance should
-// live in the UI facet; this check only proves runtime parser compatibility.
+// live in the UI facet; this check only guards runtime parser compatibility.
 export function verifyRuntimeUiCompatibility(resource: string, bytes: Uint8Array, issues: CamConformanceIssue[]): void {
   try {
     parseUi(parseJsonBytes(bytes))

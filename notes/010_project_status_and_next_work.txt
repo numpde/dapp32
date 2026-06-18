@@ -619,8 +619,9 @@ Prefer precise author errors over broad runtime fallback.
 
 Prefer deletion after stabilization.
 
-    Once a better protocol shape lands, remove old vocabulary, old tests, and
-    compatibility paths. The branch has no compatibility obligation yet.
+    The current branch has no compatibility obligation yet. When a protocol
+    shape stabilizes, delete old vocabulary, old tests, and compatibility paths
+    instead of keeping migration ballast.
 
 Prefer small durable tests.
 
