@@ -108,6 +108,7 @@ class PackageMetadataTest(unittest.TestCase):
             manifest = self.read_manifest(path)
             name = manifest.get("name")
             self.assertIsInstance(name, str, f"{path}: package name must be a string")
+            self.assertNotIn(name, names, f"{path}: duplicate workspace package name: {name}")
             version = manifest.get("version")
             self.assertIsInstance(version, str, f"{path}: package version must be a string")
             self.assertRegex(version, VERSION_RE, f"{path}: package version must be exact")
