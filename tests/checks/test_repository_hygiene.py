@@ -10,6 +10,11 @@ FORBIDDEN_NAME_PATTERNS = [
     re.compile("dapp" + "32", re.IGNORECASE),
 ]
 
+ALLOWED_FORBIDDEN_NAME_LITERALS = [
+    # The site path is an externally visible address, not prose branding.
+    "https://numpde.github.io/dapp" + "32/",
+]
+
 LICENSE_MARKERS = [
     "SPDX-" + "License-Identifier",
     "Permission is hereby " + "granted",
@@ -50,7 +55,10 @@ class RepositoryHygieneTest(unittest.TestCase):
         for path in iter_repo_text_files():
             text = read_text(path)
             for line_number, line in enumerate(text.splitlines(), start=1):
-                if any(pattern.search(line) for pattern in patterns):
+                line_to_check = line
+                for allowed in ALLOWED_FORBIDDEN_NAME_LITERALS:
+                    line_to_check = line_to_check.replace(allowed, "")
+                if any(pattern.search(line_to_check) for pattern in patterns):
                     failures.append(f"{path}:{line_number}: {label}")
 
         if failures:

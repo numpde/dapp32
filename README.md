@@ -7,4 +7,4 @@ render or interpret without trusting bespoke frontend JavaScript.
 The goal is to make dapp workflows portable, inspectable, and closer to the
 contracts that authorize them.
 
-Project overview: <https://numpde.github.io/dapp%33%32/>
+Project overview: <https://numpde.github.io/dapp32/>
