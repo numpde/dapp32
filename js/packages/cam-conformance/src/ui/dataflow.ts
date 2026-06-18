@@ -70,8 +70,6 @@ export function validateUiDataflow({
         if (uiNodes !== undefined) {
           validateIncludeNodeArgs(resource, call, uiNodes, issues)
         }
-      } else {
-        validateActionRouteShape(resource, call, issues)
       }
     }
   }
@@ -182,30 +180,6 @@ function validateIncludeNodeArgs(
       filterEmptyActualNames: false,
     })
   }
-}
-
-function validateActionRouteShape(
-  resource: string,
-  action: UiCall,
-  issues: CamConformanceIssue[],
-): void {
-  const functionNames = staticStringList(action.function)
-  if (functionNames === undefined) return
-  if (!validateStaticCallTargets({
-    resource,
-    path: `${action.path}.call.function`,
-    label: "UI Button route",
-    names: functionNames,
-    issues,
-    rule: "CAM_UI_DATAFLOW_MISMATCH",
-  })) {
-    return
-  }
-  if (functionNames.length !== 1) {
-    issues.push(dataflowIssue(resource, `${action.path}.call.function`, "UI Button route must select exactly one route"))
-    return
-  }
-
 }
 
 function dataflowIssue(resource: string, path: string, message: string): CamConformanceIssue {
