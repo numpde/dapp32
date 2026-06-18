@@ -147,6 +147,8 @@ class PackageMetadataTest(unittest.TestCase):
             self.assertFalse(workspace.endswith("/.."), "js/package.json: workspaces must stay under js/")
             matches = sorted(root.glob(f"{workspace}/package.json"))
             self.assertTrue(matches, f"js/package.json: workspace matched no package manifests: {workspace}")
-            paths.extend(matches)
+            for match in matches:
+                self.assertNotIn(match, paths, f"js/package.json: workspace matched package manifest more than once: {match}")
+                paths.append(match)
 
         return paths
