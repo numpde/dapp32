@@ -2926,6 +2926,53 @@ test("UI props reject statically incompatible literal route handoff args", () =>
   ])
 })
 
+test("UI typeflow preserves literal handoff field names over ABI output names", () => {
+  const abiBytes = jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs: [],
+      outputs: [
+        {
+          name: "result",
+          type: "address",
+        },
+      ],
+    },
+  ])
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Address",
+        requires: ["view"],
+        props: {
+          label: "Owner",
+          address: "$view.owner",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            owner: "$outputs.0",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
+  })
+
+  assert.deepEqual(issues, [])
+})
+
 test("UI props reject statically incompatible literal Include args", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",

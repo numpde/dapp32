@@ -335,7 +335,9 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
   const components = Object.entries(value).map(([name, item]) => {
     const shape = knownValueShape(item, resolve) ?? UNKNOWN_VALUE
     const knownShape = isRecordObject(shape) ? shape : UNKNOWN_VALUE
-    return { name, ...knownShape }
+    // Literal object field names define the UI context shape. A child may be an
+    // ABI output with its own name, but that name is provenance, not this field.
+    return { ...knownShape, name }
   })
 
   return {
