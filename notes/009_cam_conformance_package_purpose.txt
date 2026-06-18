@@ -122,8 +122,12 @@ Use:
   @cam/screen
     UI document parsing, UI node shape, Include/Button rules, UI state rules.
 
-  @cam/evm-viem
-    ABI parsing, ABI input/output normalization, EVM route/write compatibility.
+Do not make `@cam/conformance` depend on `@cam/evm-viem` by default. The EVM
+adapter owns concrete RPC/viem normalization at runtime, but conformance is a
+builder-facing publication gate and should stay usable without browser/DOM or
+wallet-adapter type surfaces. When conformance checks ABI declarations, keep
+the supported ABI subset aligned with the EVM adapter through focused parity
+tests and shared protocol primitives rather than importing the adapter itself.
 
 `@cam/conformance` owns only cross-document and publication-level rules that no
 single primitive package can know alone.
@@ -138,7 +142,7 @@ Bundle-level conformance:
   Every declared local resource exists in the bundle.
   Every declared integrity digest matches the referenced bytes.
   ui.json parses with the runtime UI parser.
-  Every declared ABI parses with the runtime EVM ABI parser.
+  Every declared ABI is valid for the CAM-supported EVM ABI subset.
 
 Cross-document CAM rules:
 
