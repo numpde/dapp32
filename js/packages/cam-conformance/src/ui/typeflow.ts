@@ -48,6 +48,10 @@ type AbiLookup =
   | { readonly kind: "missing" }
   | { readonly kind: "unknown" }
   | { readonly kind: "value", readonly value: unknown }
+type KnownSelectorInfo = {
+  readonly names: readonly string[]
+  readonly hasUnknown: boolean
+}
 type Scope = {
   readonly resource: string
   readonly nodes: Record<string, unknown>
@@ -61,6 +65,7 @@ type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-
 type ValueResolver = (value: unknown) => unknown | undefined
 type IncludeSelection = {
   readonly names: readonly string[]
+  readonly hasUnknown: boolean
   readonly resolved: boolean
 }
 const UNKNOWN_VALUE = { type: "unknown", value: UNKNOWN_ROUTE_CALL_VALUE } as const
@@ -133,16 +138,29 @@ function walkNamedNode(
   context: AbiContext,
   inputNames: ReadonlySet<string>,
   stack: readonly string[],
+  allowRecurse = true,
 ): void {
-  if (stack.includes(nodeName)) {
-    reportTypeflowIssue(scope, path, `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`)
-    return
-  }
-
   const node = scope.nodes[nodeName]
   if (!isRecordObject(node)) return
 
-  walkNode(scope, node, path, context, inputNames, [...stack, nodeName])
+  // Visit each include node's local surface even on re-entry so deterministic
+  // per-route issues (props, args, state keys) are still validated. We only
+  // suppress deeper recursion at the cycle edge to guarantee termination.
+  const inCycle = stack.includes(nodeName)
+  if (inCycle) {
+    reportTypeflowIssue(scope, path, `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`)
+  }
+
+  const nextStack = inCycle ? stack : [...stack, nodeName]
+  walkNode(
+    scope,
+    node,
+    path,
+    context,
+    inputNames,
+    nextStack,
+    allowRecurse && !inCycle,
+  )
 }
 
 function walkNode(
@@ -152,17 +170,18 @@ function walkNode(
   context: AbiContext,
   inputNames: ReadonlySet<string>,
   stack: readonly string[],
+  allowRecurse: boolean,
 ): void {
   const element = node.element
   if (typeof element !== "string") return
 
   validateProps(scope, element, node, path, context)
-  validateCall(scope, element, node, path, context, inputNames, stack)
+  validateCall(scope, element, node, path, context, inputNames, stack, allowRecurse)
 
   if (!Array.isArray(node.children)) return
   node.children.forEach((child, index) => {
     if (isRecordObject(child)) {
-      walkNode(scope, child, `${path}.children.${index}`, context, inputNames, stack)
+      walkNode(scope, child, `${path}.children.${index}`, context, inputNames, stack, allowRecurse)
     }
   })
 }
@@ -192,6 +211,7 @@ function validateCall(
   context: AbiContext,
   inputNames: ReadonlySet<string>,
   stack: readonly string[],
+  allowRecurse: boolean,
 ): void {
   if (!isRecordObject(node.call)) return
 
@@ -211,7 +231,7 @@ function validateCall(
   if (selection === undefined) return
 
   if (selection.resolved) {
-    if (!validateIncludeSelection(scope, `${path}.call.function`, selection.names)) return
+    if (!validateIncludeSelection(scope, `${path}.call.function`, selection)) return
   }
   if (!isRecordObject(node.call.args)) return
 
@@ -228,14 +248,16 @@ function validateCall(
       validateNodeArgs(scope, `${path}.call.args`, target, nodeName, Object.keys(node.call.args))
     }
 
-    walkNamedNode(
-      scope,
-      nodeName,
-      `${path}.${nodeName}`,
-      contextForArgs(node.call.args, (value) => valueFromExpression(value, context)),
-      inputNames,
-      stack,
-    )
+    if (allowRecurse) {
+      walkNamedNode(
+        scope,
+        nodeName,
+        `${path}.${nodeName}`,
+        contextForArgs(node.call.args, (value) => valueFromExpression(value, context)),
+        inputNames,
+        stack,
+      )
+    }
   }
 }
 
@@ -345,7 +367,7 @@ function valueAtReference(root: string, segments: readonly string[], context: Ab
 
 function routeInputNames(scope: Scope, nodeName: string, context: AbiContext): ReadonlySet<string> {
   const inputNames = new Set<string>()
-  collectRouteInputs(scope, nodeName, `nodes.${nodeName}`, context, [], inputNames)
+  collectRouteInputs(scope, nodeName, `nodes.${nodeName}`, context, [], inputNames, true)
   return inputNames
 }
 
@@ -356,16 +378,21 @@ function collectRouteInputs(
   context: AbiContext,
   stack: readonly string[],
   inputNames: Set<string>,
+  allowRecurse: boolean,
 ): void {
-  if (stack.includes(nodeName)) {
-    reportTypeflowIssue(scope, path, `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`)
-    return
-  }
-
   const node = scope.nodes[nodeName]
   if (!isRecordObject(node)) return
 
-  collectNodeInputs(scope, node, path, context, [...stack, nodeName], inputNames)
+  // Same intent as the typewalk: validate local TextField/action requirements
+  // even when this include path is revisited, while blocking recursive descent
+  // to keep the context-sensitive traversal finite.
+  const inCycle = stack.includes(nodeName)
+  if (inCycle) {
+    reportTypeflowIssue(scope, path, `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`)
+  }
+
+  const nextStack = inCycle ? stack : [...stack, nodeName]
+  collectNodeInputs(scope, node, path, context, nextStack, inputNames, allowRecurse && !inCycle)
 }
 
 function collectNodeInputs(
@@ -375,6 +402,7 @@ function collectNodeInputs(
   context: AbiContext,
   stack: readonly string[],
   inputNames: Set<string>,
+  allowRecurse: boolean,
 ): void {
   if (node.element === "Button") return
 
@@ -386,19 +414,21 @@ function collectNodeInputs(
     inputNames.add(inputName)
   }
 
-  if (node.element === "Include" && isRecordObject(node.call) && isRecordObject(node.call.args)) {
+  if (node.element === "Include" && allowRecurse && isRecordObject(node.call) && isRecordObject(node.call.args)) {
     const selection = includeSelection(node.call.function, context)
     if (selection !== undefined) {
       const nextContext = contextForArgs(node.call.args, (value) => valueFromExpression(value, context))
       for (const nodeName of selection.names) {
-        collectRouteInputs(scope, nodeName, `${path}.${nodeName}`, nextContext, stack, inputNames)
+        collectRouteInputs(scope, nodeName, `${path}.${nodeName}`, nextContext, stack, inputNames, allowRecurse)
       }
     }
   }
 
   if (Array.isArray(node.children)) {
     for (const [index, child] of node.children.entries()) {
-      if (isRecordObject(child)) collectNodeInputs(scope, child, `${path}.children.${index}`, context, stack, inputNames)
+      if (isRecordObject(child)) {
+        collectNodeInputs(scope, child, `${path}.children.${index}`, context, stack, inputNames, allowRecurse)
+      }
     }
   }
 }
@@ -408,29 +438,32 @@ function includeSelection(value: unknown, context: AbiContext): IncludeSelection
   if (staticNames !== undefined) {
     return {
       names: staticNames,
+      hasUnknown: false,
       resolved: false,
     }
   }
 
-  const names = knownSelectorNames(value, context)
-  return names === undefined
-    ? undefined
-    : {
-      names,
-      resolved: true,
-    }
+  const selectorNames = knownSelectorNames(value, context)
+  if (selectorNames === undefined) return undefined
+  if (!selectorNames.hasUnknown && selectorNames.names.length === 0) return undefined
+
+  return {
+    names: selectorNames.names,
+    hasUnknown: selectorNames.hasUnknown,
+    resolved: true,
+  }
 }
 
 function validateIncludeSelection(
   scope: Scope,
   path: string,
-  names: readonly string[],
+  selection: IncludeSelection,
 ): boolean {
   return validateStaticCallTargets({
     resource: scope.resource,
     path,
     label: "UI Include",
-    names,
+    names: selection.names,
     issues: scope.issues,
     rule: "CAM_UI_TYPEFLOW_MISMATCH",
   })
@@ -468,7 +501,8 @@ function validateKnownActionRoute(
 
 function knownActionRouteName(value: unknown, context: AbiContext): string | undefined {
   const names = knownSelectorNames(value, context)
-  return names?.length === 1 ? names[0] : undefined
+  if (names === undefined || names.hasUnknown || names.names.length !== 1) return undefined
+  return names.names[0]
 }
 
 function validateActionRouteAbi(
@@ -591,7 +625,10 @@ function staticActionString(value: string): string | KnownStaticStringValue | un
   return result.startsWith("$") ? { type: "static-string", value: result } : result
 }
 
-function knownSelectorNames(value: unknown, context: AbiContext): readonly string[] | undefined {
+function knownSelectorNames(value: unknown, context: AbiContext): KnownSelectorInfo | undefined {
+  if (Array.isArray(value)) {
+    return knownSelectorArrayNames(value, context)
+  }
   if (typeof value !== "string") return undefined
 
   const reference = expressionReference(value)
@@ -601,17 +638,101 @@ function knownSelectorNames(value: unknown, context: AbiContext): readonly strin
   if (lookup.kind !== "value" || !isRecordObject(lookup.value)) return undefined
 
   if (lookup.value.type === "literal-string" && typeof lookup.value.value === "string") {
-    return [lookup.value.value]
+    return {
+      names: [lookup.value.value],
+      hasUnknown: false,
+    }
   }
   if (
     lookup.value.type === "literal-string[]"
     && Array.isArray(lookup.value.items)
     && lookup.value.items.every((item) => typeof item === "string")
   ) {
-    return lookup.value.items
+    return {
+      names: lookup.value.items,
+      hasUnknown: false,
+    }
+  }
+  if (lookup.value.type === "array" && Array.isArray(lookup.value.items)) {
+    const names: string[] = []
+    let hasUnknown = false
+    for (const item of lookup.value.items) {
+      if (isUnknownValue(item)) {
+        hasUnknown = true
+      } else if (isRecordObject(item) && item.type === "literal-string" && typeof item.value === "string") {
+        names.push(item.value)
+      } else if (typeof item === "string") {
+        names.push(item)
+      } else {
+        hasUnknown = true
+      }
+    }
+
+    return {
+      names,
+      hasUnknown,
+    }
   }
 
   return undefined
+}
+
+function knownSelectorArrayNames(
+  values: readonly unknown[],
+  context: AbiContext,
+): KnownSelectorInfo {
+  const names: string[] = []
+  let hasUnknown = false
+  for (const item of values) {
+    const staticItem = staticString(item)
+    if (staticItem !== undefined) {
+      names.push(staticItem)
+      continue
+    }
+
+    if (typeof item === "string") {
+      const reference = expressionReference(item)
+      if (reference !== undefined) {
+        const lookup = valueAtReference(reference.root, reference.segments, context)
+        if (lookup.kind === "value") {
+          const child = valueToSelectorNames(lookup.value)
+          names.push(...child.names)
+          hasUnknown ||= child.hasUnknown
+          continue
+        }
+      }
+    }
+    hasUnknown = true
+  }
+  return { names, hasUnknown }
+}
+
+function valueToSelectorNames(value: unknown): KnownSelectorInfo {
+  if (isUnknownValue(value)) return { names: [], hasUnknown: true }
+  if (isRecordObject(value)) {
+    if (value.type === "literal-string" && typeof value.value === "string") {
+      return { names: [value.value], hasUnknown: false }
+    }
+    if (
+      value.type === "literal-string[]"
+      && Array.isArray(value.items)
+      && value.items.every((item) => typeof item === "string")
+    ) {
+      return { names: value.items, hasUnknown: false }
+    }
+    if (value.type === "array" && Array.isArray(value.items)) {
+      const names: string[] = []
+      let hasUnknown = false
+      for (const item of value.items) {
+        const child = valueToSelectorNames(item)
+        names.push(...child.names)
+        hasUnknown ||= child.hasUnknown
+      }
+      return { names, hasUnknown }
+    }
+  }
+
+  return { names: [], hasUnknown: true }
 }
 
 function validateNodeArgs(
@@ -769,7 +890,7 @@ function isUiPropElement(value: string): value is UiPropElement {
 }
 
 function reportTypeflowIssue(scope: Scope, path: string, message: string): void {
-  const key = `${path}\0${message}`
+  const key = `${scope.routeName}\0${path}\0${message}`
   if (scope.reported.has(key)) return
 
   scope.reported.add(key)

@@ -1,4 +1,8 @@
 import {
+  isRecordObject,
+} from "@cam/protocol"
+
+import {
   conformanceIssue,
   type CamConformanceIssue,
 } from "../issues.ts"
@@ -10,6 +14,7 @@ import {
 import {
   knownRouteCallSource,
   knownRouteCallValue,
+  UNKNOWN_ROUTE_CALL_VALUE,
 } from "../expressions/known-route-call.ts"
 import type {
   DeclaredRoute,
@@ -23,6 +28,9 @@ import {
 import {
   rawValueAtSegments,
 } from "../walk.ts"
+import {
+  expressionReference,
+} from "../expressions/reference.ts"
 
 export function validateRouteHandoffs({
   resource,
@@ -109,11 +117,12 @@ function validateRouteHandoffAbi(
   const fn = resolvedAbiFunction(nextRoute.call.function, functions)
   if (fn === undefined) return
 
+  const thenArgsWithKnownInputs = materializeTemplateValues(route.then.args, route.call.args)
   for (const input of fn.inputs) {
     if (!Object.hasOwn(nextRoute.call.args, input.name)) continue
 
     const resolved = knownRouteCallValue(nextRoute.call.args[input.name], (segments) => {
-      const value = rawValueAtSegments(route.then.args, segments)
+      const value = rawValueAtSegments(thenArgsWithKnownInputs, segments)
       return value === undefined
         ? undefined
         : {
@@ -133,6 +142,58 @@ function validateRouteHandoffAbi(
       ))
     }
   }
+}
+
+function materializeTemplateValues(
+  template: Readonly<Record<string, unknown>>,
+  inputDefaults: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const inputByPath = new Map<string, unknown>()
+  // A write continuation can pass values that are themselves templates over
+  // the write route's inputs. Preserve known leaves through that indirection so
+  // the next route's ABI check reports deterministic bad fields instead of
+  // treating the whole aggregate as dynamic.
+  const materializeExpression = (value: unknown, resolve: (segments: readonly string[]) => unknown | undefined): unknown => {
+    if (typeof value === "string") {
+      const reference = expressionReference(value)
+      if (reference === undefined) return value
+      if (reference.root !== "inputs") return UNKNOWN_ROUTE_CALL_VALUE
+
+      const key = reference.segments.join(".")
+      if (inputByPath.has(key)) return UNKNOWN_ROUTE_CALL_VALUE
+
+      const next = resolve(reference.segments)
+      if (next === undefined) return UNKNOWN_ROUTE_CALL_VALUE
+
+      inputByPath.set(key, UNKNOWN_ROUTE_CALL_VALUE)
+      const resolved = materializeExpression(next, resolve)
+      inputByPath.delete(key)
+      return resolved
+    }
+
+    if (value === null || typeof value === "number" || typeof value === "boolean") return value
+    if (Array.isArray(value)) {
+      return value.map((item) => materializeExpression(item, resolve) ?? UNKNOWN_ROUTE_CALL_VALUE)
+    }
+    if (isRecordObject(value)) {
+      const output: Record<string, unknown> = {}
+      for (const [name, item] of Object.entries(value)) {
+        output[name] = materializeExpression(item, resolve) ?? UNKNOWN_ROUTE_CALL_VALUE
+      }
+      return output
+    }
+    return value
+  }
+
+  const resolveInput = (segments: readonly string[]): unknown | undefined => {
+    return rawValueAtSegments(inputDefaults, segments)
+  }
+  const result: Record<string, unknown> = {}
+  for (const [name, item] of Object.entries(template)) {
+    const value = materializeExpression(item, resolveInput)
+    result[name] = value === undefined ? UNKNOWN_ROUTE_CALL_VALUE : value
+  }
+  return result
 }
 
 function validateNamedHandoffArgs({
