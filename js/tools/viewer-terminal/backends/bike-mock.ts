@@ -1,4 +1,5 @@
-import { readFile, stat } from "node:fs/promises"
+import { readFile, realpath, stat } from "node:fs/promises"
+import { isAbsolute, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type {
@@ -37,6 +38,7 @@ type MockAddress = CamHost["address"]
 
 const BIKE_MOCK_CAM_BASE_URI = "file:///work/cam/bike-nft/"
 const BIKE_MOCK_CAM_URI = new URL("main.json", BIKE_MOCK_CAM_BASE_URI).href
+const BIKE_MOCK_CAM_BASE_PATH = fileURLToPath(BIKE_MOCK_CAM_BASE_URI)
 
 export function createBikeMockBackend({
   allowUnsignedCamHash,
@@ -147,8 +149,7 @@ function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promis
       throw new Error(`mock terminal loads file resources only: ${resourceURI.protocol}`)
     }
 
-    requireMockCamFileURI(resourceURI)
-    const resourcePath = fileURLToPath(resourceURI)
+    const resourcePath = await checkedMockCamFilePath(resourceURI)
     const metadata = await stat(resourcePath)
     if (metadata.size > CAM_RESOURCE_MAX_BYTES) {
       throw new Error(`mock CAM resource is too large: ${resourceURI.href}`)
@@ -165,10 +166,21 @@ function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promis
   }
 }
 
-function requireMockCamFileURI(uri: URL): void {
-  if (!uri.href.startsWith(BIKE_MOCK_CAM_BASE_URI)) {
+async function checkedMockCamFilePath(uri: URL): Promise<string> {
+  const [basePath, resourcePath] = await Promise.all([
+    realpath(BIKE_MOCK_CAM_BASE_PATH),
+    realpath(fileURLToPath(uri)),
+  ])
+  const relativePath = relative(basePath, resourcePath)
+
+  // The mock backend is still a file loader, so string-prefix URL checks are
+  // not enough. Resolve symlinks first and enforce the checked-in CAM subtree
+  // as a filesystem boundary.
+  if (relativePath === "" || relativePath.startsWith("..") || isAbsolute(relativePath)) {
     throw new Error(`bike mock terminal can only load checked-in bike CAM files: ${uri.href}`)
   }
+
+  return resourcePath
 }
 
 function formatValue(value: unknown): string {
