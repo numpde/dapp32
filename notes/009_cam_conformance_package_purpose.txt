@@ -57,8 +57,9 @@ The useful moments are:
   during builder or agent preflight
 
 Runtime viewers must still validate every untrusted resource they load. The
-conformance package is heavier and builder-facing: it proves a bundle is fit to
-publish, not that a specific browser session is safe forever.
+conformance package is heavier and builder-facing: it gives authors precise
+publication evidence for static bundle invariants, not a promise that every
+future browser session or dynamic value is safe forever.
 
 
 Inputs and outputs

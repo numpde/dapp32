@@ -19,9 +19,9 @@ class RawUiDocumentError extends Error {
 }
 
 // Granular conformance facets inspect the UI node inventory before the sourced
-// @cam/screen parser runs. Keep this check intentionally shallow: it proves
-// there is a strict JSON object with a nodes map, then lets the runtime parser
-// own the full UI schema.
+// @cam/screen parser runs. Keep this check intentionally shallow: it establishes
+// a strict JSON object with a nodes map, then lets the runtime parser own the
+// full UI schema.
 export function parseRawUiDocument(bytes: Uint8Array): RawUiDocument {
   const value = parseJsonBytes(bytes)
   if (!isRecordObject(value)) {

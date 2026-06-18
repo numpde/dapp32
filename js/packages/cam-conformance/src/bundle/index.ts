@@ -59,7 +59,8 @@ export type {
 
 // Bundle conformance starts from bytes the caller already collected. This
 // package should not fetch, execute routes, or talk to an EVM client; it only
-// proves that the supplied root document and declared resources agree.
+// checks static agreement between the supplied root document and declared
+// resources. Dynamic values still belong to the viewer/runtime boundary.
 export function validateCamBundle(bundle: CamConformanceBundle): readonly CamConformanceIssue[] {
   const issues: CamConformanceIssue[] = []
   const rootResult = parseRootCamJson({

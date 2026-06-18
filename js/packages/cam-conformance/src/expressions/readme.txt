@@ -6,3 +6,7 @@ by the surrounding protocol object.
 
 It should catch static expression/context mismatches before a viewer executes a
 route or renders a UI tree.
+
+It should distinguish true dynamic expressions from escaped literal strings.
+`$$foo` is data whose value starts with `$`, not an unresolved expression escape
+hatch.
