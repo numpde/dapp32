@@ -7,11 +7,33 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from .common import read_text, repo_path
-from tools.cam_resource_integrity import CamResourceIntegrityError, MAX_CAM_RESOURCE_BYTES, refresh_manifest
+from tools.cam_resource_integrity import (
+    CONTRACT_NAMESPACE_PREFIX,
+    CamResourceIntegrityError,
+    MAX_CAM_RESOURCE_BYTES,
+    ROUTES_NAMESPACE,
+    UI_NAMESPACE,
+    refresh_manifest,
+)
 from tools.json_policy import read_strict_json
 
 
 class CamResourceIntegrityToolTest(unittest.TestCase):
+    def test_python_namespace_constants_match_protocol_runtime_constants(self) -> None:
+        protocol_source = read_text(repo_path("js/packages/cam-protocol/src/namespaces.ts"))
+
+        # The refresh tool classifies namespace declarations before hashing
+        # resources. If these names drift from the runtime parser, publication
+        # can refresh a manifest the viewer will later reject, or vice versa.
+        self.assertEqual(
+            {
+                "CAM_CONTRACT_NAMESPACE_PREFIX": CONTRACT_NAMESPACE_PREFIX,
+                "CAM_ROUTES_NAMESPACE": ROUTES_NAMESPACE,
+                "CAM_UI_NAMESPACE": UI_NAMESPACE,
+            },
+            ts_string_constants(protocol_source),
+        )
+
     def test_python_resource_size_cap_matches_protocol_runtime_cap(self) -> None:
         protocol_source = read_text(repo_path("js/packages/cam-protocol/src/resources.ts"))
         match = re.search(r"export const CAM_RESOURCE_MAX_BYTES = (?P<expression>[0-9 *]+)$", protocol_source, re.MULTILINE)
@@ -206,6 +228,13 @@ def numeric_product(expression: str) -> int:
         result *= int(term.strip())
 
     return result
+
+
+def ts_string_constants(source: str) -> dict[str, str]:
+    return {
+        match.group("name"): match.group("value")
+        for match in re.finditer(r'^export const (?P<name>CAM_[A-Z_]+) = "(?P<value>[^"]+)"$', source, re.MULTILINE)
+    }
 
 
 def write_json(path: Path, document: object) -> None:
