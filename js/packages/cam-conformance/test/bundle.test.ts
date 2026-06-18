@@ -15,6 +15,7 @@ import {
   issueRules,
   jsonBytes,
   minimalBundle,
+  minimalBundleWithUiIntegrity,
   mustGetResource,
   overloadedViewEntryAbiBytes,
   replaceBundleResources,
@@ -4074,9 +4075,9 @@ test("invalid namespace names do not declare bundle resources", () => {
 })
 
 test("UI resource integrity mismatch returns one precise issue", () => {
-  const issues = validateCamBundle(minimalBundle({
-    uiIntegrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
-  }))
+  const issues = validateCamBundle(minimalBundleWithUiIntegrity(
+    "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+  ))
 
   assert.equal(issues.length, 1)
   assert.equal(issues[0]?.rule, "CAM_RESOURCE_INTEGRITY_MISMATCH")

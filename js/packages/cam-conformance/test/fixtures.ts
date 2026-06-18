@@ -22,9 +22,15 @@ export type RootWithRoutes = {
 
 export type RootWithNamespacesAndRoutes = RootWithNamespaces & RootWithRoutes
 
-export function minimalBundle(overrides: {
-  readonly uiIntegrity?: string
-} = {}): CamConformanceBundle {
+export function minimalBundle(): CamConformanceBundle {
+  return buildMinimalBundle(undefined)
+}
+
+export function minimalBundleWithUiIntegrity(uiIntegrity: string): CamConformanceBundle {
+  return buildMinimalBundle(uiIntegrity)
+}
+
+function buildMinimalBundle(uiIntegrityOverride: string | undefined): CamConformanceBundle {
   const uiBytes = jsonBytes({
     ui: "1.0.0",
     nodes: {
@@ -40,6 +46,12 @@ export function minimalBundle(overrides: {
   const abiBytes = jsonBytes([
     viewEntryFunction(),
   ])
+  let uiIntegrity: string
+  if (uiIntegrityOverride === undefined) {
+    uiIntegrity = sha256Integrity(uiBytes)
+  } else {
+    uiIntegrity = uiIntegrityOverride
+  }
   const rootBytes = jsonBytes({
     cam: "1.0.0",
     entry: "entry",
@@ -55,7 +67,7 @@ export function minimalBundle(overrides: {
       ui: {
         type: "ui",
         uri: "./ui.json",
-        integrity: uiIntegrity(overrides, uiBytes),
+        integrity: uiIntegrity,
       },
     },
     routes: {
@@ -213,12 +225,4 @@ export function jsonBytes(value: unknown): Uint8Array {
 
 export function sha256Integrity(bytes: Uint8Array): string {
   return `sha256:0x${createHash("sha256").update(bytes).digest("hex")}`
-}
-
-function uiIntegrity(overrides: { readonly uiIntegrity?: string }, uiBytes: Uint8Array): string {
-  if (overrides.uiIntegrity !== undefined) {
-    return overrides.uiIntegrity
-  }
-
-  return sha256Integrity(uiBytes)
 }
