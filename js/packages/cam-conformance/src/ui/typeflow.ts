@@ -518,7 +518,7 @@ function validateRouteRootCardinality(scope: Scope, nodeName: string, context: A
 
   const selection = includeSelection(node.call.function, context)
   if (selection === undefined || selection.hasUnknown || selection.names.length === 1) return
-  if (hasInvalidStaticTargets(selection.names)) return
+  if (hasInvalidSelectionNames(selection.names)) return
   if (selection.names.some((name) => !isRecordObject(scope.nodes[name]))) return
 
   // Nested Includes splice children, but the viewer route boundary must resolve
@@ -526,7 +526,7 @@ function validateRouteRootCardinality(scope: Scope, nodeName: string, context: A
   reportTypeflowIssue(scope, `nodes.${nodeName}.call.function`, "route root UI node must resolve to exactly one node")
 }
 
-function hasInvalidStaticTargets(names: readonly string[]): boolean {
+function hasInvalidSelectionNames(names: readonly string[]): boolean {
   const seen = new Set<string>()
   for (const name of names) {
     if (name.length === 0 || seen.has(name)) return true
