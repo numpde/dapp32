@@ -261,7 +261,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                     self.assertNotIn("cap_add", config_service)
                     self.assertNotIn("devices", config_service)
 
-    def test_all_rendered_ports_and_secrets_are_explicitly_inventoried(self) -> None:
+    def test_all_rendered_ports_secrets_and_fixture_keys_are_explicitly_inventoried(self) -> None:
         expected_ports = {
             (
                 makefile_compose_unit("BIKE_NFT_VIEWER_GUI_COMPOSE_FILES"),
@@ -274,15 +274,44 @@ class RenderedComposePostureTest(unittest.TestCase):
         expected_secrets = {
             ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
         }
+        expected_fixture_keys = {
+            ("compose/bike-nft/local/deploy.yml", "deploy-bike-nft-local", "PRIVATE_KEY", ANVIL_DEV_PRIVATE_KEY),
+            (
+                makefile_compose_unit("BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES"),
+                "deploy-bike-nft-local",
+                "PRIVATE_KEY",
+                ANVIL_DEV_PRIVATE_KEY,
+            ),
+            (
+                makefile_compose_unit("BIKE_NFT_VIEWER_GUI_COMPOSE_FILES"),
+                "deploy-bike-nft-local",
+                "PRIVATE_KEY",
+                ANVIL_DEV_PRIVATE_KEY,
+            ),
+            (
+                makefile_compose_unit("TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES"),
+                "deploy-bike-nft-local",
+                "PRIVATE_KEY",
+                ANVIL_DEV_PRIVATE_KEY,
+            ),
+            (
+                makefile_compose_unit("TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES"),
+                "test-integration-fuzz-with-writes-bike-nft",
+                "CAM_INTEGRATION_PRIVATE_KEY",
+                ANVIL_DEV_PRIVATE_KEY,
+            ),
+        }
         actual_ports = set()
         actual_secrets = set()
+        actual_fixture_keys = set()
 
         for compose_unit in compose_render_units():
             config = rendered_compose_config(compose_unit, env=compose_render_env())
             for service_name, config_service in config["services"].items():
-                # Published ports and secrets are deliberate operator
-                # boundaries. Inventory them globally so new external surfaces
-                # cannot appear only in scenario-specific tests.
+                # Published ports, secrets, and fixture private keys are
+                # deliberate operator boundaries. Inventory them globally so new
+                # external or signing surfaces cannot appear only in
+                # scenario-specific tests.
                 for port in compose_sequence_or_empty(config_service, "ports"):
                     actual_ports.add((
                         compose_unit,
@@ -298,9 +327,14 @@ class RenderedComposePostureTest(unittest.TestCase):
                         secret.get("source"),
                         secret.get("target"),
                     ))
+                if "environment" in config_service:
+                    for name, value in compose_mapping(config_service, "environment").items():
+                        if "PRIVATE_KEY" in name:
+                            actual_fixture_keys.add((compose_unit, service_name, name, value))
 
         self.assertEqual(expected_ports, actual_ports)
         self.assertEqual(expected_secrets, actual_secrets)
+        self.assertEqual(expected_fixture_keys, actual_fixture_keys)
 
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service["read_only"])
