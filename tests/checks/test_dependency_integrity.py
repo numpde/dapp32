@@ -15,8 +15,6 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 
-TEST_PATH = Path(__file__).resolve()
-ROOT = TEST_PATH.parents[2] if len(TEST_PATH.parents) > 2 else Path.cwd()
 VALUE_RE = re.compile(r'^(?P<key>[a-z_]+)\s*=\s*"(?P<value>[^"]*)"$')
 CHECKSUM_RE = re.compile(r"^(?P<hash>[0-9a-f]{64})  (?P<key>\S+)$")
 FOUNDRY_DEP_RE = re.compile(
