@@ -51,6 +51,23 @@ class RepositoryHygieneTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_foundry_outputs_are_not_materialized_on_host(self) -> None:
+        failures: list[str] = []
+        output_names = {"broadcast", "cache", "out"}
+
+        # Routine Forge lanes set FOUNDRY_* paths to container tmpfs. Exclude
+        # Soldeer dependencies: those are installed third-party source trees,
+        # and their upstream layout may legitimately contain build metadata.
+        for path in repo_path("dapps").rglob("*"):
+            relative_parts = path.relative_to(repo_path("dapps")).parts
+            if not path.is_dir() or "dependencies" in relative_parts:
+                continue
+            if path.name in output_names:
+                failures.append(f"{path}: Foundry output must stay in container tmpfs")
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
