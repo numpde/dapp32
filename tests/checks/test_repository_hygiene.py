@@ -27,6 +27,8 @@ SECRET_PATTERNS = [
     re.compile(r"ghp_[A-Za-z0-9_]{20,}"),
     re.compile(r"BEGIN [A-Z ]*PRIVATE KEY"),
 ]
+MAKE_TARGET_RE = re.compile(r"^(?P<name>[A-Za-z0-9_-]+)\s*:")
+MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_-]+)\b")
 
 
 class RepositoryHygieneTest(unittest.TestCase):
@@ -68,6 +70,19 @@ class RepositoryHygieneTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_make_help_mentions_existing_targets(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+        targets = {
+            match.group("name")
+            for line in makefile.splitlines()
+            if (match := MAKE_TARGET_RE.match(line)) is not None
+        }
+        advertised = set(MAKE_HELP_TARGET_RE.findall(self.make_help_recipe(makefile)))
+
+        # `make help` is the operator's map of supported entrypoints. If it
+        # advertises a stale target, the safest path becomes guesswork.
+        self.assertEqual(set(), advertised - targets)
+
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
@@ -82,3 +97,13 @@ class RepositoryHygieneTest(unittest.TestCase):
 
         if failures:
             self.fail("\n".join(failures))
+
+    def make_help_recipe(self, makefile: str) -> str:
+        lines = makefile.splitlines()
+        start = lines.index("help:") + 1
+        recipe: list[str] = []
+        for line in lines[start:]:
+            if MAKE_TARGET_RE.match(line):
+                break
+            recipe.append(line)
+        return "\n".join(recipe)
