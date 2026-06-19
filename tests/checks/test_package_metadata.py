@@ -38,6 +38,29 @@ class PackageMetadataTest(unittest.TestCase):
         # lock. Additional lock formats would create a second dependency truth.
         self.assertEqual({"js/package-lock.json"}, lockfiles)
 
+    def test_workspace_package_surface_is_explicit(self) -> None:
+        for path in self.workspace_manifest_paths():
+            manifest = self.read_manifest(path)
+            with self.subTest(path=str(path)):
+                self.assertEqual(True, manifest.get("private"), f"{path}: workspace package must stay private")
+                self.assertEqual("module", manifest.get("type"), f"{path}: workspace package must be ESM")
+
+                if path.parent.parent == repo_path("js/packages"):
+                    # Framework libraries are consumed through their package
+                    # root only. Keep internals unexported unless the protocol
+                    # deliberately grows a new public surface.
+                    self.assertEqual(False, manifest.get("sideEffects"), f"{path}: library package must declare sideEffects=false")
+                    self.assertEqual(["dist"], manifest.get("files"), f"{path}: library package must publish only dist")
+                    self.assertEqual({
+                        ".": {
+                            "types": "./dist/index.d.ts",
+                            "default": "./dist/index.js",
+                        },
+                    }, manifest.get("exports"), f"{path}: library package must expose only the root entrypoint")
+                elif path.parent.parent == repo_path("js/apps"):
+                    self.assertNotIn("files", manifest, f"{path}: app package must not declare publish files")
+                    self.assertNotIn("exports", manifest, f"{path}: app package must not expose a package API")
+
     def test_package_manifests_and_lockfile_use_pinned_registry_dependencies(self) -> None:
         workspace_names = self.workspace_package_names()
 
