@@ -55,11 +55,11 @@ ALLOWED_MAKE_DEFAULTS = {
     "VIEWER_TERMINAL_CONTAINER_NAME": "$(VIEWER_TERMINAL_COMPOSE_PROJECT_NAME)-session",
     "VIEWER_TERMINAL_MOCK": "bike-nft",
 }
-ALLOWED_DOCKER_ARG_DEFAULTS = {
-    "SOLC_VERSION": "0.8.35",
-}
-ALLOWED_DOCKER_ENV_DEFAULTS = {
-    "XDG_DATA_HOME": "/usr/local/share",
+# Docker defaults are path-specific inventory entries. A known variable name in
+# one Dockerfile should not silently authorize the same default somewhere else.
+ALLOWED_DOCKER_DEFAULTS = {
+    ("ARG", "containers/foundry/Dockerfile", "SOLC_VERSION", "0.8.35"),
+    ("ENV", "containers/foundry/Dockerfile", "XDG_DATA_HOME", "/usr/local/share"),
 }
 
 
@@ -109,11 +109,19 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         )
         self.assertEqual(
             ["Dockerfile:1: changed Docker ARG default: ARG SOLC_VERSION=0.8.34"],
-            docker_default_findings_for_source("ARG SOLC_VERSION=0.8.34\n", "Dockerfile"),
+            docker_default_findings_for_source(
+                "ARG SOLC_VERSION=0.8.34\n",
+                "Dockerfile",
+                {("ARG", "Dockerfile", "SOLC_VERSION", "0.8.35")},
+            ),
         )
         self.assertEqual(
             ["Dockerfile:1: unreviewed Docker ENV default: ENV CACHE_DIR=/tmp/cache"],
-            docker_default_findings_for_source("ENV CACHE_DIR=/tmp/cache\n", "Dockerfile"),
+            docker_default_findings_for_source(
+                "ENV CACHE_DIR=/tmp/cache\n",
+                "Dockerfile",
+                {("ENV", "Dockerfile", "XDG_DATA_HOME", "/usr/local/share")},
+            ),
         )
 
     def test_ops_files_do_not_publish_silent_defaults(self) -> None:
@@ -168,13 +176,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
     def test_allowed_docker_defaults_match_exact_values(self) -> None:
         defaults = docker_defaults(ops_files())
 
-        self.assertEqual(
-            {
-                "ARG": ALLOWED_DOCKER_ARG_DEFAULTS,
-                "ENV": ALLOWED_DOCKER_ENV_DEFAULTS,
-            },
-            defaults,
-        )
+        self.assertEqual(ALLOWED_DOCKER_DEFAULTS, defaults)
 
     def shell_silent_success_findings(self, files: list[Path]) -> list[str]:
         findings: list[str] = []
@@ -226,11 +228,19 @@ def make_defaults(path: Path) -> dict[str, str]:
 def docker_default_findings(files: list[Path]) -> list[str]:
     findings: list[str] = []
     for path in files:
-        findings.extend(docker_default_findings_for_source(path.read_text(encoding="utf-8"), str(path.relative_to(ROOT))))
+        findings.extend(docker_default_findings_for_source(
+            path.read_text(encoding="utf-8"),
+            str(path.relative_to(ROOT)),
+            ALLOWED_DOCKER_DEFAULTS,
+        ))
     return findings
 
 
-def docker_default_findings_for_source(source: str, label: str) -> list[str]:
+def docker_default_findings_for_source(
+    source: str,
+    label: str,
+    allowed_defaults: set[tuple[str, str, str, str]],
+) -> list[str]:
     findings: list[str] = []
     for line_number, line in enumerate(source.splitlines(), start=1):
         stripped = line.strip()
@@ -241,44 +251,60 @@ def docker_default_findings_for_source(source: str, label: str) -> list[str]:
         if arg_match is not None and arg_match.group("value") is not None:
             name = arg_match.group("name")
             value = arg_match.group("value")
-            if name not in ALLOWED_DOCKER_ARG_DEFAULTS:
+            allowed_value = docker_allowed_default_value(allowed_defaults, "ARG", label, name)
+            if allowed_value is None:
                 findings.append(f"{label}:{line_number}: unreviewed Docker ARG default: {stripped}")
-            elif ALLOWED_DOCKER_ARG_DEFAULTS[name] != value:
+            elif allowed_value != value:
                 findings.append(f"{label}:{line_number}: changed Docker ARG default: {stripped}")
 
         env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
         if env_match is not None:
             for name, value in docker_env_defaults(env_match.group("body"), label, line_number):
-                if name not in ALLOWED_DOCKER_ENV_DEFAULTS:
+                allowed_value = docker_allowed_default_value(allowed_defaults, "ENV", label, name)
+                if allowed_value is None:
                     findings.append(f"{label}:{line_number}: unreviewed Docker ENV default: {stripped}")
-                elif ALLOWED_DOCKER_ENV_DEFAULTS[name] != value:
+                elif allowed_value != value:
                     findings.append(f"{label}:{line_number}: changed Docker ENV default: {stripped}")
 
     return findings
 
 
-def docker_defaults(files: list[Path]) -> dict[str, dict[str, str]]:
-    defaults = {
-        "ARG": {},
-        "ENV": {},
-    }
+def docker_allowed_default_value(
+    allowed_defaults: set[tuple[str, str, str, str]],
+    kind: str,
+    label: str,
+    name: str,
+) -> str | None:
+    matches: list[str] = []
+    for allowed_kind, allowed_label, allowed_name, value in allowed_defaults:
+        if (allowed_kind, allowed_label, allowed_name) == (kind, label, name):
+            matches.append(value)
+
+    if len(matches) > 1:
+        raise AssertionError(f"duplicate allowed Docker {kind} default inventory entry: {label} {name}")
+    return matches[0] if matches else None
+
+
+def docker_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
+    defaults: set[tuple[str, str, str, str]] = set()
     for path in files:
+        label = str(path.relative_to(ROOT))
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if line.strip().startswith("#"):
                 continue
             arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
             if arg_match is not None and arg_match.group("value") is not None:
-                defaults["ARG"][arg_match.group("name")] = arg_match.group("value")
+                defaults.add(("ARG", label, arg_match.group("name"), arg_match.group("value")))
                 continue
 
             env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
             if env_match is not None:
                 for name, value in docker_env_defaults(
                     env_match.group("body"),
-                    str(path.relative_to(ROOT)),
+                    label,
                     line_number,
                 ):
-                    defaults["ENV"][name] = value
+                    defaults.add(("ENV", label, name, value))
 
     return defaults
 
