@@ -14,6 +14,12 @@ VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 ROOT_OWNED_TOOLCHAIN_DEPENDENCIES = {"typescript"}
 DEV_ONLY_DEPENDENCIES = {"@vitejs/plugin-react", "vite"}
+ROOT_WORKSPACE_SCRIPTS = {
+    "build:workspace": "npm run build --workspaces --if-present",
+    "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/core && npm run build -w @cam/screen && npm run build -w @cam/conformance",
+    "test:cam-conformance": "npm run build:cam-conformance && npm test -w @cam/conformance",
+    "test:workspace": "npm run build:workspace && npm test --workspaces --if-present",
+}
 LIBRARY_PACKAGE_SCRIPTS = {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.test.json",
@@ -59,6 +65,13 @@ class PackageMetadataTest(unittest.TestCase):
         self.assertEqual(root_tsconfigs, staged_tsconfigs)
 
     def test_workspace_package_surface_is_explicit(self) -> None:
+        root_manifest = self.read_manifest(repo_path("js/package.json"))
+        self.assertEqual(
+            ROOT_WORKSPACE_SCRIPTS,
+            root_manifest.get("scripts"),
+            "js/package.json: root scripts are Make/Compose workflow contracts and must be reviewed explicitly",
+        )
+
         for path in self.workspace_manifest_paths():
             manifest = self.read_manifest(path)
             with self.subTest(path=str(path)):
