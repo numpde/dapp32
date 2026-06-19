@@ -27,8 +27,9 @@ SECRET_PATTERNS = [
     re.compile(r"ghp_[A-Za-z0-9_]{20,}"),
     re.compile(r"BEGIN [A-Z ]*PRIVATE KEY"),
 ]
-MAKE_TARGET_RE = re.compile(r"^(?P<name>[A-Za-z0-9_-]+)\s*:")
+MAKE_TARGET_RE = re.compile(r"^(?P<name>[A-Za-z0-9_-]+)\s*:(?![=])")
 MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_-]+)\b")
+MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$")
 
 
 class RepositoryHygieneTest(unittest.TestCase):
@@ -72,16 +73,25 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def test_make_help_mentions_existing_targets(self) -> None:
         makefile = read_text(repo_path("Makefile"))
-        targets = {
-            match.group("name")
-            for line in makefile.splitlines()
-            if (match := MAKE_TARGET_RE.match(line)) is not None
-        }
+        targets = self.make_targets(makefile)
         advertised = set(MAKE_HELP_TARGET_RE.findall(self.make_help_recipe(makefile)))
 
         # `make help` is the operator's map of supported entrypoints. If it
         # advertises a stale target, the safest path becomes guesswork.
         self.assertEqual(set(), advertised - targets)
+
+    def test_make_phony_targets_are_real_targets(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+        targets = self.make_targets(makefile)
+        phony_targets = {
+            name
+            for match in MAKE_PHONY_RE.finditer(makefile)
+            for name in match.group("names").split()
+        }
+
+        # Phony declarations are also operator API inventory. A stale `.PHONY`
+        # entry makes it harder to review which Make names are real lanes.
+        self.assertEqual(set(), phony_targets - targets)
 
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
@@ -107,3 +117,10 @@ class RepositoryHygieneTest(unittest.TestCase):
                 break
             recipe.append(line)
         return "\n".join(recipe)
+
+    def make_targets(self, makefile: str) -> set[str]:
+        return {
+            match.group("name")
+            for line in makefile.splitlines()
+            if (match := MAKE_TARGET_RE.match(line)) is not None
+        }
