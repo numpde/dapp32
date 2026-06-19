@@ -30,6 +30,7 @@ SECRET_PATTERNS = [
 MAKE_TARGET_RE = re.compile(r"^(?P<name>[A-Za-z0-9_-]+)\s*:(?![=])")
 MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_-]+)\b")
 MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$")
+MAKE_DEFAULT_GOAL_RE = re.compile(r"^\.DEFAULT_GOAL\s*:?=\s*(?P<name>[A-Za-z0-9_-]+)\s*$", re.MULTILINE)
 
 
 class RepositoryHygieneTest(unittest.TestCase):
@@ -93,6 +94,28 @@ class RepositoryHygieneTest(unittest.TestCase):
         # entry makes it harder to review which Make names are real lanes.
         self.assertEqual(set(), phony_targets - targets)
 
+    def test_make_default_goal_is_explicit_help_target(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+        match = MAKE_DEFAULT_GOAL_RE.search(makefile)
+        if match is None:
+            self.fail("Makefile must declare an explicit default goal")
+
+        goal = match.group("name")
+        # The default invocation should be safe discovery, not an execution
+        # lane. Keep `make` equivalent to `make help`.
+        self.assertEqual("help", goal)
+        self.assertIn(goal, self.make_targets(makefile))
+
+    def test_make_targets_are_unique(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+        targets = self.make_target_list(makefile)
+        duplicates = sorted({target for target in targets if targets.count(target) > 1})
+
+        # GNU Make allows later recipes to override earlier ones. That is too
+        # implicit for operator lanes; duplicate targets should be reviewed as
+        # an intentional refactor instead.
+        self.assertEqual([], duplicates)
+
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
@@ -119,8 +142,11 @@ class RepositoryHygieneTest(unittest.TestCase):
         return "\n".join(recipe)
 
     def make_targets(self, makefile: str) -> set[str]:
-        return {
+        return set(self.make_target_list(makefile))
+
+    def make_target_list(self, makefile: str) -> list[str]:
+        return [
             match.group("name")
             for line in makefile.splitlines()
             if (match := MAKE_TARGET_RE.match(line)) is not None
-        }
+        ]
