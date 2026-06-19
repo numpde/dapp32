@@ -53,6 +53,6 @@ function joinPath(parent: string, key: string): string {
   return parent === "" ? key : `${parent}.${key}`
 }
 
-function isArrayIndex(value: string): boolean {
-  return value === "0" || /^[1-9][0-9]*$/.test(value)
+export function isArrayIndex(value: string | undefined): value is string {
+  return value === "0" || (value !== undefined && /^[1-9][0-9]*$/.test(value))
 }

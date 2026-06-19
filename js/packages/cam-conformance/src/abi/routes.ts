@@ -29,6 +29,7 @@ import {
 } from "../names.ts"
 import {
   forEachString,
+  isArrayIndex,
   nonEmptyString,
 } from "../walk.ts"
 import {
@@ -815,10 +816,6 @@ function outputExpressionSegments(value: string): readonly string[] | undefined 
   if (reference === undefined || reference.root !== "outputs") return undefined
 
   return reference.segments
-}
-
-function isArrayIndex(value: string | undefined): value is string {
-  return value === "0" || (value !== undefined && /^[1-9][0-9]*$/.test(value))
 }
 
 function abiIssue(resource: string, path: string | undefined, message: string): CamConformanceIssue {

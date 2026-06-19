@@ -1,6 +1,9 @@
 import {
   isExpressionIdentifier,
 } from "@cam/protocol"
+import {
+  isArrayIndex,
+} from "../walk.ts"
 
 type ExpressionReference = {
   readonly root: string
@@ -62,8 +65,4 @@ export function staticStringList(value: unknown): readonly string[] | undefined 
 
 function isExpressionSegment(value: string): boolean {
   return isExpressionIdentifier(value) || isArrayIndex(value)
-}
-
-function isArrayIndex(value: string): boolean {
-  return value === "0" || /^[1-9][0-9]*$/.test(value)
 }
