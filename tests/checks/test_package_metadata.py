@@ -90,6 +90,8 @@ class PackageMetadataTest(unittest.TestCase):
                         manifest.get("scripts"),
                         f"{path}: app scripts must typecheck before build",
                     )
+                else:
+                    self.fail(f"{path}: JS workspaces must live under js/packages/ or js/apps/")
 
     def test_package_manifests_and_lockfile_use_pinned_registry_dependencies(self) -> None:
         workspace_names = self.workspace_package_names()
