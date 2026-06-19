@@ -14,9 +14,30 @@ VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 ROOT_OWNED_TOOLCHAIN_DEPENDENCIES = {"typescript"}
 DEV_ONLY_DEPENDENCIES = {"@vitejs/plugin-react", "vite"}
+PACKAGE_LOCK_FILENAMES = {
+    "bun.lock",
+    "bun.lockb",
+    "npm-shrinkwrap.json",
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+}
 
 
 class PackageMetadataTest(unittest.TestCase):
+    def test_js_workspace_uses_one_lockfile_source(self) -> None:
+        lockfiles = {
+            path.relative_to(repo_path(".")).as_posix()
+            for path in repo_path(".").rglob("*")
+            if path.is_file()
+            and path.name in PACKAGE_LOCK_FILENAMES
+            and "node_modules" not in path.relative_to(repo_path(".")).parts
+        }
+
+        # The Docker dependency lane is built around npm's single workspace
+        # lock. Additional lock formats would create a second dependency truth.
+        self.assertEqual({"js/package-lock.json"}, lockfiles)
+
     def test_package_manifests_and_lockfile_use_pinned_registry_dependencies(self) -> None:
         workspace_names = self.workspace_package_names()
 
