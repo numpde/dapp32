@@ -248,6 +248,19 @@ class RenderedComposePostureTest(unittest.TestCase):
                     )
                     self.assertIn(missing_name, result.stderr + result.stdout)
 
+    def test_all_rendered_services_keep_baseline_hardening(self) -> None:
+        for compose_unit in compose_render_units():
+            config = rendered_compose_config(compose_unit, env=compose_render_env())
+            for service_name, config_service in config["services"].items():
+                with self.subTest(compose_unit=compose_unit, service=service_name):
+                    # Scenario-specific tests still check networks and mounts.
+                    # This derived baseline prevents a new service from missing
+                    # the basic container hardening posture entirely.
+                    self.assert_hardened(config_service)
+                    self.assertNotIn("privileged", config_service)
+                    self.assertNotIn("cap_add", config_service)
+                    self.assertNotIn("devices", config_service)
+
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service["read_only"])
         self.assertIn("no-new-privileges:true", compose_sequence(config_service, "security_opt"))
