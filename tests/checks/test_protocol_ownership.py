@@ -11,6 +11,7 @@ MODULE_SPECIFIER_RE = re.compile(
     r"(?:import|export)\s+(?:type\s+)?(?:[^\"']*?\s+from\s+)?[\"']([^\"']+)[\"']"
     r"|import\s*\(\s*[\"']([^\"']+)[\"']\s*\)"
 )
+JS_TOOL_PACKAGE_ENTRYPOINT_RE = re.compile(r"^(?:\.\./)+packages/cam-[^/]+/dist/index\.js$")
 
 
 class ProtocolOwnershipTest(unittest.TestCase):
@@ -157,6 +158,29 @@ class ProtocolOwnershipTest(unittest.TestCase):
                     f"{path}:{line_number}: package tests must not import relative paths outside their package "
                     "except tests/fixtures"
                 )
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_js_tools_consume_built_package_entrypoints(self) -> None:
+        failures: list[str] = []
+
+        for path in sorted(repo_path("js/tools").glob("**/*.ts")):
+            for specifier, line_number in self.module_specifiers(read_text(path)):
+                if specifier.startswith("@cam/"):
+                    failures.append(f"{path}:{line_number}: JS tools must import built package entrypoints, not @cam package roots")
+                    continue
+                if "packages/cam-" not in specifier:
+                    continue
+
+                # Tools are checked as package-backed executables after the
+                # library build. Importing dist/index.js keeps that boundary
+                # visible and prevents tools from becoming another source-level
+                # package graph with different type/runtime behavior.
+                if not JS_TOOL_PACKAGE_ENTRYPOINT_RE.fullmatch(specifier):
+                    failures.append(
+                        f"{path}:{line_number}: JS tools must import package dist/index.js entrypoints: {specifier}"
+                    )
 
         if failures:
             self.fail("\n".join(failures))
