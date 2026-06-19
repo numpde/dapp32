@@ -79,8 +79,7 @@ class PackageMetadataTest(unittest.TestCase):
                             )
 
         lock_path = repo_path("js/package-lock.json")
-        if not lock_path.exists():
-            self.skipTest("package-lock.json has not been generated yet")
+        self.assertTrue(lock_path.is_file(), "js/package-lock.json must be committed")
 
         lock = self.read_manifest(lock_path)
         self.assertIn(lock.get("lockfileVersion"), {2, 3})
