@@ -51,10 +51,15 @@ class SharedScannerTest(unittest.TestCase):
     def test_line_findings_reports_relative_paths_and_skips_comments(self) -> None:
         path = Path(__file__).resolve()
         findings = line_findings([path], re.compile(r"^SCANNER_TEST_MARKER = "), "marker")
+        marker_line = next(
+            line_number
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+            if line.startswith("SCANNER_TEST_MARKER = ")
+        )
 
         self.assertEqual(
             [
-                "tests/checks/silent_defaults/test_shared_scanner.py:11: "
+                f"tests/checks/silent_defaults/test_shared_scanner.py:{marker_line}: "
                 "marker: SCANNER_TEST_MARKER ="
             ],
             findings,
