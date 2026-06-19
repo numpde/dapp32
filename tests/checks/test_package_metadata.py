@@ -14,6 +14,16 @@ VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 ROOT_OWNED_TOOLCHAIN_DEPENDENCIES = {"typescript"}
 DEV_ONLY_DEPENDENCIES = {"@vitejs/plugin-react", "vite"}
+LIBRARY_PACKAGE_SCRIPTS = {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "npm run typecheck && node --test --experimental-strip-types test/*.test.ts",
+}
+APP_PACKAGE_SCRIPTS = {
+    "dev": "vite --configLoader native",
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "npm run typecheck && vite build --configLoader native",
+}
 PACKAGE_LOCK_FILENAMES = {
     "bun.lock",
     "bun.lockb",
@@ -61,6 +71,11 @@ class PackageMetadataTest(unittest.TestCase):
                     # deliberately grows a new public surface.
                     self.assertEqual(False, manifest.get("sideEffects"), f"{path}: library package must declare sideEffects=false")
                     self.assertEqual(["dist"], manifest.get("files"), f"{path}: library package must publish only dist")
+                    self.assertEqual(
+                        LIBRARY_PACKAGE_SCRIPTS,
+                        manifest.get("scripts"),
+                        f"{path}: library scripts must typecheck before strip-types tests",
+                    )
                     self.assertEqual({
                         ".": {
                             "types": "./dist/index.d.ts",
@@ -70,6 +85,11 @@ class PackageMetadataTest(unittest.TestCase):
                 elif path.parent.parent == repo_path("js/apps"):
                     self.assertNotIn("files", manifest, f"{path}: app package must not declare publish files")
                     self.assertNotIn("exports", manifest, f"{path}: app package must not expose a package API")
+                    self.assertEqual(
+                        APP_PACKAGE_SCRIPTS,
+                        manifest.get("scripts"),
+                        f"{path}: app scripts must typecheck before build",
+                    )
 
     def test_package_manifests_and_lockfile_use_pinned_registry_dependencies(self) -> None:
         workspace_names = self.workspace_package_names()
