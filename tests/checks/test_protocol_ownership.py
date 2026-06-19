@@ -135,8 +135,37 @@ class ProtocolOwnershipTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_package_tests_keep_cross_package_boundaries_explicit(self) -> None:
+        failures: list[str] = []
+
+        for path in self.package_test_files():
+            for specifier, line_number in self.module_specifiers(read_text(path)):
+                if not specifier.startswith("."):
+                    continue
+
+                target = (path.parent / specifier).resolve()
+                if self.path_is_under(target, self.package_root(path)):
+                    continue
+                if self.path_is_under(target, repo_path("tests/fixtures")):
+                    continue
+
+                # Package tests may reach into their own package internals to
+                # exercise boundary code, and they may share dapp fixtures from
+                # tests/fixtures. A relative hop into a sibling package turns
+                # that package's test tree into a hidden support package.
+                failures.append(
+                    f"{path}:{line_number}: package tests must not import relative paths outside their package "
+                    "except tests/fixtures"
+                )
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def package_source_files(self) -> list[Path]:
         return sorted(repo_path("js/packages").glob("*/src/**/*.ts"))
+
+    def package_test_files(self) -> list[Path]:
+        return sorted(repo_path("js/packages").glob("*/test/**/*.ts"))
 
     def app_source_files(self) -> list[Path]:
         return sorted([
@@ -151,13 +180,19 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def source_root(self, path: Path) -> Path:
         if repo_path("js/packages") in path.parents:
-            package_name = path.relative_to(repo_path("js/packages")).parts[0]
-            return repo_path("js/packages") / package_name / "src"
+            return self.package_root(path) / "src"
         if repo_path("js/apps") in path.parents:
             app_name = path.relative_to(repo_path("js/apps")).parts[0]
             return repo_path("js/apps") / app_name / "src"
 
         raise AssertionError(f"unsupported JS source path: {path}")
+
+    def package_root(self, path: Path) -> Path:
+        package_name = path.relative_to(repo_path("js/packages")).parts[0]
+        return repo_path("js/packages") / package_name
+
+    def path_is_under(self, path: Path, root: Path) -> bool:
+        return path == root or root in path.parents
 
     def imports_conformance_sourced_facet(self, specifier: str) -> bool:
         return "/sourced/" in specifier or specifier.startswith("../sourced/")
