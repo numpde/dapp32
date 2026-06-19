@@ -405,13 +405,23 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn(PACKAGE_WORKSPACE_TMPFS, compose_sequence(config_service, "tmpfs"))
         self.assertIn("run-js-workspace", compose_command_text(config_service))
 
+    def assert_js_tool_command(self, config_service: dict[str, Any], tsconfig: str, script: str) -> None:
+        command = compose_command_text(config_service)
+        self.assertIn("npm run build:workspace", command)
+        self.assertIn(f"tsc -p {tsconfig}", command)
+        self.assertIn(f"node --experimental-strip-types {script}", command)
+
     def assert_mock_viewer_terminal(self, config_service: dict[str, Any]) -> None:
         self.assert_hardened(config_service)
         self.assertEqual("none", config_service.get("network_mode"))
         self.assert_staged_package_workspace(config_service)
         self.assert_read_only_volumes(config_service, BIKE_MOCK_CAM_MOUNT, "/work/tests/fixtures")
         self.assert_no_volume_target(config_service, "/work/dapps")
-        self.assertIn("tsc -p tools/viewer-terminal/tsconfig.json", compose_command_text(config_service))
+        self.assert_js_tool_command(
+            config_service,
+            "tools/viewer-terminal/tsconfig.json",
+            "tools/viewer-terminal/terminal-session.ts",
+        )
 
     def assert_local_rpc_viewer_environment(self, config_service: dict[str, Any]) -> None:
         environment = compose_mapping(config_service, "environment")
@@ -641,10 +651,11 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_read_only_volumes(viewer, BIKE_NFT_BROADCAST_DIR)
         self.assert_bike_broadcast_volume_shared(viewer_config, deploy, viewer)
 
-        command = compose_command_text(viewer)
-        self.assertIn("npm run build:workspace", command)
-        self.assertIn("tsc -p tools/viewer-terminal/tsconfig.json", command)
-        self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", command)
+        self.assert_js_tool_command(
+            viewer,
+            "tools/viewer-terminal/tsconfig.json",
+            "tools/viewer-terminal/terminal-session.ts",
+        )
 
     def test_integration_fuzz_lanes_are_hardened_and_dapp_scoped(self) -> None:
         generic_config = rendered_compose_config(
@@ -665,9 +676,11 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("dapps-test-network", generic_config["networks"]["cam_integration"]["name"])
         self.assertTrue(generic_config["networks"]["cam_integration"]["external"])
         self.assertEqual("simulate", compose_mapping(generic, "environment")["CAM_INTEGRATION_WRITE_MODE"])
-        command = compose_command_text(generic)
-        self.assertIn("tsc -p tools/cam-integration-fuzz/tsconfig.json", command)
-        self.assertIn("node --experimental-strip-types tools/cam-integration-fuzz/runner.ts", command)
+        self.assert_js_tool_command(
+            generic,
+            "tools/cam-integration-fuzz/tsconfig.json",
+            "tools/cam-integration-fuzz/runner.ts",
+        )
 
         bike_config = rendered_compose_config(
             makefile_compose_unit("TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES"),
@@ -707,9 +720,13 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("local-fixture", writes_environment["CAM_INTEGRATION_WRITE_MODE"])
         self.assertEqual(ANVIL_DEV_PRIVATE_KEY, writes_environment["CAM_INTEGRATION_PRIVATE_KEY"])
         self.assertNotIn("PRIVATE_KEY", writes_environment)
+        self.assert_js_tool_command(
+            bike,
+            "tools/cam-integration-fuzz/tsconfig.json",
+            "tools/cam-integration-fuzz/runner.ts",
+        )
         bike_command = compose_command_text(bike)
         self.assertIn("node --input-type=module", bike_command)
-        self.assertIn("tools/cam-integration-fuzz/runner.ts", bike_command)
         self.assertEqual(bike_command, compose_command_text(bike_writes))
 
     def test_bike_nft_local_gui_viewer_is_gatewayed_and_read_only(self) -> None:
