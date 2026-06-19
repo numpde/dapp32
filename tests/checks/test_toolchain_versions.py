@@ -68,6 +68,32 @@ class ToolchainVersionTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_container_build_contexts_are_deny_by_default(self) -> None:
+        failures: list[str] = []
+
+        for dockerfile in sorted(repo_path("containers").glob("*/Dockerfile")):
+            dockerignore = dockerfile.parent / ".dockerignore"
+            if not dockerignore.is_file():
+                failures.append(f"{dockerfile.parent}: container build context must have .dockerignore")
+                continue
+
+            lines = [
+                line.strip()
+                for line in read_text(dockerignore).splitlines()
+                if line.strip() and not line.lstrip().startswith("#")
+            ]
+            # Compose already forces build contexts under containers/. The
+            # matching .dockerignore keeps each context deny-by-default, so
+            # adding a helper file beside a Dockerfile does not automatically
+            # send it into the image build.
+            if not lines or lines[0] not in {"*", "**"}:
+                failures.append(f"{dockerignore}: first active pattern must deny the build context")
+            if "!Dockerfile" not in lines:
+                failures.append(f"{dockerignore}: must explicitly include Dockerfile")
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def test_foundry_image_and_bootstrapped_solc_are_pinned_to_repo_toolchain(self) -> None:
         refs = self.pinned_image_refs(FOUNDRY_IMAGE)
         self.assertGreaterEqual(len(refs), 2, "expected shared Foundry and dependency-stage images")
