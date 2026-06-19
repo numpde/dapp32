@@ -74,6 +74,7 @@ copy_file_if_present "$source_dir/tsconfig.dom.json"
 copy_file_if_present "$source_dir/tsconfig.dom.test.json"
 copy_file_if_present "$source_dir/tsconfig.package.json"
 copy_file_if_present "$source_dir/tsconfig.test.json"
+copy_file_if_present "$source_dir/tsconfig.tool.json"
 
 if [ -e "$source_dir/tools" ]; then
   reject_symlink "$source_dir/tools"
