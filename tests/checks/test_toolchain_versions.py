@@ -14,6 +14,8 @@ SOLC_ARG_RE = re.compile(r"^ARG\s+SOLC_VERSION=(?P<version>[0-9]+\.[0-9]+\.[0-9]
 PINNED_IMAGE_REF_RE = re.compile(r"^[^\s:@]+(?:/[^\s:@]+)*(?::[^@\s]+)@sha256:[0-9a-f]{64}$")
 DOCKERFILE_FROM_RE = re.compile(r"^FROM\s+(?P<image>[^\s]+)(?:\s+AS\s+[A-Za-z0-9_.-]+)?$", re.MULTILINE | re.IGNORECASE)
 COMPOSE_IMAGE_RE = re.compile(r"^\s+image:\s+(?P<image>\S+)\s*$", re.MULTILINE)
+COMPOSE_BUILD_CONTEXT_RE = re.compile(r"^\s+context:\s+(?P<context>\S+)\s*$", re.MULTILINE)
+COMPOSE_BUILDFILE_RE = re.compile(r"^\s+dockerfile:\s+(?P<dockerfile>\S+)\s*$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,27 @@ class ToolchainVersionTest(unittest.TestCase):
             for line_number, image in self.compose_images(text):
                 if not self.is_pinned_image_reference(image):
                     failures.append(f"{path}:{line_number}: Compose image must be tag-and-digest pinned: {image}")
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_compose_builds_use_explicit_container_contexts(self) -> None:
+        failures: list[str] = []
+        for path in self.compose_files():
+            text = read_text(path)
+            # Compose build contexts define what Docker can see at image build
+            # time. Keep them in containers/ so service builds cannot quietly
+            # start sending repo or dapp source trees into Docker build context.
+            for line_number, context in self.compose_build_contexts(text):
+                resolved = (path.parent / context).resolve()
+                containers_root = repo_path("containers").resolve()
+                if resolved == containers_root or containers_root not in resolved.parents:
+                    failures.append(f"{path}:{line_number}: Compose build context must stay under containers/: {context}")
+                elif resolved.is_symlink():
+                    failures.append(f"{path}:{line_number}: Compose build context must not be a symlink: {context}")
+            for line_number, dockerfile in self.compose_build_dockerfiles(text):
+                if dockerfile != "Dockerfile":
+                    failures.append(f"{path}:{line_number}: Compose build dockerfile must be Dockerfile: {dockerfile}")
 
         if failures:
             self.fail("\n".join(failures))
@@ -112,8 +135,11 @@ class ToolchainVersionTest(unittest.TestCase):
     def image_reference_files(self) -> list[Path]:
         return [
             *[path for path in iter_files("containers") if path.name == "Dockerfile"],
-            *[path for path in iter_files("compose") if path.suffix in {".yml", ".yaml"}],
+            *self.compose_files(),
         ]
+
+    def compose_files(self) -> list[Path]:
+        return [path for path in iter_files("compose") if path.suffix in {".yml", ".yaml"}]
 
     def dockerfile_from_images(self, text: str) -> list[tuple[int, str]]:
         return [
@@ -125,6 +151,18 @@ class ToolchainVersionTest(unittest.TestCase):
         return [
             (text.count("\n", 0, match.start()) + 1, match.group("image"))
             for match in COMPOSE_IMAGE_RE.finditer(text)
+        ]
+
+    def compose_build_contexts(self, text: str) -> list[tuple[int, str]]:
+        return [
+            (text.count("\n", 0, match.start()) + 1, match.group("context"))
+            for match in COMPOSE_BUILD_CONTEXT_RE.finditer(text)
+        ]
+
+    def compose_build_dockerfiles(self, text: str) -> list[tuple[int, str]]:
+        return [
+            (text.count("\n", 0, match.start()) + 1, match.group("dockerfile"))
+            for match in COMPOSE_BUILDFILE_RE.finditer(text)
         ]
 
     def is_pinned_image_reference(self, image: str) -> bool:
