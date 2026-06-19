@@ -5,7 +5,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from .cam_manifest_resources import CamManifestResourceValidator
-from tools.cam_abi_plan import build_abi_plan_rows
 
 
 class CamManifestResourceTest(unittest.TestCase):
@@ -73,27 +72,6 @@ class CamManifestResourceTest(unittest.TestCase):
             failures,
             [f"{manifest_path}: unsupported namespace: widgets"],
         )
-
-    def test_abi_export_plan_scopes_contract_names_by_dapp_source_path(self) -> None:
-        with TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            for dapp in ("one", "two"):
-                dapp_root = root / dapp
-                (dapp_root / "src").mkdir(parents=True)
-                (dapp_root / "cam" / "abi").mkdir(parents=True)
-                (dapp_root / "src" / "AppUI.sol").write_text("contract AppUI {}\n", encoding="utf-8")
-                (dapp_root / "cam" / "main.json").write_text(
-                    '{"namespaces":{"contracts.AppUI":{"type":"contract","abiURI":"./abi/AppUI.json"}}}\n',
-                    encoding="utf-8",
-                )
-
-            self.assertEqual(
-                [row.as_tsv() for row in build_abi_plan_rows(root)],
-                [
-                    "one\tone/src/AppUI.sol:AppUI\tAppUI.json\n",
-                    "two\ttwo/src/AppUI.sol:AppUI\tAppUI.json\n",
-                ],
-            )
 
     def test_resource_integrity_checks_sha256_digests(self) -> None:
         with TemporaryDirectory() as tmp:

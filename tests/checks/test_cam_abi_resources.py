@@ -6,6 +6,7 @@ import unittest
 
 from .cam_abi_resources import validate_local_abi_uri
 from .cam_manifest_resources import CamManifestResourceValidator
+from tools.cam_abi_plan import build_abi_plan_rows
 
 
 class CamAbiResourceTest(unittest.TestCase):
@@ -53,6 +54,29 @@ class CamAbiResourceTest(unittest.TestCase):
             wrong_basename,
             [f"{manifest_path}: namespaces.contracts.UI.abiURI must be ./abi/UI.json"],
         )
+
+    def test_abi_export_plan_scopes_contract_names_by_dapp_source_path(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for dapp in ("one", "two"):
+                dapp_root = root / dapp
+                (dapp_root / "src").mkdir(parents=True)
+                (dapp_root / "cam" / "abi").mkdir(parents=True)
+                (dapp_root / "src" / "AppUI.sol").write_text("contract AppUI {}\n", encoding="utf-8")
+                (dapp_root / "cam" / "main.json").write_text(
+                    '{"namespaces":{"contracts.AppUI":{"type":"contract","abiURI":"./abi/AppUI.json"}}}\n',
+                    encoding="utf-8",
+                )
+
+            # Forge inspect targets are source-qualified so independent dapps
+            # can reuse ordinary contract names without a global naming regime.
+            self.assertEqual(
+                [row.as_tsv() for row in build_abi_plan_rows(root)],
+                [
+                    "one\tone/src/AppUI.sol:AppUI\tAppUI.json\n",
+                    "two\ttwo/src/AppUI.sol:AppUI\tAppUI.json\n",
+                ],
+            )
 
 
 if __name__ == "__main__":
