@@ -11,6 +11,9 @@ from .common import iter_files, read_text, repo_path
 
 FOUNDRY_IMAGE = "ghcr.io/foundry-rs/foundry"
 SOLC_ARG_RE = re.compile(r"^ARG\s+SOLC_VERSION=(?P<version>[0-9]+\.[0-9]+\.[0-9]+)$", re.MULTILINE)
+PINNED_IMAGE_REF_RE = re.compile(r"^[^\s:@]+(?:/[^\s:@]+)*(?::[^@\s]+)@sha256:[0-9a-f]{64}$")
+DOCKERFILE_FROM_RE = re.compile(r"^FROM\s+(?P<image>[^\s]+)(?:\s+AS\s+[A-Za-z0-9_.-]+)?$", re.MULTILINE | re.IGNORECASE)
+COMPOSE_IMAGE_RE = re.compile(r"^\s+image:\s+(?P<image>\S+)\s*$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,22 @@ class PinnedImageRef:
 
 
 class ToolchainVersionTest(unittest.TestCase):
+    def test_all_container_image_references_are_digest_pinned(self) -> None:
+        # Local lanes are only reproducible if every base/runtime image is an
+        # explicit artifact. Tags alone are mutable, even when they look exact.
+        failures: list[str] = []
+        for path in self.image_reference_files():
+            text = read_text(path)
+            for line_number, image in self.dockerfile_from_images(text):
+                if not self.is_pinned_image_reference(image):
+                    failures.append(f"{path}:{line_number}: Dockerfile FROM image must be tag-and-digest pinned: {image}")
+            for line_number, image in self.compose_images(text):
+                if not self.is_pinned_image_reference(image):
+                    failures.append(f"{path}:{line_number}: Compose image must be tag-and-digest pinned: {image}")
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def test_foundry_image_and_bootstrapped_solc_are_pinned_to_repo_toolchain(self) -> None:
         refs = self.pinned_image_refs(FOUNDRY_IMAGE)
         self.assertGreaterEqual(len(refs), 2, "expected shared Foundry and dependency-stage images")
@@ -89,3 +108,24 @@ class ToolchainVersionTest(unittest.TestCase):
             self.fail(f"{path_label}: missing pinned ARG SOLC_VERSION=x.y.z")
 
         return match.group("version")
+
+    def image_reference_files(self) -> list[Path]:
+        return [
+            *[path for path in iter_files("containers") if path.name == "Dockerfile"],
+            *[path for path in iter_files("compose") if path.suffix in {".yml", ".yaml"}],
+        ]
+
+    def dockerfile_from_images(self, text: str) -> list[tuple[int, str]]:
+        return [
+            (text.count("\n", 0, match.start()) + 1, match.group("image"))
+            for match in DOCKERFILE_FROM_RE.finditer(text)
+        ]
+
+    def compose_images(self, text: str) -> list[tuple[int, str]]:
+        return [
+            (text.count("\n", 0, match.start()) + 1, match.group("image"))
+            for match in COMPOSE_IMAGE_RE.finditer(text)
+        ]
+
+    def is_pinned_image_reference(self, image: str) -> bool:
+        return PINNED_IMAGE_REF_RE.fullmatch(image) is not None and ":latest@" not in image
