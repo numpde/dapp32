@@ -4,7 +4,7 @@ import re
 import unittest
 from pathlib import Path
 
-from .common import iter_files, read_text, repo_path
+from .common import read_text, repo_path
 
 
 MODULE_SPECIFIER_RE = re.compile(
@@ -104,6 +104,32 @@ class ProtocolOwnershipTest(unittest.TestCase):
                     failures.append(
                         f"{path}:{line_number}: conformance facet '{facet}' must not import {specifier}; "
                         f"allowed @cam imports: {self.format_allowed_imports(allowed_imports)}"
+                    )
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_shared_ts_fixtures_do_not_become_hidden_package_clients(self) -> None:
+        allowed_source_imports = {
+            "../../../js/packages/cam-protocol/src/json.ts",
+            "../../../js/packages/cam-protocol/src/resources.ts",
+        }
+        failures: list[str] = []
+
+        for path in sorted(repo_path("tests/fixtures").glob("**/*.mts")):
+            for specifier, line_number in self.module_specifiers(read_text(path)):
+                if not specifier.startswith("../../../js/packages/"):
+                    continue
+
+                # Shared fixtures are compiled from multiple package test
+                # projects, so they cannot rely on one package's local source
+                # root. Keep the direct protocol imports limited to the JSON
+                # and resource-policy primitives needed to discover checked-in
+                # CAM resources; everything else should be a package test or a
+                # real public package import.
+                if specifier not in allowed_source_imports:
+                    failures.append(
+                        f"{path}:{line_number}: shared fixtures must not import package internals: {specifier}"
                     )
 
         if failures:
