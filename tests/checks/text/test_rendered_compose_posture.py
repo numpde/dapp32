@@ -261,6 +261,47 @@ class RenderedComposePostureTest(unittest.TestCase):
                     self.assertNotIn("cap_add", config_service)
                     self.assertNotIn("devices", config_service)
 
+    def test_all_rendered_ports_and_secrets_are_explicitly_inventoried(self) -> None:
+        expected_ports = {
+            (
+                makefile_compose_unit("BIKE_NFT_VIEWER_GUI_COMPOSE_FILES"),
+                "bike-nft-browser-gateway",
+                BIKE_NFT_GUI_BIND_HOST,
+                8080,
+                "5173",
+            ),
+        }
+        expected_secrets = {
+            ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
+        }
+        actual_ports = set()
+        actual_secrets = set()
+
+        for compose_unit in compose_render_units():
+            config = rendered_compose_config(compose_unit, env=compose_render_env())
+            for service_name, config_service in config["services"].items():
+                # Published ports and secrets are deliberate operator
+                # boundaries. Inventory them globally so new external surfaces
+                # cannot appear only in scenario-specific tests.
+                for port in compose_sequence_or_empty(config_service, "ports"):
+                    actual_ports.add((
+                        compose_unit,
+                        service_name,
+                        port.get("host_ip"),
+                        port.get("target"),
+                        port.get("published"),
+                    ))
+                for secret in compose_sequence_or_empty(config_service, "secrets"):
+                    actual_secrets.add((
+                        compose_unit,
+                        service_name,
+                        secret.get("source"),
+                        secret.get("target"),
+                    ))
+
+        self.assertEqual(expected_ports, actual_ports)
+        self.assertEqual(expected_secrets, actual_secrets)
+
     def assert_hardened(self, config_service: dict[str, Any]) -> None:
         self.assertEqual(True, config_service["read_only"])
         self.assertIn("no-new-privileges:true", compose_sequence(config_service, "security_opt"))
