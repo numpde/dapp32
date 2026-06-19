@@ -22,6 +22,7 @@ PACKAGE_LOCK_FILENAMES = {
     "pnpm-lock.yaml",
     "yarn.lock",
 }
+STAGED_JS_TSCONFIG_RE = re.compile(r'copy_file_if_present "\$source_dir/(?P<name>tsconfig[^"]*\.json)"')
 
 
 class PackageMetadataTest(unittest.TestCase):
@@ -37,6 +38,15 @@ class PackageMetadataTest(unittest.TestCase):
         # The Docker dependency lane is built around npm's single workspace
         # lock. Additional lock formats would create a second dependency truth.
         self.assertEqual({"js/package-lock.json"}, lockfiles)
+
+    def test_root_js_tsconfigs_are_staged_for_offline_workspace_lanes(self) -> None:
+        root_tsconfigs = {path.name for path in repo_path("js").glob("tsconfig*.json")}
+        staged_tsconfigs = set(STAGED_JS_TSCONFIG_RE.findall(read_text(repo_path("containers/node-deps/stage-js-workspace"))))
+
+        # Package/tool tsconfigs extend root configs inside the staged tmpfs
+        # workspace. A new root config must be copied deliberately, or Docker
+        # checks can pass on the host shape and fail in the offline lane.
+        self.assertEqual(root_tsconfigs, staged_tsconfigs)
 
     def test_workspace_package_surface_is_explicit(self) -> None:
         for path in self.workspace_manifest_paths():
