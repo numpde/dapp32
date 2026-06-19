@@ -642,6 +642,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         command = compose_command_text(viewer)
         self.assertIn("npm run build:workspace", command)
+        self.assertIn("tsc -p tools/viewer-terminal/tsconfig.json", command)
         self.assertIn("node --experimental-strip-types tools/viewer-terminal/terminal-session.ts", command)
 
     def test_integration_fuzz_lanes_are_hardened_and_dapp_scoped(self) -> None:
