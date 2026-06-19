@@ -54,6 +54,7 @@ services:
       - "-c"
       - |
         npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/viewer-terminal/tsconfig.json
         node --experimental-strip-types tools/viewer-terminal/terminal-session.ts
 
   viewer-terminal-check:

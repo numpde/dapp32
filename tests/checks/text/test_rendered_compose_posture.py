@@ -411,6 +411,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_staged_package_workspace(config_service)
         self.assert_read_only_volumes(config_service, BIKE_MOCK_CAM_MOUNT, "/work/tests/fixtures")
         self.assert_no_volume_target(config_service, "/work/dapps")
+        self.assertIn("tsc -p tools/viewer-terminal/tsconfig.json", compose_command_text(config_service))
 
     def assert_local_rpc_viewer_environment(self, config_service: dict[str, Any]) -> None:
         environment = compose_mapping(config_service, "environment")
