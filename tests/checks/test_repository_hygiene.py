@@ -38,7 +38,10 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def test_js_build_outputs_are_not_materialized_on_host(self) -> None:
         failures: list[str] = []
-        for workspace_root in (repo_path("js/packages"), repo_path("js/apps")):
+        # JS workspace builds are validation lanes, not artifact export lanes.
+        # Keep package, app, and tool outputs in container tmpfs unless an
+        # explicit export path is deliberately added.
+        for workspace_root in (repo_path("js/packages"), repo_path("js/apps"), repo_path("js/tools")):
             if not workspace_root.is_dir():
                 continue
             for package_root in sorted(path for path in workspace_root.iterdir() if path.is_dir()):
