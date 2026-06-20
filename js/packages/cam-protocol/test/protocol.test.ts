@@ -25,6 +25,7 @@ import {
   requireHttpURL,
   requireSameHttpOrigin,
   toInertValue,
+  UI_PROP_SCHEMAS,
   UI_VERSION,
   verifySha256ResourceIntegrity,
 } from "../src/index.ts"
@@ -73,6 +74,17 @@ test("owns expression identifier grammar", () => {
   assert.equal(isExpressionIdentifier("_serialNumber"), false)
   assert.equal(isExpressionIdentifier("serial-number"), false)
   assert.equal(isExpressionIdentifier("1serialNumber"), false)
+})
+
+test("owns UI prop semantic buckets", () => {
+  for (const [element, schema] of Object.entries(UI_PROP_SCHEMAS)) {
+    for (const prop of schema.address) {
+      assert.ok(
+        (schema.string as readonly string[]).includes(prop),
+        `${element}.${prop}: address props must also be string props`,
+      )
+    }
+  }
 })
 
 test("resolves expression payloads with caller-owned normalization and errors", () => {
