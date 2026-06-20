@@ -64,7 +64,7 @@ import {
 import { createSameOriginHttpResourceLoader } from "../http-resource.ts"
 
 type Descriptor = {
-  readonly camIntegration: "1.0.0"
+  readonly camIntegration: typeof CAM_INTEGRATION_DESCRIPTOR_VERSION
   readonly chainId: string
   readonly rpcUrl: string
   readonly camHost: Address
@@ -73,6 +73,7 @@ type Descriptor = {
   readonly allowUnsignedCamHash: boolean
 }
 
+const CAM_INTEGRATION_DESCRIPTOR_VERSION = "1.0.0"
 const DESCRIPTOR_KEYS = new Set([
   "camIntegration",
   "chainId",
@@ -758,8 +759,8 @@ function readDescriptor(path: string): Descriptor {
     throw new Error("CAM integration descriptor must be an object")
   }
   rejectUnknownDescriptorFields(value)
-  if (value.camIntegration !== "1.0.0") {
-    throw new Error("CAM integration descriptor version must be 1.0.0")
+  if (value.camIntegration !== CAM_INTEGRATION_DESCRIPTOR_VERSION) {
+    throw new Error(`CAM integration descriptor version must be ${CAM_INTEGRATION_DESCRIPTOR_VERSION}`)
   }
   const accountsValue = value.accounts
   if (!Array.isArray(accountsValue)) {
@@ -767,7 +768,7 @@ function readDescriptor(path: string): Descriptor {
   }
 
   return {
-    camIntegration: "1.0.0",
+    camIntegration: CAM_INTEGRATION_DESCRIPTOR_VERSION,
     chainId: requireEvmChainId(requiredString(value, "chainId", "descriptor.chainId")),
     rpcUrl: requiredString(value, "rpcUrl", "descriptor.rpcUrl"),
     camHost: requireEvmAddress(requiredString(value, "camHost", "descriptor.camHost"), "descriptor.camHost"),
