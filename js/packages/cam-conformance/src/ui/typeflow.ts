@@ -366,7 +366,7 @@ function validateCallArgReferences(
     const lookup = valueAtReference(reference.root, reference.segments, context)
     if (lookup.kind !== "missing") return
 
-    const argPath = `${path}.call.args${suffix.length === 0 ? "" : `.${suffix}`}`
+    const argPath = callArgPath(path, suffix)
     reportTypeflowIssue(scope, argPath, `UI call argument references no known value: ${value}`)
   })
 }
@@ -885,7 +885,7 @@ function validateActionStateInputs(
     const stateInput = referencedStateInput(value)
     if (stateInput === undefined) return
 
-    const argPath = `${path}.call.args${suffix.length === 0 ? "" : `.${suffix}`}`
+    const argPath = callArgPath(path, suffix)
     if (stateInput.length === 0) {
       reportTypeflowIssue(scope, argPath, "UI Button state expression must name an input")
       return
@@ -909,6 +909,10 @@ function referencedStateInput(value: string): string | undefined {
   if (root !== "state") return undefined
   if (firstSegment === undefined || !isExpressionIdentifier(firstSegment)) return ""
   return firstSegment
+}
+
+function callArgPath(nodePath: string, suffix: string): string {
+  return `${nodePath}.call.args${suffix.length === 0 ? "" : `.${suffix}`}`
 }
 
 function resolvedInputName(
