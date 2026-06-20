@@ -4,6 +4,7 @@ import { resolveValueAtPath } from "./expressions.ts"
 import {
   createStringMap,
   hasOwn,
+  isAbiAddressValue,
   isExpressionIdentifier,
   isRecordObject,
 } from "@cam/protocol"
@@ -345,6 +346,9 @@ function resolveProps(
   for (const name of UI_PROP_SCHEMAS[element].string) {
     requireStringProp(resolved, name, path)
   }
+  for (const name of UI_PROP_SCHEMAS[element].address) {
+    requireAddressProp(resolved, name, path)
+  }
 
   return resolved
 }
@@ -353,6 +357,15 @@ function requireStringProp(props: InertRecord, name: string, path: string): void
   if (typeof props[name] !== "string") {
     throw new UiError("UI_INVALID_FIELD", `UI prop must resolve to a string: ${name}`, `${path}.${name}`)
   }
+}
+
+function requireAddressProp(props: InertRecord, name: string, path: string): void {
+  const value = props[name]
+  if (typeof value === "string" && isAbiAddressValue(value)) {
+    return
+  }
+
+  throw new UiError("UI_INVALID_FIELD", `UI prop must resolve to an address: ${name}`, `${path}.${name}`)
 }
 
 function resolveCall(call: UiCall, context: UiRuntimeContext, path: string): ResolvedUiCall {

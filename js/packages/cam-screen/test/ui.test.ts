@@ -546,6 +546,29 @@ test("parseUi and resolveUiNode reject invalid element props", () => {
     }), context),
     /label/,
   )
+
+  const addressUi = parseUi({
+    ui: "1.0.0",
+    nodes: {
+      owner: {
+        element: "Address",
+        requires: ["view"],
+        props: {
+          label: "Owner",
+          address: "$view.owner",
+        },
+      },
+    },
+  })
+
+  assert.throws(
+    () => resolveUiNode(addressUi, "owner", inertRecord({
+      view: {
+        owner: "not-an-address",
+      },
+    }), context),
+    /must resolve to an address: address/,
+  )
 })
 
 test("resolveUiNode fails closed on missing required arguments and non-string action functions", () => {
