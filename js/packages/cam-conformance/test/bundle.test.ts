@@ -2958,6 +2958,29 @@ test("UI props reject statically incompatible ABI-backed route outputs", () => {
   ])
 })
 
+test("UI props reject invalid literal addresses", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Address",
+        requires: ["view"],
+        props: {
+          label: "Owner",
+          address: "$$not-an-address",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.props.address"],
+  ])
+})
+
 test("UI props reject statically incompatible literal route handoff args", () => {
   const uiBytes = jsonBytes({
     ui: "1.0.0",

@@ -1,4 +1,5 @@
 import {
+  isAbiAddressValue,
   abiScalarKind,
   isExpressionIdentifier,
   UI_PROP_SCHEMAS,
@@ -202,9 +203,30 @@ function validateProps(
   for (const [name, value] of Object.entries(node.props)) {
     const expectation = propExpectation(element, name)
     if (expectation !== undefined) {
+      validateLiteralPropValue(scope, `${path}.props.${name}`, element, name, value, expectation)
       validateBoundValue(scope, `${path}.props.${name}`, `UI ${element}.${name}`, value, expectation, context)
     }
   }
+}
+
+function validateLiteralPropValue(
+  scope: Scope,
+  path: string,
+  element: string,
+  prop: string,
+  value: unknown,
+  expectation: ValueExpectation,
+): void {
+  if (expectation !== "address") return
+
+  const literal = staticString(value)
+  if (literal === undefined) return
+  if (isAbiAddressValue(literal)) return
+
+  // Dynamic route data is validated when it becomes concrete. Literal address
+  // props are already concrete here, so accepting a bad one would be a
+  // conformance false negative rather than useful flexibility.
+  reportTypeflowIssue(scope, path, `UI ${element}.${prop} expects address, but literal is not an address`)
 }
 
 function validateStateBinding(
