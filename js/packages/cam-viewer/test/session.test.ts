@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import test from "node:test"
 
-import { CAM_RESOURCE_MAX_BYTES, toInertValue } from "@cam/protocol"
+import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, toInertValue, UI_VERSION } from "@cam/protocol"
 
 import {
   createCamViewerSession,
@@ -190,7 +190,7 @@ test("load rejects UI buttons that require an account when none is available", a
     },
   ])
   const uiBytes = encodeJson({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -212,7 +212,7 @@ test("load rejects UI buttons that require an account when none is available", a
     },
   })
   const camBytes = encodeJson({
-    cam: "1.0.0",
+    cam: CAM_VERSION,
     entry: "entry",
     namespaces: {
       [BIKE_UI_NAMESPACE]: {
