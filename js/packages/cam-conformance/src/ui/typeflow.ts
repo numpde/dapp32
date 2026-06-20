@@ -715,20 +715,16 @@ function knownActionLiteral(value: unknown, context: AbiContext): unknown | unde
 function literalFromKnownValue(value: unknown): unknown | undefined {
   if (isUnknownValue(value)) return UNKNOWN_ROUTE_CALL_VALUE
   if (!isRecordObject(value)) return undefined
-  if (value.type === "literal-string" && typeof value.value === "string") return knownStaticStringValue(value.value)
+  const literalString = literalStringValue(value)
+  if (literalString !== undefined) return knownStaticStringValue(literalString)
   if (
     (value.type === "bool" || value.type === "uint256" || value.type === "number" || value.type === "null")
     && Object.hasOwn(value, "value")
   ) {
     return value.value
   }
-  if (
-    value.type === "literal-string[]"
-    && Array.isArray(value.items)
-    && value.items.every((item) => typeof item === "string")
-  ) {
-    return value.items
-  }
+  const literalStrings = literalStringArrayValue(value)
+  if (literalStrings !== undefined) return literalStrings
   if (value.type === "array" && Array.isArray(value.items)) {
     return value.items.map((item) => knownOrUnknown(literalFromKnownValue(item)))
   }
@@ -760,19 +756,17 @@ function knownSelectorNames(value: unknown, context: AbiContext): KnownSelectorI
   const lookup = valueAtReference(reference.root, reference.segments, context)
   if (lookup.kind !== "value" || !isRecordObject(lookup.value)) return undefined
 
-  if (lookup.value.type === "literal-string" && typeof lookup.value.value === "string") {
+  const literalString = literalStringValue(lookup.value)
+  if (literalString !== undefined) {
     return {
-      names: [lookup.value.value],
+      names: [literalString],
       hasUnknown: false,
     }
   }
-  if (
-    lookup.value.type === "literal-string[]"
-    && Array.isArray(lookup.value.items)
-    && lookup.value.items.every((item) => typeof item === "string")
-  ) {
+  const literalStrings = literalStringArrayValue(lookup.value)
+  if (literalStrings !== undefined) {
     return {
-      names: lookup.value.items,
+      names: literalStrings,
       hasUnknown: false,
     }
   }
@@ -782,8 +776,13 @@ function knownSelectorNames(value: unknown, context: AbiContext): KnownSelectorI
     for (const item of lookup.value.items) {
       if (isUnknownValue(item)) {
         hasUnknown = true
-      } else if (isRecordObject(item) && item.type === "literal-string" && typeof item.value === "string") {
-        names.push(item.value)
+      } else if (isRecordObject(item)) {
+        const literalString = literalStringValue(item)
+        if (literalString === undefined) {
+          hasUnknown = true
+        } else {
+          names.push(literalString)
+        }
       } else if (typeof item === "string") {
         names.push(item)
       } else {
@@ -832,17 +831,14 @@ function knownSelectorArrayNames(
 
 function valueToSelectorNames(value: unknown): KnownSelectorInfo {
   if (isUnknownValue(value)) return { names: [], hasUnknown: true }
+  if (typeof value === "string") return { names: [value], hasUnknown: false }
   if (isRecordObject(value)) {
-    if (value.type === "literal-string" && typeof value.value === "string") {
-      return { names: [value.value], hasUnknown: false }
-    }
-    if (
-      value.type === "literal-string[]"
-      && Array.isArray(value.items)
-      && value.items.every((item) => typeof item === "string")
-    ) {
-      return { names: value.items, hasUnknown: false }
-    }
+    const literalString = literalStringValue(value)
+    if (literalString !== undefined) return { names: [literalString], hasUnknown: false }
+
+    const literalStrings = literalStringArrayValue(value)
+    if (literalStrings !== undefined) return { names: literalStrings, hasUnknown: false }
+
     if (value.type === "array" && Array.isArray(value.items)) {
       const names: string[] = []
       let hasUnknown = false
@@ -946,8 +942,21 @@ function knownLiteralString(value: unknown, context: AbiContext): string | undef
 
   const lookup = valueAtReference(reference.root, reference.segments, context)
   if (lookup.kind !== "value" || !isRecordObject(lookup.value)) return undefined
-  return lookup.value.type === "literal-string" && typeof lookup.value.value === "string"
-    ? lookup.value.value
+  return literalStringValue(lookup.value)
+}
+
+function literalStringValue(value: Record<string, unknown>): string | undefined {
+  // These are typeflow-local facts produced by knownValueShape(), not UI schema
+  // fields. Keep the decoding narrow so malformed manifests still fail through
+  // the parser/runtime compatibility checks instead of gaining a second schema.
+  return value.type === "literal-string" && typeof value.value === "string" ? value.value : undefined
+}
+
+function literalStringArrayValue(value: Record<string, unknown>): readonly string[] | undefined {
+  return value.type === "literal-string[]"
+    && Array.isArray(value.items)
+    && value.items.every((item) => typeof item === "string")
+    ? value.items
     : undefined
 }
 
