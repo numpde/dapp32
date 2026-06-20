@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { toInertValue } from "@cam/protocol"
+import { toInertValue, UI_VERSION } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import {
   parseUi,
@@ -27,7 +27,7 @@ const context = {
 
 test("resolves a UI catalog through Include nodes into render and action nodes", () => {
   const ui = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Screen",
@@ -115,7 +115,7 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
 
 test("resolveInitialUiNode skips action Include args until state exists", () => {
   const ui = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Screen",
@@ -179,7 +179,7 @@ test("resolveInitialUiNode skips action Include args until state exists", () => 
 
 test("resolveUiNode rejects args that shadow runtime roots", () => {
   const ui = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Text",
@@ -199,7 +199,7 @@ test("resolveUiNode rejects args that shadow runtime roots", () => {
 
 test("resolveUiNode reports unresolved account as structured error details", () => {
   const ui = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -234,7 +234,7 @@ test("resolveUiNode reports unresolved account as structured error details", () 
 
 test("resolveInitialUiNode rejects TextField state keys that cannot be referenced from state", () => {
   const ui = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Screen",
@@ -266,7 +266,7 @@ test("resolveInitialUiNode rejects TextField state keys that cannot be reference
 
 test("resolveUiNode rejects include cycles and undeclared node args", () => {
   const cyclic = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -286,7 +286,7 @@ test("resolveUiNode rejects include cycles and undeclared node args", () => {
   )
 
   const strictArgs = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Text",
@@ -306,7 +306,7 @@ test("resolveUiNode rejects include cycles and undeclared node args", () => {
 
 test("resolveUiNode rejects duplicate or empty Include selections", () => {
   const ui = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -340,7 +340,7 @@ test("resolveUiNode rejects duplicate or empty Include selections", () => {
 test("parseUi rejects required arguments outside the UI node interface", () => {
   assert.throws(
     () => parseUi({
-      ui: "1.0.0",
+      ui: UI_VERSION,
       nodes: {
         app: {
           element: "Text",
@@ -367,7 +367,7 @@ test("parseUi rejects stale screen-era and control fields", () => {
 
   assert.throws(
     () => parseUi({
-      ui: "1.0.0",
+      ui: UI_VERSION,
       title: "Metadata-like top-level fields are not UI nodes",
       nodes: {
         entry: {
@@ -384,7 +384,7 @@ test("parseUi rejects stale screen-era and control fields", () => {
 
   assert.throws(
     () => parseUi({
-      ui: "1.0.0",
+      ui: UI_VERSION,
       nodes: {
         entry: {
           element: "Text",
@@ -403,7 +403,7 @@ test("parseUi rejects stale screen-era and control fields", () => {
 test("parseUi rejects calls wired to the wrong namespace", () => {
   assert.throws(
     () => parseUi({
-      ui: "1.0.0",
+      ui: UI_VERSION,
       nodes: {
         include: {
           element: "Include",
@@ -421,7 +421,7 @@ test("parseUi rejects calls wired to the wrong namespace", () => {
 
   assert.throws(
     () => parseUi({
-      ui: "1.0.0",
+      ui: UI_VERSION,
       nodes: {
         action: {
           element: "Button",
@@ -444,7 +444,7 @@ test("parseUi rejects calls wired to the wrong namespace", () => {
 test("parseUi rejects statically invalid call function shapes", () => {
   assert.throws(
     () => parseUi({
-      ui: "1.0.0",
+      ui: UI_VERSION,
       nodes: {
         action: {
           element: "Button",
@@ -465,7 +465,7 @@ test("parseUi rejects statically invalid call function shapes", () => {
 
   assert.throws(
     () => parseUi({
-      ui: "1.0.0",
+      ui: UI_VERSION,
       nodes: {
         include: {
           element: "Include",
@@ -485,7 +485,7 @@ test("parseUi rejects statically invalid call function shapes", () => {
 test("parseUi and resolveUiNode reject invalid element props", () => {
   assert.throws(
     () => parseUi({
-      ui: "1.0.0",
+      ui: UI_VERSION,
       nodes: {
         text: {
           element: "Text",
@@ -501,7 +501,7 @@ test("parseUi and resolveUiNode reject invalid element props", () => {
 
   assert.throws(
     () => parseUi({
-      ui: "1.0.0",
+      ui: UI_VERSION,
       nodes: {
         action: {
           element: "Button",
@@ -521,7 +521,7 @@ test("parseUi and resolveUiNode reject invalid element props", () => {
   )
 
   const ui = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       action: {
         element: "Button",
@@ -548,7 +548,7 @@ test("parseUi and resolveUiNode reject invalid element props", () => {
   )
 
   const addressUi = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       owner: {
         element: "Address",
@@ -573,7 +573,7 @@ test("parseUi and resolveUiNode reject invalid element props", () => {
 
 test("resolveUiNode fails closed on missing required arguments and non-string action functions", () => {
   const ui = parseUi({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       action: {
         element: "Button",

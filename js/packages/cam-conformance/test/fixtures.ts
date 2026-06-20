@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { parseJsonText } from "@cam/protocol"
+import { CAM_VERSION, parseJsonText, UI_VERSION } from "@cam/protocol"
 
 import {
   validateCamBundle,
@@ -32,7 +32,7 @@ export function minimalBundleWithUiIntegrity(uiIntegrity: string): CamConformanc
 
 function buildMinimalBundle(uiIntegrityOverride: string | undefined): CamConformanceBundle {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Text",
@@ -53,7 +53,7 @@ function buildMinimalBundle(uiIntegrityOverride: string | undefined): CamConform
     uiIntegrity = uiIntegrityOverride
   }
   const rootBytes = jsonBytes({
-    cam: "1.0.0",
+    cam: CAM_VERSION,
     entry: "entry",
     namespaces: {
       "contracts.App": {

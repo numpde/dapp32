@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import {
   CAM_RESOURCE_MAX_BYTES,
+  UI_VERSION,
 } from "@cam/protocol"
 
 import {
@@ -68,7 +69,7 @@ test("missing declared UI resource returns one precise issue", () => {
 
 test("malformed declared UI document inventory is reported before runtime compatibility", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: null,
   })
   const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
@@ -82,7 +83,7 @@ test("malformed declared UI document inventory is reported before runtime compat
 
 test("empty UI node inventory is reported as a document issue", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {},
   })
   const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
@@ -96,7 +97,7 @@ test("empty UI node inventory is reported as a document issue", () => {
 
 test("empty UI node names are reported as node inventory issues", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       "": {
         element: "Text",
@@ -1419,7 +1420,7 @@ test("write route continuation ABI diagnostics distinguish route literals from h
 
 test("UI node interfaces must use supported argument names", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Text",
@@ -1442,7 +1443,7 @@ test("UI node interfaces must use supported argument names", () => {
 
 test("UI expressions must use protocol-owned roots", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -1517,7 +1518,7 @@ test("UI expressions must use protocol-owned roots", () => {
 
 test("UI Buttons must pass exactly the target route inputs", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -1569,7 +1570,7 @@ test("UI Buttons must pass exactly the target route inputs", () => {
 
 test("UI Button route existence is checked for literal targets", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -1611,7 +1612,7 @@ test("UI Button literal args are ABI-checked through the target route", () => {
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -1686,7 +1687,7 @@ test("UI Button literal args are ABI-checked through nested route call values", 
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -1762,7 +1763,7 @@ test("UI Button ABI aggregate mismatches point at the action argument", () => {
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -1838,7 +1839,7 @@ test("UI Button ABI checks preserve known fields in direct aggregate args", () =
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -1907,7 +1908,7 @@ test("UI Button ABI checks preserve known fields in direct array args", () => {
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -1976,7 +1977,7 @@ test("UI Button ABI checks escaped dollar literals as literal strings", () => {
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -2052,7 +2053,7 @@ test("UI Button ABI checks preserve literal values passed through Includes", () 
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -2113,7 +2114,7 @@ test("UI Button ABI checks preserve literal values passed through Includes", () 
 
 test("UI Button escaped call targets are checked as literal route names", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2146,7 +2147,7 @@ test("UI Button escaped call targets are checked as literal route names", () => 
 
 test("UI Button route targets must be single strings, not arrays", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2180,7 +2181,7 @@ test("UI Button route targets must be single strings, not arrays", () => {
 
 test("UI Button state references must be backed by TextField state keys", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2241,7 +2242,7 @@ test("UI Button state references must be backed by TextField state keys", () => 
 
 test("UI literal TextField state keys must be state expression identifiers", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Text",
@@ -2286,7 +2287,7 @@ test("UI literal TextField state keys must be state expression identifiers", () 
 
 test("UI Button state references must be backed by route-local rendered inputs", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2359,7 +2360,7 @@ test("UI Button state references must be backed by route-local rendered inputs",
 
 test("UI Button state references may use inputs from the route root tree", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2428,7 +2429,7 @@ test("UI Button state references may use inputs from the route root tree", () =>
 
 test("UI typeflow rejects duplicate rendered TextField state keys", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2470,7 +2471,7 @@ test("UI typeflow rejects duplicate rendered TextField state keys", () => {
 
 test("UI typeflow resolves known dynamic TextField state keys", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2541,7 +2542,7 @@ test("UI typeflow resolves known dynamic TextField state keys", () => {
 
 test("UI typeflow rejects known dynamic invalid TextField state keys", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "TextField",
@@ -2579,7 +2580,7 @@ test("UI typeflow rejects known dynamic invalid TextField state keys", () => {
 
 test("UI typeflow rejects non-string TextField state defaults", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2633,7 +2634,7 @@ test("UI typeflow rejects non-string TextField state defaults", () => {
 
 test("UI typeflow keeps route-specific diagnostics distinct", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -2694,7 +2695,7 @@ test("UI typeflow keeps route-specific diagnostics distinct", () => {
 
 test("UI call arg names must not be empty", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2747,7 +2748,7 @@ test("UI call arg names must not be empty", () => {
 
 test("UI Includes with literal targets must pass exactly the target node args", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2786,7 +2787,7 @@ test("UI Includes with literal targets must pass exactly the target node args", 
 
 test("UI Include escaped call targets are checked as literal node names", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2815,7 +2816,7 @@ test("UI Include escaped call targets are checked as literal node names", () => 
 
 test("UI known call targets must not be empty or duplicated", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2874,7 +2875,7 @@ test("UI known call targets must not be empty or duplicated", () => {
 
 test("UI Includes must not shadow runtime roots even when the target is dynamic", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2925,7 +2926,7 @@ test("UI props reject statically incompatible ABI-backed route outputs", () => {
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -2960,7 +2961,7 @@ test("UI props reject statically incompatible ABI-backed route outputs", () => {
 
 test("UI props reject invalid literal addresses", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Address",
@@ -2983,7 +2984,7 @@ test("UI props reject invalid literal addresses", () => {
 
 test("UI props reject statically incompatible literal route handoff args", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Address",
@@ -3018,7 +3019,7 @@ test("UI props reject statically incompatible literal route handoff args", () =>
 
 test("UI props reject invalid literal address strings passed through route handoff args", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Address",
@@ -3053,7 +3054,7 @@ test("UI props reject invalid literal address strings passed through route hando
 
 test("UI props accept valid literal address strings passed through route handoff args", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Address",
@@ -3100,7 +3101,7 @@ test("UI typeflow preserves literal handoff field names over ABI output names", 
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Address",
@@ -3133,7 +3134,7 @@ test("UI typeflow preserves literal handoff field names over ABI output names", 
 
 test("UI props reject statically incompatible literal Include args", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -3189,7 +3190,7 @@ test("UI call args reject route-local missing references before runtime", () => 
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -3257,7 +3258,7 @@ test("UI call args reject route-local missing references before runtime", () => 
 
 test("UI Includes reject deterministically invalid literal route handoff selectors", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -3300,7 +3301,7 @@ test("UI Includes reject deterministically invalid literal route handoff selecto
 
 test("UI Includes resolve escaped route handoff selectors before validation", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -3345,7 +3346,7 @@ test("UI Includes resolve escaped route handoff selectors before validation", ()
 
 test("UI Includes reject deterministically invalid literal Include arg selectors", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -3410,7 +3411,7 @@ test("UI Includes validate known targets from mixed selector lists", () => {
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -3458,7 +3459,7 @@ test("UI Includes validate known targets from mixed selector lists", () => {
 
 test("route root UI node must resolve to one root node", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -3503,7 +3504,7 @@ test("route root UI node must resolve to one root node", () => {
 
 test("route root cardinality is not reported when Include target is missing", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -3549,7 +3550,7 @@ test("route root cardinality is not reported when Include target is missing", ()
 
 test("UI typeflow rejects deterministic Include cycles", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -3575,7 +3576,7 @@ test("UI typeflow rejects deterministic Include cycles", () => {
 
 test("UI Includes validate resolved selector targets and args", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
@@ -3633,7 +3634,7 @@ test("UI Includes validate resolved selector targets and args", () => {
 
 test("UI typeflow walks literal Include arrays", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -3669,7 +3670,7 @@ test("UI typeflow walks literal Include arrays", () => {
 
 test("UI typeflow validates known dynamic Button routes", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -3725,7 +3726,7 @@ test("UI typeflow validates known dynamic Button routes", () => {
 
 test("UI typeflow rejects known dynamic empty Button routes", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Button",
@@ -3764,7 +3765,7 @@ test("UI typeflow rejects known dynamic empty Button routes", () => {
 
 test("UI typeflow checks state references through resolved Include selectors", () => {
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Include",
@@ -3871,7 +3872,7 @@ test("UI props are checked against each route-local continuation shape", () => {
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Address",
@@ -3934,7 +3935,7 @@ test("UI dynamic call targets reject statically incompatible ABI-backed route ou
     },
   ])
   const uiBytes = jsonBytes({
-    ui: "1.0.0",
+    ui: UI_VERSION,
     nodes: {
       app: {
         element: "Fragment",
