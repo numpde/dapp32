@@ -79,6 +79,29 @@ class ProtocolOwnershipTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_package_tests_use_protocol_version_constants(self) -> None:
+        failures: list[str] = []
+        current_versions = self.protocol_versions()
+        version_patterns = [
+            re.compile(rf"\b{field}\s*:\s*[\"']{re.escape(version)}[\"']")
+            for field, version in current_versions.items()
+        ]
+
+        for path in self.package_test_files():
+            if self.package_root(path).name == "cam-protocol":
+                continue
+            text = read_text(path)
+            for pattern in version_patterns:
+                for match in pattern.finditer(text):
+                    line_number = text.count("\n", 0, match.start()) + 1
+                    # Valid fixture documents should track the protocol package's
+                    # exported version constants. Tests for explicitly invalid
+                    # versions can still spell the wrong version literally.
+                    failures.append(f"{path}:{line_number}: use CAM_VERSION/UI_VERSION from @cam/protocol in test fixtures")
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def test_cam_conformance_facets_keep_sourced_imports_isolated(self) -> None:
         failures: list[str] = []
 
@@ -196,6 +219,19 @@ class ProtocolOwnershipTest(unittest.TestCase):
             *repo_path("js/apps").glob("*/src/**/*.ts"),
             *repo_path("js/apps").glob("*/src/**/*.tsx"),
         ])
+
+    def protocol_versions(self) -> dict[str, str]:
+        source = read_text(repo_path("js/packages/cam-protocol/src/versions.ts"))
+        return {
+            "cam": self.protocol_version(source, "CAM_VERSION"),
+            "ui": self.protocol_version(source, "UI_VERSION"),
+        }
+
+    def protocol_version(self, source: str, name: str) -> str:
+        match = re.search(rf"\bexport\s+const\s+{name}\s*=\s*[\"']([^\"']+)[\"']", source)
+        if match is None:
+            raise AssertionError(f"could not read {name} from protocol version owner")
+        return match.group(1)
 
     def relative_import_stays_in_source_root(self, importer: Path, specifier: str) -> bool:
         source_root = self.source_root(importer)

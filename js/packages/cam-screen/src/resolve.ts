@@ -223,7 +223,9 @@ function resolveInclude(
       continue
     }
 
-    args ??= resolveRecord(node.call.args, context, `${path}.call.args`)
+    if (args === undefined) {
+      args = resolveRecord(node.call.args, context, `${path}.call.args`)
+    }
     children.push(...resolveNamedNode(ui, nodeName, args, context, `${path}.${nodeName}`, options, stack))
   }
 
