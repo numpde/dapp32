@@ -82,8 +82,8 @@ class ProtocolOwnershipTest(unittest.TestCase):
     def test_ts_test_fixtures_use_protocol_version_constants(self) -> None:
         failures: list[str] = []
         version_patterns = (
-            re.compile(rf"\bcam\s*:\s*[\"']{re.escape(protocol_document_version('CAM_VERSION'))}[\"']"),
-            re.compile(rf"\bui\s*:\s*[\"']{re.escape(protocol_document_version('UI_VERSION'))}[\"']"),
+            re.compile(rf"(?<![A-Za-z0-9_$])[\"']?cam[\"']?\s*:\s*[\"']{re.escape(protocol_document_version('CAM_VERSION'))}[\"']"),
+            re.compile(rf"(?<![A-Za-z0-9_$])[\"']?ui[\"']?\s*:\s*[\"']{re.escape(protocol_document_version('UI_VERSION'))}[\"']"),
         )
 
         for path in self.ts_test_fixture_files():
