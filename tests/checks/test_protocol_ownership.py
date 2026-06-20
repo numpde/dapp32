@@ -79,15 +79,15 @@ class ProtocolOwnershipTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
-    def test_package_tests_use_protocol_version_constants(self) -> None:
+    def test_ts_test_fixtures_use_protocol_version_constants(self) -> None:
         failures: list[str] = []
         version_patterns = (
             re.compile(rf"\bcam\s*:\s*[\"']{re.escape(protocol_document_version('CAM_VERSION'))}[\"']"),
             re.compile(rf"\bui\s*:\s*[\"']{re.escape(protocol_document_version('UI_VERSION'))}[\"']"),
         )
 
-        for path in self.package_test_files():
-            if self.package_root(path).name == "cam-protocol":
+        for path in self.ts_test_fixture_files():
+            if repo_path("js/packages") in path.parents and self.package_root(path).name == "cam-protocol":
                 continue
             text = read_text(path)
             for pattern in version_patterns:
@@ -212,6 +212,12 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def package_test_files(self) -> list[Path]:
         return sorted(repo_path("js/packages").glob("*/test/**/*.ts"))
+
+    def ts_test_fixture_files(self) -> list[Path]:
+        return sorted([
+            *self.package_test_files(),
+            *repo_path("tests/fixtures").glob("**/*.mts"),
+        ])
 
     def app_source_files(self) -> list[Path]:
         return sorted([
