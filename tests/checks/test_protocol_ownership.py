@@ -4,7 +4,7 @@ import re
 import unittest
 from pathlib import Path
 
-from .common import read_text, repo_path
+from .common import protocol_document_version, read_text, repo_path
 
 
 MODULE_SPECIFIER_RE = re.compile(
@@ -81,11 +81,10 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def test_package_tests_use_protocol_version_constants(self) -> None:
         failures: list[str] = []
-        current_versions = self.protocol_versions()
-        version_patterns = [
-            re.compile(rf"\b{field}\s*:\s*[\"']{re.escape(version)}[\"']")
-            for field, version in current_versions.items()
-        ]
+        version_patterns = (
+            re.compile(rf"\bcam\s*:\s*[\"']{re.escape(protocol_document_version('CAM_VERSION'))}[\"']"),
+            re.compile(rf"\bui\s*:\s*[\"']{re.escape(protocol_document_version('UI_VERSION'))}[\"']"),
+        )
 
         for path in self.package_test_files():
             if self.package_root(path).name == "cam-protocol":
@@ -219,19 +218,6 @@ class ProtocolOwnershipTest(unittest.TestCase):
             *repo_path("js/apps").glob("*/src/**/*.ts"),
             *repo_path("js/apps").glob("*/src/**/*.tsx"),
         ])
-
-    def protocol_versions(self) -> dict[str, str]:
-        source = read_text(repo_path("js/packages/cam-protocol/src/versions.ts"))
-        return {
-            "cam": self.protocol_version(source, "CAM_VERSION"),
-            "ui": self.protocol_version(source, "UI_VERSION"),
-        }
-
-    def protocol_version(self, source: str, name: str) -> str:
-        match = re.search(rf"\bexport\s+const\s+{name}\s*=\s*[\"']([^\"']+)[\"']", source)
-        if match is None:
-            raise AssertionError(f"could not read {name} from protocol version owner")
-        return match.group(1)
 
     def relative_import_stays_in_source_root(self, importer: Path, specifier: str) -> bool:
         source_root = self.source_root(importer)

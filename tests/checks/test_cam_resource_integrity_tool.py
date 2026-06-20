@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from .common import read_text, repo_path
+from .common import protocol_document_version, read_text, repo_path, ts_exported_string_constants
 from tools.cam_resource_integrity import (
     CONTRACT_NAMESPACE_PREFIX,
     CamResourceIntegrityError,
@@ -31,7 +31,7 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 "CAM_ROUTES_NAMESPACE": ROUTES_NAMESPACE,
                 "CAM_UI_NAMESPACE": UI_NAMESPACE,
             },
-            ts_string_constants(protocol_source),
+            ts_exported_string_constants(protocol_source),
         )
 
     def test_python_resource_size_cap_matches_protocol_runtime_cap(self) -> None:
@@ -51,11 +51,14 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             manifest_path = Path(tmp) / "cam" / "main.json"
             (manifest_path.parent / "abi").mkdir(parents=True)
             (manifest_path.parent / "abi" / "UI.json").write_text("[]\n", encoding="utf-8")
-            (manifest_path.parent / "ui.json").write_text('{"ui":"1.0.0","nodes":{}}\n', encoding="utf-8")
+            (manifest_path.parent / "ui.json").write_text(
+                json.dumps({"ui": protocol_document_version("UI_VERSION"), "nodes": {}}) + "\n",
+                encoding="utf-8",
+            )
             write_json(
                 manifest_path,
                 {
-                    "cam": "1.0.0",
+                    "cam": protocol_document_version("CAM_VERSION"),
                     "entry": "entry",
                     "namespaces": {
                         "contracts.UI": {
@@ -228,13 +231,6 @@ def numeric_product(expression: str) -> int:
         result *= int(term.strip())
 
     return result
-
-
-def ts_string_constants(source: str) -> dict[str, str]:
-    return {
-        match.group("name"): match.group("value")
-        for match in re.finditer(r'^export const (?P<name>CAM_[A-Z_]+) = "(?P<value>[^"]+)"$', source, re.MULTILINE)
-    }
 
 
 def write_json(path: Path, document: object) -> None:

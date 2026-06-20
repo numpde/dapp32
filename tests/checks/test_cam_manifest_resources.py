@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from .common import protocol_document_version
 from .cam_manifest_resources import CamManifestResourceValidator
 
 
@@ -79,7 +81,10 @@ class CamManifestResourceTest(unittest.TestCase):
             abi_dir = manifest_path.parent / "abi"
             abi_dir.mkdir(parents=True)
             (abi_dir / "UI.json").write_text("[]\n", encoding="utf-8")
-            (manifest_path.parent / "ui.json").write_text('{"ui":"1.0.0","nodes":{}}\n', encoding="utf-8")
+            (manifest_path.parent / "ui.json").write_text(
+                json.dumps({"ui": protocol_document_version("UI_VERSION"), "nodes": {}}) + "\n",
+                encoding="utf-8",
+            )
 
             failures = self.validator.validate_resource_integrity(
                 manifest_path,

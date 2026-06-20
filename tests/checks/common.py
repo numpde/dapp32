@@ -111,6 +111,27 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def ts_exported_string_constants(source: str) -> dict[str, str]:
+    return {
+        match.group("name"): match.group("value")
+        for match in re.finditer(
+            r'^export const (?P<name>[A-Z][A-Z0-9_]*) = "(?P<value>[^"]+)"$',
+            source,
+            re.MULTILINE,
+        )
+    }
+
+
+def protocol_document_version(name: str) -> str:
+    # Python checks cannot import the TS package, but valid CAM/UI fixtures
+    # should still track the protocol-owned document version constants.
+    constants = ts_exported_string_constants(read_text(repo_path("js/packages/cam-protocol/src/versions.ts")))
+    value = constants.get(name)
+    if value is None:
+        raise AssertionError(f"could not read {name} from protocol version owner")
+    return value
+
+
 def rendered_compose_config(compose_file: str | tuple[str, ...], *, env: dict[str, str] | None = None) -> dict[str, Any]:
     render_env = os.environ.copy()
     render_env.update(RENDERED_COMPOSE_FIXTURE_ENV)
