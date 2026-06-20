@@ -212,6 +212,8 @@ function resolveInclude(
 
   const selected = resolveValueAtPath(node.call.function, context, `${path}.call.function`)
   const nodeNames = selectedNodeNames(selected, `${path}.call.function`)
+  // Initial-state resolution skips Button nodes before state exists. Resolve
+  // Include args lazily so action-only Includes do not force $state.* early.
   let args: InertRecord | undefined
   const children: ResolvedUiNode[] = []
 

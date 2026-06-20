@@ -113,6 +113,70 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
   assert.equal(action?.call.args.serialNumber, "ABC123")
 })
 
+test("resolveInitialUiNode skips action Include args until state exists", () => {
+  const ui = parseUi({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Screen",
+        requires: [],
+        props: {
+          title: "Stateful action",
+        },
+        children: [
+          {
+            element: "TextField",
+            props: {
+              label: "Serial number",
+            },
+            state: {
+              key: "serialNumber",
+              defaultValue: "ABC123",
+            },
+          },
+          {
+            element: "Include",
+            call: {
+              namespace: "ui",
+              function: "lookupComponent",
+              args: {
+                view: {
+                  serialNumber: "$state.serialNumber",
+                },
+              },
+            },
+          },
+        ],
+      },
+      lookupComponent: {
+        element: "Button",
+        requires: ["view"],
+        props: {
+          label: "Look up component",
+        },
+        call: {
+          namespace: "routes",
+          function: "component",
+          args: {
+            serialNumber: "$view.serialNumber",
+          },
+        },
+      },
+    },
+  })
+
+  const { state, resolvedUi } = resolveInitialUiNode(ui, "app", inertRecord({}), context)
+  assert.equal(resolvedUi.element, "Screen")
+  if (resolvedUi.element !== "Screen") {
+    throw new Error("expected Screen")
+  }
+  const action = resolvedUi.children.find((child) => child.element === "Button")
+
+  assert.equal(state.serialNumber, "ABC123")
+  assert.equal(action?.element, "Button")
+  assert.equal(action?.call.args.serialNumber, "ABC123")
+})
+
 test("resolveUiNode rejects args that shadow runtime roots", () => {
   const ui = parseUi({
     ui: "1.0.0",
