@@ -55,6 +55,18 @@ class PackageMetadataTest(unittest.TestCase):
         # lock. Additional lock formats would create a second dependency truth.
         self.assertEqual({"js/package-lock.json"}, lockfiles)
 
+    def test_package_manifests_are_declared_workspace_members(self) -> None:
+        package_manifests = {
+            path
+            for path in repo_path(".").rglob("package.json")
+            if path.is_file() and "node_modules" not in path.relative_to(repo_path(".")).parts
+        }
+
+        # A stray package.json creates a second npm island: dependency metadata
+        # the Docker lane will not stage, lock, or test as part of the single
+        # JS workspace. Keep every package manifest in the workspace inventory.
+        self.assertEqual(set(self.package_manifest_paths()), package_manifests)
+
     def test_root_js_tsconfigs_are_staged_for_offline_workspace_lanes(self) -> None:
         root_tsconfigs = {path.name for path in repo_path("js").glob("tsconfig*.json")}
         staged_tsconfigs = set(STAGED_JS_TSCONFIG_RE.findall(read_text(repo_path("containers/node-deps/stage-js-workspace"))))
