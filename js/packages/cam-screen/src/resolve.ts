@@ -212,6 +212,7 @@ function resolveInclude(
 
   const selected = resolveValueAtPath(node.call.function, context, `${path}.call.function`)
   const nodeNames = selectedNodeNames(selected, `${path}.call.function`)
+  let args: InertRecord | undefined
   const children: ResolvedUiNode[] = []
 
   for (const nodeName of nodeNames) {
@@ -219,7 +220,7 @@ function resolveInclude(
       continue
     }
 
-    const args = resolveRecord(node.call.args, context, `${path}.call.args`)
+    args ??= resolveRecord(node.call.args, context, `${path}.call.args`)
     children.push(...resolveNamedNode(ui, nodeName, args, context, `${path}.${nodeName}`, options, stack))
   }
 
