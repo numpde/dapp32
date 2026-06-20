@@ -149,7 +149,7 @@ function materializeTemplateValues(
   template: Readonly<Record<string, unknown>>,
   inputDefaults: Readonly<Record<string, unknown>>,
 ): Record<string, unknown> {
-  const inputByPath = new Map<string, unknown>()
+  const activeInputPaths = new Set<string>()
   // A write continuation can pass values that are themselves templates over
   // the write route's inputs. Preserve known leaves through that indirection so
   // the next route's ABI check reports deterministic bad fields instead of
@@ -161,15 +161,17 @@ function materializeTemplateValues(
       if (reference.root !== "inputs") return UNKNOWN_ROUTE_CALL_VALUE
 
       const key = reference.segments.join(".")
-      if (inputByPath.has(key)) return UNKNOWN_ROUTE_CALL_VALUE
+      if (activeInputPaths.has(key)) return UNKNOWN_ROUTE_CALL_VALUE
 
       const next = resolve(reference.segments)
       if (next === undefined) return UNKNOWN_ROUTE_CALL_VALUE
 
-      inputByPath.set(key, UNKNOWN_ROUTE_CALL_VALUE)
-      const resolved = materializeExpression(next, resolve)
-      inputByPath.delete(key)
-      return resolved
+      activeInputPaths.add(key)
+      try {
+        return materializeExpression(next, resolve)
+      } finally {
+        activeInputPaths.delete(key)
+      }
     }
 
     if (value === null || typeof value === "number" || typeof value === "boolean") return value
