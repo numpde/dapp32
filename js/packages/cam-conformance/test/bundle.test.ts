@@ -2868,7 +2868,7 @@ test("UI known call targets must not be empty or duplicated", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.function"],
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.1.call.function"],
-    ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.2.call.function"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.2.call.function"],
   ])
 })
 
