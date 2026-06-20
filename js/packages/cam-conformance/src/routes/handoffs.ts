@@ -12,6 +12,7 @@ import {
   type ContractFunctionsByNamespace,
 } from "../abi/routes.ts"
 import {
+  knownRouteCallPathSuffix,
   knownRouteCallSource,
   knownRouteCallValue,
   UNKNOWN_ROUTE_CALL_VALUE,
@@ -127,7 +128,7 @@ function validateRouteHandoffAbi(
         ? undefined
         : {
           value,
-          pathSuffix: segments.map((segment) => `.${segment}`).join(""),
+          pathSuffix: knownRouteCallPathSuffix(segments),
         }
     })
     if (resolved === undefined) continue

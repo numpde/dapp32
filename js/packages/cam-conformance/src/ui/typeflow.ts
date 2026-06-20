@@ -23,6 +23,7 @@ import {
 import {
   isKnownStaticStringValue,
   knownStaticStringValue,
+  knownRouteCallPathSuffix,
   knownRouteCallSource,
   knownRouteCallValue,
   type KnownRouteCallValue,
@@ -683,7 +684,7 @@ function actionValueForRouteCall(
       ? undefined
       : {
         value: literal,
-        pathSuffix: segments.map((segment) => `.${segment}`).join(""),
+        pathSuffix: knownRouteCallPathSuffix(segments),
       }
   })
 }

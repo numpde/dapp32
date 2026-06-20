@@ -36,6 +36,10 @@ export function knownRouteCallValue(routeArg: unknown, resolveInput: KnownInputR
   return knownRouteCallValueAt(routeArg, resolveInput, "", "")
 }
 
+export function knownRouteCallPathSuffix(segments: readonly string[]): string {
+  return segments.map((segment) => `.${segment}`).join("")
+}
+
 export function knownRouteCallSource(value: KnownRouteCallValue, pathSuffix: string): KnownRouteCallSource {
   const source = value.paths.get(pathSuffix)
   return source === undefined
