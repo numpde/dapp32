@@ -3016,6 +3016,41 @@ test("UI props reject statically incompatible literal route handoff args", () =>
   ])
 })
 
+test("UI props reject invalid literal address strings passed through route handoff args", () => {
+  const uiBytes = jsonBytes({
+    ui: "1.0.0",
+    nodes: {
+      app: {
+        element: "Address",
+        requires: ["view"],
+        props: {
+          label: "Owner",
+          address: "$view.owner",
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            owner: "not-an-address",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.props.address"],
+  ])
+})
+
 test("UI typeflow preserves literal handoff field names over ABI output names", () => {
   const abiBytes = jsonBytes([
     {

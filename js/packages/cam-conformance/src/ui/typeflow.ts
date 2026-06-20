@@ -340,6 +340,12 @@ function validateBoundValue(
     return
   }
 
+  const literalAddressMismatch = addressLiteralMismatch(lookup.value, expectation)
+  if (literalAddressMismatch !== undefined) {
+    reportTypeflowIssue(scope, path, `${label} expects address, but literal is not an address`)
+    return
+  }
+
   if (!abiValueMatches(lookup.value, expectation)) {
     reportTypeflowIssue(
       scope,
@@ -978,6 +984,22 @@ function propExpectation(element: UiPropElement, prop: string): ValueExpectation
   if (element === "Nft" && prop === "tokenId") return "integer-or-string"
   if ((UI_PROP_SCHEMAS[element].string as readonly string[]).includes(prop)) return "string"
   return undefined
+}
+
+function addressLiteralMismatch(value: unknown, expectation: ValueExpectation): boolean | undefined {
+  if (expectation !== "address") return undefined
+
+  const literal = isKnownStaticStringValue(value)
+    ? value.value
+    : isRecordObject(value)
+      ? literalStringValue(value)
+      : undefined
+  if (literal === undefined) return undefined
+
+  // Literal strings are not ABI-typed. Once a literal flows into an address
+  // prop, conformance owns the same deterministic address check as runtime ABI
+  // argument normalization instead of treating any string as address-capable.
+  return !isAbiAddressValue(literal)
 }
 
 function abiValueMatches(value: unknown, expectation: ValueExpectation): boolean {
