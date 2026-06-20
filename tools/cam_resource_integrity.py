@@ -16,6 +16,9 @@ import sys
 
 CONTRACT_NAMESPACE_PREFIX = "contracts."
 INTEGRITY_PREFIX = "sha256:0x"
+# Runtime verification accepts equivalent hex case, but checked-in manifests
+# should be stable and reviewable after refresh. The publication tool therefore
+# owns the stricter lowercase spelling for repository JSON.
 INTEGRITY_PATTERN = re.compile(r"^sha256:0x[0-9a-f]{64}$")
 LOCAL_URI_PREFIX = "./"
 MAX_CAM_RESOURCE_BYTES = 2 * 1024 * 1024
