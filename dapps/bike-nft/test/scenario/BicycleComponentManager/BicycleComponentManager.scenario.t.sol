@@ -522,6 +522,22 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
             )
         );
         manager.markMissing(SERIAL);
+
+        vm.prank(buyer);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
+            )
+        );
+        manager.clearMissing(SERIAL);
+
+        vm.prank(buyer);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
+            )
+        );
+        manager.setMissingStatus(SERIAL, false);
     }
 
     // The component-token contract is a real dependency, not a passive data
