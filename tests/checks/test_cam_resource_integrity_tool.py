@@ -64,12 +64,12 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                         "contracts.UI": {
                             "type": "contract",
                             "abiURI": "./abi/UI.json",
-                            "integrity": "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+                            "integrity": ZERO_SHA256,
                         },
                         "ui": {
                             "type": "ui",
                             "uri": "./ui.json",
-                            "integrity": "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+                            "integrity": ZERO_SHA256,
                         },
                     },
                     "routes": {},
@@ -83,11 +83,11 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
         namespaces = updated["namespaces"]
         self.assertIsInstance(namespaces, dict)
         self.assertNotEqual(
-            "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+            ZERO_SHA256,
             namespaces["contracts.UI"]["integrity"],
         )
         self.assertNotEqual(
-            "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+            ZERO_SHA256,
             namespaces["ui"]["integrity"],
         )
 

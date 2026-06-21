@@ -93,12 +93,12 @@ class CamManifestResourceTest(unittest.TestCase):
                         "contracts.UI": {
                             "type": "contract",
                             "abiURI": "./abi/UI.json",
-                            "integrity": "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+                            "integrity": ZERO_SHA256,
                         },
                         "ui": {
                             "type": "ui",
                             "uri": "./ui.json",
-                            "integrity": "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+                            "integrity": ZERO_SHA256,
                         },
                     },
                 },
