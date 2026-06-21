@@ -95,13 +95,16 @@ Apps and tools:
 
         make cam-publication-preflight DAPP=<dapp> CAM_URI=<https-or-ipfs-root-uri>
         make cam-publication-preflight-json DAPP=<dapp> CAM_URI=<https-or-ipfs-root-uri>
+        make cam-publication-preflight-check
 
     The JSON target is for CI and agents. Once Make-level invocation guards
     pass and the containerized tool starts, stdout is machine-readable JSON.
     Fatal tool errors use `{ ok: false, error }`; conformance failures use the
     richer issue list. Make usage errors, such as missing `DAPP` or missing
     `cam/main.json`, remain ordinary stderr Make failures by design. That keeps
-    shell-side quoting out of the publication evidence path.
+    shell-side quoting out of the publication evidence path. The check target
+    runs the bike-nft fixture through the same Compose service and is now part
+    of `package-ci`, alongside package tests and the viewer-terminal smoke.
 
 
 What is already strong

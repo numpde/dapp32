@@ -28,9 +28,11 @@ SECRET_PATTERNS = [
     re.compile(r"BEGIN [A-Z ]*PRIVATE KEY"),
 ]
 MAKE_TARGET_RE = re.compile(r"^(?P<name>[A-Za-z0-9_-]+)\s*:(?![=])")
+MAKE_TARGET_WITH_PREREQS_RE = re.compile(r"^(?P<name>[A-Za-z0-9_-]+)\s*:(?![=])\s*(?P<prereqs>.*)$")
 MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_-]+)\b")
 MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$")
 MAKE_DEFAULT_GOAL_RE = re.compile(r"^\.DEFAULT_GOAL\s*:?=\s*(?P<name>[A-Za-z0-9_-]+)\s*$", re.MULTILINE)
+PACKAGE_CI_PREREQS = ("package-test", "viewer-terminal-check", "cam-publication-preflight-check")
 
 
 class RepositoryHygieneTest(unittest.TestCase):
@@ -116,6 +118,14 @@ class RepositoryHygieneTest(unittest.TestCase):
         # an intentional refactor instead.
         self.assertEqual([], duplicates)
 
+    def test_package_ci_aggregates_package_backed_tool_checks(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+
+        # `package-ci` is the JS/package confidence lane. It should stay a thin
+        # Make aggregation over package tests plus package-backed tool checks,
+        # not a parallel Compose service or a stale subset of tool smoke tests.
+        self.assertEqual(PACKAGE_CI_PREREQS, self.make_target_prereqs(makefile, "package-ci"))
+
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
@@ -150,3 +160,10 @@ class RepositoryHygieneTest(unittest.TestCase):
             for line in makefile.splitlines()
             if (match := MAKE_TARGET_RE.match(line)) is not None
         ]
+
+    def make_target_prereqs(self, makefile: str, target: str) -> tuple[str, ...]:
+        for line in makefile.splitlines():
+            match = MAKE_TARGET_WITH_PREREQS_RE.match(line)
+            if match is not None and match.group("name") == target:
+                return tuple(match.group("prereqs").split())
+        self.fail(f"missing Make target: {target}")
