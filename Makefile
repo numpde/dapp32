@@ -308,7 +308,6 @@ cam-conformance-check:
 
 define cam_publication_preflight
 	@$(NON_ROOT_GUARD); \
-	$(PACKAGE_DEPS_GUARD); \
 	if [[ -z '$(DAPP)' ]]; then \
 	  printf '%s\n' 'Set DAPP to the first-level dapp name, for example DAPP=bike-nft.' >&2; \
 	  exit 2; \
@@ -329,6 +328,7 @@ define cam_publication_preflight
 	  printf '%s\n' 'CAM_URI must be an absolute https or ipfs URI without shell substitution syntax.' >&2; \
 	  exit 2; \
 	fi; \
+	$(PACKAGE_DEPS_GUARD); \
 	CAM_PREFLIGHT_ROOT_PATH='/work/dapps/$(DAPP)/cam/main.json' \
 	CAM_PREFLIGHT_ARGS='$(1)' \
 	CAM_URI='$(CAM_URI)' \
