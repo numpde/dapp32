@@ -39,7 +39,8 @@ async function preflight(options: Options): Promise<PreflightResult> {
   const dappsRootPath = resolve(options.dappsRootPath)
   const rootPath = resolve(options.rootPath)
   await assertDirectory(dappsRootPath, "dapps root")
-  await assertRegularFile(rootPath, "CAM root")
+  const rootStat = await assertRegularFile(rootPath, "CAM root")
+  assertResourceSize(rootStat.size, "CAM root")
   // Make constructs the root path from an operator-supplied dapp name. Enforce
   // the dapps boundary here too, after resolution, so path traversal cannot
   // turn the publication lane into a generic file reader inside the container.
@@ -131,9 +132,7 @@ async function localResourcePath(rootPath: string, uri: string): Promise<string>
   if (resourceStat === undefined || !resourceStat.isFile()) {
     throw new Error(`local CAM resource must be a file: ${uri}`)
   }
-  if (resourceStat.size > CAM_RESOURCE_MAX_BYTES) {
-    throw new Error(`local CAM resource is too large: ${uri} exceeds ${CAM_RESOURCE_MAX_BYTES} bytes`)
-  }
+  assertResourceSize(resourceStat.size, `local CAM resource ${uri}`)
 
   const realRoot = await realpath(rootDir)
   const realResource = await realpath(resourcePath)
@@ -144,13 +143,21 @@ async function localResourcePath(rootPath: string, uri: string): Promise<string>
   return resourcePath
 }
 
-async function assertRegularFile(path: string, label: string): Promise<void> {
+async function assertRegularFile(path: string, label: string): Promise<Awaited<ReturnType<typeof lstat>>> {
   const pathStat = await lstat(path)
   if (pathStat.isSymbolicLink()) {
     throw new Error(`${label} must not be a symlink: ${path}`)
   }
   if (!pathStat.isFile()) {
     throw new Error(`${label} must be a file: ${path}`)
+  }
+
+  return pathStat
+}
+
+function assertResourceSize(size: number | bigint, label: string): void {
+  if (BigInt(size) > BigInt(CAM_RESOURCE_MAX_BYTES)) {
+    throw new Error(`${label} is too large: exceeds ${CAM_RESOURCE_MAX_BYTES} bytes`)
   }
 }
 
