@@ -199,6 +199,9 @@ function assertPublishedCamURI(value: string): void {
   if (url.protocol !== "https:" && url.protocol !== "ipfs:") {
     throw new Error(`CAM URI must use https or ipfs: ${value}`)
   }
+  if (url.protocol === "ipfs:") {
+    assertCamSecondaryResourceURI(value, "CAM URI")
+  }
   if (url.username !== "" || url.password !== "") {
     throw new Error("CAM URI must not contain credentials")
   }
