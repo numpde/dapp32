@@ -576,7 +576,7 @@
             </div>
             <div class="fact">
               <strong>Packages</strong>
-              <code>package-ci</code>, a Make aggregation over <code>package-test</code> and <code>viewer-terminal-check</code>. The package lane tests the JS workspace; the viewer lane typechecks and smoke-runs the terminal through <code>compose/viewer-terminal.yml</code>.
+              <code>package-ci</code>, a Make aggregation over <code>package-test</code>, <code>viewer-terminal-check</code>, and <code>cam-publication-preflight-check</code>. The package lane tests the JS workspace; the tool lanes smoke-run the terminal and publication-preflight boundaries through their own Compose services.
             </div>
             <div class="fact">
               <strong>Network</strong>
