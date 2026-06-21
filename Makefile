@@ -93,7 +93,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
 
 help:
 	@printf '%s\n' \
@@ -106,10 +106,11 @@ help:
 	  '  make package-graph-check  Check installed npm dependency graph offline' \
 	  '  make package-build-check  Validate npm workspace builds offline' \
 	  '  make package-test   Build and test npm workspace packages/apps offline' \
-	  '  make package-ci     Run JS workspace tests and viewer terminal checks offline' \
+	  '  make package-ci     Run JS workspace tests and package-backed tool checks offline' \
 	  '  make cam-conformance-check  Validate checked-in CAM bundles offline' \
 	  '  make cam-publication-preflight DAPP=... CAM_URI=...  Validate a CAM bundle and print CAM_HASH' \
 	  '  make cam-publication-preflight-json DAPP=... CAM_URI=...  Same preflight with structured JSON output' \
+	  '  make cam-publication-preflight-check  Smoke-check publication preflight offline' \
 	  '  make viewer-terminal-check  Smoke-check the CAM viewer terminal offline' \
 	  '  make viewer-terminal  Run the CAM viewer terminal offline; defaults to VIEWER_TERMINAL_MOCK=bike-nft' \
 	  '  make viewer-terminal-status  Show viewer terminal Compose status' \
@@ -301,7 +302,7 @@ package-build-check:
 package-test:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-package-ci: package-test viewer-terminal-check
+package-ci: package-test viewer-terminal-check cam-publication-preflight-check
 
 cam-conformance-check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
@@ -340,6 +341,9 @@ cam-publication-preflight:
 
 cam-publication-preflight-json:
 	$(call cam_publication_preflight,--json)
+
+cam-publication-preflight-check:
+	@$(MAKE) --no-print-directory cam-publication-preflight-json DAPP=bike-nft CAM_URI=https://example.test/bike-nft/cam/main.json >/dev/null
 
 viewer-terminal-check:
 	@$(NON_ROOT_GUARD); \
