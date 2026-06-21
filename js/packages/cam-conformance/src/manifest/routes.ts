@@ -77,7 +77,7 @@ function validateEntryRoute(
     }))
     return
   }
-  if (Object.prototype.hasOwnProperty.call(routes, entry)) return
+  if (Object.hasOwn(routes, entry)) return
 
   issues.push(conformanceIssue({
     rule: "CAM_ENTRY_ROUTE_MISSING",
@@ -366,7 +366,7 @@ function validateInvocation({
 
   if (typeof functionName !== "string" || functionName.length === 0) return undefined
   if (!isRecordObject(invocation.args)) return undefined
-  if (Object.prototype.hasOwnProperty.call(invocation.args, "")) {
+  if (Object.hasOwn(invocation.args, "")) {
     issues.push(routeInvocationIssue(resource, `${path}.args`, `${purpose} argument name must not be empty`))
     return undefined
   }

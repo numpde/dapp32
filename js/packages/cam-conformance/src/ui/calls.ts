@@ -32,7 +32,7 @@ export function validateUiCallArgNames({
 }): boolean {
   // Callers must not pass "" keys; this is invalid regardless of namespace and
   // blocks silent behavior where route/input binding silently drops an arg.
-  if (Object.prototype.hasOwnProperty.call(args, "")) {
+  if (Object.hasOwn(args, "")) {
     issues.push(callIssue(resource, rule, `${path}.call.args`, "UI call argument name must not be empty"))
     return false
   }

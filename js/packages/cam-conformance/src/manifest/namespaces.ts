@@ -36,7 +36,7 @@ export function validateNamespaceDeclarations({
     return declarations
   }
 
-  if (!Object.prototype.hasOwnProperty.call(namespaces, CAM_UI_NAMESPACE)) {
+  if (!Object.hasOwn(namespaces, CAM_UI_NAMESPACE)) {
     issues.push(conformanceIssue({
       rule: "CAM_UI_RESOURCE_MISSING",
       resource,
