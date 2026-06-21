@@ -312,7 +312,7 @@ cam-publication-preflight:
 	  printf '%s\n' 'Set DAPP to the first-level dapp name, for example DAPP=bike-nft.' >&2; \
 	  exit 2; \
 	fi; \
-	if [[ ! '$(DAPP)' =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$$ ]]; then \
+	if [[ ! '$(DAPP)' =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then \
 	  printf '%s\n' 'DAPP must be a first-level dapp directory name, not a path or shell expression.' >&2; \
 	  exit 2; \
 	fi; \
