@@ -87,6 +87,9 @@ endef
 
 PACKAGE_DEPS_GUARD := if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Missing npm workspace dependencies. Run make package-deps to install the locked package dependencies.' >&2; exit 2; fi
 
+export DAPP
+export CAM_URI
+
 define compose_run_with_package_deps
 @$(NON_ROOT_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
@@ -308,30 +311,30 @@ cam-conformance-check:
 
 define cam_publication_preflight
 	@$(NON_ROOT_GUARD); \
-	if [[ -z '$(DAPP)' ]]; then \
+	if [[ -z "$$DAPP" ]]; then \
 	  printf '%s\n' 'Set DAPP to the first-level dapp name, for example DAPP=bike-nft.' >&2; \
 	  exit 2; \
 	fi; \
-	if [[ ! '$(DAPP)' =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then \
+	if [[ ! "$$DAPP" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then \
 	  printf '%s\n' 'DAPP must be a first-level dapp directory name, not a path or shell expression.' >&2; \
 	  exit 2; \
 	fi; \
-	if [[ ! -f '$(DAPPS_DIR)/$(DAPP)/cam/main.json' ]]; then \
+	if [[ ! -f "$(DAPPS_DIR)/$$DAPP/cam/main.json" ]]; then \
 	  printf '%s\n' 'DAPP must name a first-level dapp with cam/main.json.' >&2; \
 	  exit 2; \
 	fi; \
-	if [[ -z '$(CAM_URI)' ]]; then \
+	if [[ -z "$$CAM_URI" ]]; then \
 	  printf '%s\n' 'Set CAM_URI to the published CAM root URI.' >&2; \
 	  exit 2; \
 	fi; \
-	if [[ ! '$(CAM_URI)' =~ ^(https|ipfs):// || '$(CAM_URI)' == *'$$'* || '$(CAM_URI)' == *'`'* ]]; then \
+	if [[ ! "$$CAM_URI" =~ ^(https|ipfs):// || "$$CAM_URI" == *'$$'* || "$$CAM_URI" == *'`'* ]]; then \
 	  printf '%s\n' 'CAM_URI must be an absolute https or ipfs URI without shell substitution syntax.' >&2; \
 	  exit 2; \
 	fi; \
 	$(PACKAGE_DEPS_GUARD); \
-	CAM_PREFLIGHT_ROOT_PATH='/work/dapps/$(DAPP)/cam/main.json' \
+	CAM_PREFLIGHT_ROOT_PATH="/work/dapps/$$DAPP/cam/main.json" \
 	CAM_PREFLIGHT_ARGS='$(1)' \
-	CAM_URI='$(CAM_URI)' \
+	CAM_URI="$$CAM_URI" \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES) run --build --quiet-build --rm cam-publication-preflight
 endef
 
