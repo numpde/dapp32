@@ -317,6 +317,10 @@ define cam_publication_preflight
 	  printf '%s\n' 'DAPP must be a first-level dapp directory name, not a path or shell expression.' >&2; \
 	  exit 2; \
 	fi; \
+	if [[ ! -f '$(DAPPS_DIR)/$(DAPP)/cam/main.json' ]]; then \
+	  printf '%s\n' 'DAPP must name a first-level dapp with cam/main.json.' >&2; \
+	  exit 2; \
+	fi; \
 	if [[ -z '$(CAM_URI)' ]]; then \
 	  printf '%s\n' 'Set CAM_URI to the published CAM root URI.' >&2; \
 	  exit 2; \
