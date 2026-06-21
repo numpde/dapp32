@@ -84,6 +84,12 @@ Apps and tools:
     js/tools/cam-integration-fuzz
       Generic random-walk integration runner over a deployed CAM host.
 
+    js/tools/cam-publication-preflight
+      Offline publication gate that assembles a local CAM bundle, runs
+      @cam/conformance, and prints the root CAM hash. It proves static bundle
+      coherence, not future account state, wallet behavior, or contract
+      business rules.
+
 
 What is already strong
 ----------------------
