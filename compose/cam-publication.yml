@@ -43,8 +43,8 @@ services:
       - "-eu"
       - "-c"
       - |
-        npm run build:cam-conformance
-        ./node_modules/.bin/tsc -p tools/cam-publication-preflight/tsconfig.json
+        npm run build:cam-conformance >&2
+        ./node_modules/.bin/tsc -p tools/cam-publication-preflight/tsconfig.json >&2
         case "$CAM_PREFLIGHT_ARGS" in
           "") set -- ;;
           "--json") set -- --json ;;

@@ -64,7 +64,9 @@ In this repository, the builder-facing entrypoint is:
 That command assembles the checked-in local root manifest plus declared local
 resources, runs `@cam/conformance`, and prints the exact `CAM_HASH` to publish.
 Use the `-json` target when an agent, CI lane, or publication script needs the
-stable issue list and hash as structured data.
+stable issue list and hash as structured data. That target keeps the JSON
+payload on stdout; build and Compose progress belong on stderr so callers can
+parse stdout directly.
 It is intentionally offline and local-resource-only: remote or IPFS resources
 must be materialized into the bundle before this lane can attest them. The
 command is a publication preflight, not an integrity refresher; run `make abi`

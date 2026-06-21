@@ -332,7 +332,7 @@ define cam_publication_preflight
 	CAM_PREFLIGHT_ROOT_PATH='/work/dapps/$(DAPP)/cam/main.json' \
 	CAM_PREFLIGHT_ARGS='$(1)' \
 	CAM_URI='$(CAM_URI)' \
-	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES) run --build --rm cam-publication-preflight
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES) run --build --quiet-build --rm cam-publication-preflight
 endef
 
 cam-publication-preflight:
