@@ -330,7 +330,19 @@ try {
     process.stdout.write(`${usage()}\n`)
     process.exitCode = 0
   } else {
-    process.stderr.write(`cam-publication-preflight: ${error instanceof Error ? error.message : String(error)}\n`)
+    writeFatalError(error, process.argv.includes("--json"))
     process.exitCode = 1
   }
+}
+
+function writeFatalError(error: unknown, json: boolean): void {
+  const message = error instanceof Error ? error.message : String(error)
+  if (json) {
+    // JSON mode is for automation. Keep even operator/file failures parseable;
+    // build logs stay on stderr in the Compose wrapper.
+    process.stdout.write(`${JSON.stringify({ ok: false, error: message }, null, 2)}\n`)
+    return
+  }
+
+  process.stderr.write(`cam-publication-preflight: ${message}\n`)
 }
