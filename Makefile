@@ -87,9 +87,6 @@ endef
 
 PACKAGE_DEPS_GUARD := if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Missing npm workspace dependencies. Run make package-deps to install the locked package dependencies.' >&2; exit 2; fi
 
-export DAPP
-export CAM_URI
-
 define compose_run_with_package_deps
 @$(NON_ROOT_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
