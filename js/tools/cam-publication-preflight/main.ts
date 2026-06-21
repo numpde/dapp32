@@ -51,6 +51,7 @@ async function preflight(options: Options): Promise<PreflightResult> {
 
   const rootBytes = await readFile(rootPath)
   const camURI = options.camURI
+  assertPublishedCamURI(camURI)
   const root = parseJsonText(new TextDecoder().decode(rootBytes))
   const resources = await declaredLocalResources(rootPath, root)
   const bundle: CamConformanceBundle = {
@@ -160,6 +161,22 @@ async function assertDirectory(path: string, label: string): Promise<void> {
   }
   if (!pathStat.isDirectory()) {
     throw new Error(`${label} must be a directory: ${path}`)
+  }
+}
+
+function assertPublishedCamURI(value: string): void {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch (cause) {
+    throw new Error(`CAM URI must be an absolute publication URI: ${value}`, { cause })
+  }
+
+  if (url.protocol !== "https:" && url.protocol !== "http:" && url.protocol !== "ipfs:") {
+    throw new Error(`CAM URI must use http, https, or ipfs: ${value}`)
+  }
+  if (url.username !== "" || url.password !== "") {
+    throw new Error("CAM URI must not contain credentials")
   }
 }
 

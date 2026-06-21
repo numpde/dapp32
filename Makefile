@@ -308,16 +308,24 @@ cam-conformance-check:
 cam-publication-preflight:
 	@$(NON_ROOT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	if [[ -z "$(DAPP)" ]]; then \
+	if [[ -z '$(DAPP)' ]]; then \
 	  printf '%s\n' 'Set DAPP to the first-level dapp name, for example DAPP=bike-nft.' >&2; \
 	  exit 2; \
 	fi; \
-	if [[ -z "$(CAM_URI)" ]]; then \
+	if [[ ! '$(DAPP)' =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$$ ]]; then \
+	  printf '%s\n' 'DAPP must be a first-level dapp directory name, not a path or shell expression.' >&2; \
+	  exit 2; \
+	fi; \
+	if [[ -z '$(CAM_URI)' ]]; then \
 	  printf '%s\n' 'Set CAM_URI to the published CAM root URI.' >&2; \
 	  exit 2; \
 	fi; \
-	CAM_PREFLIGHT_ROOT_PATH="/work/dapps/$(DAPP)/cam/main.json" \
-	CAM_URI="$(CAM_URI)" \
+	if [[ ! '$(CAM_URI)' =~ ^(https?|ipfs):// || '$(CAM_URI)' == *'$$'* || '$(CAM_URI)' == *'`'* ]]; then \
+	  printf '%s\n' 'CAM_URI must be an absolute http, https, or ipfs URI without shell substitution syntax.' >&2; \
+	  exit 2; \
+	fi; \
+	CAM_PREFLIGHT_ROOT_PATH='/work/dapps/$(DAPP)/cam/main.json' \
+	CAM_URI='$(CAM_URI)' \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES) run --build --rm cam-publication-preflight
 
 viewer-terminal-check:
