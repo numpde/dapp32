@@ -221,6 +221,21 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         vm.prank(registrar);
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.registerComponent(owner, "", TOKEN_URI);
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.setComponentMetadata("", TOKEN_URI);
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.markMissing("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.clearMissing("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.setMissingStatus("", true);
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.retireComponent("");
     }
 
     /// @dev Delegation is capability- and owner-scoped. This test checks the
