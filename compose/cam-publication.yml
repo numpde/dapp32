@@ -3,6 +3,8 @@
 # This is the builder-facing gate before putting CAM bytes behind a contract
 # root. It assembles the local root manifest plus declared local resources,
 # runs @cam/conformance, then prints the exact CAM_HASH to publish.
+# It does not fetch ipfs:// or remote resources; publishable resources must be
+# present as local ./ declarations before this offline lane can attest them.
 
 services:
   cam-publication-preflight:

@@ -1,4 +1,4 @@
-import { lstat, readFile, realpath, stat } from "node:fs/promises"
+import { lstat, readFile, realpath } from "node:fs/promises"
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 
 import { keccak256 } from "viem"
@@ -106,16 +106,17 @@ async function localResourcePath(rootPath: string, uri: string): Promise<string>
   }
 
   let currentPath = rootDir
+  let resourceStat: Awaited<ReturnType<typeof lstat>> | undefined
   for (const segment of relativePath.split("/")) {
     currentPath = resolve(currentPath, segment)
     const entry = await lstat(currentPath)
     if (entry.isSymbolicLink()) {
       throw new Error(`local CAM resource path must not be symlinked: ${uri}`)
     }
+    resourceStat = entry
   }
 
-  const resourceStat = await stat(resourcePath)
-  if (!resourceStat.isFile()) {
+  if (resourceStat === undefined || !resourceStat.isFile()) {
     throw new Error(`local CAM resource must be a file: ${uri}`)
   }
   if (resourceStat.size > CAM_RESOURCE_MAX_BYTES) {
@@ -224,6 +225,7 @@ function usage(): string {
     "usage: cam-publication-preflight --root <cam/main.json> --cam-uri <published-uri> [--json]",
     "",
     "Validates a local CAM publication bundle and prints the root CAM hash.",
+    "Only local ./ secondary resources are read; remote/content-addressed resources must be materialized locally first.",
   ].join("\n")
 }
 
