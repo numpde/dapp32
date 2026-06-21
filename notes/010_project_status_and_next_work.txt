@@ -165,7 +165,9 @@ Current state:
 
 What still deserves focus:
 
-    Empty serial rejection across every write path and UI route state.
+    Empty serial route states in UI projection. Manager write boundaries now
+    reject empty serials through the shared serial-number guard; future tests
+    should focus on what agents see before any write is attempted.
     Register -> lookup found -> update metadata -> lookup updated.
     Lookup not-found with preserved serial and correct actions.
     Mark missing -> clear missing -> retire, including blocked follow-up writes.
