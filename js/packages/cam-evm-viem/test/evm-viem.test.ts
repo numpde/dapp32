@@ -23,6 +23,7 @@ import type { CamHost, CamSimulationClient, CamWalletClient } from "../src/index
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
+  BIKE_COMPONENTS_ADDRESS,
   BIKE_MANAGER_ABI_URI as managerAbiURI,
   BIKE_MANAGER_ADDRESS as managerAddress,
   BIKE_MANAGER_CONTRACT,
@@ -40,6 +41,7 @@ import {
   BIKE_UI_NAMESPACE,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
+  BIKE_ZERO_ADDRESS,
   bikeEntryRouteResult,
   bikeContractAddresses,
   bikeHost,
@@ -507,7 +509,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     accountInfo: "Mock registrar account",
     exists: true,
     serialHash: BIKE_SERIAL_HASH,
-    tokenContract: "0x0000000000000000000000000000000000000010",
+    tokenContract: BIKE_COMPONENTS_ADDRESS,
     tokenId: BIKE_TOKEN_ID.toString(),
     owner: userAddress,
     ownerInfo: "Mock owner account",
@@ -523,7 +525,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     canMarkMissing: true,
     canClearMissing: false,
     canRetire: true,
-    componentsAddress: "0x0000000000000000000000000000000000000000",
+    componentsAddress: BIKE_ZERO_ADDRESS,
   }))
 })
 
