@@ -77,12 +77,15 @@ missing `CAM_URI`. Those fail on stderr like other Make usage errors. Keeping
 that boundary explicit avoids fragile shell-side JSON escaping; automation that
 needs machine-readable publication evidence should treat successful Make-level
 invocation as the start of the JSON contract.
-It is intentionally offline and local-resource-only: remote or IPFS resources
-must be materialized into the bundle before this lane can attest them. The
-command accepts HTTPS roots and CID-shaped IPFS roots because it is for
-publication, not for local HTTP fixture serving. HTTPS roots rely on the
-published `CAM_HASH`; IPFS roots must also pass the protocol's reviewable CID
-policy. It is a publication preflight, not an integrity refresher; run
+It is intentionally offline and repo-local: the Make target attests the current
+dapp layout where secondary resources are declared as local `./...` CAM
+resources. It does not fetch remote bytes, and it does not accept `uri -> file`
+mappings for externally assembled bundles. Builders with content-addressed
+secondary resources should call `@cam/conformance` directly with the complete
+resource map. The command accepts HTTPS roots and CID-shaped IPFS roots because
+it is for publication, not for local HTTP fixture serving. HTTPS roots rely on
+the published `CAM_HASH`; IPFS roots must also pass the protocol's reviewable
+CID policy. It is a publication preflight, not an integrity refresher; run
 `make abi` or `make cam-integrity` first when ABI/UI bytes changed.
 
 Runtime viewers must still validate every untrusted resource they load. The

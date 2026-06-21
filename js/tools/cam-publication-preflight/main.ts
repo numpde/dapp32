@@ -317,7 +317,7 @@ function usage(): string {
     "usage: cam-publication-preflight --dapps-root <dapps-root> --root <cam/main.json> --cam-uri <https-or-ipfs-uri> [--json]",
     "",
     "Validates a local CAM publication bundle and prints the root CAM hash.",
-    "Only local ./ secondary resources are read; remote/content-addressed resources must be materialized locally first.",
+    "This repo CLI reads repo-local ./ secondary resources only; use @cam/conformance directly for externally assembled bundles.",
   ].join("\n")
 }
 

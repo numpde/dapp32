@@ -3,8 +3,9 @@
 # This is the builder-facing gate before putting CAM bytes behind a contract
 # root. It assembles the local root manifest plus declared local resources,
 # runs @cam/conformance, then prints the exact CAM_HASH to publish.
-# It does not fetch ipfs:// or remote resources; publishable resources must be
-# present as local ./ declarations before this offline lane can attest them.
+# This repo lane intentionally has no URI-to-file mapping flags: it attests the
+# checked-in dapp shape where secondary resources are local ./ declarations. Use
+# @cam/conformance directly for bundles assembled from content-addressed stores.
 
 services:
   cam-publication-preflight:
