@@ -213,6 +213,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "ANVIL_HOST_PORT": "8545",
                 "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
                 "BIKE_NFT_GUI_PORT": "5173",
+                "CAM_PREFLIGHT_ARGS": "",
                 "CAM_PREFLIGHT_ROOT_PATH": "/work/dapps/bike-nft/cam/main.json",
                 "CAM_URI": "https://example.test/bike-nft/cam/main.json",
                 "COMPOSE_PROJECT_NAME": "dapps-check",
@@ -619,6 +620,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("/work/js", preflight.get("working_dir"))
         self.assert_staged_package_workspace(preflight)
         self.assert_read_only_volumes(preflight, "/work/dapps")
+        self.assertEqual("", compose_mapping(preflight, "environment")["CAM_PREFLIGHT_ARGS"])
 
         mock_config = rendered_compose_config(
             "compose/viewer-terminal.yml",

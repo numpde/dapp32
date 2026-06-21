@@ -59,9 +59,12 @@ The useful moments are:
 In this repository, the builder-facing entrypoint is:
 
   make cam-publication-preflight DAPP=<first-level-dapp> CAM_URI=<published-root-uri>
+  make cam-publication-preflight-json DAPP=<first-level-dapp> CAM_URI=<published-root-uri>
 
 That command assembles the checked-in local root manifest plus declared local
 resources, runs `@cam/conformance`, and prints the exact `CAM_HASH` to publish.
+Use the `-json` target when an agent, CI lane, or publication script needs the
+stable issue list and hash as structured data.
 It is intentionally offline and local-resource-only: remote or IPFS resources
 must be materialized into the bundle before this lane can attest them. The
 command is a publication preflight, not an integrity refresher; run `make abi`
