@@ -71,6 +71,12 @@ If the tool fails before a bundle result exists, JSON mode still emits a small
 `{ ok: false, error }` object on stdout. That is intentionally less rich than a
 conformance result: file-system, path, URI, and operator errors are publication
 preflight failures, not CAM bundle diagnostics.
+The Make target still performs a few invocation guards before Docker starts,
+such as missing `DAPP`, malformed dapp names, missing `cam/main.json`, and
+missing `CAM_URI`. Those fail on stderr like other Make usage errors. Keeping
+that boundary explicit avoids fragile shell-side JSON escaping; automation that
+needs machine-readable publication evidence should treat successful Make-level
+invocation as the start of the JSON contract.
 It is intentionally offline and local-resource-only: remote or IPFS resources
 must be materialized into the bundle before this lane can attest them. The
 command accepts HTTPS roots and CID-shaped IPFS roots because it is for
