@@ -21,6 +21,8 @@ import {
 } from "../../../../tests/fixtures/cam/bike.mts"
 import { bikeCamJson as mainJson } from "../../../../tests/fixtures/cam/bike-resources.mts"
 
+const ZERO_SHA256_INTEGRITY = "sha256:0x0000000000000000000000000000000000000000000000000000000000000000"
+
 test("resolves a CAM route into a plain call descriptor", () => {
   const cam = parseCam(mainJson)
   assert.equal(routeRequiresAccount(cam, BIKE_ROUTE_COMPONENT), true)
@@ -201,7 +203,7 @@ test("parseCam enforces canonical namespace names and route kinds", () => {
         screens: {
           type: "ui",
           uri: "./ui.json",
-          integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+          integrity: ZERO_SHA256_INTEGRITY,
         },
       },
     }),
@@ -216,7 +218,7 @@ test("parseCam enforces canonical namespace names and route kinds", () => {
         Manager: {
           type: "contract",
           abiURI: "./abi/Manager.json",
-          integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+          integrity: ZERO_SHA256_INTEGRITY,
         },
       },
     }),

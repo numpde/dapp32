@@ -24,6 +24,7 @@ import {
   validateEditedRoot,
   viewEntryFunction,
   viewOutput,
+  ZERO_SHA256_INTEGRITY,
 } from "./fixtures.ts"
 import type {
   RootWithNamespaces,
@@ -4004,17 +4005,17 @@ test("resource declarations reject mutable remote and escaping URIs", () => {
     root.namespaces["contracts.Other"] = {
       type: "contract",
       abiURI: "./",
-      integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+      integrity: ZERO_SHA256_INTEGRITY,
     }
     root.namespaces["contracts.Ipfs"] = {
       type: "contract",
       abiURI: "ipfs://../App.json",
-      integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+      integrity: ZERO_SHA256_INTEGRITY,
     }
     root.namespaces["contracts.Encoded"] = {
       type: "contract",
       abiURI: "./%2e%2e/App.json",
-      integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+      integrity: ZERO_SHA256_INTEGRITY,
     }
     root.namespaces.ui.uri = "../ui.json"
     return {
@@ -4076,7 +4077,7 @@ test("conflicting integrity declarations for one URI are reported directly", () 
     root.namespaces["contracts.Other"] = {
       type: "contract",
       abiURI: "./abi/App.json",
-      integrity: "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+      integrity: ZERO_SHA256_INTEGRITY,
     }
   })
 
@@ -4168,7 +4169,7 @@ test("invalid namespace names do not declare bundle resources", () => {
 
 test("UI resource integrity mismatch returns one precise issue", () => {
   const issues = validateCamBundle(minimalBundleWithUiIntegrity(
-    "sha256:0x0000000000000000000000000000000000000000000000000000000000000000",
+    ZERO_SHA256_INTEGRITY,
   ))
 
   assert.equal(issues.length, 1)

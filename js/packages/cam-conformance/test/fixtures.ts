@@ -12,6 +12,8 @@ import type {
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
+export const ZERO_SHA256_INTEGRITY = "sha256:0x0000000000000000000000000000000000000000000000000000000000000000"
+
 export type RootWithNamespaces = {
   readonly namespaces: Record<string, Record<string, unknown>>
 }
