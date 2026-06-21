@@ -1,5 +1,6 @@
 Project status and next work
 Date: 2026-06-09
+Last reviewed: 2026-06-21
 
 Purpose
 -------
@@ -89,6 +90,18 @@ Apps and tools:
       @cam/conformance, and prints the root CAM hash. It proves static bundle
       coherence, not future account state, wallet behavior, or contract
       business rules.
+
+    The supported publication path is:
+
+        make cam-publication-preflight DAPP=<dapp> CAM_URI=<https-or-ipfs-root-uri>
+        make cam-publication-preflight-json DAPP=<dapp> CAM_URI=<https-or-ipfs-root-uri>
+
+    The JSON target is for CI and agents. Once Make-level invocation guards
+    pass and the containerized tool starts, stdout is machine-readable JSON.
+    Fatal tool errors use `{ ok: false, error }`; conformance failures use the
+    richer issue list. Make usage errors, such as missing `DAPP` or missing
+    `cam/main.json`, remain ordinary stderr Make failures by design. That keeps
+    shell-side quoting out of the publication evidence path.
 
 
 What is already strong
@@ -273,6 +286,12 @@ Current state:
     typeflow, known dynamic Include/Button calls, local state, and checked-in bike
     CAM bundles.
 
+    Recent work closed the main deterministic typeflow gaps: partially known
+    aggregates preserve known leaves, write continuations are checked against
+    the next route's ABI call, UI Button literals are traced through nested
+    route-call values, Include/Button selector failures are route-local, and
+    duplicate rendered TextField state keys are rejected.
+
 Main risk:
 
     Conformance can become a second runtime if it reimplements too much.
@@ -285,7 +304,8 @@ Main risk:
 
 What still deserves focus:
 
-    Improve diagnostics where conformance can prove a deterministic failure.
+    Improve diagnostics only where conformance can prove a deterministic
+    publication failure.
     Avoid exact duplicates of runtime checks unless they add author location or
     cross-document context.
     Keep issue codes stable and specific.
