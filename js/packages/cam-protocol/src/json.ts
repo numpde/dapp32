@@ -1,5 +1,5 @@
 export function hasOwn(source: Record<string, unknown>, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(source, key)
+  return Object.hasOwn(source, key)
 }
 
 export function createStringMap<T>(): Record<string, T> {
