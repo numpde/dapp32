@@ -67,6 +67,10 @@ Use the `-json` target when an agent, CI lane, or publication script needs the
 stable issue list and hash as structured data. That target keeps the JSON
 payload on stdout; build and Compose progress belong on stderr so callers can
 parse stdout directly.
+If the tool fails before a bundle result exists, JSON mode still emits a small
+`{ ok: false, error }` object on stdout. That is intentionally less rich than a
+conformance result: file-system, path, URI, and operator errors are publication
+preflight failures, not CAM bundle diagnostics.
 It is intentionally offline and local-resource-only: remote or IPFS resources
 must be materialized into the bundle before this lane can attest them. The
 command accepts HTTPS roots and CID-shaped IPFS roots because it is for
