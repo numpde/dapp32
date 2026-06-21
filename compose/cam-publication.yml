@@ -1,0 +1,47 @@
+# CAM publication preflight for one local dapp.
+#
+# This is the builder-facing gate before putting CAM bytes behind a contract
+# root. It assembles the local root manifest plus declared local resources,
+# runs @cam/conformance, then prints the exact CAM_HASH to publish.
+
+services:
+  cam-publication-preflight:
+    build:
+      context: ../containers/node-deps
+      dockerfile: Dockerfile
+    working_dir: /work/js
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: "none"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 384
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      npm_config_cache: /tmp/npm-cache
+      npm_config_audit: "false"
+      npm_config_fund: "false"
+      npm_config_update_notifier: "false"
+      CAM_PREFLIGHT_ROOT_PATH: "${CAM_PREFLIGHT_ROOT_PATH:?missing_CAM_PREFLIGHT_ROOT_PATH}"
+      CAM_URI: "${CAM_URI:?missing_CAM_URI}"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+      - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
+    volumes:
+      - ../dapps:/work/dapps:ro
+      - ../js:/input/js:ro
+      - ../js/node_modules:/work/js/node_modules:ro
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:cam-conformance
+        ./node_modules/.bin/tsc -p tools/cam-publication-preflight/tsconfig.json
+        node --experimental-strip-types tools/cam-publication-preflight/main.ts \
+          --root "$CAM_PREFLIGHT_ROOT_PATH" \
+          --cam-uri "$CAM_URI"

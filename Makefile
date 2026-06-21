@@ -67,6 +67,7 @@ ANVIL_HOST_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=host ANVIL_HOST_
 ANVIL_ALL_COMPOSE_ENV := $(ANVIL_COMPOSE_ENV) COMPOSE_PROFILES=internal,host ANVIL_HOST_PORT=$(ANVIL_HOST_PORT)
 LIVE_DEPS_EGRESS_COMPOSE_FILES := -f $(COMPOSE_DIR)/deps.yml -f $(COMPOSE_DIR)/check-live-deps-egress.yml
 CAM_COMPOSE_FILES := -f $(COMPOSE_DIR)/cam.yml
+CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES := -f $(COMPOSE_DIR)/cam-publication.yml
 FORGE_ABI_COMPOSE_FILES := -f $(COMPOSE_DIR)/forge-abi.yml
 BIKE_NFT_LOCAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml
@@ -92,7 +93,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
 
 help:
 	@printf '%s\n' \
@@ -107,6 +108,7 @@ help:
 	  '  make package-test   Build and test npm workspace packages/apps offline' \
 	  '  make package-ci     Run JS workspace tests and viewer terminal checks offline' \
 	  '  make cam-conformance-check  Validate checked-in CAM bundles offline' \
+	  '  make cam-publication-preflight DAPP=... CAM_URI=...  Validate a CAM bundle and print CAM_HASH' \
 	  '  make viewer-terminal-check  Smoke-check the CAM viewer terminal offline' \
 	  '  make viewer-terminal  Run the CAM viewer terminal offline; defaults to VIEWER_TERMINAL_MOCK=bike-nft' \
 	  '  make viewer-terminal-status  Show viewer terminal Compose status' \
@@ -302,6 +304,21 @@ package-ci: package-test viewer-terminal-check
 
 cam-conformance-check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
+
+cam-publication-preflight:
+	@$(NON_ROOT_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	if [[ -z "$(DAPP)" ]]; then \
+	  printf '%s\n' 'Set DAPP to the first-level dapp name, for example DAPP=bike-nft.' >&2; \
+	  exit 2; \
+	fi; \
+	if [[ -z "$(CAM_URI)" ]]; then \
+	  printf '%s\n' 'Set CAM_URI to the published CAM root URI.' >&2; \
+	  exit 2; \
+	fi; \
+	CAM_PREFLIGHT_ROOT_PATH="/work/dapps/$(DAPP)/cam/main.json" \
+	CAM_URI="$(CAM_URI)" \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES) run --build --rm cam-publication-preflight
 
 viewer-terminal-check:
 	@$(NON_ROOT_GUARD); \

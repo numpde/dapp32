@@ -23,6 +23,8 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "ANVIL_HOST_PORT": "8545",
     "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
     "BIKE_NFT_GUI_PORT": "5173",
+    "CAM_PREFLIGHT_ROOT_PATH": "/work/dapps/bike-nft/cam/main.json",
+    "CAM_URI": "https://example.test/bike-nft/cam/main.json",
     "COMPOSE_PROJECT_NAME": "dapps-check",
     "LOCAL_GID": "1000",
     "LOCAL_UID": "1000",
