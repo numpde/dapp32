@@ -85,6 +85,14 @@ test("owns UI prop semantic buckets", () => {
       )
     }
   }
+
+  // These are deliberately display values, not syntactic string props.
+  // Renderers may format inert values, while the resolver keeps labels and
+  // addresses on stricter semantic rails.
+  assert.ok((UI_PROP_SCHEMAS.Status.required as readonly string[]).includes("value"))
+  assert.equal((UI_PROP_SCHEMAS.Status.string as readonly string[]).includes("value"), false)
+  assert.ok((UI_PROP_SCHEMAS.Nft.required as readonly string[]).includes("tokenId"))
+  assert.equal((UI_PROP_SCHEMAS.Nft.string as readonly string[]).includes("tokenId"), false)
 })
 
 test("resolves expression payloads with caller-owned normalization and errors", () => {
