@@ -50,11 +50,22 @@ The useful moments are:
 
   after ABI export
   after main.json or ui.json edits
-  before resource integrity refresh
+  after resource integrity refresh
   before camHash computation
   before deploy or publish
   in CI
   during builder or agent preflight
+
+In this repository, the builder-facing entrypoint is:
+
+  make cam-publication-preflight DAPP=<first-level-dapp> CAM_URI=<published-root-uri>
+
+That command assembles the checked-in local root manifest plus declared local
+resources, runs `@cam/conformance`, and prints the exact `CAM_HASH` to publish.
+It is intentionally offline and local-resource-only: remote or IPFS resources
+must be materialized into the bundle before this lane can attest them. The
+command is a publication preflight, not an integrity refresher; run `make abi`
+or `make cam-integrity` first when ABI/UI bytes changed.
 
 Runtime viewers must still validate every untrusted resource they load. The
 conformance package is heavier and builder-facing: it gives authors precise
