@@ -15,8 +15,8 @@ A CAM bundle is the set of bytes a contract-published CAM manifest depends on:
 
 The package answers one specific question:
 
-  Can this bundle be safely published as the contract-referenced manifest for
-  this CAM version?
+  Is this bundle internally coherent enough to publish as the
+  contract-referenced manifest for this CAM version?
 
 It is not a viewer. It is not a React renderer. It is not a dapp integration
 test. It is a protocol conformance oracle for builders, viewers, agents, and
@@ -79,6 +79,12 @@ Runtime viewers must still validate every untrusted resource they load. The
 conformance package is heavier and builder-facing: it gives authors precise
 publication evidence for static bundle invariants, not a promise that every
 future browser session or dynamic value is safe forever.
+
+That distinction is deliberate. The publication gate can prove resource hashes,
+document shape, declared ABI/UI/route agreement, and deterministic literal
+mismatches. It cannot prove future account state, RPC decoder behavior, wallet
+availability, permissions, or contract business rules. Those stay in runtime
+normalization, integration walks, and Solidity tests.
 
 
 Inputs and outputs

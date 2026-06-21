@@ -199,6 +199,9 @@ function assertPublishedCamURI(value: string): void {
   if (url.protocol !== "https:" && url.protocol !== "ipfs:") {
     throw new Error(`CAM URI must use https or ipfs: ${value}`)
   }
+  // This is a publication command, not a local fixture runner. HTTPS roots are
+  // anchored by the printed CAM_HASH; IPFS roots should also be reviewably
+  // content-addressed, so reuse the protocol CID/path policy here.
   if (url.protocol === "ipfs:") {
     assertCamSecondaryResourceURI(value, "CAM URI")
   }
