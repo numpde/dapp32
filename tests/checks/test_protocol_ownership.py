@@ -81,16 +81,12 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def test_ts_test_fixtures_use_protocol_version_constants(self) -> None:
         failures: list[str] = []
-        version_patterns = (
-            re.compile(rf"(?<![A-Za-z0-9_$])[\"']?cam[\"']?\s*:\s*[\"']{re.escape(protocol_document_version('CAM_VERSION'))}[\"']"),
-            re.compile(rf"(?<![A-Za-z0-9_$])[\"']?ui[\"']?\s*:\s*[\"']{re.escape(protocol_document_version('UI_VERSION'))}[\"']"),
-        )
 
         for path in self.ts_test_fixture_files():
             if repo_path("js/packages") in path.parents and self.package_root(path).name == "cam-protocol":
                 continue
             text = read_text(path)
-            for pattern in version_patterns:
+            for pattern in self.current_protocol_version_fixture_patterns():
                 for match in pattern.finditer(text):
                     line_number = text.count("\n", 0, match.start()) + 1
                     # Valid fixture documents should track the protocol package's
@@ -100,6 +96,17 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
         if failures:
             self.fail("\n".join(failures))
+
+    def test_protocol_version_fixture_patterns_match_current_fixture_shapes(self) -> None:
+        patterns = self.current_protocol_version_fixture_patterns()
+        cam_version = protocol_document_version("CAM_VERSION")
+        ui_version = protocol_document_version("UI_VERSION")
+
+        self.assertTrue(any(pattern.search(f'const cam = {{ cam: "{cam_version}" }}') for pattern in patterns))
+        self.assertTrue(any(pattern.search(f'const cam = {{ "cam": "{cam_version}" }}') for pattern in patterns))
+        self.assertTrue(any(pattern.search(f"const ui = {{ 'ui': '{ui_version}' }}") for pattern in patterns))
+        self.assertFalse(any(pattern.search('const cam = { cam: "2.0.0" }') for pattern in patterns))
+        self.assertFalse(any(pattern.search(f'const value = {{ camera: "{cam_version}" }}') for pattern in patterns))
 
     def test_cam_conformance_facets_keep_sourced_imports_isolated(self) -> None:
         failures: list[str] = []
@@ -224,6 +231,12 @@ class ProtocolOwnershipTest(unittest.TestCase):
             *repo_path("js/apps").glob("*/src/**/*.ts"),
             *repo_path("js/apps").glob("*/src/**/*.tsx"),
         ])
+
+    def current_protocol_version_fixture_patterns(self) -> tuple[re.Pattern[str], re.Pattern[str]]:
+        return (
+            re.compile(rf"(?<![A-Za-z0-9_$])[\"']?cam[\"']?\s*:\s*[\"']{re.escape(protocol_document_version('CAM_VERSION'))}[\"']"),
+            re.compile(rf"(?<![A-Za-z0-9_$])[\"']?ui[\"']?\s*:\s*[\"']{re.escape(protocol_document_version('UI_VERSION'))}[\"']"),
+        )
 
     def relative_import_stays_in_source_root(self, importer: Path, specifier: str) -> bool:
         source_root = self.source_root(importer)
