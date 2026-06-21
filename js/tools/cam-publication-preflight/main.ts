@@ -13,6 +13,7 @@ import {
 } from "../../packages/cam-protocol/dist/index.js"
 
 type Options = {
+  readonly dappsRootPath: string
   readonly rootPath: string
   readonly camURI: string
   readonly json: boolean
@@ -35,8 +36,18 @@ async function main(argv: readonly string[]): Promise<number> {
 }
 
 async function preflight(options: Options): Promise<PreflightResult> {
+  const dappsRootPath = resolve(options.dappsRootPath)
   const rootPath = resolve(options.rootPath)
+  await assertDirectory(dappsRootPath, "dapps root")
   await assertRegularFile(rootPath, "CAM root")
+  // Make constructs the root path from an operator-supplied dapp name. Enforce
+  // the dapps boundary here too, after resolution, so path traversal cannot
+  // turn the publication lane into a generic file reader inside the container.
+  await assertContainedPath({
+    rootPath: dappsRootPath,
+    path: rootPath,
+    message: "CAM root must stay under the dapps root",
+  })
 
   const rootBytes = await readFile(rootPath)
   const camURI = options.camURI
@@ -142,11 +153,38 @@ async function assertRegularFile(path: string, label: string): Promise<void> {
   }
 }
 
+async function assertDirectory(path: string, label: string): Promise<void> {
+  const pathStat = await lstat(path)
+  if (pathStat.isSymbolicLink()) {
+    throw new Error(`${label} must not be a symlink: ${path}`)
+  }
+  if (!pathStat.isDirectory()) {
+    throw new Error(`${label} must be a directory: ${path}`)
+  }
+}
+
+async function assertContainedPath({
+  rootPath,
+  path,
+  message,
+}: {
+  readonly rootPath: string
+  readonly path: string
+  readonly message: string
+}): Promise<void> {
+  const realRoot = await realpath(rootPath)
+  const realPath = await realpath(path)
+  if (escapesRoot(relative(realRoot, realPath))) {
+    throw new Error(`${message}: ${path}`)
+  }
+}
+
 function escapesRoot(path: string): boolean {
   return path === "" || path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path)
 }
 
 function parseArgs(argv: readonly string[]): Options {
+  let dappsRootPath: string | undefined
   let rootPath: string | undefined
   let camURI: string | undefined
   let json = false
@@ -154,6 +192,9 @@ function parseArgs(argv: readonly string[]): Options {
   for (let index = 2; index < argv.length; index += 1) {
     const arg = argv[index]
     switch (arg) {
+      case "--dapps-root":
+        dappsRootPath = requiredArg(argv, ++index, "--dapps-root")
+        break
       case "--root":
         rootPath = requiredArg(argv, ++index, "--root")
         break
@@ -173,11 +214,15 @@ function parseArgs(argv: readonly string[]): Options {
   if (rootPath === undefined) {
     throw new Error("missing required argument: --root <path>")
   }
+  if (dappsRootPath === undefined) {
+    throw new Error("missing required argument: --dapps-root <path>")
+  }
   if (camURI === undefined) {
     throw new Error("missing required argument: --cam-uri <published-uri>")
   }
 
   return {
+    dappsRootPath,
     rootPath,
     camURI,
     json,
@@ -222,7 +267,7 @@ class Usage extends Error {}
 
 function usage(): string {
   return [
-    "usage: cam-publication-preflight --root <cam/main.json> --cam-uri <published-uri> [--json]",
+    "usage: cam-publication-preflight --dapps-root <dapps-root> --root <cam/main.json> --cam-uri <published-uri> [--json]",
     "",
     "Validates a local CAM publication bundle and prints the root CAM hash.",
     "Only local ./ secondary resources are read; remote/content-addressed resources must be materialized locally first.",

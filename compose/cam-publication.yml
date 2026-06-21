@@ -45,5 +45,6 @@ services:
         npm run build:cam-conformance
         ./node_modules/.bin/tsc -p tools/cam-publication-preflight/tsconfig.json
         node --experimental-strip-types tools/cam-publication-preflight/main.ts \
+          --dapps-root /work/dapps \
           --root "$CAM_PREFLIGHT_ROOT_PATH" \
           --cam-uri "$CAM_URI"
