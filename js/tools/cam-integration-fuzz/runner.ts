@@ -238,11 +238,15 @@ async function main(): Promise<void> {
     })
   }
 
+  // Keep the terminal success event replay-friendly: a failed CI log often
+  // preserves the tail, not the full walk, so include the final resolved state.
+  const finalSnapshot = requireLoadedSnapshot(session.snapshot())
   emit({
     event: "ok",
     seed: options.seed,
     runs: options.runs,
     steps: options.steps,
+    finalSnapshot: snapshotSummary(finalSnapshot),
   })
 }
 
@@ -568,6 +572,16 @@ function contractCallSummary(call: CamViewerPreparedContractCall): JsonObject {
     address: call.address,
     function: call.function,
     args: call.args,
+  }
+}
+
+function snapshotSummary(snapshot: CamViewerLoadedSnapshot): JsonObject {
+  return {
+    route: snapshot.route,
+    inputs: snapshot.inputs,
+    state: snapshot.state,
+    values: snapshot.values,
+    actions: actionSummaries(actionNodes(snapshot.resolvedUi)),
   }
 }
 
