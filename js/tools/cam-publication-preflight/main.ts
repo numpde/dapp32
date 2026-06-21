@@ -28,6 +28,10 @@ type PreflightResult = {
   readonly issues: readonly CamConformanceIssue[]
 }
 
+type ResourceDiscoveryRoot =
+  | { readonly ok: true, readonly value: unknown }
+  | { readonly ok: false }
+
 async function main(argv: readonly string[]): Promise<number> {
   const options = parseArgs(argv)
   const result = await preflight(options)
@@ -53,8 +57,10 @@ async function preflight(options: Options): Promise<PreflightResult> {
   const rootBytes = await readFile(rootPath)
   const camURI = options.camURI
   assertPublishedCamURI(camURI)
-  const root = parseJsonText(new TextDecoder().decode(rootBytes))
-  const resources = await declaredLocalResources(rootPath, root)
+  const discoveryRoot = rootForLocalResourceDiscovery(rootBytes)
+  const resources = discoveryRoot.ok
+    ? await declaredLocalResources(rootPath, discoveryRoot.value)
+    : new Map<string, Uint8Array>()
   const bundle: CamConformanceBundle = {
     rootURI: camURI,
     rootBytes,
@@ -69,6 +75,17 @@ async function preflight(options: Options): Promise<PreflightResult> {
     camHash: keccak256(rootBytes),
     resources: [...resources.keys()].sort(),
     issues,
+  }
+}
+
+function rootForLocalResourceDiscovery(bytes: Uint8Array): ResourceDiscoveryRoot {
+  try {
+    return { ok: true, value: parseJsonText(new TextDecoder().decode(bytes)) }
+  } catch {
+    // Root JSON validity is reported by @cam/conformance below. Resource
+    // discovery is only a local file-collection convenience, so it should not
+    // preempt structured author diagnostics for the root document itself.
+    return { ok: false }
   }
 }
 
