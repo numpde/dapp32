@@ -325,8 +325,8 @@ define cam_publication_preflight
 	  printf '%s\n' 'Set CAM_URI to the published CAM root URI.' >&2; \
 	  exit 2; \
 	fi; \
-	if [[ ! '$(CAM_URI)' =~ ^(https?|ipfs):// || '$(CAM_URI)' == *'$$'* || '$(CAM_URI)' == *'`'* ]]; then \
-	  printf '%s\n' 'CAM_URI must be an absolute http, https, or ipfs URI without shell substitution syntax.' >&2; \
+	if [[ ! '$(CAM_URI)' =~ ^(https|ipfs):// || '$(CAM_URI)' == *'$$'* || '$(CAM_URI)' == *'`'* ]]; then \
+	  printf '%s\n' 'CAM_URI must be an absolute https or ipfs URI without shell substitution syntax.' >&2; \
 	  exit 2; \
 	fi; \
 	CAM_PREFLIGHT_ROOT_PATH='/work/dapps/$(DAPP)/cam/main.json' \

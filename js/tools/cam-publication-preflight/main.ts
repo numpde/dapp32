@@ -196,8 +196,8 @@ function assertPublishedCamURI(value: string): void {
     throw new Error(`CAM URI must be an absolute publication URI: ${value}`, { cause })
   }
 
-  if (url.protocol !== "https:" && url.protocol !== "http:" && url.protocol !== "ipfs:") {
-    throw new Error(`CAM URI must use http, https, or ipfs: ${value}`)
+  if (url.protocol !== "https:" && url.protocol !== "ipfs:") {
+    throw new Error(`CAM URI must use https or ipfs: ${value}`)
   }
   if (url.username !== "" || url.password !== "") {
     throw new Error("CAM URI must not contain credentials")
@@ -308,7 +308,7 @@ class Usage extends Error {}
 
 function usage(): string {
   return [
-    "usage: cam-publication-preflight --dapps-root <dapps-root> --root <cam/main.json> --cam-uri <published-uri> [--json]",
+    "usage: cam-publication-preflight --dapps-root <dapps-root> --root <cam/main.json> --cam-uri <https-or-ipfs-uri> [--json]",
     "",
     "Validates a local CAM publication bundle and prints the root CAM hash.",
     "Only local ./ secondary resources are read; remote/content-addressed resources must be materialized locally first.",

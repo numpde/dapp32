@@ -58,8 +58,8 @@ The useful moments are:
 
 In this repository, the builder-facing entrypoint is:
 
-  make cam-publication-preflight DAPP=<first-level-dapp> CAM_URI=<published-root-uri>
-  make cam-publication-preflight-json DAPP=<first-level-dapp> CAM_URI=<published-root-uri>
+  make cam-publication-preflight DAPP=<first-level-dapp> CAM_URI=<https-or-ipfs-root-uri>
+  make cam-publication-preflight-json DAPP=<first-level-dapp> CAM_URI=<https-or-ipfs-root-uri>
 
 That command assembles the checked-in local root manifest plus declared local
 resources, runs `@cam/conformance`, and prints the exact `CAM_HASH` to publish.
@@ -69,8 +69,10 @@ payload on stdout; build and Compose progress belong on stderr so callers can
 parse stdout directly.
 It is intentionally offline and local-resource-only: remote or IPFS resources
 must be materialized into the bundle before this lane can attest them. The
-command is a publication preflight, not an integrity refresher; run `make abi`
-or `make cam-integrity` first when ABI/UI bytes changed.
+command accepts HTTPS and IPFS root URIs because it is for publication, not for
+local HTTP fixture serving. It is a publication preflight, not an integrity
+refresher; run `make abi` or `make cam-integrity` first when ABI/UI bytes
+changed.
 
 Runtime viewers must still validate every untrusted resource they load. The
 conformance package is heavier and builder-facing: it gives authors precise
