@@ -13,6 +13,9 @@ import {
   validateNamespaceDeclarations,
 } from "../manifest/namespaces.ts"
 import {
+  validateRootManifest,
+} from "../manifest/root.ts"
+import {
   validateRouteDeclarations,
 } from "../manifest/routes.ts"
 import {
@@ -25,9 +28,6 @@ import {
 import {
   validateRouteHandoffs,
 } from "../routes/handoffs.ts"
-import {
-  verifyRuntimeCamCompatibility,
-} from "../sourced/runtime.ts"
 import {
   declaredUiNodes,
 } from "../ui/nodes.ts"
@@ -44,23 +44,16 @@ import {
   validateUiExpressionRoots,
 } from "../expressions/ui.ts"
 import {
-  verifyRuntimeUiCompatibility,
-} from "../sourced/ui.ts"
-import {
-  declaredUiDocuments,
-} from "../ui/resources.ts"
-import type {
-  RawUiDocuments,
+  declaredUiDocument,
 } from "../ui/resources.ts"
 
 export type {
   CamConformanceBundle,
 } from "./types.ts"
 
-// Bundle conformance starts from bytes the caller already collected. This
-// package should not fetch, execute routes, or talk to an EVM client; it only
-// checks static agreement between the supplied root document and declared
-// resources. Dynamic values still belong to the viewer/runtime boundary.
+// Bundle conformance starts from caller-collected bytes and orchestrates static
+// publication facts only: no fetching, route execution, account state, RPC, or
+// wallet behavior. Dynamic values stay at runtime.
 export function validateCamBundle(bundle: CamConformanceBundle): readonly CamConformanceIssue[] {
   const issues: CamConformanceIssue[] = []
   const rootResult = parseRootCamJson({
@@ -73,8 +66,15 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   }
 
   const root = rootResult.value
-  // Structural inventory comes first so later facets can reason from declared
-  // namespaces/resources/routes instead of rediscovering manifest shape.
+  if (!validateRootManifest({
+    resource: bundle.rootURI,
+    root,
+    issues,
+  })) {
+    return issues
+  }
+  // Structural inventory joins root namespaces/resources/routes so later
+  // cross-document rules can report author-editable paths.
   const namespaces = validateNamespaceDeclarations({
     resource: bundle.rootURI,
     root,
@@ -90,7 +90,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     declarations,
     issues,
   })
-  const uiDocuments = declaredUiDocuments({
+  const uiDocument = declaredUiDocument({
     resources: bundle.resources,
     declarations: validDeclarations,
     issues,
@@ -103,12 +103,11 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   const uiNodes = declaredUiNodes({
-    uiDocuments,
+    uiDocument,
     issues,
   })
-  // Cross-resource checks use the inventory above to report author-facing
-  // paths. Keep these before sourced runtime compatibility so builders see the
-  // specific contract they violated, not only that a runtime parser rejected it.
+  // These cross-resource checks prove deterministic bundle failures from the
+  // static inventories above, with conformance-owned rule codes and paths.
   validateRouteHandoffs({
     resource: bundle.rootURI,
     routes,
@@ -117,7 +116,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   validateUiDataflow({
-    uiDocuments,
+    uiDocument,
     uiNodes,
     issues,
   })
@@ -128,24 +127,15 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   validateUiTypeflow({
-    uiDocuments,
+    uiDocument,
     routes,
     functionsByNamespace,
     issues,
   })
   validateUiExpressionRoots({
-    uiDocuments,
+    uiDocument,
     issues,
   })
-  // Sourced checks are compatibility guards against the runtime packages. They
-  // should stay late: useful, but less granular than conformance-owned facets.
-  verifyDeclaredUiResources(bundle.resources, uiDocuments, issues)
-  verifyRuntimeCamCompatibility({
-    resource: bundle.rootURI,
-    root,
-    issues,
-  })
-
   return issues
 }
 
@@ -155,18 +145,5 @@ export function assertCamBundle(bundle: CamConformanceBundle): void {
   const issues = validateCamBundle(bundle)
   if (issues.length > 0) {
     throw new CamConformanceError(issues)
-  }
-}
-
-function verifyDeclaredUiResources(
-  resources: ReadonlyMap<string, Uint8Array>,
-  uiDocuments: RawUiDocuments,
-  issues: CamConformanceIssue[],
-): void {
-  for (const resource of uiDocuments.keys()) {
-    const bytes = resources.get(resource)
-    if (bytes !== undefined) {
-      verifyRuntimeUiCompatibility(resource, bytes, issues)
-    }
   }
 }

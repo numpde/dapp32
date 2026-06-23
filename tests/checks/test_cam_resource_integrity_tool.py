@@ -23,8 +23,8 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
         protocol_source = read_text(repo_path("js/packages/cam-protocol/src/namespaces.ts"))
 
         # The refresh tool classifies namespace declarations before hashing
-        # resources. If these names drift from the runtime parser, publication
-        # can refresh a manifest the viewer will later reject, or vice versa.
+        # resources. If these names drift from the protocol constants,
+        # publication can refresh a manifest viewers will later reject.
         self.assertEqual(
             {
                 "CAM_CONTRACT_NAMESPACE_PREFIX": CONTRACT_NAMESPACE_PREFIX,
@@ -141,6 +141,30 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             with self.assertRaisesRegex(CamResourceIntegrityError, "refusing symlinked CAM resource path"):
                 refresh_manifest(manifest_path)
 
+    def test_refresh_manifest_rejects_symlinked_manifest_path_components(self) -> None:
+        for component in ("dapp", "cam", "main.json"):
+            with self.subTest(component=component), TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                outside = root / "outside"
+                outside.joinpath("cam").mkdir(parents=True)
+                outside.joinpath("cam", "main.json").write_text("{}", encoding="utf-8")
+
+                dapp = root / "dapp"
+                if component == "dapp":
+                    dapp.symlink_to(outside, target_is_directory=True)
+                    manifest_path = dapp / "cam" / "main.json"
+                elif component == "cam":
+                    dapp.mkdir()
+                    dapp.joinpath("cam").symlink_to(outside / "cam", target_is_directory=True)
+                    manifest_path = dapp / "cam" / "main.json"
+                else:
+                    dapp.joinpath("cam").mkdir(parents=True)
+                    dapp.joinpath("cam", "main.json").symlink_to(outside / "cam" / "main.json")
+                    manifest_path = dapp / "cam" / "main.json"
+
+                with self.assertRaisesRegex(CamResourceIntegrityError, "refusing symlinked CAM manifest path"):
+                    refresh_manifest(manifest_path)
+
     def test_refresh_manifest_requires_existing_well_formed_integrity_fields(self) -> None:
         malformed_values = [None, "", "sha256:0x0", "sha256:0x" + ("A" * 64)]
         for value in malformed_values:
@@ -204,6 +228,21 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             )
 
             with self.assertRaisesRegex(CamResourceIntegrityError, "namespaces.contracts.UI.type must be contract"):
+                refresh_manifest(manifest_path)
+
+            write_json(
+                manifest_path,
+                {
+                    "namespaces": {
+                        "contracts.UI-v1": {
+                            "type": "contract",
+                            "abiURI": "./abi/UI.json",
+                        },
+                    },
+                },
+            )
+
+            with self.assertRaisesRegex(CamResourceIntegrityError, "contract namespace name must be one identifier"):
                 refresh_manifest(manifest_path)
 
             write_json(

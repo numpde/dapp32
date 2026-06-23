@@ -9,6 +9,7 @@ import type { Abi, Address, Chain, Hex } from "viem"
 import {
   CamEvmError,
   callCamRoute,
+  createHttpCamPublicClient,
   evmChainIdHex,
   evmChainIdNumber,
   loadCamFromHost,
@@ -88,6 +89,12 @@ test("validates EVM address and chain boundary values", () => {
   assert.equal(evmChainIdHex("eip155:31337"), "0x7a69")
   assert.throws(() => requireEvmAddress("0xabc", "account"), /address/)
   assert.throws(() => requireEvmChainId("31337"), /CAIP-2/)
+})
+
+test("validates EVM HTTP client transport URLs before creating clients", () => {
+  assert.doesNotThrow(() => createHttpCamPublicClient({ rpcURL: "http://127.0.0.1:8545" }))
+  assert.throws(() => createHttpCamPublicClient({ rpcURL: "file:///tmp/rpc" }), /http or https/)
+  assert.throws(() => createHttpCamPublicClient({ rpcURL: "https://user@example.test/rpc" }), /credentials/)
 })
 
 test("uses the Solidity ICamApp interface id", () => {
@@ -561,6 +568,38 @@ test("callCamRoute resolves full signatures for overloaded route functions", asy
   assert.deepEqual(call?.abi, [findAbiFunction(abi, BIKE_VIEW_ENTRY)])
 })
 
+test("callCamRoute reports CAM errors for malformed direct ABI signature lookup", async () => {
+  const cam = camWithRouteCallFunction(BIKE_ROUTE_ENTRY, `${BIKE_VIEW_ENTRY}(address)`)
+  const malformedAbi = [
+    null,
+    {
+      type: "function",
+      name: BIKE_VIEW_ENTRY,
+    },
+  ] as unknown as Abi
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({})),
+      cam,
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: uiAddress,
+          abi: malformedAbi,
+        },
+      },
+      route: BIKE_ROUTE_ENTRY,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_FUNCTION_NOT_FOUND",
+  )
+})
+
 test("callCamRoute normalizes safe number integer outputs from real RPC clients", async () => {
   const fixture = integerOutputRouteFixture()
   const result = await callCamRoute({
@@ -802,6 +841,47 @@ test("callCamRoute normalizes array-like decoded tuple outputs by ABI component 
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
   )
+
+  const duplicateComponentAbi = [
+    {
+      type: "function",
+      name: tupleFunction,
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{
+        name: "view_",
+        type: "tuple",
+        components: [
+          { name: "status", type: "uint8" },
+          { name: "status", type: "uint8" },
+        ],
+      }],
+    },
+  ] as const satisfies Abi
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        routeResults: {
+          [tupleFunction]: [1, 2],
+        },
+      })),
+      cam,
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: uiAddress,
+          abi: duplicateComponentAbi,
+        },
+      },
+      route: tupleRoute,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+  )
 })
 
 test("callCamRoute treats a single array output as one ABI output", async () => {
@@ -947,6 +1027,39 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_ARGUMENT",
   )
 
+  const duplicateInputAbi = [
+    {
+      type: "function",
+      name: BIKE_VIEW_ENTRY,
+      stateMutability: "view",
+      inputs: [
+        { name: "account", type: "address" },
+        { name: "account", type: "address" },
+      ],
+      outputs: [],
+    },
+  ] as const satisfies Abi
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({})),
+      cam: parseCam(camJson),
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: uiAddress,
+          abi: duplicateInputAbi,
+        },
+      },
+      route: BIKE_ROUTE_ENTRY,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_ARGUMENT",
+  )
+
   const invalidAddressAbi = [
     {
       type: "function",
@@ -1019,6 +1132,34 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
         abi: managerAbi,
         function: BIKE_MARK_MISSING,
         args: {},
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
+  )
+
+  const duplicateInputAbi = [
+    {
+      type: "function",
+      name: "writeDuplicate",
+      stateMutability: "nonpayable",
+      inputs: [
+        { name: "value", type: "string" },
+        { name: "value", type: "string" },
+      ],
+      outputs: [],
+    },
+  ] as const satisfies Abi
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      chain: testChain,
+      call: {
+        address: managerAddress,
+        abi: duplicateInputAbi,
+        function: "writeDuplicate",
+        args: {
+          value: "ambiguous",
+        },
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
@@ -1105,6 +1246,40 @@ test("sendCamContractCall keeps tuple input component names as inert data", asyn
             ["__proto__"]: "component-name",
             value: "ordinary-value",
             extra: "rejected",
+          }),
+        },
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
+  )
+
+  const duplicateTupleAbi = [
+    {
+      type: "function",
+      name: "writeTuple",
+      stateMutability: "nonpayable",
+      inputs: [{
+        name: "payload",
+        type: "tuple",
+        components: [
+          { name: "value", type: "string" },
+          { name: "value", type: "string" },
+        ],
+      }],
+      outputs: [],
+    },
+  ] as const satisfies Abi
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      chain: testChain,
+      call: {
+        address: managerAddress,
+        abi: duplicateTupleAbi,
+        function: "writeTuple",
+        args: {
+          payload: toInertValue({
+            value: "ambiguous",
           }),
         },
       },

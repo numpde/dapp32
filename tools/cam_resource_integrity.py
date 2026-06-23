@@ -15,6 +15,7 @@ import re
 import sys
 
 CONTRACT_NAMESPACE_PREFIX = "contracts."
+CONTRACT_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 INTEGRITY_PREFIX = "sha256:0x"
 # Runtime verification accepts equivalent hex case, but checked-in manifests
 # should be stable and reviewable after refresh. The publication tool therefore
@@ -28,6 +29,14 @@ ROUTES_NAMESPACE = "routes"
 
 class CamResourceIntegrityError(ValueError):
     pass
+
+
+def reject_symlinked_manifest_path(manifest_path: Path) -> None:
+    # This tool rewrites main.json in place. Refuse symlinked path components
+    # that could redirect that write outside the selected dapp's CAM tree.
+    for path in (manifest_path.parent.parent, manifest_path.parent, manifest_path):
+        if path.is_symlink():
+            raise CamResourceIntegrityError(f"refusing symlinked CAM manifest path: {path}")
 
 
 def refresh_dapps(dapps_root: Path) -> int:
@@ -49,8 +58,7 @@ def refresh_dapps(dapps_root: Path) -> int:
 
 
 def refresh_manifest(manifest_path: Path) -> bool:
-    if manifest_path.is_symlink():
-        raise CamResourceIntegrityError(f"refusing symlinked CAM manifest: {manifest_path}")
+    reject_symlinked_manifest_path(manifest_path)
 
     try:
         from tools.json_policy import JsonPolicyError, read_strict_json
@@ -98,8 +106,12 @@ def resource_declarations(
             raise CamResourceIntegrityError(f"{manifest_path}: namespaces.{namespace}.type must be a non-empty string")
 
         if namespace.startswith(CONTRACT_NAMESPACE_PREFIX):
-            if namespace == CONTRACT_NAMESPACE_PREFIX:
-                raise CamResourceIntegrityError(f"{manifest_path}: contract namespace name must not be empty")
+            contract_name = namespace.removeprefix(CONTRACT_NAMESPACE_PREFIX)
+            # Mirrors @cam/protocol: this suffix is the bare
+            # CamRoot.contractAddress(string) lookup key, not an arbitrary
+            # nested namespace label.
+            if not CONTRACT_NAME_PATTERN.fullmatch(contract_name):
+                raise CamResourceIntegrityError(f"{manifest_path}: contract namespace name must be one identifier")
             if declaration_type != "contract":
                 raise CamResourceIntegrityError(f"{manifest_path}: namespaces.{namespace}.type must be contract")
             resources.append((namespace, declaration, "abiURI", "integrity", f"namespaces.{namespace}"))
@@ -144,7 +156,12 @@ def refresh_integrity_field(
 
 def resource_integrity(manifest_path: Path, uri: object, path: str) -> str:
     resource_path = local_resource_path(manifest_path, uri, path)
-    digest = hashlib.sha256(resource_path.read_bytes()).hexdigest()
+    resource_bytes = resource_path.read_bytes()
+    if len(resource_bytes) > MAX_CAM_RESOURCE_BYTES:
+        raise CamResourceIntegrityError(
+            f"{manifest_path}: CAM resource is too large: {uri} exceeds {MAX_CAM_RESOURCE_BYTES} bytes",
+        )
+    digest = hashlib.sha256(resource_bytes).hexdigest()
     return f"{INTEGRITY_PREFIX}{digest}"
 
 

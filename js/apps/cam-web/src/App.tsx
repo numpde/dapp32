@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useRef,
   useState,
 } from "react"
 import type { ReactElement } from "react"
@@ -69,6 +70,7 @@ export function App(): ReactElement {
   const [notice, setNotice] = useState<string | undefined>(undefined)
   const [preparedCall, setPreparedCall] = useState<CamViewerPreparedContractCall | undefined>(undefined)
   const [sending, setSending] = useState(false)
+  const interactionRevision = useRef(0)
 
   useEffect(() => {
     let cancelled = false
@@ -126,22 +128,26 @@ export function App(): ReactElement {
 
   async function dispatch(action: ResolvedButtonNode): Promise<void> {
     const ready = requireReadyState(loadState)
+    const revision = nextInteractionRevision()
     setNotice(undefined)
     setPreparedCall(undefined)
 
     try {
       const result = await ready.runtime.session.dispatchAction(action)
+      if (!isCurrentInteraction(revision)) return
       if (result.type === "navigated") {
         setLoadState({ ...ready, snapshot: result.snapshot })
         return
       }
 
       await preflightPreparedCall(result.call)
+      if (!isCurrentInteraction(revision)) return
       setPreparedCall(result.call)
       setNotice(wallet.status === "connected"
         ? "Prepared contract call. Simulation passed; review it before sending."
         : "Prepared contract call. Simulation passed; connect a wallet to send it.")
     } catch (error) {
+      if (!isCurrentInteraction(revision)) return
       setNotice(errorMessage(error))
     }
   }
@@ -158,13 +164,13 @@ export function App(): ReactElement {
   async function connectWallet(): Promise<void> {
     try {
       const ready = requireReadyState(loadState)
+      invalidatePreparedInteraction()
       const startup = ready.runtime.startup
       const address = await connectInjectedWallet(startup)
       const snapshot = await ready.runtime.session.setAccount({ address })
 
       setWallet({ status: "connected", address })
       setLoadState({ ...ready, snapshot })
-      setPreparedCall(undefined)
       setNotice(address.toLowerCase() === startup.account.toLowerCase()
         ? "Wallet connected."
         : "Wallet connected. It differs from the initial account URL parameter.")
@@ -234,7 +240,7 @@ export function App(): ReactElement {
   function updateInput(name: string, value: string): void {
     const ready = requireReadyState(loadState)
     try {
-      setPreparedCall(undefined)
+      invalidatePreparedInteraction()
       setLoadState({
         ...ready,
         snapshot: ready.runtime.session.updateState({ [name]: value }),
@@ -242,6 +248,22 @@ export function App(): ReactElement {
     } catch (error) {
       setNotice(errorMessage(error))
     }
+  }
+
+  function nextInteractionRevision(): number {
+    interactionRevision.current += 1
+    return interactionRevision.current
+  }
+
+  function isCurrentInteraction(revision: number): boolean {
+    return interactionRevision.current === revision
+  }
+
+  function invalidatePreparedInteraction(): void {
+    // Async route dispatch may still be resolving. Bump the revision whenever
+    // viewer state can change so stale results cannot resurrect old prepared calls.
+    interactionRevision.current += 1
+    setPreparedCall(undefined)
   }
 
   return (

@@ -157,6 +157,21 @@ Keep the project small, explicit, and protocol-first.
 - Before coding, stop and identify the actual invariant or requirement.
 - Explore the ordinary solution in the current stack before inventing a new
   script, lane, abstraction, directory, or tool.
+- CAM conformance rules must be emitted through typed rule descriptors carrying
+  Class A/B/C and a concise reason; do not encode the class only in comments.
+  Each public rule code gets one descriptor owner. The class is a maintenance
+  claim, not emitted issue severity or public API. Class A rules clearly belong
+  in conformance: they prove deterministic publication failures from supplied
+  CAM bytes, parsed documents, declared resources, route/UI/ABI joins, or shared
+  protocol validators without wallets, RPC, accounts, live contract state, or
+  renderer-only behavior. Class B rules are defensible but unstable: keep only
+  with a first-class `limitation` descriptor and treat as candidates for a
+  cleaner Class A formulation, narrower conservative check, or migration to
+  runtime/viewer/integration fuzz. Class C rules should be removed from
+  conformance:
+  runtime-parser duplicates without a better author location, dynamic expression
+  prediction, wallet/RPC/account/state dependence, or renderer preference rather
+  than protocol publication safety.
 - Prefer canonical, routine paths over bespoke machinery. For example, checks
   that should always run with tests belong in the normal test path.
 - Add a new Make target, Compose service, script, or directory only when it has

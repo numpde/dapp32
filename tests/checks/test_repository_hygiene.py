@@ -33,6 +33,7 @@ MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_-]+)\b")
 MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$")
 MAKE_DEFAULT_GOAL_RE = re.compile(r"^\.DEFAULT_GOAL\s*:?=\s*(?P<name>[A-Za-z0-9_-]+)\s*$", re.MULTILINE)
 PACKAGE_CI_PREREQS = ("package-test", "viewer-terminal-check", "cam-publication-preflight-check")
+FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
 
 
 class RepositoryHygieneTest(unittest.TestCase):
@@ -70,6 +71,23 @@ class RepositoryHygieneTest(unittest.TestCase):
                 continue
             if path.name in output_names:
                 failures.append(f"{path}: Foundry output must stay in container tmpfs")
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_first_party_python_bytecode_is_not_materialized_on_host(self) -> None:
+        failures: list[str] = []
+
+        # Supported Python lanes disable bytecode writes. If first-party Python
+        # leaves pyc artifacts on the host, someone bypassed that boundary or a
+        # lane regressed.
+        for root_name in FIRST_PARTY_PYTHON_ROOTS:
+            root = repo_path(root_name)
+            for path in root.rglob("*"):
+                if path.is_dir() and path.name == "__pycache__":
+                    failures.append(f"{path}: Python bytecode cache must not be materialized on host")
+                elif path.is_file() and path.suffix == ".pyc":
+                    failures.append(f"{path}: Python bytecode must not be materialized on host")
 
         if failures:
             self.fail("\n".join(failures))

@@ -6,15 +6,14 @@ import {
   requiredRecord,
 } from "./guards.ts"
 import {
+  CAM_ROUTE_CONTEXT_KEYS,
   createStringMap,
   hasOwn,
   InertValueError,
   joinPath,
   toInertValue,
 } from "@cam/protocol"
-import { CAM_CONTEXT_KEYS } from "./constants.ts"
-import type { CamRuntimeContext } from "./types.ts"
-import type { InertRecord, InertValue } from "@cam/protocol"
+import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 
 export function createContext(input: unknown): CamRuntimeContext {
   const source = requiredRecord(input, "")
@@ -47,7 +46,7 @@ function rejectUnknownContextFields(source: Record<string, unknown>): void {
   // data belong above core.
   rejectUnknownFields(
     source,
-    CAM_CONTEXT_KEYS,
+    CAM_ROUTE_CONTEXT_KEYS,
     "",
     (key) => `field is not allowed in CAM runtime context: ${key}`,
   )

@@ -179,7 +179,10 @@ services:
       - |
         import json
         import os
+        import re
         from urllib.parse import urlencode
+
+        EVM_ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 
         with open(os.environ["BROADCAST_PATH"], "r", encoding="utf-8") as handle:
             broadcast = json.load(handle)
@@ -195,7 +198,7 @@ services:
                 host = tx.get("contractAddress")
                 break
 
-        if not isinstance(host, str) or not host.startswith("0x") or len(host) != 42:
+        if not isinstance(host, str) or EVM_ADDRESS_RE.fullmatch(host) is None:
             raise SystemExit("CamRoot contractAddress not found in Forge broadcast output")
 
         query = urlencode({

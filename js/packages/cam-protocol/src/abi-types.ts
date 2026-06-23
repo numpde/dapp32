@@ -3,7 +3,39 @@ export type AbiIntegerType = {
   readonly signed: boolean
 }
 
+export type AbiTypeSignatureParameter = {
+  readonly type: string
+  readonly components?: readonly AbiTypeSignatureParameter[]
+}
+
+export type AbiFunctionSignatureSource = {
+  readonly name: string
+  readonly inputs: readonly AbiTypeSignatureParameter[]
+}
+
+export type AbiNamedParameter = {
+  readonly name?: unknown
+}
+
+export type NamedAbiParameter<T extends AbiNamedParameter> = {
+  readonly parameter: T
+  readonly name: string
+  readonly index: number
+}
+
+export type AbiParameterNameIssue =
+  | {
+    readonly kind: "unnamed"
+    readonly index: number
+  }
+  | {
+    readonly kind: "duplicate"
+    readonly name: string
+    readonly index: number
+  }
+
 export type AbiScalarKind = "address" | "bool" | "bytes" | "fixed-bytes" | "integer" | "string"
+export type AbiStateMutability = "pure" | "view" | "nonpayable" | "payable"
 
 const ABI_FUNCTION_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 
@@ -33,6 +65,76 @@ export function isAbiFunctionSignatureReference(value: string): boolean {
   }
 
   return depth === 0
+}
+
+// Route declarations and EVM adapters both compare full signatures to
+// disambiguate overloads. Keep that serialization protocol-owned; callers own
+// ABI validation and decide whether unsupported types are allowed to reach it.
+export function abiFunctionSignature(fn: AbiFunctionSignatureSource): string | undefined {
+  if (typeof fn.name !== "string" || !Array.isArray(fn.inputs)) return undefined
+
+  const inputs: string[] = []
+  for (const input of fn.inputs) {
+    const signature = abiTypeSignature(input)
+    if (signature === undefined) return undefined
+    inputs.push(signature)
+  }
+
+  return `${fn.name}(${inputs.join(",")})`
+}
+
+export function abiTypeSignature(parameter: AbiTypeSignatureParameter): string | undefined {
+  if (typeof parameter.type !== "string") return undefined
+
+  const suffix = abiTupleArraySuffix(parameter.type)
+  if (suffix === undefined) return parameter.type
+
+  const components = parameter.components
+  if (!Array.isArray(components)) return undefined
+
+  const componentTypes: string[] = []
+  for (const component of components) {
+    const signature = abiTypeSignature(component)
+    if (signature === undefined) return undefined
+    componentTypes.push(signature)
+  }
+
+  return `(${componentTypes.join(",")})${suffix}`
+}
+
+export function inspectAbiParameterNames<T extends AbiNamedParameter>(parameters: readonly T[]): {
+  readonly entries: readonly NamedAbiParameter<T>[]
+  readonly issues: readonly AbiParameterNameIssue[]
+} {
+  // CAM projects named ABI inputs and tuple components into object fields.
+  // Missing or duplicate names are ambiguous at every parser, conformance, and
+  // runtime boundary; callers own their diagnostic path and error code.
+  const entries: NamedAbiParameter<T>[] = []
+  const issues: AbiParameterNameIssue[] = []
+  const seen = new Set<string>()
+
+  for (const [index, parameter] of parameters.entries()) {
+    const name = parameter.name
+    if (typeof name !== "string" || name.length === 0) {
+      issues.push({ kind: "unnamed", index })
+      continue
+    }
+    if (seen.has(name)) {
+      issues.push({ kind: "duplicate", name, index })
+      continue
+    }
+
+    seen.add(name)
+    entries.push({ parameter, name, index })
+  }
+
+  return { entries, issues }
+}
+
+// Syntax ownership only: route validators decide whether a CAM read/write may
+// target a function with this mutability.
+export function isAbiStateMutability(value: unknown): value is AbiStateMutability {
+  return value === "pure" || value === "view" || value === "nonpayable" || value === "payable"
 }
 
 export function abiScalarKind(type: string): AbiScalarKind | undefined {
@@ -98,6 +200,19 @@ export function isAbiBytesValue(value: unknown, fixedBytesLength?: number): valu
 
 export function isFixedAbiArrayType(type: string): boolean {
   return /\[[0-9]+\]$/.test(type)
+}
+
+// Dynamic array syntax is ABI vocabulary shared by conformance and runtime
+// adapters. Fixed-array support stays caller-owned because each layer reports
+// unsupported fixed arrays with its own path and error code.
+export function abiDynamicArrayElementType(type: string): string | undefined {
+  return type.endsWith("[]") ? type.slice(0, -2) : undefined
+}
+
+export function abiTupleArraySuffix(type: string): string | undefined {
+  if (type === "tuple") return ""
+  if (/^tuple(\[[0-9]*\])+$/.test(type)) return type.slice("tuple".length)
+  return undefined
 }
 
 function isSupportedAbiIntegerBits(bits: number): boolean {

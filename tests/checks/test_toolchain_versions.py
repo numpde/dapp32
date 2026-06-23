@@ -4,7 +4,9 @@ import re
 import tomllib
 import unittest
 from dataclasses import dataclass
+from os.path import abspath
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from .common import iter_files, read_text, repo_path
 
@@ -55,18 +57,35 @@ class ToolchainVersionTest(unittest.TestCase):
             # time. Keep them in containers/ so service builds cannot quietly
             # start sending repo or dapp source trees into Docker build context.
             for line_number, context in self.compose_build_contexts(text):
-                resolved = (path.parent / context).resolve()
+                candidate = path.parent / context
+                resolved = candidate.resolve()
                 containers_root = repo_path("containers").resolve()
-                if resolved == containers_root or containers_root not in resolved.parents:
+                if self.path_has_symlink(candidate):
+                    failures.append(f"{path}:{line_number}: Compose build context must not pass through a symlink: {context}")
+                elif not candidate.is_dir():
+                    failures.append(f"{path}:{line_number}: Compose build context must be an existing directory: {context}")
+                elif resolved == containers_root or containers_root not in resolved.parents:
                     failures.append(f"{path}:{line_number}: Compose build context must stay under containers/: {context}")
-                elif resolved.is_symlink():
-                    failures.append(f"{path}:{line_number}: Compose build context must not be a symlink: {context}")
             for line_number, dockerfile in self.compose_build_dockerfiles(text):
                 if dockerfile != "Dockerfile":
                     failures.append(f"{path}:{line_number}: Compose build dockerfile must be Dockerfile: {dockerfile}")
 
         if failures:
             self.fail("\n".join(failures))
+
+    def test_build_context_symlink_guard_checks_unresolved_components(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real = root / "containers" / "real"
+            real.mkdir(parents=True)
+            link = root / "containers" / "link"
+            link.symlink_to(real, target_is_directory=True)
+
+            # Path.resolve() hides this case by returning the target. The
+            # posture check must inspect the operator-written context path
+            # before resolving containment.
+            self.assertTrue(self.path_has_symlink(link / "nested"))
+            self.assertFalse(self.path_has_symlink(real))
 
     def test_container_build_contexts_are_deny_by_default(self) -> None:
         failures: list[str] = []
@@ -193,3 +212,13 @@ class ToolchainVersionTest(unittest.TestCase):
 
     def is_pinned_image_reference(self, image: str) -> bool:
         return PINNED_IMAGE_REF_RE.fullmatch(image) is not None and ":latest@" not in image
+
+    def path_has_symlink(self, path: Path) -> bool:
+        absolute = Path(abspath(path))
+        current = Path(absolute.anchor)
+        for part in absolute.parts[1:]:
+            current /= part
+            if current.is_symlink():
+                return True
+
+        return False

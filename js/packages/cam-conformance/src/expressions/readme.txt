@@ -1,12 +1,9 @@
-Expression conformance belongs here.
+This facet owns static expression references used across CAM routes and UI
+documents: roots and fields promised by the surrounding protocol object.
 
-This facet should validate that expressions used across CAM routes, UI nodes,
-resource references, and action arguments resolve against the context promised
-by the surrounding protocol object.
+It catches static expression/context mismatches before a viewer executes a
+route or renders a UI tree, without resolving runtime values.
 
-It should catch static expression/context mismatches before a viewer executes a
-route or renders a UI tree.
-
-It should distinguish true dynamic expressions from escaped literal strings.
+It distinguishes true dynamic expressions from escaped literal strings.
 `$$foo` is data whose value starts with `$`, not an unresolved expression escape
 hatch.

@@ -1,20 +1,29 @@
 import {
+  abiDynamicArrayElementType,
+  abiFunctionSignature,
   abiScalarKind,
   isAbiAddressValue,
   isAbiBytesValue,
   isAbiFunctionName,
   isAbiFunctionSignatureReference,
   isAbiIntegerValue,
+  isAbiStateMutability,
+  isExpressionArrayIndex,
   isFixedAbiArrayType,
   isRecordObject,
   isSupportedAbiScalarType,
+  diffNameSets,
+  inspectAbiParameterNames,
   parseAbiFixedBytesLength,
   parseAbiIntegerType,
   parseJsonBytes,
+  type AbiParameterNameIssue,
+  type AbiStateMutability,
 } from "@cam/protocol"
 
 import {
   conformanceIssue,
+  conformanceRules,
   errorMessage,
   type CamConformanceIssue,
 } from "../issues.ts"
@@ -25,15 +34,12 @@ import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
 import {
-  diffNameSets,
-} from "../names.ts"
-import {
   forEachString,
-  isArrayIndex,
   nonEmptyString,
 } from "../walk.ts"
 import {
   expressionReference,
+  staticString,
 } from "../expressions/reference.ts"
 import {
   isKnownStaticStringValue,
@@ -44,7 +50,7 @@ import {
 export type AbiFunction = {
   readonly name: string
   readonly signature: string
-  readonly stateMutability: "pure" | "view" | "nonpayable" | "payable"
+  readonly stateMutability: AbiStateMutability
   readonly inputs: readonly AbiInput[]
   readonly outputs: readonly unknown[]
 }
@@ -66,6 +72,17 @@ export type AbiArgValueMismatch = {
   readonly pathSuffix: string
   readonly message: string
 }
+
+const RULES = conformanceRules({
+  CAM_ABI_INVALID: {
+    class: "A",
+    reason: "ABI resource shape is publication input for route/UI joins.",
+  },
+  CAM_ROUTE_ABI_MISMATCH: {
+    class: "A",
+    reason: "Route declarations must agree with ABI functions and known argument/output shapes.",
+  },
+})
 
 export function validateRouteAbiCompatibility({
   resource,
@@ -126,11 +143,12 @@ export function abiOutputAtSegments(output: unknown, segments: readonly string[]
   const type = nonEmptyString(output.type)
   if (type === undefined) return undefined
 
-  if (type.endsWith("[]")) {
-    if (!isArrayIndex(segment)) return undefined
+  const arrayElementType = abiDynamicArrayElementType(type)
+  if (arrayElementType !== undefined) {
+    if (!isExpressionArrayIndex(segment)) return undefined
     return abiOutputAtSegments({
       ...output,
-      type: type.slice(0, -2),
+      type: arrayElementType,
     }, rest)
   }
   if (type !== "tuple" || !Array.isArray(output.components)) return undefined
@@ -147,7 +165,7 @@ export function abiFunctionOutputForExpression(fn: AbiFunction, value: unknown):
   if (segments === undefined) return undefined
 
   const [index, ...fieldSegments] = segments
-  if (!isArrayIndex(index)) return undefined
+  if (!isExpressionArrayIndex(index)) return undefined
 
   const output = fn.outputs[Number(index)]
   if (output === undefined) return undefined
@@ -278,6 +296,9 @@ function validateRouteArgValue(
   parameter: Record<string, unknown>,
   issues: CamConformanceIssue[],
 ): void {
+  // Route arguments are joined to the declared ABI here; this rejects only
+  // deterministic literal/aggregate mismatches and skips unknown expressions
+  // that need runtime account/state/RPC resolution.
   for (const mismatch of abiArgValueMismatches(label, value, parameter)) {
     issues.push(routeAbiIssue(resource, `${path}${mismatch.pathSuffix}`, mismatch.message))
   }
@@ -304,7 +325,8 @@ function collectAbiArgValueMismatches(
   if (type === undefined) return
   if (value === UNKNOWN_ROUTE_CALL_VALUE) return
 
-  if (type.endsWith("[]")) {
+  const arrayElementType = abiDynamicArrayElementType(type)
+  if (arrayElementType !== undefined) {
     if (isUnknownExpression(value)) return
     if (!Array.isArray(value)) {
       const known = knownRouteArgValue(value)
@@ -312,7 +334,7 @@ function collectAbiArgValueMismatches(
       return
     }
 
-    const element = { ...parameter, type: type.slice(0, -2) }
+    const element = { ...parameter, type: arrayElementType }
     value.forEach((item, index) => {
       collectAbiArgValueMismatches(`${pathSuffix}.${index}`, `${label}.${index}`, item, element, mismatches)
     })
@@ -448,11 +470,16 @@ function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
 
   if (typeof value !== "string") return undefined
 
-  const reference = expressionReference(value)
-  if (reference === undefined) {
+  if (staticString(value) !== undefined) {
     return { kind: "string-literal", description: "a string literal" }
   }
 
+  const reference = expressionReference(value)
+  if (reference === undefined) return undefined
+
+  // Protocol roots have static semantic types even when their concrete values
+  // are runtime-supplied. Conformance may check address-vs-string wiring here,
+  // but not whether an account, host, or RPC value is currently available.
   if (reference.root === "account" && reference.segments.join(".") === "address") {
     return { kind: "address", description: "$account.address" }
   }
@@ -466,7 +493,7 @@ function knownRouteArgValue(value: unknown): KnownRouteArgValue | undefined {
 }
 
 function isUnknownExpression(value: unknown): boolean {
-  return typeof value === "string" && expressionReference(value) !== undefined && knownRouteArgValue(value) === undefined
+  return typeof value === "string" && staticString(value) === undefined && knownRouteArgValue(value) === undefined
 }
 
 function staticScalarString(value: unknown): unknown {
@@ -474,15 +501,15 @@ function staticScalarString(value: unknown): unknown {
 }
 
 function validateRouteOutputRefs(resource: string, route: DeclaredRoute, fn: AbiFunction, issues: CamConformanceIssue[]): void {
-  // This is intentionally reference-driven. The runtime ABI parser owns full ABI
-  // validity; conformance only needs to prove route handoffs do not point at
-  // outputs the called function cannot produce.
+  // This is reference-driven and cross-document: route handoffs must not point
+  // at ABI outputs the called function cannot produce. Runtime still owns
+  // concrete decoded output normalization.
   forEachString(route.then.args, `routes.${route.name}.then.args`, (value, path) => {
     const segments = outputExpressionSegments(value)
     if (segments === undefined || segments.length === 0) return
 
     const [indexSegment, ...fieldSegments] = segments
-    if (!isArrayIndex(indexSegment)) {
+    if (!isExpressionArrayIndex(indexSegment)) {
       issues.push(routeAbiIssue(resource, path, "route output reference must start with a numeric output index"))
       return
     }
@@ -518,15 +545,16 @@ function validateOutputFieldPath(
     return
   }
 
-  if (type.endsWith("[]")) {
-    if (!isArrayIndex(segment)) {
+  const arrayElementType = abiDynamicArrayElementType(type)
+  if (arrayElementType !== undefined) {
+    if (!isExpressionArrayIndex(segment)) {
       issues.push(routeAbiIssue(resource, path, `route output array reference must use a numeric index before ${segment}`))
       return
     }
 
     validateOutputFieldPath(resource, path, {
       ...output,
-      type: type.slice(0, -2),
+      type: arrayElementType,
     }, rest, issues)
     return
   }
@@ -560,6 +588,8 @@ function parseAbiFunctions(
   bytes: Uint8Array,
   issues: CamConformanceIssue[],
 ): readonly AbiFunction[] | null {
+  // This is not a general ABI linter; it extracts only the function surface
+  // needed to join routes, handoffs, and UI values at publication time.
   let abi: unknown
   let parseError: string | undefined
   try {
@@ -614,7 +644,7 @@ function parseAbiFunction(
   if (itemType !== "function") return undefined
 
   const name = nonEmptyString(item.name)
-  const stateMutability = abiStateMutability(item.stateMutability)
+  const stateMutability = isAbiStateMutability(item.stateMutability) ? item.stateMutability : undefined
   const inputs = abiInputs(resource, path, item.inputs, issues)
   const outputs = abiOutputs(resource, path, item.outputs, issues)
 
@@ -632,9 +662,15 @@ function parseAbiFunction(
     return undefined
   }
 
+  const signature = abiFunctionSignature({ name, inputs })
+  if (signature === undefined) {
+    issues.push(abiIssue(resource, path, "ABI function signature cannot be derived"))
+    return undefined
+  }
+
   return {
     name,
-    signature: `${name}(${inputs.map((input) => input.type).join(",")})`,
+    signature,
     stateMutability,
     inputs,
     outputs,
@@ -652,25 +688,32 @@ function abiInputs(
     return undefined
   }
 
-  const result: AbiInput[] = []
-  const inputNames = new Set<string>()
+  const inputRecords: Record<string, unknown>[] = []
   for (const [index, input] of inputs.entries()) {
     const inputPath = `${path}.inputs.${index}`
     if (!isRecordObject(input)) {
       issues.push(abiIssue(resource, inputPath, "ABI input must be an object"))
       return undefined
     }
+    inputRecords.push(input)
+  }
 
-    const name = nonEmptyString(input.name)
-    if (name === undefined) {
-      issues.push(abiIssue(resource, `${inputPath}.name`, "ABI inputs used by CAM routes must be named"))
-      return undefined
-    }
-    if (inputNames.has(name)) {
-      issues.push(abiIssue(resource, `${inputPath}.name`, `ABI input name is duplicated: ${name}`))
-      return undefined
-    }
-    inputNames.add(name)
+  const inspected = inspectAbiParameterNames(inputRecords)
+  const nameIssue = inspected.issues[0]
+  if (nameIssue !== undefined) {
+    issues.push(abiParameterNameIssue({
+      resource,
+      path: `${path}.inputs`,
+      issue: nameIssue,
+      unnamedMessage: "ABI inputs used by CAM routes must be named",
+      duplicateMessage: "ABI input name is duplicated",
+    }))
+    return undefined
+  }
+
+  const result: AbiInput[] = []
+  for (const { parameter: input, name, index } of inspected.entries) {
+    const inputPath = `${path}.inputs.${index}`
     const type = canonicalAbiType(resource, inputPath, input, "input", issues)
     if (type === undefined) {
       return undefined
@@ -726,14 +769,6 @@ function functionsByName(functions: readonly AbiFunction[]): ReadonlyMap<string,
   return result
 }
 
-function abiStateMutability(value: unknown): AbiFunction["stateMutability"] | undefined {
-  if (value === "pure" || value === "view" || value === "nonpayable" || value === "payable") {
-    return value
-  }
-
-  return undefined
-}
-
 function canonicalAbiType(
   resource: string,
   path: string,
@@ -741,17 +776,17 @@ function canonicalAbiType(
   position: "input" | "output",
   issues: CamConformanceIssue[],
 ): string | undefined {
-  // Keep this surface aligned with the runtime EVM adapter's function ABI
-  // parser. Conformance should reject ABI resources the viewer cannot load,
-  // without becoming a general-purpose Solidity ABI linter.
+  // CAM supports a deliberately small ABI type surface. Conformance rejects
+  // unsupported publication resources without becoming a Solidity ABI linter.
   const type = nonEmptyString(item.type)
   if (type === undefined) {
     issues.push(abiIssue(resource, `${path}.type`, `ABI ${position} type must be a non-empty string`))
     return undefined
   }
 
-  if (type.endsWith("[]")) {
-    const elementType = canonicalAbiType(resource, path, { ...item, type: type.slice(0, -2) }, position, issues)
+  const arrayElementType = abiDynamicArrayElementType(type)
+  if (arrayElementType !== undefined) {
+    const elementType = canonicalAbiType(resource, path, { ...item, type: arrayElementType }, position, issues)
     return elementType === undefined ? undefined : `${elementType}[]`
   }
 
@@ -778,31 +813,57 @@ function canonicalAbiType(
   }
 
   const componentTypes: string[] = []
-  const componentNames = new Set<string>()
+  const componentRecords: Record<string, unknown>[] = []
   for (const [index, component] of item.components.entries()) {
     const componentPath = `${path}.components.${index}`
     if (!isRecordObject(component)) {
       issues.push(abiIssue(resource, componentPath, "tuple ABI component must be an object"))
       return undefined
     }
+    componentRecords.push(component)
+  }
 
-    const componentName = nonEmptyString(component.name)
-    if (componentName === undefined) {
-      issues.push(abiIssue(resource, `${componentPath}.name`, "tuple ABI components used by CAM routes must be named"))
-      return undefined
-    }
-    if (componentNames.has(componentName)) {
-      issues.push(abiIssue(resource, `${componentPath}.name`, `tuple ABI component name is duplicated: ${componentName}`))
-      return undefined
-    }
-    componentNames.add(componentName)
+  const inspected = inspectAbiParameterNames(componentRecords)
+  const nameIssue = inspected.issues[0]
+  if (nameIssue !== undefined) {
+    issues.push(abiParameterNameIssue({
+      resource,
+      path: `${path}.components`,
+      issue: nameIssue,
+      unnamedMessage: "tuple ABI components used by CAM routes must be named",
+      duplicateMessage: "tuple ABI component name is duplicated",
+    }))
+    return undefined
+  }
 
+  for (const { parameter: component, index } of inspected.entries) {
+    const componentPath = `${path}.components.${index}`
     const componentType = canonicalAbiType(resource, componentPath, component, position, issues)
     if (componentType === undefined) return undefined
     componentTypes.push(componentType)
   }
 
   return `(${componentTypes.join(",")})`
+}
+
+function abiParameterNameIssue({
+  resource,
+  path,
+  issue,
+  unnamedMessage,
+  duplicateMessage,
+}: {
+  readonly resource: string
+  readonly path: string
+  readonly issue: AbiParameterNameIssue
+  readonly unnamedMessage: string
+  readonly duplicateMessage: string
+}): CamConformanceIssue {
+  if (issue.kind === "unnamed") {
+    return abiIssue(resource, `${path}.${issue.index}.name`, unnamedMessage)
+  }
+
+  return abiIssue(resource, `${path}.${issue.index}.name`, `${duplicateMessage}: ${issue.name}`)
 }
 
 function firstSignature(functions: readonly AbiFunction[]): string {
@@ -820,7 +881,7 @@ function outputExpressionSegments(value: string): readonly string[] | undefined 
 
 function abiIssue(resource: string, path: string | undefined, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_ABI_INVALID",
+    rule: RULES.CAM_ABI_INVALID,
     resource,
     path,
     message,
@@ -829,7 +890,7 @@ function abiIssue(resource: string, path: string | undefined, message: string): 
 
 function routeAbiIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_ROUTE_ABI_MISMATCH",
+    rule: RULES.CAM_ROUTE_ABI_MISMATCH,
     resource,
     path,
     message,

@@ -1,7 +1,13 @@
 import { CamError } from "./errors.ts"
 import { resolveArgs } from "./expressions.ts"
-import { hasOwn } from "@cam/protocol"
-import type { CamDocument, CamResolvedInvocation, CamRoute, CamRuntimeContext } from "./types.ts"
+import {
+  diffNameSets,
+  hasOwn,
+  isRecordObject,
+  parseExpressionReference,
+} from "@cam/protocol"
+import type { CamRuntimeContext } from "@cam/protocol"
+import type { CamDocument, CamResolvedInvocation, CamRoute } from "./types.ts"
 
 export function resolveRouteCall(
   cam: CamDocument,
@@ -53,39 +59,30 @@ function assertRouteInputs(route: CamRoute, routeName: string, context: CamRunti
   // `route.inputs` is the callable interface for a route. Expressions may not
   // touch every input on every branch, so enforce the interface before resolving
   // route calls or continuations.
-  const expected = new Set(route.inputs)
-  const actual = new Set(Object.keys(context.inputs))
-
-  for (const name of route.inputs) {
-    if (!actual.has(name)) {
+  diffNameSets({
+    expectedNames: route.inputs,
+    actualNames: Object.keys(context.inputs),
+    onMissing: (name) => {
       throw new CamError("CAM_INVALID_FIELD", `missing route input: ${name}`, `routes.${routeName}.inputs`)
-    }
-  }
-
-  for (const name of actual) {
-    if (!expected.has(name)) {
+    },
+    onUnexpected: (name) => {
       throw new CamError("CAM_INVALID_FIELD", `unexpected route input: ${name}`, `routes.${routeName}.inputs`)
-    }
-  }
+    },
+  })
 }
 
 function argsReferenceAccount(value: unknown): boolean {
-  if (typeof value === "string") return expressionRoot(value) === "account"
+  if (typeof value === "string") {
+    return parseExpressionReference(value, { numericSegments: true })?.root === "account"
+  }
 
   if (Array.isArray(value)) {
     return value.some((item) => argsReferenceAccount(item))
   }
 
-  if (value !== null && typeof value === "object") {
+  if (isRecordObject(value)) {
     return Object.values(value).some((item) => argsReferenceAccount(item))
   }
 
   return false
-}
-
-function expressionRoot(value: string): string | undefined {
-  if (!value.startsWith("$") || value.startsWith("$$")) return undefined
-
-  const [root] = value.slice(1).split(".")
-  return root
 }

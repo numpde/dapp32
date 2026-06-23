@@ -1,10 +1,11 @@
 import type { Abi, AbiFunction } from "viem"
 import {
+  abiFunctionSignature,
   isAbiFunctionName,
   isAbiFunctionSignatureReference,
+  isRecordObject,
 } from "@cam/protocol"
 
-import { abiFunctionSignature } from "./abi.ts"
 import { CamEvmError } from "./errors.ts"
 import type { CamEvmErrorCode } from "./errors.ts"
 
@@ -42,11 +43,15 @@ export function singleFunctionAbi(fn: AbiFunction): Abi {
 }
 
 function matchingFunctions(abi: Abi, functionName: string): readonly AbiFunction[] {
-  const functions = abi.filter((item): item is AbiFunction => item.type === "function")
+  const functions = abi.filter(isFunctionAbiItem)
   if (isAbiFunctionSignatureReference(functionName)) {
     return functions.filter((item) => abiFunctionSignature(item) === functionName)
   }
   if (!isAbiFunctionName(functionName)) return []
 
   return functions.filter((item) => item.name === functionName)
+}
+
+function isFunctionAbiItem(item: unknown): item is AbiFunction {
+  return isRecordObject(item) && item.type === "function"
 }

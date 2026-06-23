@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs"
-
 import {
   createPublicClient,
   createWalletClient,
@@ -40,14 +38,19 @@ import type {
   CamViewerSession,
   CamViewerSnapshot,
 } from "../../packages/cam-viewer/dist/index.js"
+import {
+  resolvedUiButtons,
+  resolvedUiInputNames,
+} from "../../packages/cam-screen/dist/index.js"
 import type {
   ResolvedButtonNode,
-  ResolvedUiNode,
 } from "../../packages/cam-screen/dist/index.js"
 import {
+  createSameOriginHttpResourceLoader,
   isRecordObject,
-  parseJsonText,
+  parseJsonBytes,
   requireHttpOrigin,
+  requireHttpURL,
   toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
@@ -61,7 +64,9 @@ import {
   requiredString,
   requiredStringValue,
 } from "../input.ts"
-import { createSameOriginHttpResourceLoader } from "../http-resource.ts"
+import {
+  readBoundedFileSync,
+} from "../local-cam-files.ts"
 
 type Descriptor = {
   readonly camIntegration: typeof CAM_INTEGRATION_DESCRIPTOR_VERSION
@@ -74,6 +79,10 @@ type Descriptor = {
 }
 
 const CAM_INTEGRATION_DESCRIPTOR_VERSION = "1.0.0"
+// Write-enabled fuzz is a CI gate, not an operator console; a stalled local
+// chain must fail with replay data instead of hanging the lane indefinitely.
+const RECEIPT_WAIT_TIMEOUT_MS = 20_000
+const RECEIPT_POLLING_INTERVAL_MS = 500
 const DESCRIPTOR_KEYS = new Set([
   "camIntegration",
   "chainId",
@@ -110,7 +119,11 @@ type WriteContext =
   }
 
 type ReceiptClient = {
-  readonly waitForTransactionReceipt: (request: { readonly hash: Hex }) => Promise<{
+  readonly waitForTransactionReceipt: (request: {
+    readonly hash: Hex
+    readonly pollingInterval?: number
+    readonly timeout?: number
+  }) => Promise<{
     readonly status: string
     readonly transactionHash: Hex
   }>
@@ -144,6 +157,7 @@ async function main(): Promise<void> {
   const loadResource = createSameOriginHttpResourceLoader({
     originInput: options.descriptor.resourceOrigin,
     originLabel: "descriptor.resourceOrigin",
+    fetchResource: fetch,
     loadFailurePrefix: "failed to load CAM resource",
   })
 
@@ -211,7 +225,7 @@ async function main(): Promise<void> {
     inputs: entry.inputs,
     state: entry.state,
     values: entry.values,
-    actions: actionSummaries(actionNodes(entry.resolvedUi)),
+    actions: actionSummaries(resolvedUiButtons(entry.resolvedUi)),
   })
 
   await callEveryReadRoute({
@@ -347,7 +361,7 @@ async function walkSession({
       : session.updateState(statePatch)
     assertResolvedSnapshot(current)
 
-    const actions = actionNodes(current.resolvedUi)
+    const actions = resolvedUiButtons(current.resolvedUi)
     if (actions.length === 0) {
       emit({
         event: "step",
@@ -393,7 +407,7 @@ async function walkSession({
         inputs: result.snapshot.inputs,
         state: result.snapshot.state,
         values: result.snapshot.values,
-        actions: actionSummaries(actionNodes(result.snapshot.resolvedUi)),
+        actions: actionSummaries(resolvedUiButtons(result.snapshot.resolvedUi)),
       })
       continue
     }
@@ -483,7 +497,19 @@ async function handlePreparedWrite({
     call: contractCallSummary(call),
   })
 
-  const receipt = await receiptClient.waitForTransactionReceipt({ hash })
+  let receipt: Awaited<ReturnType<ReceiptClient["waitForTransactionReceipt"]>>
+  try {
+    receipt = await receiptClient.waitForTransactionReceipt({
+      hash,
+      pollingInterval: RECEIPT_POLLING_INTERVAL_MS,
+      timeout: RECEIPT_WAIT_TIMEOUT_MS,
+    })
+  } catch (cause) {
+    throw new Error(
+      `write transaction receipt was not observed within ${RECEIPT_WAIT_TIMEOUT_MS / 1000}s for route ${call.route}: ${hash}`,
+      { cause },
+    )
+  }
   emit({
     event: "write_transaction",
     run,
@@ -510,7 +536,7 @@ async function handlePreparedWrite({
     inputs: snapshot.inputs,
     state: snapshot.state,
     values: snapshot.values,
-    actions: actionSummaries(actionNodes(snapshot.resolvedUi)),
+    actions: actionSummaries(resolvedUiButtons(snapshot.resolvedUi)),
     afterWriteHash: receipt.transactionHash,
   })
 }
@@ -581,7 +607,7 @@ function snapshotSummary(snapshot: CamViewerLoadedSnapshot): JsonObject {
     inputs: snapshot.inputs,
     state: snapshot.state,
     values: snapshot.values,
-    actions: actionSummaries(actionNodes(snapshot.resolvedUi)),
+    actions: actionSummaries(resolvedUiButtons(snapshot.resolvedUi)),
   }
 }
 
@@ -615,7 +641,7 @@ function generatedStatePatch(
   }
 
   const patch: Record<string, InertValue> = {}
-  for (const name of inputNames(resolved)) {
+  for (const name of resolvedUiInputNames(resolved)) {
     patch[name] = generatedNamedValue(name, account, prng, mode)
   }
 
@@ -646,7 +672,7 @@ function generatedNamedValue(name: string, account: Address, prng: Prng, mode: V
 
 function assertResolvedSnapshot(snapshot: CamViewerSnapshot): void {
   const loaded = requireLoadedSnapshot(snapshot)
-  if (actionNodes(loaded.resolvedUi).some((action) => action.call.namespace !== "routes")) {
+  if (resolvedUiButtons(loaded.resolvedUi).some((action) => action.call.namespace !== "routes")) {
     throw new Error(`route ${loaded.route}: resolved action outside routes namespace`)
   }
 }
@@ -671,38 +697,6 @@ function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoadedSnap
     uiURI: snapshot.uiURI,
     resolvedUi: snapshot.resolvedUi,
     values: snapshot.values,
-  }
-}
-
-function inputNames(node: ResolvedUiNode): readonly string[] {
-  const names = new Set<string>()
-  visitNodes(node, (candidate) => {
-    if (candidate.element !== "TextField") return
-    const name = candidate.state?.key
-    if (typeof name !== "string" || name.length === 0) {
-      throw new Error("resolved TextField node has no non-empty state key")
-    }
-    names.add(name)
-  })
-  return [...names].sort()
-}
-
-function actionNodes(node: ResolvedUiNode): readonly ResolvedButtonNode[] {
-  const actions: ResolvedButtonNode[] = []
-  visitNodes(node, (candidate) => {
-    if (candidate.element === "Button") {
-      actions.push(candidate)
-    }
-  })
-  return actions
-}
-
-function visitNodes(node: ResolvedUiNode, visit: (node: ResolvedUiNode) => void): void {
-  visit(node)
-  if ("children" in node) {
-    for (const child of node.children) {
-      visitNodes(child, visit)
-    }
   }
 }
 
@@ -768,7 +762,7 @@ function requiredPrivateKey(env: NodeJS.ProcessEnv, name: string): Hex {
 }
 
 function readDescriptor(path: string): Descriptor {
-  const value = parseJsonText(readFileSync(path, "utf8"))
+  const value = parseJsonBytes(readBoundedFileSync(path, "CAM integration descriptor"))
   if (!isRecordObject(value)) {
     throw new Error("CAM integration descriptor must be an object")
   }
@@ -784,7 +778,7 @@ function readDescriptor(path: string): Descriptor {
   return {
     camIntegration: CAM_INTEGRATION_DESCRIPTOR_VERSION,
     chainId: requireEvmChainId(requiredString(value, "chainId", "descriptor.chainId")),
-    rpcUrl: requiredString(value, "rpcUrl", "descriptor.rpcUrl"),
+    rpcUrl: requireHttpURL(requiredString(value, "rpcUrl", "descriptor.rpcUrl"), "descriptor.rpcUrl").href,
     camHost: requireEvmAddress(requiredString(value, "camHost", "descriptor.camHost"), "descriptor.camHost"),
     resourceOrigin: requireHttpOrigin(
       requiredString(value, "resourceOrigin", "descriptor.resourceOrigin"),

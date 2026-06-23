@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build:workspace": "npm run build --workspaces --if-present",
-    "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/core && npm run build -w @cam/screen && npm run build -w @cam/conformance",
+    "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/conformance",
     "test:cam-conformance": "npm run build:cam-conformance && npm test -w @cam/conformance",
     "test:workspace": "npm run build:workspace && npm test --workspaces --if-present"
   },

@@ -1,19 +1,34 @@
 import {
-  diffNameSets,
-} from "../names.ts"
-import {
   conformanceIssue,
+  conformanceRules,
   type CamConformanceIssue,
 } from "../issues.ts"
 import {
+  diffNameSets,
+  nameListShapeIssues,
+  UI_CALL_NAMESPACE_BY_ELEMENT,
   UI_RUNTIME_ROOTS,
+  type UiCallNamespace,
 } from "@cam/protocol"
 
-// Shared invariants for all CAM UI call validation paths.
-// These rules are used by both dataflow and typeflow so call-shape checks
-// cannot diverge between static and resolved validation passes.
-export type UiCallNamespace = "routes" | "ui"
-export type UiCallValidationRule = "CAM_UI_DATAFLOW_MISMATCH" | "CAM_UI_TYPEFLOW_MISMATCH"
+export type {
+  UiCallNamespace,
+}
+
+export const UI_CALL_RULES = conformanceRules({
+  CAM_UI_DATAFLOW_MISMATCH: {
+    class: "A",
+    reason: "UI dataflow checks static Include/Button name-set contracts and local state key names.",
+  },
+  CAM_UI_TYPEFLOW_MISMATCH: {
+    class: "A",
+    reason: "UI typeflow reports only route-local facts proven from ABI, literal, or known handoff values.",
+  },
+})
+
+export type UiCallValidationRule =
+  | typeof UI_CALL_RULES.CAM_UI_DATAFLOW_MISMATCH
+  | typeof UI_CALL_RULES.CAM_UI_TYPEFLOW_MISMATCH
 
 export function validateUiCallArgNames({
   resource,
@@ -37,7 +52,7 @@ export function validateUiCallArgNames({
     return false
   }
 
-  if (namespace !== "ui") return true
+  if (namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Include) return true
 
   // Include targets receive a literal argument map; shadowing runtime roots would
   // make downstream expressions ambiguous and hard to audit.
@@ -70,7 +85,7 @@ export function validateUiCallFunctionShape({
 
   // Include calls intentionally accept literal single or multiple targets; button
   // calls are intentionally singular (one route per click).
-  if (namespace === "ui" && Array.isArray(value)) {
+  if (namespace === UI_CALL_NAMESPACE_BY_ELEMENT.Include && Array.isArray(value)) {
     if (value.every((item) => typeof item === "string")) return true
     issues.push(callIssue(resource, rule, `${path}.call.function`, "UI Include target must be a string or string array"))
     return false
@@ -80,7 +95,7 @@ export function validateUiCallFunctionShape({
     resource,
     rule,
     `${path}.call.function`,
-    namespace === "ui"
+    namespace === UI_CALL_NAMESPACE_BY_ELEMENT.Include
       ? "UI Include target must be a string or string array"
       : "UI Button route target must be a string",
   ))
@@ -103,16 +118,14 @@ export function validateKnownCallTargets({
   readonly rule: UiCallValidationRule
 }): boolean {
   let valid = true
-  const seen = new Set<string>()
-  for (const name of names) {
-    if (name.length === 0) {
+  for (const issue of nameListShapeIssues(names)) {
+    if (issue.kind === "empty") {
       issues.push(callIssue(resource, rule, path, `${label} target must not be empty`))
       valid = false
-    } else if (seen.has(name)) {
-      issues.push(callIssue(resource, rule, path, `${label} target must not be duplicated: ${name}`))
+    } else {
+      issues.push(callIssue(resource, rule, path, `${label} target must not be duplicated: ${issue.name}`))
       valid = false
     }
-    seen.add(name)
   }
 
   return valid

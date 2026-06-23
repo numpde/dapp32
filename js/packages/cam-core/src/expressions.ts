@@ -1,16 +1,15 @@
-import { CAM_CONTEXT_KEYS } from "./constants.ts"
 import { CamError } from "./errors.ts"
 import {
+  CAM_ROUTE_CONTEXT_KEYS,
   createExpressionRuntime,
   InertValueError,
   joinPath,
   toInertValue,
 } from "@cam/protocol"
-import type { CamRuntimeContext } from "./types.ts"
-import type { InertValue } from "@cam/protocol"
+import type { CamRuntimeContext, InertValue } from "@cam/protocol"
 
 const CAM_EXPRESSIONS = createExpressionRuntime({
-  roots: CAM_CONTEXT_KEYS,
+  roots: CAM_ROUTE_CONTEXT_KEYS,
   numericSegments: true,
   normalize(value, path) {
     try {

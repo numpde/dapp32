@@ -6,11 +6,12 @@ import {
   isAbiIntegerValue,
   isFixedAbiArrayType,
   isRecordObject,
+  inspectAbiParameterNames,
   parseAbiFixedBytesLength,
   parseAbiIntegerType,
 } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
-import type { AbiIntegerType, CamRuntimeContext, InertValue } from "@cam/protocol"
+import type { AbiIntegerType, AbiParameterNameIssue, CamRuntimeContext, InertValue, NamedAbiParameter } from "@cam/protocol"
 import { isAddress } from "viem"
 import type { Abi, AbiFunction, AbiParameter, Address } from "viem"
 
@@ -225,13 +226,7 @@ function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string
 
 function normalizeTupleValue(value: unknown, parameter: AbiTupleParameter, path: string): InertValue {
   const record = createStringMap<InertValue>()
-  const components = parameter.components.map((component, index) => {
-    const name = component.name
-    if (name === undefined || name.length === 0) {
-      throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI tuple component is unnamed at ${path}.${index}`)
-    }
-    return { component, name }
-  })
+  const components = requireNamedOutputComponents(parameter.components, path)
   const componentNames = new Set(components.map(({ name }) => name))
 
   if (isRecordObject(value)) {
@@ -246,7 +241,7 @@ function normalizeTupleValue(value: unknown, parameter: AbiTupleParameter, path:
     }
   }
 
-  components.forEach(({ component, name }, index) => {
+  components.forEach(({ parameter: component, name, index }) => {
     const componentValue = readTupleComponent(value, name, index)
     if (componentValue === undefined) {
       throw new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route tuple is missing component ${name} at ${path}`)
@@ -256,6 +251,30 @@ function normalizeTupleValue(value: unknown, parameter: AbiTupleParameter, path:
   })
 
   return record
+}
+
+function requireNamedOutputComponents(
+  components: readonly AbiParameter[],
+  path: string,
+): readonly NamedAbiParameter<AbiParameter>[] {
+  const inspected = inspectAbiParameterNames(components)
+  const issue = inspected.issues[0]
+  if (issue !== undefined) {
+    throw outputComponentNameError(issue, path)
+  }
+
+  return inspected.entries
+}
+
+function outputComponentNameError(issue: AbiParameterNameIssue, path: string): CamEvmError {
+  if (issue.kind === "unnamed") {
+    return new CamEvmError("CAM_ROUTE_INVALID_RESULT", `CAM route ABI tuple component is unnamed at ${path}.${issue.index}`)
+  }
+
+  return new CamEvmError(
+    "CAM_ROUTE_INVALID_RESULT",
+    `CAM route ABI tuple component name is duplicated at ${path}.${issue.index}: ${issue.name}`,
+  )
 }
 
 function readTupleComponent(value: unknown, name: string, index: number): unknown {

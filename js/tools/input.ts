@@ -17,9 +17,13 @@ export function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
 
 export function requiredPositiveIntegerEnv(env: NodeJS.ProcessEnv, name: string): number {
   const value = requiredEnv(env, name)
+  return parsePositiveIntegerText(value, `${name}: expected a positive integer`)
+}
+
+export function parsePositiveIntegerText(value: string, message: string): number {
   const parsed = Number(value)
-  if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`${name}: expected a positive integer`)
+  if (!/^[1-9][0-9]*$/.test(value) || !Number.isSafeInteger(parsed)) {
+    throw new Error(message)
   }
 
   return parsed

@@ -8,11 +8,15 @@ import type {
 import {
   toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
+import {
+  resolvedUiButtons,
+} from "../../packages/cam-screen/dist/index.js"
 import type {
   ResolvedButtonNode,
   ResolvedUiNode,
 } from "../../packages/cam-screen/dist/index.js"
 
+import { parsePositiveIntegerText } from "../input.ts"
 import { createTerminalBackendFromEnv } from "./backends/index.ts"
 import type {
   DebugEvent,
@@ -142,10 +146,11 @@ async function handleRestart(context: TerminalContext): Promise<void> {
 }
 
 async function handlePress(session: CamViewerSession, args: readonly string[]): Promise<void> {
-  const index = Number(args[0])
-  if (!Number.isInteger(index) || index < 1) {
+  const rawIndex = args[0]
+  if (rawIndex === undefined) {
     throw new Error("usage: press <button-number>")
   }
+  const index = parsePositiveIntegerText(rawIndex, "usage: press <button-number>")
 
   const button = buttonsOf(session.snapshot())[index - 1]
   if (button === undefined) {
@@ -231,7 +236,7 @@ function renderNode(
 }
 
 function textFieldValue(node: ResolvedUiNode, state: Record<string, unknown>): unknown {
-  if (node.element !== "TextField" || node.state === undefined) {
+  if (node.element !== "TextField") {
     return ""
   }
 
@@ -243,20 +248,7 @@ function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonNode[] {
     throw new Error("viewer has no resolved UI")
   }
 
-  const buttons: ResolvedButtonNode[] = []
-  collectButtons(snapshot.resolvedUi, buttons)
-  return buttons
-}
-
-function collectButtons(node: ResolvedUiNode, buttons: ResolvedButtonNode[]): void {
-  if (node.element === "Button") {
-    buttons.push(node)
-    return
-  }
-
-  for (const child of node.children) {
-    collectButtons(child, buttons)
-  }
+  return resolvedUiButtons(snapshot.resolvedUi)
 }
 
 function labelForAction(action: ResolvedButtonNode): string {

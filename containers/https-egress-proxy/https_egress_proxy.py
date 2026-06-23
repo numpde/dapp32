@@ -4,6 +4,7 @@ from __future__ import annotations
 import http.server
 import ipaddress
 import os
+import re
 import select
 import selectors
 import socket
@@ -18,12 +19,38 @@ def required_env(name: str) -> str:
     return value
 
 
+POSITIVE_INT_RE = re.compile(r"^[1-9][0-9]*$")
+POSITIVE_SECONDS_RE = re.compile(r"^(?:[1-9][0-9]*)(?:\.[0-9]+)?$|^0\.[0-9]*[1-9][0-9]*$")
+PORT_RE = re.compile(r"^[0-9]+$")
+
+
+def required_positive_int_env(name: str) -> int:
+    value = required_env(name)
+    if POSITIVE_INT_RE.fullmatch(value) is None:
+        raise RuntimeError(f"{name}: expected a positive decimal integer")
+    return int(value)
+
+
+def required_port_env(name: str) -> int:
+    port = required_positive_int_env(name)
+    if port > 65535:
+        raise RuntimeError(f"{name}: expected a TCP port in 1..65535")
+    return port
+
+
+def required_positive_seconds_env(name: str) -> float:
+    value = required_env(name)
+    if POSITIVE_SECONDS_RE.fullmatch(value) is None:
+        raise RuntimeError(f"{name}: expected positive seconds")
+    return float(value)
+
+
 LISTEN_HOST = required_env("HTTPS_EGRESS_PROXY_HOST")
-LISTEN_PORT = int(required_env("HTTPS_EGRESS_PROXY_PORT"))
-CONNECT_TIMEOUT_SECONDS = float(required_env("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS"))
-TUNNEL_IDLE_TIMEOUT_SECONDS = float(required_env("HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS"))
-MAX_HOST_BYTES = int(required_env("HTTPS_EGRESS_PROXY_MAX_HOST_BYTES"))
-BUFFER_BYTES = int(required_env("HTTPS_EGRESS_PROXY_BUFFER_BYTES"))
+LISTEN_PORT = required_port_env("HTTPS_EGRESS_PROXY_PORT")
+CONNECT_TIMEOUT_SECONDS = required_positive_seconds_env("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS")
+TUNNEL_IDLE_TIMEOUT_SECONDS = required_positive_seconds_env("HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS")
+MAX_HOST_BYTES = required_positive_int_env("HTTPS_EGRESS_PROXY_MAX_HOST_BYTES")
+BUFFER_BYTES = required_positive_int_env("HTTPS_EGRESS_PROXY_BUFFER_BYTES")
 ALLOWED_HOSTS = frozenset()
 
 
@@ -75,11 +102,10 @@ def parse_connect_target(target: str) -> tuple[str, int]:
 
     host = normalize_host(host)
 
-    try:
-        port = int(port_text)
-    except ValueError as exc:
-        raise ProxyRejected("CONNECT target has an invalid port") from exc
+    if PORT_RE.fullmatch(port_text) is None:
+        raise ProxyRejected("CONNECT target has an invalid port")
 
+    port = int(port_text)
     if port != 443:
         raise ProxyRejected("CONNECT target must use port 443")
 

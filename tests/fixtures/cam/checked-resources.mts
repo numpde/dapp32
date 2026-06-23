@@ -1,12 +1,19 @@
-import { lstat, readFile, readdir, realpath } from "node:fs/promises"
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
+import { readFile, readdir } from "node:fs/promises"
+import { join, relative } from "node:path"
+import test from "node:test"
 import { fileURLToPath } from "node:url"
 // This fixture is typechecked from several package test projects, where the
 // @cam/protocol package name is not resolvable from tests/fixtures. Import the
 // source parser directly so checked-in CAM discovery still uses the one JSON
 // policy that rejects duplicate keys.
 import { parseJsonText } from "../../../js/packages/cam-protocol/src/json.ts"
-import { assertCamSecondaryResourceURI } from "../../../js/packages/cam-protocol/src/resources.ts"
+import {
+  camNamespaceResourceURIKey,
+  isCamNamespaceType,
+  isCamResourceNamespaceType,
+} from "../../../js/packages/cam-protocol/src/manifest.ts"
+import type { CamResourceNamespaceType } from "../../../js/packages/cam-protocol/src/manifest.ts"
+import { localCamResourcePath } from "../../../js/tools/local-cam-files.ts"
 
 export const dappsRoot = fileURLToPath(new URL("../../../dapps/", import.meta.url))
 
@@ -47,6 +54,17 @@ export function checkedInDeclaredLocalResourceURIs(root: unknown): readonly stri
   return checkedInLocalResourceDeclarations(root).map((declaration) => declaration.uri)
 }
 
+export async function testCheckedInFiles(
+  paths: Promise<readonly string[]> | readonly string[],
+  check: (path: string) => Promise<void> | void,
+): Promise<void> {
+  // Subtest labels are part of the checked-in corpus contract: failures should
+  // name the dapp-relative resource, not the package currently consuming it.
+  for (const path of await paths) {
+    await test(relative(dappsRoot, path), async () => check(path))
+  }
+}
+
 function assertCamRootDocument(path: string, document: unknown): void {
   if (isRecord(document) && typeof document.cam === "string") {
     return
@@ -79,7 +97,7 @@ async function childFile(parent: string, name: string): Promise<string | undefin
   return undefined
 }
 
-async function checkedInResourcePaths(type: "contract" | "ui"): Promise<string[]> {
+async function checkedInResourcePaths(type: CamResourceNamespaceType): Promise<string[]> {
   const paths: string[] = []
 
   for (const rootPath of await checkedInCamRootPaths()) {
@@ -95,7 +113,7 @@ async function checkedInResourcePaths(type: "contract" | "ui"): Promise<string[]
 }
 
 type LocalResourceDeclaration = {
-  readonly type: "contract" | "ui"
+  readonly type: CamResourceNamespaceType
   readonly uri: string
 }
 
@@ -117,21 +135,15 @@ function checkedInLocalResourceDeclarations(root: unknown): readonly LocalResour
 function localResourceDeclaration(name: string, value: unknown): LocalResourceDeclaration | undefined {
   const namespace = requiredRecord(value, `namespaces.${name}`)
 
-  switch (namespace.type) {
-    case "contract":
-      return {
-        type: "contract",
-        uri: requiredNonEmptyString(namespace.abiURI, `namespaces.${name}.abiURI`),
-      }
-    case "ui":
-      return {
-        type: "ui",
-        uri: requiredNonEmptyString(namespace.uri, `namespaces.${name}.uri`),
-      }
-    case "routes":
-      return undefined
-    default:
-      throw new Error(`checked-in CAM namespace has unsupported type at namespaces.${name}.type`)
+  if (!isCamNamespaceType(namespace.type)) {
+    throw new Error(`checked-in CAM namespace has unsupported type at namespaces.${name}.type`)
+  }
+  if (!isCamResourceNamespaceType(namespace.type)) return undefined
+
+  const uriKey = camNamespaceResourceURIKey(namespace.type)
+  return {
+    type: namespace.type,
+    uri: requiredNonEmptyString(namespace[uriKey], `namespaces.${name}.${uriKey}`),
   }
 }
 
@@ -152,44 +164,10 @@ function requiredNonEmptyString(value: unknown, path: string): string {
 }
 
 export async function checkedInLocalResourcePath(rootPath: string, uri: string): Promise<string> {
-  assertCamSecondaryResourceURI(uri, "checked-in CAM resource URI")
-
-  if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(uri) || uri.startsWith("//") || uri.startsWith("/")) {
-    throw new Error(`checked-in CAM resources must be local relative files: ${uri}`)
-  }
-  if (!uri.startsWith("./")) {
-    throw new Error(`checked-in CAM resources must use ./ local URIs: ${uri}`)
-  }
-
-  const rootDir = dirname(rootPath)
-  const path = resolve(rootDir, uri)
-  const relativePath = relative(rootDir, path)
-  if (isEscapingRelativePath(relativePath)) {
-    throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
-  }
-
-  let currentPath = rootDir
-  for (const segment of relativePath.split("/")) {
-    currentPath = resolve(currentPath, segment)
-    const stat = await lstat(currentPath)
-    if (stat.isSymbolicLink()) {
-      throw new Error(`checked-in CAM resources must not be symlinked: ${uri}`)
-    }
-    if (currentPath === path && !stat.isFile()) {
-      throw new Error(`checked-in CAM resource must be a file: ${uri}`)
-    }
-  }
-
-  const realRoot = await realpath(rootDir)
-  const realResource = await realpath(path)
-  const realRelativePath = relative(realRoot, realResource)
-  if (isEscapingRelativePath(realRelativePath)) {
-    throw new Error(`checked-in CAM resources must stay inside the CAM directory: ${uri}`)
-  }
-
-  return path
-}
-
-function isEscapingRelativePath(value: string): boolean {
-  return value === "" || value === ".." || value.startsWith(`..${sep}`) || isAbsolute(value)
+  return localCamResourcePath({
+    rootPath,
+    uri,
+    uriLabel: "checked-in CAM resource URI",
+    resourceLabel: `checked-in CAM resource ${uri}`,
+  })
 }

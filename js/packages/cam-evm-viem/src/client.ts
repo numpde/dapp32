@@ -2,6 +2,9 @@ import {
   createPublicClient,
   http,
 } from "viem"
+import {
+  requireHttpURL,
+} from "@cam/protocol"
 
 import type { CamPublicClient } from "./types.ts"
 
@@ -11,6 +14,6 @@ export type CreateHttpCamPublicClientOptions = {
 
 export function createHttpCamPublicClient({ rpcURL }: CreateHttpCamPublicClientOptions): CamPublicClient {
   return createPublicClient({
-    transport: http(rpcURL),
+    transport: http(requireHttpURL(rpcURL, "rpcURL").href),
   })
 }

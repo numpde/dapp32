@@ -12,32 +12,52 @@ MODULE_SPECIFIER_RE = re.compile(
     r"|import\s*\(\s*[\"']([^\"']+)[\"']\s*\)"
 )
 JS_TOOL_PACKAGE_ENTRYPOINT_RE = re.compile(r"^(?:\.\./)+packages/cam-[^/]+/dist/index\.js$")
+CAM_CONFORMANCE_RULE_KEY_RE = re.compile(r"^\s*[\"']?(CAM_[A-Z0-9_]+)[\"']?:\s*\{$", re.MULTILINE)
+CAM_CONFORMANCE_RULE_CLASS_RE = re.compile(r"(?:\bclass|[\"']class[\"'])\s*:\s*[\"'](?P<class>[ABC])[\"']")
+CAM_CONFORMANCE_RULE_PROPERTY_RE = re.compile(r"(?:\brule|[\"']rule[\"'])\s*:\s*(?P<expr>[^,\n]+)")
+ABI_DYNAMIC_ARRAY_SYNTAX_RE = re.compile(r"\.endsWith\(\s*[\"']\[\][\"']\s*\)|\btype\.slice\(\s*0,\s*-2\s*\)")
+EXPRESSION_SYNTAX_MESSAGE_RE = re.compile(r"invalid expression syntax:")
 
 
 class ProtocolOwnershipTest(unittest.TestCase):
     def test_protocol_code_has_single_owners_and_package_import_boundaries(self) -> None:
         failures: list[str] = []
+        source_files = [*self.package_source_files(), *self.app_source_files()]
+        package_boundary_files = [*source_files, *self.package_test_files()]
 
-        for path in [*self.package_source_files(), *self.app_source_files()]:
+        for path in source_files:
             text = read_text(path)
             for specifier, line_number in self.module_specifiers(text):
                 if specifier.startswith(".") and not self.relative_import_stays_in_source_root(path, specifier):
                     failures.append(f"{path}:{line_number}: JS source relative imports must stay inside their source root")
+
+        for path in package_boundary_files:
+            text = read_text(path)
+            for specifier, line_number in self.module_specifiers(text):
                 if "/dist/" in specifier or specifier.endswith("/dist"):
-                    failures.append(f"{path}:{line_number}: JS source must not import built dist output")
+                    failures.append(f"{path}:{line_number}: JS source/tests must not import built dist output")
                 if specifier.startswith("@cam/") and len(specifier.split("/")) > 2:
                     failures.append(f"{path}:{line_number}: @cam package imports must use the public package root")
 
-        forbidden_paths = [
-            repo_path("js/packages/cam-core/src/inert-value.ts"),
-            repo_path("js/packages/cam-screen/src/inert-value.ts"),
-            repo_path("js/packages/cam-viewer/src/inert-value.ts"),
-        ]
+        protocol_owned_modules = {
+            "inert value": [
+                repo_path("js/packages/cam-core/src/inert-value.ts"),
+                repo_path("js/packages/cam-screen/src/inert-value.ts"),
+                repo_path("js/packages/cam-viewer/src/inert-value.ts"),
+            ],
+            "protocol constants": [
+                repo_path("js/packages/cam-core/src/constants.ts"),
+                repo_path("js/packages/cam-screen/src/constants.ts"),
+            ],
+            "resource URI resolution": [
+                repo_path("js/packages/cam-core/src/uri.ts"),
+            ],
+        }
 
-        existing = [str(path) for path in forbidden_paths if path.exists()]
-
-        if existing:
-            failures.append("inert value must live in js/packages/cam-protocol only:\n" + "\n".join(existing))
+        for label, forbidden_paths in protocol_owned_modules.items():
+            existing = [str(path) for path in forbidden_paths if path.exists()]
+            if existing:
+                failures.append(f"{label} must live in js/packages/cam-protocol only:\n" + "\n".join(existing))
 
         version_owner = repo_path("js/packages/cam-protocol/src/versions.ts")
         version_definitions = {
@@ -79,6 +99,36 @@ class ProtocolOwnershipTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_protocol_owned_syntax_helpers_are_not_reimplemented(self) -> None:
+        owners = (
+            (
+                "ABI dynamic array syntax",
+                {repo_path("js/packages/cam-protocol/src/abi-types.ts")},
+                ABI_DYNAMIC_ARRAY_SYNTAX_RE,
+                "use abiDynamicArrayElementType from @cam/protocol",
+            ),
+            (
+                "expression syntax diagnostics",
+                {repo_path("js/packages/cam-protocol/src/expressions.ts")},
+                EXPRESSION_SYNTAX_MESSAGE_RE,
+                "use expressionReferenceSyntaxError from @cam/protocol",
+            ),
+        )
+        failures: list[str] = []
+
+        for path in self.package_source_files():
+            text = read_text(path)
+            for label, allowed, pattern, message in owners:
+                if path in allowed:
+                    continue
+
+                for match in pattern.finditer(text):
+                    line_number = text.count("\n", 0, match.start()) + 1
+                    failures.append(f"{path}:{line_number}: {label} is protocol-owned; {message}")
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def test_ts_test_fixtures_use_protocol_version_constants(self) -> None:
         failures: list[str] = []
 
@@ -108,24 +158,21 @@ class ProtocolOwnershipTest(unittest.TestCase):
         self.assertFalse(any(pattern.search('const cam = { cam: "2.0.0" }') for pattern in patterns))
         self.assertFalse(any(pattern.search(f'const value = {{ camera: "{cam_version}" }}') for pattern in patterns))
 
-    def test_cam_conformance_facets_keep_sourced_imports_isolated(self) -> None:
+    def test_cam_conformance_facets_stay_protocol_owned(self) -> None:
         failures: list[str] = []
 
         for path in sorted(repo_path("js/packages/cam-conformance/src").glob("**/*.ts")):
             relative = path.relative_to(repo_path("js/packages/cam-conformance/src"))
             facet = relative.parts[0]
-            # Only sourced/ is allowed to call into runtime parsers. Every
-            # other conformance facet should stay granular and protocol-owned,
-            # including future facets that do not exist yet.
-            if facet == "sourced":
-                allowed_imports = {"@cam/core", "@cam/protocol", "@cam/screen"}
-            else:
-                allowed_imports = {"@cam/protocol"}
+            # Conformance should stay protocol-owned. Runtime parser acceptance
+            # belongs in the owning runtime package tests, not as fallback
+            # diagnostics here.
+            allowed_imports = {"@cam/protocol"}
 
             for specifier, line_number in self.module_specifiers(read_text(path)):
                 if self.imports_conformance_sourced_facet(specifier) and facet != "bundle" and facet != "sourced":
                     failures.append(
-                        f"{path}:{line_number}: conformance facet '{facet}' must not import sourced runtime checks; "
+                        f"{path}:{line_number}: conformance facet '{facet}' must not import sourced byte normalization; "
                         "route through the bundle orchestrator instead"
                     )
                 if not specifier.startswith("@cam/"):
@@ -139,9 +186,56 @@ class ProtocolOwnershipTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
+    def test_cam_conformance_rules_are_structural_and_unique(self) -> None:
+        failures: list[str] = []
+        rule_locations: dict[str, list[str]] = {}
+
+        for path in sorted(repo_path("js/packages/cam-conformance/src").glob("**/*.ts")):
+            text = read_text(path)
+            lines = text.splitlines()
+            for match in CAM_CONFORMANCE_RULE_KEY_RE.finditer(text):
+                line_number = text.count("\n", 0, match.start()) + 1
+                rule = match.group(1)
+                if rule not in rule_locations:
+                    rule_locations[rule] = []
+                rule_locations[rule].append(f"{path}:{line_number}")
+
+            for match in CAM_CONFORMANCE_RULE_CLASS_RE.finditer(text):
+                line_number = text.count("\n", 0, match.start()) + 1
+                stripped = lines[line_number - 1].lstrip()
+                if not stripped.startswith(("class", "\"class\"", "'class'")):
+                    continue
+                if match.group("class") != "C":
+                    continue
+
+                failures.append(f"{path}:{line_number}: Class C conformance rules must be removed or moved to their runtime owner")
+
+            for line_number, line in enumerate(lines, start=1):
+                match = CAM_CONFORMANCE_RULE_PROPERTY_RE.search(line)
+                stripped = line.lstrip()
+                if match is None or not stripped.startswith(("rule", "\"rule\"", "'rule'")):
+                    continue
+
+                expr = match.group("expr").strip()
+                if self.conformance_rule_expression_is_descriptor_owned(expr):
+                    continue
+
+                failures.append(f"{path}:{line_number}: conformance issues must use typed rule descriptors")
+
+            if "conformanceRule(" in text:
+                failures.append(f"{path}: use keyed conformanceRules(...) maps so the rule code appears only once")
+
+        for rule, locations in sorted(rule_locations.items()):
+            if len(locations) > 1:
+                failures.append(f"{rule} descriptor must have one owner:\n" + "\n".join(locations))
+
+        if failures:
+            self.fail("\n".join(failures))
+
     def test_shared_ts_fixtures_do_not_become_hidden_package_clients(self) -> None:
         allowed_source_imports = {
             "../../../js/packages/cam-protocol/src/json.ts",
+            "../../../js/packages/cam-protocol/src/manifest.ts",
             "../../../js/packages/cam-protocol/src/resources.ts",
         }
         failures: list[str] = []
@@ -154,9 +248,9 @@ class ProtocolOwnershipTest(unittest.TestCase):
                 # Shared fixtures are compiled from multiple package test
                 # projects, so they cannot rely on one package's local source
                 # root. Keep the direct protocol imports limited to the JSON
-                # and resource-policy primitives needed to discover checked-in
-                # CAM resources; everything else should be a package test or a
-                # real public package import.
+                # and resource-discovery primitives needed to discover
+                # checked-in CAM resources; everything else should be a package
+                # test or a real public package import.
                 if specifier not in allowed_source_imports:
                     failures.append(
                         f"{path}:{line_number}: shared fixtures must not import package internals: {specifier}"
@@ -261,6 +355,12 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def imports_conformance_sourced_facet(self, specifier: str) -> bool:
         return "/sourced/" in specifier or specifier.startswith("../sourced/")
+
+    def conformance_rule_expression_is_descriptor_owned(self, expression: str) -> bool:
+        # The integrity facet is the only adapter from protocol error codes back
+        # into conformance rule descriptors; all other issue sites should point
+        # directly at a typed descriptor map.
+        return expression.startswith(("RULES.", "RESOURCE_RULES.", "UI_CALL_RULES.", "resourceIntegrityRule("))
 
     def module_specifiers(self, text: str) -> list[tuple[str, int]]:
         specifiers: list[tuple[str, int]] = []

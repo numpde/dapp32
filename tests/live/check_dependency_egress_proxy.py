@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import socket
 import sys
 import tomllib
@@ -15,11 +16,36 @@ def required_env(name: str) -> str:
     return value
 
 
+POSITIVE_INT_RE = re.compile(r"^[1-9][0-9]*$")
+POSITIVE_SECONDS_RE = re.compile(r"^(?:[1-9][0-9]*)(?:\.[0-9]+)?$|^0\.[0-9]*[1-9][0-9]*$")
+
+
+def required_positive_int_env(name: str) -> int:
+    value = required_env(name)
+    if POSITIVE_INT_RE.fullmatch(value) is None:
+        raise RuntimeError(f"{name}: expected a positive decimal integer")
+    return int(value)
+
+
+def required_port_env(name: str) -> int:
+    port = required_positive_int_env(name)
+    if port > 65535:
+        raise RuntimeError(f"{name}: expected a TCP port in 1..65535")
+    return port
+
+
+def required_positive_seconds_env(name: str) -> float:
+    value = required_env(name)
+    if POSITIVE_SECONDS_RE.fullmatch(value) is None:
+        raise RuntimeError(f"{name}: expected positive seconds")
+    return float(value)
+
+
 PROXY_HOST = required_env("DEPENDENCY_EGRESS_PROXY_HOST")
-PROXY_PORT = int(required_env("DEPENDENCY_EGRESS_PROXY_PORT"))
+PROXY_PORT = required_port_env("DEPENDENCY_EGRESS_PROXY_PORT")
 LOCK_FILE = Path(required_env("DEPENDENCY_EGRESS_LOCK_FILE"))
 DENIED_HOST = required_env("DEPENDENCY_EGRESS_DENIED_HOST")
-CONNECT_TIMEOUT_SECONDS = float(required_env("DEPENDENCY_EGRESS_CONNECT_TIMEOUT_SECONDS"))
+CONNECT_TIMEOUT_SECONDS = required_positive_seconds_env("DEPENDENCY_EGRESS_CONNECT_TIMEOUT_SECONDS")
 
 
 def locked_dependency_hosts() -> list[str]:

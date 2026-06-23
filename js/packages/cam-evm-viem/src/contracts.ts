@@ -1,5 +1,9 @@
-import { CAM_CONTRACT_NAMESPACE_PREFIX, resolveResourceURI } from "@cam/core"
-import { createStringMap } from "@cam/protocol"
+import {
+  CAM_CONTRACT_NAMESPACE_PREFIX,
+  createStringMap,
+  isCamNamespaceNameForType,
+  resolveCamResourceURI,
+} from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
 import { isAddress } from "viem"
 
@@ -48,7 +52,7 @@ function contractNamespaces(cam: CamDocument) {
       return []
     }
 
-    if (!namespace.startsWith(CAM_CONTRACT_NAMESPACE_PREFIX) || namespace.length === CAM_CONTRACT_NAMESPACE_PREFIX.length) {
+    if (!isCamNamespaceNameForType(namespace, "contract")) {
       throw new CamEvmError("CAM_CONTRACT_INVALID", `CAM contract namespace is invalid: ${namespace}`)
     }
 
@@ -97,7 +101,7 @@ async function resolveContract({
     throw new CamEvmError("CAM_CONTRACT_INVALID", `CAM contract address is invalid for ${name}: ${address}`)
   }
 
-  const abiURI = resolveResourceURI(camURI, relativeAbiURI)
+  const abiURI = resolveCamResourceURI(camURI, relativeAbiURI)
   const abiBytes = await loadResourceBytes(
     loadResource,
     abiURI,

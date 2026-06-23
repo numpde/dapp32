@@ -1,5 +1,4 @@
 import { UiError } from "./errors.ts"
-import { CAM_UI_NAMESPACE, UI_PROP_SCHEMAS, UI_RUNTIME_ROOTS } from "./constants.ts"
 import { resolveValueAtPath } from "./expressions.ts"
 import {
   createStringMap,
@@ -7,13 +6,17 @@ import {
   isAbiAddressValue,
   isExpressionIdentifier,
   isRecordObject,
+  nameListShapeIssues,
+  UI_CALL_NAMESPACE_BY_ELEMENT,
+  UI_PROP_SCHEMAS,
+  UI_RUNTIME_ROOTS,
 } from "@cam/protocol"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
   ButtonNode,
   IncludeNode,
   ResolvedButtonNode,
-  ResolvedElementNode,
+  ResolvedContainerNode,
   ResolvedUiCall,
   ResolvedUiNode,
   UiCall,
@@ -28,10 +31,7 @@ export function resolveUiNode(
   args: InertRecord,
   context: UiRuntimeContext,
 ): ResolvedUiNode {
-  const resolved = resolveNamedNode(ui, nodeName, args, context, nodeName, {
-    includeActions: true,
-    includeStateDefault: false,
-  }, [])
+  const resolved = resolveNamedNode(ui, nodeName, args, context, nodeName, [])
   if (resolved.length !== 1) {
     throw new UiError("UI_INVALID_FIELD", `UI node did not resolve to one root node: ${nodeName}`, nodeName)
   }
@@ -53,11 +53,7 @@ export function resolveInitialUiNode(
     ...context,
     state: emptyState,
   }
-  const initialNodes = resolveNamedNode(ui, nodeName, args, initialContext, nodeName, {
-    includeActions: false,
-    includeStateDefault: true,
-  }, [])
-  const state = createInitialState(initialNodes)
+  const state = createInitialState(ui, nodeName, args, initialContext)
   const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, state })
 
   return {
@@ -72,7 +68,6 @@ function resolveNamedNode(
   args: InertRecord,
   context: UiRuntimeContext,
   path: string,
-  options: ResolveOptions,
   stack: readonly string[],
 ): readonly ResolvedUiNode[] {
   if (stack.includes(nodeName)) {
@@ -84,12 +79,7 @@ function resolveNamedNode(
 
   const node = ui.nodes[nodeName]
   const nodeContext = contextForNode(node, args, context, path)
-  return resolveNode(ui, node, nodeContext, path, options, [...stack, nodeName])
-}
-
-type ResolveOptions = {
-  readonly includeActions: boolean
-  readonly includeStateDefault: boolean
+  return resolveNode(ui, node, nodeContext, path, [...stack, nodeName])
 }
 
 function contextForNode(
@@ -140,17 +130,16 @@ function resolveNode(
   node: UiNode,
   context: UiRuntimeContext,
   path: string,
-  options: ResolveOptions,
   stack: readonly string[],
 ): readonly ResolvedUiNode[] {
   switch (node.element) {
     case "Include":
-      return resolveInclude(ui, node, context, path, options, stack)
+      return resolveInclude(ui, node, context, path, stack)
     case "Button":
-      return options.includeActions ? [resolveAction(node, context, path)] : []
+      return [resolveAction(node, context, path)]
     case "Screen":
     case "Fragment":
-      return [resolveElementNode(ui, node, context, path, options, stack)]
+      return [resolveElementNode(ui, node, context, path, stack)]
     case "Text":
     case "Address":
     case "Status":
@@ -158,14 +147,14 @@ function resolveNode(
       return [{
         element: node.element,
         props: resolveProps(node.element, node.props, context, `${path}.props`),
-        children: [],
+        children: [] as const,
       }]
     case "TextField":
       return [{
         element: node.element,
         props: resolveProps(node.element, node.props, context, `${path}.props`),
-        state: resolveStateBinding(node.state, context, `${path}.state`, options),
-        children: [],
+        state: resolveStateBinding(node.state, context, `${path}.state`, false),
+        children: [] as const,
       }]
   }
 
@@ -181,13 +170,12 @@ function resolveElementNode(
   node: Extract<UiNode, { readonly element: "Screen" | "Fragment" }>,
   context: UiRuntimeContext,
   path: string,
-  options: ResolveOptions,
   stack: readonly string[],
-): ResolvedElementNode {
+): ResolvedContainerNode {
   const children: ResolvedUiNode[] = []
 
   for (const [index, child] of node.children.entries()) {
-    children.push(...resolveNode(ui, child, context, `${path}.children.${index}`, options, stack))
+    children.push(...resolveNode(ui, child, context, `${path}.children.${index}`, stack))
   }
 
   return {
@@ -204,67 +192,164 @@ function resolveInclude(
   node: IncludeNode,
   context: UiRuntimeContext,
   path: string,
-  options: ResolveOptions,
   stack: readonly string[],
 ): readonly ResolvedUiNode[] {
-  if (node.call.namespace !== CAM_UI_NAMESPACE) {
+  if (node.call.namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Include) {
     throw new UiError("UI_INVALID_FIELD", `Include must call the ui namespace: ${node.call.namespace}`, `${path}.call.namespace`)
   }
 
   const selected = resolveValueAtPath(node.call.function, context, `${path}.call.function`)
   const nodeNames = selectedNodeNames(selected, `${path}.call.function`)
-  // Initial-state resolution skips Button nodes before state exists. Resolve
-  // Include args lazily so action-only Includes do not force $state.* early.
-  let args: InertRecord | undefined
+  const args = resolveRecord(node.call.args, context, `${path}.call.args`)
   const children: ResolvedUiNode[] = []
 
   for (const nodeName of nodeNames) {
-    if (!options.includeActions && ui.nodes[nodeName]?.element === "Button") {
-      continue
-    }
-
-    if (args === undefined) {
-      args = resolveRecord(node.call.args, context, `${path}.call.args`)
-    }
-    children.push(...resolveNamedNode(ui, nodeName, args, context, `${path}.${nodeName}`, options, stack))
+    children.push(...resolveNamedNode(ui, nodeName, args, context, `${path}.${nodeName}`, stack))
   }
 
   return children
 }
 
-function createInitialState(nodes: readonly ResolvedUiNode[]): InertRecord {
+function createInitialState(
+  ui: UiDocument,
+  nodeName: string,
+  args: InertRecord,
+  context: UiRuntimeContext,
+): InertRecord {
   const state = createStringMap<InertValue>()
-  appendInitialState(nodes, state)
+  collectInitialStateForNamedNode(ui, nodeName, args, context, nodeName, state, [])
   return state
 }
 
-function appendInitialState(nodes: readonly ResolvedUiNode[], state: Record<string, InertValue>): void {
-  for (const node of nodes) {
-    if (node.element === "TextField") {
-      const { key, defaultValue } = requireStateDefault(node)
-      if (hasOwn(state, key)) {
-        throw new UiError("UI_INVALID_FIELD", `duplicate TextField state key: ${key}`)
-      }
-      state[key] = defaultValue
-    }
+function collectInitialStateForNamedNode(
+  ui: UiDocument,
+  nodeName: string,
+  args: InertRecord,
+  context: UiRuntimeContext,
+  path: string,
+  state: Record<string, InertValue>,
+  stack: readonly string[],
+): void {
+  if (stack.includes(nodeName)) {
+    throw new UiError("UI_INVALID_FIELD", `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`, path)
+  }
+  if (!hasOwn(ui.nodes, nodeName)) {
+    throw new UiError("UI_UNRESOLVED_VALUE", `UI node does not exist: ${nodeName}`, path)
+  }
 
-    if ("children" in node) {
-      appendInitialState(node.children, state)
+  const node = ui.nodes[nodeName]
+  const nodeContext = contextForNode(node, args, context, path)
+  collectInitialStateFromNode(ui, node, nodeContext, path, state, [...stack, nodeName])
+}
+
+function collectInitialStateFromNode(
+  ui: UiDocument,
+  node: UiNode,
+  context: UiRuntimeContext,
+  path: string,
+  state: Record<string, InertValue>,
+  stack: readonly string[],
+): void {
+  switch (node.element) {
+    case "TextField": {
+      const binding = resolveStateBinding(node.state, context, `${path}.state`, true)
+      if (binding.defaultValue === undefined) {
+        throw new UiError("UI_INVALID_FIELD", "TextField state.defaultValue was not resolved")
+      }
+      if (hasOwn(state, binding.key)) {
+        throw new UiError("UI_INVALID_FIELD", `duplicate TextField state key: ${binding.key}`)
+      }
+      state[binding.key] = binding.defaultValue
+      return
     }
+    case "Screen":
+    case "Fragment":
+      for (const [index, child] of node.children.entries()) {
+        collectInitialStateFromNode(ui, child, context, `${path}.children.${index}`, state, stack)
+      }
+      return
+    case "Include":
+      collectInitialStateFromInclude(ui, node, context, path, state, stack)
+      return
+    case "Button":
+    case "Text":
+    case "Address":
+    case "Status":
+    case "Nft":
+      return
+  }
+
+  return unreachableUiNode(node)
+}
+
+function collectInitialStateFromInclude(
+  ui: UiDocument,
+  node: IncludeNode,
+  context: UiRuntimeContext,
+  path: string,
+  state: Record<string, InertValue>,
+  stack: readonly string[],
+): void {
+  if (node.call.namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Include) {
+    throw new UiError("UI_INVALID_FIELD", `Include must call the ui namespace: ${node.call.namespace}`, `${path}.call.namespace`)
+  }
+
+  const selected = resolveValueAtPath(node.call.function, context, `${path}.call.function`)
+  const nodeNames = selectedNodeNames(selected, `${path}.call.function`)
+  // Initial-state collection only needs TextField state bindings. Skip args
+  // for statically action-only targets so Buttons may read $state after the
+  // defaults have been collected.
+  let args: InertRecord | undefined
+  for (const nodeName of nodeNames) {
+    if (!nodeCanExposeInitialState(ui, nodeName, stack)) continue
+
+    if (args === undefined) {
+      args = resolveRecord(node.call.args, context, `${path}.call.args`)
+    }
+    collectInitialStateForNamedNode(ui, nodeName, args, context, `${path}.${nodeName}`, state, stack)
   }
 }
 
-function requireStateDefault(node: ResolvedUiNode): {
-  readonly key: string
-  readonly defaultValue: string
-} {
-  if (node.element !== "TextField" || node.state === undefined || node.state.defaultValue === undefined) {
-    throw new UiError("UI_INVALID_FIELD", "TextField state.defaultValue was not resolved")
-  }
+function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: readonly string[]): boolean {
+  if (stack.includes(nodeName)) return true
 
-  return {
-    key: node.state.key,
-    defaultValue: node.state.defaultValue,
+  const node = ui.nodes[nodeName]
+  if (node === undefined) return true
+
+  switch (node.element) {
+    case "TextField":
+      return true
+    case "Screen":
+    case "Fragment":
+      return node.children.some((child) => nodeBodyCanExposeInitialState(child, [...stack, nodeName]))
+    case "Include":
+      // Dynamic Include targets may expose TextFields; collect through them so
+      // initial state is complete when the selector is known at runtime.
+      return true
+    case "Button":
+    case "Text":
+    case "Address":
+    case "Status":
+    case "Nft":
+      return false
+  }
+}
+
+function nodeBodyCanExposeInitialState(node: UiNode, stack: readonly string[]): boolean {
+  switch (node.element) {
+    case "TextField":
+      return true
+    case "Screen":
+    case "Fragment":
+      return node.children.some((child) => nodeBodyCanExposeInitialState(child, stack))
+    case "Include":
+      return true
+    case "Button":
+    case "Text":
+    case "Address":
+    case "Status":
+    case "Nft":
+      return false
   }
 }
 
@@ -275,7 +360,7 @@ function resolveStateBinding(
   },
   context: UiRuntimeContext,
   path: string,
-  options: ResolveOptions,
+  includeDefault: boolean,
 ): {
   readonly key: string
   readonly defaultValue?: string
@@ -288,7 +373,7 @@ function resolveStateBinding(
     throw new UiError("UI_INVALID_FIELD", `TextField state.key must resolve to an expression identifier: ${key}`, `${path}.key`)
   }
 
-  if (!options.includeStateDefault) {
+  if (!includeDefault) {
     return { key }
   }
 
@@ -316,15 +401,13 @@ function selectedNodeNames(value: InertValue, path: string): readonly string[] {
 }
 
 function checkedSelectedNodeNames(names: readonly string[], path: string): readonly string[] {
-  const seen = new Set<string>()
-  for (const name of names) {
-    if (name.length === 0) {
+  for (const issue of nameListShapeIssues(names)) {
+    if (issue.kind === "empty") {
       throw new UiError("UI_INVALID_FIELD", "Include selection must not contain an empty node name", path)
     }
-    if (seen.has(name)) {
-      throw new UiError("UI_INVALID_FIELD", `Include selection must not duplicate node names: ${name}`, path)
+    if (issue.kind === "duplicate") {
+      throw new UiError("UI_INVALID_FIELD", `Include selection must not duplicate node names: ${issue.name}`, path)
     }
-    seen.add(name)
   }
 
   return names

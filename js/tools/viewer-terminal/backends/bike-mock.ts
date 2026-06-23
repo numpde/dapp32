@@ -1,5 +1,3 @@
-import { readFile, realpath, stat } from "node:fs/promises"
-import { isAbsolute, relative, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type {
@@ -9,10 +7,13 @@ import {
   createCamViewerSession,
 } from "../../../packages/cam-viewer/dist/index.js"
 import {
-  CAM_RESOURCE_MAX_BYTES,
   toInertValue,
 } from "../../../packages/cam-protocol/dist/index.js"
 import type { InertValue } from "../../../packages/cam-protocol/dist/index.js"
+import {
+  checkedContainedFilePath,
+  readBoundedFile,
+} from "../../local-cam-files.ts"
 import {
   BIKE_ACCOUNT_ADDRESS,
   BIKE_HOST_ADDRESS,
@@ -150,12 +151,7 @@ function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promis
     }
 
     const resourcePath = await checkedMockCamFilePath(resourceURI)
-    const metadata = await stat(resourcePath)
-    if (metadata.size > CAM_RESOURCE_MAX_BYTES) {
-      throw new Error(`mock CAM resource is too large: ${resourceURI.href}`)
-    }
-
-    const bytes = await readFile(resourcePath)
+    const bytes = await readBoundedFile(resourcePath, `mock CAM resource ${resourceURI.href}`)
     events.push({
       step: events.length + 1,
       kind: "resource-load",
@@ -167,24 +163,15 @@ function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promis
 }
 
 async function checkedMockCamFilePath(uri: URL): Promise<string> {
-  const [basePath, resourcePath] = await Promise.all([
-    realpath(BIKE_MOCK_CAM_BASE_PATH),
-    realpath(fileURLToPath(uri)),
-  ])
-  const relativePath = relative(basePath, resourcePath)
-
   // The mock backend is still a file loader, so string-prefix URL checks are
-  // not enough. Resolve symlinks first and enforce the checked-in CAM subtree
-  // as a filesystem boundary.
-  if (isEscapingRelativePath(relativePath)) {
-    throw new Error(`bike mock terminal can only load checked-in bike CAM files: ${uri.href}`)
-  }
-
-  return resourcePath
-}
-
-function isEscapingRelativePath(value: string): boolean {
-  return value === "" || value === ".." || value.startsWith(`..${sep}`) || isAbsolute(value)
+  // not enough. Reuse the tool boundary that rejects symlink hops and escaped
+  // realpaths before the mock reads checked-in fixture bytes.
+  return checkedContainedFilePath({
+    rootDir: BIKE_MOCK_CAM_BASE_PATH,
+    path: fileURLToPath(uri),
+    label: `bike mock CAM resource ${uri.href}`,
+    boundaryLabel: "bike mock CAM directory",
+  })
 }
 
 function formatValue(value: unknown): string {

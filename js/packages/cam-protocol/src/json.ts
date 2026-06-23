@@ -39,7 +39,9 @@ export function parseJsonText(text: string): unknown {
 }
 
 export function parseJsonBytes(bytes: Uint8Array): unknown {
-  return parseJsonText(new TextDecoder().decode(bytes))
+  // CAM resources are byte-addressed protocol documents. Invalid UTF-8 must
+  // fail before JSON parsing instead of being rewritten to replacement chars.
+  return parseJsonText(new TextDecoder("utf-8", { fatal: true }).decode(bytes))
 }
 
 function rejectDuplicateObjectKeys(text: string): void {

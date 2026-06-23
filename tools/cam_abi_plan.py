@@ -18,6 +18,7 @@ from tools.json_policy import JsonPolicyError, read_strict_json
 
 
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+DAPP_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 GENERATED_ABI_URI_RE = re.compile(r"^\./abi/([A-Za-z_][A-Za-z0-9_]*\.json)$")
 
 
@@ -51,6 +52,8 @@ def build_abi_plan_rows(root: Path) -> list[AbiPlanRow]:
 
         if not src_dir.is_dir() or not manifest_path.is_file():
             continue
+        if not DAPP_NAME_RE.fullmatch(dapp.name):
+            raise CamAbiPlanError(f"invalid ABI export dapp directory name: {dapp.name!r}")
         for path in (src_dir, cam_dir, manifest_path, abi_dir):
             if path.is_symlink():
                 raise CamAbiPlanError(f"refusing symlinked ABI export input: {path}")

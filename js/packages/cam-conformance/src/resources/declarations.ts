@@ -3,7 +3,12 @@ import {
   CamResourceIntegrityError,
   assertCamResourceSize,
   assertCamSecondaryResourceURI,
+  camNamespaceResourceURIKey,
+  isCamResourceNamespaceType,
   verifySha256ResourceIntegrity,
+} from "@cam/protocol"
+import type {
+  CamResourceNamespaceType,
 } from "@cam/protocol"
 
 import {
@@ -17,10 +22,15 @@ import type {
 import {
   nonEmptyString,
 } from "../walk.ts"
+import {
+  RESOURCE_RULES,
+} from "./rules.ts"
+
+type ResourceRule = (typeof RESOURCE_RULES)[keyof typeof RESOURCE_RULES]
 
 export type ResourceDeclaration = {
   readonly namespace: string
-  readonly namespaceType: DeclaredNamespace["type"]
+  readonly namespaceType: CamResourceNamespaceType
   readonly uri: string
   readonly integrity: string
   readonly uriPath: string
@@ -89,7 +99,7 @@ function validateDeclaredResource(
 
 function reportMissingResource(declaration: ResourceDeclaration, issues: CamConformanceIssue[]): void {
   issues.push(conformanceIssue({
-    rule: "CAM_RESOURCE_MISSING",
+    rule: RESOURCE_RULES.CAM_RESOURCE_MISSING,
     resource: declaration.uri,
     path: declaration.uriPath,
     message: `declared CAM resource is missing: ${declaration.uri}`,
@@ -105,7 +115,7 @@ function validateResourceSize(
     issues,
     action: () => assertCamResourceSize(bytes, declaration.uri),
     issue: (error) => issueFromError({
-      rule: "CAM_RESOURCE_TOO_LARGE",
+      rule: RESOURCE_RULES.CAM_RESOURCE_TOO_LARGE,
       resource: declaration.uri,
       path: declaration.uriPath,
       error,
@@ -123,16 +133,15 @@ function reportOrphanResources(
     if (declaredURIs.has(uri)) continue
 
     issues.push(conformanceIssue({
-      rule: "CAM_RESOURCE_ORPHAN",
+      rule: RESOURCE_RULES.CAM_RESOURCE_ORPHAN,
       resource: uri,
       message: `bundle resource is not declared by the root CAM document: ${uri}`,
     }))
   }
 }
 
-// Reusing a URI is fine, but it must mean the same bytes. Conflicting hashes for
-// one URI make the manifest impossible to reason about before any resource is
-// even loaded.
+// Conflicting hashes for one URI make the manifest impossible to reason about
+// before any resource is even loaded.
 function reportIntegrityConflicts(
   declarations: readonly ResourceDeclaration[],
   issues: CamConformanceIssue[],
@@ -147,7 +156,7 @@ function reportIntegrityConflicts(
 
     if (previous.integrity !== declaration.integrity) {
       issues.push(conformanceIssue({
-        rule: "CAM_RESOURCE_INTEGRITY_CONFLICT",
+        rule: RESOURCE_RULES.CAM_RESOURCE_INTEGRITY_CONFLICT,
         resource: declaration.uri,
         path: declaration.integrityPath,
         message: `resource URI has conflicting integrity declarations: ${declaration.uri}`,
@@ -167,8 +176,8 @@ function collectNamespaceResource({
   readonly resource: string
   readonly namespace: DeclaredNamespace
 }): void {
-  const uriKey = resourceURIKey(namespace)
-  if (uriKey === undefined) return
+  if (!isCamResourceNamespaceType(namespace.type)) return
+  const uriKey = camNamespaceResourceURIKey(namespace.type)
 
   const basePath = `namespaces.${namespace.name}`
   const declaredURI = nonEmptyString(namespace.declaration[uriKey])
@@ -227,23 +236,12 @@ function validateResourceURI({
     issues,
     action: () => assertCamSecondaryResourceURI(uri, path),
     issue: (error) => issueFromError({
-      rule: "CAM_RESOURCE_DECLARATION_INVALID",
+      rule: RESOURCE_RULES.CAM_RESOURCE_DECLARATION_INVALID,
       resource,
       path,
       error,
     }),
   })
-}
-
-function resourceURIKey(namespace: DeclaredNamespace): "abiURI" | "uri" | undefined {
-  switch (namespace.type) {
-    case "contract":
-      return "abiURI"
-    case "ui":
-      return "uri"
-    case "routes":
-      return undefined
-  }
 }
 
 function resourceDeclarationIssue({
@@ -256,16 +254,16 @@ function resourceDeclarationIssue({
   readonly message: string
 }): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_RESOURCE_DECLARATION_INVALID",
+    rule: RESOURCE_RULES.CAM_RESOURCE_DECLARATION_INVALID,
     resource,
     path,
     message,
   })
 }
 
-// Hashing happens here because conformance receives bytes. Hash grammar and
-// comparison live in @cam/protocol so runtime loaders and conformance checks do
-// not drift on the meaning of sha256: integrity strings.
+// Hashing happens here because conformance receives publication bytes. Hash
+// grammar and comparison live in @cam/protocol so loaders and conformance do
+// not drift on sha256: integrity semantics.
 function verifyResourceIntegrity(
   declaration: ResourceDeclaration,
   bytes: Uint8Array,
@@ -279,12 +277,25 @@ function verifyResourceIntegrity(
       uri: declaration.uri,
     }),
     issue: (error) => issueFromError({
-      rule: error instanceof CamResourceIntegrityError ? error.code : "CAM_RESOURCE_INTEGRITY_INVALID",
+      rule: resourceIntegrityRule(error),
       resource: declaration.uri,
       path: declaration.integrityPath,
       error,
     }),
   })
+}
+
+function resourceIntegrityRule(error: unknown): ResourceRule {
+  if (error instanceof CamResourceIntegrityError) {
+    switch (error.code) {
+      case "CAM_RESOURCE_INTEGRITY_INVALID":
+        return RESOURCE_RULES.CAM_RESOURCE_INTEGRITY_INVALID
+      case "CAM_RESOURCE_INTEGRITY_MISMATCH":
+        return RESOURCE_RULES.CAM_RESOURCE_INTEGRITY_MISMATCH
+    }
+  }
+
+  return RESOURCE_RULES.CAM_RESOURCE_INTEGRITY_INVALID
 }
 
 // Node's crypto API returns the digest without the protocol's 0x marker.

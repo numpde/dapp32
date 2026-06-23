@@ -6,16 +6,16 @@ import {
 } from "@cam/evm-viem"
 import {
   assertCamResourceSize,
+  CAM_UI_NAMESPACE,
   createStringMap,
+  isCamNamespaceNameForType,
   parseJsonBytes,
+  resolveCamResourceURI,
   toInertValue,
+  UI_CALL_NAMESPACE_BY_ELEMENT,
 } from "@cam/protocol"
 import {
-  CAM_CONTRACT_NAMESPACE_PREFIX,
-  CAM_ROUTES_NAMESPACE,
-  CAM_UI_NAMESPACE,
   createContext,
-  resolveResourceURI,
   routeRequiresAccount,
   resolveRouteCall,
   resolveRouteThen,
@@ -25,6 +25,7 @@ import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 import {
   UiError,
   parseUi,
+  resolvedUiInputNames,
   resolveInitialUiNode,
   resolveUiNode,
 } from "@cam/screen"
@@ -189,7 +190,7 @@ export function createCamViewerSession({
   async function dispatchAction(action: ResolvedButtonNode): Promise<CamViewerActionResult> {
     assertLoaded()
 
-    if (action.call.namespace !== CAM_ROUTES_NAMESPACE) {
+    if (action.call.namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Button) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action must call routes namespace: ${action.call.namespace}`)
     }
 
@@ -333,7 +334,7 @@ export function createCamViewerSession({
 
     const context = routeContext(inputs, [])
     const call = resolveRouteCall(current.cam, route, context)
-    if (call === undefined || !call.namespace.startsWith(CAM_CONTRACT_NAMESPACE_PREFIX)) {
+    if (call === undefined || !isCamNamespaceNameForType(call.namespace, "contract")) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route must call a contract namespace: ${route}`)
     }
     const contract = current.contracts[call.namespace]
@@ -412,21 +413,12 @@ export function createCamViewerSession({
 }
 
 function assertStatePatchTargets(ui: ResolvedUiNode, patch: InertRecord): void {
+  const renderedInputs = new Set(resolvedUiInputNames(ui))
   for (const name of Object.keys(patch)) {
-    if (!hasRenderedInput(ui, name)) {
+    if (!renderedInputs.has(name)) {
       throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `CAM viewer state field has no rendered input: ${name}`)
     }
   }
-}
-
-function hasRenderedInput(ui: ResolvedUiNode, name: string): boolean {
-  if (ui.element === "TextField") return ui.state?.key === name
-
-  if ("children" in ui) {
-    return ui.children.some((child) => hasRenderedInput(child, name))
-  }
-
-  return false
 }
 
 function uiResourceDeclaration(cam: CamDocument, camURI: string): {
@@ -439,7 +431,7 @@ function uiResourceDeclaration(cam: CamDocument, camURI: string): {
   }
 
   return {
-    uri: resolveResourceURI(camURI, ui.uri),
+    uri: resolveCamResourceURI(camURI, ui.uri),
     integrity: ui.integrity,
   }
 }

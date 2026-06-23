@@ -10,4 +10,5 @@ export {
 } from "./issues.ts"
 export type {
   CamConformanceIssue,
+  CamConformanceRuleCode,
 } from "./issues.ts"

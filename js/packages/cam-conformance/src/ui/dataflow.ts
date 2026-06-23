@@ -1,6 +1,8 @@
 import {
+  UI_CALL_NAMESPACE_BY_ELEMENT,
   isExpressionIdentifier,
   isRecordObject,
+  uiCallNamespaceForElement,
 } from "@cam/protocol"
 
 import {
@@ -13,7 +15,7 @@ import type {
 import {
   forEachUiNode,
 } from "./document.ts"
-import type { RawUiDocuments } from "./resources.ts"
+import type { DeclaredUiDocument } from "./resources.ts"
 import {
   staticString,
   staticStringList,
@@ -23,6 +25,7 @@ import {
   validateKnownCallTargets,
   validateUiCallArgNames,
   validateUiCallFunctionShape,
+  UI_CALL_RULES,
   type UiCallNamespace,
 } from "./calls.ts"
 
@@ -34,42 +37,43 @@ type UiCall = {
 }
 
 export function validateUiDataflow({
-  uiDocuments,
+  uiDocument,
   uiNodes,
   issues,
 }: {
-  readonly uiDocuments: RawUiDocuments
+  readonly uiDocument: DeclaredUiDocument | undefined
   readonly uiNodes: ReadonlyMap<string, DeclaredUiNode> | undefined
   readonly issues: CamConformanceIssue[]
 }): void {
-  for (const [resource, ui] of uiDocuments) {
-    const calls = uiCalls(resource, ui.nodes, issues)
+  if (uiDocument === undefined) return
 
-    for (const call of calls) {
-      if (!validateUiCallArgNames({
-        resource,
-        path: call.path,
-        namespace: call.namespace,
-        args: call.args,
-        issues,
-        rule: "CAM_UI_DATAFLOW_MISMATCH",
-      })) {
-        continue
-      }
-      if (!validateUiCallFunctionShape({
-        resource,
-        path: call.path,
-        namespace: call.namespace,
-        value: call.function,
-        issues,
-        rule: "CAM_UI_DATAFLOW_MISMATCH",
-      })) {
-        continue
-      }
-      if (call.namespace === "ui") {
-        if (uiNodes !== undefined) {
-          validateIncludeNodeArgs(resource, call, uiNodes, issues)
-        }
+  const { resource, document } = uiDocument
+  const calls = uiCalls(resource, document.nodes, issues)
+
+  for (const call of calls) {
+    if (!validateUiCallArgNames({
+      resource,
+      path: call.path,
+      namespace: call.namespace,
+      args: call.args,
+      issues,
+      rule: UI_CALL_RULES.CAM_UI_DATAFLOW_MISMATCH,
+    })) {
+      continue
+    }
+    if (!validateUiCallFunctionShape({
+      resource,
+      path: call.path,
+      namespace: call.namespace,
+      value: call.function,
+      issues,
+      rule: UI_CALL_RULES.CAM_UI_DATAFLOW_MISMATCH,
+    })) {
+      continue
+    }
+    if (call.namespace === UI_CALL_NAMESPACE_BY_ELEMENT.Include) {
+      if (uiNodes !== undefined) {
+        validateIncludeNodeArgs(resource, call, uiNodes, issues)
       }
     }
   }
@@ -93,12 +97,8 @@ function collectUiNodeDataflow(
   issues: CamConformanceIssue[],
 ): void {
   validateInputName(resource, value, path, issues)
-  if (value.element === "Include") {
-    collectCall(value, path, "ui", calls)
-  }
-  if (value.element === "Button") {
-    collectCall(value, path, "routes", calls)
-  }
+  const namespace = uiCallNamespaceForElement(value.element)
+  if (namespace !== undefined) collectCall(value, path, namespace, calls)
 }
 
 function validateInputName(
@@ -123,7 +123,7 @@ function validateInputName(
 function collectCall(
   value: Record<string, unknown>,
   path: string,
-  namespace: "routes" | "ui",
+  namespace: UiCallNamespace,
   calls: UiCall[],
 ): void {
   if (!isRecordObject(value.call)) return
@@ -152,7 +152,7 @@ function validateIncludeNodeArgs(
     label: "UI Include",
     names: functionNames,
     issues,
-    rule: "CAM_UI_DATAFLOW_MISMATCH",
+    rule: UI_CALL_RULES.CAM_UI_DATAFLOW_MISMATCH,
   })) {
     return
   }
@@ -176,7 +176,7 @@ function validateIncludeNodeArgs(
       actualNames: Object.keys(include.args),
       destination: `UI node ${node.name}`,
       issues,
-      rule: "CAM_UI_DATAFLOW_MISMATCH",
+      rule: UI_CALL_RULES.CAM_UI_DATAFLOW_MISMATCH,
       filterEmptyActualNames: false,
     })
   }
@@ -184,7 +184,7 @@ function validateIncludeNodeArgs(
 
 function dataflowIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_UI_DATAFLOW_MISMATCH",
+    rule: UI_CALL_RULES.CAM_UI_DATAFLOW_MISMATCH,
     resource,
     path,
     message,

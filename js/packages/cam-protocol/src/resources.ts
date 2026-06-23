@@ -1,4 +1,6 @@
 export const CAM_RESOURCE_MAX_BYTES = 2 * 1024 * 1024
+const SCHEME_RE = /^[A-Za-z][A-Za-z0-9+.-]*:/
+const HIERARCHICAL_URI_RE = /^([A-Za-z][A-Za-z0-9+.-]*:\/\/[^/?#]*)([^?#]*)([?#].*)?$/
 const SHA256_INTEGRITY_PREFIX = "sha256:"
 const SHA256_HEX_PATTERN = /^0x[0-9a-f]{64}$/
 const BASE32_ALPHABET = "abcdefghijklmnopqrstuvwxyz234567"
@@ -47,8 +49,34 @@ export type HttpByteStreamReader = {
   readonly releaseLock?: () => void
 }
 
+export type HttpResourceCacheMode =
+  | "default"
+  | "force-cache"
+  | "no-cache"
+  | "no-store"
+  | "only-if-cached"
+  | "reload"
+
+export type HttpResourceResponse = HttpResponse & {
+  readonly ok: boolean
+  readonly status: number
+}
+
+export type HttpResourceFetcher = (
+  href: string,
+  init: {
+    readonly cache?: HttpResourceCacheMode
+    readonly redirect: "error"
+  },
+) => Promise<HttpResourceResponse>
+
 export function requireHttpURL(value: string, label: string): HttpURL {
-  const url = new URL(value)
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch (cause) {
+    throw new Error(`${label}: expected absolute URL`, { cause })
+  }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`${label}: expected http or https URL`)
   }
@@ -77,6 +105,31 @@ export function requireSameHttpOrigin(uri: string, origin: string, label: string
   return url
 }
 
+export function createSameOriginHttpResourceLoader(options: {
+  readonly originInput: string
+  readonly originLabel: string
+  readonly loadFailurePrefix: string
+  readonly fetchResource: HttpResourceFetcher
+  readonly cache?: HttpResourceCacheMode
+}): (uri: string) => Promise<Uint8Array> {
+  const origin = requireHttpOrigin(options.originInput, options.originLabel)
+
+  return async (uri: string): Promise<Uint8Array> => {
+    const resourceURL = requireSameHttpOrigin(uri, origin, "CAM resource URI")
+    // Redirects can cross authorities after the origin check. Keep redirect
+    // refusal inside the shared loader so browser and tool callers cannot drift.
+    const init = options.cache === undefined
+      ? { redirect: "error" as const }
+      : { cache: options.cache, redirect: "error" as const }
+    const response = await options.fetchResource(resourceURL.href, init)
+    if (response.ok !== true) {
+      throw new Error(`${options.loadFailurePrefix} ${resourceURL.href}: HTTP ${response.status}`)
+    }
+
+    return readBoundedResponseBytes(response, resourceURL.href)
+  }
+}
+
 export function responseContentLength(response: HttpResponse, uri: string): number | undefined {
   const value = response.headers.get("content-length")
   if (value === null) return undefined
@@ -85,13 +138,85 @@ export function responseContentLength(response: HttpResponse, uri: string): numb
     throw new Error(`CAM resource has invalid Content-Length: ${uri}`)
   }
 
-  return Number(value)
+  const length = Number(value)
+  // Content-Length is untrusted resource metadata. Reject values JavaScript
+  // cannot represent exactly before applying byte-limit policy.
+  if (!Number.isSafeInteger(length)) {
+    throw new Error(`CAM resource has invalid Content-Length: ${uri}`)
+  }
+
+  return length
 }
 
 export function assertCamSecondaryResourceURI(uri: string, label: string): void {
   if (isLocalCamSecondaryResourceURI(uri) || isIpfsCamSecondaryResourceURI(uri)) return
 
   throw new Error(`${label}: CAM resource URI must be local ./... or ipfs://<CID>[...]: ${uri}`)
+}
+
+export function assertPublishedCamRootURI(uri: string, label: string): void {
+  let url: URL
+  try {
+    url = new URL(uri)
+  } catch (cause) {
+    throw new Error(`${label}: expected an absolute publication URI`, { cause })
+  }
+
+  if (url.username !== "" || url.password !== "") {
+    throw new Error(`${label}: credentials are not allowed`)
+  }
+
+  // Publication roots are either HTTPS locations anchored by the published
+  // CAM hash, or reviewable IPFS CIDs. Local roots stay a test/fixture concern.
+  if (url.protocol === "https:") return
+  if (url.protocol === "ipfs:" && isIpfsCamSecondaryResourceURI(uri)) return
+
+  throw new Error(`${label}: expected https://... or ipfs://<CID>[...] publication URI`)
+}
+
+export function resolveCamResourceURI(baseURI: string, resourceURI: string): string {
+  assertURIString(baseURI, "baseURI")
+  assertURIString(resourceURI, "resourceURI")
+
+  // Resolution is separate from policy: CAM parsers decide which resource
+  // references are valid, while loaders need a deterministic absolute key.
+  if (SCHEME_RE.test(resourceURI)) {
+    return resourceURI
+  }
+
+  if (resourceURI.startsWith("//")) {
+    throw new Error("resourceURI: scheme-relative resource URIs are not allowed")
+  }
+
+  const baseWithoutFragment = stripFragment(baseURI)
+  if (resourceURI.startsWith("#")) {
+    return `${baseWithoutFragment}${resourceURI}`
+  }
+
+  const baseWithoutQuery = stripQuery(baseWithoutFragment)
+  if (resourceURI.startsWith("?")) {
+    return `${baseWithoutQuery}${resourceURI}`
+  }
+
+  const [resourcePath, resourceSuffix] = splitSuffix(resourceURI)
+  const hierarchical = HIERARCHICAL_URI_RE.exec(baseWithoutQuery)
+  if (hierarchical !== null) {
+    const [, prefix, basePath] = hierarchical
+    const baseDirectory = directoryOf(hierarchicalBasePath(basePath))
+    const resolvedPath = normalizePath(resourcePath.startsWith("/") ? resourcePath : `${baseDirectory}${resourcePath}`)
+    return `${prefix}${resolvedPath}${resourceSuffix}`
+  }
+
+  if (SCHEME_RE.test(baseURI)) {
+    throw new Error("baseURI: base URI must be hierarchical to resolve relative resources")
+  }
+
+  const baseDirectory = directoryOf(baseWithoutQuery)
+  const resolvedPath = normalizeRelativePath(
+    resourcePath.startsWith("/") ? resourcePath : `${baseDirectory}${resourcePath}`,
+    baseWithoutQuery,
+  )
+  return `${resolvedPath}${resourceSuffix}`
 }
 
 export function assertCamResourceSize(
@@ -102,6 +227,99 @@ export function assertCamResourceSize(
   if (bytes.byteLength > maxBytes) {
     throw new Error(`CAM resource is too large: ${uri} has ${bytes.byteLength} bytes; limit is ${maxBytes}`)
   }
+}
+
+function assertURIString(value: string, label: string): void {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${label}: expected a non-empty URI string`)
+  }
+}
+
+function stripFragment(uri: string): string {
+  return uri.split("#", 1)[0]
+}
+
+function stripQuery(uri: string): string {
+  return uri.split("?", 1)[0]
+}
+
+function splitSuffix(uri: string): [string, string] {
+  const queryIndex = uri.indexOf("?")
+  const fragmentIndex = uri.indexOf("#")
+  const suffixIndex = [queryIndex, fragmentIndex].filter((index) => index >= 0).sort((left, right) => left - right)[0]
+
+  if (suffixIndex === undefined) {
+    return [uri, ""]
+  }
+
+  return [uri.slice(0, suffixIndex), uri.slice(suffixIndex)]
+}
+
+function hierarchicalBasePath(basePath: string): string {
+  if (basePath === "") {
+    return "/"
+  }
+
+  return basePath
+}
+
+function directoryOf(path: string): string {
+  if (path.length === 0 || path.endsWith("/")) {
+    return path
+  }
+
+  const index = path.lastIndexOf("/")
+  if (index < 0) {
+    return ""
+  }
+
+  return path.slice(0, index + 1)
+}
+
+function normalizeRelativePath(path: string, basePath: string): string {
+  const normalized = normalizePath(path)
+  if (basePath.startsWith("./") && !normalized.startsWith(".") && !normalized.startsWith("/")) {
+    return `./${normalized}`
+  }
+
+  return normalized
+}
+
+function normalizePath(path: string): string {
+  const absolute = path.startsWith("/")
+  const trailingSlash = path.endsWith("/")
+  const parts: string[] = []
+
+  for (const part of path.split("/")) {
+    if (part === "" || part === ".") {
+      continue
+    }
+
+    if (part === "..") {
+      const previous = parts.at(-1)
+      if (previous !== undefined && previous !== "..") {
+        // Collapse ordinary parent references for deterministic URI strings.
+        // This is not an access-control check; fetch policy belongs outside this resolver.
+        parts.pop()
+      } else if (!absolute) {
+        parts.push(part)
+      }
+      continue
+    }
+
+    parts.push(part)
+  }
+
+  let normalized = `${absolute ? "/" : ""}${parts.join("/")}`
+  if (normalized.length === 0) {
+    normalized = absolute ? "/" : "."
+  }
+
+  if (trailingSlash && !normalized.endsWith("/")) {
+    normalized = `${normalized}/`
+  }
+
+  return normalized
 }
 
 function isLocalCamSecondaryResourceURI(uri: string): boolean {
@@ -304,19 +522,30 @@ export async function readBoundedResponseBytes(
       if (chunk.done) break
 
       const value = chunk.value
-      if (value === undefined) {
+      // A bounded stream reader must observe progress on every read. Empty
+      // chunks can otherwise spin forever while never crossing the byte cap.
+      if (value === undefined || value.byteLength === 0) {
         throw new Error(`CAM resource stream returned an empty chunk: ${uri}`)
       }
 
       byteLength += value.byteLength
       if (byteLength > maxBytes) {
-        await reader.cancel?.()
+        try {
+          await reader.cancel?.()
+        } catch {
+          // Preserve the size-policy failure. Reader cancellation is cleanup,
+          // not a more useful diagnostic for the caller.
+        }
         throw new Error(`CAM resource is too large: ${uri}`)
       }
       chunks.push(value)
     }
   } finally {
-    reader.releaseLock?.()
+    try {
+      reader.releaseLock?.()
+    } catch {
+      // Lock release is best-effort cleanup for structural stream readers.
+    }
   }
 
   const bytes = new Uint8Array(byteLength)

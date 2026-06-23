@@ -1,10 +1,11 @@
 import {
-  CAM_ROUTES_NAMESPACE,
-  CAM_UI_NAMESPACE,
+  createStringMap,
+  UI_CALL_NAMESPACE_BY_ELEMENT,
+  UI_DOCUMENT_TOP_LEVEL_KEYS,
   UI_NODE_ARGUMENT_KEYS,
   UI_PROP_SCHEMAS,
   UI_VERSION,
-} from "./constants.ts"
+} from "@cam/protocol"
 import { UiError } from "./errors.ts"
 import { parseExpressionPayload } from "./expressions.ts"
 import {
@@ -13,11 +14,9 @@ import {
   requiredRecord,
   rejectUnknownFields,
 } from "./guards.ts"
-import { createStringMap } from "@cam/protocol"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type { UiCall, UiDocument, UiNode } from "./types.ts"
 
-const UI_TOP_LEVEL_KEYS = new Set(["ui", "nodes"])
 const NAMED_NODE_KEYS = new Set(["requires", "element", "props", "state", "children", "call"])
 const INLINE_NODE_KEYS = new Set(["element", "props", "state", "children", "call"])
 const CALL_KEYS = new Set(["namespace", "function", "args"])
@@ -32,7 +31,7 @@ const BUTTON_KEYS = new Set(["element", "props", "call"])
 export function parseUi(input: unknown): UiDocument {
   const source = requiredRecord(input, "")
   const ui = parseUiVersion(source.ui)
-  rejectUnknownUiFields(source, UI_TOP_LEVEL_KEYS, "")
+  rejectUnknownUiFields(source, UI_DOCUMENT_TOP_LEVEL_KEYS, "")
 
   const sourceNodes = requiredRecord(source.nodes, "nodes")
   const nodes = createStringMap<UiNode>()
@@ -131,14 +130,14 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       rejectUnexpectedNodeShape(source, INCLUDE_KEYS, path)
       return {
         element,
-        call: parseCall(source.call, `${path}.call`, CAM_UI_NAMESPACE),
+        call: parseCall(source.call, `${path}.call`, UI_CALL_NAMESPACE_BY_ELEMENT.Include),
       }
     case "Button":
       rejectUnexpectedNodeShape(source, BUTTON_KEYS, path)
       return {
         element,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Button),
-        call: parseCall(source.call, `${path}.call`, CAM_ROUTES_NAMESPACE),
+        call: parseCall(source.call, `${path}.call`, UI_CALL_NAMESPACE_BY_ELEMENT.Button),
       }
     default:
       throw new UiError("UI_INVALID_FIELD", `unknown UI node element: ${element}`, `${path}.element`)
@@ -241,7 +240,7 @@ function parseCallFunction(value: unknown, path: string, expectedNamespace: stri
     return parseExpressionPayload(value, path)
   }
 
-  if (expectedNamespace === CAM_UI_NAMESPACE && Array.isArray(value)) {
+  if (expectedNamespace === UI_CALL_NAMESPACE_BY_ELEMENT.Include && Array.isArray(value)) {
     return value.map((item, index) => {
       if (typeof item !== "string") {
         throw new UiError("UI_INVALID_FIELD", "Include function array items must be strings", `${path}.${index}`)
@@ -253,7 +252,7 @@ function parseCallFunction(value: unknown, path: string, expectedNamespace: stri
 
   throw new UiError(
     "UI_INVALID_FIELD",
-    expectedNamespace === CAM_UI_NAMESPACE
+    expectedNamespace === UI_CALL_NAMESPACE_BY_ELEMENT.Include
       ? "Include function must be a string or string array"
       : "Button function must be a string",
     path,

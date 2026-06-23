@@ -1,5 +1,34 @@
+export type CamConformanceRuleCode = `CAM_${string}`
+
+type CamConformanceRuleDetails =
+  | CamConformanceRetainedRuleDetails
+  | CamConformanceQuestionableRuleDetails
+  | CamConformanceRejectedRuleDetails
+
+type CamConformanceRetainedRuleDetails = {
+  readonly class: "A"
+  readonly reason: string
+}
+
+type CamConformanceQuestionableRuleDetails = {
+  readonly class: "B"
+  readonly reason: string
+  readonly limitation: string
+}
+
+type CamConformanceRejectedRuleDetails = {
+  readonly class: "C"
+  readonly reason: string
+}
+
+type CamConformanceRuleKey<Rules> = keyof Rules & CamConformanceRuleCode
+
+type CamConformanceRuleMap<Rules extends Readonly<Record<CamConformanceRuleCode, CamConformanceRuleDetails>>> = {
+  readonly [Code in CamConformanceRuleKey<Rules>]: Code
+}
+
 export type CamConformanceIssue = {
-  readonly rule: string
+  readonly rule: CamConformanceRuleCode
   readonly severity: "error"
   readonly resource: string
   readonly message: string
@@ -22,7 +51,7 @@ export function conformanceIssue({
   path,
   message,
 }: {
-  readonly rule: string
+  readonly rule: CamConformanceRuleCode
   readonly resource: string
   readonly path?: string | undefined
   readonly message: string
@@ -50,7 +79,7 @@ export function issueFromError({
   path,
   error,
 }: {
-  readonly rule: string
+  readonly rule: CamConformanceRuleCode
   readonly resource: string
   readonly path?: string
   readonly error: unknown
@@ -62,6 +91,28 @@ export function issueFromError({
     path: resolvedPath,
     message: errorMessage(error),
   })
+}
+
+export function conformanceRules<const Rules extends Readonly<Record<CamConformanceRuleCode, CamConformanceRuleDetails>>>(
+  rules: Rules,
+): CamConformanceRuleMap<Rules> {
+  // Class/reason is maintainer-facing ownership metadata. Runtime issues
+  // intentionally carry only the stable public CAM_* rule code.
+  const ruleCodes: Partial<Record<CamConformanceRuleKey<Rules>, CamConformanceRuleCode>> = {}
+  for (const rule of Object.keys(rules) as readonly CamConformanceRuleKey<Rules>[]) {
+    const details = rules[rule]
+    if (details.class === "C") {
+      throw new Error(`Class C CAM conformance rule must be removed or moved to its runtime owner: ${rule}`)
+    }
+    if (details.reason.trim().length === 0) {
+      throw new Error(`CAM conformance rule must justify its ownership: ${rule}`)
+    }
+    if (details.class === "B" && (details.limitation === undefined || details.limitation.trim().length === 0)) {
+      throw new Error(`Class B CAM conformance rule must document its limitation: ${rule}`)
+    }
+    ruleCodes[rule] = rule
+  }
+  return ruleCodes as CamConformanceRuleMap<Rules>
 }
 
 function errorPath(error: unknown): string | undefined {

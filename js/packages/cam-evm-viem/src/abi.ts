@@ -1,13 +1,18 @@
 import type { Abi, AbiFunction, AbiParameter } from "viem"
 import {
+  abiFunctionSignature,
+  abiTupleArraySuffix,
   isFixedAbiArrayType,
   isAbiFunctionName,
+  isAbiStateMutability,
   isRecordObject,
   isSupportedAbiScalarType,
+  inspectAbiParameterNames,
   parseAbiFixedBytesLength,
   parseAbiIntegerType,
   parseJsonBytes,
 } from "@cam/protocol"
+import type { AbiParameterNameIssue } from "@cam/protocol"
 
 import {
   dynamicArrayElement,
@@ -75,6 +80,9 @@ export function parseAbiBytes(bytes: Uint8Array, uri: string): Abi {
     validateAbiItem(item, `${uri}.${index}`)
     if (isRecordObject(item) && item.type === "function") {
       const signature = abiFunctionSignature(item as AbiFunction)
+      if (signature === undefined) {
+        throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI function signature cannot be derived: ${uri}.${index}`)
+      }
       if (signatures.has(signature)) {
         throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI contains duplicate function signature: ${signature}`)
       }
@@ -83,10 +91,6 @@ export function parseAbiBytes(bytes: Uint8Array, uri: string): Abi {
   }
 
   return value as Abi
-}
-
-export function abiFunctionSignature(fn: AbiFunction): string {
-  return `${fn.name}(${fn.inputs.map(parameterType).join(",")})`
 }
 
 function validateAbiItem(item: unknown, path: string): void {
@@ -114,7 +118,7 @@ function validateFunctionItem(item: Record<string, unknown>, path: string): void
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI function name is not supported: ${path}.name`)
   }
 
-  if (!isStateMutability(item.stateMutability)) {
+  if (!isAbiStateMutability(item.stateMutability)) {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI function must declare stateMutability: ${path}`)
   }
 
@@ -165,7 +169,7 @@ function validateAbiParameter(value: unknown, path: string): void {
     )
   }
 
-  if (tupleArraySuffix(value.type) !== undefined) {
+  if (abiTupleArraySuffix(value.type) !== undefined) {
     validateAbiParameters(value.components, `${path}.components`)
     validateTupleComponentNames(value.components, `${path}.components`)
     return
@@ -185,20 +189,14 @@ function validateTupleComponentNames(value: unknown, path: string): void {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI tuple components must be an array: ${path}`)
   }
 
-  const names = new Set<string>()
-  for (let index = 0; index < value.length; index++) {
-    const component = value[index]
-    if (!isRecordObject(component)) continue
-
-    const name = component.name
-    if (typeof name !== "string" || name.length === 0) {
-      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI tuple components used by CAM routes must be named: ${path}.${index}.name`)
-    }
-
-    if (names.has(name)) {
-      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI tuple component name is duplicated: ${path}.${index}.name`)
-    }
-    names.add(name)
+  const issue = inspectAbiParameterNames(value as readonly AbiParameter[]).issues[0]
+  if (issue !== undefined) {
+    throw abiParameterNameError(
+      issue,
+      path,
+      "CAM ABI tuple components used by CAM routes must be named",
+      "CAM ABI tuple component name is duplicated",
+    )
   }
 }
 
@@ -207,39 +205,26 @@ function validateFunctionInputNames(value: unknown, path: string): void {
     throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI function inputs must be an array: ${path}`)
   }
 
-  const names = new Set<string>()
-  for (let index = 0; index < value.length; index++) {
-    const input = value[index]
-    if (!isRecordObject(input)) continue
-
-    const name = input.name
-    if (typeof name !== "string" || name.length === 0) {
-      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI inputs used by CAM routes must be named: ${path}.${index}.name`)
-    }
-
-    if (names.has(name)) {
-      throw new CamEvmError("CAM_ABI_INVALID", `CAM ABI input name is duplicated: ${path}.${index}.name`)
-    }
-    names.add(name)
+  const issue = inspectAbiParameterNames(value as readonly AbiParameter[]).issues[0]
+  if (issue !== undefined) {
+    throw abiParameterNameError(
+      issue,
+      path,
+      "CAM ABI inputs used by CAM routes must be named",
+      "CAM ABI input name is duplicated",
+    )
   }
 }
 
-function isStateMutability(value: unknown): value is "pure" | "view" | "nonpayable" | "payable" {
-  return value === "pure" || value === "view" || value === "nonpayable" || value === "payable"
-}
+function abiParameterNameError(
+  issue: AbiParameterNameIssue,
+  path: string,
+  unnamedMessage: string,
+  duplicateMessage: string,
+): CamEvmError {
+  if (issue.kind === "unnamed") {
+    return new CamEvmError("CAM_ABI_INVALID", `${unnamedMessage}: ${path}.${issue.index}.name`)
+  }
 
-function parameterType(parameter: AbiParameter): string {
-  const suffix = tupleArraySuffix(parameter.type)
-  if (suffix === undefined) return parameter.type
-  const components = "components" in parameter && Array.isArray(parameter.components)
-    ? parameter.components
-    : []
-
-  return `(${components.map(parameterType).join(",")})${suffix}`
-}
-
-function tupleArraySuffix(type: string): string | undefined {
-  if (type === "tuple") return ""
-  if (/^tuple(\[[0-9]*\])+$/.test(type)) return type.slice("tuple".length)
-  return undefined
+  return new CamEvmError("CAM_ABI_INVALID", `${duplicateMessage}: ${path}.${issue.index}.name`)
 }

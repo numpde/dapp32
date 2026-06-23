@@ -1,5 +1,4 @@
-import type { CamRuntimeContext, InertValue } from "@cam/protocol"
-export type { CamRuntimeContext } from "@cam/protocol"
+import type { CamRouteKind, CamRuntimeContext, InertValue } from "@cam/protocol"
 
 export type CamDocument = {
   readonly cam: string
@@ -30,7 +29,7 @@ export type CamUiNamespace = {
 }
 
 export type CamRoute = {
-  readonly kind: "read" | "write"
+  readonly kind: CamRouteKind
   readonly inputs: readonly string[]
   readonly call: CamInvocation
   readonly then: CamInvocation

@@ -2,21 +2,36 @@ import {
   CAM_CONTRACT_NAMESPACE_PREFIX,
   CAM_ROUTES_NAMESPACE,
   CAM_UI_NAMESPACE,
+  isCamNamespaceNameForType,
+  isCamNamespaceType,
   isRecordObject,
+} from "@cam/protocol"
+import type {
+  CamNamespaceType,
 } from "@cam/protocol"
 
 import {
   conformanceIssue,
+  conformanceRules,
   type CamConformanceIssue,
 } from "../issues.ts"
 
-export type NamespaceType = "contract" | "routes" | "ui"
-
 export type DeclaredNamespace = {
   readonly name: string
-  readonly type: NamespaceType
+  readonly type: CamNamespaceType
   readonly declaration: Record<string, unknown>
 }
+
+const RULES = conformanceRules({
+  CAM_UI_NAMESPACE_MISSING: {
+    class: "A",
+    reason: "CAM V1 manifests require the canonical UI namespace as the render resource root.",
+  },
+  CAM_NAMESPACE_DECLARATION_INVALID: {
+    class: "A",
+    reason: "Namespace type/name shape is static routing inventory for resources, route calls, and UI handoffs.",
+  },
+})
 
 export function validateNamespaceDeclarations({
   resource,
@@ -38,7 +53,7 @@ export function validateNamespaceDeclarations({
 
   if (!Object.hasOwn(namespaces, CAM_UI_NAMESPACE)) {
     issues.push(conformanceIssue({
-      rule: "CAM_UI_RESOURCE_MISSING",
+      rule: RULES.CAM_UI_NAMESPACE_MISSING,
       resource,
       path: `namespaces.${CAM_UI_NAMESPACE}`,
       message: "CAM bundle must declare a ui namespace",
@@ -76,19 +91,18 @@ function validateNamespaceDeclaration(
     return undefined
   }
 
-  const type = namespaceType(rawType)
-  if (type === undefined) {
+  if (!isCamNamespaceType(rawType)) {
     issues.push(namespaceIssue(resource, `namespaces.${name}.type`, `unknown namespace type: ${rawType}`))
     return undefined
   }
 
-  if (!validateNamespaceName(resource, name, type, issues)) {
+  if (!validateNamespaceName(resource, name, rawType, issues)) {
     return undefined
   }
 
   return {
     name,
-    type,
+    type: rawType,
     declaration,
   }
 }
@@ -96,64 +110,39 @@ function validateNamespaceDeclaration(
 function validateNamespaceName(
   resource: string,
   name: string,
-  type: NamespaceType,
+  type: CamNamespaceType,
   issues: CamConformanceIssue[],
 ): boolean {
+  if (isCamNamespaceNameForType(name, type)) return true
+
   switch (type) {
     case "contract":
-      return validateContractNamespaceName(resource, name, issues)
+      issues.push(namespaceIssue(
+        resource,
+        `namespaces.${name}`,
+        `contract namespace must be ${CAM_CONTRACT_NAMESPACE_PREFIX}<name>`,
+      ))
+      return false
     case "routes":
-      return validateSingletonNamespaceName(resource, name, CAM_ROUTES_NAMESPACE, "routes", issues)
+      issues.push(namespaceIssue(
+        resource,
+        `namespaces.${name}`,
+        `routes namespace must be named ${CAM_ROUTES_NAMESPACE}`,
+      ))
+      return false
     case "ui":
-      return validateSingletonNamespaceName(resource, name, CAM_UI_NAMESPACE, "ui", issues)
+      issues.push(namespaceIssue(
+        resource,
+        `namespaces.${name}`,
+        `ui namespace must be named ${CAM_UI_NAMESPACE}`,
+      ))
+      return false
   }
-}
-
-function namespaceType(value: unknown): NamespaceType | undefined {
-  if (value === "contract" || value === "routes" || value === "ui") {
-    return value
-  }
-
-  return undefined
-}
-
-function validateContractNamespaceName(
-  resource: string,
-  name: string,
-  issues: CamConformanceIssue[],
-): boolean {
-  if (name.startsWith(CAM_CONTRACT_NAMESPACE_PREFIX) && name.length > CAM_CONTRACT_NAMESPACE_PREFIX.length) {
-    return true
-  }
-
-  issues.push(namespaceIssue(
-    resource,
-    `namespaces.${name}`,
-    `contract namespace must be ${CAM_CONTRACT_NAMESPACE_PREFIX}<name>`,
-  ))
-  return false
-}
-
-function validateSingletonNamespaceName(
-  resource: string,
-  actualName: string,
-  expectedName: string,
-  type: string,
-  issues: CamConformanceIssue[],
-): boolean {
-  if (actualName === expectedName) return true
-
-  issues.push(namespaceIssue(
-    resource,
-    `namespaces.${actualName}`,
-    `${type} namespace must be named ${expectedName}`,
-  ))
-  return false
 }
 
 function namespaceIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_NAMESPACE_DECLARATION_INVALID",
+    rule: RULES.CAM_NAMESPACE_DECLARATION_INVALID,
     resource,
     path,
     message,

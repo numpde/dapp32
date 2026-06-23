@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  CAM_VERSION,
   CAM_RESOURCE_MAX_BYTES,
   UI_VERSION,
 } from "@cam/protocol"
@@ -68,7 +69,7 @@ test("missing declared UI resource returns one precise issue", () => {
   ])
 })
 
-test("malformed declared UI document inventory is reported before runtime compatibility", () => {
+test("malformed declared UI document inventory is reported directly", () => {
   const uiBytes = jsonBytes({
     ui: UI_VERSION,
     nodes: null,
@@ -96,6 +97,37 @@ test("empty UI node inventory is reported as a document issue", () => {
   ])
 })
 
+test("UI document version and top-level fields are conformance-owned publication rules", () => {
+  const versionIssues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
+    return replaceBundleResources(root, bundle, {
+      uiBytes: jsonBytes({
+        ui: "2.0.0",
+        nodes: {
+          app: viewTextNode(),
+        },
+      }),
+    })
+  })
+  assert.deepEqual(issueLocations(versionIssues), [
+    ["CAM_UI_DOCUMENT_INVALID", "ui"],
+  ])
+
+  const fieldIssues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
+    return replaceBundleResources(root, bundle, {
+      uiBytes: jsonBytes({
+        ui: UI_VERSION,
+        title: "metadata-like fields do not belong in UI resources",
+        nodes: {
+          app: viewTextNode(),
+        },
+      }),
+    })
+  })
+  assert.deepEqual(issueLocations(fieldIssues), [
+    ["CAM_UI_DOCUMENT_INVALID", "title"],
+  ])
+})
+
 test("empty UI node names are reported as node inventory issues", () => {
   const uiBytes = jsonBytes({
     ui: UI_VERSION,
@@ -116,7 +148,6 @@ test("empty UI node names are reported as node inventory issues", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_NODE_INTERFACE_INVALID", "nodes"],
     ["CAM_ROUTE_HANDOFF_MISMATCH", "routes.entry.then.function"],
-    ["CAM_UI_FIELD_INVALID", "nodes"],
   ])
 })
 
@@ -132,7 +163,18 @@ test("invalid root CAM bytes report the caller-supplied root URI", () => {
   assert.equal(issues[0]?.resource, "ipfs://example-cid/app.cam")
 })
 
-test("root CAM bytes must not exceed the runtime resource size cap", () => {
+test("non-object root CAM JSON is reported directly", () => {
+  const issues = validateCamBundle({
+    ...minimalBundle(),
+    rootBytes: jsonBytes([]),
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_MANIFEST_ROOT_INVALID", undefined],
+  ])
+})
+
+test("root CAM bytes must not exceed the protocol resource size cap", () => {
   const rootBytes = new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1)
   const issues = validateCamBundle({
     ...minimalBundle(),
@@ -150,7 +192,7 @@ test("root CAM bytes must not exceed the runtime resource size cap", () => {
   ])
 })
 
-test("runtime CAM parsing is reported after resource checks", () => {
+test("root-level checks report alongside resource checks", () => {
   const issues = validateEditedRoot((root, bundle) => {
     delete root.entry
     return {
@@ -163,18 +205,16 @@ test("runtime CAM parsing is reported after resource checks", () => {
   assert.deepEqual(issueRules(issues), [
     "CAM_RESOURCE_MISSING",
     "CAM_ENTRY_ROUTE_INVALID",
-    "CAM_RUNTIME_CAM_INVALID",
   ])
 })
 
-test("malformed entry route is reported before runtime compatibility", () => {
+test("malformed entry route is reported directly", () => {
   const issues = validateEditedRoot((root) => {
     root.entry = ""
   })
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ENTRY_ROUTE_INVALID", "entry"],
-    ["CAM_RUNTIME_CAM_INVALID", "entry"],
   ])
 })
 
@@ -185,22 +225,20 @@ test("missing entry route is reported as a precise manifest issue", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ENTRY_ROUTE_MISSING", "entry"],
-    ["CAM_RUNTIME_CAM_INVALID", "entry"],
   ])
 })
 
-test("malformed route inventory is reported before runtime compatibility", () => {
+test("malformed route inventory is reported directly", () => {
   const issues = validateEditedRoot((root) => {
     root.routes = null
   })
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_DECLARATION_INVALID", "routes"],
-    ["CAM_RUNTIME_CAM_INVALID", "routes"],
   ])
 })
 
-test("malformed route declarations are reported before runtime compatibility", () => {
+test("malformed route declarations are reported directly", () => {
   const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>
   }>((root) => {
@@ -216,7 +254,6 @@ test("malformed route declarations are reported before runtime compatibility", (
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_DECLARATION_INVALID", "routes"],
     ["CAM_ROUTE_DECLARATION_INVALID", "routes.broken"],
-    ["CAM_RUNTIME_CAM_INVALID", "routes"],
   ])
 })
 
@@ -230,6 +267,30 @@ test("unknown CAM manifest fields use an author-facing conformance rule", () => 
   ])
 })
 
+test("CAM manifest version is a conformance-owned publication rule", () => {
+  const issues = validateEditedRoot<Record<string, unknown>>((root) => {
+    root.cam = "2.0.0"
+    root.entry = ""
+    root.unexpected = true
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_MANIFEST_VERSION_INVALID", "cam"],
+  ])
+
+  const missing = validateEditedRoot<Record<string, unknown>>((root) => {
+    delete root.cam
+  })
+  assert.deepEqual(issueLocations(missing), [
+    ["CAM_MANIFEST_VERSION_INVALID", "cam"],
+  ])
+
+  const valid = validateEditedRoot<Record<string, unknown>>((root) => {
+    root.cam = CAM_VERSION
+  })
+  assert.equal(valid.some((issue) => issue.rule === "CAM_MANIFEST_VERSION_INVALID"), false)
+})
+
 test("invalid route kind is reported directly", () => {
   const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>
@@ -240,7 +301,6 @@ test("invalid route kind is reported directly", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_KIND_INVALID", "routes.entry.kind"],
-    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.kind"],
   ])
 })
 
@@ -270,7 +330,6 @@ test("invalid route input declarations are reported per input", () => {
     ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.1"],
     ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.2"],
     ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.3"],
-    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.inputs.1"],
   ])
 })
 
@@ -385,7 +444,6 @@ test("route expressions must use route context roots", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_EXPRESSION_INVALID", "routes.entry.call.args.serialNumber"],
     ["CAM_ROUTE_EXPRESSION_INVALID", "routes.entry.call.args.tokenURI"],
-    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.call.args.serialNumber"],
   ])
 })
 
@@ -456,7 +514,6 @@ test("route invocations must target the correct namespace types", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.call.namespace"],
     ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then.namespace"],
-    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.call.namespace"],
   ])
 })
 
@@ -484,7 +541,6 @@ test("route invocations require function names and named args", () => {
     ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.call.args"],
     ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then.function"],
     ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then.args"],
-    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.call.function"],
   ])
 })
 
@@ -509,7 +565,6 @@ test("route invocation arg names must not be empty", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.call.args"],
     ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then.args"],
-    ["CAM_RUNTIME_CAM_INVALID", "routes.entry.call.args"],
   ])
 })
 
@@ -565,7 +620,15 @@ test("route function references must be names or full signatures", () => {
   ])
 })
 
-test("ABI resource validation rejects runtime-invalid function ABI shapes", () => {
+test("ABI resource validation rejects invalid published function shapes", () => {
+  assert.deepEqual(abiIssueLocationsFor(encoder.encode("{")), [
+    ["CAM_ABI_INVALID", undefined],
+  ])
+
+  assert.deepEqual(abiIssueLocationsFor(jsonBytes({ abi: [] })), [
+    ["CAM_ABI_INVALID", undefined],
+  ])
+
   assert.deepEqual(abiIssueLocationsFor(duplicateViewEntrySignatureAbiBytes()), [
     ["CAM_ABI_INVALID", "1"],
   ])
@@ -847,7 +910,7 @@ test("route call literal strings must match exact ABI scalar syntax when statica
   ])
 })
 
-test("route call invalid literal strings are rejected before runtime", () => {
+test("route call invalid literal strings are rejected at publication time", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -1438,7 +1501,6 @@ test("UI node interfaces must use supported argument names", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_NODE_INTERFACE_INVALID", "nodes.app.requires.0"],
-    ["CAM_UI_FIELD_INVALID", "nodes.app.requires.0"],
   ])
 })
 
@@ -1513,7 +1575,6 @@ test("UI expressions must use protocol-owned roots", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_EXPRESSION_ROOT_INVALID", "nodes.app.children.1.call.args.serialNumber"],
     ["CAM_UI_EXPRESSION_ROOT_INVALID", "nodes.app.children.2.call.args.view"],
-    ["CAM_UI_EXPRESSION_INVALID", "nodes.app.children.1.call.args.serialNumber"],
   ])
 })
 
@@ -2176,7 +2237,6 @@ test("UI Button route targets must be single strings, not arrays", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.function"],
-    ["CAM_UI_FIELD_INVALID", "nodes.app.children.0.call.function"],
   ])
 })
 
@@ -2470,7 +2530,7 @@ test("UI typeflow rejects duplicate rendered TextField state keys", () => {
   ])
 })
 
-test("UI typeflow resolves known dynamic TextField state keys", () => {
+test("UI typeflow resolves handoff-backed TextField state keys", () => {
   const uiBytes = jsonBytes({
     ui: UI_VERSION,
     nodes: {
@@ -2541,7 +2601,7 @@ test("UI typeflow resolves known dynamic TextField state keys", () => {
   assert.deepEqual(issues, [])
 })
 
-test("UI typeflow rejects known dynamic invalid TextField state keys", () => {
+test("UI typeflow rejects handoff-backed invalid TextField state keys", () => {
   const uiBytes = jsonBytes({
     ui: UI_VERSION,
     nodes: {
@@ -2743,7 +2803,6 @@ test("UI call arg names must not be empty", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.0.call.args"],
     ["CAM_UI_DATAFLOW_MISMATCH", "nodes.app.children.1.call.args"],
-    ["CAM_UI_FIELD_INVALID", "nodes.app.children.0.call.args"],
   ])
 })
 
@@ -3174,7 +3233,7 @@ test("UI props reject statically incompatible literal Include args", () => {
   ])
 })
 
-test("UI call args reject route-local missing references before runtime", () => {
+test("UI call args reject route-local missing references at publication time", () => {
   const abiBytes = jsonBytes([
     viewEntryFunction(),
     {
@@ -3458,47 +3517,57 @@ test("UI Includes validate known targets from mixed selector lists", () => {
   ])
 })
 
-test("route root UI node must resolve to one root node", () => {
-  const uiBytes = jsonBytes({
-    ui: UI_VERSION,
-    nodes: {
-      app: {
-        element: "Include",
-        requires: ["view"],
-        call: {
-          namespace: "ui",
-          function: ["summary", "actions"],
-          args: {
-            view: "$view",
+test("route root UI node must resolve to exactly one root node", () => {
+  const routeRootIssues = (functionValue: unknown, extraNodes: Record<string, unknown>) => {
+    return validateEditedRoot<RootWithNamespaces>((root, bundle) => {
+      const uiBytes = jsonBytes({
+        ui: UI_VERSION,
+        nodes: {
+          app: {
+            element: "Include",
+            requires: ["view"],
+            call: {
+              namespace: "ui",
+              function: functionValue,
+              args: {
+                view: "$view",
+              },
+            },
           },
+          ...extraNodes,
         },
+      })
+      return replaceBundleResources(root, bundle, { uiBytes })
+    })
+  }
+
+  const multipleRootIssues = routeRootIssues(["summary", "actions"], {
+    summary: {
+      element: "Text",
+      requires: ["view"],
+      props: {
+        text: "$view.title",
       },
-      summary: {
-        element: "Text",
-        requires: ["view"],
-        props: {
-          text: "$view.title",
-        },
+    },
+    actions: {
+      element: "Button",
+      requires: ["view"],
+      props: {
+        label: "Refresh",
       },
-      actions: {
-        element: "Button",
-        requires: ["view"],
-        props: {
-          label: "Refresh",
-        },
-        call: {
-          namespace: "routes",
-          function: "entry",
-          args: {},
-        },
+      call: {
+        namespace: "routes",
+        function: "entry",
+        args: {},
       },
     },
   })
-  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
-    return replaceBundleResources(root, bundle, { uiBytes })
-  })
+  const emptyRootIssues = routeRootIssues([], {})
 
-  assert.deepEqual(issueLocations(issues), [
+  assert.deepEqual(issueLocations(multipleRootIssues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
+  ])
+  assert.deepEqual(issueLocations(emptyRootIssues), [
     ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.function"],
   ])
 })
@@ -3669,7 +3738,7 @@ test("UI typeflow walks literal Include arrays", () => {
   ])
 })
 
-test("UI typeflow validates known dynamic Button routes", () => {
+test("UI typeflow validates handoff-backed Button routes", () => {
   const uiBytes = jsonBytes({
     ui: UI_VERSION,
     nodes: {
@@ -3725,7 +3794,7 @@ test("UI typeflow validates known dynamic Button routes", () => {
   ])
 })
 
-test("UI typeflow rejects known dynamic empty Button routes", () => {
+test("UI typeflow rejects handoff-backed empty Button routes", () => {
   const uiBytes = jsonBytes({
     ui: UI_VERSION,
     nodes: {
@@ -3910,7 +3979,7 @@ test("UI props are checked against each route-local continuation shape", () => {
   ])
 })
 
-test("UI dynamic call targets reject statically incompatible ABI-backed route outputs", () => {
+test("UI expression call targets reject statically incompatible ABI-backed route outputs", () => {
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -3995,7 +4064,6 @@ test("malformed resource declarations report each bad field", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.App.abiURI"],
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.App.integrity"],
-    ["CAM_RUNTIME_CAM_INVALID", "namespaces.contracts.App.abiURI"],
   ])
 })
 
@@ -4029,7 +4097,6 @@ test("resource declarations reject mutable remote and escaping URIs", () => {
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.Other.abiURI"],
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.Ipfs.abiURI"],
     ["CAM_RESOURCE_DECLARATION_INVALID", "namespaces.contracts.Encoded.abiURI"],
-    ["CAM_RUNTIME_CAM_INVALID", "namespaces.contracts.App.abiURI"],
   ])
 })
 
@@ -4053,7 +4120,7 @@ test("undeclared bundle resources are reported as orphans", () => {
   ])
 })
 
-test("declared resources must not exceed the runtime resource size cap", () => {
+test("declared resources must not exceed the protocol resource size cap", () => {
   const oversizedAbiBytes = new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1)
   const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { abiBytes: oversizedAbiBytes })
@@ -4086,7 +4153,7 @@ test("conflicting integrity declarations for one URI are reported directly", () 
   assert.equal(issues[0]?.path, "namespaces.contracts.Other.integrity")
 })
 
-test("missing UI namespace is reported without hiding runtime incompatibility", () => {
+test("missing UI namespace is reported with dependent route incompatibility", () => {
   const issues = validateEditedRoot<{
     readonly namespaces: Record<string, unknown>
   }>((root, bundle) => {
@@ -4099,9 +4166,8 @@ test("missing UI namespace is reported without hiding runtime incompatibility", 
   })
 
   assert.deepEqual(issueRules(issues), [
-    "CAM_UI_RESOURCE_MISSING",
+    "CAM_UI_NAMESPACE_MISSING",
     "CAM_ROUTE_INVOCATION_INVALID",
-    "CAM_RUNTIME_CAM_INVALID",
   ])
 })
 
@@ -4127,6 +4193,11 @@ test("invalid namespace declarations are reported together", () => {
       abiURI: appNamespace.abiURI,
       integrity: appNamespace.integrity,
     }
+    root.namespaces["contracts.App.v1"] = {
+      type: "contract",
+      abiURI: appNamespace.abiURI,
+      integrity: appNamespace.integrity,
+    }
     root.namespaces.widgets = {
       type: "widget",
     }
@@ -4137,8 +4208,8 @@ test("invalid namespace declarations are reported together", () => {
     ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.flows"],
     ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.screens"],
     ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.contracts."],
+    ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.contracts.App.v1"],
     ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.widgets.type"],
-    ["CAM_RUNTIME_CAM_INVALID", "namespaces"],
   ])
 })
 
@@ -4163,7 +4234,6 @@ test("invalid namespace names do not declare bundle resources", () => {
   assert.deepEqual(issueLocations(issues), [
     ["CAM_NAMESPACE_DECLARATION_INVALID", "namespaces.Manager"],
     ["CAM_RESOURCE_ORPHAN", undefined],
-    ["CAM_RUNTIME_CAM_INVALID", "namespaces.Manager"],
   ])
 })
 

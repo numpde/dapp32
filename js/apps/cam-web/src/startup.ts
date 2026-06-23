@@ -8,9 +8,8 @@ import {
   requireEvmChainId,
 } from "@cam/evm-viem"
 import {
-  readBoundedResponseBytes,
+  createSameOriginHttpResourceLoader,
   requireHttpOrigin,
-  requireSameHttpOrigin,
   requireHttpURL,
 } from "@cam/protocol"
 import type {
@@ -71,20 +70,13 @@ export function readStartupPolicy(env: StartupEnv): StartupPolicy {
 }
 
 export function createPinnedOriginResourceLoader(resourceOrigin: string): ResourceLoader {
-  const origin = requireHttpOrigin(resourceOrigin, "resourceOrigin")
-
-  return async (uri: string): Promise<Uint8Array> => {
-    const url = requireSameHttpOrigin(uri, origin, "CAM resource URI")
-
-    const response = await fetch(url.href, {
-      cache: "no-store",
-      redirect: "error",
-    })
-    if (!response.ok) {
-      throw new Error(`failed to load CAM resource ${url.href}: HTTP ${response.status}`)
-    }
-    return readBoundedResponseBytes(response, url.href)
-  }
+  return createSameOriginHttpResourceLoader({
+    originInput: resourceOrigin,
+    originLabel: "resourceOrigin",
+    fetchResource: fetch,
+    cache: "no-store",
+    loadFailurePrefix: "failed to load CAM resource",
+  })
 }
 
 export async function assertHostHasCode(

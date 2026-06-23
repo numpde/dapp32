@@ -63,25 +63,8 @@ x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
       mkdir -p /tmp/cam-integration
       node --input-type=module <<'JS'
       import { readFileSync, writeFileSync } from "node:fs"
-
-      const broadcast = JSON.parse(readFileSync(process.env.CAM_INTEGRATION_BROADCAST_PATH, "utf8"))
-      if (!Array.isArray(broadcast.transactions)) {
-        throw new Error("Forge broadcast output must contain a transactions array")
-      }
-
-      const tx = broadcast.transactions.find((item) => (
-        item !== null
-        && typeof item === "object"
-        && item.contractName === "CamRoot"
-      ))
-      const camHost = tx?.contractAddress
-      const isHexAddress = typeof camHost === "string"
-        && camHost.length === 42
-        && camHost.startsWith("0x")
-        && [...camHost.slice(2)].every((char) => /[0-9a-fA-F]/.test(char))
-      if (!isHexAddress) {
-        throw new Error("CamRoot contractAddress not found in Forge broadcast output")
-      }
+      import { requireEvmAddress } from "./packages/cam-evm-viem/dist/index.js"
+      import { isRecordObject, parseJsonBytes } from "./packages/cam-protocol/dist/index.js"
 
       function requiredEnv(name) {
         const value = process.env[name]
@@ -90,6 +73,20 @@ x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
         }
         return value
       }
+
+      const broadcast = parseJsonBytes(readFileSync(requiredEnv("CAM_INTEGRATION_BROADCAST_PATH")))
+      if (!isRecordObject(broadcast) || !Array.isArray(broadcast.transactions)) {
+        throw new Error("Forge broadcast output must contain a transactions array")
+      }
+
+      const tx = broadcast.transactions.find((item) => (
+        isRecordObject(item)
+        && item.contractName === "CamRoot"
+      ))
+      if (!isRecordObject(tx) || typeof tx.contractAddress !== "string") {
+        throw new Error("CamRoot contractAddress not found in Forge broadcast output")
+      }
+      const camHost = requireEvmAddress(tx.contractAddress, "CamRoot contractAddress")
 
       function requiredBooleanEnv(name) {
         const value = requiredEnv(name)

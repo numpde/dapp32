@@ -28,10 +28,13 @@ type KnownInputValue = {
   readonly pathSuffix: string
 }
 
-export const UNKNOWN_ROUTE_CALL_VALUE: unique symbol = Symbol("CAM_CONFORMANCE_UNKNOWN_ROUTE_CALL_VALUE")
+export const UNKNOWN_ROUTE_CALL_VALUE: unique symbol = Symbol("UNKNOWN_ROUTE_CALL_VALUE")
 
 type KnownInputResolver = (segments: readonly string[]) => KnownInputValue | undefined
 
+// This is provenance-preserving partial evaluation, not runtime expression
+// execution: literal/input-backed leaves survive, while unresolved branches are
+// poisoned with UNKNOWN so downstream ABI checks can only report proven facts.
 export function knownRouteCallValue(routeArg: unknown, resolveInput: KnownInputResolver): KnownRouteCallValue | undefined {
   return knownRouteCallValueAt(routeArg, resolveInput, "", "")
 }

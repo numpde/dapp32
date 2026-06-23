@@ -528,11 +528,15 @@ class DependencyVerifier:
 
     @staticmethod
     def require_file(path: Path) -> None:
+        if path.is_symlink():
+            raise DependencyVerificationError(f"required file must not be a symlink: {path}")
         if not path.is_file():
             raise DependencyVerificationError(f"missing required file: {path}")
 
     @staticmethod
     def require_dir(path: Path) -> None:
+        if path.is_symlink():
+            raise DependencyVerificationError(f"required directory must not be a symlink: {path}")
         if not path.is_dir():
             raise DependencyVerificationError(f"missing required directory: {path}")
 

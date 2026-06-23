@@ -1,7 +1,10 @@
 import {
+  abiDynamicArrayElementType,
   isAbiAddressValue,
   abiScalarKind,
   isExpressionIdentifier,
+  isUiPropElement,
+  nameListShapeIssues,
   UI_PROP_SCHEMAS,
   type UiPropElement,
   isRecordObject,
@@ -40,8 +43,9 @@ import {
   forEachString,
   rawValueAtSegments,
 } from "../walk.ts"
-import type { RawUiDocuments } from "./resources.ts"
+import type { DeclaredUiDocument } from "./resources.ts"
 import {
+  UI_CALL_RULES,
   validateExpectedArgumentNames,
   validateKnownCallTargets,
 } from "./calls.ts"
@@ -74,35 +78,34 @@ type IncludeSelection = {
 const UNKNOWN_VALUE = { type: "unknown", value: UNKNOWN_ROUTE_CALL_VALUE } as const
 
 export function validateUiTypeflow({
-  uiDocuments,
+  uiDocument,
   routes,
   functionsByNamespace,
   issues,
 }: {
-  readonly uiDocuments: RawUiDocuments
+  readonly uiDocument: DeclaredUiDocument | undefined
   readonly routes: readonly DeclaredRoute[]
   readonly functionsByNamespace: ContractFunctionsByNamespace
   readonly issues: CamConformanceIssue[]
 }): void {
+  if (uiDocument === undefined) return
+
   const routesByName = new Map(routes.map((route) => [route.name, route]))
-  for (const [resource, ui] of uiDocuments) {
-    // Route-local validation is critical: the same UI graph can be rendered from
-    // multiple route outputs, and each route can make different arguments
-    // available at runtime. We must validate each (resource, route) pair
-    // independently so unresolved or missing state/input bindings are surfaced
-    // at the correct workflow boundary.
-    for (const route of routes) {
-      const scope = {
-        resource,
-        nodes: ui.nodes,
-        routesByName,
-        functionsByNamespace,
-        routeName: route.name,
-        reported: new Set<string>(),
-        issues,
-      }
-      validateRouteTypeflow(scope, route)
+  // Route-local validation is critical: the same UI graph can be rendered from
+  // multiple route outputs, and each route declares a different argument
+  // context. We must validate each route independently so unresolved or missing
+  // state/input bindings are surfaced at the correct workflow boundary.
+  for (const route of routes) {
+    const scope = {
+      resource: uiDocument.resource,
+      nodes: uiDocument.document.nodes,
+      routesByName,
+      functionsByNamespace,
+      routeName: route.name,
+      reported: new Set<string>(),
+      issues,
     }
+    validateRouteTypeflow(scope, route)
   }
 }
 
@@ -119,9 +122,9 @@ function validateRouteTypeflow(
   const nodeName = staticString(route.then.function)
   if (fn === undefined || nodeName === undefined) return
 
-  // Typeflow follows runtime's concrete handoff: route outputs become named UI
-  // args, and literal Includes pass a new typed arg set to the selected node.
-  // When selectors resolve to literal call args, it walks those targets too.
+  // Typeflow follows declared handoffs only where values are ABI-known or
+  // literal: route outputs become named UI args, and literal Includes pass a new
+  // typed arg set to the selected node.
   const context = contextForArgs(route.then.args, (value) => abiFunctionOutputForExpression(fn, value))
   validateRouteRootCardinality(scope, nodeName, context)
   const inputNames = routeInputNames(scope, nodeName, context)
@@ -145,27 +148,17 @@ function walkNamedNode(
   stack: readonly string[],
   allowRecurse: boolean,
 ): void {
-  const node = scope.nodes[nodeName]
-  if (!isRecordObject(node)) return
-
-  // Visit each include node's local surface even on re-entry so deterministic
-  // per-route issues (props, args, state keys) are still validated. We only
-  // suppress deeper recursion at the cycle edge to guarantee termination.
-  const inCycle = stack.includes(nodeName)
-  if (inCycle) {
-    reportTypeflowIssue(scope, path, `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`)
-  }
-
-  const nextStack = inCycle ? stack : [...stack, nodeName]
-  walkNode(
-    scope,
-    node,
-    path,
-    context,
-    inputNames,
-    nextStack,
-    allowRecurse && !inCycle,
-  )
+  visitNamedUiNode(scope, nodeName, path, stack, allowRecurse, (node, nextStack, nextAllowRecurse) => {
+    walkNode(
+      scope,
+      node,
+      path,
+      context,
+      inputNames,
+      nextStack,
+      nextAllowRecurse,
+    )
+  })
 }
 
 function walkNode(
@@ -224,9 +217,8 @@ function validateLiteralPropValue(
   if (literal === undefined) return
   if (isAbiAddressValue(literal)) return
 
-  // Dynamic route data is validated when it becomes concrete. Literal address
-  // props are already concrete here, so accepting a bad one would be a
-  // conformance false negative rather than useful flexibility.
+  // Literal address props are concrete publication values; dynamic route data
+  // is validated later when it becomes concrete.
   reportTypeflowIssue(scope, path, `UI ${element}.${prop} expects address, but literal is not an address`)
 }
 
@@ -239,8 +231,8 @@ function validateStateBinding(
 ): void {
   if (element !== "TextField" || !isRecordObject(node.state)) return
 
-  // Initial state is built by resolving TextField defaults before any action
-  // runs, so deterministic non-string defaults are load-time authoring errors.
+  // TextField defaults have a renderer contract; this rejects only literal or
+  // ABI-known non-string defaults.
   const value = node.state.defaultValue
   const valuePath = `${path}.state.defaultValue`
   if (typeof value === "string") {
@@ -360,9 +352,8 @@ function validateCallArgReferences(
   args: Record<string, unknown>,
   context: AbiContext,
 ): void {
-  // UI call args are resolved before dispatch. If a route-local value shape is
-  // already known, a missing field is deterministic author error; genuinely
-  // unknown roots stay dynamic and are left to runtime.
+  // Missing fields on known route-local values are deterministic author errors;
+  // genuinely unknown roots stay dynamic.
   forEachString(args, "", (value, suffix) => {
     const reference = expressionReference(value)
     if (reference === undefined) return
@@ -392,12 +383,11 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
   const resolved = resolve(value)
   if (resolved !== undefined) return resolved
 
-  // Runtime merges literal call args into the UI context. Conformance should
-  // reject deterministic literal mismatches while leaving true expressions as
-  // unknown, because their runtime value is supplied by another context root.
+  // This is the typeflow proof boundary: preserve known literal/ABI leaves,
+  // mark true expressions unknown, and avoid a second runtime evaluator.
   if (typeof value === "string") {
-    if (expressionReference(value) !== undefined) return UNKNOWN_VALUE
-    return { type: "literal-string", value: staticString(value) }
+    const literal = staticString(value)
+    return literal === undefined ? UNKNOWN_VALUE : { type: "literal-string", value: literal }
   }
 
   if (typeof value === "boolean") return { type: "bool", value }
@@ -405,13 +395,11 @@ function knownValueShape(value: unknown, resolve: ValueResolver): unknown | unde
   if (value === null) return { type: "null", value }
 
   if (Array.isArray(value)) {
-    if (value.every((item) => typeof item === "string" && expressionReference(item) === undefined)) {
+    const literalItems = value.map((item) => staticString(item))
+    if (literalItems.every((item): item is string => item !== undefined)) {
       return {
         type: "literal-string[]",
-        items: value.map((item) => {
-          const resolved = staticString(item)
-          return resolved === undefined ? item : resolved
-        }),
+        items: literalItems,
       }
     }
 
@@ -477,19 +465,34 @@ function collectRouteInputs(
   inputNames: Set<string>,
   allowRecurse: boolean,
 ): void {
+  visitNamedUiNode(scope, nodeName, path, stack, allowRecurse, (node, nextStack, nextAllowRecurse) => {
+    collectNodeInputs(scope, node, path, context, nextStack, inputNames, nextAllowRecurse)
+  })
+}
+
+function visitNamedUiNode(
+  scope: Scope,
+  nodeName: string,
+  path: string,
+  stack: readonly string[],
+  allowRecurse: boolean,
+  visit: (
+    node: Record<string, unknown>,
+    nextStack: readonly string[],
+    nextAllowRecurse: boolean,
+  ) => void,
+): void {
   const node = scope.nodes[nodeName]
   if (!isRecordObject(node)) return
 
-  // Same intent as the typewalk: validate local TextField/action requirements
-  // even when this include path is revisited, while blocking recursive descent
-  // to keep the context-sensitive traversal finite.
+  // The typewalk and input collector must share this cycle contract: validate
+  // the revisited node's local surface, but stop deeper Include recursion.
   const inCycle = stack.includes(nodeName)
   if (inCycle) {
     reportTypeflowIssue(scope, path, `UI Include cycle detected: ${[...stack, nodeName].join(" -> ")}`)
   }
 
-  const nextStack = inCycle ? stack : [...stack, nodeName]
-  collectNodeInputs(scope, node, path, context, nextStack, inputNames, allowRecurse && !inCycle)
+  visit(node, inCycle ? stack : [...stack, nodeName], allowRecurse && !inCycle)
 }
 
 function collectNodeInputs(
@@ -560,18 +563,13 @@ function validateRouteRootCardinality(scope: Scope, nodeName: string, context: A
   if (hasInvalidSelectionNames(selection.names)) return
   if (selection.names.some((name) => !isRecordObject(scope.nodes[name]))) return
 
-  // Nested Includes splice children, but a route render still has one UI root.
-  // Catch deterministic multi-root selections before the viewer resolves them.
+  // A route render must resolve to one UI root. This only fires when Include
+  // selection is deterministic and all selected nodes exist.
   reportTypeflowIssue(scope, `nodes.${nodeName}.call.function`, "route root UI node must resolve to exactly one node")
 }
 
 function hasInvalidSelectionNames(names: readonly string[]): boolean {
-  const seen = new Set<string>()
-  for (const name of names) {
-    if (name.length === 0 || seen.has(name)) return true
-    seen.add(name)
-  }
-  return false
+  return nameListShapeIssues(names).length > 0
 }
 
 function validateIncludeSelection(
@@ -585,7 +583,7 @@ function validateIncludeSelection(
     label: "UI Include",
     names: selection.names,
     issues: scope.issues,
-    rule: "CAM_UI_TYPEFLOW_MISMATCH",
+    rule: UI_CALL_RULES.CAM_UI_TYPEFLOW_MISMATCH,
   })
 }
 
@@ -596,6 +594,8 @@ function validateKnownActionRoute(
   args: unknown,
   context: AbiContext,
 ): void {
+  // Static or ABI-known Button routes must name declared routes with the target
+  // route's inputs. Unknown dynamic selectors are skipped.
   const staticRouteName = staticString(value)
   if (staticRouteName !== undefined && staticRouteName.length === 0) {
     reportTypeflowIssue(scope, `${path}.call.function`, "UI Button route target must not be empty")
@@ -618,7 +618,7 @@ function validateKnownActionRoute(
     actualNames: Object.keys(args),
     destination: `route ${route.name}`,
     issues: scope.issues,
-    rule: "CAM_UI_TYPEFLOW_MISMATCH",
+    rule: UI_CALL_RULES.CAM_UI_TYPEFLOW_MISMATCH,
     filterEmptyActualNames: true,
   })
   validateActionRouteAbi(scope, path, route, args, context)
@@ -646,6 +646,8 @@ function validateActionRouteAbi(
   actionArgs: Record<string, unknown>,
   context: AbiContext,
 ): void {
+  // Known Button action args are joined to the target route ABI; concrete
+  // state/account values remain for simulation or send-time validation.
   const functions = scope.functionsByNamespace.get(route.call.namespace)
   if (functions === undefined) return
 
@@ -875,7 +877,7 @@ function validateNodeArgs(
     actualNames,
     destination: `UI node ${nodeName}`,
     issues: scope.issues,
-    rule: "CAM_UI_TYPEFLOW_MISMATCH",
+    rule: UI_CALL_RULES.CAM_UI_TYPEFLOW_MISMATCH,
     filterEmptyActualNames: true,
   })
 }
@@ -886,6 +888,8 @@ function validateActionStateInputs(
   args: Record<string, unknown>,
   inputNames: ReadonlySet<string>,
 ): void {
+  // A Button that references $state.foo needs a rendered route-local TextField
+  // for foo.
   forEachString(args, "", (value, suffix) => {
     const stateInput = referencedStateInput(value)
     if (stateInput === undefined) return
@@ -955,9 +959,8 @@ function knownLiteralString(value: unknown, context: AbiContext): string | undef
 }
 
 function literalStringValue(value: Record<string, unknown>): string | undefined {
-  // These are typeflow-local facts produced by knownValueShape(), not UI schema
-  // fields. Keep the decoding narrow so malformed manifests still fail through
-  // the parser/runtime compatibility checks instead of gaining a second schema.
+  // These are typeflow-local facts produced by knownValueShape, not UI schema
+  // fields. Keep decoding narrow to avoid a second schema.
   return value.type === "literal-string" && typeof value.value === "string" ? value.value : undefined
 }
 
@@ -994,9 +997,8 @@ function isInvalidAddressLiteral(value: unknown, expectation: ValueExpectation):
       : undefined
   if (literal === undefined) return false
 
-  // Literal strings are not ABI-typed. Once a literal flows into an address
-  // prop, conformance owns the same deterministic address check as runtime ABI
-  // argument normalization instead of treating any string as address-capable.
+  // Literal strings are concrete publication values. Once one flows into an
+  // address prop, conformance should reject invalid addresses.
   return !isAbiAddressValue(literal)
 }
 
@@ -1026,7 +1028,7 @@ function abiType(value: unknown): string {
   if (scalarKind === "integer") return "integer"
   if (scalarKind === "fixed-bytes") return "bytes"
   if (type === "string[]") return "string-array"
-  if (type.endsWith("[]")) return "array"
+  if (abiDynamicArrayElementType(type) !== undefined) return "array"
   return type
 }
 
@@ -1041,10 +1043,6 @@ function isUnknownValue(value: unknown): boolean {
     || (isRecordObject(value) && value.type === UNKNOWN_VALUE.type && value.value === UNKNOWN_ROUTE_CALL_VALUE)
 }
 
-function isUiPropElement(value: string): value is UiPropElement {
-  return Object.hasOwn(UI_PROP_SCHEMAS, value)
-}
-
 function reportTypeflowIssue(scope: Scope, path: string, message: string): void {
   const key = `${scope.routeName}\0${path}\0${message}`
   if (scope.reported.has(key)) return
@@ -1055,7 +1053,7 @@ function reportTypeflowIssue(scope: Scope, path: string, message: string): void 
 
 function typeflowIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_UI_TYPEFLOW_MISMATCH",
+    rule: UI_CALL_RULES.CAM_UI_TYPEFLOW_MISMATCH,
     resource,
     path,
     message,

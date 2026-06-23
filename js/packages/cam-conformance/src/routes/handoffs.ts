@@ -1,9 +1,11 @@
 import {
+  diffNameSets,
   isRecordObject,
 } from "@cam/protocol"
 
 import {
   conformanceIssue,
+  conformanceRules,
   type CamConformanceIssue,
 } from "../issues.ts"
 import {
@@ -24,14 +26,18 @@ import type {
   DeclaredUiNode,
 } from "../ui/nodes.ts"
 import {
-  diffNameSets,
-} from "../names.ts"
-import {
   rawValueAtSegments,
 } from "../walk.ts"
 import {
   expressionReference,
 } from "../expressions/reference.ts"
+
+const RULES = conformanceRules({
+  CAM_ROUTE_HANDOFF_MISMATCH: {
+    class: "A",
+    reason: "Route continuations join declared routes/UI nodes and statically known handoff args.",
+  },
+})
 
 export function validateRouteHandoffs({
   resource,
@@ -232,7 +238,7 @@ function validateNamedHandoffArgs({
 
 function handoffIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_ROUTE_HANDOFF_MISMATCH",
+    rule: RULES.CAM_ROUTE_HANDOFF_MISMATCH,
     resource,
     path,
     message,

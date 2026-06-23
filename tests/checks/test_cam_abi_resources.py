@@ -78,6 +78,21 @@ class CamAbiResourceTest(unittest.TestCase):
                 ],
             )
 
+    def test_abi_export_plan_rejects_dapp_names_that_cannot_be_plan_fields(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dapp_root = root / "bad\tname"
+            (dapp_root / "src").mkdir(parents=True)
+            (dapp_root / "cam" / "abi").mkdir(parents=True)
+            (dapp_root / "src" / "AppUI.sol").write_text("contract AppUI {}\n", encoding="utf-8")
+            (dapp_root / "cam" / "main.json").write_text(
+                '{"namespaces":{"contracts.AppUI":{"type":"contract","abiURI":"./abi/AppUI.json"}}}\n',
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "invalid ABI export dapp directory name"):
+                build_abi_plan_rows(root)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,7 +16,7 @@ ROOT_OWNED_TOOLCHAIN_DEPENDENCIES = {"typescript"}
 DEV_ONLY_DEPENDENCIES = {"@vitejs/plugin-react", "vite"}
 ROOT_WORKSPACE_SCRIPTS = {
     "build:workspace": "npm run build --workspaces --if-present",
-    "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/core && npm run build -w @cam/screen && npm run build -w @cam/conformance",
+    "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/conformance",
     "test:cam-conformance": "npm run build:cam-conformance && npm test -w @cam/conformance",
     "test:workspace": "npm run build:workspace && npm test --workspaces --if-present",
 }
@@ -38,7 +38,16 @@ PACKAGE_LOCK_FILENAMES = {
     "pnpm-lock.yaml",
     "yarn.lock",
 }
+# Workspace edges can appear in source, tests, or module config files. Generated
+# output and installs are consumers of the graph, not authorities for it.
+PACKAGE_IMPORT_SCAN_EXTENSIONS = {".cjs", ".cts", ".js", ".jsx", ".mjs", ".mts", ".ts", ".tsx"}
+PACKAGE_IMPORT_SCAN_IGNORED_DIRS = {"dist", "node_modules"}
 STAGED_JS_TSCONFIG_RE = re.compile(r'copy_file_if_present "\$source_dir/(?P<name>tsconfig[^"]*\.json)"')
+MODULE_SPECIFIER_RE = re.compile(
+    r'(?:from\s+["\'](?P<from>[^"\']+)["\']|'
+    r'import\s+["\'](?P<bare>[^"\']+)["\']|'
+    r'import\s*\(\s*["\'](?P<dynamic>[^"\']+)["\']\s*\))'
+)
 
 
 class PackageMetadataTest(unittest.TestCase):
@@ -199,6 +208,59 @@ class PackageMetadataTest(unittest.TestCase):
                     f"package-lock.json: {path} must use sha512 integrity",
                 )
 
+    def test_package_lock_workspace_entries_match_manifests(self) -> None:
+        lock_path = repo_path("js/package-lock.json")
+        lock = self.read_manifest(lock_path)
+        packages = lock.get("packages")
+        self.assertIsInstance(packages, dict, "package-lock.json: packages must be an object")
+
+        for path in self.package_manifest_paths():
+            lock_key = self.workspace_manifest_lock_key(path)
+            package = packages.get(lock_key)
+            with self.subTest(path=str(path)):
+                self.assertIsInstance(package, dict, f"package-lock.json: missing workspace entry for {lock_key}")
+                manifest = self.read_manifest(path)
+                self.assertEqual(
+                    self.locked_manifest_fields(manifest, path),
+                    self.locked_manifest_fields(package, lock_path),
+                    f"package-lock.json: {lock_key} manifest fields must mirror {path}",
+                )
+
+        for path in self.workspace_manifest_paths():
+            manifest = self.read_manifest(path)
+            package_name = manifest.get("name")
+            self.assertIsInstance(package_name, str, f"{path}: package name must be a string")
+            lock_key = self.workspace_manifest_lock_key(path)
+            link_key = f"node_modules/{package_name}"
+            link = packages.get(link_key)
+            with self.subTest(path=link_key):
+                self.assertIsInstance(link, dict, f"package-lock.json: missing workspace link for {package_name}")
+                self.assertEqual(True, link.get("link"), f"package-lock.json: {link_key} must be a workspace link")
+                self.assertEqual(lock_key, link.get("resolved"), f"package-lock.json: {link_key} must resolve to {lock_key}")
+
+    def test_workspace_dependency_graph_matches_direct_imports(self) -> None:
+        workspace_names = self.workspace_package_names()
+
+        for path in self.workspace_manifest_paths():
+            manifest = self.read_manifest(path)
+            package_name = manifest.get("name")
+            self.assertIsInstance(package_name, str, f"{path}: package name must be a string")
+
+            declared: set[str] = set()
+            for field in DEPENDENCY_FIELDS:
+                dependencies = manifest.get(field)
+                if dependencies is None:
+                    continue
+                self.assertIsInstance(dependencies, dict, f"{path}: {field} must be an object")
+                declared.update(name for name in dependencies if name in workspace_names)
+
+            imported = self.imported_workspace_packages(path.parent, workspace_names)
+            imported.discard(package_name)
+
+            # Local workspace deps are architecture edges, not install trivia.
+            # Hoisted node_modules can mask stale or undeclared workspace edges.
+            self.assertEqual(imported, declared, f"{path}: workspace deps must match direct workspace imports")
+
     def package_manifest_paths(self) -> list[Path]:
         return [repo_path("js/package.json"), *self.workspace_manifest_paths()]
 
@@ -220,6 +282,27 @@ class PackageMetadataTest(unittest.TestCase):
         self.assertIsInstance(manifest, dict, f"{path}: package manifest must be a JSON object")
         return manifest
 
+    def locked_manifest_fields(self, source: dict[str, object], path: Path) -> dict[str, object]:
+        fields: dict[str, object] = {}
+        for field in ("version", "workspaces"):
+            value = source.get(field)
+            if value is not None:
+                fields[field] = value
+        for field in DEPENDENCY_FIELDS:
+            dependencies = source.get(field)
+            if dependencies is None:
+                continue
+            self.assertIsInstance(dependencies, dict, f"{path}: {field} must be an object")
+            fields[field] = dependencies
+        return fields
+
+    def workspace_manifest_lock_key(self, path: Path) -> str:
+        if path == repo_path("js/package.json"):
+            # npm stores the workspace root package at the empty package-lock key.
+            return ""
+
+        return path.parent.relative_to(repo_path("js")).as_posix()
+
     def workspace_lock_paths(self) -> set[str]:
         root = repo_path("js")
         return {
@@ -227,6 +310,33 @@ class PackageMetadataTest(unittest.TestCase):
             for manifest in self.package_manifest_paths()
             if manifest != repo_path("js/package.json")
         }
+
+    def imported_workspace_packages(self, package_root: Path, workspace_names: dict[str, str]) -> set[str]:
+        imported: set[str] = set()
+        for path in package_root.rglob("*"):
+            if not path.is_file():
+                continue
+            relative_parts = path.relative_to(package_root).parts
+            if PACKAGE_IMPORT_SCAN_IGNORED_DIRS.intersection(relative_parts[:-1]):
+                continue
+            if path.suffix not in PACKAGE_IMPORT_SCAN_EXTENSIONS:
+                continue
+            for match in MODULE_SPECIFIER_RE.finditer(read_text(path)):
+                specifier = next(group for group in match.groups() if group is not None)
+                package_name = self.workspace_package_name_for_specifier(specifier, workspace_names)
+                if package_name is not None:
+                    imported.add(package_name)
+        return imported
+
+    def workspace_package_name_for_specifier(
+        self,
+        specifier: str,
+        workspace_names: dict[str, str],
+    ) -> str | None:
+        for name in sorted(workspace_names, key=len, reverse=True):
+            if specifier == name or specifier.startswith(f"{name}/"):
+                return name
+        return None
 
     def workspace_manifest_paths(self) -> list[Path]:
         root = repo_path("js")

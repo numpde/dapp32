@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs"
-
 import type {
   CamHost,
   CamPublicClient,
@@ -12,7 +10,8 @@ import {
   createCamViewerSession,
 } from "../../../packages/cam-viewer/dist/index.js"
 import {
-  parseJsonText,
+  createSameOriginHttpResourceLoader,
+  parseJsonBytes,
   toInertValue,
 } from "../../../packages/cam-protocol/dist/index.js"
 
@@ -22,13 +21,15 @@ import type {
   TerminalBackendOptions,
 } from "../types.ts"
 import {
+  readBoundedFileSync,
+} from "../../local-cam-files.ts"
+import {
   requiredArray,
   requiredEnv,
   requiredField,
   requiredRecord,
   requiredString,
 } from "../../input.ts"
-import { createSameOriginHttpResourceLoader } from "../../http-resource.ts"
 
 type BroadcastDeployment = {
   readonly chainId: string
@@ -55,6 +56,7 @@ export function createLocalRpcBackend(
       const loadResource = createSameOriginHttpResourceLoader({
         originInput: resourceOrigin,
         originLabel: "CAM_VIEWER_RESOURCE_ORIGIN",
+        fetchResource: fetch,
         loadFailurePrefix: "local-rpc terminal failed to load CAM resource",
       })
 
@@ -107,7 +109,7 @@ function tracedPublicClient(publicClient: CamPublicClient, events: DebugEvent[])
 }
 
 function readBroadcastDeployment(path: string): BroadcastDeployment {
-  const broadcast = parseJsonText(readFileSync(path, "utf8"))
+  const broadcast = parseJsonBytes(readBoundedFileSync(path, "Forge broadcast"))
   const root = requiredRecord(broadcast, "broadcast")
   const transactions = requiredArray(root, "transactions")
   const receipts = requiredArray(root, "receipts")
@@ -145,7 +147,7 @@ function firstReceiptSender(receipts: readonly unknown[]): CamHost["address"] {
 }
 
 function requiredChainNumber(value: unknown): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0) {
     throw new Error("Forge broadcast chain must be a positive integer")
   }
 

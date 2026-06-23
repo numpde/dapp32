@@ -1,15 +1,17 @@
 import type { AbiFunction, AbiParameter } from "viem"
 import {
   createStringMap,
+  diffNameSets,
   isAbiAddressValue,
   isAbiBytesValue,
   isAbiIntegerValue,
   isRecordObject,
+  inspectAbiParameterNames,
   parseAbiFixedBytesLength,
   parseAbiIntegerType,
   toInertValue,
 } from "@cam/protocol"
-import type { AbiIntegerType, InertValue } from "@cam/protocol"
+import type { AbiIntegerType, AbiParameterNameIssue, InertValue, NamedAbiParameter } from "@cam/protocol"
 
 import {
   dynamicArrayElement,
@@ -43,32 +45,22 @@ export function normalizeAbiArgs({
   // CAM manifests use named arguments so reviewers can audit intent. EVM calls
   // are positional, so this is the single boundary that checks names and orders
   // them exactly as the ABI requires.
-  const expectedNames = new Set<string>()
+  const namedInputs = requireNamedParameters(inputs, errorCode, functionName, "ABI input")
+  const expectedNames = namedInputs.map(({ name }) => name)
 
-  for (const input of inputs) {
-    const name = input.name
-    if (name === undefined || name.length === 0) {
-      throw invalidArg(errorCode, functionName, "", "ABI inputs must be named")
-    }
-    expectedNames.add(name)
-  }
-
-  for (const name of Object.keys(args)) {
-    if (!expectedNames.has(name)) {
+  diffNameSets({
+    expectedNames,
+    actualNames: Object.keys(args),
+    onUnexpected: (name) => {
       throw invalidArg(errorCode, functionName, name, "unexpected argument")
-    }
-  }
-
-  return inputs.map((input) => {
-    const name = input.name
-    if (name === undefined || name.length === 0) {
-      throw invalidArg(errorCode, functionName, "", "ABI inputs must be named")
-    }
-    if (!Object.hasOwn(args, name)) {
+    },
+    onMissing: (name) => {
       throw invalidArg(errorCode, functionName, name, "missing argument")
-    }
+    },
+  })
 
-    return normalizeAbiArg(args[name], input, `${functionName}.${name}`, errorCode)
+  return namedInputs.map(({ parameter, name }) => {
+    return normalizeAbiArg(args[name], parameter, `${functionName}.${name}`, errorCode)
   })
 }
 
@@ -128,15 +120,13 @@ function normalizeAbiArg(
 
   if (type === "tuple") {
     if (!isRecordObject(value)) throw invalidArg(errorCode, path, "", "expected object for tuple")
-    const components = tupleComponents(parameter, errorCode, path)
-    const componentNames = new Set<string>()
-    for (const component of components) {
-      const componentName = component.name
-      if (componentName === undefined || componentName.length === 0) {
-        throw invalidArg(errorCode, path, "", "tuple components must be named")
-      }
-      componentNames.add(componentName)
-    }
+    const components = requireNamedParameters(
+      tupleComponents(parameter, errorCode, path),
+      errorCode,
+      path,
+      "tuple component",
+    )
+    const componentNames = new Set(components.map(({ name }) => name))
     for (const name of Object.keys(value)) {
       if (!componentNames.has(name)) {
         throw invalidArg(errorCode, path, name, "tuple has unexpected component")
@@ -144,18 +134,14 @@ function normalizeAbiArg(
     }
 
     const tuple = createStringMap<unknown>()
-    for (const component of components) {
-      const componentName = component.name
-      if (componentName === undefined || componentName.length === 0) {
-        throw invalidArg(errorCode, path, "", "tuple components must be named")
+    for (const { parameter: component, name } of components) {
+      if (!Object.hasOwn(value, name)) {
+        throw invalidArg(errorCode, path, name, "tuple is missing component")
       }
-      if (!Object.hasOwn(value, componentName)) {
-        throw invalidArg(errorCode, path, componentName, "tuple is missing component")
-      }
-      tuple[componentName] = normalizeAbiArg(
-        toInertValue(value[componentName]),
+      tuple[name] = normalizeAbiArg(
+        toInertValue(value[name]),
         component,
-        `${path}.${componentName}`,
+        `${path}.${name}`,
         errorCode,
       )
     }
@@ -180,6 +166,34 @@ function tupleComponents(
   }
 
   return parameter.components
+}
+
+function requireNamedParameters(
+  parameters: readonly AbiParameter[],
+  errorCode: ArgumentErrorCode,
+  path: string,
+  label: string,
+): readonly NamedAbiParameter<AbiParameter>[] {
+  const inspected = inspectAbiParameterNames(parameters)
+  const issue = inspected.issues[0]
+  if (issue !== undefined) {
+    throw abiParameterNameError(issue, errorCode, path, label)
+  }
+
+  return inspected.entries
+}
+
+function abiParameterNameError(
+  issue: AbiParameterNameIssue,
+  errorCode: ArgumentErrorCode,
+  path: string,
+  label: string,
+): CamEvmError {
+  if (issue.kind === "unnamed") {
+    return invalidArg(errorCode, path, String(issue.index), `${label} must be named`)
+  }
+
+  return invalidArg(errorCode, path, issue.name, `${label} name is duplicated`)
 }
 
 function invalidArg(

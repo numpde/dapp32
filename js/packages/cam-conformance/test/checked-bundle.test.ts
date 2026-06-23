@@ -1,6 +1,5 @@
 import assert from "node:assert/strict"
 import { readFile } from "node:fs/promises"
-import { relative } from "node:path"
 import { pathToFileURL } from "node:url"
 import test from "node:test"
 
@@ -11,18 +10,14 @@ import {
   checkedInDeclaredLocalResourceURIs,
   checkedInCamRootPaths,
   checkedInLocalResourcePath,
-  dappsRoot,
+  testCheckedInFiles,
 } from "../../../../tests/fixtures/cam/checked-resources.mts"
 
 test("checked-in CAM bundles pass conformance", async () => {
-  const rootPaths = await checkedInCamRootPaths()
-
-  for (const rootPath of rootPaths) {
-    await test(relative(dappsRoot, rootPath), async () => {
-      const bundle = await checkedInBundle(rootPath)
-      assert.deepEqual(validateCamBundle(bundle), [])
-    })
-  }
+  await testCheckedInFiles(checkedInCamRootPaths(), async (rootPath) => {
+    const bundle = await checkedInBundle(rootPath)
+    assert.deepEqual(validateCamBundle(bundle), [])
+  })
 })
 
 async function checkedInBundle(rootPath: string) {

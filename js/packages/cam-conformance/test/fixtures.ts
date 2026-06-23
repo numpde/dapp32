@@ -7,6 +7,7 @@ import {
 import type {
   CamConformanceBundle,
   CamConformanceIssue,
+  CamConformanceRuleCode,
 } from "../src/index.ts"
 
 const encoder = new TextEncoder()
@@ -150,7 +151,7 @@ export function duplicateViewEntrySignatureAbiBytes(): Uint8Array {
   ])
 }
 
-export function abiIssueLocationsFor(abiBytes: Uint8Array): readonly (readonly [string, string | undefined])[] {
+export function abiIssueLocationsFor(abiBytes: Uint8Array): readonly (readonly [CamConformanceRuleCode, string | undefined])[] {
   const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     return replaceBundleResources(root, bundle, { abiBytes })
   })
@@ -213,11 +214,11 @@ export function replaceBundleResources(
   return { resources }
 }
 
-export function issueRules(issues: readonly CamConformanceIssue[]): readonly string[] {
+export function issueRules(issues: readonly CamConformanceIssue[]): readonly CamConformanceRuleCode[] {
   return issues.map((issue) => issue.rule)
 }
 
-export function issueLocations(issues: readonly CamConformanceIssue[]): readonly (readonly [string, string | undefined])[] {
+export function issueLocations(issues: readonly CamConformanceIssue[]): readonly (readonly [CamConformanceRuleCode, string | undefined])[] {
   return issues.map((issue) => [issue.rule, issue.path])
 }
 

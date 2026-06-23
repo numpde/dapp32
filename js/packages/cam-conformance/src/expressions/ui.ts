@@ -4,9 +4,10 @@ import {
 
 import {
   conformanceIssue,
+  conformanceRules,
   type CamConformanceIssue,
 } from "../issues.ts"
-import type { RawUiDocuments } from "../ui/resources.ts"
+import type { DeclaredUiDocument } from "../ui/resources.ts"
 import {
   forEachString,
 } from "../walk.ts"
@@ -15,16 +16,27 @@ import {
   expressionSyntaxError,
 } from "./reference.ts"
 
+const RULES = conformanceRules({
+  CAM_UI_EXPRESSION_ROOT_INVALID: {
+    class: "A",
+    reason: "UI expression syntax and root vocabulary are static publication properties.",
+  },
+})
+
 export function validateUiExpressionRoots({
-  uiDocuments,
+  uiDocument,
   issues,
 }: {
-  readonly uiDocuments: RawUiDocuments
+  readonly uiDocument: DeclaredUiDocument | undefined
   readonly issues: CamConformanceIssue[]
 }): void {
-  for (const [resource, ui] of uiDocuments) {
-    forEachString(ui.value, "", (value, path) => validateExpressionRoot(resource, value, path, issues))
-  }
+  if (uiDocument === undefined) return
+
+  forEachString(
+    uiDocument.document.value,
+    "",
+    (value, path) => validateExpressionRoot(uiDocument.resource, value, path, issues),
+  )
 }
 
 function validateExpressionRoot(
@@ -36,7 +48,7 @@ function validateExpressionRoot(
   const syntaxError = expressionSyntaxError(value)
   if (syntaxError !== undefined) {
     issues.push(conformanceIssue({
-      rule: "CAM_UI_EXPRESSION_ROOT_INVALID",
+      rule: RULES.CAM_UI_EXPRESSION_ROOT_INVALID,
       resource,
       path,
       message: syntaxError,
@@ -52,7 +64,7 @@ function validateExpressionRoot(
   const reportedRoot = root.length === 0 ? value : root
 
   issues.push(conformanceIssue({
-    rule: "CAM_UI_EXPRESSION_ROOT_INVALID",
+    rule: RULES.CAM_UI_EXPRESSION_ROOT_INVALID,
     resource,
     path,
     message: `UI expression root is not supported: ${reportedRoot}`,

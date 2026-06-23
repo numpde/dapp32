@@ -3,8 +3,8 @@ import {
   InertValueError,
   joinPath,
   toInertValue,
+  UI_CONTEXT_KEYS,
 } from "@cam/protocol"
-import { UI_CONTEXT_KEYS } from "./constants.ts"
 import { UiError } from "./errors.ts"
 import type { UiRuntimeContext } from "./types.ts"
 import type { InertValue } from "@cam/protocol"

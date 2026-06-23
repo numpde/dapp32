@@ -1,16 +1,23 @@
-import { lstat, readFile, realpath } from "node:fs/promises"
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
+import { resolve } from "node:path"
 
 import { keccak256 } from "viem"
 
 import { validateCamBundle } from "../../packages/cam-conformance/dist/index.js"
 import type { CamConformanceBundle, CamConformanceIssue } from "../../packages/cam-conformance/dist/index.js"
 import {
-  assertCamSecondaryResourceURI,
-  CAM_RESOURCE_MAX_BYTES,
+  assertPublishedCamRootURI,
+  camNamespaceResourceURIKey,
+  isCamResourceNamespaceType,
   isRecordObject,
-  parseJsonText,
+  parseJsonBytes,
 } from "../../packages/cam-protocol/dist/index.js"
+import {
+  assertContainedPath,
+  assertDirectory,
+  assertRegularFile,
+  localCamResourcePath,
+  readBoundedFile,
+} from "../local-cam-files.ts"
 
 type Options = {
   readonly dappsRootPath: string
@@ -43,8 +50,7 @@ async function preflight(options: Options): Promise<PreflightResult> {
   const dappsRootPath = resolve(options.dappsRootPath)
   const rootPath = resolve(options.rootPath)
   await assertDirectory(dappsRootPath, "dapps root")
-  const rootStat = await assertRegularFile(rootPath, "CAM root")
-  assertResourceSize(rootStat.size, "CAM root")
+  await assertRegularFile(rootPath, "CAM root")
   // Make constructs the root path from an operator-supplied dapp name. Enforce
   // the dapps boundary here too, after resolution, so path traversal cannot
   // turn the publication lane into a generic file reader inside the container.
@@ -54,9 +60,9 @@ async function preflight(options: Options): Promise<PreflightResult> {
     message: "CAM root must stay under the dapps root",
   })
 
-  const rootBytes = await readFile(rootPath)
+  const rootBytes = await readBoundedFile(rootPath, "CAM root")
   const camURI = options.camURI
-  assertPublishedCamURI(camURI)
+  assertPublishedCamRootURI(camURI, "CAM URI")
   const discoveryRoot = rootForLocalResourceDiscovery(rootBytes)
   const resources = discoveryRoot.ok
     ? await declaredLocalResources(rootPath, discoveryRoot.value)
@@ -80,7 +86,7 @@ async function preflight(options: Options): Promise<PreflightResult> {
 
 function rootForLocalResourceDiscovery(bytes: Uint8Array): ResourceDiscoveryRoot {
   try {
-    return { ok: true, value: parseJsonText(new TextDecoder().decode(bytes)) }
+    return { ok: true, value: parseJsonBytes(bytes) }
   } catch {
     // Root JSON validity is reported by @cam/conformance below. Resource
     // discovery is only a local file-collection convenience, so it should not
@@ -101,133 +107,26 @@ async function declaredLocalResources(rootPath: string, root: unknown): Promise<
     const uri = namespaceURI(namespace)
     if (uri === undefined || !uri.startsWith("./")) continue
 
-    // Conformance owns protocol semantics; this layer only enforces local file
-    // safety before reading bytes for declarations that claim to be local.
-    assertCamSecondaryResourceURI(uri, `namespaces.${namespaceName}`)
-    const resourcePath = await localResourcePath(rootPath, uri)
+    const resourcePath = await localCamResourcePath({
+      rootPath,
+      uri,
+      uriLabel: `namespaces.${namespaceName}`,
+    })
 
-    resources.set(uri, await readFile(resourcePath))
+    resources.set(uri, await readBoundedFile(resourcePath, `local CAM resource ${uri}`))
   }
 
   return resources
 }
 
 function namespaceURI(namespace: Record<string, unknown>): string | undefined {
-  switch (namespace.type) {
-    case "contract":
-      return stringValue(namespace.abiURI)
-    case "ui":
-      return stringValue(namespace.uri)
-    default:
-      return undefined
-  }
+  if (!isCamResourceNamespaceType(namespace.type)) return undefined
+
+  return stringValue(namespace[camNamespaceResourceURIKey(namespace.type)])
 }
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined
-}
-
-async function localResourcePath(rootPath: string, uri: string): Promise<string> {
-  const rootDir = dirname(rootPath)
-  const resourcePath = resolve(rootDir, uri)
-  const relativePath = relative(rootDir, resourcePath)
-  if (escapesRoot(relativePath)) {
-    throw new Error(`local CAM resource escapes CAM directory: ${uri}`)
-  }
-
-  let currentPath = rootDir
-  let resourceStat: Awaited<ReturnType<typeof lstat>> | undefined
-  for (const segment of relativePath.split("/")) {
-    currentPath = resolve(currentPath, segment)
-    const entry = await lstat(currentPath)
-    if (entry.isSymbolicLink()) {
-      throw new Error(`local CAM resource path must not be symlinked: ${uri}`)
-    }
-    resourceStat = entry
-  }
-
-  if (resourceStat === undefined || !resourceStat.isFile()) {
-    throw new Error(`local CAM resource must be a file: ${uri}`)
-  }
-  assertResourceSize(resourceStat.size, `local CAM resource ${uri}`)
-
-  const realRoot = await realpath(rootDir)
-  const realResource = await realpath(resourcePath)
-  if (escapesRoot(relative(realRoot, realResource))) {
-    throw new Error(`local CAM resource escapes CAM directory after resolution: ${uri}`)
-  }
-
-  return resourcePath
-}
-
-async function assertRegularFile(path: string, label: string): Promise<Awaited<ReturnType<typeof lstat>>> {
-  const pathStat = await lstat(path)
-  if (pathStat.isSymbolicLink()) {
-    throw new Error(`${label} must not be a symlink: ${path}`)
-  }
-  if (!pathStat.isFile()) {
-    throw new Error(`${label} must be a file: ${path}`)
-  }
-
-  return pathStat
-}
-
-function assertResourceSize(size: number | bigint, label: string): void {
-  if (BigInt(size) > BigInt(CAM_RESOURCE_MAX_BYTES)) {
-    throw new Error(`${label} is too large: exceeds ${CAM_RESOURCE_MAX_BYTES} bytes`)
-  }
-}
-
-async function assertDirectory(path: string, label: string): Promise<void> {
-  const pathStat = await lstat(path)
-  if (pathStat.isSymbolicLink()) {
-    throw new Error(`${label} must not be a symlink: ${path}`)
-  }
-  if (!pathStat.isDirectory()) {
-    throw new Error(`${label} must be a directory: ${path}`)
-  }
-}
-
-function assertPublishedCamURI(value: string): void {
-  let url: URL
-  try {
-    url = new URL(value)
-  } catch (cause) {
-    throw new Error(`CAM URI must be an absolute publication URI: ${value}`, { cause })
-  }
-
-  if (url.protocol !== "https:" && url.protocol !== "ipfs:") {
-    throw new Error(`CAM URI must use https or ipfs: ${value}`)
-  }
-  // This is a publication command, not a local fixture runner. HTTPS roots are
-  // anchored by the printed CAM_HASH; IPFS roots should also be reviewably
-  // content-addressed, so reuse the protocol CID/path policy here.
-  if (url.protocol === "ipfs:") {
-    assertCamSecondaryResourceURI(value, "CAM URI")
-  }
-  if (url.username !== "" || url.password !== "") {
-    throw new Error("CAM URI must not contain credentials")
-  }
-}
-
-async function assertContainedPath({
-  rootPath,
-  path,
-  message,
-}: {
-  readonly rootPath: string
-  readonly path: string
-  readonly message: string
-}): Promise<void> {
-  const realRoot = await realpath(rootPath)
-  const realPath = await realpath(path)
-  if (escapesRoot(relative(realRoot, realPath))) {
-    throw new Error(`${message}: ${path}`)
-  }
-}
-
-function escapesRoot(path: string): boolean {
-  return path === "" || path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path)
 }
 
 function parseArgs(argv: readonly string[]): Options {

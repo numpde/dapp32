@@ -5,10 +5,11 @@ import {
 
 import {
   conformanceIssue,
+  conformanceRules,
   type CamConformanceIssue,
 } from "../issues.ts"
 import type {
-  RawUiDocuments,
+  DeclaredUiDocument,
 } from "./resources.ts"
 
 export type DeclaredUiNode = {
@@ -16,35 +17,35 @@ export type DeclaredUiNode = {
   readonly requires: readonly string[] | undefined
 }
 
+const RULES = conformanceRules({
+  CAM_UI_NODE_INTERFACE_INVALID: {
+    class: "A",
+    reason: "UI node requires lists are cross-document APIs consumed by route handoffs and Includes.",
+  },
+})
+
 export function declaredUiNodes({
-  uiDocuments,
+  uiDocument,
   issues,
 }: {
-  readonly uiDocuments: RawUiDocuments
+  readonly uiDocument: DeclaredUiDocument | undefined
   readonly issues: CamConformanceIssue[]
 }): ReadonlyMap<string, DeclaredUiNode> | undefined {
-  if (uiDocuments.size === 0) return undefined
-  if (uiDocuments.size > 1) {
-    for (const resource of uiDocuments.keys()) {
-      issues.push(uiNodeInterfaceIssue(resource, undefined, "CAM V1 supports exactly one UI document"))
-    }
-    return undefined
-  }
+  if (uiDocument === undefined) return undefined
 
   const nodes = new Map<string, DeclaredUiNode>()
-  for (const [resource, ui] of uiDocuments) {
-    for (const [name, node] of Object.entries(ui.nodes)) {
-      if (name.length === 0) {
-        issues.push(uiNodeInterfaceIssue(resource, "nodes", "UI node name must not be empty"))
-        continue
-      }
-
-      const requires = nodeRequires(resource, name, node, issues)
-      nodes.set(name, {
-        name,
-        requires,
-      })
+  const { resource, document } = uiDocument
+  for (const [name, node] of Object.entries(document.nodes)) {
+    if (name.length === 0) {
+      issues.push(uiNodeInterfaceIssue(resource, "nodes", "UI node name must not be empty"))
+      continue
     }
+
+    const requires = nodeRequires(resource, name, node, issues)
+    nodes.set(name, {
+      name,
+      requires,
+    })
   }
 
   return nodes
@@ -92,7 +93,7 @@ function nodeRequires(
 
 function uiNodeInterfaceIssue(resource: string, path: string | undefined, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_UI_NODE_INTERFACE_INVALID",
+    rule: RULES.CAM_UI_NODE_INTERFACE_INVALID,
     resource,
     path,
     message,

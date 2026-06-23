@@ -2,6 +2,7 @@ import type {
   ResourceDeclaration,
 } from "../resources/declarations.ts"
 import {
+  conformanceRules,
   issueFromError,
   type CamConformanceIssue,
 } from "../issues.ts"
@@ -10,9 +11,19 @@ import {
   type RawUiDocument,
 } from "./document.ts"
 
-export type RawUiDocuments = ReadonlyMap<string, RawUiDocument>
+export type DeclaredUiDocument = {
+  readonly resource: string
+  readonly document: RawUiDocument
+}
 
-export function declaredUiDocuments({
+const RULES = conformanceRules({
+  CAM_UI_DOCUMENT_INVALID: {
+    class: "A",
+    reason: "UI version, root fields, and node inventory gate route/UI joins.",
+  },
+})
+
+export function declaredUiDocument({
   resources,
   declarations,
   issues,
@@ -20,9 +31,9 @@ export function declaredUiDocuments({
   readonly resources: ReadonlyMap<string, Uint8Array>
   readonly declarations: readonly ResourceDeclaration[]
   readonly issues: CamConformanceIssue[]
-}): RawUiDocuments {
-  const documents = new Map<string, RawUiDocument>()
-
+}): DeclaredUiDocument | undefined {
+  // Namespace validation admits only the canonical CAM V1 `ui` namespace, so
+  // downstream facets should model zero-or-one UI document instead of a map.
   for (const declaration of declarations) {
     if (declaration.namespaceType !== "ui") continue
 
@@ -30,15 +41,18 @@ export function declaredUiDocuments({
     if (bytes === undefined) continue
 
     try {
-      documents.set(declaration.uri, parseRawUiDocument(bytes))
+      return {
+        resource: declaration.uri,
+        document: parseRawUiDocument(bytes),
+      }
     } catch (error) {
       issues.push(issueFromError({
-        rule: "CAM_UI_DOCUMENT_INVALID",
+        rule: RULES.CAM_UI_DOCUMENT_INVALID,
         resource: declaration.uri,
         error,
       }))
     }
   }
 
-  return documents
+  return undefined
 }

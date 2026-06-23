@@ -4,11 +4,15 @@ import {
 } from "@cam/protocol"
 
 import {
+  conformanceRules,
   issueFromError,
 } from "../issues.ts"
 import type {
   CamConformanceIssue,
 } from "../issues.ts"
+import {
+  RESOURCE_RULES,
+} from "../resources/rules.ts"
 
 type RootCamJsonResult =
   | {
@@ -19,9 +23,13 @@ type RootCamJsonResult =
       readonly ok: false
     }
 
-// Root loading only establishes strict JSON bytes -> value. CAM protocol
-// compatibility is checked later, so malformed CAM structure does not prevent
-// resource or UI checks from reporting their own precise issues.
+const RULES = conformanceRules({
+  CAM_ROOT_JSON_INVALID: {
+    class: "A",
+    reason: "Invalid root JSON prevents protocol interpretation at the caller-supplied root resource.",
+  },
+})
+
 export function parseRootCamJson({
   resource,
   bytes,
@@ -35,7 +43,7 @@ export function parseRootCamJson({
     assertCamResourceSize(bytes, resource)
   } catch (error) {
     issues.push(issueFromError({
-      rule: "CAM_RESOURCE_TOO_LARGE",
+      rule: RESOURCE_RULES.CAM_RESOURCE_TOO_LARGE,
       resource,
       error,
     }))
@@ -51,7 +59,7 @@ export function parseRootCamJson({
     }
   } catch (error) {
     issues.push(issueFromError({
-      rule: "CAM_ROOT_JSON_INVALID",
+      rule: RULES.CAM_ROOT_JSON_INVALID,
       resource,
       error,
     }))

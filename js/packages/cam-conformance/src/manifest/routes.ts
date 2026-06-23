@@ -1,16 +1,23 @@
 import {
   CAM_ROUTE_CONTEXT_KEYS,
+  CAM_ROUTE_CALL_NAMESPACE_TYPES,
+  camRouteThenNamespaceTypes,
+  isCamRouteKind,
   isExpressionIdentifier,
   isRecordObject,
+} from "@cam/protocol"
+import type {
+  CamNamespaceType,
+  CamRouteKind,
 } from "@cam/protocol"
 
 import {
   conformanceIssue,
+  conformanceRules,
   type CamConformanceIssue,
 } from "../issues.ts"
 import type {
   DeclaredNamespace,
-  NamespaceType,
 } from "./namespaces.ts"
 import {
   forEachString,
@@ -20,8 +27,6 @@ import {
   expressionSyntaxError,
 } from "../expressions/reference.ts"
 
-type RouteKind = "read" | "write"
-
 type DeclaredInvocation = {
   readonly namespace: string
   readonly function: string
@@ -30,15 +35,43 @@ type DeclaredInvocation = {
 
 export type DeclaredRoute = {
   readonly name: string
-  readonly kind: RouteKind
+  readonly kind: CamRouteKind
   readonly inputs: readonly string[]
   readonly call: DeclaredInvocation
   readonly then: DeclaredInvocation
 }
 
-const CALL_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["contract"])
-const READ_THEN_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["ui"])
-const WRITE_THEN_NAMESPACE_TYPES: ReadonlySet<NamespaceType> = new Set(["routes"])
+const RULES = conformanceRules({
+  CAM_ENTRY_ROUTE_INVALID: {
+    class: "A",
+    reason: "Entry is the manifest control-flow root and must identify a start route.",
+  },
+  CAM_ENTRY_ROUTE_MISSING: {
+    class: "A",
+    reason: "Entry-to-route existence is a pure manifest join.",
+  },
+  CAM_ROUTE_KIND_INVALID: {
+    class: "A",
+    reason: "Route kind selects the static read-to-UI or write-to-route continuation contract.",
+  },
+  CAM_ROUTE_INPUTS_INVALID: {
+    class: "A",
+    reason: "Route inputs define public expression names available before execution.",
+  },
+  CAM_ROUTE_DECLARATION_INVALID: {
+    class: "A",
+    reason: "Route inventory is the manifest control-flow graph for route/UI/ABI joins.",
+  },
+  CAM_ROUTE_INVOCATION_INVALID: {
+    class: "A",
+    reason: "Invocation namespace/function/arg shape is a static call contract.",
+  },
+  CAM_ROUTE_EXPRESSION_INVALID: {
+    class: "A",
+    reason: "Route expression roots and declared-input references are known from the route declaration.",
+  },
+})
+
 export function validateRouteDeclarations({
   resource,
   root,
@@ -70,7 +103,7 @@ function validateEntryRoute(
 ): void {
   if (typeof entry !== "string" || entry.length === 0) {
     issues.push(conformanceIssue({
-      rule: "CAM_ENTRY_ROUTE_INVALID",
+      rule: RULES.CAM_ENTRY_ROUTE_INVALID,
       resource,
       path: "entry",
       message: "CAM entry route must be a non-empty string",
@@ -80,7 +113,7 @@ function validateEntryRoute(
   if (Object.hasOwn(routes, entry)) return
 
   issues.push(conformanceIssue({
-    rule: "CAM_ENTRY_ROUTE_MISSING",
+    rule: RULES.CAM_ENTRY_ROUTE_MISSING,
     resource,
     path: "entry",
     message: `entry route does not exist: ${entry}`,
@@ -90,7 +123,7 @@ function validateEntryRoute(
 function validateRoutes(
   resource: string,
   routes: Record<string, unknown>,
-  namespaces: ReadonlyMap<string, NamespaceType>,
+  namespaces: ReadonlyMap<string, CamNamespaceType>,
   issues: CamConformanceIssue[],
 ): readonly DeclaredRoute[] {
   const declaredRoutes: DeclaredRoute[] = []
@@ -134,13 +167,13 @@ function validateRouteKind(
   routeName: string,
   kind: unknown,
   issues: CamConformanceIssue[],
-): RouteKind | undefined {
+): CamRouteKind | undefined {
   // Route kind is protocol control flow: read routes render UI, write routes
-  // continue to another route after wallet execution.
-  if (kind === "read" || kind === "write") return kind
+  // continue to another route after the write boundary.
+  if (isCamRouteKind(kind)) return kind
 
   issues.push(conformanceIssue({
-    rule: "CAM_ROUTE_KIND_INVALID",
+    rule: RULES.CAM_ROUTE_KIND_INVALID,
     resource,
     path: `routes.${routeName}.kind`,
     message: `route kind must be read or write: ${routeName}`,
@@ -191,7 +224,7 @@ function validateRouteInvocations(
   resource: string,
   routeName: string,
   route: Record<string, unknown>,
-  namespaces: ReadonlyMap<string, NamespaceType>,
+  namespaces: ReadonlyMap<string, CamNamespaceType>,
   issues: CamConformanceIssue[],
 ): { readonly call: DeclaredInvocation, readonly then: DeclaredInvocation } | undefined {
   const call = validateInvocation({
@@ -199,7 +232,7 @@ function validateRouteInvocations(
     path: `routes.${routeName}.call`,
     invocation: route.call,
     namespaces,
-    allowedTypes: CALL_NAMESPACE_TYPES,
+    allowedTypes: CAM_ROUTE_CALL_NAMESPACE_TYPES,
     purpose: "route call",
     issues,
   })
@@ -211,7 +244,7 @@ function validateRouteInvocations(
     path: `routes.${routeName}.then`,
     invocation: route.then,
     namespaces,
-    allowedTypes: route.kind === "read" ? READ_THEN_NAMESPACE_TYPES : WRITE_THEN_NAMESPACE_TYPES,
+    allowedTypes: camRouteThenNamespaceTypes(route.kind),
     purpose: "route continuation",
     issues,
   })
@@ -232,7 +265,7 @@ function validateRouteExpressionReferences({
   readonly resource: string
   readonly routeName: string
   readonly inputs: readonly string[]
-  readonly kind: RouteKind
+  readonly kind: CamRouteKind
   readonly callArgs: Record<string, unknown>
   readonly thenArgs: Record<string, unknown>
   readonly issues: CamConformanceIssue[]
@@ -324,8 +357,8 @@ function validateInvocation({
   readonly resource: string
   readonly path: string
   readonly invocation: unknown
-  readonly namespaces: ReadonlyMap<string, NamespaceType>
-  readonly allowedTypes: ReadonlySet<NamespaceType>
+  readonly namespaces: ReadonlyMap<string, CamNamespaceType>
+  readonly allowedTypes: ReadonlySet<CamNamespaceType>
   readonly purpose: string
   readonly issues: CamConformanceIssue[]
 }): DeclaredInvocation | undefined {
@@ -381,7 +414,7 @@ function validateInvocation({
 
 function routeInputIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_ROUTE_INPUTS_INVALID",
+    rule: RULES.CAM_ROUTE_INPUTS_INVALID,
     resource,
     path,
     message,
@@ -390,7 +423,7 @@ function routeInputIssue(resource: string, path: string, message: string): CamCo
 
 function routeDeclarationIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_ROUTE_DECLARATION_INVALID",
+    rule: RULES.CAM_ROUTE_DECLARATION_INVALID,
     resource,
     path,
     message,
@@ -399,7 +432,7 @@ function routeDeclarationIssue(resource: string, path: string, message: string):
 
 function routeInvocationIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_ROUTE_INVOCATION_INVALID",
+    rule: RULES.CAM_ROUTE_INVOCATION_INVALID,
     resource,
     path,
     message,
@@ -408,7 +441,7 @@ function routeInvocationIssue(resource: string, path: string, message: string): 
 
 function routeExpressionIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
-    rule: "CAM_ROUTE_EXPRESSION_INVALID",
+    rule: RULES.CAM_ROUTE_EXPRESSION_INVALID,
     resource,
     path,
     message,

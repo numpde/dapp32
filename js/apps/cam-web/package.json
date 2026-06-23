@@ -10,7 +10,6 @@
     "build": "npm run typecheck && vite build --configLoader native"
   },
   "dependencies": {
-    "@cam/core": "0.1.0",
     "@cam/evm-viem": "0.1.0",
     "@cam/protocol": "0.1.0",
     "@cam/screen": "0.1.0",

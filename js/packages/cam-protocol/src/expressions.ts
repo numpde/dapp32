@@ -26,34 +26,87 @@ export type ExpressionRuntime<T> = {
   readonly resolveValue: (value: T, context: object, path: string) => T
 }
 
+export type ExpressionReference = {
+  readonly root: string
+  readonly segments: readonly string[]
+}
+
+export type ExpressionReferenceOptions = {
+  readonly numericSegments: boolean
+}
+
 const IDENTIFIER_RE = /^[A-Za-z][A-Za-z0-9_]*$/
 
 export function isExpressionIdentifier(value: string): boolean {
   return IDENTIFIER_RE.test(value)
 }
 
+export function isExpressionReferenceString(value: string): boolean {
+  return value.startsWith("$") && !value.startsWith("$$")
+}
+
+export function isExpressionArrayIndex(value: string): boolean {
+  if (value !== "0" && !/^[1-9][0-9]*$/.test(value)) return false
+
+  // Expression walkers use JS arrays, so accepted indexes must survive
+  // string-to-Number conversion without rounding to a different slot.
+  return Number.isSafeInteger(Number(value))
+}
+
+// A doubled leading dollar is the protocol escape for literal strings that
+// would otherwise be parsed as expression references.
+export function parseStaticExpressionString(value: string): string | undefined {
+  if (isExpressionReferenceString(value)) return undefined
+  return value.startsWith("$$") ? value.slice(1) : value
+}
+
+// Keep expression grammar in protocol so runtime validators and static
+// conformance do not fork on escaping or numeric path segment semantics.
+export function parseExpressionReference(
+  value: string,
+  options: ExpressionReferenceOptions,
+): ExpressionReference | undefined {
+  if (!isExpressionReferenceString(value)) return undefined
+
+  const [root, ...segments] = value.slice(1).split(".")
+  if (
+    root === undefined
+    || !isExpressionIdentifier(root)
+    || segments.some((segment) => !isValidExpressionSegment(segment, options.numericSegments))
+  ) {
+    return undefined
+  }
+
+  return { root, segments }
+}
+
+export function expressionReferenceSyntaxError(
+  value: string,
+  options: ExpressionReferenceOptions,
+): string | undefined {
+  if (!isExpressionReferenceString(value)) return undefined
+  if (parseExpressionReference(value, options) !== undefined) return undefined
+
+  return invalidExpressionSyntaxMessage(value)
+}
+
 export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>): ExpressionRuntime<T> {
+  function checkedExpressionReference(value: string, path?: string): ExpressionReference {
+    const reference = parseExpressionReference(value, options)
+    if (reference === undefined) {
+      throw options.error("invalidExpression", invalidExpressionSyntaxMessage(value), path)
+    }
+
+    if (!options.roots.has(reference.root)) {
+      throw options.error("invalidExpression", `unknown expression root: ${reference.root}`, path)
+    }
+
+    return reference
+  }
+
   function validateString(value: string, path?: string): void {
-    if (!value.startsWith("$")) {
-      return
-    }
-    if (value.startsWith("$$")) {
-      return
-    }
-
-    const segments = value.slice(1).split(".")
-    const [root, ...pathSegments] = segments
-    if (
-      root === undefined ||
-      !isExpressionIdentifier(root) ||
-      pathSegments.some((segment) => !isValidExpressionSegment(segment, options.numericSegments))
-    ) {
-      throw options.error("invalidExpression", `invalid expression syntax: ${value}`, path)
-    }
-
-    if (!options.roots.has(root)) {
-      throw options.error("invalidExpression", `unknown expression root: ${root}`, path)
-    }
+    if (!isExpressionReferenceString(value)) return
+    checkedExpressionReference(value, path)
   }
 
   function validateValue(value: unknown, path: string): void {
@@ -116,36 +169,28 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
   }
 
   function resolveString(value: string, context: object, path: string): unknown {
-    if (!value.startsWith("$")) {
-      return value
-    }
-    if (value.startsWith("$$")) {
-      // A doubled leading dollar is the protocol escape for literal strings
-      // that would otherwise be parsed as expression references.
-      return value.slice(1)
-    }
+    const staticValue = parseStaticExpressionString(value)
+    if (staticValue !== undefined) return staticValue
 
-    validateString(value, path)
+    const reference = checkedExpressionReference(value, path)
+    let current: unknown = readExpressionSegment(context, reference.root)
 
-    const [root, ...segments] = value.slice(1).split(".")
-    let current: unknown = root === undefined ? undefined : readExpressionSegment(context, root)
-
-    for (const segment of segments) {
+    for (const segment of reference.segments) {
       current = readExpressionSegment(current, segment)
       if (current === undefined) {
-        throw options.error("unresolvedValue", `unresolved expression: ${value}`, path, { expression: value, root })
+        throw options.error("unresolvedValue", `unresolved expression: ${value}`, path, { expression: value, root: reference.root })
       }
     }
 
     if (current === undefined) {
-      throw options.error("unresolvedValue", `unresolved expression: ${value}`, path, { expression: value, root })
+      throw options.error("unresolvedValue", `unresolved expression: ${value}`, path, { expression: value, root: reference.root })
     }
 
     return current
   }
 
   function readExpressionSegment(source: unknown, segment: string): unknown {
-    if (options.numericSegments && Array.isArray(source) && isArrayIndex(segment)) {
+    if (options.numericSegments && Array.isArray(source) && isExpressionArrayIndex(segment)) {
       return source[Number(segment)]
     }
 
@@ -165,9 +210,9 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
 }
 
 function isValidExpressionSegment(segment: string, numericSegments: boolean): boolean {
-  return isExpressionIdentifier(segment) || (numericSegments && isArrayIndex(segment))
+  return isExpressionIdentifier(segment) || (numericSegments && isExpressionArrayIndex(segment))
 }
 
-function isArrayIndex(value: string): boolean {
-  return value === "0" || /^[1-9][0-9]*$/.test(value)
+function invalidExpressionSyntaxMessage(value: string): string {
+  return `invalid expression syntax: ${value}`
 }

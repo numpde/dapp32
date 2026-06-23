@@ -1,4 +1,7 @@
 import type { AbiParameter } from "viem"
+import {
+  abiDynamicArrayElementType,
+} from "@cam/protocol"
 
 export type AbiTupleParameter = AbiParameter & {
   readonly type: "tuple"
@@ -6,13 +9,12 @@ export type AbiTupleParameter = AbiParameter & {
 }
 
 export function dynamicArrayElement(parameter: AbiParameter): AbiParameter | undefined {
-  if (!parameter.type.endsWith("[]")) {
-    return undefined
-  }
+  const elementType = abiDynamicArrayElementType(parameter.type)
+  if (elementType === undefined) return undefined
 
   return {
     ...parameter,
-    type: parameter.type.slice(0, -2),
+    type: elementType,
   }
 }
 

@@ -10,6 +10,7 @@ import {
   resolveRouteCall,
   resolveRouteThen,
 } from "../src/index.ts"
+import type { CamDocument } from "../src/index.ts"
 import {
   BIKE_ACCOUNT_ADDRESS,
   BIKE_HOST_ADDRESS,
@@ -74,6 +75,50 @@ test("resolves a CAM route into a plain call descriptor", () => {
       },
     }),
   })
+})
+
+test("route account preflight follows protocol expression traversal", () => {
+  const anonymousCam = parseCam({
+    ...mainJson,
+    routes: {
+      ...mainJson.routes,
+      entry: {
+        ...mainJson.routes.entry,
+        call: {
+          ...mainJson.routes.entry.call,
+          args: {
+            account: "$$account.address",
+          },
+        },
+      },
+    },
+  })
+  assert.equal(routeRequiresAccount(anonymousCam, "entry"), false)
+
+  class NonProtocolBox {
+    readonly value = "$account.address"
+  }
+
+  const forgedCam = {
+    ...anonymousCam,
+    routes: {
+      ...anonymousCam.routes,
+      entry: {
+        ...anonymousCam.routes.entry,
+        call: {
+          ...anonymousCam.routes.entry.call,
+          args: {
+            box: new NonProtocolBox(),
+          } as unknown as Record<string, never>,
+        },
+      },
+    },
+  } satisfies CamDocument
+
+  // Preflight mirrors expression runtime traversal: JSON records and arrays
+  // only. Non-protocol objects can be rejected by parsers, but are not walked
+  // here because this helper is not an alternate object introspection engine.
+  assert.equal(routeRequiresAccount(forgedCam, "entry"), false)
 })
 
 test("rejects invalid CAM versions and unresolved route expressions", () => {
@@ -215,7 +260,7 @@ test("parseCam enforces canonical namespace names and route kinds", () => {
       ...mainJson,
       namespaces: {
         ...namespaces,
-        Manager: {
+        "contracts.Manager-v1": {
           type: "contract",
           abiURI: "./abi/Manager.json",
           integrity: ZERO_SHA256_INTEGRITY,

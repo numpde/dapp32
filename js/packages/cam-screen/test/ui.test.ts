@@ -4,7 +4,10 @@ import test from "node:test"
 import { toInertValue, UI_VERSION } from "@cam/protocol"
 import type { InertRecord } from "@cam/protocol"
 import {
+  forEachResolvedUiNode,
   parseUi,
+  resolvedUiButtons,
+  resolvedUiInputNames,
   resolveInitialUiNode,
   resolveUiNode,
   UiError,
@@ -24,6 +27,92 @@ const context = {
     serialNumber: "ABC123",
   },
 }
+
+test("walks resolved UI trees in render order", () => {
+  const visited: string[] = []
+
+  forEachResolvedUiNode({
+    element: "Screen",
+    props: {},
+    children: [
+      {
+        element: "TextField",
+        props: {},
+        state: { key: "serialNumber" },
+        children: [] as const,
+      },
+      {
+        element: "Button",
+        props: {},
+        call: {
+          namespace: "routes",
+          function: "lookupComponent",
+          args: {},
+        },
+      },
+    ],
+  }, (node) => {
+    visited.push(node.element)
+  })
+
+  assert.deepEqual(visited, ["Screen", "TextField", "Button"])
+})
+
+test("queries resolved UI buttons and input names deterministically", () => {
+  const firstButton = {
+    element: "Button" as const,
+    props: {},
+    call: {
+      namespace: "routes",
+      function: "lookupComponent",
+      args: {},
+    },
+  }
+  const secondButton = {
+    element: "Button" as const,
+    props: {},
+    call: {
+      namespace: "routes",
+      function: "retireComponent",
+      args: {},
+    },
+  }
+  const resolved = {
+    element: "Screen" as const,
+    props: {},
+    children: [
+      {
+        element: "TextField" as const,
+        props: {},
+        state: { key: "serialNumber" },
+        children: [] as const,
+      },
+      {
+        element: "Fragment" as const,
+        props: {},
+        children: [
+          {
+            element: "TextField" as const,
+            props: {},
+            state: { key: "owner" },
+            children: [] as const,
+          },
+          {
+            element: "TextField" as const,
+            props: {},
+            state: { key: "serialNumber" },
+            children: [] as const,
+          },
+          firstButton,
+        ],
+      },
+      secondButton,
+    ],
+  }
+
+  assert.deepEqual(resolvedUiButtons(resolved), [firstButton, secondButton])
+  assert.deepEqual(resolvedUiInputNames(resolved), ["owner", "serialNumber"])
+})
 
 test("resolves a UI catalog through Include nodes into render and action nodes", () => {
   const ui = parseUi({
@@ -103,8 +192,11 @@ test("resolves a UI catalog through Include nodes into render and action nodes",
 
   const [view, action] = resolved.children
   assert.equal(view?.element, "Fragment")
-  assert.equal(view?.children[0]?.element, "TextField")
-  assert.equal(view?.children[0]?.state?.key, "serialNumber")
+  if (view?.element !== "Fragment") throw new Error("expected Fragment view")
+  const firstChild = view.children[0]
+  assert.equal(firstChild?.element, "TextField")
+  if (firstChild?.element !== "TextField") throw new Error("expected TextField child")
+  assert.equal(firstChild.state.key, "serialNumber")
 
   assert.equal(action?.element, "Button")
   assert.equal(action?.props.label, "Look up component")
@@ -175,6 +267,84 @@ test("resolveInitialUiNode skips action Include args until state exists", () => 
   assert.equal(state.serialNumber, "ABC123")
   assert.equal(action?.element, "Button")
   assert.equal(action?.call.args.serialNumber, "ABC123")
+})
+
+test("resolveInitialUiNode collects state before resolving state-backed render props", () => {
+  const ui = parseUi({
+    ui: UI_VERSION,
+    nodes: {
+      app: {
+        element: "Screen",
+        requires: [],
+        props: {
+          title: "Stateful render",
+        },
+        children: [
+          {
+            element: "TextField",
+            props: {
+              label: "Serial number",
+            },
+            state: {
+              key: "serialNumber",
+              defaultValue: "ABC123",
+            },
+          },
+          {
+            element: "Include",
+            call: {
+              namespace: "ui",
+              function: "actions",
+              args: {
+                view: {
+                  serialNumber: "$state.serialNumber",
+                },
+              },
+            },
+          },
+          {
+            element: "Text",
+            props: {
+              text: "$state.serialNumber",
+            },
+          },
+        ],
+      },
+      actions: {
+        element: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            element: "Button",
+            props: {
+              label: "Look up component",
+            },
+            call: {
+              namespace: "routes",
+              function: "component",
+              args: {
+                serialNumber: "$view.serialNumber",
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+
+  const { state, resolvedUi } = resolveInitialUiNode(ui, "app", inertRecord({}), context)
+  assert.equal(state.serialNumber, "ABC123")
+  assert.equal(resolvedUi.element, "Screen")
+  if (resolvedUi.element !== "Screen") {
+    throw new Error("expected Screen")
+  }
+  const action = resolvedUiButtons(resolvedUi)[0]
+  const text = resolvedUi.children.find((child) => child.element === "Text")
+
+  assert.equal(action?.element, "Button")
+  assert.equal(action?.call.args.serialNumber, "ABC123")
+  assert.equal(text?.element, "Text")
+  assert.equal(text?.props.text, "ABC123")
 })
 
 test("resolveUiNode rejects args that shadow runtime roots", () => {

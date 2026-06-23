@@ -1,50 +1,28 @@
 import {
-  isExpressionIdentifier,
+  expressionReferenceSyntaxError,
+  parseExpressionReference,
+  parseStaticExpressionString,
 } from "@cam/protocol"
-import {
-  isArrayIndex,
-} from "../walk.ts"
+import type {
+  ExpressionReference,
+} from "@cam/protocol"
 
-type ExpressionReference = {
-  readonly root: string
-  readonly segments: readonly string[]
-}
-
-// Conformance checks inspect expression references without resolving them. The
-// runtime parser still owns full expression validation; this helper only keeps
-// authoring checks consistent when they ask "which root/name was referenced?".
+// Conformance only parses enough expression surface to prove static publication
+// failures: malformed `$...` references, unsupported roots, and known names.
+// Runtime remains responsible for full expression semantics and resolution.
 export function expressionReference(value: string): ExpressionReference | undefined {
-  if (!value.startsWith("$") || value.startsWith("$$")) return undefined
-
-  const [root, ...segments] = value.slice(1).split(".")
-  if (root === undefined || !isExpressionIdentifier(root)) {
-    return { root: "", segments: [] }
-  }
-
-  return { root, segments }
+  return parseExpressionReference(value, { numericSegments: true })
 }
 
 export function expressionSyntaxError(value: string): string | undefined {
-  if (!value.startsWith("$") || value.startsWith("$$")) return undefined
-
-  const [root, ...segments] = value.slice(1).split(".")
-  if (
-    root === undefined
-    || !isExpressionIdentifier(root)
-    || segments.some((segment) => !isExpressionSegment(segment))
-  ) {
-    return `invalid expression syntax: ${value}`
-  }
-
-  return undefined
+  return expressionReferenceSyntaxError(value, { numericSegments: true })
 }
 
-// Static strings are values conformance can reason about without runtime
-// context. Escaped `$$foo` is static because runtime resolves it to `$foo`.
+// Static strings are values conformance can reason about without a dynamic
+// context. Escaped `$$foo` is data whose interpreted value starts with `$`.
 export function staticString(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined
-  if (expressionReference(value) !== undefined) return undefined
-  return value.startsWith("$$") ? value.slice(1) : value
+  return parseStaticExpressionString(value)
 }
 
 export function staticStringList(value: unknown): readonly string[] | undefined {
@@ -61,8 +39,4 @@ export function staticStringList(value: unknown): readonly string[] | undefined 
 
   const staticValue = staticString(value)
   return staticValue === undefined ? undefined : [staticValue]
-}
-
-function isExpressionSegment(value: string): boolean {
-  return isExpressionIdentifier(value) || isArrayIndex(value)
 }

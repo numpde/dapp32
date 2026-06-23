@@ -4,6 +4,7 @@ import http.server
 import ipaddress
 import json
 import os
+import re
 import socket
 import ssl
 import sys
@@ -17,13 +18,39 @@ def required_env(name):
     return value
 
 
+POSITIVE_INT_RE = re.compile(r"^[1-9][0-9]*$")
+POSITIVE_SECONDS_RE = re.compile(r"^(?:[1-9][0-9]*)(?:\.[0-9]+)?$|^0\.[0-9]*[1-9][0-9]*$")
+CONTENT_LENGTH_RE = re.compile(r"^[0-9]+$")
+
+
+def required_positive_int_env(name):
+    value = required_env(name)
+    if POSITIVE_INT_RE.fullmatch(value) is None:
+        raise RuntimeError(f"{name}: expected a positive decimal integer")
+    return int(value)
+
+
+def required_port_env(name):
+    port = required_positive_int_env(name)
+    if port > 65535:
+        raise RuntimeError(f"{name}: expected a TCP port in 1..65535")
+    return port
+
+
+def required_positive_seconds_env(name):
+    value = required_env(name)
+    if POSITIVE_SECONDS_RE.fullmatch(value) is None:
+        raise RuntimeError(f"{name}: expected positive seconds")
+    return float(value)
+
+
 LISTEN_HOST = required_env("RPC_PROXY_HOST")
-LISTEN_PORT = int(required_env("RPC_PROXY_PORT"))
+LISTEN_PORT = required_port_env("RPC_PROXY_PORT")
 UPSTREAM_FILE = required_env("RPC_UPSTREAM_FILE")
-MAX_REQUEST_BYTES = int(required_env("RPC_PROXY_MAX_REQUEST_BYTES"))
-MAX_RESPONSE_BYTES = int(required_env("RPC_PROXY_MAX_RESPONSE_BYTES"))
-MAX_UPSTREAM_URL_BYTES = int(required_env("RPC_PROXY_MAX_UPSTREAM_URL_BYTES"))
-CONNECT_TIMEOUT_SECONDS = float(required_env("RPC_PROXY_CONNECT_TIMEOUT_SECONDS"))
+MAX_REQUEST_BYTES = required_positive_int_env("RPC_PROXY_MAX_REQUEST_BYTES")
+MAX_RESPONSE_BYTES = required_positive_int_env("RPC_PROXY_MAX_RESPONSE_BYTES")
+MAX_UPSTREAM_URL_BYTES = required_positive_int_env("RPC_PROXY_MAX_UPSTREAM_URL_BYTES")
+CONNECT_TIMEOUT_SECONDS = required_positive_seconds_env("RPC_PROXY_CONNECT_TIMEOUT_SECONDS")
 ALLOWED_METHODS = frozenset(
     method
     for method in required_env("RPC_ALLOWED_METHODS").replace(",", " ").split()
@@ -95,9 +122,14 @@ def read_upstream():
     if parsed.fragment:
         raise UpstreamRejected("RPC upstream must not include a fragment")
 
+    try:
+        parsed_port = parsed.port
+    except ValueError as exc:
+        raise UpstreamRejected("RPC upstream has an invalid port") from exc
+
     port = 443
-    if parsed.port is not None:
-        port = parsed.port
+    if parsed_port is not None:
+        port = parsed_port
     if port != 443:
         raise UpstreamRejected("RPC upstream must use the default https port")
 
@@ -187,13 +219,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.send_error(411, "content-length required")
             return
 
-        try:
-            request_size = int(content_length)
-        except ValueError:
+        if CONTENT_LENGTH_RE.fullmatch(content_length) is None:
             self.send_error(400, "invalid content-length")
             return
 
-        if request_size < 0 or request_size > MAX_REQUEST_BYTES:
+        request_size = int(content_length)
+        if request_size > MAX_REQUEST_BYTES:
             self.send_error(413, "request too large")
             return
 

@@ -33,6 +33,23 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             with self.assertRaisesRegex(DependencyVerificationError, "unsafe path"):
                 DependencyVerifier(root).extract_verified_zip(FIXTURE_KEY, archive, root / "extract")
 
+    def test_rejects_symlinked_dependency_verifier_boundaries(self) -> None:
+        with self.fixture() as root:
+            real_file = root / "real.txt"
+            real_file.write_text("", encoding="utf-8")
+            file_link = root / "foundry.toml"
+            file_link.symlink_to(real_file)
+
+            real_dir = root / "real-dependencies"
+            real_dir.mkdir()
+            dir_link = root / "dependencies"
+            dir_link.symlink_to(real_dir, target_is_directory=True)
+
+            with self.assertRaisesRegex(DependencyVerificationError, "required file must not be a symlink"):
+                DependencyVerifier.require_file(file_link)
+            with self.assertRaisesRegex(DependencyVerificationError, "required directory must not be a symlink"):
+                DependencyVerifier.require_dir(dir_link)
+
     def test_rejects_archive_or_installed_tree_mismatch(self) -> None:
         with self.fixture() as root:
             self.write_minimal_dependency(root, content=FIXTURE_CONTRACT_SOURCE)
