@@ -44,8 +44,11 @@ type ChainIdClient = {
   readonly getChainId: () => Promise<number>
 }
 
+const STARTUP_PARAM_NAMES = new Set(["chainId", "host", "account", "rpcUrl"])
+
 export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOptions {
   const params = url.searchParams
+  rejectUnknownParams(params, STARTUP_PARAM_NAMES)
   return {
     chainId: requireEvmChainId(requiredParam(params, "chainId")),
     host: requireEvmAddress(requiredParam(params, "host"), "host"),
@@ -101,6 +104,14 @@ export async function assertRpcChain(
   const expected = evmChainIdNumber(expectedChainId)
   if (actual !== expected) {
     throw new Error(`RPC chain mismatch: expected ${expectedChainId}, got eip155:${actual}`)
+  }
+}
+
+function rejectUnknownParams(params: URLSearchParams, allowedNames: ReadonlySet<string>): void {
+  for (const name of params.keys()) {
+    if (!allowedNames.has(name)) {
+      throw new Error(`unknown URL parameter: ${name}`)
+    }
   }
 }
 
