@@ -12,9 +12,7 @@ import {
   parseJsonBytes,
 } from "../../packages/cam-protocol/dist/index.js"
 import {
-  assertContainedPath,
-  assertDirectory,
-  assertRegularFile,
+  checkedContainedFilePath,
   localCamResourcePath,
   readBoundedFile,
 } from "../local-cam-files.ts"
@@ -48,16 +46,11 @@ async function main(argv: readonly string[]): Promise<number> {
 
 async function preflight(options: Options): Promise<PreflightResult> {
   const dappsRootPath = resolve(options.dappsRootPath)
-  const rootPath = resolve(options.rootPath)
-  await assertDirectory(dappsRootPath, "dapps root")
-  await assertRegularFile(rootPath, "CAM root")
-  // Make constructs the root path from an operator-supplied dapp name. Enforce
-  // the dapps boundary here too, after resolution, so path traversal cannot
-  // turn the publication lane into a generic file reader inside the container.
-  await assertContainedPath({
-    rootPath: dappsRootPath,
-    path: rootPath,
-    message: "CAM root must stay under the dapps root",
+  const rootPath = await checkedContainedFilePath({
+    rootDir: dappsRootPath,
+    path: options.rootPath,
+    label: "CAM root",
+    boundaryLabel: "dapps root",
   })
 
   const rootBytes = await readBoundedFile(rootPath, "CAM root")

@@ -87,22 +87,6 @@ export async function checkedContainedFilePath({
   return resolvedPath
 }
 
-export async function assertContainedPath({
-  rootPath,
-  path,
-  message,
-}: {
-  readonly rootPath: string
-  readonly path: string
-  readonly message: string
-}): Promise<void> {
-  const realRoot = await realpath(rootPath)
-  const realPath = await realpath(path)
-  if (pathEscapesRoot(relative(realRoot, realPath))) {
-    throw new Error(`${message}: ${path}`)
-  }
-}
-
 export async function assertRegularFile(path: string, label: string): Promise<FileStat> {
   const pathStat = await lstat(path)
   if (pathStat.isSymbolicLink()) {
