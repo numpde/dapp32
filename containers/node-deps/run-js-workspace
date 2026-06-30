@@ -9,11 +9,12 @@ fi
 stage-js-workspace /input/js /work/js
 cd /work/js
 npm_graph=/tmp/js-graph-check.json
-if ! npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >"$npm_graph"; then
+npm_graph_stderr=/tmp/js-graph-check.stderr
+if ! npm ls --all --workspaces --ignore-scripts --offline --omit=optional --json >"$npm_graph" 2>"$npm_graph_stderr"; then
   # npm reports an overridden exact transitive dependency as invalid even when
   # the lock resolves the reviewed security replacement. Keep the exception
   # narrow so one temporary vulnerability pin does not mask graph drift.
-  node - "$npm_graph" <<'NODE'
+  if ! node - "$npm_graph" <<'NODE'
 const fs = require("node:fs")
 
 const graphPath = process.argv[2]
@@ -41,6 +42,10 @@ if (lock.packages?.["node_modules/ws"]?.version !== "8.21.0") {
   process.exit(1)
 }
 NODE
+  then
+    cat "$npm_graph_stderr" >&2
+    exit 1
+  fi
 fi
 
 exec "$@"
