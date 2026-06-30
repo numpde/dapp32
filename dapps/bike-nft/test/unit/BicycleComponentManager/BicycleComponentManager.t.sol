@@ -64,6 +64,11 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.registerComponent(address(0), SERIAL, TOKEN_URI);
 
         vm.prank(registrar);
+        vm.expectRevert();
+        manager.registerComponent(address(ui), SECOND_SERIAL, TOKEN_URI);
+        assertFalse(manager.isRegistered(SECOND_SERIAL), "failed safe mint must not register component");
+
+        vm.prank(registrar);
         (address tokenContract, uint256 tokenId) = manager.registerComponent(owner, SERIAL, TOKEN_URI);
 
         assertEq(tokenContract, address(components), "component contract mismatch");

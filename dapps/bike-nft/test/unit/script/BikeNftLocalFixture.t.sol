@@ -14,8 +14,9 @@ contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
         deployment = deployLocalFixture(address(this), "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
     }
 
-    function deploySeededForTest() external returns (Deployment memory deployment) {
-        deployment = deploySeededLocalFixture(address(this), "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
+    function deploySeededForTest(address seedOwner) external returns (Deployment memory deployment) {
+        deployment =
+            deploySeededLocalFixture(address(this), seedOwner, "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
     }
 }
 
@@ -39,22 +40,36 @@ contract BikeNftLocalFixtureTest is Test {
             deployment.manager.componentBySerial("DEMO-MOTOR-001").exists, "clean fixture should not seed motor"
         );
 
-        deployment = harness.deploySeededForTest();
+        address seedOwner = makeAddr("seed owner");
+        deployment = harness.deploySeededForTest(seedOwner);
 
         assertSeededComponent(
-            deployment, address(harness), "DEMO-FRAME-001", "fixture://bike-nft/components/demo-frame-001.json"
+            deployment,
+            seedOwner,
+            address(harness),
+            "DEMO-FRAME-001",
+            "fixture://bike-nft/components/demo-frame-001.json"
         );
         assertSeededComponent(
-            deployment, address(harness), "DEMO-BATTERY-001", "fixture://bike-nft/components/demo-battery-001.json"
+            deployment,
+            seedOwner,
+            address(harness),
+            "DEMO-BATTERY-001",
+            "fixture://bike-nft/components/demo-battery-001.json"
         );
         assertSeededComponent(
-            deployment, address(harness), "DEMO-MOTOR-001", "fixture://bike-nft/components/demo-motor-001.json"
+            deployment,
+            seedOwner,
+            address(harness),
+            "DEMO-MOTOR-001",
+            "fixture://bike-nft/components/demo-motor-001.json"
         );
     }
 
     function assertSeededComponent(
         BikeNftLocalFixture.Deployment memory deployment,
         address owner,
+        address registrar,
         string memory serialNumber,
         string memory tokenURI_
     ) private view {
@@ -68,7 +83,7 @@ contract BikeNftLocalFixtureTest is Test {
             component.tokenContract, address(deployment.components), "seeded component should use configured contract"
         );
         assertEq(component.owner, owner, "seeded component owner mismatch");
-        assertEq(component.registrar, owner, "seeded component registrar mismatch");
+        assertEq(component.registrar, registrar, "seeded component registrar mismatch");
         assertEq(uint8(component.status), uint8(IBicycleComponentManagerView.ComponentStatus.Active), "status mismatch");
         assertEq(component.tokenURI, tokenURI_, "manager token URI mismatch");
         assertEq(deployment.components.ownerOf(component.tokenId), owner, "NFT owner mismatch");

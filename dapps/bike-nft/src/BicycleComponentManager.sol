@@ -549,7 +549,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
 
         tokenId = uint256(serialHash);
 
-        IBicycleComponents(tokenContract).mint(owner, tokenId, tokenURI_);
+        IBicycleComponents(tokenContract).safeMint(owner, tokenId, tokenURI_, "");
 
         uint48 now_ = _now48();
         _componentRecords[serialHash] = ComponentRecord({

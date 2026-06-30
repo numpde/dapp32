@@ -55,12 +55,17 @@ contract BikeNftLocalFixture {
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));
     }
 
-    function deploySeededLocalFixture(address broadcasterAdmin, string memory camURI, bytes32 camHash)
-        internal
-        returns (Deployment memory deployment)
-    {
+    /// @dev Keep deployment authority separate from seeded ownership: the
+    /// manager now uses safe minting, so `seedOwner` must be able to receive
+    /// ERC-721s when it is a contract.
+    function deploySeededLocalFixture(
+        address broadcasterAdmin,
+        address seedOwner,
+        string memory camURI,
+        bytes32 camHash
+    ) internal returns (Deployment memory deployment) {
         deployment = deployLocalFixture(broadcasterAdmin, camURI, camHash);
-        _seedLocalComponents(deployment.manager, broadcasterAdmin);
+        _seedLocalComponents(deployment.manager, seedOwner);
     }
 
     function _seedLocalComponents(BicycleComponentManager manager, address owner) private {
