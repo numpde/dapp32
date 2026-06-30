@@ -210,7 +210,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        self.send_error(405, "method not allowed")
+        self.reject_method()
+
+    def do_DELETE(self):
+        self.reject_method()
+
+    def do_HEAD(self):
+        self.reject_method()
+
+    def do_OPTIONS(self):
+        self.reject_method()
+
+    def do_PATCH(self):
+        self.reject_method()
 
     def do_POST(self):
         conn = None
@@ -271,6 +283,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_header("content-length", str(len(response_body)))
         self.end_headers()
         self.wfile.write(response_body)
+
+    def do_PUT(self):
+        self.reject_method()
+
+    def reject_method(self):
+        self.send_error(405, "method not allowed")
 
     def log_message(self, _format, *_args):
         return
