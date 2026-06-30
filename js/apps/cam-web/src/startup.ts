@@ -79,6 +79,10 @@ export function createPinnedOriginResourceLoader(resourceOrigin: string): Resour
   })
 }
 
+export function displayRpcEndpoint(rpcUrl: string): string {
+  return requireHttpURL(rpcUrl, "rpcUrl").origin
+}
+
 export async function assertHostHasCode(
   publicClient: HostCodeClient,
   host: StartupOptions["host"],

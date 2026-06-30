@@ -38,6 +38,7 @@ import {
   assertHostHasCode,
   assertRpcChain,
   createPinnedOriginResourceLoader,
+  displayRpcEndpoint,
   parseStartupOptions,
   readStartupPolicy,
 } from "./startup"
@@ -368,7 +369,7 @@ async function waitForReceipt(
     })
     throw new Error(
       [
-        `Transaction was sent, but the viewer did not see a receipt on ${ready.runtime.startup.rpcUrl} within ${RECEIPT_WAIT_TIMEOUT_MS / 1000}s.`,
+        `Transaction was sent, but the viewer did not see a receipt on ${displayRpcEndpoint(ready.runtime.startup.rpcUrl)} within ${RECEIPT_WAIT_TIMEOUT_MS / 1000}s.`,
         receiptTimeoutAdvice(diagnosis),
       ].join(" "),
       { cause },
@@ -408,7 +409,7 @@ async function readSubmittedTransaction(
     return await ready.runtime.publicClient.getTransaction({ hash: txHash })
   } catch (cause) {
     throw new Error(
-      `The wallet returned a transaction hash, but the viewer could not read that transaction from ${ready.runtime.startup.rpcUrl}.`,
+      `The wallet returned a transaction hash, but the viewer could not read that transaction from ${displayRpcEndpoint(ready.runtime.startup.rpcUrl)}.`,
       { cause },
     )
   }

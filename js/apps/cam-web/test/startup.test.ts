@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { parseStartupOptions, readStartupPolicy } from "../src/startup.ts"
+import { displayRpcEndpoint, parseStartupOptions, readStartupPolicy } from "../src/startup.ts"
 
 const POLICY = {
   resourceOrigin: "https://resources.example.test",
@@ -34,5 +34,12 @@ test("startup policy requires explicit boolean text", () => {
       VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH: "0",
     }),
     /expected "true" or "false"/,
+  )
+})
+
+test("RPC endpoint display omits path and query credentials", () => {
+  assert.equal(
+    displayRpcEndpoint("https://rpc.example.test/project-id?token=secret"),
+    "https://rpc.example.test",
   )
 })
