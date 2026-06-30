@@ -235,14 +235,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             host, port, path = read_upstream()
             target_ip = resolve_global_ip(host, port)
             conn = FixedIpHttpsConnection(host, port, target_ip, CONNECT_TIMEOUT_SECONDS)
-            accept = self.headers.get("accept")
-            if accept is None:
-                accept = "application/json"
-            content_type = self.headers.get("content-type")
-            if content_type is None:
-                content_type = "application/json"
-
-            headers = {"accept": accept, "content-type": content_type, "host": host}
+            # This proxy is a JSON-RPC method gate, not a generic HTTP relay.
+            # Do not let untrusted viewer clients shape upstream request headers.
+            headers = {"accept": "application/json", "content-type": "application/json", "host": host}
             conn.request("POST", path, body=request_body, headers=headers)
             response = conn.getresponse()
             response_body = response.read(MAX_RESPONSE_BYTES + 1)
