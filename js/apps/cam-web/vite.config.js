@@ -3,8 +3,8 @@ import { defineConfig } from "vite"
 
 const DEFAULT_ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 
-function allowedHosts() {
-  const origin = process.env.CAM_WEB_DEV_ORIGIN
+export function allowedHosts(env = process.env) {
+  const origin = env.CAM_WEB_DEV_ORIGIN
   if (origin === undefined || origin.length === 0) {
     return DEFAULT_ALLOWED_HOSTS
   }
@@ -17,6 +17,9 @@ function allowedHosts() {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error("CAM_WEB_DEV_ORIGIN must use http or https")
+  }
+  if (url.username !== "" || url.password !== "" || url.pathname !== "/" || url.search !== "" || url.hash !== "") {
+    throw new Error("CAM_WEB_DEV_ORIGIN must be an HTTP(S) origin without credentials, path, query, or fragment")
   }
 
   const hostname = url.hostname

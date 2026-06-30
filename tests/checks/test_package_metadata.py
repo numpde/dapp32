@@ -39,6 +39,7 @@ LIBRARY_PACKAGE_SCRIPTS = {
 }
 APP_PACKAGE_SCRIPTS = {
     "dev": "vite --configLoader native",
+    "test": "node --test test/*.test.js",
     "typecheck": "tsc -p tsconfig.json",
     "build": "npm run typecheck && vite build --configLoader native",
 }
