@@ -79,10 +79,14 @@ x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
         throw new Error("Forge broadcast output must contain a transactions array")
       }
 
-      const tx = broadcast.transactions.find((item) => (
+      const camRootTransactions = broadcast.transactions.filter((item) => (
         isRecordObject(item)
         && item.contractName === "CamRoot"
       ))
+      if (camRootTransactions.length !== 1) {
+        throw new Error("Forge broadcast output must contain exactly one CamRoot transaction")
+      }
+      const tx = camRootTransactions[0]
       if (!isRecordObject(tx) || typeof tx.contractAddress !== "string") {
         throw new Error("CamRoot contractAddress not found in Forge broadcast output")
       }

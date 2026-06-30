@@ -193,13 +193,16 @@ services:
         if "transactions" not in broadcast or not isinstance(broadcast["transactions"], list):
             raise SystemExit("Forge broadcast output must contain a transactions array")
 
-        host = None
+        hosts = []
         for tx in broadcast["transactions"]:
             if not isinstance(tx, dict):
                 raise SystemExit("Forge broadcast transaction entry is not an object")
             if tx.get("contractName") == "CamRoot":
-                host = tx.get("contractAddress")
-                break
+                hosts.append(tx.get("contractAddress"))
+
+        if len(hosts) != 1:
+            raise SystemExit("Forge broadcast output must contain exactly one CamRoot transaction")
+        host = hosts[0]
 
         if not isinstance(host, str) or EVM_ADDRESS_RE.fullmatch(host) is None:
             raise SystemExit("CamRoot contractAddress not found in Forge broadcast output")
