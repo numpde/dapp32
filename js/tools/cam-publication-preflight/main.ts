@@ -132,13 +132,13 @@ function parseArgs(argv: readonly string[]): Options {
     const arg = argv[index]
     switch (arg) {
       case "--dapps-root":
-        dappsRootPath = requiredArg(argv, ++index, "--dapps-root")
+        dappsRootPath = assignOnce(dappsRootPath, requiredArg(argv, ++index, "--dapps-root"), "--dapps-root")
         break
       case "--root":
-        rootPath = requiredArg(argv, ++index, "--root")
+        rootPath = assignOnce(rootPath, requiredArg(argv, ++index, "--root"), "--root")
         break
       case "--cam-uri":
-        camURI = requiredArg(argv, ++index, "--cam-uri")
+        camURI = assignOnce(camURI, requiredArg(argv, ++index, "--cam-uri"), "--cam-uri")
         break
       case "--json":
         json = true
@@ -166,6 +166,14 @@ function parseArgs(argv: readonly string[]): Options {
     camURI,
     json,
   }
+}
+
+function assignOnce(current: string | undefined, next: string, flag: string): string {
+  if (current !== undefined) {
+    throw new Error(`${flag} must be provided at most once`)
+  }
+
+  return next
 }
 
 function requiredArg(argv: readonly string[], index: number, flag: string): string {
