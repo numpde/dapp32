@@ -30,13 +30,11 @@ contract CamRoot is ICamApp, Ownable2Step {
     event CamUpdated(string camURI, bytes32 camHash);
     event ContractAddressSet(bytes32 indexed contractNameHash, string contractName, address indexed deployedAt);
 
+    error EmptyCamURI();
     error EmptyContractName();
 
     constructor(address admin, string memory uri, bytes32 hash) Ownable(admin) {
-        camURI = uri;
-        camHash = hash;
-
-        emit CamUpdated(uri, hash);
+        _setCam(uri, hash);
     }
 
     /// @inheritdoc IERC165
@@ -49,10 +47,7 @@ contract CamRoot is ICamApp, Ownable2Step {
     /// `hash` should be `keccak256` of the exact CAM document bytes.
     /// Use `bytes32(0)` only for intentionally mutable or unpinned CAMs.
     function setCam(string calldata uri, bytes32 hash) external onlyOwner {
-        camURI = uri;
-        camHash = hash;
-
-        emit CamUpdated(uri, hash);
+        _setCam(uri, hash);
     }
 
     /// @notice Resolves a CAM contract name to this chain's deployed address.
@@ -78,5 +73,14 @@ contract CamRoot is ICamApp, Ownable2Step {
         _contractAddress[contractNameHash] = deployedAt;
 
         emit ContractAddressSet(contractNameHash, contractName, deployedAt);
+    }
+
+    function _setCam(string memory uri, bytes32 hash) private {
+        if (bytes(uri).length == 0) revert EmptyCamURI();
+
+        camURI = uri;
+        camHash = hash;
+
+        emit CamUpdated(uri, hash);
     }
 }

@@ -10,6 +10,16 @@ import "../../../src/IBicycleComponentManagerView.sol";
 /// so the test exercises the same admin/broadcaster precondition as Forge
 /// broadcast scripts.
 contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
+    function deployWithCamURIForTest(string memory camURI) external returns (Deployment memory deployment) {
+        deployment = deployLocalFixture(address(this), camURI, bytes32(0));
+    }
+
+    function deployAndClearCamURIForTest() external {
+        Deployment memory deployment =
+            deployLocalFixture(address(this), "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
+        deployment.camRoot.setCam("", bytes32(0));
+    }
+
     function deployCleanForTest() external returns (Deployment memory deployment) {
         deployment = deployLocalFixture(address(this), "file:///work/dapps/bike-nft/cam/main.json", bytes32(0));
     }
@@ -25,6 +35,18 @@ contract BikeNftLocalFixtureHarness is BikeNftLocalFixture {
 /// empty, seeded deployment should create demo components in both the manager
 /// record and the component NFT contract.
 contract BikeNftLocalFixtureTest is Test {
+    bytes4 private constant EMPTY_CAM_URI = bytes4(keccak256("EmptyCamURI()"));
+
+    function test_camRootRejectsEmptyCamURI() external {
+        BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
+
+        vm.expectRevert(EMPTY_CAM_URI);
+        harness.deployAndClearCamURIForTest();
+
+        vm.expectRevert(EMPTY_CAM_URI);
+        harness.deployWithCamURIForTest("");
+    }
+
     function test_localFixtureCanDeployCleanOrSeededDemoState() external {
         BikeNftLocalFixtureHarness harness = new BikeNftLocalFixtureHarness();
 
