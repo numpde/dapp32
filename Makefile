@@ -76,21 +76,27 @@ BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deplo
 BIKE_NFT_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-gui.yml
 TEST_INTEGRATION_FUZZ_COMPOSE_FILES := -f $(COMPOSE_DIR)/test/integration-fuzz.yml
 TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/test-integration-fuzz.yml
+# Docker resolves host bind sources before container policy applies. Guard the
+# first-party roots in every lane, not only in the repository hygiene checks.
+FIRST_PARTY_ROOTS := compose containers dapps js tests tools
 NON_ROOT_GUARD := if [[ "$(ACTUAL_UID)" == "0" || "$(LOCAL_UID)" == "0" ]]; then printf '%s\n' 'Refusing to run Docker lanes as root or with LOCAL_UID=0. Run make as a non-root user.' >&2; exit 2; fi
+REPO_SHAPE_GUARD := for path in $(FIRST_PARTY_ROOTS); do if [[ -L "$$path" ]]; then printf 'Refusing Docker lane because first-party root is a symlink: %s\n' "$$path" >&2; exit 2; fi; if [[ -e "$$path" && ! -d "$$path" ]]; then printf 'Refusing Docker lane because first-party root is not a directory: %s\n' "$$path" >&2; exit 2; fi; done; symlink="$$(find $(FIRST_PARTY_ROOTS) \( -path "dapps/dependencies" -o -path "js/node_modules" \) -prune -o -type l -print -quit)"; if [[ -n "$$symlink" ]]; then printf 'Refusing Docker lane because first-party path is a symlink: %s\n' "$$symlink" >&2; exit 2; fi
+LANE_GUARD := $(NON_ROOT_GUARD); $(REPO_SHAPE_GUARD)
 # Intentional default: cleanup handlers intentionally ignore Compose teardown
 # failure so the user sees the primary lane failure. Do not use this outside
 # best-effort cleanup paths where the original status is preserved separately.
 COMPOSE_DOWN_CLEANUP := down --volumes --remove-orphans >/dev/null 2>&1 || true
 
 define compose_run
-@$(NON_ROOT_GUARD); \
+@$(LANE_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-PACKAGE_DEPS_GUARD := if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Missing npm workspace dependencies. Run make package-deps to install the locked package dependencies.' >&2; exit 2; fi
+PACKAGE_DEPS_GUARD := if [[ -L "$(PACKAGE_NODE_MODULES_DIR)" || -L "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Refusing package lane because node_modules or package-lock.json is a symlink.' >&2; exit 2; fi; if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Missing npm workspace dependencies. Run make package-deps to install the locked package dependencies.' >&2; exit 2; fi
+SOLDEER_DEPS_GUARD := if [[ -L "$(DEPENDENCIES_DIR)" || -L "$(FOUNDRY_MANIFEST_FILE)" ]]; then printf '%s\n' 'Refusing Soldeer lane because dapps/dependencies or dapps/foundry.toml is a symlink.' >&2; exit 2; fi; if [[ ! -d "$(DEPENDENCIES_DIR)" || ! -f "$(FOUNDRY_MANIFEST_FILE)" ]]; then printf '%s\n' 'Missing Soldeer dependencies. Run make deps to install the locked Solidity dependencies.' >&2; exit 2; fi; for file in $(DEPENDENCY_METADATA_FILES); do if [[ -L "$$file" ]]; then printf 'Refusing Soldeer lane because metadata file is a symlink: %s\n' "$$file" >&2; exit 2; fi; if [[ ! -f "$$file" ]]; then printf 'Missing Soldeer metadata: %s\n' "$$file" >&2; exit 2; fi; done
 
 define compose_run_with_package_deps
-@$(NON_ROOT_GUARD); \
+@$(LANE_GUARD); \
 $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
@@ -153,7 +159,7 @@ help:
 	  'Dependency install lanes are the only guarded host bind-target setup exception.'
 
 deps:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	created_dependency_metadata_placeholders=""; \
 	cleanup() { \
 	  status="$$?"; \
@@ -220,11 +226,12 @@ deps:
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify
 
 deps-verify:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
+	$(SOLDEER_DEPS_GUARD); \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify
 
 package-deps:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	package_input_dir=""; \
 	created_package_lock_placeholder="0"; \
 	cleanup() { \
@@ -310,7 +317,7 @@ cam-conformance-check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
 
 define cam_publication_preflight
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	if [[ -z "$$DAPP" ]]; then \
 	  printf '%s\n' 'Set DAPP to the first-level dapp name, for example DAPP=bike-nft.' >&2; \
 	  exit 2; \
@@ -348,12 +355,12 @@ cam-publication-preflight-check:
 	@$(MAKE) --no-print-directory cam-publication-preflight-json DAPP=bike-nft CAM_URI=https://example.test/bike-nft/cam/main.json >/dev/null
 
 viewer-terminal-check:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm -T viewer-terminal-check
 
 viewer-terminal:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	if $(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all --quiet viewer-terminal | grep -q .; then \
 	  printf 'Viewer terminal container already exists: %s\n' "$(VIEWER_TERMINAL_CONTAINER_NAME)" >&2; \
@@ -363,15 +370,15 @@ viewer-terminal:
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm viewer-terminal
 
 viewer-terminal-status:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all viewer-terminal
 
 viewer-terminal-attach:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml attach viewer-terminal
 
 viewer-terminal-down:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml $(COMPOSE_DOWN_CLEANUP)
 
 checks:
@@ -382,7 +389,7 @@ check-runtime: check-anvil-compose
 check-live: check-live-deps-egress
 
 check-live-deps-egress:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
 	  $(LIVE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(LIVE_DEPS_EGRESS_COMPOSE_FILES) $(COMPOSE_DOWN_CLEANUP); \
@@ -392,7 +399,7 @@ check-live-deps-egress:
 	$(LIVE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(LIVE_DEPS_EGRESS_COMPOSE_FILES) up --build --abort-on-container-exit --exit-code-from egress-proxy-check egress-proxy-check
 
 check-anvil-compose:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/checks.yml run --build --rm checks -I -B -m unittest discover -s tests/checks -t . -p test_anvil_compose.py
 
 fmt:
@@ -405,7 +412,7 @@ script-build: deps-verify
 	$(call compose_run,forge.yml,forge-script-build)
 
 abi: deps-verify
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	abi_plan_dir="$$(mktemp -d)"; \
 	chmod 0700 "$$abi_plan_dir"; \
 	cleanup() { \
@@ -420,7 +427,7 @@ abi: deps-verify
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_COMPOSE_FILES) run --build --rm cam-integrity
 
 cam-integrity:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_COMPOSE_FILES) run --build --rm cam-integrity
 
 test: deps-verify checks
@@ -433,7 +440,7 @@ invariant: deps-verify
 	$(call compose_run,forge.yml,forge-invariant)
 
 test-integration-fuzz:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	if [[ ! -v CAM_INTEGRATION_DESCRIPTOR_HOST_PATH || -z "$$CAM_INTEGRATION_DESCRIPTOR_HOST_PATH" ]]; then \
 	  printf '%s\n' 'Set CAM_INTEGRATION_DESCRIPTOR_HOST_PATH to a local descriptor JSON file.' >&2; \
@@ -450,7 +457,7 @@ test-integration-fuzz:
 	  run --build --rm test-integration-fuzz
 
 test-integration-fuzz-bike-nft: deps-verify
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
@@ -465,7 +472,7 @@ test-integration-fuzz-bike-nft: deps-verify
 	  up --build --abort-on-container-exit --exit-code-from test-integration-fuzz-bike-nft test-integration-fuzz-bike-nft
 
 test-integration-fuzz-with-writes-bike-nft: deps-verify
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
@@ -480,7 +487,7 @@ test-integration-fuzz-with-writes-bike-nft: deps-verify
 	  up --build --abort-on-container-exit --exit-code-from test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-with-writes-bike-nft
 
 test-integration-fuzz-bike-nft-down:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(TEST_INTEGRATION_FUZZ_BIKE_NFT_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
 	  $(COMPOSE_DOWN_CLEANUP); \
@@ -497,7 +504,7 @@ cast-offline:
 	$(call compose_run,cast.yml,cast-offline)
 
 cast-rpc:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	if [[ -v RPC_URL && -n "$$RPC_URL" && -v RPC_URL_FILE && -n "$$RPC_URL_FILE" ]]; then \
 	  printf '%s\n' 'Set only one of RPC_URL or RPC_URL_FILE.' >&2; \
 	  exit 2; \
@@ -528,15 +535,15 @@ cast-rpc:
 	$(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml up --build --abort-on-container-exit --exit-code-from cast-rpc cast-rpc
 
 anvil-internal:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(ANVIL_INTERNAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml up --build anvil-internal
 
 anvil-host:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(ANVIL_HOST_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml up --build anvil-host
 
 anvil-down:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(ANVIL_ALL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml down --volumes --remove-orphans
 
 anvil:
@@ -544,7 +551,7 @@ anvil:
 	@exit 2
 
 bike-nft-local-deploy: deps-verify
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	if [[ -z "$(CAM_URI)" ]]; then \
 	  printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; \
 	  exit 2; \
@@ -558,7 +565,7 @@ bike-nft-local-deploy: deps-verify
 	$(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(BIKE_NFT_LOCAL_COMPOSE_FILES) up --build --abort-on-container-exit --exit-code-from deploy-bike-nft-local deploy-bike-nft-local
 
 bike-nft-viewer-terminal: deps-verify
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
@@ -573,13 +580,13 @@ bike-nft-viewer-terminal: deps-verify
 	  run --build --rm bike-nft-viewer-terminal
 
 bike-nft-viewer-terminal-down:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES) \
 	  $(COMPOSE_DOWN_CLEANUP)
 
 bike-nft-viewer-gui: deps-verify
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
@@ -606,7 +613,7 @@ bike-nft-viewer-gui: deps-verify
 	  up --build --force-recreate --abort-on-container-exit cam-web bike-nft-browser-gateway
 
 bike-nft-viewer-gui-down:
-	@$(NON_ROOT_GUARD); \
+	@$(LANE_GUARD); \
 	$(BIKE_NFT_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES) \
 	  $(COMPOSE_DOWN_CLEANUP)
