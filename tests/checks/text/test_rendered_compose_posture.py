@@ -782,6 +782,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_no_volume_target(cam_web, BIKE_NFT_BROADCAST_DIR)
         cam_web_environment = compose_mapping(cam_web, "environment")
         self.assertEqual(BIKE_NFT_GUI_ORIGIN, cam_web_environment["VITE_CAM_WEB_RESOURCE_ORIGIN"])
+        self.assertEqual(BIKE_NFT_GUI_ORIGIN, cam_web_environment["CAM_WEB_DEV_ORIGIN"])
         self.assertNotIn("PRIVATE_KEY", cam_web_environment)
         self.assertNotIn("CAM_VIEWER_BROADCAST_PATH", cam_web_environment)
         self.assert_read_only_volumes(viewer_url, BIKE_NFT_BROADCAST_DIR)

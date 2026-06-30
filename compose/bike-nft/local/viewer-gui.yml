@@ -51,6 +51,9 @@ services:
       # rejects every CAM/ABI/UI fetch outside this origin, including CamRoot's
       # first camURI, instead of learning trust from a contract-returned URL.
       VITE_CAM_WEB_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
+      # Vite sees the gateway-forwarded browser Host header. Keep that allowlist
+      # tied to the same operator-declared origin that make prints.
+      CAM_WEB_DEV_ORIGIN: "${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}"
       npm_config_cache: /tmp/npm-cache
       npm_config_audit: "false"
       npm_config_fund: "false"

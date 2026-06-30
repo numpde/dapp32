@@ -71,6 +71,7 @@ export function App(): ReactElement {
   const [preparedCall, setPreparedCall] = useState<CamViewerPreparedContractCall | undefined>(undefined)
   const [sending, setSending] = useState(false)
   const interactionRevision = useRef(0)
+  const sendRevision = useRef(0)
 
   useEffect(() => {
     let cancelled = false
@@ -185,6 +186,12 @@ export function App(): ReactElement {
       return
     }
 
+    const interaction = interactionRevision.current
+    const send = nextSendRevision()
+    // Before wallet submission, stale interactions may abort silently. After a
+    // tx hash exists, the send revision owns user-visible transaction feedback.
+    const ownsInteraction = () => isCurrentInteraction(interaction)
+    const ownsSend = () => isCurrentSend(send)
     let submittedTxHash: `0x${string}` | undefined
 
     setSending(true)
@@ -196,7 +203,9 @@ export function App(): ReactElement {
         account: wallet.address,
         call,
       })
+      if (!ownsInteraction() || !ownsSend()) return
       await ensureInjectedWalletChain(ready.runtime.startup)
+      if (!ownsInteraction() || !ownsSend()) return
       const walletClient = createInjectedWalletClient(wallet.address)
       const txHash = await sendCamContractCall({
         walletClient,
@@ -204,36 +213,47 @@ export function App(): ReactElement {
         call,
       })
       submittedTxHash = txHash
+      if (!ownsSend()) return
       setNotice(`Transaction sent: ${txHash}`)
 
       const nonceGap = await submittedTransactionDiagnosis(ready, txHash, {
         includePendingAdvice: false,
       })
+      if (!ownsSend()) return
       if (nonceGap !== undefined) {
         throw new Error(nonceGap)
       }
 
       const receipt = await waitForReceipt(ready, txHash)
+      if (!ownsSend()) return
       if (receipt.status !== "success") {
         throw new Error(`Transaction reverted: ${txHash}`)
       }
       setNotice(`Transaction confirmed in block ${receipt.blockNumber.toString()}.`)
-      setPreparedCall(undefined)
+      if (ownsInteraction()) {
+        setPreparedCall(undefined)
+      }
 
-      if (call.then.namespace === "routes") {
+      if (call.then.namespace === "routes" && ownsInteraction()) {
         const snapshot = await ready.runtime.session.navigate(call.then.function, call.then.args)
+        if (!ownsInteraction() || !ownsSend()) return
         setLoadState({ ...ready, snapshot })
       }
     } catch (error) {
+      if (!ownsSend() || (submittedTxHash === undefined && !ownsInteraction())) return
       if (submittedTxHash !== undefined) {
         const message = errorMessage(error)
-        setPreparedCall(undefined)
+        if (ownsInteraction()) {
+          setPreparedCall(undefined)
+        }
         setNotice(message.includes(submittedTxHash) ? message : `${message} Transaction hash: ${submittedTxHash}.`)
       } else {
         setNotice(errorMessage(error))
       }
     } finally {
-      setSending(false)
+      if (ownsSend()) {
+        setSending(false)
+      }
     }
   }
 
@@ -264,6 +284,15 @@ export function App(): ReactElement {
     // viewer state can change so stale results cannot resurrect old prepared calls.
     interactionRevision.current += 1
     setPreparedCall(undefined)
+  }
+
+  function nextSendRevision(): number {
+    sendRevision.current += 1
+    return sendRevision.current
+  }
+
+  function isCurrentSend(revision: number): boolean {
+    return sendRevision.current === revision
   }
 
   return (
