@@ -68,6 +68,14 @@ type Scope = {
   readonly reported: Set<string>
   readonly issues: CamConformanceIssue[]
 }
+type RouteInputs = {
+  readonly names: ReadonlySet<string>
+  readonly hasUnknown: boolean
+}
+type RouteInputCollector = {
+  readonly names: Set<string>
+  hasUnknown: boolean
+}
 type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-string-array"
 type ValueResolver = (value: unknown) => unknown | undefined
 type IncludeSelection = {
@@ -127,13 +135,13 @@ function validateRouteTypeflow(
   // typed arg set to the selected node.
   const context = contextForArgs(route.then.args, (value) => abiFunctionOutputForExpression(fn, value))
   validateRouteRootCardinality(scope, nodeName, context)
-  const inputNames = routeInputNames(scope, nodeName, context)
+  const routeInputs = routeInputNames(scope, nodeName, context)
   walkNamedNode(
     scope,
     nodeName,
     `nodes.${nodeName}`,
     context,
-    inputNames,
+    routeInputs,
     [],
     true,
   )
@@ -144,7 +152,7 @@ function walkNamedNode(
   nodeName: string,
   path: string,
   context: AbiContext,
-  inputNames: ReadonlySet<string>,
+  routeInputs: RouteInputs,
   stack: readonly string[],
   allowRecurse: boolean,
 ): void {
@@ -154,7 +162,7 @@ function walkNamedNode(
       node,
       path,
       context,
-      inputNames,
+      routeInputs,
       nextStack,
       nextAllowRecurse,
     )
@@ -166,7 +174,7 @@ function walkNode(
   node: Record<string, unknown>,
   path: string,
   context: AbiContext,
-  inputNames: ReadonlySet<string>,
+  routeInputs: RouteInputs,
   stack: readonly string[],
   allowRecurse: boolean,
 ): void {
@@ -175,12 +183,12 @@ function walkNode(
 
   validateProps(scope, element, node, path, context)
   validateStateBinding(scope, element, node, path, context)
-  validateCall(scope, element, node, path, context, inputNames, stack, allowRecurse)
+  validateCall(scope, element, node, path, context, routeInputs, stack, allowRecurse)
 
   if (!Array.isArray(node.children)) return
   node.children.forEach((child, index) => {
     if (isRecordObject(child)) {
-      walkNode(scope, child, `${path}.children.${index}`, context, inputNames, stack, allowRecurse)
+      walkNode(scope, child, `${path}.children.${index}`, context, routeInputs, stack, allowRecurse)
     }
   })
 }
@@ -256,7 +264,7 @@ function validateCall(
   node: Record<string, unknown>,
   path: string,
   context: AbiContext,
-  inputNames: ReadonlySet<string>,
+  routeInputs: RouteInputs,
   stack: readonly string[],
   allowRecurse: boolean,
 ): void {
@@ -269,7 +277,7 @@ function validateCall(
     validateBoundValue(scope, `${path}.call.function`, "UI Button route", node.call.function, "string", context)
     validateKnownActionRoute(scope, path, node.call.function, node.call.args, context)
     if (isRecordObject(node.call.args)) {
-      validateActionStateInputs(scope, path, node.call.args, inputNames)
+      validateActionStateInputs(scope, path, node.call.args, routeInputs)
     }
     return
   }
@@ -304,7 +312,7 @@ function validateCall(
         nodeName,
         `${path}.${nodeName}`,
         contextForArgs(node.call.args, (value) => valueFromExpression(value, context)),
-        inputNames,
+        routeInputs,
         stack,
         true,
       )
@@ -450,10 +458,13 @@ function valueAtReference(root: string, segments: readonly string[], context: Ab
   return value === undefined ? { kind: "missing" } : { kind: "value", value }
 }
 
-function routeInputNames(scope: Scope, nodeName: string, context: AbiContext): ReadonlySet<string> {
-  const inputNames = new Set<string>()
-  collectRouteInputs(scope, nodeName, `nodes.${nodeName}`, context, [], inputNames, true)
-  return inputNames
+function routeInputNames(scope: Scope, nodeName: string, context: AbiContext): RouteInputs {
+  const collector = {
+    names: new Set<string>(),
+    hasUnknown: false,
+  }
+  collectRouteInputs(scope, nodeName, `nodes.${nodeName}`, context, [], collector, true)
+  return collector
 }
 
 function collectRouteInputs(
@@ -462,11 +473,11 @@ function collectRouteInputs(
   path: string,
   context: AbiContext,
   stack: readonly string[],
-  inputNames: Set<string>,
+  inputs: RouteInputCollector,
   allowRecurse: boolean,
 ): void {
   visitNamedUiNode(scope, nodeName, path, stack, allowRecurse, (node, nextStack, nextAllowRecurse) => {
-    collectNodeInputs(scope, node, path, context, nextStack, inputNames, nextAllowRecurse)
+    collectNodeInputs(scope, node, path, context, nextStack, inputs, nextAllowRecurse)
   })
 }
 
@@ -501,33 +512,38 @@ function collectNodeInputs(
   path: string,
   context: AbiContext,
   stack: readonly string[],
-  inputNames: Set<string>,
+  inputs: RouteInputCollector,
   allowRecurse: boolean,
 ): void {
   if (node.element === "Button") return
 
   const inputName = resolvedInputName(scope, node, `${path}.state.key`, context)
   if (inputName !== undefined) {
-    if (inputNames.has(inputName)) {
+    if (inputs.names.has(inputName)) {
       reportTypeflowIssue(scope, `${path}.state.key`, `duplicate rendered TextField state key: ${inputName}`)
     }
-    inputNames.add(inputName)
+    inputs.names.add(inputName)
   }
 
   if (node.element === "Include" && allowRecurse && isRecordObject(node.call) && isRecordObject(node.call.args)) {
     const selection = includeSelection(node.call.function, context)
     if (selection !== undefined) {
+      if (selection.hasUnknown) inputs.hasUnknown = true
       const nextContext = contextForArgs(node.call.args, (value) => valueFromExpression(value, context))
       for (const nodeName of selection.names) {
-        collectRouteInputs(scope, nodeName, `${path}.${nodeName}`, nextContext, stack, inputNames, allowRecurse)
+        collectRouteInputs(scope, nodeName, `${path}.${nodeName}`, nextContext, stack, inputs, allowRecurse)
       }
+    } else {
+      // An unresolved Include selector may render a TextField. State-reference
+      // checks must not claim absence once the route-local input set is open.
+      inputs.hasUnknown = true
     }
   }
 
   if (Array.isArray(node.children)) {
     for (const [index, child] of node.children.entries()) {
       if (isRecordObject(child)) {
-        collectNodeInputs(scope, child, `${path}.children.${index}`, context, stack, inputNames, allowRecurse)
+        collectNodeInputs(scope, child, `${path}.children.${index}`, context, stack, inputs, allowRecurse)
       }
     }
   }
@@ -886,7 +902,7 @@ function validateActionStateInputs(
   scope: Scope,
   path: string,
   args: Record<string, unknown>,
-  inputNames: ReadonlySet<string>,
+  routeInputs: RouteInputs,
 ): void {
   // A Button that references $state.foo needs a rendered route-local TextField
   // for foo.
@@ -899,7 +915,8 @@ function validateActionStateInputs(
       reportTypeflowIssue(scope, argPath, "UI Button state expression must name an input")
       return
     }
-    if (!inputNames.has(stateInput)) {
+    if (!routeInputs.names.has(stateInput)) {
+      if (routeInputs.hasUnknown) return
       reportTypeflowIssue(
         scope,
         argPath,

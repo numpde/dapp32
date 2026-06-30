@@ -2301,6 +2301,89 @@ test("UI Button state references must be backed by TextField state keys", () => 
   ])
 })
 
+test("UI Button state references allow unresolved Include input sets", () => {
+  const uiBytes = jsonBytes({
+    ui: UI_VERSION,
+    nodes: {
+      app: {
+        element: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            element: "Include",
+            call: {
+              namespace: "ui",
+              function: "$view.node",
+              args: {
+                view: "$view",
+              },
+            },
+          },
+          {
+            element: "Button",
+            props: {
+              label: "Open",
+            },
+            call: {
+              namespace: "routes",
+              function: "component",
+              args: {
+                serialNumber: "$state.serialNumber",
+              },
+            },
+          },
+        ],
+      },
+      edit: {
+        element: "TextField",
+        requires: ["view"],
+        props: {
+          label: "Serial number",
+        },
+        state: {
+          key: "serialNumber",
+          defaultValue: "",
+        },
+      },
+      done: viewTextNode(),
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.component = {
+      kind: "read",
+      inputs: ["serialNumber"],
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "done",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+    root.routes.entry = {
+      ...root.routes.entry,
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: {
+            title: "$outputs.0.title",
+            node: "$outputs.0.title",
+          },
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [])
+})
+
 test("UI literal TextField state keys must be state expression identifiers", () => {
   const uiBytes = jsonBytes({
     ui: UI_VERSION,
