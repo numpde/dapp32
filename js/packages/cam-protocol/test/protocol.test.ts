@@ -9,6 +9,7 @@ import {
   abiTypeSignature,
   assertCamResourceSize,
   assertCamSecondaryResourceURI,
+  assertLoadableCamRootURI,
   assertPublishedCamRootURI,
   createExpressionRuntime,
   createSameOriginHttpResourceLoader,
@@ -610,6 +611,25 @@ test("validates published CAM root URI policy", () => {
   ]) {
     assert.throws(
       () => assertPublishedCamRootURI(uri, "CAM URI"),
+      /CAM URI:/,
+    )
+  }
+})
+
+test("validates loadable CAM root URI policy", () => {
+  assert.doesNotThrow(() => assertLoadableCamRootURI("http://bike-nft-cam-http:8080/main.json", "CAM URI"))
+  assert.doesNotThrow(() => assertLoadableCamRootURI("https://example.test/cam/main.json", "CAM URI"))
+  assert.doesNotThrow(() => assertLoadableCamRootURI("ipfs://QmYwAPJzv5CZsnAzt8auVZRnJQt6P2JxC1ZyQ3GzFZ2q6x/main.json", "CAM URI"))
+
+  for (const uri of [
+    "./cam/main.json",
+    "file:///bundle/main.json",
+    "javascript:alert(1)",
+    "https://user@example.test/cam/main.json",
+    "ipfs://example/main.json",
+  ]) {
+    assert.throws(
+      () => assertLoadableCamRootURI(uri, "CAM URI"),
       /CAM URI:/,
     )
   }

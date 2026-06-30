@@ -84,6 +84,7 @@ export type {
 export {
   assertCamResourceSize,
   assertCamSecondaryResourceURI,
+  assertLoadableCamRootURI,
   assertPublishedCamRootURI,
   CamResourceIntegrityError,
   CAM_RESOURCE_MAX_BYTES,

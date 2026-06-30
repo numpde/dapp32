@@ -154,17 +154,23 @@ export function assertCamSecondaryResourceURI(uri: string, label: string): void 
   throw new Error(`${label}: CAM resource URI must be local ./... or ipfs://<CID>[...]: ${uri}`)
 }
 
-export function assertPublishedCamRootURI(uri: string, label: string): void {
-  let url: URL
-  try {
-    url = new URL(uri)
-  } catch (cause) {
-    throw new Error(`${label}: expected an absolute publication URI`, { cause })
-  }
+export function assertLoadableCamRootURI(uri: string, label: string): void {
+  const url = requireAbsoluteURI(uri, label)
+  rejectUriCredentials(url, label)
 
-  if (url.username !== "" || url.password !== "") {
-    throw new Error(`${label}: credentials are not allowed`)
-  }
+  // Runtime host loading must reject arbitrary schemes before handing the
+  // contract-returned URI to a caller-supplied loader. Plain HTTP remains
+  // loadable for local fixtures and pinned-origin dev servers; publication
+  // tooling owns the stricter HTTPS/IPFS policy.
+  if (url.protocol === "http:" || url.protocol === "https:") return
+  if (url.protocol === "ipfs:" && isIpfsCamSecondaryResourceURI(uri)) return
+
+  throw new Error(`${label}: expected http://..., https://..., or ipfs://<CID>[...] CAM root URI`)
+}
+
+export function assertPublishedCamRootURI(uri: string, label: string): void {
+  const url = requireAbsoluteURI(uri, label)
+  rejectUriCredentials(url, label)
 
   // Publication roots are either HTTPS locations anchored by the published
   // CAM hash, or reviewable IPFS CIDs. Local roots stay a test/fixture concern.
@@ -232,6 +238,20 @@ export function assertCamResourceSize(
 function assertURIString(value: string, label: string): void {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`${label}: expected a non-empty URI string`)
+  }
+}
+
+function requireAbsoluteURI(uri: string, label: string): URL {
+  try {
+    return new URL(uri)
+  } catch (cause) {
+    throw new Error(`${label}: expected an absolute URI`, { cause })
+  }
+}
+
+function rejectUriCredentials(url: URL, label: string): void {
+  if (url.username !== "" || url.password !== "") {
+    throw new Error(`${label}: credentials are not allowed`)
   }
 }
 

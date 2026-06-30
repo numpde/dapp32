@@ -11,12 +11,22 @@ import type {
   VerifyCamResourceIntegrityOptions,
 } from "./types.ts"
 
-export function verifyCamHash({ bytes, expectedHash, allowUnsigned }: VerifyCamHashOptions): void {
-  if (expectedHash.toLowerCase() === ZERO_HASH) {
-    if (!allowUnsigned) {
-      throw new CamEvmError("CAM_HASH_UNSIGNED", "CAM hash is unsigned")
-    }
+export function assertCamHashLoadAllowed({
+  expectedHash,
+  allowUnsigned,
+}: {
+  readonly expectedHash: VerifyCamHashOptions["expectedHash"]
+  readonly allowUnsigned: VerifyCamHashOptions["allowUnsigned"]
+}): void {
+  if (expectedHash.toLowerCase() === ZERO_HASH && !allowUnsigned) {
+    throw new CamEvmError("CAM_HASH_UNSIGNED", "CAM hash is unsigned")
+  }
+}
 
+export function verifyCamHash({ bytes, expectedHash, allowUnsigned }: VerifyCamHashOptions): void {
+  assertCamHashLoadAllowed({ expectedHash, allowUnsigned })
+
+  if (expectedHash.toLowerCase() === ZERO_HASH) {
     return
   }
 

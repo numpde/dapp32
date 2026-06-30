@@ -21,7 +21,7 @@ export const BIKE_VIEW_COMPONENT = "viewComponent"
 export const BIKE_VIEW_REGISTER = "viewRegister"
 export const BIKE_MARK_MISSING = "markMissing"
 
-export const BIKE_CAM_URI = "ipfs://example/main.json"
+export const BIKE_CAM_URI = "ipfs://QmYwAPJzv5CZsnAzt8auVZRnJQt6P2JxC1ZyQ3GzFZ2q6x/main.json"
 
 const BIKE_RELATIVE_UI_ABI_URI = "./abi/BicycleComponentManagerUI.json"
 const BIKE_RELATIVE_MANAGER_ABI_URI = "./abi/BicycleComponentManager.json"

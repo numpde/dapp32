@@ -1,4 +1,4 @@
-import { fileURLToPath } from "node:url"
+import { resolve } from "node:path"
 
 import type {
   CamHost,
@@ -7,6 +7,7 @@ import {
   createCamViewerSession,
 } from "../../../packages/cam-viewer/dist/index.js"
 import {
+  requireSameHttpOrigin,
   toInertValue,
 } from "../../../packages/cam-protocol/dist/index.js"
 import type { InertValue } from "../../../packages/cam-protocol/dist/index.js"
@@ -37,9 +38,10 @@ import type {
 
 type MockAddress = CamHost["address"]
 
-const BIKE_MOCK_CAM_BASE_URI = "file:///work/cam/bike-nft/"
+const BIKE_MOCK_CAM_ORIGIN = "http://bike-nft.mock.local"
+const BIKE_MOCK_CAM_BASE_URI = `${BIKE_MOCK_CAM_ORIGIN}/`
 const BIKE_MOCK_CAM_URI = new URL("main.json", BIKE_MOCK_CAM_BASE_URI).href
-const BIKE_MOCK_CAM_BASE_PATH = fileURLToPath(BIKE_MOCK_CAM_BASE_URI)
+const BIKE_MOCK_CAM_BASE_PATH = "/work/cam/bike-nft"
 
 export function createBikeMockBackend({
   allowUnsignedCamHash,
@@ -145,9 +147,12 @@ function requireStringArgs(
 
 function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promise<Uint8Array> {
   return async (uri: string): Promise<Uint8Array> => {
-    const resourceURI = new URL(uri)
-    if (resourceURI.protocol !== "file:") {
-      throw new Error(`mock terminal loads file resources only: ${resourceURI.protocol}`)
+    const resourceURI = requireSameHttpOrigin(uri, BIKE_MOCK_CAM_ORIGIN, "mock CAM resource URI")
+    if (resourceURI.search !== "" || resourceURI.hash !== "") {
+      throw new Error(`mock CAM resource URI must not include query or fragment: ${resourceURI.href}`)
+    }
+    if (resourceURI.pathname.includes("%") || resourceURI.pathname.includes("\\")) {
+      throw new Error(`mock CAM resource URI must be reviewable path text: ${resourceURI.href}`)
     }
 
     const resourcePath = await checkedMockCamFilePath(resourceURI)
@@ -162,13 +167,13 @@ function createMockResourceLoader(events: DebugEvent[]): (uri: string) => Promis
   }
 }
 
-async function checkedMockCamFilePath(uri: URL): Promise<string> {
-  // The mock backend is still a file loader, so string-prefix URL checks are
-  // not enough. Reuse the tool boundary that rejects symlink hops and escaped
-  // realpaths before the mock reads checked-in fixture bytes.
+async function checkedMockCamFilePath(uri: { readonly href: string; readonly pathname: string }): Promise<string> {
+  // The mock exposes an HTTP-shaped CAM root so it exercises the same runtime
+  // URI policy as real sessions, but it still reads checked-in files. Reuse the
+  // file boundary that rejects symlink hops and escaped realpaths.
   return checkedContainedFilePath({
     rootDir: BIKE_MOCK_CAM_BASE_PATH,
-    path: fileURLToPath(uri),
+    path: resolve(BIKE_MOCK_CAM_BASE_PATH, `.${uri.pathname}`),
     label: `bike mock CAM resource ${uri.href}`,
     boundaryLabel: "bike mock CAM directory",
   })

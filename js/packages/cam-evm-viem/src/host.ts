@@ -1,11 +1,11 @@
 import { parseCam } from "@cam/core"
-import { parseJsonBytes } from "@cam/protocol"
+import { assertLoadableCamRootURI, parseJsonBytes } from "@cam/protocol"
 import type { Hex } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, ICAM_APP_INTERFACE_ID, camRootAbi } from "./abi.ts"
 import { assertClientChain } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
-import { verifyCamHash } from "./hash.ts"
+import { assertCamHashLoadAllowed, verifyCamHash } from "./hash.ts"
 import { loadResourceBytes } from "./resources.ts"
 import type { LoadedCam, LoadCamFromHostOptions } from "./types.ts"
 
@@ -18,10 +18,10 @@ export async function loadCamFromHost({
   await assertClientChain(publicClient, host)
   await assertCamHostInterface(publicClient, host.address)
 
-  let camURI: string
-  let camHash: Hex
+  let rawCamURI: unknown
+  let rawCamHash: unknown
   try {
-    const [rawCamURI, rawCamHash] = await Promise.all([
+    [rawCamURI, rawCamHash] = await Promise.all([
       publicClient.readContract({
         address: host.address,
         abi: camRootAbi,
@@ -33,11 +33,18 @@ export async function loadCamFromHost({
         functionName: CAM_ROOT_FUNCTIONS.camHash,
       }),
     ])
-    camURI = requireStringRootValue(rawCamURI, CAM_ROOT_FUNCTIONS.camURI)
-    camHash = requireBytes32RootValue(rawCamHash, CAM_ROOT_FUNCTIONS.camHash)
   } catch (cause) {
     throw new CamEvmError("CAM_HOST_READ_FAILED", `failed to read CAM host: ${host.address}`, cause)
   }
+
+  const camURI = requireStringRootValue(rawCamURI, CAM_ROOT_FUNCTIONS.camURI)
+  const camHash = requireBytes32RootValue(rawCamHash, CAM_ROOT_FUNCTIONS.camHash)
+  try {
+    assertLoadableCamRootURI(camURI, "CAM host camURI")
+  } catch (cause) {
+    throw new CamEvmError("CAM_DOCUMENT_INVALID", `CAM host camURI is not loadable: ${camURI}`, cause)
+  }
+  assertCamHashLoadAllowed({ expectedHash: camHash, allowUnsigned: allowUnsignedCamHash })
 
   const camBytes = await loadResourceBytes(
     loadResource,

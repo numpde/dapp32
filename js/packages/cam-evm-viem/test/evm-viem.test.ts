@@ -141,6 +141,24 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
     (error) => error instanceof CamEvmError && error.code === "CAM_HASH_MISMATCH",
   )
 
+  let unsignedRootLoads = 0
+  await assert.rejects(
+    () => loadCamFromHost({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        camURI: camDocumentURI,
+        camHash: BIKE_UNSIGNED_CAM_HASH,
+      })),
+      host,
+      async loadResource() {
+        unsignedRootLoads += 1
+        return camBytes
+      },
+      allowUnsignedCamHash: false,
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_HASH_UNSIGNED",
+  )
+  assert.equal(unsignedRootLoads, 0)
+
   await assert.rejects(
     () => loadCamFromHost({
       publicClient: createPublicClient(publicClientFixtureOptions({
@@ -164,6 +182,26 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_HOST_UNSUPPORTED",
   )
+
+  let unsafeRootLoads = 0
+  await assert.rejects(
+    () => loadCamFromHost({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        camURI: "file:///tmp/main.json",
+      })),
+      host,
+      async loadResource() {
+        unsafeRootLoads += 1
+        return camBytes
+      },
+      allowUnsignedCamHash: true,
+    }),
+    (error) => error instanceof CamEvmError
+      && error.code === "CAM_DOCUMENT_INVALID"
+      && error.cause instanceof Error
+      && /expected http:\/\/.*https:\/\/.*ipfs:\/\//.test(error.cause.message),
+  )
+  assert.equal(unsafeRootLoads, 0)
 
   await assert.rejects(
     () => loadCamFromHost({
