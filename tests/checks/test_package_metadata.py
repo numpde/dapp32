@@ -17,6 +17,15 @@ DEV_ONLY_DEPENDENCIES = {"@vitejs/plugin-react", "vite"}
 # Overrides are exceptional: they pin a vulnerable transitive package until the
 # owning direct dependency ships a fixed range. Keep the map small and reviewed.
 SECURITY_OVERRIDES = {"ws": "8.21.0"}
+ROOT_WORKSPACES = [
+    "packages/cam-protocol",
+    "packages/cam-core",
+    "packages/cam-evm-viem",
+    "packages/cam-screen",
+    "packages/cam-conformance",
+    "packages/cam-viewer",
+    "apps/cam-web",
+]
 ROOT_WORKSPACE_SCRIPTS = {
     "build:workspace": "npm run build --workspaces --if-present",
     "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/conformance",
@@ -90,6 +99,28 @@ class PackageMetadataTest(unittest.TestCase):
 
     def test_workspace_package_surface_is_explicit(self) -> None:
         root_manifest = self.read_manifest(repo_path("js/package.json"))
+        # The root manifest is the npm graph contract consumed by Docker
+        # staging. Keep inventory and execution posture deliberate.
+        self.assertEqual(
+            "cam-js-workspace",
+            root_manifest.get("name"),
+            "js/package.json: root package name is part of the lock identity",
+        )
+        self.assertEqual(
+            True,
+            root_manifest.get("private"),
+            "js/package.json: root workspace must never be publishable",
+        )
+        self.assertEqual(
+            "module",
+            root_manifest.get("type"),
+            "js/package.json: root workspace must stay ESM",
+        )
+        self.assertEqual(
+            ROOT_WORKSPACES,
+            root_manifest.get("workspaces"),
+            "js/package.json: workspace inventory must stay explicit and reviewed",
+        )
         self.assertEqual(
             ROOT_WORKSPACE_SCRIPTS,
             root_manifest.get("scripts"),
@@ -235,6 +266,12 @@ class PackageMetadataTest(unittest.TestCase):
             with self.subTest(path=str(path)):
                 self.assertIsInstance(package, dict, f"package-lock.json: missing workspace entry for {lock_key}")
                 manifest = self.read_manifest(path)
+                if path == repo_path("js/package.json"):
+                    self.assertEqual(
+                        manifest.get("name"),
+                        package.get("name"),
+                        f"package-lock.json: {lock_key} name must mirror {path}",
+                    )
                 self.assertEqual(
                     self.locked_manifest_fields(manifest, path),
                     self.locked_manifest_fields(package, lock_path),
