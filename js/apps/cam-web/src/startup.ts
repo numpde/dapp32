@@ -101,12 +101,15 @@ export async function assertRpcChain(
 }
 
 function requiredParam(params: URLSearchParams, name: string): string {
-  const value = params.get(name)
-  if (value === null || value.length === 0) {
+  const values = params.getAll(name)
+  if (values.length === 0 || values[0]?.length === 0) {
     throw new Error(`missing URL parameter: ${name}`)
   }
+  if (values.length > 1) {
+    throw new Error(`duplicate URL parameter: ${name}`)
+  }
 
-  return value
+  return values[0]
 }
 
 function requiredEnv(value: string | undefined, name: string): string {
