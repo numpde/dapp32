@@ -4,11 +4,10 @@ import re
 import tomllib
 import unittest
 from dataclasses import dataclass
-from os.path import abspath
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from .common import iter_files, read_text, repo_path
+from .common import iter_files, path_has_symlink, read_text, repo_path
 
 
 FOUNDRY_IMAGE = "ghcr.io/foundry-rs/foundry"
@@ -60,7 +59,7 @@ class ToolchainVersionTest(unittest.TestCase):
                 candidate = path.parent / context
                 resolved = candidate.resolve()
                 containers_root = repo_path("containers").resolve()
-                if self.path_has_symlink(candidate):
+                if path_has_symlink(candidate):
                     failures.append(f"{path}:{line_number}: Compose build context must not pass through a symlink: {context}")
                 elif not candidate.is_dir():
                     failures.append(f"{path}:{line_number}: Compose build context must be an existing directory: {context}")
@@ -84,8 +83,8 @@ class ToolchainVersionTest(unittest.TestCase):
             # Path.resolve() hides this case by returning the target. The
             # posture check must inspect the operator-written context path
             # before resolving containment.
-            self.assertTrue(self.path_has_symlink(link / "nested"))
-            self.assertFalse(self.path_has_symlink(real))
+            self.assertTrue(path_has_symlink(link / "nested"))
+            self.assertFalse(path_has_symlink(real))
 
     def test_container_build_contexts_are_deny_by_default(self) -> None:
         failures: list[str] = []
@@ -212,13 +211,3 @@ class ToolchainVersionTest(unittest.TestCase):
 
     def is_pinned_image_reference(self, image: str) -> bool:
         return PINNED_IMAGE_REF_RE.fullmatch(image) is not None and ":latest@" not in image
-
-    def path_has_symlink(self, path: Path) -> bool:
-        absolute = Path(abspath(path))
-        current = Path(absolute.anchor)
-        for part in absolute.parts[1:]:
-            current /= part
-            if current.is_symlink():
-                return True
-
-        return False

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import unittest
 
-from .common import iter_repo_text_files, read_text, repo_path
+from .common import is_skipped, iter_repo_text_files, read_text, repo_path
 
 
 FORBIDDEN_NAME_PATTERNS = [
@@ -88,6 +88,22 @@ class RepositoryHygieneTest(unittest.TestCase):
                     failures.append(f"{path}: Python bytecode cache must not be materialized on host")
                 elif path.is_file() and path.suffix == ".pyc":
                     failures.append(f"{path}: Python bytecode must not be materialized on host")
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_first_party_paths_do_not_use_symlinks(self) -> None:
+        failures: list[str] = []
+
+        # Docker bind mounts, staged workspaces, and CAM publication tools all
+        # reason about repository paths before giving any lane write authority.
+        # Keep first-party paths real; dependency/install trees are separate
+        # materialized outputs with their own integrity checks.
+        for path in repo_path(".").rglob("*"):
+            if is_skipped(path):
+                continue
+            if path.is_symlink():
+                failures.append(f"{path}: first-party repository paths must not be symlinks")
 
         if failures:
             self.fail("\n".join(failures))

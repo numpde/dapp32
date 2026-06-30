@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from os.path import abspath
 from pathlib import Path
 import re
 import shlex
@@ -112,6 +113,19 @@ def iter_repo_text_files() -> list[Path]:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def path_has_symlink(path: Path) -> bool:
+    # Check the unresolved path. Path.resolve() is too late for posture checks:
+    # it follows the link and hides the operator-written symlink component.
+    absolute = Path(abspath(path))
+    current = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        current /= part
+        if current.is_symlink():
+            return True
+
+    return False
 
 
 def ts_exported_string_constants(source: str) -> dict[str, str]:
