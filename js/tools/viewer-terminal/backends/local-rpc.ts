@@ -110,6 +110,10 @@ function tracedPublicClient(publicClient: CamPublicClient, events: DebugEvent[])
 
 function readBroadcastDeployment(path: string): BroadcastDeployment {
   const broadcast = parseJsonBytes(readBoundedFileSync(path, "Forge broadcast"))
+  return deploymentFromBroadcast(broadcast)
+}
+
+export function deploymentFromBroadcast(broadcast: unknown): BroadcastDeployment {
   const root = requiredRecord(broadcast, "broadcast")
   const transactions = requiredArray(root, "transactions")
   const receipts = requiredArray(root, "receipts")
@@ -127,6 +131,7 @@ function readBroadcastDeployment(path: string): BroadcastDeployment {
 }
 
 function findCreatedContract(transactions: readonly unknown[], contractName: string): CamHost["address"] {
+  const matches: CamHost["address"][] = []
   for (const item of transactions) {
     const tx = requiredRecord(item, "transactions[]")
     if (
@@ -134,16 +139,35 @@ function findCreatedContract(transactions: readonly unknown[], contractName: str
       && tx.contractName === contractName
       && typeof tx.contractAddress === "string"
     ) {
-      return requireEvmAddress(tx.contractAddress, `transactions[].${contractName}.contractAddress`)
+      matches.push(requireEvmAddress(tx.contractAddress, `transactions[].${contractName}.contractAddress`))
     }
   }
 
-  throw new Error(`Forge broadcast did not create required contract: ${contractName}`)
+  if (matches.length === 0) {
+    throw new Error(`Forge broadcast did not create required contract: ${contractName}`)
+  }
+  if (matches.length > 1) {
+    throw new Error(`Forge broadcast created ${contractName} more than once`)
+  }
+
+  return matches[0]
 }
 
 function firstReceiptSender(receipts: readonly unknown[]): CamHost["address"] {
-  const receipt = requiredRecord(receipts[0], "receipts.0")
-  return requireEvmAddress(requiredString(receipt, "from", "receipts.0.from"), "receipts.0.from")
+  const senders = new Set<CamHost["address"]>()
+  receipts.forEach((item, index) => {
+    const receipt = requiredRecord(item, `receipts.${index}`)
+    senders.add(requireEvmAddress(requiredString(receipt, "from", `receipts.${index}.from`), `receipts.${index}.from`))
+  })
+
+  if (senders.size === 0) {
+    throw new Error("Forge broadcast has no receipts")
+  }
+  if (senders.size > 1) {
+    throw new Error("Forge broadcast has multiple receipt senders")
+  }
+
+  return [...senders][0]
 }
 
 function requiredChainNumber(value: unknown): number {
