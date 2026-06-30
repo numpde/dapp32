@@ -159,6 +159,11 @@ class PackageMetadataTest(unittest.TestCase):
                 elif path.parent.parent == repo_path("js/apps"):
                     self.assertNotIn("files", manifest, f"{path}: app package must not declare publish files")
                     self.assertNotIn("exports", manifest, f"{path}: app package must not expose a package API")
+                    self.assertNotIn(
+                        "sideEffects",
+                        manifest,
+                        f"{path}: app package metadata must not advertise library tree-shaking semantics",
+                    )
                     self.assertEqual(
                         APP_PACKAGE_SCRIPTS,
                         manifest.get("scripts"),
