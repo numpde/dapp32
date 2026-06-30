@@ -446,6 +446,24 @@ test-integration-fuzz:
 	  printf '%s\n' 'Set CAM_INTEGRATION_DESCRIPTOR_HOST_PATH to a local descriptor JSON file.' >&2; \
 	  exit 2; \
 	fi; \
+	reject_descriptor_path_symlinks() { \
+	  local path="$$1" current part; \
+	  if [[ ! -f "$$path" ]]; then \
+	    printf 'CAM_INTEGRATION_DESCRIPTOR_HOST_PATH must be a regular file: %s\n' "$$path" >&2; \
+	    exit 2; \
+	  fi; \
+	  if [[ "$$path" = /* ]]; then current="/"; else current="."; fi; \
+	  IFS=/ read -r -a parts <<< "$$path"; \
+	  for part in "$${parts[@]}"; do \
+	    if [[ -z "$$part" || "$$part" = "." ]]; then continue; fi; \
+	    if [[ "$$current" = / ]]; then current="/$$part"; else current="$$current/$$part"; fi; \
+	    if [[ -L "$$current" ]]; then \
+	      printf 'CAM_INTEGRATION_DESCRIPTOR_HOST_PATH must not pass through a symlink: %s\n' "$$path" >&2; \
+	      exit 2; \
+	    fi; \
+	  done; \
+	}; \
+	reject_descriptor_path_symlinks "$$CAM_INTEGRATION_DESCRIPTOR_HOST_PATH"; \
 	if [[ ! -v CAM_INTEGRATION_NETWORK || -z "$$CAM_INTEGRATION_NETWORK" ]]; then \
 	  printf '%s\n' 'Set CAM_INTEGRATION_NETWORK to the Docker network that can reach descriptor rpcUrl/resourceOrigin.' >&2; \
 	  exit 2; \

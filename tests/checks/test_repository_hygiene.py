@@ -160,6 +160,15 @@ class RepositoryHygieneTest(unittest.TestCase):
         # not a parallel Compose service or a stale subset of tool smoke tests.
         self.assertEqual(PACKAGE_CI_PREREQS, self.make_target_prereqs(makefile, "package-ci"))
 
+    def test_integration_fuzz_descriptor_bind_is_guarded_before_docker(self) -> None:
+        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "test-integration-fuzz")
+
+        # Docker may resolve host symlinks before the container can inspect the
+        # bind target. Guard the operator-supplied descriptor path in Make.
+        self.assertIn('! -f "$$path"', recipe)
+        self.assertIn('-L "$$current"', recipe)
+        self.assertIn("must not pass through a symlink", recipe)
+
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
@@ -184,6 +193,19 @@ class RepositoryHygieneTest(unittest.TestCase):
                 break
             recipe.append(line)
         return "\n".join(recipe)
+
+    def make_target_recipe(self, makefile: str, target: str) -> str:
+        lines = makefile.splitlines()
+        for index, line in enumerate(lines):
+            match = MAKE_TARGET_RE.match(line)
+            if match is not None and match.group("name") == target:
+                recipe: list[str] = []
+                for recipe_line in lines[index + 1:]:
+                    if MAKE_TARGET_RE.match(recipe_line):
+                        break
+                    recipe.append(recipe_line)
+                return "\n".join(recipe)
+        self.fail(f"missing Make target: {target}")
 
     def make_targets(self, makefile: str) -> set[str]:
         return set(self.make_target_list(makefile))
