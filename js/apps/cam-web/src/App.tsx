@@ -73,6 +73,7 @@ export function App(): ReactElement {
   const [sending, setSending] = useState(false)
   const interactionRevision = useRef(0)
   const sendRevision = useRef(0)
+  const sendingRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -182,6 +183,10 @@ export function App(): ReactElement {
   }
 
   async function sendPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
+    if (sendingRef.current) {
+      setNotice("A wallet submission is already in progress.")
+      return
+    }
     if (wallet.status !== "connected") {
       setNotice("Connect a wallet before sending.")
       return
@@ -195,6 +200,10 @@ export function App(): ReactElement {
     const ownsSend = () => isCurrentSend(send)
     let submittedTxHash: `0x${string}` | undefined
 
+    // React disables the button after state commit, but a second click can
+    // enter this handler before that render. The ref is the synchronous
+    // transaction-submission gate.
+    sendingRef.current = true
     setSending(true)
     setNotice(undefined)
     try {
@@ -252,6 +261,7 @@ export function App(): ReactElement {
         setNotice(errorMessage(error))
       }
     } finally {
+      sendingRef.current = false
       if (ownsSend()) {
         setSending(false)
       }
