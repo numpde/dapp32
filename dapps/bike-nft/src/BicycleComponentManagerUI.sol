@@ -75,6 +75,7 @@ contract BicycleComponentManagerUI {
 
     error ZeroAddress();
     error ManagerHasNoCode(address managerAddress);
+    error ManagerUnsupported(address managerAddress);
     error UnsupportedComponentStatus(IBicycleComponentManagerView.ComponentStatus status);
     error DoesNotAcceptPayments();
     error UnknownFunction(bytes4 selector);
@@ -82,6 +83,13 @@ contract BicycleComponentManagerUI {
     constructor(address managerAddress) {
         if (managerAddress == address(0)) revert ZeroAddress();
         if (managerAddress.code.length == 0) revert ManagerHasNoCode(managerAddress);
+        try IBicycleComponentManagerView(managerAddress).supportsInterface(type(IBicycleComponentManagerView).interfaceId) returns (
+            bool supported
+        ) {
+            if (!supported) revert ManagerUnsupported(managerAddress);
+        } catch {
+            revert ManagerUnsupported(managerAddress);
+        }
 
         manager = IBicycleComponentManagerView(managerAddress);
     }

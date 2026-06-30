@@ -5,7 +5,7 @@
     "contracts.BicycleComponentManagerUI": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManagerUI.json",
-      "integrity": "sha256:0xdfe074a1517adca1e0d6b616fa2115ad75cdb2c1eba3ee4497e27e5428518b37"
+      "integrity": "sha256:0xca6cc02b960e230f3e0fbd1eecdf801d23aef4a88dbf8a5ddf833e37850ba3ed"
     },
     "contracts.BicycleComponentManager": {
       "type": "contract",

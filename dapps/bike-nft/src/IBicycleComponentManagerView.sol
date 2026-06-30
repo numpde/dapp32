@@ -1,9 +1,11 @@
 pragma solidity 0.8.35;
 
+import {IERC165} from "@openzeppelin-contracts-5.6.1/utils/introspection/IERC165.sol";
+
 /// @notice Read-only manager surface consumed by CAM route projections.
 /// @dev This interface is the shared source of truth for UI-facing manager
 /// views. It deliberately excludes write/admin functions.
-interface IBicycleComponentManagerView {
+interface IBicycleComponentManagerView is IERC165 {
     enum ComponentStatus {
         None,
         Active,

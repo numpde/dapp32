@@ -697,6 +697,15 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         return IBicycleComponents(record.tokenContract).tokenURI(record.tokenId);
     }
 
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        override(AccessControlDefaultAdminRules, IERC165)
+        returns (bool)
+    {
+        return interfaceId == type(IBicycleComponentManagerView).interfaceId || super.supportsInterface(interfaceId);
+    }
+
     function _now48() internal view returns (uint48) {
         return uint48(block.timestamp);
     }

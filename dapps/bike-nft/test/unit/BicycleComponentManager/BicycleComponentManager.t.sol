@@ -101,6 +101,11 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
     /// and actions are protocol data consumed by the CAM manifest. This test
     /// pins the state-to-view mapping without depending on a renderer.
     function test_uiRouteProjectionSelectsViewsAndValidActions() external {
+        assertTrue(
+            manager.supportsInterface(type(IBicycleComponentManagerView).interfaceId),
+            "manager should advertise UI view interface"
+        );
+
         BicycleComponentManagerUI.AppView memory view_ = ui.viewEntry(registrar);
         assertEq(view_.viewId, VIEW_ENTRY, "entry view mismatch");
         assertEq(view_.account, registrar, "entry account mismatch");
@@ -147,6 +152,16 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         view_ = ui.viewRegister(SERIAL, registrar);
         assertEq(view_.viewId, VIEW_REGISTER_BLOCKED, "registered component register view mismatch");
         assertLookupOnly(view_.actions);
+    }
+
+    /// @dev The UI adapter only makes static calls, but its constructor should
+    /// still fail fast when wired to the wrong contract. Otherwise a bad local
+    /// deployment looks healthy until the first CAM route call.
+    function test_uiConstructorRejectsUnsupportedManagerContract() external {
+        vm.expectRevert(
+            abi.encodeWithSelector(BicycleComponentManagerUI.ManagerUnsupported.selector, address(components))
+        );
+        new BicycleComponentManagerUI(address(components));
     }
 
     /// @dev Component collection rotation should affect only future

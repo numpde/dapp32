@@ -482,6 +482,17 @@
   },
   {
     "type": "error",
+    "name": "ManagerUnsupported",
+    "inputs": [
+      {
+        "name": "managerAddress",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "UnknownFunction",
     "inputs": [
       {
