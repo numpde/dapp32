@@ -14,6 +14,9 @@ VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$")
 DEPENDENCY_FIELDS = ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies")
 ROOT_OWNED_TOOLCHAIN_DEPENDENCIES = {"typescript"}
 DEV_ONLY_DEPENDENCIES = {"@vitejs/plugin-react", "vite"}
+# Overrides are exceptional: they pin a vulnerable transitive package until the
+# owning direct dependency ships a fixed range. Keep the map small and reviewed.
+SECURITY_OVERRIDES = {"ws": "8.21.0"}
 ROOT_WORKSPACE_SCRIPTS = {
     "build:workspace": "npm run build --workspaces --if-present",
     "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/conformance",
@@ -91,6 +94,11 @@ class PackageMetadataTest(unittest.TestCase):
             ROOT_WORKSPACE_SCRIPTS,
             root_manifest.get("scripts"),
             "js/package.json: root scripts are Make/Compose workflow contracts and must be reviewed explicitly",
+        )
+        self.assertEqual(
+            SECURITY_OVERRIDES,
+            root_manifest.get("overrides"),
+            "js/package.json: npm overrides must stay limited to reviewed transitive security pins",
         )
 
         for path in self.workspace_manifest_paths():
@@ -207,6 +215,13 @@ class PackageMetadataTest(unittest.TestCase):
                     integrity.startswith("sha512-"),
                     f"package-lock.json: {path} must use sha512 integrity",
                 )
+
+        for name, version in SECURITY_OVERRIDES.items():
+            package_path = f"node_modules/{name}"
+            package = packages.get(package_path)
+            with self.subTest(path=package_path):
+                self.assertIsInstance(package, dict, f"package-lock.json: {package_path} must resolve security override")
+                self.assertEqual(version, package.get("version"), f"package-lock.json: {package_path} must match override")
 
     def test_package_lock_workspace_entries_match_manifests(self) -> None:
         lock_path = repo_path("js/package-lock.json")

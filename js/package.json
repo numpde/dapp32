@@ -17,6 +17,9 @@
     "test:cam-conformance": "npm run build:cam-conformance && npm test -w @cam/conformance",
     "test:workspace": "npm run build:workspace && npm test --workspaces --if-present"
   },
+  "overrides": {
+    "ws": "8.21.0"
+  },
   "devDependencies": {
     "@types/node": "24.10.1",
     "typescript": "6.0.3"
