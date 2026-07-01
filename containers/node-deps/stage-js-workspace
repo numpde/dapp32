@@ -10,9 +10,6 @@ if [ "$source_dir" != "/input/js" ] || [ "$target_dir" != "/work/js" ]; then
 fi
 
 test -d "$source_dir"
-test -d "$target_dir"
-find "$target_dir" -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +
-
 reject_symlink() {
   path="${1:?missing path}"
   if [ -L "$path" ]; then
@@ -20,6 +17,11 @@ reject_symlink() {
     exit 2
   fi
 }
+
+reject_symlink "$source_dir"
+reject_symlink "$target_dir"
+test -d "$target_dir"
+find "$target_dir" -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +
 
 reject_tree_symlinks() {
   path="${1:?missing path}"
