@@ -677,12 +677,18 @@ class RenderedComposePostureTest(unittest.TestCase):
             env=integration_fuzz_env(),
         )
         generic = compose_service(generic_config, "test-integration-fuzz")
+        generic_check = compose_service(generic_config, "test-integration-fuzz-check")
 
         self.assert_hardened(generic)
+        self.assert_hardened(generic_check)
         self.assert_no_published_ports(generic)
+        self.assert_no_published_ports(generic_check)
         self.assert_staged_package_workspace(generic)
+        self.assert_staged_package_workspace(generic_check)
         self.assert_no_volume_target(generic, "/work/dapps")
+        self.assert_no_volume_target(generic_check, "/work/dapps")
         self.assert_read_only_volumes(generic, "/tmp/cam-integration.json")
+        self.assertEqual("none", generic_check.get("network_mode"))
         self.assertEqual(
             {"cam_integration": None},
             generic["networks"],
