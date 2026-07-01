@@ -440,6 +440,7 @@ class DependencyVerifier:
                     member.filename == ""
                     or path.is_absolute()
                     or ".." in path.parts
+                    or "\\" in member.filename
                     or member.filename.startswith(("/", "\\"))
                 ):
                     raise DependencyVerificationError(f"{key} archive contains an unsafe path")
@@ -499,7 +500,7 @@ class DependencyVerifier:
 
     def require_safe_dependency_patch_path(self, value: str, label: str) -> None:
         path = Path(value)
-        if value == "" or path.is_absolute() or ".." in path.parts:
+        if value == "" or path.is_absolute() or ".." in path.parts or "\\" in value:
             raise DependencyVerificationError(f"unsafe dependency patch {label}: {value}")
 
     def validate_archive_checksum(self, record: DependencyRecord) -> None:

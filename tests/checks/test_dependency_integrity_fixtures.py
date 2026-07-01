@@ -33,6 +33,15 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
             with self.assertRaisesRegex(DependencyVerificationError, "unsafe path"):
                 DependencyVerifier(root).extract_verified_zip(FIXTURE_KEY, archive, root / "extract")
 
+    def test_rejects_backslash_zip_paths(self) -> None:
+        with self.fixture() as root:
+            archive = root / "unsafe.zip"
+            with zipfile.ZipFile(archive, "w") as zip_file:
+                zip_file.writestr("dir\\evil.txt", "bad")
+
+            with self.assertRaisesRegex(DependencyVerificationError, "unsafe path"):
+                DependencyVerifier(root).extract_verified_zip(FIXTURE_KEY, archive, root / "extract")
+
     def test_rejects_symlinked_dependency_verifier_boundaries(self) -> None:
         with self.fixture() as root:
             real_file = root / "real.txt"
@@ -49,6 +58,13 @@ class DependencyIntegrityFixtureTest(unittest.TestCase):
                 DependencyVerifier.require_file(file_link)
             with self.assertRaisesRegex(DependencyVerificationError, "required directory must not be a symlink"):
                 DependencyVerifier.require_dir(dir_link)
+
+    def test_rejects_backslash_dependency_patch_paths(self) -> None:
+        with self.fixture() as root:
+            verifier = DependencyVerifier(root)
+
+            with self.assertRaisesRegex(DependencyVerificationError, "unsafe dependency patch patch target"):
+                verifier.require_safe_dependency_patch_path("src\\File.sol", "patch target")
 
     def test_rejects_archive_or_installed_tree_mismatch(self) -> None:
         with self.fixture() as root:

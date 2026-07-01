@@ -171,12 +171,12 @@ services:
               */*) printf 'dependency-patches: dependency key must be a single directory name: %s\n' "$$dependency" >&2; exit 2 ;;
             esac
             case "$$target" in
-              ""|/*|../*|*/../*|*/..)
+              ""|/*|../*|*/../*|*/..|*\\*)
                 printf 'dependency-patches: unsafe target path: %s\n' "$$target" >&2
                 exit 2 ;;
             esac
             case "$$patch_file" in
-              ""|/*|../*|*/../*|*/..)
+              ""|/*|../*|*/../*|*/..|*\\*)
                 printf 'dependency-patches: unsafe patch path: %s\n' "$$patch_file" >&2
                 exit 2 ;;
             esac
