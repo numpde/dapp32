@@ -175,7 +175,15 @@ def local_resource_path(manifest_path: Path, uri: object, path: str) -> Path:
     if "\\" in uri:
         raise CamResourceIntegrityError(f"{manifest_path}: {path} must not contain backslash path separators")
 
-    relative_path = Path(uri.removeprefix(LOCAL_URI_PREFIX))
+    relative_text = uri.removeprefix(LOCAL_URI_PREFIX)
+    relative_parts = relative_text.split("/")
+    if (
+        relative_text == ""
+        or any(part == "" or part == "." or part == ".." for part in relative_parts)
+    ):
+        raise CamResourceIntegrityError(f"{manifest_path}: {path} must use canonical CAM resource path segments")
+
+    relative_path = Path(relative_text)
     if relative_path.is_absolute() or ".." in relative_path.parts or str(relative_path) == "":
         raise CamResourceIntegrityError(f"{manifest_path}: {path} must stay under the CAM directory")
 

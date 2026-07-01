@@ -93,7 +93,9 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
 
     def test_refresh_manifest_rejects_resource_escape(self) -> None:
         for uri, message in (
-            ("./../UI.json", "must stay under the CAM directory"),
+            ("./../UI.json", "must use canonical CAM resource path segments"),
+            ("./abi//UI.json", "must use canonical CAM resource path segments"),
+            ("././abi/UI.json", "must use canonical CAM resource path segments"),
             ("./%2e%2e/UI.json", "must not contain percent-encoded path text"),
             ("./abi\\UI.json", "must not contain backslash path separators"),
         ):
