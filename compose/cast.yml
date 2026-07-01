@@ -26,7 +26,7 @@ x-cast-base: &cast_base
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=128m
   volumes:
-    - ..:/work:ro
+    - ../dapps:/work/dapps:ro
 
 services:
   # Offline ABI/calldata/help operations. No RPC, no network.
@@ -98,7 +98,7 @@ secrets:
     # Intentional default: /dev/null exists only so `docker compose config`
     # can render without a real secret. Runtime Make targets still require an
     # explicit RPC_URL/RPC_URL_FILE before starting cast-rpc.
-    file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+    file: "${RPC_URL_FILE:-/dev/null}"
 
 networks:
   rpc_internal:

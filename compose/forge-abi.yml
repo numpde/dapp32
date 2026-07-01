@@ -30,7 +30,7 @@ x-forge-base: &forge_base
     context: ../containers/foundry
     dockerfile: Dockerfile
   volumes:
-    - ..:/work:ro
+    - ../dapps:/work/dapps:ro
 
 services:
   # Structured planning keeps CAM JSON parsing in Python instead of scraping

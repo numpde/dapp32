@@ -61,6 +61,11 @@ ALLOWED_DOCKER_DEFAULTS = {
     ("ARG", "containers/foundry/Dockerfile", "SOLC_VERSION", "0.8.35"),
     ("ENV", "containers/foundry/Dockerfile", "XDG_DATA_HOME", "/usr/local/share"),
 }
+ALLOWED_SHELL_DEFAULTS = {
+    # Compose must render cast-offline without an RPC secret. The Make
+    # cast-rpc entrypoint still requires RPC_URL/RPC_URL_FILE before runtime.
+    ("compose/cast.yml", "RPC_URL_FILE", ":-", "/dev/null"),
+}
 
 
 def ops_files() -> list[Path]:
@@ -130,7 +135,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
         findings.extend(make_default_assignment_findings(files))
         findings.extend(docker_default_findings(files))
         findings.extend(line_findings(files, MAKE_FUNCTION_DEFAULT_RE, "make function fallback"))
-        findings.extend(line_findings(files, SHELL_DEFAULT_EXPANSION_RE, "shell/compose interpolation default"))
+        findings.extend(shell_default_findings(files))
         findings.extend(self.shell_silent_success_findings(files))
         findings.extend(line_findings(files, WORKFLOW_DEFAULT_FIELD_RE, "workflow dispatch default"))
 
@@ -178,6 +183,11 @@ class OpsSilentDefaultsTest(unittest.TestCase):
 
         self.assertEqual(ALLOWED_DOCKER_DEFAULTS, defaults)
 
+    def test_allowed_shell_defaults_are_present_with_exact_values(self) -> None:
+        defaults = shell_defaults(ops_files())
+
+        self.assertEqual(ALLOWED_SHELL_DEFAULTS, defaults)
+
     def shell_silent_success_findings(self, files: list[Path]) -> list[str]:
         findings: list[str] = []
         for path in files:
@@ -222,6 +232,35 @@ def make_defaults(path: Path) -> dict[str, str]:
         match = MAKE_DEFAULT_ASSIGNMENT_RE.match(line)
         if match is not None:
             defaults[match.group("name")] = match.group("value")
+    return defaults
+
+
+def shell_default_findings(files: list[Path]) -> list[str]:
+    findings: list[str] = []
+    for path in files:
+        label = path.relative_to(ROOT).as_posix()
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if line.lstrip().startswith("#"):
+                continue
+            for match in SHELL_DEFAULT_EXPANSION_RE.finditer(line):
+                default = (label, match.group("name"), match.group("operator"), match.group("value"))
+                if default not in ALLOWED_SHELL_DEFAULTS:
+                    findings.append(
+                        f"{label}:{line_number}: shell/compose interpolation default: {match.group(0).strip()}"
+                    )
+    return findings
+
+
+def shell_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
+    defaults: set[tuple[str, str, str, str]] = set()
+    for path in files:
+        label = path.relative_to(ROOT).as_posix()
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.lstrip().startswith("#"):
+                continue
+            for match in SHELL_DEFAULT_EXPANSION_RE.finditer(line):
+                defaults.add((label, match.group("name"), match.group("operator"), match.group("value")))
+
     return defaults
 
 

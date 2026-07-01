@@ -492,6 +492,8 @@ class RenderedComposePostureTest(unittest.TestCase):
             with self.subTest(service=name):
                 self.assert_hardened(config_service)
                 self.assertEqual("none", config_service.get("network_mode"))
+                self.assert_read_only_volumes(config_service, "/work/dapps")
+                self.assert_no_volume_target(config_service, "/work")
 
         self.assertIn("*/script", compose_command_text(compose_service(config, "forge-fmt")))
         self.assertIn("forge-script-build", config["services"])
@@ -506,6 +508,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         forge_abi = compose_service(abi_config, "forge-abi")
         self.assertEqual(True, compose_volume(forge_abi, "/work/dapps").get("read_only"))
+        self.assert_no_volume_target(forge_abi, "/work")
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
                 abi_mount = compose_volume(forge_abi, f"/work/dapps/{dapp_dir.name}/cam/abi")
@@ -525,6 +528,19 @@ class RenderedComposePostureTest(unittest.TestCase):
                 # Intentional default: this is the one CAM integrity lane
                 # output. The broader dapps tree stays read-only above.
                 self.assertIsNot(manifest_mount.get("read_only"), True)
+
+    def test_cast_lanes_mount_only_dapps_sources(self) -> None:
+        config = rendered_compose_config("compose/cast.yml")
+        cast_offline = compose_service(config, "cast-offline")
+        cast_rpc = compose_service(config, "cast-rpc")
+
+        self.assert_hardened(cast_offline)
+        self.assert_hardened(cast_rpc)
+        self.assertEqual("none", cast_offline.get("network_mode"))
+        self.assert_networks(cast_rpc, "rpc_internal")
+        for service in (cast_offline, cast_rpc):
+            self.assert_read_only_volumes(service, "/work/dapps")
+            self.assert_no_volume_target(service, "/work")
 
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
