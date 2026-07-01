@@ -285,11 +285,15 @@ package-deps:
 	    printf 'Refusing package dependency install because package manifest is a symlink: %s\n' "$$manifest" >&2; \
 	    exit 2; \
 	  fi; \
+	  if [[ ! -f "$$manifest" ]]; then \
+	    printf 'Refusing package dependency install because package manifest is not a file: %s\n' "$$manifest" >&2; \
+	    exit 2; \
+	  fi; \
 	  package_dir="$${manifest%/package.json}"; \
 	  package_dir="$${package_dir#$(JS_DIR)/}"; \
 	  mkdir -p "$$package_input_dir/$$package_dir"; \
 	  cp "$$manifest" "$$package_input_dir/$$package_dir/package.json"; \
-	done < <(find $(JS_DIR)/packages $(JS_DIR)/apps -mindepth 2 -maxdepth 2 -name package.json -type f | sort); \
+	done < <(find $(JS_DIR)/packages $(JS_DIR)/apps -mindepth 2 -maxdepth 2 -name package.json | sort); \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml $(COMPOSE_DOWN_CLEANUP); \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm package-stage; \
 	reject_unsafe_package_targets; \

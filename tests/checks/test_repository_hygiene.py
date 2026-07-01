@@ -174,6 +174,16 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn('-L "$$current"', recipe)
         self.assertIn("must not pass through a symlink", recipe)
 
+    def test_package_dependency_manifest_discovery_can_reject_symlinks(self) -> None:
+        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "package-deps")
+
+        # The loop below rejects symlinked workspace package manifests. A
+        # `find -type f` prefilter would hide those symlinks before the guard.
+        self.assertIn("-name package.json | sort", recipe)
+        self.assertNotIn("-name package.json -type f", recipe)
+        self.assertIn('if [[ -L "$$manifest" ]]; then', recipe)
+        self.assertIn('if [[ ! -f "$$manifest" ]]; then', recipe)
+
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
