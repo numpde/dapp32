@@ -83,6 +83,8 @@ const CAM_INTEGRATION_DESCRIPTOR_VERSION = "1.0.0"
 // chain must fail with replay data instead of hanging the lane indefinitely.
 const RECEIPT_WAIT_TIMEOUT_MS = 20_000
 const RECEIPT_POLLING_INTERVAL_MS = 500
+const MAX_RUNS = 100
+const MAX_STEPS = 1_000
 const DESCRIPTOR_KEYS = new Set([
   "camIntegration",
   "chainId",
@@ -731,10 +733,21 @@ function readOptions(env: NodeJS.ProcessEnv): RunnerOptions {
   return {
     descriptor: readDescriptor(requiredEnv(env, "CAM_INTEGRATION_DESCRIPTOR_PATH")),
     seed: requiredEnv(env, "CAM_INTEGRATION_SEED"),
-    runs: requiredPositiveIntegerEnv(env, "CAM_INTEGRATION_RUNS"),
-    steps: requiredPositiveIntegerEnv(env, "CAM_INTEGRATION_STEPS"),
+    runs: boundedPositiveIntegerEnv(env, "CAM_INTEGRATION_RUNS", MAX_RUNS),
+    steps: boundedPositiveIntegerEnv(env, "CAM_INTEGRATION_STEPS", MAX_STEPS),
     writeMode: readWriteMode(env),
   }
+}
+
+function boundedPositiveIntegerEnv(env: NodeJS.ProcessEnv, name: string, max: number): number {
+  const value = requiredPositiveIntegerEnv(env, name)
+  if (value > max) {
+    // These bounds are a lane contract, not a randomness heuristic. Larger
+    // campaigns should be split deliberately so CI timeouts and RPC load stay reviewable.
+    throw new Error(`${name}: expected a positive integer no greater than ${max}`)
+  }
+
+  return value
 }
 
 function readWriteMode(env: NodeJS.ProcessEnv): WriteMode {
