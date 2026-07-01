@@ -774,6 +774,9 @@ function readDescriptor(path: string): Descriptor {
   if (!Array.isArray(accountsValue)) {
     throw new Error("descriptor.accounts must be an array")
   }
+  if (accountsValue.length !== 1) {
+    throw new Error("descriptor.accounts must contain exactly one address")
+  }
 
   return {
     camIntegration: CAM_INTEGRATION_DESCRIPTOR_VERSION,
