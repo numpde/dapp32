@@ -8,7 +8,9 @@ import {
   assertCamResourceSize,
   CAM_UI_NAMESPACE,
   createStringMap,
+  hasOwn,
   isCamNamespaceNameForType,
+  isRecordObject,
   parseJsonBytes,
   resolveCamResourceURI,
   toInertValue,
@@ -25,6 +27,7 @@ import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 import {
   UiError,
   parseUi,
+  resolvedUiButtons,
   resolvedUiInputNames,
   resolveInitialUiNode,
   resolveUiNode,
@@ -189,6 +192,7 @@ export function createCamViewerSession({
 
   async function dispatchAction(action: ResolvedButtonNode): Promise<CamViewerActionResult> {
     assertLoaded()
+    assertActionIsRendered(action)
 
     if (action.call.namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Button) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action must call routes namespace: ${action.call.namespace}`)
@@ -389,6 +393,20 @@ export function createCamViewerSession({
     }
   }
 
+  function assertActionIsRendered(action: ResolvedButtonNode): void {
+    if (currentView === undefined) {
+      throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded view")
+    }
+
+    // Rendered actions are the viewer/session handoff boundary. Re-checking
+    // membership here prevents stale or fabricated buttons from bypassing the
+    // current resolved UI and jumping directly to manifest routes.
+    const rendered = resolvedUiButtons(currentView.resolvedUi)
+    if (!rendered.some((button) => sameActionCall(button, action))) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "CAM action is not rendered in the current view")
+    }
+  }
+
   function accountAwareUiError(cause: unknown): never {
     if (
       account === undefined
@@ -410,6 +428,30 @@ export function createCamViewerSession({
     updateState,
     dispatchAction,
   }
+}
+
+function sameActionCall(left: ResolvedButtonNode, right: ResolvedButtonNode): boolean {
+  return left.call.namespace === right.call.namespace
+    && left.call.function === right.call.function
+    && inertEqual(left.call.args, right.call.args)
+}
+
+function inertEqual(left: InertValue, right: InertValue): boolean {
+  if (Object.is(left, right)) return true
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
+    return left.every((item, index) => inertEqual(item, right[index] as InertValue))
+  }
+
+  if (!isRecordObject(left) || !isRecordObject(right)) return false
+  const leftRecord = left as InertRecord
+  const rightRecord = right as InertRecord
+
+  const leftKeys = Object.keys(leftRecord)
+  const rightKeys = Object.keys(rightRecord)
+  if (leftKeys.length !== rightKeys.length) return false
+  return leftKeys.every((key) => hasOwn(rightRecord, key) && inertEqual(leftRecord[key], rightRecord[key]))
 }
 
 function assertStatePatchTargets(ui: ResolvedUiNode, patch: InertRecord): void {

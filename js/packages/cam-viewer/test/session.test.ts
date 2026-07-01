@@ -454,6 +454,33 @@ test("updateState resolves route actions, while write routes are surfaced withou
   assert.equal(publicClient.calls.length, callsBefore)
 })
 
+test("dispatchAction rejects actions that are not rendered in the current view", async () => {
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const session = createSession(sessionFixtureOptions({ publicClient }))
+  await session.load()
+  const callsBefore = publicClient.calls.length
+
+  await assert.rejects(
+    () => session.dispatchAction({
+      element: "Button",
+      props: {
+        label: "Hidden write",
+      },
+      call: {
+        namespace: "routes",
+        function: BIKE_MARK_MISSING,
+        args: {
+          serialNumber: BIKE_SERIAL_NUMBER,
+        },
+      },
+    }),
+    (error) => error instanceof CamViewerError
+      && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED"
+      && /not rendered/.test(error.message),
+  )
+  assert.equal(publicClient.calls.length, callsBefore)
+})
+
 function createSession({
   publicClient,
   loadResource,
