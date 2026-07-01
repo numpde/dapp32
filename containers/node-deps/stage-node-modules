@@ -10,6 +10,14 @@ if [ "$source_dir" != "/out/node_modules" ] || [ "$target_dir" != "/work/node_mo
 fi
 
 test -d "$source_dir"
+if [ -L "$target_dir" ]; then
+  printf 'stage-node-modules refuses symlink target: %s\n' "$target_dir" >&2
+  exit 2
+fi
+if [ -e "$target_dir" ] && [ ! -d "$target_dir" ]; then
+  printf 'stage-node-modules expected a target directory: %s\n' "$target_dir" >&2
+  exit 2
+fi
 mkdir -p "$target_dir"
 rm -rf "$target_dir/.next"
 mkdir -p "$target_dir/.next"

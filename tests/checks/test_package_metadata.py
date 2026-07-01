@@ -98,6 +98,15 @@ class PackageMetadataTest(unittest.TestCase):
         # checks can pass on the host shape and fail in the offline lane.
         self.assertEqual(root_tsconfigs, staged_tsconfigs)
 
+    def test_node_modules_staging_rejects_ambiguous_targets(self) -> None:
+        script = read_text(repo_path("containers/node-deps/stage-node-modules"))
+
+        # This helper runs inside the dependency materialization boundary and
+        # mutates /work/node_modules. It must reject ambiguous targets itself,
+        # not rely only on the Compose mount shape.
+        self.assertIn('if [ -L "$target_dir" ]; then', script)
+        self.assertIn('if [ -e "$target_dir" ] && [ ! -d "$target_dir" ]; then', script)
+
     def test_workspace_package_surface_is_explicit(self) -> None:
         root_manifest = self.read_manifest(repo_path("js/package.json"))
         # The root manifest is the npm graph contract consumed by Docker
