@@ -231,6 +231,10 @@ services:
       - |
         set -euo pipefail
         stage_dependency_tree() {
+          if [ -L /work/dependencies ] || [ ! -d /work/dependencies ]; then
+            printf '%s\n' 'soldeer-apply: /work/dependencies must be a real directory.' >&2
+            exit 2
+          fi
           rm -rf /work/dependencies/.next
           mkdir -p /work/dependencies/.next
           cp -a /out/dependencies/. /work/dependencies/.next/
@@ -281,6 +285,10 @@ services:
       - |
         set -euo pipefail
         stage_dependency_tree() {
+          if [ -L /work/dependencies ] || [ ! -d /work/dependencies ]; then
+            printf '%s\n' 'soldeer-apply: /work/dependencies must be a real directory.' >&2
+            exit 2
+          fi
           rm -rf /work/dependencies/.next
           mkdir -p /work/dependencies/.next
           cp -a /out/dependencies/. /work/dependencies/.next/

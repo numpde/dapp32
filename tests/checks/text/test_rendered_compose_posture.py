@@ -592,6 +592,15 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         self.assertEqual(expected, actual)
 
+    def test_soldeer_apply_services_guard_dependency_targets_in_container(self) -> None:
+        config = rendered_compose_config("compose/deps.yml")
+        for service_name in ("soldeer-apply-locked", "soldeer-apply-update"):
+            with self.subTest(service=service_name):
+                command = compose_command_text(compose_service(config, service_name))
+                self.assertIn("[ -L /work/dependencies ]", command)
+                self.assertIn("[ ! -d /work/dependencies ]", command)
+                self.assertIn("soldeer-apply: /work/dependencies must be a real directory.", command)
+
     def test_package_and_viewer_lanes_render_as_offline_hardened_services(self) -> None:
         config = rendered_compose_config("compose/packages.yml")
 
