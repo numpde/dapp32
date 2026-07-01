@@ -218,6 +218,7 @@ export function App(): ReactElement {
       if (!ownsInteraction() || !ownsSend()) return
       await ensureInjectedWalletChain(ready.runtime.startup)
       if (!ownsInteraction() || !ownsSend()) return
+      await ensureConnectedWalletAccount(wallet.address)
       const walletClient = createInjectedWalletClient(wallet.address)
       const txHash = await sendCamContractCall({
         walletClient,
