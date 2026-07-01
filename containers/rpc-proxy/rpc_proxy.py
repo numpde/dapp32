@@ -85,6 +85,15 @@ def reject_json_constant(value):
     raise RpcRequestMalformed(f"JSON-RPC request body contains non-standard JSON constant: {value}")
 
 
+def reject_duplicate_json_keys(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise RpcRequestMalformed(f"JSON-RPC request body contains duplicate object key: {key}")
+        result[key] = value
+    return result
+
+
 class FixedIpHttpsConnection(http.client.HTTPSConnection):
     def __init__(self, host, port, target_ip, timeout):
         super().__init__(host, port=port, timeout=timeout, context=ssl.create_default_context())
@@ -179,7 +188,11 @@ def validate_rpc_request(raw_body, allowed_methods):
         raise RpcMethodRejected("RPC method allowlist is empty")
 
     try:
-        payload = json.loads(raw_body, parse_constant=reject_json_constant)
+        payload = json.loads(
+            raw_body,
+            object_pairs_hook=reject_duplicate_json_keys,
+            parse_constant=reject_json_constant,
+        )
     except json.JSONDecodeError as exc:
         raise RpcRequestMalformed("invalid JSON-RPC request body") from exc
     except UnicodeDecodeError as exc:
@@ -241,6 +254,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         request_body = self.rfile.read(request_size)
+        if len(request_body) != request_size:
+            self.send_error(400, "request body ended before content-length")
+            return
 
         try:
             validate_rpc_request(request_body, ALLOWED_METHODS)
