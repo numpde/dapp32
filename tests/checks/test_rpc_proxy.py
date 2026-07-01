@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import importlib.util
 import os
 import unittest
+from unittest import mock
 
-from .common import repo_path
+from .common import import_python_module_with_env, repo_path
 
 
 class RpcProxyTest(unittest.TestCase):
@@ -47,51 +47,32 @@ class RpcProxyTest(unittest.TestCase):
                 frozenset({"eth_blockNumber"}),
             )
 
+    def test_byte_limit_environment_values_are_bounded(self) -> None:
+        with mock.patch.dict(os.environ, {
+            "RPC_PROXY_MAX_REQUEST_BYTES": str(self.proxy.MAX_REQUEST_LIMIT_BYTES + 1),
+        }):
+            with self.assertRaisesRegex(RuntimeError, "no greater than"):
+                self.proxy.required_bounded_positive_int_env(
+                    "RPC_PROXY_MAX_REQUEST_BYTES",
+                    self.proxy.MAX_REQUEST_LIMIT_BYTES,
+                )
+
 
 def load_rpc_proxy_module():
-    path = repo_path("containers/rpc-proxy/rpc_proxy.py")
-    spec = importlib.util.spec_from_file_location("rpc_proxy_under_test", path)
-    if spec is None or spec.loader is None:
-        raise AssertionError(f"could not load {path}")
-
-    module = importlib.util.module_from_spec(spec)
-    old_environ = required_env_patch()
-    try:
-        spec.loader.exec_module(module)
-    finally:
-        old_environ.restore()
-    return module
-
-
-def required_env_patch() -> "_RequiredEnvPatch":
-    env = _RequiredEnvPatch()
-    env.set("RPC_PROXY_HOST", "127.0.0.1")
-    env.set("RPC_PROXY_PORT", "8080")
-    env.set("RPC_UPSTREAM_FILE", "/tmp/rpc-url")
-    env.set("RPC_PROXY_MAX_REQUEST_BYTES", "1024")
-    env.set("RPC_PROXY_MAX_RESPONSE_BYTES", "1024")
-    env.set("RPC_PROXY_MAX_UPSTREAM_URL_BYTES", "1024")
-    env.set("RPC_PROXY_CONNECT_TIMEOUT_SECONDS", "1")
-    env.set("RPC_ALLOWED_METHODS", "eth_blockNumber")
-    return env
-
-
-class _RequiredEnvPatch:
-    def __init__(self) -> None:
-        self.old_values: dict[str, str | None] = {}
-
-    def restore(self) -> None:
-        for name, value in self.old_values.items():
-            if value is None:
-                if name in os.environ:
-                    del os.environ[name]
-            else:
-                os.environ[name] = value
-
-    def set(self, name: str, value: str) -> None:
-        if name not in self.old_values:
-            self.old_values[name] = os.environ.get(name)
-        os.environ[name] = value
+    return import_python_module_with_env(
+        "rpc_proxy_under_test",
+        repo_path("containers/rpc-proxy/rpc_proxy.py"),
+        {
+            "RPC_PROXY_HOST": "127.0.0.1",
+            "RPC_PROXY_PORT": "8080",
+            "RPC_UPSTREAM_FILE": "/tmp/rpc-url",
+            "RPC_PROXY_MAX_REQUEST_BYTES": "1024",
+            "RPC_PROXY_MAX_RESPONSE_BYTES": "1024",
+            "RPC_PROXY_MAX_UPSTREAM_URL_BYTES": "1024",
+            "RPC_PROXY_CONNECT_TIMEOUT_SECONDS": "1",
+            "RPC_ALLOWED_METHODS": "eth_blockNumber",
+        },
+    )
 
 
 if __name__ == "__main__":

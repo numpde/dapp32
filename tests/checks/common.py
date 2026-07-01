@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import os
 from os.path import abspath
 from pathlib import Path
@@ -7,6 +8,7 @@ import re
 import shlex
 import subprocess
 from typing import Any
+from unittest import mock
 
 from tools.json_policy import strict_json_loads
 
@@ -113,6 +115,17 @@ def iter_repo_text_files() -> list[Path]:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def import_python_module_with_env(module_name: str, path: Path, env: dict[str, str]) -> Any:
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise AssertionError(f"could not load {path}")
+
+    module = importlib.util.module_from_spec(spec)
+    with mock.patch.dict(os.environ, env):
+        spec.loader.exec_module(module)
+    return module
 
 
 def path_has_symlink(path: Path) -> bool:

@@ -22,6 +22,8 @@ def required_env(name: str) -> str:
 POSITIVE_INT_RE = re.compile(r"^[1-9][0-9]*$")
 POSITIVE_SECONDS_RE = re.compile(r"^(?:[1-9][0-9]*)(?:\.[0-9]+)?$|^0\.[0-9]*[1-9][0-9]*$")
 PORT_RE = re.compile(r"^[0-9]+$")
+MAX_CONNECT_TARGET_BYTES = 261
+MAX_TUNNEL_BUFFER_BYTES = 1_048_576
 
 
 def required_positive_int_env(name: str) -> int:
@@ -29,6 +31,13 @@ def required_positive_int_env(name: str) -> int:
     if POSITIVE_INT_RE.fullmatch(value) is None:
         raise RuntimeError(f"{name}: expected a positive decimal integer")
     return int(value)
+
+
+def required_bounded_positive_int_env(name: str, maximum: int) -> int:
+    value = required_positive_int_env(name)
+    if value > maximum:
+        raise RuntimeError(f"{name}: expected a positive decimal integer no greater than {maximum}")
+    return value
 
 
 def required_port_env(name: str) -> int:
@@ -49,8 +58,8 @@ LISTEN_HOST = required_env("HTTPS_EGRESS_PROXY_HOST")
 LISTEN_PORT = required_port_env("HTTPS_EGRESS_PROXY_PORT")
 CONNECT_TIMEOUT_SECONDS = required_positive_seconds_env("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS")
 TUNNEL_IDLE_TIMEOUT_SECONDS = required_positive_seconds_env("HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS")
-MAX_HOST_BYTES = required_positive_int_env("HTTPS_EGRESS_PROXY_MAX_HOST_BYTES")
-BUFFER_BYTES = required_positive_int_env("HTTPS_EGRESS_PROXY_BUFFER_BYTES")
+MAX_HOST_BYTES = required_bounded_positive_int_env("HTTPS_EGRESS_PROXY_MAX_HOST_BYTES", MAX_CONNECT_TARGET_BYTES)
+BUFFER_BYTES = required_bounded_positive_int_env("HTTPS_EGRESS_PROXY_BUFFER_BYTES", MAX_TUNNEL_BUFFER_BYTES)
 ALLOWED_HOSTS = frozenset()
 
 
