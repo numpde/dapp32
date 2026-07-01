@@ -35,7 +35,12 @@ function errorDetail(chain: readonly unknown[]): string | undefined {
 
 function errorChain(error: unknown): readonly unknown[] {
   const chain: unknown[] = []
+  const seen = new Set<object>()
   for (let current: unknown = error; current !== undefined; current = errorCause(current)) {
+    if (typeof current === "object" && current !== null) {
+      if (seen.has(current)) break
+      seen.add(current)
+    }
     chain.push(current)
   }
   return chain
