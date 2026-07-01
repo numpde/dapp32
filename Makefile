@@ -537,6 +537,21 @@ cast-rpc:
 	  printf '%s\n' 'Set only one of RPC_URL or RPC_URL_FILE.' >&2; \
 	  exit 2; \
 	fi; \
+	reject_rpc_url_file_symlinks() { \
+	  path="$${1:?missing RPC URL file path}"; \
+	  current="$$(dirname "$$path")"; \
+	  while [[ "$$current" != "." && "$$current" != "/" ]]; do \
+	    if [[ -L "$$current" ]]; then \
+	      printf 'RPC_URL_FILE must not pass through a symlink: %s\n' "$$current" >&2; \
+	      exit 2; \
+	    fi; \
+	    current="$$(dirname "$$current")"; \
+	  done; \
+	  if [[ -L "$$path" ]]; then \
+	    printf 'RPC_URL_FILE must not be a symlink: %s\n' "$$path" >&2; \
+	    exit 2; \
+	  fi; \
+	}; \
 	tmp_dir="$$(mktemp -d)"; \
 	chmod 0700 "$$tmp_dir"; \
 	rpc_url_file="$$tmp_dir/rpc_url"; \
@@ -548,6 +563,7 @@ cast-rpc:
 	}; \
 	trap cleanup EXIT; \
 	if [[ -v RPC_URL_FILE && -n "$$RPC_URL_FILE" ]]; then \
+	  reject_rpc_url_file_symlinks "$$RPC_URL_FILE"; \
 	  if [[ ! -r "$$RPC_URL_FILE" ]]; then \
 	    printf 'RPC_URL_FILE is not readable: %s\n' "$$RPC_URL_FILE" >&2; \
 	    exit 2; \

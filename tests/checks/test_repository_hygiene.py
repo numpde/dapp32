@@ -184,6 +184,17 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn('if [[ -L "$$manifest" ]]; then', recipe)
         self.assertIn('if [[ ! -f "$$manifest" ]]; then', recipe)
 
+    def test_cast_rpc_secret_file_is_guarded_before_docker(self) -> None:
+        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "cast-rpc")
+
+        # Compose cannot validate the operator's original path after Make has
+        # copied it into a temporary secret file. Keep that host-side boundary
+        # explicit before the networked RPC lane starts.
+        self.assertIn('reject_rpc_url_file_symlinks "$$RPC_URL_FILE"', recipe)
+        self.assertIn('-L "$$current"', recipe)
+        self.assertIn('-L "$$path"', recipe)
+        self.assertIn("RPC_URL_FILE must not pass through a symlink", recipe)
+
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
