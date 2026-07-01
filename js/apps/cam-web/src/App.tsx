@@ -27,13 +27,14 @@ import {
 import {
   connectInjectedWallet,
   createInjectedWalletClient,
+  ensureConnectedWalletAccount,
   ensureInjectedWalletChain,
   initialWalletState,
   walletChain,
   walletLabel,
-} from "./wallet"
-import type { WalletState } from "./wallet"
-import { errorMessage } from "./errors"
+} from "./wallet.ts"
+import type { WalletState } from "./wallet.ts"
+import { errorMessage } from "./errors.ts"
 import {
   assertHostHasCode,
   assertRpcChain,
@@ -41,13 +42,13 @@ import {
   displayRpcEndpoint,
   parseStartupOptions,
   readStartupPolicy,
-} from "./startup"
-import type { StartupOptions } from "./startup"
+} from "./startup.ts"
+import type { StartupOptions } from "./startup.ts"
 import {
   ConnectionSummary,
   PreparedCallView,
   UiView,
-} from "./components"
+} from "./components.tsx"
 
 type LoadState =
   | { readonly status: "loading" }
@@ -208,6 +209,7 @@ export function App(): ReactElement {
     setNotice(undefined)
     try {
       const ready = requireReadyState(loadState)
+      await ensureConnectedWalletAccount(wallet.address)
       await simulateCamContractCall({
         publicClient: ready.runtime.publicClient,
         account: wallet.address,

@@ -10,7 +10,7 @@ import {
 } from "@cam/evm-viem"
 import {
   shortenAddress,
-} from "./evm"
+} from "./evm.ts"
 
 export type WalletState =
   | { readonly status: "unavailable" }
@@ -64,6 +64,14 @@ export async function connectInjectedWallet(
   await ensureInjectedWalletChain(options)
   const accounts = await provider.request({ method: "eth_requestAccounts" })
   return requireAddressArray(accounts, "eth_requestAccounts")[0]
+}
+
+export async function ensureConnectedWalletAccount(expected: Address): Promise<void> {
+  const accounts = await requireEthereum().request({ method: "eth_accounts" })
+  const [current] = requireAddressArray(accounts, "eth_accounts")
+  if (current.toLowerCase() !== expected.toLowerCase()) {
+    throw new Error("Connected wallet account changed. Reconnect the wallet before sending.")
+  }
 }
 
 export async function ensureInjectedWalletChain(options: WalletChainOptions): Promise<void> {

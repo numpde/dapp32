@@ -12,7 +12,7 @@ import type {
 
 import {
   shortenAddress,
-} from "./evm"
+} from "./evm.ts"
 
 export function ConnectionSummary({
   chainId,

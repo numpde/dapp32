@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": true,
     "exactOptionalPropertyTypes": true,
     "jsx": "react-jsx",
     "lib": [
