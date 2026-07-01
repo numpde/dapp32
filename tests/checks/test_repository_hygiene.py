@@ -32,7 +32,12 @@ MAKE_TARGET_WITH_PREREQS_RE = re.compile(r"^(?P<name>[A-Za-z0-9_-]+)\s*:(?![=])\
 MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_-]+)\b")
 MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$")
 MAKE_DEFAULT_GOAL_RE = re.compile(r"^\.DEFAULT_GOAL\s*:?=\s*(?P<name>[A-Za-z0-9_-]+)\s*$", re.MULTILINE)
-PACKAGE_CI_PREREQS = ("package-test", "viewer-terminal-check", "cam-publication-preflight-check")
+PACKAGE_CI_PREREQS = (
+    "package-test",
+    "viewer-terminal-check",
+    "cam-publication-preflight-check",
+    "cam-integration-fuzz-check",
+)
 FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
 
 

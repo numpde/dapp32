@@ -101,7 +101,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check cam-integration-fuzz-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
 
 help:
 	@printf '%s\n' \
@@ -120,6 +120,7 @@ help:
 	  '  make cam-publication-preflight-json DAPP=... CAM_URI=...  Same preflight with structured JSON output' \
 	  '  make cam-publication-preflight-check  Smoke-check publication preflight offline' \
 	  '  make viewer-terminal-check  Smoke-check the CAM viewer terminal offline' \
+	  '  make cam-integration-fuzz-check  Typecheck the CAM integration fuzz runner offline' \
 	  '  make viewer-terminal  Run the CAM viewer terminal offline; defaults to VIEWER_TERMINAL_MOCK=bike-nft' \
 	  '  make viewer-terminal-status  Show viewer terminal Compose status' \
 	  '  make viewer-terminal-attach  Attach if the mock viewer terminal is still running' \
@@ -311,7 +312,7 @@ package-build-check:
 package-test:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-package-ci: package-test viewer-terminal-check cam-publication-preflight-check
+package-ci: package-test viewer-terminal-check cam-publication-preflight-check cam-integration-fuzz-check
 
 cam-conformance-check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
@@ -358,6 +359,11 @@ viewer-terminal-check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm -T viewer-terminal-check
+
+cam-integration-fuzz-check:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	$(TEST_INTEGRATION_FUZZ_ENV) CAM_INTEGRATION_DESCRIPTOR_HOST_PATH=/dev/null CAM_INTEGRATION_NETWORK=cam-integration-fuzz-check-unused $(DOCKER_COMPOSE) $(TEST_INTEGRATION_FUZZ_COMPOSE_FILES) run --build --rm -T test-integration-fuzz-check
 
 viewer-terminal:
 	@$(LANE_GUARD); \
