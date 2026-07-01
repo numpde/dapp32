@@ -79,10 +79,7 @@ export async function ensureInjectedWalletChain(options: WalletChainOptions): Pr
   const chainId = evmChainIdHex(options.chainId)
 
   try {
-    await provider.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId }],
-    })
+    await switchInjectedWalletChain(provider, chainId)
   } catch (error) {
     if (walletErrorCode(error) !== 4902) {
       throw error
@@ -98,7 +95,11 @@ export async function ensureInjectedWalletChain(options: WalletChainOptions): Pr
         rpcUrls: chain.rpcUrls.default.http,
       }],
     })
+    // EIP-3085 adds the chain; it does not guarantee selection. Treat the
+    // expected wallet chain as a checked postcondition before any send path.
+    await switchInjectedWalletChain(provider, chainId)
   }
+  await assertInjectedWalletChain(provider, chainId)
 }
 
 export function createInjectedWalletClient(address: Address) {
@@ -120,6 +121,20 @@ function walletErrorCode(error: unknown): number | undefined {
   return typeof error === "object" && error !== null && "code" in error && typeof error.code === "number"
     ? error.code
     : undefined
+}
+
+async function switchInjectedWalletChain(provider: EthereumProvider, chainId: `0x${string}`): Promise<void> {
+  await provider.request({
+    method: "wallet_switchEthereumChain",
+    params: [{ chainId }],
+  })
+}
+
+async function assertInjectedWalletChain(provider: EthereumProvider, expectedChainId: `0x${string}`): Promise<void> {
+  const actual = await provider.request({ method: "eth_chainId" })
+  if (typeof actual !== "string" || actual.toLowerCase() !== expectedChainId.toLowerCase()) {
+    throw new Error(`Injected wallet chain mismatch after switching: expected ${expectedChainId}`)
+  }
 }
 
 function requireAddressArray(value: unknown, label: string): readonly [Address, ...Address[]] {
