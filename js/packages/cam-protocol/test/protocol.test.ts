@@ -503,6 +503,38 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
   )
 
   await assert.rejects(
+    () => readBoundedResponseBytes(new Response("abc", {
+      headers: {
+        "content-encoding": "gzip",
+      },
+    }), "https://example.test/x", 3),
+    /must not use HTTP content encoding/,
+  )
+
+  await assert.rejects(
+    () => readBoundedResponseBytes({
+      body: {
+        getReader() {
+          let read = false
+          return {
+            async read() {
+              if (read) return { done: true }
+              read = true
+              return { done: false, value: new TextEncoder().encode("ok") }
+            },
+          }
+        },
+      },
+      headers: {
+        get(name) {
+          return name.toLowerCase() === "content-length" ? "3" : null
+        },
+      },
+    }, "https://example.test/x", 3),
+    /ended before Content-Length/,
+  )
+
+  await assert.rejects(
     () => readBoundedResponseBytes({
       body: {
         getReader() {
