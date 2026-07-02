@@ -11,8 +11,6 @@ import {
   createHttpCamPublicClient,
   evmChainIdNumber,
   loadCamFromHost,
-  requireEvmAddress,
-  requireEvmChainId,
   resolveCamContracts,
   sendCamContractCall,
   simulateCamContractCall,
@@ -47,10 +45,6 @@ import type {
 } from "../../packages/cam-screen/dist/index.js"
 import {
   createSameOriginHttpResourceLoader,
-  isRecordObject,
-  parseJsonBytes,
-  requireHttpOrigin,
-  requireHttpURL,
   toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
@@ -58,59 +52,28 @@ import type {
   InertValue,
 } from "../../packages/cam-protocol/dist/index.js"
 import {
-  requiredBoolean,
-  requiredEnv,
-  requiredPositiveIntegerEnv,
-  requiredString,
-  requiredStringValue,
-} from "../input.ts"
+  emit,
+  errorMessage,
+} from "./events.ts"
 import {
-  readBoundedFileSync,
-} from "../local-cam-files.ts"
+  createPrng,
+} from "./prng.ts"
+import type {
+  Prng,
+} from "./prng.ts"
+import {
+  readOptions,
+} from "./options.ts"
+import type {
+  RunnerOptions,
+} from "./options.ts"
 
-type Descriptor = {
-  readonly camIntegration: typeof CAM_INTEGRATION_DESCRIPTOR_VERSION
-  readonly chainId: string
-  readonly rpcUrl: string
-  readonly camHost: Address
-  readonly resourceOrigin: string
-  readonly accounts: readonly Address[]
-  readonly allowUnsignedCamHash: boolean
-}
-
-const CAM_INTEGRATION_DESCRIPTOR_VERSION = "1.0.0"
 // Write-enabled fuzz is a CI gate, not an operator console; a stalled local
 // chain must fail with replay data instead of hanging the lane indefinitely.
 const RECEIPT_WAIT_TIMEOUT_MS = 20_000
 const RECEIPT_POLLING_INTERVAL_MS = 500
-const MAX_RUNS = 100
-const MAX_STEPS = 1_000
-const DESCRIPTOR_KEYS = new Set([
-  "camIntegration",
-  "chainId",
-  "rpcUrl",
-  "camHost",
-  "resourceOrigin",
-  "accounts",
-  "allowUnsignedCamHash",
-])
-
-type RunnerOptions = {
-  readonly descriptor: Descriptor
-  readonly seed: string
-  readonly runs: number
-  readonly steps: number
-  readonly writeMode: WriteMode
-}
 
 type ValueGenerationMode = "broad" | "write-positive"
-
-type WriteMode =
-  | { readonly kind: "simulate" }
-  | {
-    readonly kind: "local-fixture"
-    readonly privateKey: Hex
-  }
 
 type WriteContext =
   | { readonly kind: "simulate" }
@@ -729,132 +692,6 @@ async function assertResolvedContractsHaveCode(
   }
 }
 
-function readOptions(env: NodeJS.ProcessEnv): RunnerOptions {
-  return {
-    descriptor: readDescriptor(requiredEnv(env, "CAM_INTEGRATION_DESCRIPTOR_PATH")),
-    seed: requiredEnv(env, "CAM_INTEGRATION_SEED"),
-    runs: boundedPositiveIntegerEnv(env, "CAM_INTEGRATION_RUNS", MAX_RUNS),
-    steps: boundedPositiveIntegerEnv(env, "CAM_INTEGRATION_STEPS", MAX_STEPS),
-    writeMode: readWriteMode(env),
-  }
-}
-
-function boundedPositiveIntegerEnv(env: NodeJS.ProcessEnv, name: string, max: number): number {
-  const value = requiredPositiveIntegerEnv(env, name)
-  if (value > max) {
-    // These bounds are a lane contract, not a randomness heuristic. Larger
-    // campaigns should be split deliberately so CI timeouts and RPC load stay reviewable.
-    throw new Error(`${name}: expected a positive integer no greater than ${max}`)
-  }
-
-  return value
-}
-
-function readWriteMode(env: NodeJS.ProcessEnv): WriteMode {
-  const value = requiredEnv(env, "CAM_INTEGRATION_WRITE_MODE")
-  if (value === "simulate") {
-    return { kind: "simulate" }
-  }
-  if (value === "local-fixture") {
-    return {
-      kind: "local-fixture",
-      privateKey: requiredPrivateKey(env, "CAM_INTEGRATION_PRIVATE_KEY"),
-    }
-  }
-
-  throw new Error(`CAM_INTEGRATION_WRITE_MODE: unsupported write mode: ${value}`)
-}
-
-function requiredPrivateKey(env: NodeJS.ProcessEnv, name: string): Hex {
-  const value = requiredEnv(env, name)
-  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) {
-    throw new Error(`${name}: expected a 32-byte hex private key`)
-  }
-
-  return value as Hex
-}
-
-function readDescriptor(path: string): Descriptor {
-  const value = parseJsonBytes(readBoundedFileSync(path, "CAM integration descriptor"))
-  if (!isRecordObject(value)) {
-    throw new Error("CAM integration descriptor must be an object")
-  }
-  rejectUnknownDescriptorFields(value)
-  if (value.camIntegration !== CAM_INTEGRATION_DESCRIPTOR_VERSION) {
-    throw new Error(`CAM integration descriptor version must be ${CAM_INTEGRATION_DESCRIPTOR_VERSION}`)
-  }
-  const accountsValue = value.accounts
-  if (!Array.isArray(accountsValue)) {
-    throw new Error("descriptor.accounts must be an array")
-  }
-  if (accountsValue.length !== 1) {
-    throw new Error("descriptor.accounts must contain exactly one address")
-  }
-
-  return {
-    camIntegration: CAM_INTEGRATION_DESCRIPTOR_VERSION,
-    chainId: requireEvmChainId(requiredString(value, "chainId", "descriptor.chainId")),
-    rpcUrl: requireHttpURL(requiredString(value, "rpcUrl", "descriptor.rpcUrl"), "descriptor.rpcUrl").href,
-    camHost: requireEvmAddress(requiredString(value, "camHost", "descriptor.camHost"), "descriptor.camHost"),
-    resourceOrigin: requireHttpOrigin(
-      requiredString(value, "resourceOrigin", "descriptor.resourceOrigin"),
-      "descriptor.resourceOrigin",
-    ),
-    accounts: accountsValue.map((account, index) =>
-      requireEvmAddress(requiredStringValue(account, `descriptor.accounts.${index}`), `descriptor.accounts.${index}`),
-    ),
-    allowUnsignedCamHash: requiredBoolean(value, "allowUnsignedCamHash", "descriptor.allowUnsignedCamHash"),
-  }
-}
-
-function rejectUnknownDescriptorFields(value: Record<string, unknown>): void {
-  for (const key of Object.keys(value)) {
-    if (!DESCRIPTOR_KEYS.has(key)) {
-      throw new Error(`descriptor.${key}: field is not allowed in CAM integration descriptor`)
-    }
-  }
-}
-
-type Prng = {
-  readonly integer: (exclusiveMax: number) => number
-  readonly pick: <T>(values: readonly T[]) => T
-}
-
-function createPrng(seed: string): Prng {
-  let state = 0x811c9dc5
-  for (let index = 0; index < seed.length; index++) {
-    state ^= seed.charCodeAt(index)
-    state = Math.imul(state, 0x01000193) >>> 0
-  }
-  if (state === 0) state = 1
-
-  function next(): number {
-    state ^= state << 13
-    state ^= state >>> 17
-    state ^= state << 5
-    return state >>> 0
-  }
-
-  return {
-    integer(exclusiveMax) {
-      if (!Number.isInteger(exclusiveMax) || exclusiveMax <= 0) {
-        throw new Error(`invalid PRNG bound: ${exclusiveMax}`)
-      }
-      return next() % exclusiveMax
-    },
-    pick(values) {
-      if (values.length === 0) {
-        throw new Error("cannot pick from an empty array")
-      }
-      const value = values[this.integer(values.length)]
-      if (value === undefined) {
-        throw new Error("internal PRNG pick failed")
-      }
-      return value
-    },
-  }
-}
-
 main().catch((error: unknown) => {
   const message = errorMessage(error)
   emit({
@@ -863,21 +700,3 @@ main().catch((error: unknown) => {
   })
   process.exitCode = 1
 })
-
-function errorMessage(error: unknown): string {
-  if (!(error instanceof Error)) {
-    return String(error)
-  }
-
-  // The runner emits JSON events consumed by humans and CI logs. Keep failures
-  // replay-focused instead of leaking container-local stack paths into the
-  // event stream.
-  return error.message
-}
-
-function emit(event: JsonObject): void {
-  console.log(JSON.stringify({
-    source: "cam-integration-fuzz",
-    ...event,
-  }))
-}
