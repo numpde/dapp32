@@ -15,6 +15,11 @@ JS_TOOL_PACKAGE_ENTRYPOINT_RE = re.compile(r"^(?:\.\./)+packages/cam-[^/]+/dist/
 CAM_CONFORMANCE_RULE_KEY_RE = re.compile(r"^\s*[\"']?(CAM_[A-Z0-9_]+)[\"']?:\s*\{$", re.MULTILINE)
 CAM_CONFORMANCE_RULE_CLASS_RE = re.compile(r"(?:\bclass|[\"']class[\"'])\s*:\s*[\"'](?P<class>[ABC])[\"']")
 CAM_CONFORMANCE_RULE_PROPERTY_RE = re.compile(r"(?:\brule|[\"']rule[\"'])\s*:\s*(?P<expr>[^,\n]+)")
+CAM_CONFORMANCE_RULE_DESCRIPTOR_RE = re.compile(
+    r"^\s*(?P<rule>CAM_[A-Z0-9_]+):\s*\{(?P<body>.*?)(?=^\s*CAM_[A-Z0-9_]+:\s*\{|\n\s*\}\s*\))",
+    re.MULTILINE | re.DOTALL,
+)
+TS_STRING_PROPERTY_RE = r"(?:\b{name}|[\"']{name}[\"'])\s*:\s*[\"'](?P<value>[^\"']*)[\"']"
 ABI_DYNAMIC_ARRAY_SYNTAX_RE = re.compile(r"\.endsWith\(\s*[\"']\[\][\"']\s*\)|\btype\.slice\(\s*0,\s*-2\s*\)")
 EXPRESSION_SYNTAX_MESSAGE_RE = re.compile(r"invalid expression syntax:")
 
@@ -225,6 +230,18 @@ class ProtocolOwnershipTest(unittest.TestCase):
             if "conformanceRule(" in text:
                 failures.append(f"{path}: use keyed conformanceRules(...) maps so the rule code appears only once")
 
+            for descriptor in CAM_CONFORMANCE_RULE_DESCRIPTOR_RE.finditer(text):
+                rule = descriptor.group("rule")
+                body = descriptor.group("body")
+                rule_class = self.required_ts_string_property(body, "class", path, rule, failures)
+                reason = self.required_ts_string_property(body, "reason", path, rule, failures)
+                if reason is not None and reason.strip() == "":
+                    failures.append(f"{path}: {rule} descriptor must justify its conformance ownership")
+                if rule_class == "B":
+                    limitation = self.required_ts_string_property(body, "limitation", path, rule, failures)
+                    if limitation is not None and limitation.strip() == "":
+                        failures.append(f"{path}: {rule} Class B descriptor must document its limitation")
+
         for rule, locations in sorted(rule_locations.items()):
             if len(locations) > 1:
                 failures.append(f"{rule} descriptor must have one owner:\n" + "\n".join(locations))
@@ -361,6 +378,20 @@ class ProtocolOwnershipTest(unittest.TestCase):
         # into conformance rule descriptors; all other issue sites should point
         # directly at a typed descriptor map.
         return expression.startswith(("RULES.", "RESOURCE_RULES.", "UI_CALL_RULES.", "resourceIntegrityRule("))
+
+    def required_ts_string_property(
+        self,
+        text: str,
+        name: str,
+        path: Path,
+        rule: str,
+        failures: list[str],
+    ) -> str | None:
+        match = re.search(TS_STRING_PROPERTY_RE.format(name=re.escape(name)), text)
+        if match is None:
+            failures.append(f"{path}: {rule} descriptor must declare {name}")
+            return None
+        return match.group("value")
 
     def module_specifiers(self, text: str) -> list[tuple[str, int]]:
         specifiers: list[tuple[str, int]] = []

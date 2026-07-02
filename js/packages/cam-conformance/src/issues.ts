@@ -96,20 +96,12 @@ export function issueFromError({
 export function conformanceRules<const Rules extends Readonly<Record<CamConformanceRuleCode, CamConformanceRuleDetails>>>(
   rules: Rules,
 ): CamConformanceRuleMap<Rules> {
-  // Class/reason is maintainer-facing ownership metadata. Runtime issues
-  // intentionally carry only the stable public CAM_* rule code.
+  // Class/reason is maintainer-facing ownership metadata checked by the repo
+  // hygiene lane. Runtime issues intentionally carry only the stable public
+  // CAM_* rule code, so package construction should not enforce maintainer
+  // process policy as runtime behavior.
   const ruleCodes: Partial<Record<CamConformanceRuleKey<Rules>, CamConformanceRuleCode>> = {}
   for (const rule of Object.keys(rules) as readonly CamConformanceRuleKey<Rules>[]) {
-    const details = rules[rule]
-    if (details.class === "C") {
-      throw new Error(`Class C CAM conformance rule must be removed or moved to its runtime owner: ${rule}`)
-    }
-    if (details.reason.trim().length === 0) {
-      throw new Error(`CAM conformance rule must justify its ownership: ${rule}`)
-    }
-    if (details.class === "B" && (details.limitation === undefined || details.limitation.trim().length === 0)) {
-      throw new Error(`Class B CAM conformance rule must document its limitation: ${rule}`)
-    }
     ruleCodes[rule] = rule
   }
   return ruleCodes as CamConformanceRuleMap<Rules>
