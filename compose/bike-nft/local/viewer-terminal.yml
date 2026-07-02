@@ -14,29 +14,16 @@
 
 services:
   bike-nft-viewer-terminal:
-    build:
-      context: ../../../containers/node-deps
-      dockerfile: Dockerfile
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
     working_dir: /work
     depends_on:
       deploy-bike-nft-local:
         condition: service_completed_successfully
       bike-nft-cam-http:
         condition: service_healthy
-    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 384
-    mem_limit: 1g
     environment:
-      HOME: /tmp/home
-      npm_config_cache: /tmp/npm-cache
-      npm_config_audit: "false"
-      npm_config_fund: "false"
-      npm_config_update_notifier: "false"
       CAM_VIEWER_BACKEND: local-rpc
       # Intentional fixture opt-in: the local demo deploy currently leaves
       # CamRoot.camHash() as bytes32(0). Non-demo viewers should set this false
@@ -48,9 +35,6 @@ services:
       # The bike entry route takes the connected account only. Keep route inputs
       # explicit so the backend never invents an empty input default.
       CAM_VIEWER_INITIAL_INPUTS_JSON: "{}"
-    tmpfs:
-      - /tmp:rw,nosuid,nodev,noexec,size=256m
-      - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
     volumes:
       - ../../../js:/input/js:ro
       - ../../../js/node_modules:/work/js/node_modules:ro

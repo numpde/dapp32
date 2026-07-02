@@ -7,11 +7,6 @@
 # key as deploy.yml and is intentionally scoped to the internal Anvil network.
 
 x-bike-nft-integration-fuzz-environment: &bike_nft_integration_fuzz_environment
-  HOME: /tmp/home
-  npm_config_cache: /tmp/npm-cache
-  npm_config_audit: "false"
-  npm_config_fund: "false"
-  npm_config_update_notifier: "false"
   CAM_INTEGRATION_DESCRIPTOR_PATH: /tmp/cam-integration/descriptor.json
   CAM_INTEGRATION_SEED: "${CAM_INTEGRATION_SEED:?missing_CAM_INTEGRATION_SEED}"
   CAM_INTEGRATION_RUNS: "${CAM_INTEGRATION_RUNS:?missing_CAM_INTEGRATION_RUNS}"
@@ -26,26 +21,15 @@ x-bike-nft-integration-fuzz-environment: &bike_nft_integration_fuzz_environment
   CAM_INTEGRATION_BROADCAST_PATH: "${BIKE_NFT_BROADCAST_PATH:?missing_BIKE_NFT_BROADCAST_PATH}"
 
 x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
-  build:
-    context: ../../../containers/node-deps
-    dockerfile: Dockerfile
+  extends:
+    file: ../../fragments/node-workspace.yml
+    service: hardened-node-workspace
   working_dir: /work
   depends_on:
     deploy-bike-nft-local:
       condition: service_completed_successfully
     bike-nft-cam-http:
       condition: service_healthy
-  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
-  read_only: true
-  security_opt:
-    - no-new-privileges:true
-  cap_drop:
-    - ALL
-  pids_limit: 384
-  mem_limit: 1g
-  tmpfs:
-    - /tmp:rw,nosuid,nodev,noexec,size=256m
-    - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
   volumes:
     - ../../../js:/input/js:ro
     - ../../../js/node_modules:/work/js/node_modules:ro

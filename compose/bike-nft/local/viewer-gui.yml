@@ -27,23 +27,14 @@
 
 services:
   cam-web:
-    build:
-      context: ../../../containers/node-deps
-      dockerfile: Dockerfile
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
     working_dir: /work/js
     depends_on:
       bike-nft-cam-http:
         condition: service_healthy
-    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 384
-    mem_limit: 1g
     environment:
-      HOME: /tmp/home
       # Local fixture CAMs are deliberately unsigned. This is deployment policy,
       # not a browser URL parameter, so a deep link cannot loosen hash checks.
       VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH: "true"
@@ -54,13 +45,6 @@ services:
       # Vite sees the gateway-forwarded browser Host header. Keep that allowlist
       # tied to the same operator-declared origin that make prints.
       CAM_WEB_DEV_ORIGIN: "${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}"
-      npm_config_cache: /tmp/npm-cache
-      npm_config_audit: "false"
-      npm_config_fund: "false"
-      npm_config_update_notifier: "false"
-    tmpfs:
-      - /tmp:rw,nosuid,nodev,noexec,size=256m
-      - /work/js:rw,exec,nosuid,nodev,size=512m,uid=${LOCAL_UID:?missing_LOCAL_UID},gid=${LOCAL_GID:?missing_LOCAL_GID},mode=1777
     volumes:
       - ../../../js:/input/js:ro
       - ../../../js/node_modules:/work/js/node_modules:ro

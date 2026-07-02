@@ -90,6 +90,7 @@ def compose_files() -> tuple[str, ...]:
     return tuple(
         path.relative_to(repo_path(".")).as_posix()
         for path in sorted((*repo_path("compose").rglob("*.yml"), *repo_path("compose").rglob("*.yaml")))
+        if "fragments" not in path.relative_to(repo_path("compose")).parts
     )
 
 
