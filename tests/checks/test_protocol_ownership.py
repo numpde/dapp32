@@ -146,14 +146,25 @@ class ProtocolOwnershipTest(unittest.TestCase):
             package_name = ""
             if repo_path("js/packages") in path.parents:
                 package_name = self.package_root(path).name
+            imports_protocol_root = False
             for specifier, line_number in self.module_specifiers(text):
                 if specifier.startswith("@cam/protocol/"):
                     failures.append(f"{path}:{line_number}: protocol facts must be consumed through @cam/protocol root exports")
+                if specifier == "@cam/protocol":
+                    imports_protocol_root = True
                 if specifier != "@cam/protocol" and not self.relative_import_resolves_to_protocol_facts(path, specifier):
                     continue
                 if not PROTOCOL_FACT_EXPORT_RE.search(self.import_statement_at_line(text, line_number)):
                     continue
                 if package_name not in allowed_consumers:
+                    failures.append(
+                        f"{path}:{line_number}: protocol facts are provisional; "
+                        f"allowed consumers: {', '.join(sorted(allowed_consumers))}"
+                    )
+            if package_name not in allowed_consumers and imports_protocol_root:
+                match = PROTOCOL_FACT_EXPORT_RE.search(text)
+                if match is not None:
+                    line_number = text.count("\n", 0, match.start()) + 1
                     failures.append(
                         f"{path}:{line_number}: protocol facts are provisional; "
                         f"allowed consumers: {', '.join(sorted(allowed_consumers))}"
