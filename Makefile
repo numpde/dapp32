@@ -2,7 +2,7 @@ SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
-COMPOSE_DIR ?= compose
+COMPOSE_DIR := compose
 DOCKER_COMPOSE ?= docker compose
 # Intentional default: the default project name is convenient locally, but it
 # can collide with another checkout/user. Prefer explicit COMPOSE_PROJECT_NAME

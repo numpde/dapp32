@@ -41,7 +41,6 @@ ALLOWED_MAKE_DEFAULTS = {
     "CAM_INTEGRATION_SEED": "cam-integration-fuzz",
     "CAM_INTEGRATION_STEPS": "16",
     "CAM_URI": "",
-    "COMPOSE_DIR": "compose",
     "COMPOSE_PROJECT_NAME": "dapps",
     "DOCKER_COMPOSE": "docker compose",
     "LIVE_CHECK_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-check-live",
