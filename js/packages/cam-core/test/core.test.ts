@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { toInertValue } from "@cam/protocol"
+import {
+  collectCamNamespaceFacts,
+  collectCamResourceDeclarationFacts,
+  collectCamRootFact,
+  toInertValue,
+} from "@cam/protocol"
 
 import {
   CamError,
@@ -15,6 +20,7 @@ import {
   BIKE_ACCOUNT_ADDRESS,
   BIKE_HOST_ADDRESS,
   BIKE_HOST_CHAIN_ID,
+  BIKE_MANAGER_NAMESPACE,
   BIKE_ROUTE_COMPONENT,
   BIKE_SERIAL_NUMBER,
   BIKE_UI_NAMESPACE,
@@ -350,5 +356,60 @@ test("parseCam preserves namespace unknown-field precedence over resource diagno
       error instanceof CamError
       && error.code === "CAM_UNKNOWN_FIELD"
       && error.path === "namespaces.ui.extra",
+  )
+})
+
+test("parseCam gives namespace fact diagnostics precedence over runtime namespace unknown fields", () => {
+  const namespaces = mainJson.namespaces as Record<string, Record<string, unknown>>
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      namespaces: {
+        ...namespaces,
+        [BIKE_MANAGER_NAMESPACE]: {
+          ...namespaces[BIKE_MANAGER_NAMESPACE],
+          extra: true,
+        },
+        bad: {
+          type: "widget",
+        },
+      },
+    }),
+    (error) =>
+      error instanceof CamError
+      && error.code === "CAM_INVALID_FIELD"
+      && error.path === "namespaces.bad.type",
+  )
+})
+
+test("parseCam and protocol facts share root namespace resource declaration meaning", () => {
+  const cam = parseCam(mainJson)
+  const rootResult = collectCamRootFact(mainJson, { resource: "bike fixture" })
+  assert.deepEqual(rootResult.diagnostics, [])
+  assert.notEqual(rootResult.value, undefined)
+
+  const namespaceResult = collectCamNamespaceFacts(rootResult.value!)
+  assert.deepEqual(namespaceResult.diagnostics, [])
+  assert.deepEqual(
+    namespaceResult.namespaces.map((namespace) => [namespace.name, namespace.type]),
+    Object.entries(cam.namespaces).map(([name, namespace]) => [name, namespace.type]),
+  )
+
+  const resourceResult = collectCamResourceDeclarationFacts(namespaceResult.namespaces)
+  assert.deepEqual(resourceResult.diagnostics, [])
+  const managerNamespace = cam.namespaces[BIKE_MANAGER_NAMESPACE]
+  const uiContractNamespace = cam.namespaces[BIKE_UI_NAMESPACE]
+  const uiNamespace = cam.namespaces.ui
+  if (managerNamespace.type !== "contract") throw new Error("bike manager namespace must be a contract")
+  if (uiContractNamespace.type !== "contract") throw new Error("bike UI contract namespace must be a contract")
+  if (uiNamespace.type !== "ui") throw new Error("bike UI namespace must be ui")
+  assert.deepEqual(
+    new Map(resourceResult.declarations.map((declaration) => [declaration.namespace, declaration.uri])),
+    new Map([
+      [BIKE_MANAGER_NAMESPACE, managerNamespace.abiURI],
+      [BIKE_UI_NAMESPACE, uiContractNamespace.abiURI],
+      ["ui", uiNamespace.uri],
+    ]),
   )
 })
