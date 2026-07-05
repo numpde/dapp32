@@ -23,6 +23,8 @@ test("Vite dev origin policy rejects ambiguous URL shapes", () => {
     "http://viewer.example.test/app",
     "http://viewer.example.test?debug=1",
     "http://viewer.example.test#section",
+    "http://viewer.example.test/\\admin",
+    "http://viewer.example.test/a\nb",
   ]
 
   for (const origin of rejected) {

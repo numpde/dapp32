@@ -8,6 +8,9 @@ export function allowedHosts(env = process.env) {
   if (origin === undefined || origin.length === 0) {
     return DEFAULT_ALLOWED_HOSTS
   }
+  if (/[\u0000-\u001f\u007f\\]/u.test(origin)) {
+    throw new Error("CAM_WEB_DEV_ORIGIN contains unsafe raw URL characters")
+  }
 
   let url
   try {
