@@ -225,6 +225,23 @@ class RepositoryHygieneTest(unittest.TestCase):
                 self.assertIn("$(BIKE_NFT_CAM_HASH_GUARD);", self.make_target_recipe(makefile, target))
         self.assertIn("$(CAM_URI_GUARD);", self.make_target_recipe(makefile, "bike-nft-local-deploy"))
 
+    def test_viewer_terminal_mock_is_guarded_before_docker(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+
+        # The mock selector is a Compose environment value and a tool boundary.
+        # Keep it a reviewed label, not a path or shell fragment.
+        self.assertIn("export VIEWER_TERMINAL_MOCK", makefile)
+        self.assertIn("VIEWER_TERMINAL_MOCK must be a mock name", makefile)
+        for target in (
+            "viewer-terminal-check",
+            "viewer-terminal",
+            "viewer-terminal-status",
+            "viewer-terminal-attach",
+            "viewer-terminal-down",
+        ):
+            with self.subTest(target=target):
+                self.assertIn("$(VIEWER_TERMINAL_MOCK_GUARD);", self.make_target_recipe(makefile, target))
+
     def test_integration_fuzz_descriptor_bind_is_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
         recipe = self.make_target_recipe(makefile, "test-integration-fuzz")

@@ -52,6 +52,7 @@ export ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORI
 export CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS
 export LOCAL_UID LOCAL_GID ALLOW_UPDATE
 export CAM_URI BIKE_NFT_CAM_HASH
+export VIEWER_TERMINAL_MOCK
 COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME
 export $(COMPOSE_PROJECT_NAME_VARS)
 
@@ -96,6 +97,7 @@ BIKE_NFT_GUI_BIND_GUARD := port="$${BIKE_NFT_GUI_PORT:?missing_BIKE_NFT_GUI_PORT
 BIKE_NFT_CAM_HASH_GUARD := if [[ ! "$${BIKE_NFT_CAM_HASH:?missing_BIKE_NFT_CAM_HASH}" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then printf '%s\n' 'BIKE_NFT_CAM_HASH must be a 32-byte hex value.' >&2; exit 2; fi
 CAM_URI_GUARD := uri="$${CAM_URI?missing_CAM_URI}"; if [[ -z "$$uri" ]]; then printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; exit 2; fi; if [[ ! "$$uri" =~ ^(https?|ipfs):// || "$$uri" == *'$$'* || "$$uri" == *'`'* || "$$uri" == *\"* || "$$uri" == *\'* || "$$uri" == *\;* ]]; then printf '%s\n' 'CAM_URI must be an absolute http(s) or ipfs URI without shell syntax.' >&2; exit 2; fi
 CAM_INTEGRATION_INPUT_GUARD := seed="$${CAM_INTEGRATION_SEED:?missing_CAM_INTEGRATION_SEED}"; runs="$${CAM_INTEGRATION_RUNS:?missing_CAM_INTEGRATION_RUNS}"; steps="$${CAM_INTEGRATION_STEPS:?missing_CAM_INTEGRATION_STEPS}"; if [[ ! "$$seed" =~ ^[A-Za-z0-9_.:-]{1,128}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_SEED must be 1-128 URL-safe label characters.' >&2; exit 2; fi; if [[ ! "$$runs" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_RUNS must be a positive decimal integer under 10000.' >&2; exit 2; fi; if [[ ! "$$steps" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_STEPS must be a positive decimal integer under 10000.' >&2; exit 2; fi
+VIEWER_TERMINAL_MOCK_GUARD := if [[ ! "$${VIEWER_TERMINAL_MOCK:?missing_VIEWER_TERMINAL_MOCK}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then printf '%s\n' 'VIEWER_TERMINAL_MOCK must be a mock name, not a path or shell expression.' >&2; exit 2; fi
 # Intentional default: cleanup handlers intentionally ignore Compose teardown
 # failure so the user sees the primary lane failure. Do not use this outside
 # best-effort cleanup paths where the original status is preserved separately.
@@ -378,6 +380,7 @@ cam-publication-preflight-check:
 
 viewer-terminal-check:
 	@$(LANE_GUARD); \
+	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm -T viewer-terminal-check
 
@@ -389,6 +392,7 @@ cam-integration-fuzz-check:
 
 viewer-terminal:
 	@$(LANE_GUARD); \
+	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	if $(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all --quiet viewer-terminal | grep -q .; then \
 	  printf 'Viewer terminal container already exists: %s\n' "$(VIEWER_TERMINAL_CONTAINER_NAME)" >&2; \
@@ -399,14 +403,17 @@ viewer-terminal:
 
 viewer-terminal-status:
 	@$(LANE_GUARD); \
+	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all viewer-terminal
 
 viewer-terminal-attach:
 	@$(LANE_GUARD); \
+	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml attach viewer-terminal
 
 viewer-terminal-down:
 	@$(LANE_GUARD); \
+	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml $(COMPOSE_DOWN_CLEANUP)
 
 checks:
