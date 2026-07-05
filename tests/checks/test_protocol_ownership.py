@@ -22,6 +22,9 @@ CAM_CONFORMANCE_RULE_DESCRIPTOR_RE = re.compile(
 TS_STRING_PROPERTY_RE = r"(?:\b{name}|[\"']{name}[\"'])\s*:\s*[\"'](?P<value>[^\"']*)[\"']"
 ABI_DYNAMIC_ARRAY_SYNTAX_RE = re.compile(r"\.endsWith\(\s*[\"']\[\][\"']\s*\)|\btype\.slice\(\s*0,\s*-2\s*\)")
 EXPRESSION_SYNTAX_MESSAGE_RE = re.compile(r"invalid expression syntax:")
+PROTOCOL_FACT_EXPORT_RE = re.compile(
+    r"\b(?:collectCam[A-Za-z]+Fact|CamFact(?:Diagnostic(?:Code)?|Result)|Cam[A-Za-z]+Fact)\b"
+)
 
 
 class ProtocolOwnershipTest(unittest.TestCase):
@@ -130,6 +133,31 @@ class ProtocolOwnershipTest(unittest.TestCase):
                 for match in pattern.finditer(text):
                     line_number = text.count("\n", 0, match.start()) + 1
                     failures.append(f"{path}:{line_number}: {label} is protocol-owned; {message}")
+
+        if failures:
+            self.fail("\n".join(failures))
+
+    def test_protocol_facts_stay_root_exported_and_narrowly_consumed(self) -> None:
+        allowed_consumers = {"cam-protocol", "cam-core", "cam-conformance"}
+        failures: list[str] = []
+
+        for path in [*self.package_source_files(), *self.package_test_files(), *self.app_source_files()]:
+            text = read_text(path)
+            package_name = ""
+            if repo_path("js/packages") in path.parents:
+                package_name = self.package_root(path).name
+            for specifier, line_number in self.module_specifiers(text):
+                if specifier.startswith("@cam/protocol/"):
+                    failures.append(f"{path}:{line_number}: protocol facts must be consumed through @cam/protocol root exports")
+                if specifier != "@cam/protocol" and not self.relative_import_resolves_to_protocol_facts(path, specifier):
+                    continue
+                if not PROTOCOL_FACT_EXPORT_RE.search(self.import_statement_at_line(text, line_number)):
+                    continue
+                if package_name not in allowed_consumers:
+                    failures.append(
+                        f"{path}:{line_number}: protocol facts are provisional; "
+                        f"allowed consumers: {', '.join(sorted(allowed_consumers))}"
+                    )
 
         if failures:
             self.fail("\n".join(failures))
@@ -358,6 +386,14 @@ class ProtocolOwnershipTest(unittest.TestCase):
         target = (importer.parent / specifier).resolve()
         return target == source_root or source_root in target.parents
 
+    def relative_import_resolves_to_protocol_facts(self, importer: Path, specifier: str) -> bool:
+        if not specifier.startswith("."):
+            return False
+
+        target = (importer.parent / specifier).resolve()
+        facts_root = repo_path("js/packages/cam-protocol/src/facts").resolve()
+        return target == facts_root or facts_root in target.parents
+
     def source_root(self, path: Path) -> Path:
         if repo_path("js/packages") in path.parents:
             return self.package_root(path) / "src"
@@ -370,6 +406,17 @@ class ProtocolOwnershipTest(unittest.TestCase):
     def package_root(self, path: Path) -> Path:
         package_name = path.relative_to(repo_path("js/packages")).parts[0]
         return repo_path("js/packages") / package_name
+
+    def import_statement_at_line(self, text: str, line_number: int) -> str:
+        lines = text.splitlines()
+        index = line_number - 1
+        statement: list[str] = []
+        while index < len(lines):
+            statement.append(lines[index])
+            if " from " in lines[index] or lines[index].strip().endswith('"') or lines[index].strip().endswith("'"):
+                break
+            index += 1
+        return "\n".join(statement)
 
     def path_is_under(self, path: Path, root: Path) -> bool:
         return path == root or root in path.parents

@@ -2,13 +2,12 @@ import { createHash } from "node:crypto"
 import {
   CamResourceIntegrityError,
   assertCamResourceSize,
-  assertCamSecondaryResourceURI,
-  camNamespaceResourceURIKey,
-  isCamResourceNamespaceType,
+  collectCamResourceDeclarationFacts,
   verifySha256ResourceIntegrity,
 } from "@cam/protocol"
 import type {
-  CamResourceNamespaceType,
+  CamFactDiagnostic,
+  CamResourceDeclarationFact,
 } from "@cam/protocol"
 
 import {
@@ -20,43 +19,26 @@ import type {
   DeclaredNamespace,
 } from "../manifest/namespaces.ts"
 import {
-  nonEmptyString,
-} from "../walk.ts"
-import {
   RESOURCE_RULES,
 } from "./rules.ts"
 
 type ResourceRule = (typeof RESOURCE_RULES)[keyof typeof RESOURCE_RULES]
 
-export type ResourceDeclaration = {
-  readonly namespace: string
-  readonly namespaceType: CamResourceNamespaceType
-  readonly uri: string
-  readonly integrity: string
-  readonly uriPath: string
-  readonly integrityPath: string
-}
+export type ResourceDeclaration = CamResourceDeclarationFact
 
 export function declaredResources({
-  resource,
   namespaces,
   issues,
 }: {
-  readonly resource: string
   readonly namespaces: readonly DeclaredNamespace[]
   readonly issues: CamConformanceIssue[]
 }): readonly ResourceDeclaration[] {
-  const declarations: ResourceDeclaration[] = []
-  for (const namespace of namespaces) {
-    collectNamespaceResource({
-      declarations,
-      issues,
-      resource,
-      namespace,
-    })
+  const result = collectCamResourceDeclarationFacts(namespaces)
+  for (const diagnostic of result.diagnostics) {
+    issues.push(resourceFactDiagnosticIssue(diagnostic))
   }
 
-  return declarations
+  return result.declarations
 }
 
 export function validateDeclaredResources({
@@ -165,99 +147,12 @@ function reportIntegrityConflicts(
   }
 }
 
-function collectNamespaceResource({
-  declarations,
-  issues,
-  resource,
-  namespace,
-}: {
-  readonly declarations: ResourceDeclaration[]
-  readonly issues: CamConformanceIssue[]
-  readonly resource: string
-  readonly namespace: DeclaredNamespace
-}): void {
-  if (!isCamResourceNamespaceType(namespace.type)) return
-  const uriKey = camNamespaceResourceURIKey(namespace.type)
-
-  const basePath = `namespaces.${namespace.name}`
-  const declaredURI = nonEmptyString(namespace.declaration[uriKey])
-  const declaredIntegrity = nonEmptyString(namespace.declaration.integrity)
-  if (declaredURI === undefined) {
-    issues.push(resourceDeclarationIssue({
-      resource,
-      path: `${basePath}.${uriKey}`,
-      message: `CAM resource URI must be a non-empty string: ${namespace.name}`,
-    }))
-  }
-
-  if (declaredIntegrity === undefined) {
-    issues.push(resourceDeclarationIssue({
-      resource,
-      path: `${basePath}.integrity`,
-      message: `CAM resource integrity must be a non-empty string: ${namespace.name}`,
-    }))
-  }
-
-  if (declaredURI === undefined || declaredIntegrity === undefined) {
-    return
-  }
-  const uriIsValid = validateResourceURI({
-    resource,
-    path: `${basePath}.${uriKey}`,
-    uri: declaredURI,
-    issues,
-  })
-  if (!uriIsValid) {
-    return
-  }
-
-  declarations.push({
-    namespace: namespace.name,
-    namespaceType: namespace.type,
-    uri: declaredURI,
-    integrity: declaredIntegrity,
-    uriPath: `${basePath}.${uriKey}`,
-    integrityPath: `${basePath}.integrity`,
-  })
-}
-
-function validateResourceURI({
-  resource,
-  path,
-  uri,
-  issues,
-}: {
-  readonly resource: string
-  readonly path: string
-  readonly uri: string
-  readonly issues: CamConformanceIssue[]
-}): boolean {
-  return validateResourceRule({
-    issues,
-    action: () => assertCamSecondaryResourceURI(uri, path),
-    issue: (error) => issueFromError({
-      rule: RESOURCE_RULES.CAM_RESOURCE_DECLARATION_INVALID,
-      resource,
-      path,
-      error,
-    }),
-  })
-}
-
-function resourceDeclarationIssue({
-  resource,
-  path,
-  message,
-}: {
-  readonly resource: string
-  readonly path: string
-  readonly message: string
-}): CamConformanceIssue {
+function resourceFactDiagnosticIssue(diagnostic: CamFactDiagnostic): CamConformanceIssue {
   return conformanceIssue({
     rule: RESOURCE_RULES.CAM_RESOURCE_DECLARATION_INVALID,
-    resource,
-    path,
-    message,
+    resource: diagnostic.resource,
+    path: diagnostic.path,
+    message: diagnostic.message,
   })
 }
 

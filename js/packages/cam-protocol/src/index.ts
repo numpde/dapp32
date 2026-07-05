@@ -60,6 +60,20 @@ export type {
   InertValue,
 } from "./inert-value.ts"
 
+export {
+  collectCamNamespaceFacts,
+  collectCamResourceDeclarationFacts,
+  collectCamRootFact,
+} from "./facts/index.ts"
+export type {
+  CamFactDiagnostic,
+  CamFactDiagnosticCode,
+  CamFactResult,
+  CamNamespaceFact,
+  CamResourceDeclarationFact,
+  CamRootFact,
+} from "./facts/index.ts"
+
 export type {
   CamRuntimeContext,
 } from "./runtime-context.ts"

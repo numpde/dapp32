@@ -23,6 +23,9 @@ import {
   CAM_ROUTE_KINDS,
   CAM_WRITE_ROUTE_THEN_NAMESPACE_TYPES,
   CAM_ROUTE_CONTEXT_KEYS,
+  collectCamNamespaceFacts,
+  collectCamResourceDeclarationFacts,
+  collectCamRootFact,
   collectExpressionReferences,
   CAM_VERSION,
   diffNameSets,
@@ -115,6 +118,131 @@ test("owns manifest namespace and route vocabularies", () => {
   assert.deepEqual([...CAM_WRITE_ROUTE_THEN_NAMESPACE_TYPES], ["routes"])
   assert.equal(camRouteThenNamespaceTypes("read"), CAM_READ_ROUTE_THEN_NAMESPACE_TYPES)
   assert.equal(camRouteThenNamespaceTypes("write"), CAM_WRITE_ROUTE_THEN_NAMESPACE_TYPES)
+})
+
+test("collects CAM root, namespace, and resource declaration facts", () => {
+  const root = {
+    cam: CAM_VERSION,
+    entry: "main",
+    namespaces: {
+      "contracts.App": {
+        type: "contract",
+        abiURI: "./abi/App.json",
+        integrity: "sha256:fixture",
+      },
+      routes: {
+        type: "routes",
+      },
+      ui: {
+        type: "ui",
+        uri: "./ui/main.json",
+        integrity: "sha256:ui",
+      },
+    },
+    extra: true,
+  }
+  const rootResult = collectCamRootFact(root, { resource: "cam" })
+
+  assert.equal(rootResult.value?.version, CAM_VERSION)
+  assert.deepEqual(rootResult.diagnostics, [{
+    code: "CAM_FACT_ROOT_FIELD_UNKNOWN",
+    resource: "cam",
+    message: `field is not allowed in CAM ${CAM_VERSION}: extra`,
+    path: "extra",
+  }])
+
+  const namespaceResult = collectCamNamespaceFacts(rootResult.value!)
+  assert.deepEqual(namespaceResult.diagnostics, [])
+  assert.deepEqual(
+    namespaceResult.namespaces.map((namespace) => [namespace.name, namespace.type, namespace.path]),
+    [
+      ["contracts.App", "contract", "namespaces.contracts.App"],
+      ["routes", "routes", "namespaces.routes"],
+      ["ui", "ui", "namespaces.ui"],
+    ],
+  )
+
+  const resourceResult = collectCamResourceDeclarationFacts(namespaceResult.namespaces)
+  assert.deepEqual(resourceResult.diagnostics, [])
+  assert.deepEqual(resourceResult.declarations.map((declaration) => ({
+    sourceResource: declaration.sourceResource,
+    namespace: declaration.namespace,
+    namespaceType: declaration.namespaceType,
+    uri: declaration.uri,
+    integrity: declaration.integrity,
+    uriPath: declaration.uriPath,
+    integrityPath: declaration.integrityPath,
+  })), [
+    {
+      sourceResource: "cam",
+      namespace: "contracts.App",
+      namespaceType: "contract",
+      uri: "./abi/App.json",
+      integrity: "sha256:fixture",
+      uriPath: "namespaces.contracts.App.abiURI",
+      integrityPath: "namespaces.contracts.App.integrity",
+    },
+    {
+      sourceResource: "cam",
+      namespace: "ui",
+      namespaceType: "ui",
+      uri: "./ui/main.json",
+      integrity: "sha256:ui",
+      uriPath: "namespaces.ui.uri",
+      integrityPath: "namespaces.ui.integrity",
+    },
+  ])
+})
+
+test("collects ordered CAM fact diagnostics without conformance policy", () => {
+  assert.deepEqual(collectCamRootFact(null, { resource: "cam" }), {
+    diagnostics: [{
+      code: "CAM_FACT_ROOT_NOT_OBJECT",
+      resource: "cam",
+      message: "CAM root document must be a JSON object",
+    }],
+  })
+  assert.deepEqual(collectCamRootFact({ cam: "2.0.0", extra: true }, { resource: "cam" }), {
+    diagnostics: [{
+      code: "CAM_FACT_ROOT_VERSION_INVALID",
+      resource: "cam",
+      message: "unsupported CAM version: 2.0.0",
+      path: "cam",
+    }],
+  })
+
+  const namespaceRoot = collectCamRootFact({
+    cam: CAM_VERSION,
+    namespaces: {
+      "": { type: "ui" },
+      bad: null,
+      unknown: { type: "widget" },
+      routesWrong: { type: "routes" },
+      "contracts.App": { type: "contract", abiURI: "../bad.json", integrity: "sha256:fixture" },
+      ui: { type: "ui", uri: "../bad.json", integrity: "" },
+    },
+  }, { resource: "cam" }).value!
+  const namespaceResult = collectCamNamespaceFacts(namespaceRoot)
+  assert.deepEqual(namespaceResult.diagnostics.map((diagnostic) => [
+    diagnostic.code,
+    diagnostic.path,
+    diagnostic.message,
+  ]), [
+    ["CAM_FACT_NAMESPACE_NAME_EMPTY", "namespaces", "namespace name must not be empty"],
+    ["CAM_FACT_NAMESPACE_NOT_OBJECT", "namespaces.bad", "namespace must be an object: bad"],
+    ["CAM_FACT_NAMESPACE_TYPE_INVALID", "namespaces.unknown.type", "unknown namespace type: widget"],
+    ["CAM_FACT_NAMESPACE_NAME_INVALID", "namespaces.routesWrong", "routes namespace must be named routes"],
+  ])
+
+  const resourceResult = collectCamResourceDeclarationFacts(namespaceResult.namespaces)
+  assert.deepEqual(resourceResult.diagnostics.map((diagnostic) => [
+    diagnostic.code,
+    diagnostic.path,
+    diagnostic.message,
+  ]), [
+    ["CAM_FACT_RESOURCE_URI_INVALID", "namespaces.contracts.App.abiURI", "namespaces.contracts.App.abiURI: CAM resource URI must be local ./... or ipfs://<CID>[...]: ../bad.json"],
+    ["CAM_FACT_RESOURCE_INTEGRITY_INVALID", "namespaces.ui.integrity", "CAM resource integrity must be a non-empty string: ui"],
+  ])
 })
 
 test("owns CAM-supported ABI scalar grammar", () => {

@@ -1,7 +1,8 @@
 import {
-  CAM_VERSION,
-  CAM_MANIFEST_TOP_LEVEL_KEYS,
-  isRecordObject,
+  collectCamRootFact,
+} from "@cam/protocol"
+import type {
+  CamFactDiagnostic,
 } from "@cam/protocol"
 
 import {
@@ -34,40 +35,37 @@ export function validateRootManifest({
   readonly root: unknown
   readonly issues: CamConformanceIssue[]
 }): boolean {
-  if (!isRecordObject(root)) {
-    issues.push(conformanceIssue({
-      rule: RULES.CAM_MANIFEST_ROOT_INVALID,
-      resource,
-      message: "CAM root document must be a JSON object",
-    }))
-    return false
+  const result = collectCamRootFact(root, { resource })
+  for (const diagnostic of result.diagnostics) {
+    issues.push(rootFactDiagnosticIssue(diagnostic))
   }
-
-  if (!validateRootVersion(resource, root.cam, issues)) {
-    return false
-  }
-  for (const key of Object.keys(root)) {
-    if (CAM_MANIFEST_TOP_LEVEL_KEYS.has(key)) continue
-    issues.push(conformanceIssue({
-      rule: RULES.CAM_MANIFEST_FIELD_UNKNOWN,
-      resource,
-      path: key,
-      message: `field is not allowed in CAM ${CAM_VERSION}: ${key}`,
-    }))
-  }
-  return true
+  return result.value !== undefined
 }
 
-function validateRootVersion(resource: string, version: unknown, issues: CamConformanceIssue[]): boolean {
-  if (version === CAM_VERSION) return true
-
-  issues.push(conformanceIssue({
-    rule: RULES.CAM_MANIFEST_VERSION_INVALID,
-    resource,
-    path: "cam",
-    message: typeof version === "string" && version.length > 0
-      ? `unsupported CAM version: ${version}`
-      : `CAM version must be ${CAM_VERSION}`,
-  }))
-  return false
+function rootFactDiagnosticIssue(diagnostic: CamFactDiagnostic): CamConformanceIssue {
+  switch (diagnostic.code) {
+    case "CAM_FACT_ROOT_NOT_OBJECT":
+      return conformanceIssue({
+        rule: RULES.CAM_MANIFEST_ROOT_INVALID,
+        resource: diagnostic.resource,
+        path: diagnostic.path,
+        message: diagnostic.message,
+      })
+    case "CAM_FACT_ROOT_VERSION_INVALID":
+      return conformanceIssue({
+        rule: RULES.CAM_MANIFEST_VERSION_INVALID,
+        resource: diagnostic.resource,
+        path: diagnostic.path,
+        message: diagnostic.message,
+      })
+    case "CAM_FACT_ROOT_FIELD_UNKNOWN":
+      return conformanceIssue({
+        rule: RULES.CAM_MANIFEST_FIELD_UNKNOWN,
+        resource: diagnostic.resource,
+        path: diagnostic.path,
+        message: diagnostic.message,
+      })
+    default:
+      throw new Error(`unexpected CAM root fact diagnostic: ${diagnostic.code}`)
+  }
 }

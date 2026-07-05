@@ -81,7 +81,6 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     issues,
   })
   const declarations = declaredResources({
-    resource: bundle.rootURI,
     namespaces,
     issues,
   })
