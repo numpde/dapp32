@@ -61,6 +61,7 @@ export type {
 } from "./inert-value.ts"
 
 export {
+  collectCamInvocationFact,
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
   collectCamRootFact,
@@ -69,6 +70,7 @@ export type {
   CamFactDiagnostic,
   CamFactDiagnosticCode,
   CamFactResult,
+  CamInvocationFact,
   CamNamespaceFact,
   CamResourceDeclarationFact,
   CamRootFact,

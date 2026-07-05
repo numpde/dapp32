@@ -19,6 +19,13 @@ export type {
   CamResourceDeclarationFact,
 } from "./resources.ts"
 
+export {
+  collectCamInvocationFact,
+} from "./invocations.ts"
+export type {
+  CamInvocationFact,
+} from "./invocations.ts"
+
 export type {
   CamFactDiagnostic,
   CamFactDiagnosticCode,

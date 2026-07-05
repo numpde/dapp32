@@ -517,6 +517,46 @@ test("route invocations must target the correct namespace types", () => {
   ])
 })
 
+test("route invocations report structural namespace failures directly", () => {
+  const malformedIssues = validateEditedRoot<{
+    readonly routes: Record<string, unknown>
+  }>((root) => {
+    root.routes.entry = {
+      kind: "read",
+      inputs: [],
+      call: null,
+      then: null,
+    }
+  })
+  assert.deepEqual(issueLocations(malformedIssues), [
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.call"],
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then"],
+  ])
+
+  const namespaceIssues = validateEditedRoot<{
+    readonly routes: Record<string, unknown>
+  }>((root) => {
+    root.routes.entry = {
+      kind: "read",
+      inputs: [],
+      call: {
+        namespace: "",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "contracts.Missing",
+        function: "app",
+        args: {},
+      },
+    }
+  })
+  assert.deepEqual(issueLocations(namespaceIssues), [
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.call.namespace"],
+    ["CAM_ROUTE_INVOCATION_INVALID", "routes.entry.then.namespace"],
+  ])
+})
+
 test("route invocations require function names and named args", () => {
   const issues = validateEditedRoot<{
     readonly routes: Record<string, unknown>

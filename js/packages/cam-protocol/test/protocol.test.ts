@@ -23,6 +23,7 @@ import {
   CAM_ROUTE_KINDS,
   CAM_WRITE_ROUTE_THEN_NAMESPACE_TYPES,
   CAM_ROUTE_CONTEXT_KEYS,
+  collectCamInvocationFact,
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
   collectCamRootFact,
@@ -242,6 +243,193 @@ test("collects ordered CAM fact diagnostics without conformance policy", () => {
   ]), [
     ["CAM_FACT_RESOURCE_URI_POLICY_INVALID", "namespaces.contracts.App.abiURI", "namespaces.contracts.App.abiURI: CAM resource URI must be local ./... or ipfs://<CID>[...]: ../bad.json"],
     ["CAM_FACT_RESOURCE_INTEGRITY_INVALID", "namespaces.ui.integrity", "CAM resource integrity must be a non-empty string: ui"],
+  ])
+})
+
+test("collects valid route invocation facts", () => {
+  const namespaceTypes = new Map([
+    ["contracts.App", "contract"],
+    ["routes", "routes"],
+    ["ui", "ui"],
+  ] as const)
+
+  assert.deepEqual(collectCamInvocationFact({
+    resource: "cam",
+    path: "routes.entry.call",
+    invocation: {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        account: "$account.address",
+      },
+    },
+    namespaceTypes,
+    allowedNamespaceTypes: CAM_ROUTE_CALL_NAMESPACE_TYPES,
+    purpose: "route call",
+  }), {
+    value: {
+      resource: "cam",
+      path: "routes.entry.call",
+      namespace: "contracts.App",
+      namespaceType: "contract",
+      function: "viewEntry",
+      args: {
+        account: "$account.address",
+      },
+    },
+    diagnostics: [],
+  })
+
+  assert.deepEqual(collectCamInvocationFact({
+    resource: "cam",
+    path: "routes.entry.then",
+    invocation: {
+      namespace: "ui",
+      function: "app",
+      args: {
+        view: "$outputs.0",
+      },
+    },
+    namespaceTypes,
+    allowedNamespaceTypes: CAM_READ_ROUTE_THEN_NAMESPACE_TYPES,
+    purpose: "route continuation",
+  }), {
+    value: {
+      resource: "cam",
+      path: "routes.entry.then",
+      namespace: "ui",
+      namespaceType: "ui",
+      function: "app",
+      args: {
+        view: "$outputs.0",
+      },
+    },
+    diagnostics: [],
+  })
+
+  assert.deepEqual(collectCamInvocationFact({
+    resource: "cam",
+    path: "routes.save.then",
+    invocation: {
+      namespace: "routes",
+      function: "entry",
+      args: {},
+    },
+    namespaceTypes,
+    allowedNamespaceTypes: CAM_WRITE_ROUTE_THEN_NAMESPACE_TYPES,
+    purpose: "route continuation",
+  }), {
+    value: {
+      resource: "cam",
+      path: "routes.save.then",
+      namespace: "routes",
+      namespaceType: "routes",
+      function: "entry",
+      args: {},
+    },
+    diagnostics: [],
+  })
+})
+
+test("collects ordered route invocation diagnostics", () => {
+  const namespaceTypes = new Map([
+    ["contracts.App", "contract"],
+    ["routes", "routes"],
+    ["ui", "ui"],
+  ] as const)
+
+  const cases = [
+    {
+      invocation: null,
+      allowedNamespaceTypes: CAM_ROUTE_CALL_NAMESPACE_TYPES,
+      expected: [
+        ["CAM_FACT_INVOCATION_NOT_OBJECT", "routes.entry.call", "route call must be an object"],
+      ],
+    },
+    {
+      invocation: {
+        namespace: "",
+        function: "",
+        args: [],
+      },
+      allowedNamespaceTypes: CAM_ROUTE_CALL_NAMESPACE_TYPES,
+      expected: [
+        ["CAM_FACT_INVOCATION_FUNCTION_INVALID", "routes.entry.call.function", "route call function must be a non-empty string"],
+        ["CAM_FACT_INVOCATION_ARGS_INVALID", "routes.entry.call.args", "route call args must be an object"],
+        ["CAM_FACT_INVOCATION_NAMESPACE_INVALID", "routes.entry.call.namespace", "route call namespace must be a non-empty string"],
+      ],
+    },
+    {
+      invocation: {
+        namespace: "contracts.Missing",
+        function: "viewEntry",
+        args: {},
+      },
+      allowedNamespaceTypes: CAM_ROUTE_CALL_NAMESPACE_TYPES,
+      expected: [
+        ["CAM_FACT_INVOCATION_NAMESPACE_UNKNOWN", "routes.entry.call.namespace", "route call references unknown namespace: contracts.Missing"],
+      ],
+    },
+    {
+      invocation: {
+        namespace: "ui",
+        function: "viewEntry",
+        args: {},
+      },
+      allowedNamespaceTypes: CAM_ROUTE_CALL_NAMESPACE_TYPES,
+      expected: [
+        ["CAM_FACT_INVOCATION_NAMESPACE_TYPE_INVALID", "routes.entry.call.namespace", "route call references invalid ui namespace: ui"],
+      ],
+    },
+    {
+      invocation: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {
+          "": "$account.address",
+        },
+      },
+      allowedNamespaceTypes: CAM_ROUTE_CALL_NAMESPACE_TYPES,
+      expected: [
+        ["CAM_FACT_INVOCATION_ARG_NAME_INVALID", "routes.entry.call.args", "route call argument name must not be empty"],
+      ],
+    },
+  ] as const
+
+  for (const item of cases) {
+    const result = collectCamInvocationFact({
+      resource: "cam",
+      path: "routes.entry.call",
+      invocation: item.invocation,
+      namespaceTypes,
+      allowedNamespaceTypes: item.allowedNamespaceTypes,
+      purpose: "route call",
+    })
+    assert.equal(result.value, undefined)
+    assert.deepEqual(result.diagnostics.map((diagnostic) => [
+      diagnostic.code,
+      diagnostic.path,
+      diagnostic.message,
+    ]), item.expected)
+  }
+
+  assert.deepEqual(collectCamInvocationFact({
+    resource: "cam",
+    path: "routes.entry.then",
+    invocation: {
+      namespace: "routes",
+      function: "entry",
+      args: {},
+    },
+    namespaceTypes,
+    allowedNamespaceTypes: CAM_READ_ROUTE_THEN_NAMESPACE_TYPES,
+    purpose: "route continuation",
+  }).diagnostics.map((diagnostic) => [
+    diagnostic.code,
+    diagnostic.path,
+    diagnostic.message,
+  ]), [
+    ["CAM_FACT_INVOCATION_NAMESPACE_TYPE_INVALID", "routes.entry.then.namespace", "route continuation references invalid routes namespace: routes"],
   ])
 })
 

@@ -243,6 +243,102 @@ test("parseCam rejects route invocations with invalid namespace kinds", () => {
   )
 })
 
+test("parseCam rejects structurally invalid route invocations", () => {
+  const cases: readonly {
+    readonly route: "entry" | "registerComponent"
+    readonly edge: "call" | "then"
+    readonly value: unknown
+    readonly path: string
+  }[] = [
+    {
+      route: "entry",
+      edge: "call",
+      value: null,
+      path: "routes.entry.call",
+    },
+    {
+      route: "entry",
+      edge: "call",
+      value: {
+        namespace: "contracts.Missing",
+        function: "viewEntry",
+        args: {},
+      },
+      path: "routes.entry.call.namespace",
+    },
+    {
+      route: "entry",
+      edge: "then",
+      value: {
+        namespace: "routes",
+        function: "entry",
+        args: {},
+      },
+      path: "routes.entry.then.namespace",
+    },
+    {
+      route: "registerComponent",
+      edge: "then",
+      value: {
+        namespace: "ui",
+        function: "app",
+        args: {},
+      },
+      path: "routes.registerComponent.then.namespace",
+    },
+    {
+      route: "entry",
+      edge: "call",
+      value: {
+        namespace: BIKE_UI_NAMESPACE,
+        args: {},
+      },
+      path: "routes.entry.call.function",
+    },
+    {
+      route: "entry",
+      edge: "call",
+      value: {
+        namespace: BIKE_UI_NAMESPACE,
+        function: "viewEntry",
+        args: [],
+      },
+      path: "routes.entry.call.args",
+    },
+    {
+      route: "entry",
+      edge: "call",
+      value: {
+        namespace: BIKE_UI_NAMESPACE,
+        function: "viewEntry",
+        args: {
+          "": "$account.address",
+        },
+      },
+      path: "routes.entry.call.args",
+    },
+  ]
+
+  for (const item of cases) {
+    assert.throws(
+      () => parseCam({
+        ...mainJson,
+        routes: {
+          ...mainJson.routes,
+          [item.route]: {
+            ...mainJson.routes[item.route],
+            [item.edge]: item.value,
+          },
+        },
+      }),
+      (error) =>
+        error instanceof CamError
+        && error.code === "CAM_INVALID_FIELD"
+        && error.path === item.path,
+    )
+  }
+})
+
 test("parseCam enforces canonical namespace names and route kinds", () => {
   const namespaces = mainJson.namespaces as Record<string, unknown>
 

@@ -9,6 +9,7 @@ import {
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   CAM_VERSION,
   camRouteThenNamespaceTypes,
+  collectCamInvocationFact,
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
   collectCamRootFact,
@@ -31,6 +32,7 @@ import type {
   CamNamespaceFact,
   CamResourceDeclarationFact,
   CamRootFact,
+  CamNamespaceType,
   InertValue,
 } from "@cam/protocol"
 
@@ -218,21 +220,36 @@ function parseInvocation(
 ): CamInvocation {
   const source = requiredRecord(value, path)
   rejectUnknownCamFields(source, INVOCATION_KEYS, path)
-
-  const namespace = requiredNonEmptyString(source.namespace, `${path}.namespace`)
-  if (!hasOwn(namespaces, namespace)) {
-    throw new CamError("CAM_INVALID_FIELD", `invocation references unknown namespace: ${namespace}`, `${path}.namespace`)
+  const result = collectCamInvocationFact({
+    resource: "CAM root",
+    path,
+    invocation: source,
+    namespaceTypes: namespaceTypeMap(namespaces),
+    allowedNamespaceTypes,
+    purpose: path.endsWith(".call") ? "route call" : "route continuation",
+  })
+  const diagnostic = result.diagnostics[0]
+  if (diagnostic !== undefined) {
+    throw camErrorFromFactDiagnostic(diagnostic)
   }
-  const namespaceType = namespaces[namespace].type
-  if (!allowedNamespaceTypes.has(namespaceType)) {
-    throw new CamError("CAM_INVALID_FIELD", `invocation references invalid ${namespaceType} namespace: ${namespace}`, `${path}.namespace`)
+  const fact = result.value
+  if (fact === undefined) {
+    throw new CamError("CAM_INVALID_FIELD", "CAM invocation is not usable", path)
   }
 
   return {
-    namespace,
-    function: requiredNonEmptyString(source.function, `${path}.function`),
-    args: parseNamedArgs(requiredRecord(source.args, `${path}.args`), `${path}.args`),
+    namespace: fact.namespace,
+    function: fact.function,
+    args: parseNamedArgs(fact.args, `${path}.args`),
   }
+}
+
+function namespaceTypeMap(namespaces: Record<string, CamNamespace>): ReadonlyMap<string, CamNamespaceType> {
+  const namespaceTypes = new Map<string, CamNamespaceType>()
+  for (const [name, namespace] of Object.entries(namespaces)) {
+    namespaceTypes.set(name, namespace.type)
+  }
+  return namespaceTypes
 }
 
 function parseNamedArgs(source: Record<string, unknown>, path: string): Record<string, InertValue> {
@@ -280,6 +297,13 @@ function camErrorFromFactDiagnostic(diagnostic: CamFactDiagnostic): CamError {
     case "CAM_FACT_NAMESPACE_NAME_INVALID":
     case "CAM_FACT_RESOURCE_URI_INVALID":
     case "CAM_FACT_RESOURCE_INTEGRITY_INVALID":
+    case "CAM_FACT_INVOCATION_NOT_OBJECT":
+    case "CAM_FACT_INVOCATION_NAMESPACE_INVALID":
+    case "CAM_FACT_INVOCATION_NAMESPACE_UNKNOWN":
+    case "CAM_FACT_INVOCATION_NAMESPACE_TYPE_INVALID":
+    case "CAM_FACT_INVOCATION_FUNCTION_INVALID":
+    case "CAM_FACT_INVOCATION_ARGS_INVALID":
+    case "CAM_FACT_INVOCATION_ARG_NAME_INVALID":
       return new CamError("CAM_INVALID_FIELD", diagnostic.message, diagnostic.path)
   }
 }

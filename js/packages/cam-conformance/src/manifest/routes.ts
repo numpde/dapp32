@@ -2,6 +2,7 @@ import {
   CAM_ROUTE_CONTEXT_KEYS,
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
+  collectCamInvocationFact,
   collectExpressionReferences,
   isCamRouteKind,
   isExpressionIdentifier,
@@ -9,6 +10,7 @@ import {
 } from "@cam/protocol"
 import type {
   CamNamespaceType,
+  CamFactDiagnostic,
   CamRouteKind,
   ExpressionReferenceOccurrence,
 } from "@cam/protocol"
@@ -364,54 +366,34 @@ function validateInvocation({
   readonly purpose: string
   readonly issues: CamConformanceIssue[]
 }): DeclaredInvocation | undefined {
-  if (!isRecordObject(invocation)) {
-    issues.push(routeInvocationIssue(resource, path, `${purpose} must be an object`))
-    return undefined
+  const result = collectCamInvocationFact({
+    resource,
+    path,
+    invocation,
+    namespaceTypes: namespaces,
+    allowedNamespaceTypes: allowedTypes,
+    purpose,
+  })
+  for (const diagnostic of result.diagnostics) {
+    issues.push(invocationFactDiagnosticIssue(diagnostic))
   }
 
-  const functionName = invocation.function
-  if (typeof functionName !== "string" || functionName.length === 0) {
-    issues.push(routeInvocationIssue(resource, `${path}.function`, `${purpose} function must be a non-empty string`))
-  }
-
-  if (!isRecordObject(invocation.args)) {
-    issues.push(routeInvocationIssue(resource, `${path}.args`, `${purpose} args must be an object`))
-  }
-
-  const namespace = invocation.namespace
-  const namespacePath = `${path}.namespace`
-  if (typeof namespace !== "string" || namespace.length === 0) {
-    issues.push(routeInvocationIssue(resource, namespacePath, `${purpose} namespace must be a non-empty string`))
-    return undefined
-  }
-
-  const namespaceType = namespaces.get(namespace)
-  if (namespaceType === undefined) {
-    issues.push(routeInvocationIssue(resource, namespacePath, `${purpose} references unknown namespace: ${namespace}`))
-    return undefined
-  }
-
-  if (!allowedTypes.has(namespaceType)) {
-    issues.push(routeInvocationIssue(
-      resource,
-      namespacePath,
-      `${purpose} references invalid ${namespaceType} namespace: ${namespace}`,
-    ))
-  }
-
-  if (typeof functionName !== "string" || functionName.length === 0) return undefined
-  if (!isRecordObject(invocation.args)) return undefined
-  if (Object.hasOwn(invocation.args, "")) {
-    issues.push(routeInvocationIssue(resource, `${path}.args`, `${purpose} argument name must not be empty`))
-    return undefined
-  }
-  if (!allowedTypes.has(namespaceType)) return undefined
-
+  const fact = result.value
+  if (fact === undefined) return undefined
   return {
-    namespace,
-    function: functionName,
-    args: invocation.args,
+    namespace: fact.namespace,
+    function: fact.function,
+    args: fact.args,
   }
+}
+
+function invocationFactDiagnosticIssue(diagnostic: CamFactDiagnostic): CamConformanceIssue {
+  return conformanceIssue({
+    rule: RULES.CAM_ROUTE_INVOCATION_INVALID,
+    resource: diagnostic.resource,
+    path: diagnostic.path,
+    message: diagnostic.message,
+  })
 }
 
 function routeInputIssue(resource: string, path: string, message: string): CamConformanceIssue {
