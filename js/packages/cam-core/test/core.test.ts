@@ -207,6 +207,57 @@ test("enforces declared route inputs before resolving route calls", () => {
   )
 })
 
+test("parseCam rejects structurally invalid route input declarations", () => {
+  const cases: readonly {
+    readonly inputs: unknown
+    readonly path: string
+  }[] = [
+    {
+      inputs: null,
+      path: "routes.entry.inputs",
+    },
+    {
+      inputs: [""],
+      path: "routes.entry.inputs.0",
+    },
+    {
+      inputs: [1],
+      path: "routes.entry.inputs.0",
+    },
+    {
+      inputs: ["serial-number"],
+      path: "routes.entry.inputs.0",
+    },
+    {
+      inputs: ["serialNumber", "serialNumber"],
+      path: "routes.entry.inputs.1",
+    },
+    {
+      inputs: ["", "serial-number"],
+      path: "routes.entry.inputs.0",
+    },
+  ]
+
+  for (const item of cases) {
+    assert.throws(
+      () => parseCam({
+        ...mainJson,
+        routes: {
+          ...mainJson.routes,
+          entry: {
+            ...mainJson.routes.entry,
+            inputs: item.inputs,
+          },
+        },
+      }),
+      (error) =>
+        error instanceof CamError
+        && error.code === "CAM_INVALID_FIELD"
+        && error.path === item.path,
+    )
+  }
+})
+
 test("parseCam rejects route invocations with invalid namespace kinds", () => {
   assert.throws(
     () => parseCam({

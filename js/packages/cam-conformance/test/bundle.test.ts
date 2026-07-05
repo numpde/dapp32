@@ -310,7 +310,7 @@ test("invalid route input declarations are reported per input", () => {
   }>((root) => {
     root.routes.entry = {
       kind: "read",
-      inputs: ["serialNumber", "", "serial-number", "serialNumber"],
+      inputs: ["serialNumber", "", 1, "serial-number", "serialNumber"],
       call: {
         namespace: "contracts.App",
         function: "viewEntry",
@@ -330,6 +330,34 @@ test("invalid route input declarations are reported per input", () => {
     ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.1"],
     ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.2"],
     ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.3"],
+    ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs.4"],
+  ])
+})
+
+test("route input declarations must be arrays", () => {
+  const issues = validateEditedRoot<{
+    readonly routes: Record<string, unknown>
+  }>((root) => {
+    root.routes.entry = {
+      kind: "read",
+      inputs: null,
+      call: {
+        namespace: "contracts.App",
+        function: "viewEntry",
+        args: {},
+      },
+      then: {
+        namespace: "ui",
+        function: "app",
+        args: {
+          view: "$outputs.0",
+        },
+      },
+    }
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_INPUTS_INVALID", "routes.entry.inputs"],
   ])
 })
 

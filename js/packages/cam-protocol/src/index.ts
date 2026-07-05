@@ -65,6 +65,7 @@ export {
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
   collectCamRootFact,
+  collectCamRouteInputsFact,
 } from "./facts/index.ts"
 export type {
   CamFactDiagnostic,
@@ -73,6 +74,7 @@ export type {
   CamInvocationFact,
   CamNamespaceFact,
   CamResourceDeclarationFact,
+  CamRouteInputsFact,
   CamRootFact,
 } from "./facts/index.ts"
 

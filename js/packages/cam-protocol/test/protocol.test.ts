@@ -26,6 +26,7 @@ import {
   collectCamInvocationFact,
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
+  collectCamRouteInputsFact,
   collectCamRootFact,
   collectExpressionReferences,
   CAM_VERSION,
@@ -431,6 +432,71 @@ test("collects ordered route invocation diagnostics", () => {
   ]), [
     ["CAM_FACT_INVOCATION_NAMESPACE_TYPE_INVALID", "routes.entry.then.namespace", "route continuation references invalid routes namespace: routes"],
   ])
+})
+
+test("collects route input declaration facts", () => {
+  assert.deepEqual(collectCamRouteInputsFact({
+    resource: "cam",
+    path: "routes.entry.inputs",
+    routeName: "entry",
+    inputs: [],
+  }), {
+    value: {
+      resource: "cam",
+      path: "routes.entry.inputs",
+      inputs: [],
+    },
+    diagnostics: [],
+  })
+
+  assert.deepEqual(collectCamRouteInputsFact({
+    resource: "cam",
+    path: "routes.component.inputs",
+    routeName: "component",
+    inputs: ["serialNumber", "owner"],
+  }), {
+    value: {
+      resource: "cam",
+      path: "routes.component.inputs",
+      inputs: ["serialNumber", "owner"],
+    },
+    diagnostics: [],
+  })
+})
+
+test("collects ordered route input declaration diagnostics", () => {
+  const cases = [
+    {
+      inputs: null,
+      expected: [
+        ["CAM_FACT_ROUTE_INPUTS_NOT_ARRAY", "routes.entry.inputs", "route inputs must be an array: entry"],
+      ],
+    },
+    {
+      inputs: ["serialNumber", "", 1, "serial-number", "serialNumber"],
+      expected: [
+        ["CAM_FACT_ROUTE_INPUT_NAME_INVALID", "routes.entry.inputs.1", "route input name must be a non-empty string: entry"],
+        ["CAM_FACT_ROUTE_INPUT_NAME_INVALID", "routes.entry.inputs.2", "route input name must be a non-empty string: entry"],
+        ["CAM_FACT_ROUTE_INPUT_NAME_INVALID", "routes.entry.inputs.3", "route input name must be an expression identifier: serial-number"],
+        ["CAM_FACT_ROUTE_INPUT_NAME_DUPLICATE", "routes.entry.inputs.4", "duplicate route input name: serialNumber"],
+      ],
+    },
+  ] as const
+
+  for (const item of cases) {
+    const result = collectCamRouteInputsFact({
+      resource: "cam",
+      path: "routes.entry.inputs",
+      routeName: "entry",
+      inputs: item.inputs,
+    })
+    assert.equal(result.value, undefined)
+    assert.deepEqual(result.diagnostics.map((diagnostic) => [
+      diagnostic.code,
+      diagnostic.path,
+      diagnostic.message,
+    ]), item.expected)
+  }
 })
 
 test("owns CAM-supported ABI scalar grammar", () => {

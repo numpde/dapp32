@@ -26,6 +26,13 @@ export type {
   CamInvocationFact,
 } from "./invocations.ts"
 
+export {
+  collectCamRouteInputsFact,
+} from "./route-inputs.ts"
+export type {
+  CamRouteInputsFact,
+} from "./route-inputs.ts"
+
 export type {
   CamFactDiagnostic,
   CamFactDiagnosticCode,

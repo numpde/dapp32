@@ -3,6 +3,7 @@ import {
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
   collectCamInvocationFact,
+  collectCamRouteInputsFact,
   collectExpressionReferences,
   isCamRouteKind,
   isExpressionIdentifier,
@@ -185,36 +186,17 @@ function validateRouteInputList(
   issues: CamConformanceIssue[],
 ): readonly string[] | undefined {
   const path = `routes.${routeName}.inputs`
-  if (!Array.isArray(inputs)) {
-    issues.push(routeInputIssue(resource, path, `route inputs must be an array: ${routeName}`))
-    return undefined
+  const result = collectCamRouteInputsFact({
+    resource,
+    path,
+    routeName,
+    inputs,
+  })
+  for (const diagnostic of result.diagnostics) {
+    issues.push(routeInputFactDiagnosticIssue(diagnostic))
   }
 
-  const seen = new Set<string>()
-  const validatedInputs: string[] = []
-  for (const [index, input] of inputs.entries()) {
-    const itemPath = `${path}.${index}`
-    if (typeof input !== "string" || input.length === 0) {
-      issues.push(routeInputIssue(resource, itemPath, `route input name must be a non-empty string: ${routeName}`))
-      continue
-    }
-    if (!isExpressionIdentifier(input)) {
-      issues.push(routeInputIssue(resource, itemPath, `route input name must be an expression identifier: ${input}`))
-      continue
-    }
-
-    if (seen.has(input)) {
-      issues.push(routeInputIssue(resource, itemPath, `duplicate route input name: ${input}`))
-    }
-    seen.add(input)
-    validatedInputs.push(input)
-  }
-
-  if (validatedInputs.length !== inputs.length || seen.size !== inputs.length) {
-    return undefined
-  }
-
-  return validatedInputs
+  return result.value?.inputs
 }
 
 function validateRouteInvocations(
@@ -396,12 +378,12 @@ function invocationFactDiagnosticIssue(diagnostic: CamFactDiagnostic): CamConfor
   })
 }
 
-function routeInputIssue(resource: string, path: string, message: string): CamConformanceIssue {
+function routeInputFactDiagnosticIssue(diagnostic: CamFactDiagnostic): CamConformanceIssue {
   return conformanceIssue({
     rule: RULES.CAM_ROUTE_INPUTS_INVALID,
-    resource,
-    path,
-    message,
+    resource: diagnostic.resource,
+    path: diagnostic.path,
+    message: diagnostic.message,
   })
 }
 

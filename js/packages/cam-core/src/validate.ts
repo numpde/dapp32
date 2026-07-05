@@ -1,7 +1,6 @@
 import { CamError } from "./errors.ts"
 import { parseExpressionPayload } from "./expressions.ts"
 import {
-  requiredArray,
   requiredNonEmptyString,
   requiredRecord,
 } from "./guards.ts"
@@ -13,10 +12,10 @@ import {
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
   collectCamRootFact,
+  collectCamRouteInputsFact,
   createStringMap,
   hasOwn,
   isCamRouteKind,
-  isExpressionIdentifier,
 } from "@cam/protocol"
 import type {
   CamContractNamespace,
@@ -172,7 +171,7 @@ function parseRoutes(
 
     routes[name] = {
       kind,
-      inputs: parseInputNames(route.inputs, `${path}.inputs`),
+      inputs: parseInputNames(route.inputs, `${path}.inputs`, name),
       call,
       then,
     }
@@ -190,26 +189,22 @@ function parseRouteKind(value: unknown, path: string): CamRoute["kind"] {
   return kind
 }
 
-function parseInputNames(value: unknown, path: string): readonly string[] {
-  const source = requiredArray(value, path)
-  const names: string[] = []
-  const seen = new Set<string>()
-
-  for (const [index, item] of source.entries()) {
-    const itemPath = `${path}.${index}`
-    const name = requiredNonEmptyString(item, itemPath)
-    if (!isExpressionIdentifier(name)) {
-      throw new CamError("CAM_INVALID_FIELD", `input name must be an expression identifier: ${name}`, itemPath)
-    }
-    if (seen.has(name)) {
-      throw new CamError("CAM_INVALID_FIELD", `duplicate input name: ${name}`, itemPath)
-    }
-
-    seen.add(name)
-    names.push(name)
+function parseInputNames(value: unknown, path: string, routeName: string): readonly string[] {
+  const result = collectCamRouteInputsFact({
+    resource: "CAM root",
+    path,
+    routeName,
+    inputs: value,
+  })
+  const diagnostic = result.diagnostics[0]
+  if (diagnostic !== undefined) {
+    throw camErrorFromFactDiagnostic(diagnostic)
+  }
+  if (result.value === undefined) {
+    throw new CamError("CAM_INVALID_FIELD", "CAM route inputs are not usable", path)
   }
 
-  return names
+  return result.value.inputs
 }
 
 function parseInvocation(
@@ -304,6 +299,9 @@ function camErrorFromFactDiagnostic(diagnostic: CamFactDiagnostic): CamError {
     case "CAM_FACT_INVOCATION_FUNCTION_INVALID":
     case "CAM_FACT_INVOCATION_ARGS_INVALID":
     case "CAM_FACT_INVOCATION_ARG_NAME_INVALID":
+    case "CAM_FACT_ROUTE_INPUTS_NOT_ARRAY":
+    case "CAM_FACT_ROUTE_INPUT_NAME_INVALID":
+    case "CAM_FACT_ROUTE_INPUT_NAME_DUPLICATE":
       return new CamError("CAM_INVALID_FIELD", diagnostic.message, diagnostic.path)
   }
 }
