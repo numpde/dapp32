@@ -207,7 +207,9 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("BIKE_NFT_GUI_PORT must be an integer from 1 to 65535", makefile)
         self.assertIn("BIKE_NFT_GUI_BIND_HOST must be localhost or an IPv4 literal", makefile)
         self.assertIn("BIKE_NFT_GUI_ORIGIN must be an http(s) origin", makefile)
+        self.assertIn("BIKE_NFT_GUI_ORIGIN port must be an integer from 1 to 65535", makefile)
         self.assertIn("origin=\"$(BIKE_NFT_GUI_ORIGIN)\"", makefile)
+        self.assertIn("[^:/@", makefile)
         self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui"))
         self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui-down"))
 
