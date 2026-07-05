@@ -404,12 +404,46 @@ test("parseCam and protocol facts share root namespace resource declaration mean
   if (managerNamespace.type !== "contract") throw new Error("bike manager namespace must be a contract")
   if (uiContractNamespace.type !== "contract") throw new Error("bike UI contract namespace must be a contract")
   if (uiNamespace.type !== "ui") throw new Error("bike UI namespace must be ui")
+  const managerFact = namespaceResult.namespaces.find((namespace) => namespace.name === BIKE_MANAGER_NAMESPACE)
+  const uiContractFact = namespaceResult.namespaces.find((namespace) => namespace.name === BIKE_UI_NAMESPACE)
+  const uiFact = namespaceResult.namespaces.find((namespace) => namespace.name === "ui")
+  if (managerFact === undefined) throw new Error("bike manager namespace fact must exist")
+  if (uiContractFact === undefined) throw new Error("bike UI contract namespace fact must exist")
+  if (uiFact === undefined) throw new Error("bike UI namespace fact must exist")
   assert.deepEqual(
-    new Map(resourceResult.declarations.map((declaration) => [declaration.namespace, declaration.uri])),
-    new Map([
-      [BIKE_MANAGER_NAMESPACE, managerNamespace.abiURI],
-      [BIKE_UI_NAMESPACE, uiContractNamespace.abiURI],
-      ["ui", uiNamespace.uri],
-    ]),
+    resourceResult.declarations.map((declaration) => ({
+      namespace: declaration.namespace,
+      namespaceType: declaration.namespaceType,
+      uri: declaration.uri,
+      integrity: declaration.integrity,
+      uriPath: declaration.uriPath,
+      integrityPath: declaration.integrityPath,
+    })),
+    [
+      {
+        namespace: BIKE_UI_NAMESPACE,
+        namespaceType: "contract",
+        uri: uiContractNamespace.abiURI,
+        integrity: uiContractNamespace.integrity,
+        uriPath: `${uiContractFact.path}.abiURI`,
+        integrityPath: `${uiContractFact.path}.integrity`,
+      },
+      {
+        namespace: BIKE_MANAGER_NAMESPACE,
+        namespaceType: "contract",
+        uri: managerNamespace.abiURI,
+        integrity: managerNamespace.integrity,
+        uriPath: `${managerFact.path}.abiURI`,
+        integrityPath: `${managerFact.path}.integrity`,
+      },
+      {
+        namespace: "ui",
+        namespaceType: "ui",
+        uri: uiNamespace.uri,
+        integrity: uiNamespace.integrity,
+        uriPath: `${uiFact.path}.uri`,
+        integrityPath: `${uiFact.path}.integrity`,
+      },
+    ],
   )
 })
