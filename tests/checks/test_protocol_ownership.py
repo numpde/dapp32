@@ -146,6 +146,7 @@ class ProtocolOwnershipTest(unittest.TestCase):
             *self.package_test_files(),
             *self.app_source_files(),
             *self.tool_source_files(),
+            *self.shared_fixture_files(),
         ]:
             text = read_text(path)
             package_name = ""
@@ -395,6 +396,9 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
     def tool_source_files(self) -> list[Path]:
         return sorted(repo_path("js/tools").glob("**/*.ts"))
+
+    def shared_fixture_files(self) -> list[Path]:
+        return sorted(repo_path("tests/fixtures").glob("**/*.mts"))
 
     def current_protocol_version_fixture_patterns(self) -> tuple[re.Pattern[str], re.Pattern[str]]:
         return (
