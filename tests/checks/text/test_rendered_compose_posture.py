@@ -261,6 +261,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                     # This derived baseline prevents a new service from missing
                     # the basic container hardening posture entirely.
                     self.assert_hardened(config_service)
+                    self.assert_explicit_network_posture(config_service)
                     self.assertNotIn("privileged", config_service)
                     self.assertNotIn("cap_add", config_service)
                     self.assertNotIn("devices", config_service)
@@ -347,6 +348,14 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertNotEqual("0:0", config_service["user"])
         self.assertIn("pids_limit", config_service)
         self.assertIn("mem_limit", config_service)
+
+    def assert_explicit_network_posture(self, config_service: dict[str, Any]) -> None:
+        # Docker attaches services with neither field to an implicit default
+        # network. Every lane must choose: offline isolation or named network.
+        has_network_mode = "network_mode" in config_service
+        has_networks = "networks" in config_service
+        self.assertTrue(has_network_mode or has_networks)
+        self.assertFalse(has_network_mode and has_networks)
 
     def assert_no_published_ports(self, *config_services: dict[str, Any]) -> None:
         for config_service in config_services:
