@@ -25,7 +25,6 @@ import {
 } from "../../packages/cam-core/dist/index.js"
 import type {
   CamDocument,
-  CamRoute,
 } from "../../packages/cam-core/dist/index.js"
 import {
   createCamViewerSession,
@@ -38,18 +37,15 @@ import type {
 } from "../../packages/cam-viewer/dist/index.js"
 import {
   resolvedUiButtons,
-  resolvedUiInputNames,
 } from "../../packages/cam-screen/dist/index.js"
 import type {
   ResolvedButtonNode,
 } from "../../packages/cam-screen/dist/index.js"
 import {
   createSameOriginHttpResourceLoader,
-  toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
   InertRecord,
-  InertValue,
 } from "../../packages/cam-protocol/dist/index.js"
 import {
   emit,
@@ -67,13 +63,18 @@ import {
 import type {
   RunnerOptions,
 } from "./options.ts"
+import {
+  generatedRouteInputs,
+  generatedStatePatch,
+} from "./values.ts"
+import type {
+  ValueGenerationMode,
+} from "./values.ts"
 
 // Write-enabled fuzz is a CI gate, not an operator console; a stalled local
 // chain must fail with replay data instead of hanging the lane indefinitely.
 const RECEIPT_WAIT_TIMEOUT_MS = 20_000
 const RECEIPT_POLLING_INTERVAL_MS = 500
-
-type ValueGenerationMode = "broad" | "write-positive"
 
 type WriteContext =
   | { readonly kind: "simulate" }
@@ -179,7 +180,12 @@ async function main(): Promise<void> {
     host,
     account,
     allowUnsignedCamHash: options.descriptor.allowUnsignedCamHash,
-    initialInputs: generatedRouteInputs(loadedCam.cam.routes[loadedCam.cam.entry], account, prng, valueMode),
+    initialInputs: generatedRouteInputs({
+      route: loadedCam.cam.routes[loadedCam.cam.entry],
+      account,
+      prng,
+      mode: valueMode,
+    }),
     loadResource,
   })
   const entry = await session.load()
@@ -273,7 +279,12 @@ async function callEveryReadRoute({
 }): Promise<void> {
   for (const [routeName, route] of Object.entries(cam.routes)) {
     if (route.kind !== "read") continue
-    const inputs = generatedRouteInputs(route, account, prng, valueMode)
+    const inputs = generatedRouteInputs({
+      route,
+      account,
+      prng,
+      mode: valueMode,
+    })
 
     await callCamRoute({
       publicClient,
@@ -320,7 +331,12 @@ async function walkSession({
 
   for (let step = 0; step < steps; step++) {
     const before = requireLoadedSnapshot(session.snapshot())
-    const statePatch = generatedStatePatch(before, account, prng, valueMode)
+    const statePatch = generatedStatePatch({
+      snapshot: before,
+      account,
+      prng,
+      mode: valueMode,
+    })
     const current = Object.keys(statePatch).length === 0
       ? before
       : session.updateState(statePatch)
@@ -574,65 +590,6 @@ function snapshotSummary(snapshot: CamViewerLoadedSnapshot): JsonObject {
     values: snapshot.values,
     actions: actionSummaries(resolvedUiButtons(snapshot.resolvedUi)),
   }
-}
-
-function generatedRouteInputs(
-  route: CamRoute | undefined,
-  account: Address,
-  prng: Prng,
-  mode: ValueGenerationMode,
-): InertRecord {
-  if (route === undefined) {
-    throw new Error("cannot generate inputs for missing route")
-  }
-
-  const inputs: Record<string, InertValue> = {}
-  for (const name of route.inputs) {
-    inputs[name] = generatedNamedValue(name, account, prng, mode)
-  }
-
-  return toInertValue(inputs) as InertRecord
-}
-
-function generatedStatePatch(
-  snapshot: CamViewerSnapshot,
-  account: Address,
-  prng: Prng,
-  mode: ValueGenerationMode,
-): InertRecord {
-  const resolved = snapshot.resolvedUi
-  if (resolved === undefined) {
-    throw new Error("cannot generate state values without resolved UI")
-  }
-
-  const patch: Record<string, InertValue> = {}
-  for (const name of resolvedUiInputNames(resolved)) {
-    patch[name] = generatedNamedValue(name, account, prng, mode)
-  }
-
-  return toInertValue(patch) as InertRecord
-}
-
-function generatedNamedValue(name: string, account: Address, prng: Prng, mode: ValueGenerationMode): InertValue {
-  const lower = name.toLowerCase()
-  if (lower.includes("account") || lower.includes("owner") || lower.includes("address")) {
-    return account
-  }
-  if (lower.includes("uri")) {
-    return `fixture://cam-integration/${1 + prng.integer(3)}.json`
-  }
-  if (lower.includes("serial")) {
-    if (mode === "write-positive") {
-      return prng.pick(["CAM-TEST-001", "CAM-TEST-002"])
-    }
-    return prng.pick(["", "CAM-TEST-001", "CAM-TEST-002"])
-  }
-
-  if (mode === "write-positive") {
-    return prng.pick(["CAM-TEST-001", "1"])
-  }
-
-  return prng.pick(["", "CAM-TEST-001", "1"])
 }
 
 function assertResolvedSnapshot(snapshot: CamViewerSnapshot): void {
