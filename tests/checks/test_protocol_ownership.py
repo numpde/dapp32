@@ -141,7 +141,12 @@ class ProtocolOwnershipTest(unittest.TestCase):
         allowed_consumers = {"cam-protocol", "cam-core", "cam-conformance"}
         failures: list[str] = []
 
-        for path in [*self.package_source_files(), *self.package_test_files(), *self.app_source_files()]:
+        for path in [
+            *self.package_source_files(),
+            *self.package_test_files(),
+            *self.app_source_files(),
+            *self.tool_source_files(),
+        ]:
             text = read_text(path)
             package_name = ""
             if repo_path("js/packages") in path.parents:
@@ -151,6 +156,8 @@ class ProtocolOwnershipTest(unittest.TestCase):
                 if specifier.startswith("@cam/protocol/"):
                     failures.append(f"{path}:{line_number}: protocol facts must be consumed through @cam/protocol root exports")
                 if specifier == "@cam/protocol":
+                    imports_protocol_root = True
+                if self.imports_protocol_tool_entrypoint(specifier):
                     imports_protocol_root = True
                 if specifier != "@cam/protocol" and not self.relative_import_resolves_to_protocol_facts(path, specifier):
                     continue
@@ -386,6 +393,9 @@ class ProtocolOwnershipTest(unittest.TestCase):
             *repo_path("js/apps").glob("*/src/**/*.tsx"),
         ])
 
+    def tool_source_files(self) -> list[Path]:
+        return sorted(repo_path("js/tools").glob("**/*.ts"))
+
     def current_protocol_version_fixture_patterns(self) -> tuple[re.Pattern[str], re.Pattern[str]]:
         return (
             re.compile(rf"(?<![A-Za-z0-9_$])[\"']?cam[\"']?\s*:\s*[\"']{re.escape(protocol_document_version('CAM_VERSION'))}[\"']"),
@@ -404,6 +414,9 @@ class ProtocolOwnershipTest(unittest.TestCase):
         target = (importer.parent / specifier).resolve()
         facts_root = repo_path("js/packages/cam-protocol/src/facts").resolve()
         return target == facts_root or facts_root in target.parents
+
+    def imports_protocol_tool_entrypoint(self, specifier: str) -> bool:
+        return specifier.endswith("packages/cam-protocol/dist/index.js")
 
     def source_root(self, path: Path) -> Path:
         if repo_path("js/packages") in path.parents:
