@@ -208,7 +208,9 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("BIKE_NFT_GUI_BIND_HOST must be localhost or an IPv4 literal", makefile)
         self.assertIn("BIKE_NFT_GUI_ORIGIN must be an http(s) origin", makefile)
         self.assertIn("BIKE_NFT_GUI_ORIGIN port must be an integer from 1 to 65535", makefile)
-        self.assertIn("origin=\"$(BIKE_NFT_GUI_ORIGIN)\"", makefile)
+        self.assertIn("export ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORIGIN", makefile)
+        self.assertIn('origin="$${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}"', makefile)
+        self.assertNotIn('origin="$(BIKE_NFT_GUI_ORIGIN)"', makefile)
         self.assertIn("[^:/@", makefile)
         self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui"))
         self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui-down"))
@@ -219,6 +221,8 @@ class RepositoryHygieneTest(unittest.TestCase):
         # The host Anvil lane publishes a loopback RPC port. Validate the
         # operator-provided port before Compose interpolation.
         self.assertIn("ANVIL_HOST_PORT must be an integer from 1 to 65535", makefile)
+        self.assertIn('port="$${ANVIL_HOST_PORT:?missing_ANVIL_HOST_PORT}"', makefile)
+        self.assertNotIn('port="$(ANVIL_HOST_PORT)"', makefile)
         self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil-host"))
         self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil-down"))
 
