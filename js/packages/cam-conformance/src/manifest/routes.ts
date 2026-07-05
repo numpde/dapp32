@@ -414,15 +414,6 @@ function routeDeclarationIssue(resource: string, path: string, message: string):
   })
 }
 
-function routeInvocationIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return conformanceIssue({
-    rule: RULES.CAM_ROUTE_INVOCATION_INVALID,
-    resource,
-    path,
-    message,
-  })
-}
-
 function routeExpressionIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
     rule: RULES.CAM_ROUTE_EXPRESSION_INVALID,

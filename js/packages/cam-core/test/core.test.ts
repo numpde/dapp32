@@ -339,6 +339,29 @@ test("parseCam rejects structurally invalid route invocations", () => {
   }
 })
 
+test("parseCam gives invocation fact diagnostic order precedence for mixed-invalid invocations", () => {
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      routes: {
+        ...mainJson.routes,
+        entry: {
+          ...mainJson.routes.entry,
+          call: {
+            namespace: "",
+            function: "",
+            args: [],
+          },
+        },
+      },
+    }),
+    (error) =>
+      error instanceof CamError
+      && error.code === "CAM_INVALID_FIELD"
+      && error.path === "routes.entry.call.function",
+  )
+})
+
 test("parseCam enforces canonical namespace names and route kinds", () => {
   const namespaces = mainJson.namespaces as Record<string, unknown>
 
