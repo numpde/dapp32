@@ -240,7 +240,7 @@ test("collects ordered CAM fact diagnostics without conformance policy", () => {
     diagnostic.path,
     diagnostic.message,
   ]), [
-    ["CAM_FACT_RESOURCE_URI_INVALID", "namespaces.contracts.App.abiURI", "namespaces.contracts.App.abiURI: CAM resource URI must be local ./... or ipfs://<CID>[...]: ../bad.json"],
+    ["CAM_FACT_RESOURCE_URI_POLICY_INVALID", "namespaces.contracts.App.abiURI", "namespaces.contracts.App.abiURI: CAM resource URI must be local ./... or ipfs://<CID>[...]: ../bad.json"],
     ["CAM_FACT_RESOURCE_INTEGRITY_INVALID", "namespaces.ui.integrity", "CAM resource integrity must be a non-empty string: ui"],
   ])
 })

@@ -81,7 +81,7 @@ function collectCamResourceDeclarationFact(
   } catch (error) {
     uriIsValid = false
     diagnostics.push(resourceDiagnostic({
-      code: "CAM_FACT_RESOURCE_URI_INVALID",
+      code: "CAM_FACT_RESOURCE_URI_POLICY_INVALID",
       namespace,
       path: uriPath,
       message: error instanceof Error ? error.message : String(error),
@@ -112,7 +112,10 @@ function resourceDiagnostic({
   path,
   message,
 }: {
-  readonly code: "CAM_FACT_RESOURCE_URI_INVALID" | "CAM_FACT_RESOURCE_INTEGRITY_INVALID"
+  readonly code:
+    | "CAM_FACT_RESOURCE_URI_INVALID"
+    | "CAM_FACT_RESOURCE_URI_POLICY_INVALID"
+    | "CAM_FACT_RESOURCE_INTEGRITY_INVALID"
   readonly namespace: CamNamespaceFact
   readonly path: string
   readonly message: string
