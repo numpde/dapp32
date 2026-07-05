@@ -29,6 +29,25 @@ class HttpsEgressProxyTest(unittest.TestCase):
         with self.assertRaisesRegex(self.proxy.ProxyRejected, "not allowlisted"):
             self.proxy.require_allowed_host("registry.npmjs.org.evil.test", hosts)
 
+    def test_connect_targets_must_be_host_port_without_http_syntax(self) -> None:
+        with self.assertRaisesRegex(self.proxy.ProxyRejected, "must use port 443"):
+            self.proxy.parse_connect_target("registry.npmjs.org:80")
+
+        with self.assertRaisesRegex(self.proxy.ProxyRejected, "missing a host"):
+            self.proxy.parse_connect_target(":443")
+
+        with self.assertRaisesRegex(self.proxy.ProxyRejected, "invalid characters"):
+            self.proxy.parse_connect_target("registry.npmjs.org\n:443")
+
+    def test_resolve_global_addresses_rejects_private_dns_answers(self) -> None:
+        with mock.patch.object(
+            self.proxy.socket,
+            "getaddrinfo",
+            return_value=[(self.proxy.socket.AF_INET, None, None, "", ("192.168.1.10", 443))],
+        ):
+            with self.assertRaisesRegex(self.proxy.ProxyRejected, "non-global address"):
+                self.proxy.resolve_global_addresses("registry.npmjs.org", 443)
+
 
 def load_https_egress_proxy_module():
     return import_python_module_with_env(
