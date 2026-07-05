@@ -199,6 +199,18 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn('-L "$$path"', recipe)
         self.assertIn("RPC_URL_FILE must not pass through a symlink", recipe)
 
+    def test_gui_published_bind_is_guarded_before_docker(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+
+        # The GUI lane publishes a host port. Validate operator-provided bind
+        # fields before Compose interpolation can reinterpret malformed values.
+        self.assertIn("BIKE_NFT_GUI_PORT must be an integer from 1 to 65535", makefile)
+        self.assertIn("BIKE_NFT_GUI_BIND_HOST must be localhost or an IPv4 literal", makefile)
+        self.assertIn("BIKE_NFT_GUI_ORIGIN must be an http(s) origin", makefile)
+        self.assertIn("origin=\"$(BIKE_NFT_GUI_ORIGIN)\"", makefile)
+        self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui"))
+        self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui-down"))
+
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
