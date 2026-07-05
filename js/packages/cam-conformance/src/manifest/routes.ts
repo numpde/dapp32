@@ -1,19 +1,16 @@
 import {
-  CAM_ROUTE_CONTEXT_KEYS,
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
   collectCamInvocationFact,
+  collectCamRouteExpressionDiagnostics,
   collectCamRouteInputsFact,
-  collectExpressionReferences,
   isCamRouteKind,
-  isExpressionIdentifier,
   isRecordObject,
 } from "@cam/protocol"
 import type {
   CamNamespaceType,
   CamFactDiagnostic,
   CamRouteKind,
-  ExpressionReferenceOccurrence,
 } from "@cam/protocol"
 
 import {
@@ -250,85 +247,36 @@ function validateRouteExpressionReferences({
   readonly issues: CamConformanceIssue[]
 }): void {
   const declaredInputs = new Set(inputs)
-  for (
-    const occurrence of collectExpressionReferences(
-      callArgs,
-      { numericSegments: true },
-      `routes.${routeName}.call.args`,
-    )
-  ) {
-    validateRouteExpressionOccurrence({
-      resource,
-      occurrence,
-      declaredInputs,
-      allowOutputs: false,
-      outputErrorMessage: "route call arguments cannot reference outputs before the call runs",
-      issues,
-    })
+  for (const diagnostic of collectCamRouteExpressionDiagnostics({
+    resource,
+    value: callArgs,
+    path: `routes.${routeName}.call.args`,
+    declaredInputs,
+    allowOutputs: false,
+    outputUnavailableMessage: "route call arguments cannot reference outputs before the call runs",
+  })) {
+    issues.push(routeExpressionFactDiagnosticIssue(diagnostic))
   }
-  for (
-    const occurrence of collectExpressionReferences(
-      thenArgs,
-      { numericSegments: true },
-      `routes.${routeName}.then.args`,
-    )
-  ) {
-    validateRouteExpressionOccurrence({
-      resource,
-      occurrence,
-      declaredInputs,
-      allowOutputs: kind === "read",
-      outputErrorMessage: "write route continuations cannot reference transaction outputs",
-      issues,
-    })
+
+  for (const diagnostic of collectCamRouteExpressionDiagnostics({
+    resource,
+    value: thenArgs,
+    path: `routes.${routeName}.then.args`,
+    declaredInputs,
+    allowOutputs: kind === "read",
+    outputUnavailableMessage: "write route continuations cannot reference transaction outputs",
+  })) {
+    issues.push(routeExpressionFactDiagnosticIssue(diagnostic))
   }
 }
 
-function validateRouteExpressionOccurrence({
-  resource,
-  occurrence,
-  declaredInputs,
-  allowOutputs,
-  outputErrorMessage,
-  issues,
-}: {
-  readonly resource: string
-  readonly occurrence: ExpressionReferenceOccurrence
-  readonly declaredInputs: ReadonlySet<string>
-  readonly allowOutputs: boolean
-  readonly outputErrorMessage: string
-  readonly issues: CamConformanceIssue[]
-}): void {
-  const path = occurrence.path
-  if (occurrence.syntaxError !== undefined) {
-    issues.push(routeExpressionIssue(resource, path, occurrence.syntaxError))
-    return
-  }
-
-  const reference = occurrence.reference
-  if (reference === undefined) return
-
-  const { root, segments } = reference
-  const firstSegment = segments[0]
-  if (!CAM_ROUTE_CONTEXT_KEYS.has(root)) {
-    issues.push(routeExpressionIssue(resource, path, `route expression root is not supported: ${root}`))
-    return
-  }
-
-  if (
-    root === "inputs"
-    && firstSegment !== undefined
-  ) {
-    if (!isExpressionIdentifier(firstSegment)) {
-      issues.push(routeExpressionIssue(resource, path, `route expression input segment must be a declared name: ${firstSegment}`))
-    } else if (!declaredInputs.has(firstSegment)) {
-      issues.push(routeExpressionIssue(resource, path, `route expression references undeclared input: ${firstSegment}`))
-    }
-  }
-
-  if (root === "outputs" && !allowOutputs) {
-    issues.push(routeExpressionIssue(resource, path, outputErrorMessage))
-  }
+function routeExpressionFactDiagnosticIssue(diagnostic: CamFactDiagnostic): CamConformanceIssue {
+  return conformanceIssue({
+    rule: RULES.CAM_ROUTE_EXPRESSION_INVALID,
+    resource: diagnostic.resource,
+    path: diagnostic.path,
+    message: diagnostic.message,
+  })
 }
 
 function validateInvocation({
@@ -390,15 +338,6 @@ function routeInputFactDiagnosticIssue(diagnostic: CamFactDiagnostic): CamConfor
 function routeDeclarationIssue(resource: string, path: string, message: string): CamConformanceIssue {
   return conformanceIssue({
     rule: RULES.CAM_ROUTE_DECLARATION_INVALID,
-    resource,
-    path,
-    message,
-  })
-}
-
-function routeExpressionIssue(resource: string, path: string, message: string): CamConformanceIssue {
-  return conformanceIssue({
-    rule: RULES.CAM_ROUTE_EXPRESSION_INVALID,
     resource,
     path,
     message,

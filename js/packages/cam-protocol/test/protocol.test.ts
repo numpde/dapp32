@@ -26,6 +26,7 @@ import {
   collectCamInvocationFact,
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
+  collectCamRouteExpressionDiagnostics,
   collectCamRouteInputsFact,
   collectCamRootFact,
   collectExpressionReferences,
@@ -688,6 +689,67 @@ test("collects expression reference occurrences with paths and syntax findings",
       syntaxError: "invalid expression syntax: $values.0.owner",
     }],
   )
+})
+
+test("collects route expression policy diagnostics", () => {
+  const diagnostics = collectCamRouteExpressionDiagnostics({
+    resource: "cam",
+    value: {
+      unsupportedRoot: "$state.serialNumber",
+      undeclaredInput: "$inputs.missing",
+      numericInput: "$inputs.0",
+      earlyOutput: "$outputs.0",
+      malformed: "$inputs.",
+      escaped: "$$inputs.missing",
+      literal: "serialNumber",
+    },
+    path: "routes.entry.call.args",
+    declaredInputs: new Set(["serialNumber"]),
+    allowOutputs: false,
+    outputUnavailableMessage: "route call arguments cannot reference outputs before the call runs",
+  })
+
+  assert.deepEqual(diagnostics.map((diagnostic) => [
+    diagnostic.code,
+    diagnostic.path,
+    diagnostic.message,
+  ]), [
+    ["CAM_FACT_ROUTE_EXPRESSION_ROOT_INVALID", "routes.entry.call.args.unsupportedRoot", "route expression root is not supported: state"],
+    ["CAM_FACT_ROUTE_EXPRESSION_INPUT_UNDECLARED", "routes.entry.call.args.undeclaredInput", "route expression references undeclared input: missing"],
+    ["CAM_FACT_ROUTE_EXPRESSION_INPUT_INVALID", "routes.entry.call.args.numericInput", "route expression input segment must be a declared name: 0"],
+    ["CAM_FACT_ROUTE_EXPRESSION_OUTPUT_UNAVAILABLE", "routes.entry.call.args.earlyOutput", "route call arguments cannot reference outputs before the call runs"],
+    ["CAM_FACT_ROUTE_EXPRESSION_SYNTAX_INVALID", "routes.entry.call.args.malformed", "invalid expression syntax: $inputs."],
+  ])
+})
+
+test("collects route expression output diagnostics according to caller policy", () => {
+  assert.deepEqual(collectCamRouteExpressionDiagnostics({
+    resource: "cam",
+    value: {
+      view: "$outputs.0",
+    },
+    path: "routes.entry.then.args",
+    declaredInputs: new Set(),
+    allowOutputs: true,
+    outputUnavailableMessage: "write route continuations cannot reference transaction outputs",
+  }), [])
+
+  assert.deepEqual(collectCamRouteExpressionDiagnostics({
+    resource: "cam",
+    value: {
+      serialNumber: "$outputs.0",
+    },
+    path: "routes.save.then.args",
+    declaredInputs: new Set(),
+    allowOutputs: false,
+    outputUnavailableMessage: "write route continuations cannot reference transaction outputs",
+  }).map((diagnostic) => [
+    diagnostic.code,
+    diagnostic.path,
+    diagnostic.message,
+  ]), [
+    ["CAM_FACT_ROUTE_EXPRESSION_OUTPUT_UNAVAILABLE", "routes.save.then.args.serialNumber", "write route continuations cannot reference transaction outputs"],
+  ])
 })
 
 test("owns route and UI expression root vocabularies", () => {

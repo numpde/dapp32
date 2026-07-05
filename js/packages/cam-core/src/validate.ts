@@ -302,6 +302,11 @@ function camErrorFromFactDiagnostic(diagnostic: CamFactDiagnostic): CamError {
     case "CAM_FACT_ROUTE_INPUTS_NOT_ARRAY":
     case "CAM_FACT_ROUTE_INPUT_NAME_INVALID":
     case "CAM_FACT_ROUTE_INPUT_NAME_DUPLICATE":
+    case "CAM_FACT_ROUTE_EXPRESSION_SYNTAX_INVALID":
+    case "CAM_FACT_ROUTE_EXPRESSION_ROOT_INVALID":
+    case "CAM_FACT_ROUTE_EXPRESSION_INPUT_INVALID":
+    case "CAM_FACT_ROUTE_EXPRESSION_INPUT_UNDECLARED":
+    case "CAM_FACT_ROUTE_EXPRESSION_OUTPUT_UNAVAILABLE":
       return new CamError("CAM_INVALID_FIELD", diagnostic.message, diagnostic.path)
   }
 }

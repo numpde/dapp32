@@ -33,6 +33,10 @@ export type {
   CamRouteInputsFact,
 } from "./route-inputs.ts"
 
+export {
+  collectCamRouteExpressionDiagnostics,
+} from "./route-expressions.ts"
+
 export type {
   CamFactDiagnostic,
   CamFactDiagnosticCode,

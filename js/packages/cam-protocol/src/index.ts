@@ -64,6 +64,7 @@ export {
   collectCamInvocationFact,
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
+  collectCamRouteExpressionDiagnostics,
   collectCamRootFact,
   collectCamRouteInputsFact,
 } from "./facts/index.ts"
