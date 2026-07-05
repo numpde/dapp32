@@ -11,6 +11,13 @@ purposes.
 
 Treat this as a sequencing note, not as proof that any item is a bug.
 
+Checklist:
+
+- [ ] Re-check this note against current `main` before starting work.
+- [ ] Identify whether each change is behavior-preserving or intentionally
+  behavior-changing.
+- [ ] Run the narrowest Docker-backed check for every change.
+
 ## Preserve
 
 Do not weaken these invariants while refactoring:
@@ -23,6 +30,12 @@ Do not weaken these invariants while refactoring:
 - Narrow structural EVM client/wallet ports.
 - Current public package APIs unless a versioning decision is explicit.
 
+Checklist:
+
+- [ ] Add or keep regression coverage for any invariant touched by a refactor.
+- [ ] Preserve byte-exact resource and integrity behavior.
+- [ ] Preserve public APIs unless the commit explicitly documents an API change.
+
 ## Core Problem
 
 Runtime parsing, conformance diagnostics, UI resolution, EVM call preparation,
@@ -33,6 +46,12 @@ diagnose the same CAM document differently.
 The right direction is not an immediate package split. The right direction is to
 extract small shared facts where duplication is already real, prove parity with
 tests, and keep the public facades stable.
+
+Checklist:
+
+- [ ] Prefer shared facts over duplicated semantic walkers.
+- [ ] Keep runtime fail-fast behavior and conformance accumulation distinct.
+- [ ] Do not split packages before internal facts and parity tests justify it.
 
 ## Necessary Refactors
 
@@ -68,6 +87,15 @@ Use it first in the smallest high-value places:
 This is the best first refactor because it proves the shared-fact model without
 rewriting the conformance pipeline.
 
+Checklist:
+
+- [ ] Implement reference collection in `@cam/protocol`.
+- [ ] Cover escaped dollars, invalid syntax, arrays, records, and numeric
+  segment policy.
+- [ ] Replace route account requirement scanning in `@cam/core`.
+- [ ] Replace at least one conformance expression-root walker.
+- [ ] Keep layer-specific error and issue codes.
+
 ### 2. Add Runtime/Conformance Parity Tests Before Shared Builders
 
 `@cam/conformance` intentionally accumulates issues while runtime parsers fail
@@ -88,6 +116,13 @@ The test should not require identical error wording. It should prove that the
 layers agree on the document meaning, while allowing conformance to add stricter
 publication rules when those are documented.
 
+Checklist:
+
+- [ ] Add fixtures for each listed structural disagreement risk.
+- [ ] Assert agreement on accept/reject meaning, not identical wording.
+- [ ] Mark stricter conformance-only publication rules explicitly.
+- [ ] Run package tests before extracting shared builders.
+
 ### 3. Extract Shared Fact Builders Only Where Parity Tests Expose Real Drift Risk
 
 Do not build a general fact engine upfront. Extract fact builders one semantic
@@ -107,6 +142,14 @@ Keep two facades:
 
 The shared layer should own facts, not public diagnostics. Each facade can map
 facts to its existing error/issue model.
+
+Checklist:
+
+- [ ] Pick one semantic area with proven duplication.
+- [ ] Add characterization tests before moving logic.
+- [ ] Keep runtime and conformance public facades unchanged.
+- [ ] Preserve issue ordering if current tests or callers depend on it.
+- [ ] Document any intentional diagnostic differences.
 
 ### 4. Split Viewer Session Internals Behind the Existing API
 
@@ -130,6 +173,14 @@ Required tests before/with extraction:
 - Account-required route/UI behavior.
 - Read navigation separate from write preparation.
 - Snapshot isolation.
+
+Checklist:
+
+- [ ] Extract pure helpers before changing the session facade.
+- [ ] Keep network/resource loading out of pure view/action helpers.
+- [ ] Keep snapshot cloning and inert boundaries intact.
+- [ ] Add stale/fabricated action and state-field rejection tests.
+- [ ] Run `make package-test`.
 
 ### 5. Move Transaction Execution Out Of `App.tsx`
 
@@ -162,6 +213,14 @@ Preserve:
 - Stale interaction/send revision checks, or replace them with an explicit
   state-machine equivalent.
 
+Checklist:
+
+- [ ] Define narrow public-client, wallet, receipt, and timing ports.
+- [ ] Move simulation/send/receipt/diagnosis logic out of React.
+- [ ] Keep wallet browser specifics in an adapter.
+- [ ] Unit-test transaction lifecycle without React.
+- [ ] Keep app tests focused on UI wiring and messages.
+
 ### 6. Consider An ABI Walker Only After Inventory
 
 Input normalization, output normalization, and conformance ABI checks all walk
@@ -182,6 +241,14 @@ If the inventory shows real drift risk, introduce a small walker with
 direction-specific callbacks. If the duplication is clearer than the abstraction
 would be, leave it alone and add parity tests instead.
 
+Checklist:
+
+- [ ] Inventory runtime input, runtime output, and conformance ABI policies.
+- [ ] Separate intentional direction-specific differences from drift.
+- [ ] Add parity tests for shared unsupported-type decisions.
+- [ ] Build a walker only if it removes real duplicated traversal policy.
+- [ ] Keep direction-specific callbacks explicit.
+
 ## Deferred Or Rejected
 
 ### Package Splitting
@@ -194,12 +261,24 @@ If organization becomes painful, split source folders and add import-boundary
 checks first. Keep one public package until there is a concrete consumer or
 versioning reason to split.
 
+Checklist:
+
+- [ ] Do not create new `@cam/*` packages for organization alone.
+- [ ] Use source folders and import-boundary checks first.
+- [ ] Revisit package splits only after stable shared facts exist.
+
 ### UI Descriptor Registry
 
 A descriptor registry may become useful when adding more UI elements, but it is
 not necessary now. The current UI vocabulary is closed-world by design. Do not
 introduce a registry until a real element addition or bug demonstrates that the
 current switches are causing drift.
+
+Checklist:
+
+- [ ] Do not add a registry for current elements only.
+- [ ] Reconsider when adding a new UI element.
+- [ ] If introduced, derive parser/conformance metadata from the same source.
 
 ### Makefile Modularization
 
@@ -208,11 +287,23 @@ priority than semantic alignment across CAM runtime/conformance/viewer code.
 Only split it when edits become clearly unsafe, and preserve target names and
 guard checks exactly.
 
+Checklist:
+
+- [ ] Do not split the Makefile ahead of semantic refactors.
+- [ ] If split, preserve every target name and guard.
+- [ ] Add a check that Docker-backed lanes still run the required guards.
+
 ### Global Diagnostic Model
 
 Do not introduce a universal diagnostic type yet. Preserve path/resource/code
 metadata through wrapping where needed, but avoid a cross-package diagnostic
 framework until repeated wrapping bugs prove it necessary.
+
+Checklist:
+
+- [ ] Preserve path/resource/code metadata at wrapping sites.
+- [ ] Fix concrete wrapping losses locally first.
+- [ ] Reconsider a shared diagnostic shape only after repeated local fixes.
 
 ### Branded Types Everywhere
 
@@ -220,6 +311,12 @@ Branding can help for route names, namespace names, resource URIs, chain IDs,
 and addresses after validation. It can also make the code noisy. Add branded
 types only where a real cross-boundary mix-up exists or a fact-builder output
 needs stronger documentation.
+
+Checklist:
+
+- [ ] Add branded types only after validation boundaries.
+- [ ] Prefer brands for cross-package identifiers, not local temporaries.
+- [ ] Do not expose brands publicly unless ergonomics remain acceptable.
 
 ## Recommended Order
 
@@ -233,3 +330,9 @@ needs stronger documentation.
 Each step should be small, behavior-preserving unless explicitly stated, and
 covered by the narrowest relevant Docker-backed check. Broad rewrites, package
 splits, and new frameworks are not justified by this audit.
+
+Checklist:
+
+- [ ] Complete steps in order unless a concrete bug justifies jumping ahead.
+- [ ] Keep each PR/commit on one axis.
+- [ ] Record which checks were run with each change.
