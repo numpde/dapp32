@@ -177,6 +177,17 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("must be a Docker-safe name, not a path or shell expression", makefile)
         self.assertIn("$(COMPOSE_PROJECT_NAME_GUARD); $(NON_ROOT_GUARD); $(REPO_SHAPE_GUARD)", makefile)
 
+    def test_local_uid_gid_are_guarded_before_docker(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+
+        # LOCAL_UID/GID are interpolated into Compose `user:` values. Read them
+        # from exported shell variables and validate them before Compose sees
+        # any Make-expanded environment assignment.
+        self.assertIn("export LOCAL_UID LOCAL_GID", makefile)
+        self.assertIn('uid="$${LOCAL_UID:?missing_LOCAL_UID}"', makefile)
+        self.assertIn("LOCAL_UID and LOCAL_GID must be positive decimal integers", makefile)
+        self.assertNotIn('"$(LOCAL_UID)" == "0"', makefile)
+
     def test_integration_fuzz_descriptor_bind_is_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
         recipe = self.make_target_recipe(makefile, "test-integration-fuzz")
