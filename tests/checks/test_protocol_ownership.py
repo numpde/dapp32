@@ -16,7 +16,7 @@ CAM_CONFORMANCE_RULE_KEY_RE = re.compile(r"^\s*[\"']?(CAM_[A-Z0-9_]+)[\"']?:\s*\
 CAM_CONFORMANCE_RULE_CLASS_RE = re.compile(r"(?:\bclass|[\"']class[\"'])\s*:\s*[\"'](?P<class>[ABC])[\"']")
 CAM_CONFORMANCE_RULE_PROPERTY_RE = re.compile(r"(?:\brule|[\"']rule[\"'])\s*:\s*(?P<expr>[^,\n]+)")
 CAM_CONFORMANCE_RULE_DESCRIPTOR_RE = re.compile(
-    r"^\s*(?P<rule>CAM_[A-Z0-9_]+):\s*\{(?P<body>.*?)(?=^\s*CAM_[A-Z0-9_]+:\s*\{|\n\s*\}\s*\))",
+    r"^\s*[\"']?(?P<rule>CAM_[A-Z0-9_]+)[\"']?:\s*\{(?P<body>.*?)(?=^\s*[\"']?CAM_[A-Z0-9_]+[\"']?:\s*\{|\n\s*\}\s*\))",
     re.MULTILINE | re.DOTALL,
 )
 TS_STRING_PROPERTY_RE = r"(?:\b{name}|[\"']{name}[\"'])\s*:\s*[\"'](?P<value>[^\"']*)[\"']"
@@ -194,6 +194,7 @@ class ProtocolOwnershipTest(unittest.TestCase):
     def test_cam_conformance_rules_are_structural_and_unique(self) -> None:
         failures: list[str] = []
         rule_locations: dict[str, list[str]] = {}
+        validated_rules: set[str] = set()
 
         for path in sorted(repo_path("js/packages/cam-conformance/src").glob("**/*.ts")):
             text = read_text(path)
@@ -233,6 +234,7 @@ class ProtocolOwnershipTest(unittest.TestCase):
             for descriptor in CAM_CONFORMANCE_RULE_DESCRIPTOR_RE.finditer(text):
                 rule = descriptor.group("rule")
                 body = descriptor.group("body")
+                validated_rules.add(rule)
                 rule_class = self.required_ts_string_property(body, "class", path, rule, failures)
                 reason = self.required_ts_string_property(body, "reason", path, rule, failures)
                 if reason is not None and reason.strip() == "":
@@ -245,6 +247,8 @@ class ProtocolOwnershipTest(unittest.TestCase):
         for rule, locations in sorted(rule_locations.items()):
             if len(locations) > 1:
                 failures.append(f"{rule} descriptor must have one owner:\n" + "\n".join(locations))
+            if rule not in validated_rules:
+                failures.append(f"{rule} descriptor was inventoried but not policy-validated:\n" + "\n".join(locations))
 
         if failures:
             self.fail("\n".join(failures))
