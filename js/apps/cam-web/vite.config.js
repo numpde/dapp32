@@ -1,4 +1,5 @@
 import react from "@vitejs/plugin-react"
+import { requireHttpOrigin } from "@cam/protocol"
 import { defineConfig } from "vite"
 
 const DEFAULT_ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
@@ -8,24 +9,8 @@ export function allowedHosts(env = process.env) {
   if (origin === undefined || origin.length === 0) {
     return DEFAULT_ALLOWED_HOSTS
   }
-  if (/[\u0000-\u001f\u007f\\]/u.test(origin)) {
-    throw new Error("CAM_WEB_DEV_ORIGIN contains unsafe raw URL characters")
-  }
 
-  let url
-  try {
-    url = new URL(origin)
-  } catch (cause) {
-    throw new Error("CAM_WEB_DEV_ORIGIN must be an absolute URL", { cause })
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("CAM_WEB_DEV_ORIGIN must use http or https")
-  }
-  if (url.username !== "" || url.password !== "" || url.pathname !== "/" || url.search !== "" || url.hash !== "") {
-    throw new Error("CAM_WEB_DEV_ORIGIN must be an HTTP(S) origin without credentials, path, query, or fragment")
-  }
-
-  const hostname = url.hostname
+  const hostname = new URL(requireHttpOrigin(origin, "CAM_WEB_DEV_ORIGIN")).hostname
   return DEFAULT_ALLOWED_HOSTS.includes(hostname)
     ? DEFAULT_ALLOWED_HOSTS
     : [...DEFAULT_ALLOWED_HOSTS, hostname]
