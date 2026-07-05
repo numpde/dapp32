@@ -23,7 +23,7 @@ TS_STRING_PROPERTY_RE = r"(?:\b{name}|[\"']{name}[\"'])\s*:\s*[\"'](?P<value>[^\
 ABI_DYNAMIC_ARRAY_SYNTAX_RE = re.compile(r"\.endsWith\(\s*[\"']\[\][\"']\s*\)|\btype\.slice\(\s*0,\s*-2\s*\)")
 EXPRESSION_SYNTAX_MESSAGE_RE = re.compile(r"invalid expression syntax:")
 PROTOCOL_FACT_EXPORT_RE = re.compile(
-    r"\b(?:collectCam[A-Za-z]+Fact|CamFact(?:Diagnostic(?:Code)?|Result)|Cam[A-Za-z]+Fact)\b"
+    r"\b(?:collectCam[A-Za-z]+Facts?|collectCamRouteExpressionDiagnostics|CamFact(?:Diagnostic(?:Code)?|Result)|Cam[A-Za-z]+Fact)\b"
 )
 
 
@@ -180,6 +180,33 @@ class ProtocolOwnershipTest(unittest.TestCase):
 
         if failures:
             self.fail("\n".join(failures))
+
+    def test_protocol_fact_guard_covers_current_provisional_surface(self) -> None:
+        guarded_symbols = (
+            "collectCamRootFact",
+            "collectCamNamespaceFacts",
+            "collectCamResourceDeclarationFacts",
+            "collectCamInvocationFact",
+            "collectCamRouteInputsFact",
+            "collectCamRouteExpressionDiagnostics",
+            "CamFactDiagnostic",
+            "CamFactDiagnosticCode",
+            "CamFactResult",
+            "CamRouteInputsFact",
+        )
+        for symbol in guarded_symbols:
+            with self.subTest(symbol=symbol):
+                self.assertRegex(symbol, PROTOCOL_FACT_EXPORT_RE)
+
+        ordinary_protocol_symbols = (
+            "collectExpressionReferences",
+            "createExpressionRuntime",
+            "CAM_ROUTE_CONTEXT_KEYS",
+            "parseJsonText",
+        )
+        for symbol in ordinary_protocol_symbols:
+            with self.subTest(symbol=symbol):
+                self.assertNotRegex(symbol, PROTOCOL_FACT_EXPORT_RE)
 
     def test_ts_test_fixtures_use_protocol_version_constants(self) -> None:
         failures: list[str] = []

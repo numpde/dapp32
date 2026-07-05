@@ -119,6 +119,14 @@ Keep the project small, explicit, and protocol-first.
   substrate for shared document meaning. Until the boundary is boring, only
   `@cam/core` and `@cam/conformance` may consume them; apps, tools, viewers,
   fixtures, and package tests outside those owners must not.
+- The current protocol fact boundary owns CAM root/version/top-level fields,
+  namespace entries/name/type, resource declaration extraction, route invocation
+  shape and namespace joins, route input declaration shape, route expression
+  static policy, and expression reference occurrence collection. It does not
+  own route execution, ABI compatibility, UI handoff/dataflow/typeflow, resource
+  byte loading or integrity validation, wallet/RPC/account state, or runtime vs.
+  conformance reporting policy. Do not add broader route facts until the smaller
+  substrates prove insufficient.
 
 ## Dapp Layout
 
