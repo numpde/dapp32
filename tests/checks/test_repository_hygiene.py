@@ -188,6 +188,19 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("LOCAL_UID and LOCAL_GID must be positive decimal integers", makefile)
         self.assertNotIn('"$(LOCAL_UID)" == "0"', makefile)
 
+    def test_dependency_update_flag_is_guarded_before_docker(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+
+        # ALLOW_UPDATE selects whether dependency metadata may change. It is
+        # also interpolated into dependency Compose environments, so validate it
+        # before those recipes reach Compose.
+        self.assertIn("export LOCAL_UID LOCAL_GID ALLOW_UPDATE", makefile)
+        self.assertIn('ALLOW_UPDATE_GUARD := if [[ "$${ALLOW_UPDATE:?missing_ALLOW_UPDATE}"', makefile)
+        self.assertIn("$(ALLOW_UPDATE_GUARD);", self.make_target_recipe(makefile, "deps"))
+        self.assertIn("$(ALLOW_UPDATE_GUARD);", self.make_target_recipe(makefile, "deps-verify"))
+        self.assertIn("$(ALLOW_UPDATE_GUARD);", self.make_target_recipe(makefile, "package-deps"))
+        self.assertNotIn('case "$(ALLOW_UPDATE)"', makefile)
+
     def test_integration_fuzz_descriptor_bind_is_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
         recipe = self.make_target_recipe(makefile, "test-integration-fuzz")
