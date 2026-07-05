@@ -1,4 +1,4 @@
-type JsonObject = {
+export type JsonObject = {
   readonly [key: string]: unknown
 }
 
@@ -19,4 +19,3 @@ export function errorMessage(error: unknown): string {
   // event stream.
   return error.message
 }
-
