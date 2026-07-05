@@ -81,6 +81,30 @@ test("wallet chain setup rejects a wallet that remains on the wrong chain", asyn
   )
 })
 
+test("wallet chain setup preserves switch failures with hostile error codes", async () => {
+  const switchError = Object.defineProperty(new Error("switch denied"), "code", {
+    get() {
+      throw new Error("code getter failed")
+    },
+  })
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      ethereum: {
+        async request({ method }: { readonly method: string }): Promise<unknown> {
+          if (method === "wallet_switchEthereumChain") throw switchError
+          throw new Error(`unexpected wallet method: ${method}`)
+        },
+      },
+    },
+  })
+
+  await assert.rejects(
+    ensureInjectedWalletChain(CHAIN_OPTIONS),
+    /switch denied/,
+  )
+})
+
 function withEthereumAccounts(accounts: readonly string[]): void {
   Object.defineProperty(globalThis, "window", {
     configurable: true,
