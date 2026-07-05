@@ -107,16 +107,21 @@ export async function waitForSubmittedTransactionReceipt<TReceipt>({
       timeout: timeoutMs,
     })
   } catch (cause) {
-    const diagnosis = await submittedTransactionDiagnosis({
-      client,
-      txHash,
-      rpcEndpoint,
-      includePendingAdvice: true,
-    })
+    let advice: string
+    try {
+      advice = receiptTimeoutAdvice(await submittedTransactionDiagnosis({
+        client,
+        txHash,
+        rpcEndpoint,
+        includePendingAdvice: true,
+      }))
+    } catch (diagnosisCause) {
+      advice = `The viewer also could not inspect the submitted transaction on ${rpcEndpoint}: ${diagnosticErrorMessage(diagnosisCause)}.`
+    }
     throw new Error(
       [
         `Transaction was sent, but the viewer did not see a receipt on ${rpcEndpoint} within ${timeoutMs / 1000}s.`,
-        receiptTimeoutAdvice(diagnosis),
+        advice,
       ].join(" "),
       { cause },
     )
@@ -151,6 +156,14 @@ export async function submittedTransactionDiagnosis({
   return tx.nonce === pendingNonce
     ? `The transaction is known by the local RPC but is still pending at nonce ${tx.nonce}. Check whether local mining is paused or the wallet left the transaction in the mempool.`
     : `The transaction nonce ${tx.nonce} is lower than the local pending nonce ${pendingNonce}. The wallet may have shown a stale or replaced transaction hash.`
+}
+
+function diagnosticErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.length > 0) {
+    return error.message
+  }
+
+  return String(error)
 }
 
 async function readSubmittedTransaction(

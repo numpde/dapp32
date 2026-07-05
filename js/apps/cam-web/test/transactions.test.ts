@@ -265,6 +265,22 @@ test("receipt timeout includes submitted transaction diagnosis", async () => {
   )
 })
 
+test("receipt timeout preserves context when follow-up diagnosis fails", async () => {
+  await assert.rejects(
+    () => waitForSubmittedTransactionReceipt({
+      client: reader({
+        receiptError: new Error("timeout"),
+        txError: new Error("not found"),
+      }),
+      txHash,
+      rpcEndpoint: "localhost:8545",
+      pollingIntervalMs: 500,
+      timeoutMs: 20_000,
+    }),
+    /Transaction was sent, but the viewer did not see a receipt on localhost:8545 within 20s\. The viewer also could not inspect the submitted transaction/,
+  )
+})
+
 test("submitted transaction read failures include the RPC endpoint", async () => {
   await assert.rejects(
     () => submittedTransactionDiagnosis({
