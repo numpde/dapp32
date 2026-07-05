@@ -94,20 +94,32 @@ function isReadableErrorText(value: string): boolean {
 }
 
 function errorProperty(error: unknown, key: string): unknown {
-  if (typeof error !== "object" || error === null || !(key in error)) {
+  if (typeof error !== "object" || error === null) {
     return undefined
   }
 
-  return (error as Record<string, unknown>)[key]
+  try {
+    if (!(key in error)) return undefined
+    return (error as Record<string, unknown>)[key]
+  } catch {
+    // Wallet/RPC providers can surface arbitrary objects. Error rendering must
+    // never replace the original failure with a getter/proxy diagnostic.
+    return undefined
+  }
 }
 
 function formatErrorArgument(value: unknown): string {
   if (typeof value === "bigint") return value.toString()
   if (typeof value === "string") return JSON.stringify(value)
   if (typeof value === "number" || typeof value === "boolean" || value === null) return String(value)
-  const json = JSON.stringify(value, (_, item: unknown) => typeof item === "bigint" ? item.toString() : item)
-  if (json !== undefined) {
-    return json
+  try {
+    const json = JSON.stringify(value, (_, item: unknown) => typeof item === "bigint" ? item.toString() : item)
+    if (json !== undefined) {
+      return json
+    }
+  } catch {
+    // Keep custom error names useful even when provider-supplied args are
+    // cyclic or otherwise not JSON-serializable.
   }
 
   return String(value)

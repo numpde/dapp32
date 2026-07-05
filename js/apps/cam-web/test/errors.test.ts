@@ -25,3 +25,30 @@ test("errorMessage still includes useful nested revert details", () => {
     'transaction failed: Unauthorized("0x0000000000000000000000000000000000000001")',
   )
 })
+
+test("errorMessage ignores provider objects with hostile property access", () => {
+  const error = new Error("transaction failed", {
+    cause: new Proxy({}, {
+      has() {
+        throw new Error("has trap failed")
+      },
+    }),
+  })
+
+  assert.equal(errorMessage(error), "transaction failed")
+})
+
+test("errorMessage keeps custom revert names when args are cyclic", () => {
+  const cyclic: unknown[] = []
+  cyclic.push(cyclic)
+  const error = new Error("transaction failed", {
+    cause: {
+      data: {
+        errorName: "BadArgs",
+        args: [cyclic],
+      },
+    },
+  })
+
+  assert.equal(errorMessage(error), "transaction failed: BadArgs()")
+})
