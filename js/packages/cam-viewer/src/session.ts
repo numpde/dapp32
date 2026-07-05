@@ -68,6 +68,18 @@ type CurrentView = {
   readonly values: readonly InertValue[]
 }
 
+type RenderedActionInterpretation =
+  | {
+    readonly type: "navigate"
+    readonly route: string
+    readonly inputs: InertRecord
+  }
+  | {
+    readonly type: "contractCall"
+    readonly route: string
+    readonly inputs: InertRecord
+  }
+
 export function createCamViewerSession({
   publicClient,
   host,
@@ -191,34 +203,21 @@ export function createCamViewerSession({
   }
 
   async function dispatchAction(action: ResolvedButtonNode): Promise<CamViewerActionResult> {
-    assertLoaded()
+    const current = assertLoaded()
     assertActionIsRendered(action)
+    const interpretation = interpretRenderedAction(current.cam, action)
 
-    if (action.call.namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Button) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action must call routes namespace: ${action.call.namespace}`)
-    }
-
-    const route = action.call.function
-    const camRoute = assertLoaded().cam.routes[route]
-    if (camRoute === undefined) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action references unknown route: ${route}`)
-    }
-
-    if (camRoute.kind === "read") {
+    if (interpretation.type === "navigate") {
       return {
         type: "navigated",
-        snapshot: await navigateLoaded(route, action.call.args),
+        snapshot: await navigateLoaded(interpretation.route, interpretation.inputs),
       }
     }
 
-    if (camRoute.kind === "write") {
-      return {
-        type: "contractCall",
-        call: prepareContractCall(route, action.call.args),
-      }
+    return {
+      type: "contractCall",
+      call: prepareContractCall(interpretation.route, interpretation.inputs),
     }
-
-    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `unsupported CAM route kind: ${camRoute.kind}`)
   }
 
   async function navigateLoaded(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
@@ -428,6 +427,36 @@ export function createCamViewerSession({
     updateState,
     dispatchAction,
   }
+}
+
+function interpretRenderedAction(cam: CamDocument, action: ResolvedButtonNode): RenderedActionInterpretation {
+  if (action.call.namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Button) {
+    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action must call routes namespace: ${action.call.namespace}`)
+  }
+
+  const route = action.call.function
+  const camRoute = cam.routes[route]
+  if (camRoute === undefined) {
+    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action references unknown route: ${route}`)
+  }
+
+  if (camRoute.kind === "read") {
+    return {
+      type: "navigate",
+      route,
+      inputs: action.call.args,
+    }
+  }
+
+  if (camRoute.kind === "write") {
+    return {
+      type: "contractCall",
+      route,
+      inputs: action.call.args,
+    }
+  }
+
+  throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `unsupported CAM route kind: ${camRoute.kind}`)
 }
 
 function sameActionCall(left: ResolvedButtonNode, right: ResolvedButtonNode): boolean {
