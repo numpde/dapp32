@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import sys
 import unittest
 from pathlib import Path
 from urllib.parse import urlparse
@@ -332,6 +333,25 @@ class PackageMetadataTest(unittest.TestCase):
             # Hoisted node_modules can mask stale or undeclared workspace edges.
             self.assertEqual(imported, declared, f"{path}: workspace deps must match direct workspace imports")
 
+    def test_workspace_manifests_declare_direct_external_imports(self) -> None:
+        workspace_names = self.workspace_package_names()
+
+        for path in self.workspace_manifest_paths():
+            manifest = self.read_manifest(path)
+            declared: set[str] = set()
+            for field in DEPENDENCY_FIELDS:
+                dependencies = manifest.get(field)
+                if dependencies is None:
+                    continue
+                self.assertIsInstance(dependencies, dict, f"{path}: {field} must be an object")
+                declared.update(str(name) for name in dependencies)
+
+            imported = self.imported_external_packages(path.parent, workspace_names)
+            # npm workspace hoisting is an installation detail, not a package
+            # contract. Direct third-party imports must be visible in the
+            # workspace manifest that owns the importing source or test.
+            self.assertEqual(imported, imported & declared, f"{path}: direct external imports must be declared")
+
     def test_workspace_dependency_scanner_sees_common_module_forms(self) -> None:
         source = "\n".join([
             'import "@cam/protocol"',
@@ -404,6 +424,27 @@ class PackageMetadataTest(unittest.TestCase):
 
     def imported_workspace_packages(self, package_root: Path, workspace_names: dict[str, str]) -> set[str]:
         imported: set[str] = set()
+        for path in self.package_import_scan_files(package_root):
+            for specifier, _line_number in self.module_specifiers(read_text(path)):
+                package_name = self.workspace_package_name_for_specifier(specifier, workspace_names)
+                if package_name is not None:
+                    imported.add(package_name)
+        return imported
+
+    def imported_external_packages(self, package_root: Path, workspace_names: dict[str, str]) -> set[str]:
+        imported: set[str] = set()
+        package_name = self.read_manifest(package_root / "package.json").get("name")
+        self.assertIsInstance(package_name, str, f"{package_root / 'package.json'}: package name must be a string")
+
+        for path in self.package_import_scan_files(package_root):
+            for specifier, _line_number in self.module_specifiers(read_text(path)):
+                name = self.external_package_name_for_specifier(specifier, workspace_names, package_name)
+                if name is not None:
+                    imported.add(name)
+        return imported
+
+    def package_import_scan_files(self, package_root: Path) -> list[Path]:
+        paths: list[Path] = []
         for path in package_root.rglob("*"):
             if not path.is_file():
                 continue
@@ -412,11 +453,8 @@ class PackageMetadataTest(unittest.TestCase):
                 continue
             if path.suffix not in PACKAGE_IMPORT_SCAN_EXTENSIONS:
                 continue
-            for specifier, _line_number in self.module_specifiers(read_text(path)):
-                package_name = self.workspace_package_name_for_specifier(specifier, workspace_names)
-                if package_name is not None:
-                    imported.add(package_name)
-        return imported
+            paths.append(path)
+        return sorted(paths)
 
     def module_specifiers(self, text: str) -> list[tuple[str, int]]:
         specifiers: list[tuple[str, int]] = []
@@ -435,6 +473,25 @@ class PackageMetadataTest(unittest.TestCase):
             if specifier == name or specifier.startswith(f"{name}/"):
                 return name
         return None
+
+    def external_package_name_for_specifier(
+        self,
+        specifier: str,
+        workspace_names: dict[str, str],
+        own_package_name: str,
+    ) -> str | None:
+        if specifier.startswith((".", "node:")):
+            return None
+        if specifier in sys.stdlib_module_names:
+            return None
+        if self.workspace_package_name_for_specifier(specifier, workspace_names) is not None:
+            return None
+        if specifier == own_package_name or specifier.startswith(f"{own_package_name}/"):
+            return None
+        if specifier.startswith("@"):
+            parts = specifier.split("/")
+            return "/".join(parts[:2]) if len(parts) >= 2 else specifier
+        return specifier.split("/", 1)[0]
 
     def workspace_manifest_paths(self) -> list[Path]:
         root = repo_path("js")

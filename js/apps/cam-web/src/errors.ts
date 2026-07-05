@@ -98,14 +98,16 @@ function errorProperty(error: unknown, key: string): unknown {
     return undefined
   }
 
+  let value: unknown
   try {
-    if (!(key in error)) return undefined
-    return (error as Record<string, unknown>)[key]
+    if (key in error) {
+      value = (error as Record<string, unknown>)[key]
+    }
   } catch {
     // Wallet/RPC providers can surface arbitrary objects. Error rendering must
     // never replace the original failure with a getter/proxy diagnostic.
-    return undefined
   }
+  return value
 }
 
 function formatErrorArgument(value: unknown): string {

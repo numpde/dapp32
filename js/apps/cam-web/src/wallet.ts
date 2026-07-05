@@ -120,14 +120,14 @@ function requireEthereum(): EthereumProvider {
 function walletErrorCode(error: unknown): number | undefined {
   if (typeof error !== "object" || error === null) return undefined
 
+  let value: unknown
   try {
-    const code = (error as { readonly code?: unknown }).code
-    return typeof code === "number" ? code : undefined
+    value = (error as { readonly code?: unknown }).code
   } catch {
     // Provider error objects are not trusted data. A malformed `code` property
     // should behave like an ordinary switch failure, not crash error handling.
-    return undefined
   }
+  return typeof value === "number" ? value : undefined
 }
 
 async function switchInjectedWalletChain(provider: EthereumProvider, chainId: `0x${string}`): Promise<void> {
