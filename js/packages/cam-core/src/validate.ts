@@ -78,58 +78,34 @@ function parseNamespaces(root: CamRootFact): Record<string, CamNamespace> {
     throw camErrorFromFactDiagnostic(namespaceDiagnostic)
   }
 
-  const resourceResult = collectCamResourceDeclarationFacts(namespaceResult.namespaces)
-  return parseNamespaceFacts(
-    namespaceResult.namespaces,
-    resourceResult.declarations,
-    resourceResult.diagnostics,
-  )
+  return parseNamespaceFacts(namespaceResult.namespaces)
 }
 
 function parseNamespaceFacts(
   facts: readonly CamNamespaceFact[],
-  declarations: readonly CamResourceDeclarationFact[],
-  diagnostics: readonly CamFactDiagnostic[],
 ): Record<string, CamNamespace> {
   const namespaces = createStringMap<CamNamespace>()
-  const declarationsByNamespace = createStringMap<CamResourceDeclarationFact>()
-  for (const declaration of declarations) {
-    declarationsByNamespace[declaration.namespace] = declaration
-  }
-
   for (const fact of facts) {
-    namespaces[fact.name] = parseNamespaceFact(
-      fact,
-      declarationsByNamespace[fact.name],
-      firstResourceDiagnosticForNamespace(fact, diagnostics),
-    )
+    namespaces[fact.name] = parseNamespaceFact(fact)
   }
 
   return namespaces
 }
 
-function parseNamespaceFact(
-  fact: CamNamespaceFact,
-  declaration: CamResourceDeclarationFact | undefined,
-  diagnostic: CamFactDiagnostic | undefined,
-): CamNamespace {
+function parseNamespaceFact(fact: CamNamespaceFact): CamNamespace {
   switch (fact.type) {
     case "contract":
-      return parseContractNamespace(fact, declaration, diagnostic)
+      return parseContractNamespace(fact)
     case "routes":
       return parseRoutesNamespace(fact)
     case "ui":
-      return parseUiNamespace(fact, declaration, diagnostic)
+      return parseUiNamespace(fact)
   }
 }
 
-function parseContractNamespace(
-  fact: CamNamespaceFact,
-  declaration: CamResourceDeclarationFact | undefined,
-  diagnostic: CamFactDiagnostic | undefined,
-): CamContractNamespace {
+function parseContractNamespace(fact: CamNamespaceFact): CamContractNamespace {
   rejectUnknownCamFields(fact.declaration, CONTRACT_NAMESPACE_KEYS, fact.path)
-  const resource = requiredResourceDeclaration(fact, declaration, diagnostic)
+  const resource = parseResourceDeclaration(fact)
   return {
     type: "contract",
     abiURI: resource.uri,
@@ -144,13 +120,9 @@ function parseRoutesNamespace(fact: CamNamespaceFact): CamRoutesNamespace {
   }
 }
 
-function parseUiNamespace(
-  fact: CamNamespaceFact,
-  declaration: CamResourceDeclarationFact | undefined,
-  diagnostic: CamFactDiagnostic | undefined,
-): CamUiNamespace {
+function parseUiNamespace(fact: CamNamespaceFact): CamUiNamespace {
   rejectUnknownCamFields(fact.declaration, UI_NAMESPACE_KEYS, fact.path)
-  const resource = requiredResourceDeclaration(fact, declaration, diagnostic)
+  const resource = parseResourceDeclaration(fact)
   return {
     type: "ui",
     uri: resource.uri,
@@ -158,27 +130,18 @@ function parseUiNamespace(
   }
 }
 
-function requiredResourceDeclaration(
-  fact: CamNamespaceFact,
-  declaration: CamResourceDeclarationFact | undefined,
-  diagnostic: CamFactDiagnostic | undefined,
-): CamResourceDeclarationFact {
-  if (declaration !== undefined) return declaration
+function parseResourceDeclaration(fact: CamNamespaceFact): CamResourceDeclarationFact {
+  const result = collectCamResourceDeclarationFacts([fact])
+  const diagnostic = result.diagnostics[0]
   if (diagnostic !== undefined) {
     throw camErrorFromFactDiagnostic(diagnostic)
   }
+  const declaration = result.declarations[0]
+  if (declaration !== undefined) return declaration
 
   // Earlier fact collection is fail-fast for resource diagnostics. Reaching
   // this means the runtime adapter and fact collector disagree about usability.
   throw new CamError("CAM_INVALID_FIELD", `CAM resource declaration is not usable: ${fact.name}`, fact.path)
-}
-
-function firstResourceDiagnosticForNamespace(
-  fact: CamNamespaceFact,
-  diagnostics: readonly CamFactDiagnostic[],
-): CamFactDiagnostic | undefined {
-  const prefix = `${fact.path}.`
-  return diagnostics.find((diagnostic) => diagnostic.path?.startsWith(prefix))
 }
 
 function parseRoutes(
