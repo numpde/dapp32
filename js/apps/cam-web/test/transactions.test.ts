@@ -1,21 +1,38 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import type {
+  CamViewerPreparedContractCall,
+} from "@cam/viewer"
+import type {
+  Address,
+} from "viem"
+
+import type {
+  StartupOptions,
+} from "../src/startup.ts"
 import {
   submittedTransactionDiagnosis,
+  submitPreparedContractCall,
   waitForSubmittedTransactionReceipt,
 } from "../src/transactions.ts"
 import type {
+  PreparedCallSimulationClient,
+  PreparedCallSubmitterPorts,
   SubmittedTransaction,
   TransactionReader,
 } from "../src/transactions.ts"
 
 const txHash = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 const from = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+const walletAddress = "0x0000000000000000000000000000000000000001" as Address
+const sentHash = "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 
 type TestReceipt = {
   readonly status: "success" | "reverted"
 }
+
+type TestPorts = PreparedCallSubmitterPorts<string, string>
 
 function reader(options: {
   readonly tx?: SubmittedTransaction
@@ -56,6 +73,87 @@ function reader(options: {
   }
 }
 
+test("prepared call submission proves wallet revalidation after chain switching", async () => {
+  const events: string[] = []
+  let continueCalls = 0
+
+  const result = await submitPreparedContractCall({
+    ports: recordingPorts(events),
+    publicClient: testPublicClient(),
+    walletAddress,
+    startup: testStartup(),
+    call: testCall(),
+    shouldContinue() {
+      continueCalls += 1
+      events.push(`continue:${continueCalls.toString()}`)
+      return true
+    },
+  })
+
+  assert.equal(result, sentHash)
+  assert.deepEqual(events, [
+    "ensureAccount",
+    "simulate",
+    "continue:1",
+    "ensureChain",
+    "continue:2",
+    "ensureAccount",
+    "createWalletClient",
+    "chain",
+    "send",
+  ])
+})
+
+test("prepared call submission aborts before chain switching when interaction becomes stale", async () => {
+  const events: string[] = []
+
+  const result = await submitPreparedContractCall({
+    ports: recordingPorts(events),
+    publicClient: testPublicClient(),
+    walletAddress,
+    startup: testStartup(),
+    call: testCall(),
+    shouldContinue() {
+      events.push("continue")
+      return false
+    },
+  })
+
+  assert.equal(result, undefined)
+  assert.deepEqual(events, [
+    "ensureAccount",
+    "simulate",
+    "continue",
+  ])
+})
+
+test("prepared call submission aborts before signing when chain switching makes the interaction stale", async () => {
+  const events: string[] = []
+  let continueCalls = 0
+
+  const result = await submitPreparedContractCall({
+    ports: recordingPorts(events),
+    publicClient: testPublicClient(),
+    walletAddress,
+    startup: testStartup(),
+    call: testCall(),
+    shouldContinue() {
+      continueCalls += 1
+      events.push(`continue:${continueCalls.toString()}`)
+      return continueCalls === 1
+    },
+  })
+
+  assert.equal(result, undefined)
+  assert.deepEqual(events, [
+    "ensureAccount",
+    "simulate",
+    "continue:1",
+    "ensureChain",
+    "continue:2",
+  ])
+})
+
 test("submitted transaction diagnosis reports nonce gaps", async () => {
   const diagnosis = await submittedTransactionDiagnosis({
     client: reader(),
@@ -69,6 +167,62 @@ test("submitted transaction diagnosis reports nonce gaps", async () => {
     "The transaction is queued behind a nonce gap: the wallet submitted nonce 5, but the local chain is still waiting for nonce 3. Clear the wallet's local activity/nonce state for this fixture chain, or submit/cancel the missing nonce first.",
   )
 })
+
+function recordingPorts(events: string[]): TestPorts {
+  return {
+    async ensureAccount() {
+      events.push("ensureAccount")
+    },
+    async simulate() {
+      events.push("simulate")
+    },
+    async ensureChain() {
+      events.push("ensureChain")
+    },
+    createWalletClient() {
+      events.push("createWalletClient")
+      return "wallet-client"
+    },
+    chain() {
+      events.push("chain")
+      return "chain"
+    },
+    async send() {
+      events.push("send")
+      return sentHash
+    },
+  }
+}
+
+function testPublicClient(): PreparedCallSimulationClient {
+  return {} as PreparedCallSimulationClient
+}
+
+function testStartup(): StartupOptions {
+  return {
+    chainId: "eip155:31337",
+    host: "0x0000000000000000000000000000000000000002",
+    account: walletAddress,
+    rpcUrl: "http://127.0.0.1:8545",
+    resourceOrigin: "http://127.0.0.1:5173",
+    allowUnsignedCamHash: false,
+  }
+}
+
+function testCall(): CamViewerPreparedContractCall {
+  return {
+    route: "submit",
+    address: "0x0000000000000000000000000000000000000003",
+    abi: [],
+    function: "submit",
+    args: {},
+    then: {
+      namespace: "routes",
+      function: "done",
+      args: {},
+    },
+  }
+}
 
 test("submitted transaction diagnosis distinguishes mined and pending transactions", async () => {
   assert.equal(

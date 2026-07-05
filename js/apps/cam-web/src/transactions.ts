@@ -1,3 +1,17 @@
+import type {
+  simulateCamContractCall,
+} from "@cam/evm-viem"
+import type {
+  CamViewerPreparedContractCall,
+} from "@cam/viewer"
+import type {
+  Address,
+} from "viem"
+
+import type {
+  StartupOptions,
+} from "./startup.ts"
+
 export type SubmittedTransaction = {
   readonly blockNumber: bigint | null
   readonly from: `0x${string}`
@@ -15,6 +29,62 @@ export type TransactionReader<TReceipt> = {
     readonly pollingInterval: number
     readonly timeout: number
   }) => Promise<TReceipt>
+}
+
+export type PreparedCallSimulationClient = Parameters<typeof simulateCamContractCall>[0]["publicClient"]
+
+export type PreparedCallSubmitterPorts<TWalletClient, TChain> = {
+  readonly ensureAccount: (address: Address) => Promise<void>
+  readonly simulate: (args: {
+    readonly publicClient: PreparedCallSimulationClient
+    readonly account: Address
+    readonly call: CamViewerPreparedContractCall
+  }) => Promise<unknown>
+  readonly ensureChain: (startup: StartupOptions) => Promise<void>
+  readonly createWalletClient: (address: Address) => TWalletClient
+  readonly chain: (startup: StartupOptions) => TChain
+  readonly send: (args: {
+    readonly walletClient: TWalletClient
+    readonly chain: TChain
+    readonly call: CamViewerPreparedContractCall
+  }) => Promise<`0x${string}`>
+}
+
+export async function submitPreparedContractCall<TWalletClient, TChain>({
+  ports,
+  publicClient,
+  walletAddress,
+  startup,
+  call,
+  shouldContinue,
+}: {
+  readonly ports: PreparedCallSubmitterPorts<TWalletClient, TChain>
+  readonly publicClient: PreparedCallSimulationClient
+  readonly walletAddress: Address
+  readonly startup: StartupOptions
+  readonly call: CamViewerPreparedContractCall
+  readonly shouldContinue: () => boolean
+}): Promise<`0x${string}` | undefined> {
+  // Wallet state can change while the wallet opens chain-switch or signing UI.
+  // Keep each external effect explicit so tests can prove the safety order.
+  await ports.ensureAccount(walletAddress)
+  await ports.simulate({
+    publicClient,
+    account: walletAddress,
+    call,
+  })
+  if (!shouldContinue()) return undefined
+
+  await ports.ensureChain(startup)
+  if (!shouldContinue()) return undefined
+
+  await ports.ensureAccount(walletAddress)
+  const walletClient = ports.createWalletClient(walletAddress)
+  return await ports.send({
+    walletClient,
+    chain: ports.chain(startup),
+    call,
+  })
 }
 
 export async function waitForSubmittedTransactionReceipt<TReceipt>({

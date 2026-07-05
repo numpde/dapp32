@@ -1,7 +1,5 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
 import test from "node:test"
-import { fileURLToPath } from "node:url"
 
 import { ensureConnectedWalletAccount, ensureInjectedWalletChain } from "../src/wallet.ts"
 
@@ -24,20 +22,6 @@ test("wallet account check rejects stale connected account state", async () => {
   await assert.rejects(
     ensureConnectedWalletAccount(ACCOUNT),
     /Connected wallet account changed/,
-  )
-})
-
-test("send path revalidates account after wallet chain switching", () => {
-  const appSource = readFileSync(fileURLToPath(new URL("../src/App.tsx", import.meta.url)), "utf8")
-  const chainSwitch = appSource.indexOf("await ensureInjectedWalletChain(ready.runtime.startup)")
-  const clientCreation = appSource.indexOf("const walletClient = createInjectedWalletClient(wallet.address)")
-  const accountCheck = appSource.indexOf("await ensureConnectedWalletAccount(wallet.address)", chainSwitch)
-
-  assert.notEqual(chainSwitch, -1)
-  assert.notEqual(clientCreation, -1)
-  assert.ok(
-    accountCheck > chainSwitch && accountCheck < clientCreation,
-    "wallet account must be revalidated after chain switching and before wallet client creation",
   )
 })
 

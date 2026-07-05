@@ -50,7 +50,9 @@ import {
   UiView,
 } from "./components.tsx"
 import {
+  type PreparedCallSubmitterPorts,
   submittedTransactionDiagnosis,
+  submitPreparedContractCall,
   waitForSubmittedTransactionReceipt,
 } from "./transactions.ts"
 
@@ -69,6 +71,17 @@ type AppRuntime = {
 
 const RECEIPT_WAIT_TIMEOUT_MS = 20_000
 const RECEIPT_POLLING_INTERVAL_MS = 500
+const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
+  ReturnType<typeof createInjectedWalletClient>,
+  ReturnType<typeof walletChain>
+> = {
+  ensureAccount: ensureConnectedWalletAccount,
+  simulate: simulateCamContractCall,
+  ensureChain: ensureInjectedWalletChain,
+  createWalletClient: createInjectedWalletClient,
+  chain: walletChain,
+  send: async ({ walletClient, chain, call }) => await sendCamContractCall({ walletClient, chain, call }),
+}
 
 export function App(): ReactElement {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
@@ -213,22 +226,15 @@ export function App(): ReactElement {
     setNotice(undefined)
     try {
       const ready = requireReadyState(loadState)
-      await ensureConnectedWalletAccount(wallet.address)
-      await simulateCamContractCall({
+      const txHash = await submitPreparedContractCall({
+        ports: PREPARED_CALL_SUBMITTER_PORTS,
         publicClient: ready.runtime.publicClient,
-        account: wallet.address,
+        walletAddress: wallet.address,
+        startup: ready.runtime.startup,
         call,
+        shouldContinue: () => ownsInteraction() && ownsSend(),
       })
-      if (!ownsInteraction() || !ownsSend()) return
-      await ensureInjectedWalletChain(ready.runtime.startup)
-      if (!ownsInteraction() || !ownsSend()) return
-      await ensureConnectedWalletAccount(wallet.address)
-      const walletClient = createInjectedWalletClient(wallet.address)
-      const txHash = await sendCamContractCall({
-        walletClient,
-        chain: walletChain(ready.runtime.startup),
-        call,
-      })
+      if (txHash === undefined) return
       submittedTxHash = txHash
       if (!ownsSend()) return
       setNotice(`Transaction sent: ${txHash}`)
