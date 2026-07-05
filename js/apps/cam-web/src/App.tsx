@@ -49,6 +49,10 @@ import {
   PreparedCallView,
   UiView,
 } from "./components.tsx"
+import {
+  submittedTransactionDiagnosis,
+  waitForSubmittedTransactionReceipt,
+} from "./transactions.ts"
 
 type LoadState =
   | { readonly status: "loading" }
@@ -229,7 +233,10 @@ export function App(): ReactElement {
       if (!ownsSend()) return
       setNotice(`Transaction sent: ${txHash}`)
 
-      const nonceGap = await submittedTransactionDiagnosis(ready, txHash, {
+      const nonceGap = await submittedTransactionDiagnosis({
+        client: ready.runtime.publicClient,
+        txHash,
+        rpcEndpoint: displayRpcEndpoint(ready.runtime.startup.rpcUrl),
         includePendingAdvice: false,
       })
       if (!ownsSend()) return
@@ -370,74 +377,13 @@ async function waitForReceipt(
   ready: Extract<LoadState, { readonly status: "ready" }>,
   txHash: `0x${string}`,
 ): ReturnType<AppPublicClient["waitForTransactionReceipt"]> {
-  try {
-    return await ready.runtime.publicClient.waitForTransactionReceipt({
-      hash: txHash,
-      pollingInterval: RECEIPT_POLLING_INTERVAL_MS,
-      timeout: RECEIPT_WAIT_TIMEOUT_MS,
-    })
-  } catch (cause) {
-    const diagnosis = await submittedTransactionDiagnosis(ready, txHash, {
-      includePendingAdvice: true,
-    })
-    throw new Error(
-      [
-        `Transaction was sent, but the viewer did not see a receipt on ${displayRpcEndpoint(ready.runtime.startup.rpcUrl)} within ${RECEIPT_WAIT_TIMEOUT_MS / 1000}s.`,
-        receiptTimeoutAdvice(diagnosis),
-      ].join(" "),
-      { cause },
-    )
-  }
-}
-
-async function submittedTransactionDiagnosis(
-  ready: Extract<LoadState, { readonly status: "ready" }>,
-  txHash: `0x${string}`,
-  options: { readonly includePendingAdvice: boolean },
-): Promise<string | undefined> {
-  const tx = await readSubmittedTransaction(ready, txHash)
-  if (tx.blockNumber !== null) return undefined
-
-  const pendingNonce = await ready.runtime.publicClient.getTransactionCount({
-    address: tx.from,
-    blockTag: "pending",
+  return await waitForSubmittedTransactionReceipt({
+    client: ready.runtime.publicClient,
+    txHash,
+    rpcEndpoint: displayRpcEndpoint(ready.runtime.startup.rpcUrl),
+    pollingIntervalMs: RECEIPT_POLLING_INTERVAL_MS,
+    timeoutMs: RECEIPT_WAIT_TIMEOUT_MS,
   })
-  if (tx.nonce > pendingNonce) {
-    return nonceGapMessage(tx.nonce, pendingNonce)
-  }
-  if (!options.includePendingAdvice) {
-    return undefined
-  }
-
-  return tx.nonce === pendingNonce
-    ? `The transaction is known by the local RPC but is still pending at nonce ${tx.nonce}. Check whether local mining is paused or the wallet left the transaction in the mempool.`
-    : `The transaction nonce ${tx.nonce} is lower than the local pending nonce ${pendingNonce}. The wallet may have shown a stale or replaced transaction hash.`
-}
-
-async function readSubmittedTransaction(
-  ready: Extract<LoadState, { readonly status: "ready" }>,
-  txHash: `0x${string}`,
-): ReturnType<AppPublicClient["getTransaction"]> {
-  try {
-    return await ready.runtime.publicClient.getTransaction({ hash: txHash })
-  } catch (cause) {
-    throw new Error(
-      `The wallet returned a transaction hash, but the viewer could not read that transaction from ${displayRpcEndpoint(ready.runtime.startup.rpcUrl)}.`,
-      { cause },
-    )
-  }
-}
-
-function receiptTimeoutAdvice(diagnosis: string | undefined): string {
-  if (diagnosis !== undefined) {
-    return diagnosis
-  }
-
-  return "Check that the wallet is using the same local RPC as the viewer."
-}
-
-function nonceGapMessage(txNonce: number, pendingNonce: number): string {
-  return `The transaction is queued behind a nonce gap: the wallet submitted nonce ${txNonce}, but the local chain is still waiting for nonce ${pendingNonce}. Clear the wallet's local activity/nonce state for this fixture chain, or submit/cancel the missing nonce first.`
 }
 
 function headerTitle(loadState: LoadState): string {
