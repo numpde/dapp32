@@ -79,17 +79,17 @@ function parseNamespaces(root: CamRootFact): Record<string, CamNamespace> {
   }
 
   const resourceResult = collectCamResourceDeclarationFacts(namespaceResult.namespaces)
-  const resourceDiagnostic = resourceResult.diagnostics[0]
-  if (resourceDiagnostic !== undefined) {
-    throw camErrorFromFactDiagnostic(resourceDiagnostic)
-  }
-
-  return parseNamespaceFacts(namespaceResult.namespaces, resourceResult.declarations)
+  return parseNamespaceFacts(
+    namespaceResult.namespaces,
+    resourceResult.declarations,
+    resourceResult.diagnostics,
+  )
 }
 
 function parseNamespaceFacts(
   facts: readonly CamNamespaceFact[],
   declarations: readonly CamResourceDeclarationFact[],
+  diagnostics: readonly CamFactDiagnostic[],
 ): Record<string, CamNamespace> {
   const namespaces = createStringMap<CamNamespace>()
   const declarationsByNamespace = createStringMap<CamResourceDeclarationFact>()
@@ -98,7 +98,11 @@ function parseNamespaceFacts(
   }
 
   for (const fact of facts) {
-    namespaces[fact.name] = parseNamespaceFact(fact, declarationsByNamespace[fact.name])
+    namespaces[fact.name] = parseNamespaceFact(
+      fact,
+      declarationsByNamespace[fact.name],
+      firstResourceDiagnosticForNamespace(fact, diagnostics),
+    )
   }
 
   return namespaces
@@ -107,26 +111,29 @@ function parseNamespaceFacts(
 function parseNamespaceFact(
   fact: CamNamespaceFact,
   declaration: CamResourceDeclarationFact | undefined,
+  diagnostic: CamFactDiagnostic | undefined,
 ): CamNamespace {
   switch (fact.type) {
     case "contract":
-      return parseContractNamespace(fact, requiredResourceDeclaration(fact, declaration))
+      return parseContractNamespace(fact, declaration, diagnostic)
     case "routes":
       return parseRoutesNamespace(fact)
     case "ui":
-      return parseUiNamespace(fact, requiredResourceDeclaration(fact, declaration))
+      return parseUiNamespace(fact, declaration, diagnostic)
   }
 }
 
 function parseContractNamespace(
   fact: CamNamespaceFact,
-  declaration: CamResourceDeclarationFact,
+  declaration: CamResourceDeclarationFact | undefined,
+  diagnostic: CamFactDiagnostic | undefined,
 ): CamContractNamespace {
   rejectUnknownCamFields(fact.declaration, CONTRACT_NAMESPACE_KEYS, fact.path)
+  const resource = requiredResourceDeclaration(fact, declaration, diagnostic)
   return {
     type: "contract",
-    abiURI: declaration.uri,
-    integrity: declaration.integrity,
+    abiURI: resource.uri,
+    integrity: resource.integrity,
   }
 }
 
@@ -139,25 +146,39 @@ function parseRoutesNamespace(fact: CamNamespaceFact): CamRoutesNamespace {
 
 function parseUiNamespace(
   fact: CamNamespaceFact,
-  declaration: CamResourceDeclarationFact,
+  declaration: CamResourceDeclarationFact | undefined,
+  diagnostic: CamFactDiagnostic | undefined,
 ): CamUiNamespace {
   rejectUnknownCamFields(fact.declaration, UI_NAMESPACE_KEYS, fact.path)
+  const resource = requiredResourceDeclaration(fact, declaration, diagnostic)
   return {
     type: "ui",
-    uri: declaration.uri,
-    integrity: declaration.integrity,
+    uri: resource.uri,
+    integrity: resource.integrity,
   }
 }
 
 function requiredResourceDeclaration(
   fact: CamNamespaceFact,
   declaration: CamResourceDeclarationFact | undefined,
+  diagnostic: CamFactDiagnostic | undefined,
 ): CamResourceDeclarationFact {
   if (declaration !== undefined) return declaration
+  if (diagnostic !== undefined) {
+    throw camErrorFromFactDiagnostic(diagnostic)
+  }
 
   // Earlier fact collection is fail-fast for resource diagnostics. Reaching
   // this means the runtime adapter and fact collector disagree about usability.
   throw new CamError("CAM_INVALID_FIELD", `CAM resource declaration is not usable: ${fact.name}`, fact.path)
+}
+
+function firstResourceDiagnosticForNamespace(
+  fact: CamNamespaceFact,
+  diagnostics: readonly CamFactDiagnostic[],
+): CamFactDiagnostic | undefined {
+  const prefix = `${fact.path}.`
+  return diagnostics.find((diagnostic) => diagnostic.path?.startsWith(prefix))
 }
 
 function parseRoutes(

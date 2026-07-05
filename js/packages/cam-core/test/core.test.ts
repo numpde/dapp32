@@ -330,3 +330,25 @@ test("parseCam rejects non-canonical secondary resource URIs", () => {
     (error) => error instanceof CamError && error.code === "CAM_INVALID_URI",
   )
 })
+
+test("parseCam preserves namespace unknown-field precedence over resource diagnostics", () => {
+  const namespaces = mainJson.namespaces as Record<string, Record<string, unknown>>
+
+  assert.throws(
+    () => parseCam({
+      ...mainJson,
+      namespaces: {
+        ...namespaces,
+        ui: {
+          ...namespaces.ui,
+          extra: true,
+          uri: "../ui.json",
+        },
+      },
+    }),
+    (error) =>
+      error instanceof CamError
+      && error.code === "CAM_UNKNOWN_FIELD"
+      && error.path === "namespaces.ui.extra",
+  )
+})
