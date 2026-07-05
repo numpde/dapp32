@@ -213,6 +213,15 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui"))
         self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui-down"))
 
+    def test_anvil_published_port_is_guarded_before_docker(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+
+        # The host Anvil lane publishes a loopback RPC port. Validate the
+        # operator-provided port before Compose interpolation.
+        self.assertIn("ANVIL_HOST_PORT must be an integer from 1 to 65535", makefile)
+        self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil-host"))
+        self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil-down"))
+
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []
 
