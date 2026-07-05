@@ -71,6 +71,7 @@ export type HttpResourceFetcher = (
 ) => Promise<HttpResourceResponse>
 
 export function requireHttpURL(value: string, label: string): HttpURL {
+  assertURIString(value, label)
   rejectRawHttpUrlSyntax(value, label)
   let url: URL
   try {
@@ -258,6 +259,7 @@ function assertURIString(value: string, label: string): void {
 }
 
 function requireAbsoluteURI(uri: string, label: string): URL {
+  assertURIString(uri, label)
   try {
     return new URL(uri)
   } catch (cause) {

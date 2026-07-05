@@ -402,6 +402,7 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
     "/cam/ui.json",
   )
   assert.throws(() => requireHttpURL("not a url", "uri"), /uri: expected absolute URL/)
+  assert.throws(() => requireHttpURL({ toString: () => "https://example.test" } as unknown as string, "uri"), /non-empty URI string/)
   assert.throws(() => requireHttpURL("ftp://example.test/x", "uri"), /http/)
   assert.throws(() => requireHttpURL("https://user@example.test/x", "uri"), /credentials/)
   assert.throws(() => requireHttpURL("https://example.test/\\evil", "uri"), /unsafe raw characters/)
@@ -639,6 +640,7 @@ test("validates published CAM root URI policy", () => {
   for (const uri of [
     "./cam/main.json",
     "file:///bundle/main.json",
+    { toString: () => "https://example.test/cam/main.json" } as unknown as string,
     "http://example.test/cam/main.json",
     "https://user@example.test/cam/main.json",
     "https://example.test/\\main.json",
