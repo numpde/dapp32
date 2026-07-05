@@ -15,6 +15,7 @@ import {
   checkedContainedFilePath,
   readBoundedFile,
 } from "../../local-cam-files.ts"
+import { formatValue } from "../format.ts"
 import {
   BIKE_ACCOUNT_ADDRESS,
   BIKE_HOST_ADDRESS,
@@ -177,16 +178,4 @@ async function checkedMockCamFilePath(uri: { readonly href: string; readonly pat
     label: `bike mock CAM resource ${uri.href}`,
     boundaryLabel: "bike mock CAM directory",
   })
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === "bigint") {
-    return value.toString()
-  }
-
-  if (typeof value === "string") {
-    return value
-  }
-
-  return JSON.stringify(value)
 }

@@ -18,6 +18,7 @@ import type {
 
 import { parsePositiveIntegerText } from "../input.ts"
 import { createTerminalBackendFromEnv } from "./backends/index.ts"
+import { formatValue } from "./format.ts"
 import type {
   DebugEvent,
   TerminalBackend,
@@ -254,18 +255,6 @@ function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonNode[] {
 function labelForAction(action: ResolvedButtonNode): string {
   const label = action.props.label
   return typeof label === "string" ? label : formatValue(action.props)
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === "bigint") {
-    return value.toString()
-  }
-
-  if (typeof value === "string") {
-    return value
-  }
-
-  return JSON.stringify(value)
 }
 
 function formatError(error: unknown): string {
