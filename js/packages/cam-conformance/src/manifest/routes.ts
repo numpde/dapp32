@@ -2,6 +2,7 @@ import {
   CAM_ROUTE_CONTEXT_KEYS,
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
+  collectExpressionReferences,
   isCamRouteKind,
   isExpressionIdentifier,
   isRecordObject,
@@ -9,6 +10,7 @@ import {
 import type {
   CamNamespaceType,
   CamRouteKind,
+  ExpressionReferenceOccurrence,
 } from "@cam/protocol"
 
 import {
@@ -19,13 +21,6 @@ import {
 import type {
   DeclaredNamespace,
 } from "./namespaces.ts"
-import {
-  forEachString,
-} from "../walk.ts"
-import {
-  expressionReference,
-  expressionSyntaxError,
-} from "../expressions/reference.ts"
 
 type DeclaredInvocation = {
   readonly namespace: string
@@ -271,61 +266,68 @@ function validateRouteExpressionReferences({
   readonly issues: CamConformanceIssue[]
 }): void {
   const declaredInputs = new Set(inputs)
-  forEachString(callArgs, `routes.${routeName}.call.args`, (value, path) => {
-    validateRouteExpressionString({
+  for (
+    const occurrence of collectExpressionReferences(
+      callArgs,
+      { numericSegments: true },
+      `routes.${routeName}.call.args`,
+    )
+  ) {
+    validateRouteExpressionOccurrence({
       resource,
-      path,
-      value,
+      occurrence,
       declaredInputs,
       allowOutputs: false,
       outputErrorMessage: "route call arguments cannot reference outputs before the call runs",
       issues,
     })
-  })
-  forEachString(thenArgs, `routes.${routeName}.then.args`, (value, path) => {
-    validateRouteExpressionString({
+  }
+  for (
+    const occurrence of collectExpressionReferences(
+      thenArgs,
+      { numericSegments: true },
+      `routes.${routeName}.then.args`,
+    )
+  ) {
+    validateRouteExpressionOccurrence({
       resource,
-      path,
-      value,
+      occurrence,
       declaredInputs,
       allowOutputs: kind === "read",
       outputErrorMessage: "write route continuations cannot reference transaction outputs",
       issues,
     })
-  })
+  }
 }
 
-function validateRouteExpressionString({
+function validateRouteExpressionOccurrence({
   resource,
-  path,
-  value,
+  occurrence,
   declaredInputs,
   allowOutputs,
   outputErrorMessage,
   issues,
 }: {
   readonly resource: string
-  readonly path: string
-  readonly value: string
+  readonly occurrence: ExpressionReferenceOccurrence
   readonly declaredInputs: ReadonlySet<string>
   readonly allowOutputs: boolean
   readonly outputErrorMessage: string
   readonly issues: CamConformanceIssue[]
 }): void {
-  const syntaxError = expressionSyntaxError(value)
-  if (syntaxError !== undefined) {
-    issues.push(routeExpressionIssue(resource, path, syntaxError))
+  const path = occurrence.path
+  if (occurrence.syntaxError !== undefined) {
+    issues.push(routeExpressionIssue(resource, path, occurrence.syntaxError))
     return
   }
 
-  const reference = expressionReference(value)
+  const reference = occurrence.reference
   if (reference === undefined) return
 
   const { root, segments } = reference
   const firstSegment = segments[0]
   if (!CAM_ROUTE_CONTEXT_KEYS.has(root)) {
-    const reportedRoot = root.length === 0 ? value : root
-    issues.push(routeExpressionIssue(resource, path, `route expression root is not supported: ${reportedRoot}`))
+    issues.push(routeExpressionIssue(resource, path, `route expression root is not supported: ${root}`))
     return
   }
 
