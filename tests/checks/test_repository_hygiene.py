@@ -165,6 +165,18 @@ class RepositoryHygieneTest(unittest.TestCase):
         # not a parallel Compose service or a stale subset of tool smoke tests.
         self.assertEqual(PACKAGE_CI_PREREQS, self.make_target_prereqs(makefile, "package-ci"))
 
+    def test_compose_project_names_are_guarded_before_docker(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+
+        # Compose project/container names are interpolated into many shell
+        # environment assignments. Validate the exported values once in the
+        # shared lane guard before any Docker-backed recipe reaches Compose.
+        self.assertIn("COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME", makefile)
+        self.assertIn("export $(COMPOSE_PROJECT_NAME_VARS)", makefile)
+        self.assertIn("COMPOSE_PROJECT_NAME_GUARD :=", makefile)
+        self.assertIn("must be a Docker-safe name, not a path or shell expression", makefile)
+        self.assertIn("$(COMPOSE_PROJECT_NAME_GUARD); $(NON_ROOT_GUARD); $(REPO_SHAPE_GUARD)", makefile)
+
     def test_integration_fuzz_descriptor_bind_is_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
         recipe = self.make_target_recipe(makefile, "test-integration-fuzz")
