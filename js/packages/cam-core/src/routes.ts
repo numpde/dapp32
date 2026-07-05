@@ -1,10 +1,9 @@
 import { CamError } from "./errors.ts"
 import { resolveArgs } from "./expressions.ts"
 import {
+  collectExpressionReferences,
   diffNameSets,
   hasOwn,
-  isRecordObject,
-  parseExpressionReference,
 } from "@cam/protocol"
 import type { CamRuntimeContext } from "@cam/protocol"
 import type { CamDocument, CamResolvedInvocation, CamRoute } from "./types.ts"
@@ -44,7 +43,10 @@ export function routeRequiresAccount(cam: CamDocument, routeName: string): boole
   // This is a preflight extractor, not another expression parser. Validation
   // owns expression grammar; this only answers whether an anonymous session can
   // attempt the route at all.
-  return argsReferenceAccount(route.call.args) || argsReferenceAccount(route.then.args)
+  return [route.call.args, route.then.args].some((args) =>
+    collectExpressionReferences(args, { numericSegments: true })
+      .some((occurrence) => occurrence.reference?.root === "account")
+  )
 }
 
 function routeForName(cam: CamDocument, routeName: string) {
@@ -69,20 +71,4 @@ function assertRouteInputs(route: CamRoute, routeName: string, context: CamRunti
       throw new CamError("CAM_INVALID_FIELD", `unexpected route input: ${name}`, `routes.${routeName}.inputs`)
     },
   })
-}
-
-function argsReferenceAccount(value: unknown): boolean {
-  if (typeof value === "string") {
-    return parseExpressionReference(value, { numericSegments: true })?.root === "account"
-  }
-
-  if (Array.isArray(value)) {
-    return value.some((item) => argsReferenceAccount(item))
-  }
-
-  if (isRecordObject(value)) {
-    return Object.values(value).some((item) => argsReferenceAccount(item))
-  }
-
-  return false
 }

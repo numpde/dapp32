@@ -23,6 +23,7 @@ import {
   CAM_ROUTE_KINDS,
   CAM_WRITE_ROUTE_THEN_NAMESPACE_TYPES,
   CAM_ROUTE_CONTEXT_KEYS,
+  collectExpressionReferences,
   CAM_VERSION,
   diffNameSets,
   InertValueError,
@@ -253,6 +254,58 @@ test("owns expression reference grammar and escaping", () => {
   assert.equal(expressionReferenceSyntaxError("literal", { numericSegments: true }), undefined)
   assert.equal(expressionReferenceSyntaxError("$values.0.owner", { numericSegments: true }), undefined)
   assert.equal(expressionReferenceSyntaxError("$values.", { numericSegments: true }), "invalid expression syntax: $values.")
+})
+
+test("collects expression reference occurrences with paths and syntax findings", () => {
+  class NonProtocolBox {
+    readonly value = "$account.address"
+  }
+
+  const occurrences = collectExpressionReferences({
+    account: "$account.address",
+    escaped: "$$account.address",
+    invalid: "$values.",
+    nested: ["$values.0.owner", "$values.9007199254740992.owner"],
+    box: new NonProtocolBox(),
+  }, { numericSegments: true })
+
+  assert.deepEqual(occurrences, [
+    {
+      path: "account",
+      value: "$account.address",
+      reference: {
+        root: "account",
+        segments: ["address"],
+      },
+    },
+    {
+      path: "invalid",
+      value: "$values.",
+      syntaxError: "invalid expression syntax: $values.",
+    },
+    {
+      path: "nested.0",
+      value: "$values.0.owner",
+      reference: {
+        root: "values",
+        segments: ["0", "owner"],
+      },
+    },
+    {
+      path: "nested.1",
+      value: "$values.9007199254740992.owner",
+      syntaxError: "invalid expression syntax: $values.9007199254740992.owner",
+    },
+  ])
+
+  assert.deepEqual(
+    collectExpressionReferences("$values.0.owner", { numericSegments: false }),
+    [{
+      path: "",
+      value: "$values.0.owner",
+      syntaxError: "invalid expression syntax: $values.0.owner",
+    }],
+  )
 })
 
 test("owns route and UI expression root vocabularies", () => {

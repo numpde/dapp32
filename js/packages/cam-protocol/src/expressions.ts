@@ -31,6 +31,13 @@ export type ExpressionReference = {
   readonly segments: readonly string[]
 }
 
+export type ExpressionReferenceOccurrence = {
+  readonly path: string
+  readonly value: string
+  readonly reference?: ExpressionReference
+  readonly syntaxError?: string
+}
+
 export type ExpressionReferenceOptions = {
   readonly numericSegments: boolean
 }
@@ -88,6 +95,16 @@ export function expressionReferenceSyntaxError(
   if (parseExpressionReference(value, options) !== undefined) return undefined
 
   return invalidExpressionSyntaxMessage(value)
+}
+
+export function collectExpressionReferences(
+  value: unknown,
+  options: ExpressionReferenceOptions,
+  path = "",
+): readonly ExpressionReferenceOccurrence[] {
+  const occurrences: ExpressionReferenceOccurrence[] = []
+  collectExpressionReferencesInto(value, options, path, occurrences)
+  return occurrences
 }
 
 export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>): ExpressionRuntime<T> {
@@ -206,6 +223,38 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
     validateValue,
     parsePayload,
     resolveValue,
+  }
+}
+
+function collectExpressionReferencesInto(
+  value: unknown,
+  options: ExpressionReferenceOptions,
+  path: string,
+  occurrences: ExpressionReferenceOccurrence[],
+): void {
+  if (typeof value === "string") {
+    if (!isExpressionReferenceString(value)) return
+
+    const reference = parseExpressionReference(value, options)
+    occurrences.push(reference === undefined
+      ? { path, value, syntaxError: invalidExpressionSyntaxMessage(value) }
+      : { path, value, reference })
+    return
+  }
+
+  if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index++) {
+      if (index in value) {
+        collectExpressionReferencesInto(value[index], options, joinPath(path, String(index)), occurrences)
+      }
+    }
+    return
+  }
+
+  if (isRecordObject(value)) {
+    for (const [key, item] of Object.entries(value)) {
+      collectExpressionReferencesInto(item, options, joinPath(path, key), occurrences)
+    }
   }
 }
 

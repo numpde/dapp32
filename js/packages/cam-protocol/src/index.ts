@@ -33,6 +33,7 @@ export {
 } from "./versions.ts"
 
 export {
+  collectExpressionReferences,
   createExpressionRuntime,
   expressionReferenceSyntaxError,
   isExpressionArrayIndex,
@@ -44,6 +45,7 @@ export {
 export type {
   ExpressionErrorKind,
   ExpressionReference,
+  ExpressionReferenceOccurrence,
   ExpressionReferenceOptions,
   ExpressionRuntime,
   ExpressionRuntimeOptions,
