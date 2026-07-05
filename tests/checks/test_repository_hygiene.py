@@ -166,17 +166,32 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertEqual(PACKAGE_CI_PREREQS, self.make_target_prereqs(makefile, "package-ci"))
 
     def test_integration_fuzz_descriptor_bind_is_guarded_before_docker(self) -> None:
-        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "test-integration-fuzz")
+        makefile = read_text(repo_path("Makefile"))
+        recipe = self.make_target_recipe(makefile, "test-integration-fuzz")
 
         # Docker may resolve host symlinks before the container can inspect the
         # bind target, and the external Docker network is an authority boundary.
         # Guard both operator-supplied values before Compose interpolation.
+        self.assertIn("export CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS", makefile)
+        self.assertIn('seed="$${CAM_INTEGRATION_SEED:?missing_CAM_INTEGRATION_SEED}"', makefile)
+        self.assertIn("CAM_INTEGRATION_SEED must be 1-128 URL-safe label characters", makefile)
+        self.assertNotIn('CAM_INTEGRATION_SEED="$(CAM_INTEGRATION_SEED)"', makefile)
+        self.assertIn("$(CAM_INTEGRATION_INPUT_GUARD);", recipe)
         self.assertIn('! -f "$$path"', recipe)
         self.assertIn('-L "$$current"', recipe)
         self.assertIn("must not pass through a symlink", recipe)
         self.assertIn("CAM_INTEGRATION_NETWORK", recipe)
         self.assertIn("^[A-Za-z0-9][A-Za-z0-9_.-]*$$", recipe)
         self.assertIn("must be a Docker network name", recipe)
+
+        for target in (
+            "cam-integration-fuzz-check",
+            "test-integration-fuzz-bike-nft",
+            "test-integration-fuzz-with-writes-bike-nft",
+            "test-integration-fuzz-bike-nft-down",
+        ):
+            with self.subTest(target=target):
+                self.assertIn("$(CAM_INTEGRATION_INPUT_GUARD);", self.make_target_recipe(makefile, target))
 
     def test_package_dependency_manifest_discovery_can_reject_symlinks(self) -> None:
         recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "package-deps")
