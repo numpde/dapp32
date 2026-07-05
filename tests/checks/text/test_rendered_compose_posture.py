@@ -424,6 +424,10 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertIn(f"tsc -p {tsconfig}", command)
         self.assertIn(f"node --experimental-strip-types {script}", command)
 
+    def assert_js_tool_tests(self, config_service: dict[str, Any], test_glob: str) -> None:
+        command = compose_command_text(config_service)
+        self.assertIn(f"node --test --experimental-strip-types {test_glob}", command)
+
     def assert_mock_viewer_terminal(self, config_service: dict[str, Any]) -> None:
         self.assert_hardened(config_service)
         self.assertEqual("none", config_service.get("network_mode"))
@@ -662,7 +666,9 @@ class RenderedComposePostureTest(unittest.TestCase):
             env=mock_viewer_env(),
         )
         self.assert_mock_viewer_terminal(compose_service(mock_config, "viewer-terminal"))
-        self.assert_mock_viewer_terminal(compose_service(mock_config, "viewer-terminal-check"))
+        terminal_check = compose_service(mock_config, "viewer-terminal-check")
+        self.assert_mock_viewer_terminal(terminal_check)
+        self.assert_js_tool_tests(terminal_check, "tools/viewer-terminal/**/*.test.ts")
 
         viewer_config = rendered_compose_config(
             makefile_compose_unit("BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES"),
@@ -731,6 +737,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("dapps-test-network", generic_config["networks"]["cam_integration"]["name"])
         self.assertTrue(generic_config["networks"]["cam_integration"]["external"])
         self.assertEqual("simulate", compose_mapping(generic, "environment")["CAM_INTEGRATION_WRITE_MODE"])
+        self.assert_js_tool_tests(generic_check, "tools/cam-integration-fuzz/*.test.ts")
         self.assert_js_tool_command(
             generic,
             "tools/cam-integration-fuzz/tsconfig.json",
