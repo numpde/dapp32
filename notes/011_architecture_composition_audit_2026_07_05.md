@@ -8,7 +8,7 @@ JSON, resource, integrity, and conformance posture. The remaining risk is
 narrower: the same CAM semantics are interpreted in multiple places for
 different purposes.
 
-Treat this as a sequencing note, not as proof that any item is a bug.
+Treat this as a sequencing note for future work.
 
 Checklist:
 
@@ -27,13 +27,13 @@ Keep these invariants intact while refactoring:
 - Byte-exact resource integrity semantics.
 - Same-origin HTTP resource loading with redirect refusal.
 - Narrow structural EVM client/wallet ports.
-- Current public package APIs unless a versioning decision is explicit.
+- Current public package APIs, with an explicit versioning decision for changes.
 
 Checklist:
 
 - [ ] Add or keep regression coverage for any invariant touched by a refactor.
 - [ ] Preserve byte-exact resource and integrity behavior.
-- [ ] Preserve public APIs unless the commit explicitly documents an API change.
+- [ ] Preserve public APIs or document the explicit API change.
 
 ## Core Problem
 
@@ -55,27 +55,23 @@ Checklist:
 
 ### 1. Add Expression Reference Facts
 
-Expression parsing is already centralized, but consumers still recurse through
-raw inert values to answer questions such as "does this route require account?"
-or "which roots does this UI expression reference?"
+Expression parsing and the `ExpressionReference` type are already centralized in
+`@cam/protocol`. The missing piece is a path-preserving collector. Consumers
+still recurse through raw inert values to answer questions such as "does this
+route require account?" or "which roots does this UI expression reference?"
 
-Add a small protocol-level reference collector:
-
-```ts
-type ExpressionReference = {
-  readonly root: string
-  readonly segments: readonly string[]
-  readonly path: string
-}
-```
+Add a small protocol-level collection API around the existing parser. Each
+occurrence should carry the source path, raw string value, parsed reference when
+valid, and syntax detail when invalid.
 
 Required behavior:
 
 - Walk strings, arrays, and records.
 - Treat escaped `$$...` strings as literals.
-- Report or preserve invalid expression syntax without throwing accidental
-  traversal exceptions.
+- Preserve invalid `$...` syntax as a finding instead of a traversal exception.
 - Support the same numeric-segment policy as existing expression parsing.
+- Reuse `parseExpressionReference` and `expressionReferenceSyntaxError` as the
+  sole expression grammar.
 
 Use it first in the smallest high-value places:
 
@@ -87,7 +83,7 @@ rewriting the conformance pipeline.
 
 Checklist:
 
-- [ ] Implement reference collection in `@cam/protocol`.
+- [ ] Implement path-preserving reference collection in `@cam/protocol`.
 - [ ] Cover escaped dollars, invalid syntax, arrays, records, and numeric
   segment policy.
 - [ ] Replace route account requirement scanning in `@cam/core`.
@@ -99,8 +95,9 @@ Checklist:
 `@cam/conformance` intentionally accumulates issues while runtime parsers fail
 fast. That difference is legitimate. Drift is not.
 
-Before extracting larger fact builders, add fixtures that pin where runtime and
-conformance should agree on structural acceptance or rejection:
+Before extracting a fact builder, add fixtures for the semantic area being
+changed. Use this risk list to pick the cases where runtime and conformance
+should agree on structural acceptance or rejection:
 
 - Unknown CAM root field.
 - Unknown namespace type.
@@ -110,27 +107,28 @@ conformance should agree on structural acceptance or rejection:
 - Invalid expression root.
 - Invalid ABI function reference or unsupported ABI type.
 
-The test should not require identical error wording. It should prove that the
-layers agree on the document meaning, while allowing conformance to add stricter
-publication rules when those are documented.
+The test should compare document meaning and allow wording to differ.
+Conformance-only publication rules need explicit labels in the fixture
+expectations.
 
 Checklist:
 
-- [ ] Add fixtures for each listed structural disagreement risk.
-- [ ] Assert agreement on accept/reject meaning, not identical wording.
+- [ ] Add fixtures for the disagreement risks touched by the next extraction.
+- [ ] Assert agreement on accept/reject meaning while allowing wording to differ.
 - [ ] Mark stricter conformance-only publication rules explicitly.
 - [ ] Run package tests before extracting shared builders.
 
-### 3. Extract Shared Fact Builders Only Where Parity Tests Expose Real Drift Risk
+### 3. Extract Shared Fact Builders Where Parity Tests Pin Drift Risk
 
 Extract fact builders one semantic area at a time, after parity tests make the
 target behavior clear.
 
-Good candidates:
+Likely candidates, in order:
 
-- CAM root and namespace facts.
+- Expression reference occurrences.
 - Route invocation facts.
 - UI document and node facts.
+- CAM root and namespace facts.
 - ABI function facts.
 
 Keep two facades:
@@ -138,8 +136,8 @@ Keep two facades:
 - Runtime APIs remain fail-fast and return parsed runtime documents.
 - Conformance remains accumulated and returns `CamConformanceIssue[]`.
 
-The shared layer should own facts, not public diagnostics. Each facade can map
-facts to its existing error/issue model.
+The shared layer should own facts instead of public diagnostics. Each facade can
+map facts to its existing error/issue model.
 
 Checklist:
 
@@ -157,8 +155,9 @@ prepares writes, rejects fabricated rendered actions, and snapshots state.
 
 Keep the public session API stable. Extract pure internals first:
 
-- `ViewResolver`: route outputs + UI document + state -> resolved UI.
-- `ActionInterpreter`: rendered button -> navigation or prepared write.
+- `ViewResolver`: loaded CAM/UI facts + route outputs + state -> resolved UI.
+- `ActionInterpreter`: loaded facts + rendered button -> navigation request or
+  prepared write descriptor.
 - Snapshot/state helpers that remain inert and clone-safe.
 
 Keep network, wallet, and React concerns outside these pure pieces. The goal is
@@ -187,19 +186,11 @@ chain/account checks, simulation, send, receipt wait, timeout/nonce diagnosis,
 and post-write navigation. That makes terminal or agent hosts harder to share
 with and makes transaction behavior hard to test without React.
 
-Extract a small executor with explicit ports:
-
-```ts
-type PreparedCallExecutorPorts = {
-  readonly publicClient: unknown
-  readonly wallet: WalletPort
-  readonly waitForReceipt: ReceiptWaiter
-}
-```
-
-The exact type shape should follow existing viem-facing code. The important
-boundary is that React becomes state binding and message rendering, while the
-transaction lifecycle is unit-testable without a component.
+Extract a small executor with explicit capability-shaped ports for simulation,
+chain/account checks, send, transaction lookup, pending nonce lookup, receipt
+waiting, and timeout control. The important boundary is that React becomes state
+binding and message rendering, while the transaction lifecycle is unit-testable
+without a component.
 
 Preserve:
 
@@ -213,19 +204,21 @@ Preserve:
 
 Checklist:
 
-- [ ] Define narrow public-client, wallet, receipt, and timing ports.
+- [ ] Define narrow simulation, public-client, wallet, receipt, and timing ports.
 - [ ] Move simulation/send/receipt/diagnosis logic out of React.
 - [ ] Keep wallet browser specifics in an adapter.
 - [ ] Unit-test transaction lifecycle without React.
 - [ ] Keep app tests focused on UI wiring and messages.
 
-### 6. Consider An ABI Walker Only After Inventory
+### 6. Inventory ABI Traversal Policy
 
 Input normalization, output normalization, and conformance ABI checks all walk
-ABI-shaped values. A shared walker may be right, but it can easily become a
-generic abstraction that obscures direction-specific policy.
+ABI-shaped values. They already share useful protocol helpers for scalar types,
+integer bounds, bytes, fixed arrays, dynamic arrays, signatures, and parameter
+names. The remaining work is to inventory the traversal differences before
+extracting another abstraction.
 
-Before building it, inventory the actual duplicated rules:
+Inventory the actual duplicated rules:
 
 - Supported scalar types.
 - Integer bounds.
@@ -243,8 +236,9 @@ Checklist:
 - [ ] Inventory runtime input, runtime output, and conformance ABI policies.
 - [ ] Separate intentional direction-specific differences from drift.
 - [ ] Add parity tests for shared unsupported-type decisions.
-- [ ] Build a walker that removes real duplicated traversal policy.
-- [ ] Keep direction-specific callbacks explicit.
+- [ ] Extract a walker only for duplicated traversal policy proven by the
+  inventory.
+- [ ] Keep input, output, and conformance callbacks explicit.
 
 ## Recommended Order
 
@@ -253,13 +247,13 @@ Checklist:
 3. Extract one small shared fact builder where the parity tests justify it.
 4. Split pure viewer session internals behind the existing API.
 5. Extract transaction execution from `App.tsx`.
-6. Reassess ABI traversal after inventory.
+6. Inventory ABI traversal and extract only proven shared traversal policy.
 
-Each step should be small, behavior-preserving unless explicitly stated, and
-covered by the narrowest relevant Docker-backed check.
+Each step should be small, state whether behavior is preserved or intentionally
+changed, and be covered by the narrowest relevant Docker-backed check.
 
 Checklist:
 
-- [ ] Complete steps in order unless a concrete bug justifies jumping ahead.
+- [ ] Complete steps in order; jump ahead only for a concrete bug.
 - [ ] Keep each PR/commit on one axis.
 - [ ] Record which checks were run with each change.
