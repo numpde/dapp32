@@ -71,6 +71,7 @@ export type HttpResourceFetcher = (
 ) => Promise<HttpResourceResponse>
 
 export function requireHttpURL(value: string, label: string): HttpURL {
+  rejectRawHttpUrlSyntax(value, label)
   let url: URL
   try {
     url = new URL(value)
@@ -85,6 +86,15 @@ export function requireHttpURL(value: string, label: string): HttpURL {
   }
 
   return url
+}
+
+function rejectRawHttpUrlSyntax(value: string, label: string): void {
+  // WHATWG URL parsing is intentionally forgiving: it can strip controls and
+  // treat backslashes as path separators. CAM accepts only reviewable HTTP(S)
+  // strings here, so reject raw forms that would be parsed as a different URL.
+  if (/[\u0000-\u001f\u007f\\]/u.test(value)) {
+    throw new Error(`${label}: URL contains unsafe raw characters`)
+  }
 }
 
 export function requireHttpOrigin(value: string, label: string): string {
@@ -162,7 +172,10 @@ export function assertLoadableCamRootURI(uri: string, label: string): void {
   // contract-returned URI to a caller-supplied loader. Plain HTTP remains
   // loadable for local fixtures and pinned-origin dev servers; publication
   // tooling owns the stricter HTTPS/IPFS policy.
-  if (url.protocol === "http:" || url.protocol === "https:") return
+  if (url.protocol === "http:" || url.protocol === "https:") {
+    requireHttpURL(uri, label)
+    return
+  }
   if (url.protocol === "ipfs:" && isIpfsCamSecondaryResourceURI(uri)) return
 
   throw new Error(`${label}: expected http://..., https://..., or ipfs://<CID>[...] CAM root URI`)
@@ -174,7 +187,10 @@ export function assertPublishedCamRootURI(uri: string, label: string): void {
 
   // Publication roots are either HTTPS locations anchored by the published
   // CAM hash, or reviewable IPFS CIDs. Local roots stay a test/fixture concern.
-  if (url.protocol === "https:") return
+  if (url.protocol === "https:") {
+    requireHttpURL(uri, label)
+    return
+  }
   if (url.protocol === "ipfs:" && isIpfsCamSecondaryResourceURI(uri)) return
 
   throw new Error(`${label}: expected https://... or ipfs://<CID>[...] publication URI`)

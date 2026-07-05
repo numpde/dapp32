@@ -404,6 +404,8 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
   assert.throws(() => requireHttpURL("not a url", "uri"), /uri: expected absolute URL/)
   assert.throws(() => requireHttpURL("ftp://example.test/x", "uri"), /http/)
   assert.throws(() => requireHttpURL("https://user@example.test/x", "uri"), /credentials/)
+  assert.throws(() => requireHttpURL("https://example.test/\\evil", "uri"), /unsafe raw characters/)
+  assert.throws(() => requireHttpURL("https://example.test/a\nb", "uri"), /unsafe raw characters/)
   assert.throws(() => requireHttpOrigin("https://example.test/path", "origin"), /origin/)
   assert.throws(() => requireSameHttpOrigin("https://other.test/x", "https://example.test", "uri"), /outside/)
   assert.equal(responseContentLength(new Response("", { headers: { "content-length": "3" } }), "uri"), 3)
@@ -639,6 +641,7 @@ test("validates published CAM root URI policy", () => {
     "file:///bundle/main.json",
     "http://example.test/cam/main.json",
     "https://user@example.test/cam/main.json",
+    "https://example.test/\\main.json",
     "ipfs://example/main.json",
   ]) {
     assert.throws(
@@ -658,6 +661,7 @@ test("validates loadable CAM root URI policy", () => {
     "file:///bundle/main.json",
     "javascript:alert(1)",
     "https://user@example.test/cam/main.json",
+    "https://example.test/a\nb",
     "ipfs://example/main.json",
   ]) {
     assert.throws(
