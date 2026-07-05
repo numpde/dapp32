@@ -352,6 +352,25 @@ class PackageMetadataTest(unittest.TestCase):
             # workspace manifest that owns the importing source or test.
             self.assertEqual(imported, imported & declared, f"{path}: direct external imports must be declared")
 
+    def test_runtime_source_external_imports_use_runtime_dependencies(self) -> None:
+        workspace_names = self.workspace_package_names()
+
+        for path in self.workspace_manifest_paths():
+            manifest = self.read_manifest(path)
+            dependencies = manifest.get("dependencies")
+            if dependencies is None:
+                dependencies = {}
+            self.assertIsInstance(dependencies, dict, f"{path}: dependencies must be an object when present")
+            imported = self.imported_external_packages_from_files(
+                self.runtime_source_files(path.parent),
+                workspace_names,
+                self.package_name(path),
+            )
+
+            # Tests and config may use devDependencies. Runtime source cannot:
+            # package consumers do not inherit this workspace's dev graph.
+            self.assertEqual(imported, imported & set(dependencies), f"{path}: runtime source imports must be dependencies")
+
     def test_workspace_dependency_scanner_sees_common_module_forms(self) -> None:
         source = "\n".join([
             'import "@cam/protocol"',
@@ -432,16 +451,35 @@ class PackageMetadataTest(unittest.TestCase):
         return imported
 
     def imported_external_packages(self, package_root: Path, workspace_names: dict[str, str]) -> set[str]:
-        imported: set[str] = set()
-        package_name = self.read_manifest(package_root / "package.json").get("name")
-        self.assertIsInstance(package_name, str, f"{package_root / 'package.json'}: package name must be a string")
+        return self.imported_external_packages_from_files(
+            self.package_import_scan_files(package_root),
+            workspace_names,
+            self.package_name(package_root / "package.json"),
+        )
 
-        for path in self.package_import_scan_files(package_root):
+    def imported_external_packages_from_files(
+        self,
+        paths: list[Path],
+        workspace_names: dict[str, str],
+        package_name: str,
+    ) -> set[str]:
+        imported: set[str] = set()
+        for path in paths:
             for specifier, _line_number in self.module_specifiers(read_text(path)):
                 name = self.external_package_name_for_specifier(specifier, workspace_names, package_name)
                 if name is not None:
                     imported.add(name)
         return imported
+
+    def runtime_source_files(self, package_root: Path) -> list[Path]:
+        source_root = package_root / "src"
+        if not source_root.is_dir():
+            return []
+        return [
+            path
+            for path in self.package_import_scan_files(source_root)
+            if path.suffix != ".d.ts"
+        ]
 
     def package_import_scan_files(self, package_root: Path) -> list[Path]:
         paths: list[Path] = []
@@ -517,3 +555,8 @@ class PackageMetadataTest(unittest.TestCase):
                 paths.append(match)
 
         return paths
+
+    def package_name(self, manifest_path: Path) -> str:
+        package_name = self.read_manifest(manifest_path).get("name")
+        self.assertIsInstance(package_name, str, f"{manifest_path}: package name must be a string")
+        return package_name
