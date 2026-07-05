@@ -169,10 +169,14 @@ class RepositoryHygieneTest(unittest.TestCase):
         recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "test-integration-fuzz")
 
         # Docker may resolve host symlinks before the container can inspect the
-        # bind target. Guard the operator-supplied descriptor path in Make.
+        # bind target, and the external Docker network is an authority boundary.
+        # Guard both operator-supplied values before Compose interpolation.
         self.assertIn('! -f "$$path"', recipe)
         self.assertIn('-L "$$current"', recipe)
         self.assertIn("must not pass through a symlink", recipe)
+        self.assertIn("CAM_INTEGRATION_NETWORK", recipe)
+        self.assertIn("^[A-Za-z0-9][A-Za-z0-9_.-]*$$", recipe)
+        self.assertIn("must be a Docker network name", recipe)
 
     def test_package_dependency_manifest_discovery_can_reject_symlinks(self) -> None:
         recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "package-deps")

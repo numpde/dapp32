@@ -478,6 +478,10 @@ test-integration-fuzz:
 	  printf '%s\n' 'Set CAM_INTEGRATION_NETWORK to the Docker network that can reach descriptor rpcUrl/resourceOrigin.' >&2; \
 	  exit 2; \
 	fi; \
+	if [[ ! "$$CAM_INTEGRATION_NETWORK" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$$ ]]; then \
+	  printf '%s\n' 'CAM_INTEGRATION_NETWORK must be a Docker network name, not a path or shell expression.' >&2; \
+	  exit 2; \
+	fi; \
 	$(TEST_INTEGRATION_FUZZ_ENV) \
 	  CAM_INTEGRATION_DESCRIPTOR_HOST_PATH="$${CAM_INTEGRATION_DESCRIPTOR_HOST_PATH}" \
 	  CAM_INTEGRATION_NETWORK="$${CAM_INTEGRATION_NETWORK}" \
