@@ -2,12 +2,11 @@
 
 Date: 2026-07-05
 
-This note records the architectural refactors that still look valid after review.
-It deliberately drops broad package-split and checklist sprawl. The repo is not
-sloppy; it is security-minded and already has strong Docker, dependency, JSON,
-resource, integrity, and conformance posture. The remaining risk is narrower:
-the same CAM semantics are interpreted in multiple places for different
-purposes.
+This note records the architectural refactors that still look valid after
+review. The repo is security-minded and already has strong Docker, dependency,
+JSON, resource, integrity, and conformance posture. The remaining risk is
+narrower: the same CAM semantics are interpreted in multiple places for
+different purposes.
 
 Treat this as a sequencing note, not as proof that any item is a bug.
 
@@ -20,7 +19,7 @@ Checklist:
 
 ## Preserve
 
-Do not weaken these invariants while refactoring:
+Keep these invariants intact while refactoring:
 
 - Duplicate-key JSON rejection and fatal UTF-8 decoding.
 - Inert value validation/cloning at object boundaries.
@@ -43,15 +42,14 @@ viewer orchestration, and the React app each understand overlapping parts of the
 CAM model. The long-term failure mode is semantic drift: two layers accept or
 diagnose the same CAM document differently.
 
-The right direction is not an immediate package split. The right direction is to
-extract small shared facts where duplication is already real, prove parity with
-tests, and keep the public facades stable.
+The right direction is to extract small shared facts where duplication is
+already real, prove parity with tests, and keep the public facades stable.
 
 Checklist:
 
 - [ ] Prefer shared facts over duplicated semantic walkers.
 - [ ] Keep runtime fail-fast behavior and conformance accumulation distinct.
-- [ ] Do not split packages before internal facts and parity tests justify it.
+- [ ] Keep internal facts and parity tests ahead of package-boundary changes.
 
 ## Necessary Refactors
 
@@ -125,8 +123,8 @@ Checklist:
 
 ### 3. Extract Shared Fact Builders Only Where Parity Tests Expose Real Drift Risk
 
-Do not build a general fact engine upfront. Extract fact builders one semantic
-area at a time, only after the parity tests make the target behavior clear.
+Extract fact builders one semantic area at a time, after parity tests make the
+target behavior clear.
 
 Good candidates:
 
@@ -163,8 +161,8 @@ Keep the public session API stable. Extract pure internals first:
 - `ActionInterpreter`: rendered button -> navigation or prepared write.
 - Snapshot/state helpers that remain inert and clone-safe.
 
-Do not move network, wallet, or React concerns into these pure pieces. The goal
-is lower risk and better tests, not a new framework.
+Keep network, wallet, and React concerns outside these pure pieces. The goal is
+lower risk and better tests.
 
 Required tests before/with extraction:
 
@@ -238,85 +236,15 @@ Before building it, inventory the actual duplicated rules:
 - Unsupported ABI shapes.
 
 If the inventory shows real drift risk, introduce a small walker with
-direction-specific callbacks. If the duplication is clearer than the abstraction
-would be, leave it alone and add parity tests instead.
+direction-specific callbacks and keep the direction-specific policy explicit.
 
 Checklist:
 
 - [ ] Inventory runtime input, runtime output, and conformance ABI policies.
 - [ ] Separate intentional direction-specific differences from drift.
 - [ ] Add parity tests for shared unsupported-type decisions.
-- [ ] Build a walker only if it removes real duplicated traversal policy.
+- [ ] Build a walker that removes real duplicated traversal policy.
 - [ ] Keep direction-specific callbacks explicit.
-
-## Deferred Or Rejected
-
-### Package Splitting
-
-Do not split `@cam/protocol` into many packages now. The current dependency
-direction is good, and package splits would add versioning, lockfile, and
-operator-lane overhead before the semantics are stable.
-
-If organization becomes painful, split source folders and add import-boundary
-checks first. Keep one public package until there is a concrete consumer or
-versioning reason to split.
-
-Checklist:
-
-- [ ] Do not create new `@cam/*` packages for organization alone.
-- [ ] Use source folders and import-boundary checks first.
-- [ ] Revisit package splits only after stable shared facts exist.
-
-### UI Descriptor Registry
-
-A descriptor registry may become useful when adding more UI elements, but it is
-not necessary now. The current UI vocabulary is closed-world by design. Do not
-introduce a registry until a real element addition or bug demonstrates that the
-current switches are causing drift.
-
-Checklist:
-
-- [ ] Do not add a registry for current elements only.
-- [ ] Reconsider when adding a new UI element.
-- [ ] If introduced, derive parser/conformance metadata from the same source.
-
-### Makefile Modularization
-
-The Makefile is large, but it is guarded and tested. Modularizing it is lower
-priority than semantic alignment across CAM runtime/conformance/viewer code.
-Only split it when edits become clearly unsafe, and preserve target names and
-guard checks exactly.
-
-Checklist:
-
-- [ ] Do not split the Makefile ahead of semantic refactors.
-- [ ] If split, preserve every target name and guard.
-- [ ] Add a check that Docker-backed lanes still run the required guards.
-
-### Global Diagnostic Model
-
-Do not introduce a universal diagnostic type yet. Preserve path/resource/code
-metadata through wrapping where needed, but avoid a cross-package diagnostic
-framework until repeated wrapping bugs prove it necessary.
-
-Checklist:
-
-- [ ] Preserve path/resource/code metadata at wrapping sites.
-- [ ] Fix concrete wrapping losses locally first.
-- [ ] Reconsider a shared diagnostic shape only after repeated local fixes.
-
-### Branded Types Everywhere
-
-Branding can help for route names, namespace names, resource URIs, chain IDs,
-and addresses after validation. It can also make the code noisy. Add branded
-types only where a real cross-boundary mix-up exists or a fact-builder output
-needs stronger documentation.
-
-Checklist:
-
-- [ ] Add branded types only after validation boundaries.
-- [ ] Prefer brands for cross-package identifiers, not local temporaries.
-- [ ] Do not expose brands publicly unless ergonomics remain acceptable.
 
 ## Recommended Order
 
@@ -328,8 +256,7 @@ Checklist:
 6. Reassess ABI traversal after inventory.
 
 Each step should be small, behavior-preserving unless explicitly stated, and
-covered by the narrowest relevant Docker-backed check. Broad rewrites, package
-splits, and new frameworks are not justified by this audit.
+covered by the narrowest relevant Docker-backed check.
 
 Checklist:
 
