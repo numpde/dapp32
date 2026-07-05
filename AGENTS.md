@@ -115,6 +115,10 @@ Keep the project small, explicit, and protocol-first.
   EVM-specific address and `eip155:*` chain helpers belong in `@cam/evm-viem`.
   Do not reimplement these ad hoc in apps or tools unless the semantics are
   deliberately different and locally documented.
+- Protocol CAM fact collectors under `@cam/protocol` are a provisional internal
+  substrate for shared document meaning. Until the boundary is boring, only
+  `@cam/core` and `@cam/conformance` may consume them; apps, tools, viewers,
+  fixtures, and package tests outside those owners must not.
 
 ## Dapp Layout
 
