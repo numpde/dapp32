@@ -59,7 +59,8 @@ STAGED_JS_TSCONFIG_RE = re.compile(r'copy_file_if_present "\$source_dir/(?P<name
 MODULE_SPECIFIER_RE = re.compile(
     r'(?:from\s+["\'](?P<from>[^"\']+)["\']|'
     r'import\s+["\'](?P<bare>[^"\']+)["\']|'
-    r'import\s*\(\s*["\'](?P<dynamic>[^"\']+)["\']\s*\))'
+    r'import\s*\(\s*["\'](?P<dynamic>[^"\']+)["\']\s*\)|'
+    r'\brequire\s*\(\s*["\'](?P<require>[^"\']+)["\']\s*\))'
 )
 
 
@@ -331,6 +332,26 @@ class PackageMetadataTest(unittest.TestCase):
             # Hoisted node_modules can mask stale or undeclared workspace edges.
             self.assertEqual(imported, declared, f"{path}: workspace deps must match direct workspace imports")
 
+    def test_workspace_dependency_scanner_sees_common_module_forms(self) -> None:
+        source = "\n".join([
+            'import "@cam/protocol"',
+            'import { parseCam } from "@cam/core"',
+            'await import("@cam/screen")',
+            'const viewer = require("@cam/viewer")',
+        ])
+
+        # The dependency graph check is an architecture check, not an ESM-only
+        # lint. CommonJS config or support files must not hide workspace edges.
+        self.assertEqual(
+            [
+                "@cam/protocol",
+                "@cam/core",
+                "@cam/screen",
+                "@cam/viewer",
+            ],
+            [specifier for specifier, _line in self.module_specifiers(source)],
+        )
+
     def package_manifest_paths(self) -> list[Path]:
         return [repo_path("js/package.json"), *self.workspace_manifest_paths()]
 
@@ -391,12 +412,19 @@ class PackageMetadataTest(unittest.TestCase):
                 continue
             if path.suffix not in PACKAGE_IMPORT_SCAN_EXTENSIONS:
                 continue
-            for match in MODULE_SPECIFIER_RE.finditer(read_text(path)):
-                specifier = next(group for group in match.groups() if group is not None)
+            for specifier, _line_number in self.module_specifiers(read_text(path)):
                 package_name = self.workspace_package_name_for_specifier(specifier, workspace_names)
                 if package_name is not None:
                     imported.add(package_name)
         return imported
+
+    def module_specifiers(self, text: str) -> list[tuple[str, int]]:
+        specifiers: list[tuple[str, int]] = []
+        for match in MODULE_SPECIFIER_RE.finditer(text):
+            specifier = next(group for group in match.groups() if group is not None)
+            specifiers.append((specifier, text.count("\n", 0, match.start()) + 1))
+
+        return specifiers
 
     def workspace_package_name_for_specifier(
         self,
