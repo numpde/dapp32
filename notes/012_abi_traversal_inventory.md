@@ -199,15 +199,15 @@ Already covered by existing tests:
   mismatches, recursive tuple/array literal mismatches, output-index and
   output-field reference failures, and partially known write-continuation
   aggregate failures.
+- Conformance skips unknown route expressions inside otherwise known arrays and
+  tuples while still reporting deterministic sibling scalar and tuple shape
+  mismatches.
 - UI typeflow checks ABI-backed prop incompatibility, route handoff literals,
   direct aggregate args, direct array args, selector lists, and literal field
   name preservation.
 
 Missing or weak characterization before extraction:
 
-- Conformance route ABI compatibility should explicitly pin that unknown
-  expressions inside otherwise known arrays/tuples are skipped or reported only
-  where deterministic.
 - UI typeflow should explicitly pin any intentional difference from route ABI
   compatibility before a shared traversal is attempted.
 - ABI declaration parsing parity between `@cam/evm-viem` and `@cam/conformance`

@@ -45,6 +45,18 @@ function viewTextNode() {
   }
 }
 
+function viewEntryAbiBytes(inputs: readonly unknown[]) {
+  return jsonBytes([
+    {
+      type: "function",
+      name: "viewEntry",
+      stateMutability: "view",
+      inputs,
+      outputs: [viewOutput()],
+    },
+  ])
+}
+
 test("valid minimal bundle returns no issues", () => {
   assert.deepEqual(validateCamBundle(minimalBundle()), [])
   assert.doesNotThrow(() => assertCamBundle(minimalBundle()))
@@ -1096,32 +1108,24 @@ test("string route args reject known non-string literals", () => {
 })
 
 test("route call literal tuple and array args are checked recursively", () => {
-  const abiBytes = jsonBytes([
+  const abiBytes = viewEntryAbiBytes([
     {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [
+      name: "payload",
+      type: "tuple",
+      components: [
         {
-          name: "payload",
-          type: "tuple",
-          components: [
-            {
-              name: "serialNumber",
-              type: "string",
-            },
-            {
-              name: "counts",
-              type: "uint256[]",
-            },
-            {
-              name: "owner",
-              type: "address",
-            },
-          ],
+          name: "serialNumber",
+          type: "string",
+        },
+        {
+          name: "counts",
+          type: "uint256[]",
+        },
+        {
+          name: "owner",
+          type: "address",
         },
       ],
-      outputs: [viewOutput()],
     },
   ])
   const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
@@ -1145,6 +1149,158 @@ test("route call literal tuple and array args are checked recursively", () => {
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.serialNumber"],
     ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.counts.1"],
   ])
+})
+
+test("route call ABI checks skip unknown array leaves but keep deterministic siblings", () => {
+  const abiBytes = viewEntryAbiBytes([
+    {
+      name: "counts",
+      type: "uint8[]",
+    },
+  ])
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry.inputs = ["dynamicCount"]
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        counts: [
+          1,
+          "$inputs.dynamicCount",
+          false,
+          "300",
+        ],
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.counts.2"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.counts.3"],
+  ])
+})
+
+test("route call ABI checks skip unknown tuple leaves but keep deterministic siblings", () => {
+  const abiBytes = viewEntryAbiBytes([
+    {
+      name: "payload",
+      type: "tuple",
+      components: [
+        {
+          name: "count",
+          type: "uint8",
+        },
+        {
+          name: "owner",
+          type: "address",
+        },
+        {
+          name: "active",
+          type: "bool",
+        },
+      ],
+    },
+  ])
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry.inputs = ["dynamicCount"]
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        payload: {
+          count: "$inputs.dynamicCount",
+          owner: "not-an-address",
+          active: "true",
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.owner"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.active"],
+  ])
+})
+
+test("route call ABI checks unknown tuple leaves do not hide tuple shape errors", () => {
+  const abiBytes = viewEntryAbiBytes([
+    {
+      name: "payload",
+      type: "tuple",
+      components: [
+        {
+          name: "count",
+          type: "uint8",
+        },
+        {
+          name: "owner",
+          type: "address",
+        },
+        {
+          name: "active",
+          type: "bool",
+        },
+      ],
+    },
+  ])
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry.inputs = ["dynamicCount"]
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        payload: {
+          count: "$inputs.dynamicCount",
+          extra: "$inputs.dynamicCount",
+        },
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.extra"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.owner"],
+    ["CAM_ROUTE_ABI_MISMATCH", "routes.entry.call.args.payload.active"],
+  ])
+})
+
+test("route call ABI checks skip wholly unknown aggregate expressions", () => {
+  const abiBytes = viewEntryAbiBytes([
+    {
+      name: "payload",
+      type: "tuple",
+      components: [
+        {
+          name: "count",
+          type: "uint8",
+        },
+        {
+          name: "owner",
+          type: "address",
+        },
+        {
+          name: "active",
+          type: "bool",
+        },
+      ],
+    },
+  ])
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry.inputs = ["payload"]
+    root.routes.entry.call = {
+      namespace: "contracts.App",
+      function: "viewEntry",
+      args: {
+        payload: "$inputs.payload",
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [])
 })
 
 test("route continuations must reference ABI-declared output indexes", () => {
