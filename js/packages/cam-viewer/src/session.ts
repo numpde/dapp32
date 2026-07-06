@@ -8,13 +8,10 @@ import {
   assertCamResourceSize,
   CAM_UI_NAMESPACE,
   createStringMap,
-  hasOwn,
   isCamNamespaceNameForType,
-  isRecordObject,
   parseJsonBytes,
   resolveCamResourceURI,
   toInertValue,
-  UI_CALL_NAMESPACE_BY_ELEMENT,
 } from "@cam/protocol"
 import {
   createContext,
@@ -27,21 +24,23 @@ import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 import {
   UiError,
   parseUi,
-  resolvedUiButtons,
-  resolvedUiInputNames,
   resolveInitialUiNode,
   resolveUiNode,
 } from "@cam/screen"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type {
   ResolvedButtonNode,
-  ResolvedUiCall,
   ResolvedUiNode,
   UiRuntimeContext,
   UiDocument,
 } from "@cam/screen"
 
 import { CamViewerError } from "./errors.ts"
+import {
+  assertActionIsRendered,
+  assertStatePatchTargets,
+  interpretRenderedAction,
+} from "./interactions.ts"
 import type {
   CamViewerAccount,
   CamViewerActionResult,
@@ -67,18 +66,6 @@ type CurrentView = {
   readonly resolvedUi: ResolvedUiNode
   readonly values: readonly InertValue[]
 }
-
-type RenderedActionInterpretation =
-  | {
-    readonly type: "navigate"
-    readonly route: string
-    readonly inputs: InertRecord
-  }
-  | {
-    readonly type: "contractCall"
-    readonly route: string
-    readonly inputs: InertRecord
-  }
 
 export function createCamViewerSession({
   publicClient,
@@ -204,7 +191,8 @@ export function createCamViewerSession({
 
   async function dispatchAction(action: ResolvedButtonNode): Promise<CamViewerActionResult> {
     const current = assertLoaded()
-    assertActionIsRendered(action)
+    const view = assertCurrentView()
+    assertActionIsRendered(view.resolvedUi, action)
     const interpretation = interpretRenderedAction(current.cam, action)
 
     if (interpretation.type === "navigate") {
@@ -386,23 +374,17 @@ export function createCamViewerSession({
     return loadedState
   }
 
-  function assertRouteAccountAvailable(cam: CamDocument, route: string): void {
-    if (account === undefined && routeRequiresAccount(cam, route)) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM route requires an account: ${route}`)
-    }
-  }
-
-  function assertActionIsRendered(action: ResolvedButtonNode): void {
+  function assertCurrentView(): CurrentView {
     if (currentView === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded view")
     }
 
-    // Rendered actions are the viewer/session handoff boundary. Re-checking
-    // membership here prevents stale or fabricated buttons from bypassing the
-    // current resolved UI and jumping directly to manifest routes.
-    const rendered = resolvedUiButtons(currentView.resolvedUi)
-    if (!rendered.some((button) => sameActionCall(button, action))) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "CAM action is not rendered in the current view")
+    return currentView
+  }
+
+  function assertRouteAccountAvailable(cam: CamDocument, route: string): void {
+    if (account === undefined && routeRequiresAccount(cam, route)) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM route requires an account: ${route}`)
     }
   }
 
@@ -426,69 +408,6 @@ export function createCamViewerSession({
     setAccount,
     updateState,
     dispatchAction,
-  }
-}
-
-function interpretRenderedAction(cam: CamDocument, action: ResolvedButtonNode): RenderedActionInterpretation {
-  if (action.call.namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Button) {
-    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action must call routes namespace: ${action.call.namespace}`)
-  }
-
-  const route = action.call.function
-  const camRoute = cam.routes[route]
-  if (camRoute === undefined) {
-    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action references unknown route: ${route}`)
-  }
-
-  if (camRoute.kind === "read") {
-    return {
-      type: "navigate",
-      route,
-      inputs: action.call.args,
-    }
-  }
-
-  if (camRoute.kind === "write") {
-    return {
-      type: "contractCall",
-      route,
-      inputs: action.call.args,
-    }
-  }
-
-  throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `unsupported CAM route kind: ${camRoute.kind}`)
-}
-
-function sameActionCall(left: ResolvedButtonNode, right: ResolvedButtonNode): boolean {
-  return left.call.namespace === right.call.namespace
-    && left.call.function === right.call.function
-    && inertEqual(left.call.args, right.call.args)
-}
-
-function inertEqual(left: InertValue, right: InertValue): boolean {
-  if (Object.is(left, right)) return true
-
-  if (Array.isArray(left) || Array.isArray(right)) {
-    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
-    return left.every((item, index) => inertEqual(item, right[index] as InertValue))
-  }
-
-  if (!isRecordObject(left) || !isRecordObject(right)) return false
-  const leftRecord = left as InertRecord
-  const rightRecord = right as InertRecord
-
-  const leftKeys = Object.keys(leftRecord)
-  const rightKeys = Object.keys(rightRecord)
-  if (leftKeys.length !== rightKeys.length) return false
-  return leftKeys.every((key) => hasOwn(rightRecord, key) && inertEqual(leftRecord[key], rightRecord[key]))
-}
-
-function assertStatePatchTargets(ui: ResolvedUiNode, patch: InertRecord): void {
-  const renderedInputs = new Set(resolvedUiInputNames(ui))
-  for (const name of Object.keys(patch)) {
-    if (!renderedInputs.has(name)) {
-      throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `CAM viewer state field has no rendered input: ${name}`)
-    }
   }
 }
 
