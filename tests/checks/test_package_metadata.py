@@ -100,6 +100,22 @@ class PackageMetadataTest(unittest.TestCase):
         # checks can pass on the host shape and fail in the offline lane.
         self.assertEqual(root_tsconfigs, staged_tsconfigs)
 
+    def test_workspace_tests_match_package_script_discovery(self) -> None:
+        nested_tests = []
+        for workspace in ROOT_WORKSPACES:
+            test_root = repo_path(f"js/{workspace}/test")
+            if not test_root.exists():
+                continue
+            nested_tests.extend(
+                path.relative_to(repo_path(".")).as_posix()
+                for path in test_root.rglob("*.test.*")
+                if path.parent != test_root
+            )
+
+        # Workspace package scripts deliberately run test/*.test.*. A nested
+        # test file would look real in review but never execute in package-test.
+        self.assertEqual([], nested_tests)
+
     def test_js_staging_rejects_ambiguous_roots(self) -> None:
         workspace_stager = read_text(repo_path("containers/node-deps/stage-js-workspace"))
         modules_stager = read_text(repo_path("containers/node-deps/stage-node-modules"))
