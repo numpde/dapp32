@@ -1,9 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { parseCam } from "@cam/core"
-import { CAM_VERSION } from "@cam/protocol"
-import type { CamDocument } from "@cam/core"
+import type { CamDocument, CamRoute } from "@cam/core"
 import type { Address } from "viem"
 
 import { CamViewerError } from "../src/errors.ts"
@@ -78,73 +76,33 @@ test("requireViewerRoute enforces account preflight for route expressions", () =
 })
 
 function camDocument(): CamDocument {
-  return parseCam({
-    cam: CAM_VERSION,
+  return {
+    cam: "1",
     entry: "readRoute",
-    namespaces: {
-      "contracts.App": {
-        type: "contract",
-        abiURI: "./cam/abi/App.json",
-        integrity: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-      },
-      routes: {
-        type: "routes",
-      },
-      ui: {
-        type: "ui",
-        uri: "./cam/ui.json",
-        integrity: "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-      },
-    },
+    namespaces: {},
     routes: {
-      readRoute: {
-        kind: "read",
-        inputs: [],
-        call: {
-          namespace: "contracts.App",
-          function: "read",
-          args: {},
-        },
-        then: {
-          namespace: "ui",
-          function: "app",
-          args: {
-            view: "$outputs.0",
-          },
-        },
-      },
-      accountRead: {
-        kind: "read",
-        inputs: [],
-        call: {
-          namespace: "contracts.App",
-          function: "read",
-          args: {
-            owner: "$account.address",
-          },
-        },
-        then: {
-          namespace: "ui",
-          function: "app",
-          args: {
-            view: "$outputs.0",
-          },
-        },
-      },
-      writeRoute: {
-        kind: "write",
-        inputs: [],
-        call: {
-          namespace: "contracts.App",
-          function: "write",
-          args: {},
-        },
-        then: {
-          namespace: "routes",
-          function: "readRoute",
-          args: {},
-        },
-      },
+      readRoute: route("read", {}),
+      accountRead: route("read", {
+        owner: "$account.address",
+      }),
+      writeRoute: route("write", {}),
     },
-  })
+  }
+}
+
+function route(kind: CamRoute["kind"], callArgs: CamRoute["call"]["args"]): CamRoute {
+  return {
+    kind,
+    inputs: [],
+    call: {
+      namespace: "contracts.App",
+      function: kind === "read" ? "read" : "write",
+      args: callArgs,
+    },
+    then: {
+      namespace: kind === "read" ? "ui" : "routes",
+      function: kind === "read" ? "app" : "readRoute",
+      args: {},
+    },
+  }
 }
