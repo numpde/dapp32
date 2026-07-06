@@ -192,6 +192,10 @@ class ProtocolOwnershipTest(unittest.TestCase):
             "CamFactDiagnostic",
             "CamFactDiagnosticCode",
             "CamFactResult",
+            "CamRootFact",
+            "CamNamespaceFact",
+            "CamResourceDeclarationFact",
+            "CamInvocationFact",
             "CamRouteInputsFact",
         )
         for symbol in guarded_symbols:
