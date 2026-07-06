@@ -192,6 +192,9 @@ Already covered by existing tests:
 - Runtime preserves tuple input component names as inert data.
 - Runtime normalizes nested dynamic arrays of tuple inputs and rejects nested
   tuple scalar range failures.
+- Runtime normalizes nested dynamic arrays of tuple outputs from both
+  record-like and array-like decoded tuple shapes, and rejects malformed nested
+  tuple output shapes.
 - Conformance reports ABI resource shape failures, route argument scalar
   mismatches, recursive tuple/array literal mismatches, output-index and
   output-field reference failures, and partially known write-continuation
@@ -202,8 +205,6 @@ Already covered by existing tests:
 
 Missing or weak characterization before extraction:
 
-- Runtime output normalization should have direct tests for nested dynamic
-  arrays of tuples, not only top-level tuple and top-level dynamic-array output.
 - Conformance route ABI compatibility should explicitly pin that unknown
   expressions inside otherwise known arrays/tuples are skipped or reported only
   where deterministic.

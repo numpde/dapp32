@@ -922,6 +922,189 @@ test("callCamRoute normalizes array-like decoded tuple outputs by ABI component 
   )
 })
 
+test("callCamRoute normalizes nested dynamic arrays of tuple outputs", async () => {
+  const tupleRoute = "nestedTupleRoute"
+  const tupleFunction = "viewNestedTuples"
+  const cam = parseCam({
+    ...camJson,
+    routes: {
+      ...camJson.routes,
+      [tupleRoute]: {
+        kind: "read",
+        inputs: [],
+        call: {
+          namespace: BIKE_UI_NAMESPACE,
+          function: tupleFunction,
+          args: {},
+        },
+        then: {
+          namespace: "ui",
+          function: "app",
+          args: {
+            view: "$outputs.0",
+          },
+        },
+      },
+    },
+  })
+  const abi = [
+    {
+      type: "function",
+      name: tupleFunction,
+      stateMutability: "view",
+      inputs: [],
+      outputs: [{
+        name: "groups",
+        type: "tuple[][]",
+        components: [
+          { name: "serialNumber", type: "string" },
+          { name: "count", type: "uint8" },
+          { name: "owner", type: "address" },
+        ],
+      }],
+    },
+  ] as const satisfies Abi
+
+  async function readNestedTuples(routeResult: unknown) {
+    return callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        routeResults: {
+          [tupleFunction]: routeResult,
+        },
+      })),
+      cam,
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: uiAddress,
+          abi,
+        },
+      },
+      route: tupleRoute,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+      },
+    })
+  }
+
+  const recordResult = await readNestedTuples([
+    [
+      {
+        serialNumber: "ABC123",
+        count: 7n,
+        owner: userAddress,
+      },
+    ],
+  ])
+  assert.deepEqual(recordResult.values[0], toInertValue([
+    [
+      {
+        serialNumber: "ABC123",
+        count: "7",
+        owner: userAddress,
+      },
+    ],
+  ]))
+
+  const arrayResult = await readNestedTuples([
+    [
+      ["ABC123", 7n, userAddress],
+    ],
+  ])
+  assert.deepEqual(arrayResult.values[0], toInertValue([
+    [
+      {
+        serialNumber: "ABC123",
+        count: "7",
+        owner: userAddress,
+      },
+    ],
+  ]))
+
+  for (const routeResult of [
+    [
+      [
+        {
+          serialNumber: "ABC123",
+          count: 7n,
+          owner: userAddress,
+          extra: "rejected",
+        },
+      ],
+    ],
+    [
+      [
+        ["ABC123", 7n, userAddress, "rejected"],
+      ],
+    ],
+    [
+      [
+        ["ABC123", 7n],
+      ],
+    ],
+    [
+      [
+        ["ABC123", 300n, userAddress],
+      ],
+    ],
+    [
+      [
+        ["ABC123", "7", userAddress],
+      ],
+    ],
+  ]) {
+    await assert.rejects(
+      () => readNestedTuples(routeResult),
+      (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+    )
+  }
+
+  const duplicateComponentAbi = [
+    {
+      ...abi[0],
+      outputs: [{
+        name: "groups",
+        type: "tuple[][]",
+        components: [
+          { name: "serialNumber", type: "string" },
+          { name: "serialNumber", type: "string" },
+        ],
+      }],
+    },
+  ] as const satisfies Abi
+
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({
+        routeResults: {
+          [tupleFunction]: [
+            [
+              ["ABC123", "duplicate"],
+            ],
+          ],
+        },
+      })),
+      cam,
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: uiAddress,
+          abi: duplicateComponentAbi,
+        },
+      },
+      route: tupleRoute,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+  )
+})
+
 test("callCamRoute treats a single array output as one ABI output", async () => {
   const arrayRoute = "arrayRoute"
   const arrayFunction = "viewArray"
