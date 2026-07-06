@@ -15,6 +15,7 @@ Runtime EVM input normalization:
 - Owner: `js/packages/cam-evm-viem/src/arguments.ts`
 - Entry points: `normalizeAbiArgs`, `normalizeAbiArg`
 - Job: turn inert CAM named args into positional viem call args.
+- Traverses: ABI input metadata plus already-resolved inert values.
 - Reporting: fail-fast `CamEvmError` with route/write-specific error code.
 
 Runtime EVM output normalization:
@@ -22,6 +23,7 @@ Runtime EVM output normalization:
 - Owner: `js/packages/cam-evm-viem/src/routes.ts`
 - Entry points: `normalizeRouteValues`, `normalizeAbiValue`
 - Job: turn viem decoded outputs into inert CAM values.
+- Traverses: ABI output metadata plus concrete decoded RPC values.
 - Reporting: fail-fast `CAM_ROUTE_INVALID_RESULT`.
 
 Conformance route ABI compatibility:
@@ -31,6 +33,8 @@ Conformance route ABI compatibility:
   `validateRouteOutputRefs`, `abiOutputAtSegments`
 - Job: reject deterministic publication mismatches while skipping unknown
   runtime expressions.
+- Traverses: ABI input/output metadata plus manifest literals and statically
+  classified expressions.
 - Reporting: accumulated `CAM_ROUTE_ABI_MISMATCH` and `CAM_ABI_INVALID`.
 
 Conformance UI typeflow:
@@ -39,6 +43,8 @@ Conformance UI typeflow:
 - Entry points: `knownValueShape`, `valueAtSegments`, `abiValueMatches`
 - Job: propagate ABI-known and literal shapes through UI nodes, Includes, and
   Buttons without evaluating runtime state.
+- Traverses: typeflow-local shape records, some ABI output metadata, and UI
+  literals. It is adjacent to ABI traversal, not a general ABI walker.
 - Reporting: accumulated UI typeflow/handoff/prop issues.
 
 ## Supported ABI Surface
@@ -66,9 +72,21 @@ Shared ABI declaration exclusions:
   but it should not make unsupported declarations acceptable.
 - Tuple arrays require tuple `components`.
 - Function inputs used by CAM routes must be named and unique.
-- Tuple components used by CAM routes must be named and unique.
+- Tuple components used by CAM routes must be named and unique. Top-level
+  function outputs may remain unnamed because CAM references them by numeric
+  output index.
 - Function names, signatures, mutability, and supported scalar types are
   protocol-owned helpers, but not a single shared traversal API yet.
+
+Declaration parsing is a separate concern from value traversal:
+
+- `@cam/evm-viem` parses ABIs before runtime execution and throws fail-fast
+  runtime errors.
+- `@cam/conformance` parses ABI resources for publication diagnostics and
+  accumulates issues.
+- Both use protocol syntax helpers, but their public error surfaces and
+  ordering are intentionally different. Do not hide that behind a traversal
+  kernel.
 
 ## Intentional Differences
 
@@ -132,6 +150,15 @@ Each caller still owns value admissibility, unknown handling, and reporting:
 - Path construction uses dot segments for array indexes and tuple component
   names.
 
+Candidate extraction seam:
+
+- A metadata-only descent helper could walk ABI parameter metadata and report
+  callbacks for scalar, dynamic array, tuple, unsupported fixed array, and tuple
+  component name problems.
+- A value-aware helper is riskier. Runtime input normalization, runtime output
+  normalization, route conformance, and UI typeflow disagree intentionally about
+  concrete value shapes, unknowns, tuple array decoding, and literal strings.
+
 ## Likely Accidental Differences
 
 These deserve characterization before any abstraction:
@@ -150,6 +177,10 @@ These deserve characterization before any abstraction:
   other walks decoded values.
 - UI typeflow's `literal-string[]` and partially known aggregate shapes do not
   have runtime equivalents. Do not force them into an EVM normalizer.
+- Runtime ABI parsing and conformance ABI parsing validate similar declaration
+  grammar but not through the same code path. Before merging them, pin whether
+  issue ordering and path wording are part of conformance's public authoring
+  surface.
 
 ## Characterization Status
 
@@ -193,3 +224,13 @@ caller-supplied callbacks for scalar, tuple, array, unknown, and reporting
 policy. It should not own viem value normalization, conformance issue mapping,
 UI typeflow unknown-value semantics, or ABI declaration parsing unless those
 declaration rules are characterized separately.
+
+Stop criteria for a future extraction:
+
+- Stop if the helper needs to know whether it is preparing a write, normalizing
+  a read result, proving a route argument, or proving UI typeflow.
+- Stop if unknown expression handling appears in the shared layer.
+- Stop if UI typeflow's `literal-string[]` or partial aggregate records leak
+  into EVM runtime code.
+- Stop if runtime decoded tuple-array acceptance is applied to CAM-authored
+  input values.
