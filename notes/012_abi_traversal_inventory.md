@@ -208,24 +208,27 @@ Already covered by existing tests:
 - UI typeflow skips unknown state-backed aggregate leaves while still reporting
   deterministic sibling scalar, tuple-shape, and missing known route-value
   errors.
+- Runtime and conformance ABI declaration parsing parity is characterized for
+  accepted non-function items, payable declarations, unnamed top-level outputs,
+  duplicate signatures, named input/component requirements, unsupported scalar
+  types, fixed arrays, tuple components, and input/output array/object shape
+  failures.
 
 Missing or weak characterization before extraction:
 
-- ABI declaration parsing parity between `@cam/evm-viem` and `@cam/conformance`
-  should be characterized before moving declaration walkers. They currently
-  share protocol helpers but report through different public facades.
+- No known ABI characterization gaps remain in this inventory.
 
 ## Recommendation
 
 Do not extract an ABI traversal helper yet.
 
-First add characterization tests around the missing cases above. If those tests
-show the same recursion skeleton with only direction-specific hooks, the next
-abstraction should be a tiny internal traversal kernel over ABI metadata with
+Parity is characterized, but runtime fail-fast errors and conformance
+accumulation remain separate public surfaces. If future tests show the same
+recursion skeleton with only direction-specific hooks, the next abstraction
+should be a tiny internal traversal kernel over ABI metadata with
 caller-supplied callbacks for scalar, tuple, array, unknown, and reporting
 policy. It should not own viem value normalization, conformance issue mapping,
-UI typeflow unknown-value semantics, or ABI declaration parsing unless those
-declaration rules are characterized separately.
+UI typeflow unknown-value semantics, or ABI declaration parsing.
 
 Stop criteria for a future extraction:
 

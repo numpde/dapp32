@@ -926,6 +926,240 @@ test("ABI resource validation rejects invalid published function shapes", () => 
   ])
 })
 
+test("conformance ABI declaration parsing accepts the supported publication surface", () => {
+  const acceptedCases = [
+    {
+      label: "valid function with named inputs and unnamed output",
+      abiBytes: jsonBytes([{
+        type: "function",
+        name: "viewEntry",
+        stateMutability: "view",
+        inputs: [{ name: "account", type: "address" }],
+        outputs: [{ type: "string" }],
+      }]),
+    },
+    {
+      label: "non-function ABI item is not treated as a CAM callable surface",
+      abiBytes: jsonBytes([
+        {
+          type: "event",
+          name: "Saved",
+          inputs: [{ indexed: false, name: "value", type: "uint256[2]" }],
+        },
+        {
+          type: "function",
+          name: "viewEntry",
+          stateMutability: "view",
+          inputs: [],
+          outputs: [{ type: "string" }],
+        },
+      ]),
+    },
+    {
+      label: "payable declaration is accepted before route policy decides usability",
+      abiBytes: jsonBytes([{
+        type: "function",
+        name: "pay",
+        stateMutability: "payable",
+        inputs: [],
+        outputs: [],
+      }]),
+    },
+    {
+      label: "nested dynamic arrays of tuples with named components",
+      abiBytes: jsonBytes([{
+        type: "function",
+        name: "viewNested",
+        stateMutability: "view",
+        inputs: [{
+          name: "groups",
+          type: "tuple[][]",
+          components: [
+            { name: "count", type: "uint8" },
+            { name: "owner", type: "address" },
+          ],
+        }],
+        outputs: [{
+          type: "tuple[][]",
+          components: [
+            { name: "count", type: "uint8" },
+            { name: "owner", type: "address" },
+          ],
+        }],
+      }]),
+    },
+  ] as const
+
+  for (const { label, abiBytes } of acceptedCases) {
+    assert.deepEqual(abiIssueLocationsFor(abiBytes), [], label)
+  }
+})
+
+test("conformance ABI declaration parsing rejects unsupported publication shapes", () => {
+  const rejectedCases = [
+    {
+      label: "ABI resource is not JSON",
+      abiBytes: encoder.encode("{"),
+      locations: [["CAM_ABI_INVALID", undefined]],
+    },
+    {
+      label: "ABI resource is not an array",
+      abiBytes: jsonBytes({ abi: [] }),
+      locations: [["CAM_ABI_INVALID", undefined]],
+    },
+    {
+      label: "ABI item is not an object",
+      abiBytes: jsonBytes([null]),
+      locations: [["CAM_ABI_INVALID", "0"]],
+    },
+    {
+      label: "ABI item type missing",
+      abiBytes: jsonBytes([{ name: "viewEntry" }]),
+      locations: [["CAM_ABI_INVALID", "0.type"]],
+    },
+    {
+      label: "ABI item type empty",
+      abiBytes: jsonBytes([{ type: "", name: "viewEntry" }]),
+      locations: [["CAM_ABI_INVALID", "0.type"]],
+    },
+    {
+      label: "function name missing",
+      abiBytes: jsonBytes([{ type: "function", stateMutability: "view", inputs: [], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.name"]],
+    },
+    {
+      label: "function name unsupported",
+      abiBytes: jsonBytes([{ type: "function", name: "view-entry", stateMutability: "view", inputs: [], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.name"]],
+    },
+    {
+      label: "stateMutability missing",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", inputs: [], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.stateMutability"]],
+    },
+    {
+      label: "stateMutability unsupported",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "mutable", inputs: [], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.stateMutability"]],
+    },
+    {
+      label: "inputs is not an array",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: {}, outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs"]],
+    },
+    {
+      label: "outputs is not an array",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [], outputs: {} }]),
+      locations: [["CAM_ABI_INVALID", "0.outputs"]],
+    },
+    {
+      label: "input is not an object",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [null], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0"]],
+    },
+    {
+      label: "output is not an object",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [], outputs: [null] }]),
+      locations: [["CAM_ABI_INVALID", "0.outputs.0"]],
+    },
+    {
+      label: "input type missing",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "value" }], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0.type"]],
+    },
+    {
+      label: "output type missing",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [], outputs: [{}] }]),
+      locations: [["CAM_ABI_INVALID", "0.outputs.0.type"]],
+    },
+    {
+      label: "unsupported scalar type",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "value", type: "uint257" }], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0"]],
+    },
+    {
+      label: "fixed-size array",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "values", type: "uint256[2]" }], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0"]],
+    },
+    {
+      label: "components on non-tuple type",
+      abiBytes: jsonBytes([{
+        type: "function",
+        name: "viewEntry",
+        stateMutability: "view",
+        inputs: [{ name: "value", type: "uint256", components: [{ name: "inner", type: "uint256" }] }],
+        outputs: [],
+      }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0.components"]],
+    },
+    {
+      label: "tuple without components",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "value", type: "tuple" }], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0.components"]],
+    },
+    {
+      label: "tuple component is not an object",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "value", type: "tuple", components: [null] }], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0.components.0"]],
+    },
+    {
+      label: "unnamed function input",
+      abiBytes: jsonBytes([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [] }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0.name"]],
+    },
+    {
+      label: "duplicate function input name",
+      abiBytes: jsonBytes([{
+        type: "function",
+        name: "viewEntry",
+        stateMutability: "view",
+        inputs: [{ name: "value", type: "uint256" }, { name: "value", type: "uint256" }],
+        outputs: [],
+      }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.1.name"]],
+    },
+    {
+      label: "unnamed tuple component",
+      abiBytes: jsonBytes([{
+        type: "function",
+        name: "viewEntry",
+        stateMutability: "view",
+        inputs: [{ name: "value", type: "tuple", components: [{ type: "uint256" }] }],
+        outputs: [],
+      }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0.components.0.name"]],
+    },
+    {
+      label: "duplicate tuple component name",
+      abiBytes: jsonBytes([{
+        type: "function",
+        name: "viewEntry",
+        stateMutability: "view",
+        inputs: [{
+          name: "value",
+          type: "tuple",
+          components: [{ name: "amount", type: "uint256" }, { name: "amount", type: "uint256" }],
+        }],
+        outputs: [],
+      }]),
+      locations: [["CAM_ABI_INVALID", "0.inputs.0.components.1.name"]],
+    },
+    {
+      label: "duplicate function signature",
+      abiBytes: jsonBytes([
+        { type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [] },
+        { type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "otherAccount", type: "address" }], outputs: [] },
+      ]),
+      locations: [["CAM_ABI_INVALID", "1"]],
+    },
+  ] as const
+
+  for (const { label, abiBytes, locations } of rejectedCases) {
+    assert.deepEqual(abiIssueLocationsFor(abiBytes), locations, label)
+  }
+})
+
 test("route call args must match named ABI inputs exactly", () => {
   const abiBytes = jsonBytes([
     {
