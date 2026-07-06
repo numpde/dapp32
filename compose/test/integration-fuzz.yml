@@ -22,7 +22,7 @@ services:
       - |
         npm run build:workspace
         ./node_modules/.bin/tsc -p tools/cam-integration-fuzz/tsconfig.json
-        node --test --experimental-strip-types tools/cam-integration-fuzz/*.test.ts
+        node --test --experimental-strip-types $(find tools/cam-integration-fuzz -name '*.test.ts' -type f | sort)
 
   test-integration-fuzz:
     extends:

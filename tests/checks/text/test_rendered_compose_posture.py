@@ -742,7 +742,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("simulate", compose_mapping(generic, "environment")["CAM_INTEGRATION_WRITE_MODE"])
         self.assert_js_tool_tests(
             generic_check,
-            "node --test --experimental-strip-types tools/cam-integration-fuzz/*.test.ts",
+            "node --test --experimental-strip-types $$(find tools/cam-integration-fuzz -name '*.test.ts' -type f | sort)",
         )
         self.assert_js_tool_command(
             generic,
