@@ -50,5 +50,5 @@ services:
       - |
         npm run build:workspace
         ./node_modules/.bin/tsc -p tools/viewer-terminal/tsconfig.json
-        node --test --experimental-strip-types tools/viewer-terminal/**/*.test.ts
+        node --test --experimental-strip-types $(find tools/viewer-terminal -name '*.test.ts' -type f | sort)
         printf "set serialNumber ABC123\npress 1\npress 2\nquit\n" | node --experimental-strip-types tools/viewer-terminal/terminal-session.ts >/dev/null
