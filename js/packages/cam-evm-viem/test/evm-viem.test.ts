@@ -1326,6 +1326,79 @@ test("sendCamContractCall keeps tuple input component names as inert data", asyn
   )
 })
 
+test("sendCamContractCall normalizes nested dynamic arrays of tuple inputs", async () => {
+  const walletClient = createWalletClient()
+  const nestedAbi = [
+    {
+      type: "function",
+      name: "writeNested",
+      stateMutability: "nonpayable",
+      inputs: [{
+        name: "groups",
+        type: "tuple[][]",
+        components: [
+          { name: "serialNumber", type: "string" },
+          { name: "count", type: "uint8" },
+        ],
+      }],
+      outputs: [],
+    },
+  ] as const satisfies Abi
+
+  await sendCamContractCall({
+    walletClient,
+    chain: testChain,
+    call: {
+      address: managerAddress,
+      abi: nestedAbi,
+      function: "writeNested",
+      args: {
+        groups: toInertValue([
+          [
+            {
+              serialNumber: "ABC123",
+              count: "7",
+            },
+          ],
+        ]),
+      },
+    },
+  })
+
+  const groups = walletClient.calls[0]?.args?.[0] as readonly (readonly unknown[])[] | undefined
+  const nestedTuple = groups?.[0]?.[0]
+  assert.equal(typeof nestedTuple, "object")
+  assert.notEqual(nestedTuple, null)
+  assert.equal(Object.getPrototypeOf(nestedTuple), null)
+  assert.deepEqual({ ...(nestedTuple as Record<string, unknown>) }, {
+    serialNumber: "ABC123",
+    count: 7n,
+  })
+
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      chain: testChain,
+      call: {
+        address: managerAddress,
+        abi: nestedAbi,
+        function: "writeNested",
+        args: {
+          groups: toInertValue([
+            [
+              {
+                serialNumber: "ABC123",
+                count: "300",
+              },
+            ],
+          ]),
+        },
+      },
+    }),
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
+  )
+})
+
 test("sendCamContractCall resolves full signatures for overloaded writes", async () => {
   const walletClient = createWalletClient()
   const abi = overloadedMarkMissingAbi()
