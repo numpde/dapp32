@@ -205,11 +205,12 @@ Already covered by existing tests:
 - UI typeflow checks ABI-backed prop incompatibility, route handoff literals,
   direct aggregate args, direct array args, selector lists, and literal field
   name preservation.
+- UI typeflow skips unknown state-backed aggregate leaves while still reporting
+  deterministic sibling scalar, tuple-shape, and missing known route-value
+  errors.
 
 Missing or weak characterization before extraction:
 
-- UI typeflow should explicitly pin any intentional difference from route ABI
-  compatibility before a shared traversal is attempted.
 - ABI declaration parsing parity between `@cam/evm-viem` and `@cam/conformance`
   should be characterized before moving declaration walkers. They currently
   share protocol helpers but report through different public facades.

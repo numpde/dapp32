@@ -57,6 +57,56 @@ function viewEntryAbiBytes(inputs: readonly unknown[]) {
   ])
 }
 
+function saveValuesAbiBytes() {
+  return jsonBytes([
+    viewEntryFunction(),
+    {
+      type: "function",
+      name: "saveValues",
+      stateMutability: "nonpayable",
+      inputs: [
+        {
+          name: "values",
+          type: "uint8[]",
+        },
+      ],
+      outputs: [],
+    },
+  ])
+}
+
+function savePayloadAbiBytes() {
+  return jsonBytes([
+    viewEntryFunction(),
+    {
+      type: "function",
+      name: "savePayload",
+      stateMutability: "nonpayable",
+      inputs: [
+        {
+          name: "payload",
+          type: "tuple",
+          components: [
+            {
+              name: "count",
+              type: "uint8",
+            },
+            {
+              name: "owner",
+              type: "address",
+            },
+            {
+              name: "active",
+              type: "bool",
+            },
+          ],
+        },
+      ],
+      outputs: [],
+    },
+  ])
+}
+
 test("valid minimal bundle returns no issues", () => {
   assert.deepEqual(validateCamBundle(minimalBundle()), [])
   assert.doesNotThrow(() => assertCamBundle(minimalBundle()))
@@ -2237,6 +2287,314 @@ test("UI Button ABI checks preserve known fields in direct array args", () => {
 
   assert.deepEqual(issueLocations(issues), [
     ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.args.values.0"],
+  ])
+})
+
+test("UI Button ABI checks skip unknown array leaves but keep deterministic siblings", () => {
+  const abiBytes = saveValuesAbiBytes()
+  const uiBytes = jsonBytes({
+    ui: UI_VERSION,
+    nodes: {
+      app: {
+        element: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            element: "TextField",
+            props: {
+              label: "Dynamic value",
+            },
+            state: {
+              key: "dynamicValue",
+              defaultValue: "",
+            },
+          },
+          {
+            element: "Button",
+            props: {
+              label: "Save",
+            },
+            call: {
+              namespace: "routes",
+              function: "saveValues",
+              args: {
+                values: [
+                  1,
+                  "$state.dynamicValue",
+                  false,
+                  "300",
+                ],
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.saveValues = {
+      kind: "write",
+      inputs: ["values"],
+      call: {
+        namespace: "contracts.App",
+        function: "saveValues",
+        args: {
+          values: "$inputs.values",
+        },
+      },
+      then: {
+        namespace: "routes",
+        function: "entry",
+        args: {},
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.values.2"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.values.3"],
+  ])
+})
+
+test("UI Button ABI checks skip unknown tuple leaves but keep deterministic siblings", () => {
+  const abiBytes = savePayloadAbiBytes()
+  const uiBytes = jsonBytes({
+    ui: UI_VERSION,
+    nodes: {
+      app: {
+        element: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            element: "TextField",
+            props: {
+              label: "Dynamic count",
+            },
+            state: {
+              key: "dynamicCount",
+              defaultValue: "",
+            },
+          },
+          {
+            element: "Button",
+            props: {
+              label: "Save",
+            },
+            call: {
+              namespace: "routes",
+              function: "savePayload",
+              args: {
+                payload: {
+                  count: "$state.dynamicCount",
+                  owner: "not-an-address",
+                  active: "true",
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.savePayload = {
+      kind: "write",
+      inputs: ["payload"],
+      call: {
+        namespace: "contracts.App",
+        function: "savePayload",
+        args: {
+          payload: "$inputs.payload",
+        },
+      },
+      then: {
+        namespace: "routes",
+        function: "entry",
+        args: {},
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.payload.owner"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.payload.active"],
+  ])
+})
+
+test("UI Button ABI checks unknown tuple leaves do not hide tuple shape errors", () => {
+  const abiBytes = savePayloadAbiBytes()
+  const uiBytes = jsonBytes({
+    ui: UI_VERSION,
+    nodes: {
+      app: {
+        element: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            element: "TextField",
+            props: {
+              label: "Dynamic count",
+            },
+            state: {
+              key: "dynamicCount",
+              defaultValue: "",
+            },
+          },
+          {
+            element: "Button",
+            props: {
+              label: "Save",
+            },
+            call: {
+              namespace: "routes",
+              function: "savePayload",
+              args: {
+                payload: {
+                  count: "$state.dynamicCount",
+                  extra: "$state.dynamicCount",
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.savePayload = {
+      kind: "write",
+      inputs: ["payload"],
+      call: {
+        namespace: "contracts.App",
+        function: "savePayload",
+        args: {
+          payload: "$inputs.payload",
+        },
+      },
+      then: {
+        namespace: "routes",
+        function: "entry",
+        args: {},
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.payload.extra"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.payload.owner"],
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.1.call.args.payload.active"],
+  ])
+})
+
+test("UI Button ABI checks skip wholly unknown aggregate expressions", () => {
+  const abiBytes = savePayloadAbiBytes()
+  const uiBytes = jsonBytes({
+    ui: UI_VERSION,
+    nodes: {
+      app: {
+        element: "Fragment",
+        requires: ["view"],
+        children: [
+          {
+            element: "TextField",
+            props: {
+              label: "Payload",
+            },
+            state: {
+              key: "payload",
+              defaultValue: "",
+            },
+          },
+          {
+            element: "Button",
+            props: {
+              label: "Save",
+            },
+            call: {
+              namespace: "routes",
+              function: "savePayload",
+              args: {
+                payload: "$state.payload",
+              },
+            },
+          },
+        ],
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.savePayload = {
+      kind: "write",
+      inputs: ["payload"],
+      call: {
+        namespace: "contracts.App",
+        function: "savePayload",
+        args: {
+          payload: "$inputs.payload",
+        },
+      },
+      then: {
+        namespace: "routes",
+        function: "entry",
+        args: {},
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [])
+})
+
+test("UI Button ABI checks missing known route-local fields stay deterministic", () => {
+  const abiBytes = savePayloadAbiBytes()
+  const uiBytes = jsonBytes({
+    ui: UI_VERSION,
+    nodes: {
+      app: {
+        element: "Button",
+        requires: ["view"],
+        props: {
+          label: "Save",
+        },
+        call: {
+          namespace: "routes",
+          function: "savePayload",
+          args: {
+            payload: {
+              count: "$view.missingCount",
+              owner: "0x0000000000000000000000000000000000000000",
+              active: true,
+            },
+          },
+        },
+      },
+    },
+  })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.savePayload = {
+      kind: "write",
+      inputs: ["payload"],
+      call: {
+        namespace: "contracts.App",
+        function: "savePayload",
+        args: {
+          payload: "$inputs.payload",
+        },
+      },
+      then: {
+        namespace: "routes",
+        function: "entry",
+        args: {},
+      },
+    }
+    return replaceBundleResources(root, bundle, { abiBytes, uiBytes })
+  })
+
+  assert.deepEqual(issueLocations(issues), [
+    ["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.call.args.payload.count"],
   ])
 })
 
