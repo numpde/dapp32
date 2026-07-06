@@ -289,9 +289,14 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
     }
 
     /// @notice Recovers the backend signer for a deposit intent.
-    /// @dev OZ ECDSA rejects malformed signatures and high-s malleable signatures.
+    /// @dev Malformed ECDSA bytes map to address(0), so `deposit` keeps one
+    ///      stable authorization error instead of leaking dependency errors.
     function _recoverSigner(DepositIntent calldata intent, bytes calldata signature) private view returns (address) {
-        return ECDSA.recoverCalldata(_hashDepositIntent(intent), signature);
+        (address recovered, ECDSA.RecoverError recoverError,) = ECDSA.tryRecoverCalldata(
+            _hashDepositIntent(intent),
+            signature
+        );
+        return recoverError == ECDSA.RecoverError.NoError ? recovered : address(0);
     }
 
     function _hashDepositIntent(DepositIntent calldata intent) private view returns (bytes32) {

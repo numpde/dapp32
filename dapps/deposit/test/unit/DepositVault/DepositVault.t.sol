@@ -125,6 +125,10 @@ contract DepositVaultTest is Test {
         vm.prank(payer);
         vault.deposit{value: intent.amount}(intent, signature);
 
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.InvalidIntentSignature.selector, intentSigner, address(0)));
+        vm.prank(payer);
+        vault.deposit{value: intent.amount}(intent, hex"1234");
+
         assertEq(vault.nonces(payer), 0);
         assertEq(treasury.balance, 0);
     }
