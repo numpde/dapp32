@@ -19,7 +19,7 @@ export type SubmittedTransaction = {
 }
 
 export type TransactionReader<TReceipt> = {
-  readonly getTransaction: (args: { readonly hash: `0x${string}` }) => Promise<SubmittedTransaction>
+  readonly getTransaction: (args: { readonly hash: `0x${string}` }) => Promise<SubmittedTransaction | null | undefined>
   readonly getTransactionCount: (args: {
     readonly address: `0x${string}`
     readonly blockTag: "pending"
@@ -176,7 +176,11 @@ async function readSubmittedTransaction(
   rpcEndpoint: string,
 ): Promise<SubmittedTransaction> {
   try {
-    return await client.getTransaction({ hash: txHash })
+    const tx = await client.getTransaction({ hash: txHash })
+    if (tx === null || tx === undefined) {
+      throw new Error("transaction not found")
+    }
+    return tx
   } catch (cause) {
     throw new Error(
       `The wallet returned a transaction hash, but the viewer could not read that transaction from ${rpcEndpoint}.`,

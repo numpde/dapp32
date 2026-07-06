@@ -35,14 +35,19 @@ type TestReceipt = {
 type TestPorts = PreparedCallSubmitterPorts<string, string>
 
 function reader(options: {
-  readonly tx?: SubmittedTransaction
+  readonly tx?: SubmittedTransaction | null
+  readonly txMissing?: boolean
   readonly pendingNonce?: number
   readonly receipt?: TestReceipt
   readonly receiptError?: Error
   readonly txError?: Error
 } = {}): TransactionReader<TestReceipt> {
-  let tx = options.tx
-  if (tx === undefined) {
+  let tx: SubmittedTransaction | null | undefined
+  if (options.txMissing === true) {
+    tx = undefined
+  } else if ("tx" in options) {
+    tx = options.tx
+  } else {
     tx = {
       blockNumber: null,
       from,
@@ -343,6 +348,28 @@ test("submitted transaction read failures include the RPC endpoint", async () =>
   await assert.rejects(
     () => submittedTransactionDiagnosis({
       client: reader({ txError: new Error("not found") }),
+      txHash,
+      rpcEndpoint: "localhost:8545",
+      includePendingAdvice: true,
+    }),
+    /could not read that transaction from localhost:8545/,
+  )
+})
+
+test("submitted transaction read treats missing RPC results as read failures", async () => {
+  await assert.rejects(
+    () => submittedTransactionDiagnosis({
+      client: reader({ tx: null }),
+      txHash,
+      rpcEndpoint: "localhost:8545",
+      includePendingAdvice: true,
+    }),
+    /could not read that transaction from localhost:8545/,
+  )
+
+  await assert.rejects(
+    () => submittedTransactionDiagnosis({
+      client: reader({ txMissing: true }),
       txHash,
       rpcEndpoint: "localhost:8545",
       includePendingAdvice: true,
