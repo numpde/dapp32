@@ -43,7 +43,7 @@ Conformance UI typeflow:
 
 ## Supported ABI Surface
 
-Shared supported scalar grammar:
+Shared CAM route scalar grammar:
 
 - `string`
 - `address`
@@ -52,7 +52,7 @@ Shared supported scalar grammar:
 - `bytes`
 - fixed bytes accepted by `parseAbiFixedBytesLength`
 
-Shared aggregate grammar:
+Shared CAM route aggregate grammar:
 
 - Dynamic arrays via `abiDynamicArrayElementType`
 - Tuples with declared `components`
@@ -62,7 +62,8 @@ Shared aggregate grammar:
 Shared ABI declaration exclusions:
 
 - Fixed-size arrays are rejected by runtime ABI parsing and conformance ABI
-  parsing.
+  parsing. UI typeflow may still see a malformed ABI-backed shape indirectly,
+  but it should not make unsupported declarations acceptable.
 - Tuple arrays require tuple `components`.
 - Function inputs used by CAM routes must be named and unique.
 - Tuple components used by CAM routes must be named and unique.
@@ -82,7 +83,7 @@ Runtime input normalization is stricter than conformance route checks:
 - It requires tuple args as records keyed by component name.
 
 Runtime output normalization accepts decoded shapes that authoring-time checks
-should not produce:
+do not accept as CAM-authored values:
 
 - It accepts tuple outputs as either records keyed by component name or arrays
   indexed by ABI component order, because viem/RPC decoded tuple shape can vary.
@@ -118,7 +119,8 @@ UI typeflow is not an ABI call normalizer:
 
 ## Shared Traversal Rules
 
-These are the real shared candidates, but they are not yet a proven extraction:
+These are the real shared candidates, but they are not yet a proven extraction.
+Each caller still owns value admissibility, unknown handling, and reporting:
 
 - Dynamic arrays recurse into an element ABI parameter.
 - Tuples recurse into named components.
@@ -136,8 +138,8 @@ These deserve characterization before any abstraction:
 
 - Runtime output tuple traversal accepts array-like tuple values, while runtime
   input and conformance route literal traversal require object-like tuples.
-  This is probably intentional because decoded output shape differs from CAM
-  input shape, but it should remain explicit.
+  This is intentional unless a future runtime output decoder guarantees record
+  tuples only; decoded output shape differs from CAM-authored input shape.
 - Conformance route argument checks use `abiScalarKind`; runtime input/output
   normalization separately calls `parseAbiIntegerType`,
   `parseAbiFixedBytesLength`, `isAbiBytesValue`, and `isAbiIntegerValue`.
@@ -176,6 +178,9 @@ Missing or weak characterization before extraction:
   where deterministic.
 - UI typeflow should explicitly pin any intentional difference from route ABI
   compatibility before a shared traversal is attempted.
+- ABI declaration parsing parity between `@cam/evm-viem` and `@cam/conformance`
+  should be characterized before moving declaration walkers. They currently
+  share protocol helpers but report through different public facades.
 
 ## Recommendation
 
@@ -186,4 +191,5 @@ show the same recursion skeleton with only direction-specific hooks, the next
 abstraction should be a tiny internal traversal kernel over ABI metadata with
 caller-supplied callbacks for scalar, tuple, array, unknown, and reporting
 policy. It should not own viem value normalization, conformance issue mapping,
-or UI typeflow unknown-value semantics.
+UI typeflow unknown-value semantics, or ABI declaration parsing unless those
+declaration rules are characterized separately.
