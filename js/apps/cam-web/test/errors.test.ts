@@ -38,6 +38,16 @@ test("errorMessage ignores provider objects with hostile property access", () =>
   assert.equal(errorMessage(error), "transaction failed")
 })
 
+test("errorMessage survives hostile provider stringification", () => {
+  const hostile = {
+    toString() {
+      throw new Error("hostile toString")
+    },
+  }
+
+  assert.equal(errorMessage(hostile), "unprintable error")
+})
+
 test("errorMessage keeps custom revert names when args are cyclic", () => {
   const cyclic: unknown[] = []
   cyclic.push(cyclic)
@@ -51,6 +61,27 @@ test("errorMessage keeps custom revert names when args are cyclic", () => {
   })
 
   assert.equal(errorMessage(error), "transaction failed: BadArgs()")
+})
+
+test("errorMessage keeps custom revert names when args have hostile stringification", () => {
+  const hostile = {
+    toJSON() {
+      throw new Error("hostile toJSON")
+    },
+    toString() {
+      throw new Error("hostile toString")
+    },
+  }
+  const error = new Error("transaction failed", {
+    cause: {
+      data: {
+        errorName: "BadArgs",
+        args: [hostile],
+      },
+    },
+  })
+
+  assert.equal(errorMessage(error), "transaction failed: BadArgs(unprintable value)")
 })
 
 test("errorMessage bounds untrusted provider text", () => {

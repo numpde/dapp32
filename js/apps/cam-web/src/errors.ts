@@ -18,7 +18,7 @@ function errorSummary(error: unknown): string {
     return boundedErrorText(error.message)
   }
 
-  return boundedErrorText(String(error))
+  return boundedErrorText(safeString(error, "unprintable error"))
 }
 
 function errorDetail(chain: readonly unknown[]): string | undefined {
@@ -127,11 +127,19 @@ function formatErrorArgument(value: unknown): string {
     // cyclic or otherwise not JSON-serializable.
   }
 
-  return boundedErrorText(String(value))
+  return boundedErrorText(safeString(value, "unprintable value"))
 }
 
 function boundedErrorText(value: string): string {
   return value.length <= MAX_ERROR_TEXT_LENGTH
     ? value
     : `${value.slice(0, MAX_ERROR_TEXT_LENGTH)}...`
+}
+
+function safeString(value: unknown, fallback: string): string {
+  try {
+    return String(value)
+  } catch {
+    return fallback
+  }
 }
