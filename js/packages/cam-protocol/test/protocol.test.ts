@@ -1176,7 +1176,27 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
         },
       },
     }, "https://example.test/x"),
-    /empty chunk/,
+    /non-byte chunk/,
+  )
+
+  await assert.rejects(
+    () => readBoundedResponseBytes({
+      body: {
+        getReader() {
+          return {
+            async read() {
+              return { done: false, value: new ArrayBuffer(1) as unknown as Uint8Array }
+            },
+          }
+        },
+      },
+      headers: {
+        get() {
+          return null
+        },
+      },
+    }, "https://example.test/x"),
+    /non-byte chunk/,
   )
 
   await assert.rejects(

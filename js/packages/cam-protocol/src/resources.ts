@@ -563,7 +563,10 @@ export async function readBoundedResponseBytes(
       const value = chunk.value
       // A bounded stream reader must observe progress on every read. Empty
       // chunks can otherwise spin forever while never crossing the byte cap.
-      if (value === undefined || value.byteLength === 0) {
+      if (!(value instanceof Uint8Array)) {
+        throw new Error(`CAM resource stream returned a non-byte chunk: ${uri}`)
+      }
+      if (value.byteLength === 0) {
         throw new Error(`CAM resource stream returned an empty chunk: ${uri}`)
       }
 
