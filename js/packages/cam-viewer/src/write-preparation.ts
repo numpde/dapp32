@@ -2,7 +2,6 @@ import {
   createContext,
   resolveRouteCall,
   resolveRouteThen,
-  routeRequiresAccount,
 } from "@cam/core"
 import {
   isCamNamespaceNameForType,
@@ -13,6 +12,7 @@ import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type { InertRecord } from "@cam/protocol"
 
 import { CamViewerError } from "./errors.ts"
+import { requireViewerRoute } from "./route-preflight.ts"
 import type {
   CamViewerAccount,
   CamViewerPreparedContractCall,
@@ -33,16 +33,14 @@ export function prepareViewerContractCall({
   readonly route: string
   readonly inputs: InertRecord
 }): CamViewerPreparedContractCall {
-  const routeDeclaration = cam.routes[route]
-  if (routeDeclaration === undefined) {
-    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route does not exist: ${route}`)
-  }
-  if (routeDeclaration.kind !== "write") {
-    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action route must be declared as write: ${route}`)
-  }
-  if (account === undefined && routeRequiresAccount(cam, route)) {
-    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM route requires an account: ${route}`)
-  }
+  requireViewerRoute({
+    cam,
+    route,
+    kind: "write",
+    ...(account === undefined ? {} : { account }),
+    missingMessage: `CAM write route does not exist: ${route}`,
+    wrongKindMessage: `CAM contract action route must be declared as write: ${route}`,
+  })
 
   const context = createContext({
     host,
