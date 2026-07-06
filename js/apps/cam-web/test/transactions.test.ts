@@ -93,18 +93,20 @@ test("prepared call submission proves wallet revalidation after chain switching"
   assert.equal(result, sentHash)
   assert.deepEqual(events, [
     "ensureAccount",
-    "simulate",
     "continue:1",
-    "ensureChain",
+    "simulate",
     "continue:2",
+    "ensureChain",
+    "continue:3",
     "ensureAccount",
+    "continue:4",
     "createWalletClient",
     "chain",
     "send",
   ])
 })
 
-test("prepared call submission aborts before chain switching when interaction becomes stale", async () => {
+test("prepared call submission aborts before simulation when account check makes the interaction stale", async () => {
   const events: string[] = []
 
   const result = await submitPreparedContractCall({
@@ -122,12 +124,11 @@ test("prepared call submission aborts before chain switching when interaction be
   assert.equal(result, undefined)
   assert.deepEqual(events, [
     "ensureAccount",
-    "simulate",
     "continue",
   ])
 })
 
-test("prepared call submission aborts before signing when chain switching makes the interaction stale", async () => {
+test("prepared call submission aborts before chain switching when simulation makes the interaction stale", async () => {
   const events: string[] = []
   let continueCalls = 0
 
@@ -147,10 +148,67 @@ test("prepared call submission aborts before signing when chain switching makes 
   assert.equal(result, undefined)
   assert.deepEqual(events, [
     "ensureAccount",
-    "simulate",
     "continue:1",
-    "ensureChain",
+    "simulate",
     "continue:2",
+  ])
+})
+
+test("prepared call submission aborts before signing when chain switching makes the interaction stale", async () => {
+  const events: string[] = []
+  let continueCalls = 0
+
+  const result = await submitPreparedContractCall({
+    ports: recordingPorts(events),
+    publicClient: testPublicClient(),
+    walletAddress,
+    startup: testStartup(),
+    call: testCall(),
+    shouldContinue() {
+      continueCalls += 1
+      events.push(`continue:${continueCalls.toString()}`)
+      return continueCalls < 3
+    },
+  })
+
+  assert.equal(result, undefined)
+  assert.deepEqual(events, [
+    "ensureAccount",
+    "continue:1",
+    "simulate",
+    "continue:2",
+    "ensureChain",
+    "continue:3",
+  ])
+})
+
+test("prepared call submission aborts before sending when final account check makes the interaction stale", async () => {
+  const events: string[] = []
+  let continueCalls = 0
+
+  const result = await submitPreparedContractCall({
+    ports: recordingPorts(events),
+    publicClient: testPublicClient(),
+    walletAddress,
+    startup: testStartup(),
+    call: testCall(),
+    shouldContinue() {
+      continueCalls += 1
+      events.push(`continue:${continueCalls.toString()}`)
+      return continueCalls < 4
+    },
+  })
+
+  assert.equal(result, undefined)
+  assert.deepEqual(events, [
+    "ensureAccount",
+    "continue:1",
+    "simulate",
+    "continue:2",
+    "ensureChain",
+    "continue:3",
+    "ensureAccount",
+    "continue:4",
   ])
 })
 

@@ -68,6 +68,8 @@ export async function submitPreparedContractCall<TWalletClient, TChain>({
   // Wallet state can change while the wallet opens chain-switch or signing UI.
   // Keep each external effect explicit so tests can prove the safety order.
   await ports.ensureAccount(walletAddress)
+  if (!shouldContinue()) return undefined
+
   await ports.simulate({
     publicClient,
     account: walletAddress,
@@ -79,6 +81,8 @@ export async function submitPreparedContractCall<TWalletClient, TChain>({
   if (!shouldContinue()) return undefined
 
   await ports.ensureAccount(walletAddress)
+  if (!shouldContinue()) return undefined
+
   const walletClient = ports.createWalletClient(walletAddress)
   return await ports.send({
     walletClient,
