@@ -159,9 +159,10 @@ Candidate extraction seam:
   normalization, route conformance, and UI typeflow disagree intentionally about
   concrete value shapes, unknowns, tuple array decoding, and literal strings.
 
-## Likely Accidental Differences
+## Reassessment Notes
 
-These deserve characterization before any abstraction:
+These differences are now characterized enough to guide future changes. They
+are not an active abstraction backlog:
 
 - Runtime output tuple traversal accepts array-like tuple values, while runtime
   input and conformance route literal traversal require object-like tuples.
@@ -217,7 +218,9 @@ Already covered by existing tests:
 
 ## Recommendation
 
-Do not extract an ABI traversal helper yet.
+Do not extract an ABI traversal helper yet. The inventory is closed for now:
+new ABI work should be driven by a production change or a failing invariant,
+not by this note's historical duplication survey.
 
 Parity is characterized, but runtime fail-fast errors and conformance
 accumulation remain separate public surfaces. If future tests show the same

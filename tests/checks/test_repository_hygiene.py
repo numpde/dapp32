@@ -165,6 +165,15 @@ class RepositoryHygieneTest(unittest.TestCase):
         # not a parallel Compose service or a stale subset of tool smoke tests.
         self.assertEqual(PACKAGE_CI_PREREQS, self.make_target_prereqs(makefile, "package-ci"))
 
+    def test_closed_abi_inventory_does_not_advertise_open_characterization_gaps(self) -> None:
+        inventory = read_text(repo_path("notes/012_abi_traversal_inventory.md"))
+
+        # The ABI inventory is now a stop sign against premature abstraction.
+        # If it says no gaps remain, it must not also send agents hunting for
+        # more characterization before extraction.
+        if "No known ABI characterization gaps remain" in inventory:
+            self.assertNotIn("deserve characterization before any abstraction", inventory)
+
     def test_compose_project_names_are_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
 
