@@ -2,6 +2,7 @@ import type { Hex } from "viem"
 
 import { abiFunctionInputs, normalizeAbiArgs } from "./arguments.ts"
 import { findUniqueAbiFunction, singleFunctionAbi } from "./abi-functions.ts"
+import { requireEvmAddress } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
 import type { CamContractCall, SendCamContractCallOptions, SimulateCamContractCallOptions } from "./types.ts"
 
@@ -66,7 +67,7 @@ function writeRequest(call: CamContractCall): WriteRequest {
   }
 
   return {
-    address: call.address,
+    address: requireEvmAddress(call.address, "contract.address"),
     abi: singleFunctionAbi(fn),
     functionName: fn.name,
     args: normalizeAbiArgs({

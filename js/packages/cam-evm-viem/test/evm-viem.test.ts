@@ -798,6 +798,27 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_ARGUMENT",
   )
 
+  await assert.rejects(
+    () => callCamRoute({
+      publicClient: createPublicClient(publicClientFixtureOptions({})),
+      cam: parseCam(camJson),
+      contracts: {
+        [BIKE_UI_NAMESPACE]: {
+          address: "not-an-address" as Address,
+          abi: uiAbi,
+        },
+      },
+      route: BIKE_ROUTE_ENTRY,
+      context: {
+        host,
+        account: { address: userAddress },
+        inputs: {},
+        outputs: [],
+      },
+    }),
+    /contract\.address/,
+  )
+
   const invalidAddressAbi = [
     {
       type: "function",
@@ -901,6 +922,22 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
       },
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT",
+  )
+
+  await assert.rejects(
+    () => sendCamContractCall({
+      walletClient,
+      chain: testChain,
+      call: {
+        address: "not-an-address" as Address,
+        abi: managerAbi,
+        function: BIKE_MARK_MISSING,
+        args: {
+          serialNumber: BIKE_SERIAL_NUMBER,
+        },
+      },
+    }),
+    /contract\.address/,
   )
 
   const publicClient = createSimulationClient()

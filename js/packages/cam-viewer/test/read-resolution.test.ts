@@ -22,7 +22,7 @@ const host: CamHost = {
 const account = {
   address: "0x0000000000000000000000000000000000000acc" as Address,
 }
-const contractAddress = "0x00000000000000000000000000000000000000A0" as Address
+const contractAddress = "0x00000000000000000000000000000000000000a0" as Address
 
 test("resolveViewerReadRoute resolves values, initial state, and UI", async () => {
   const result = await resolveViewerReadRoute({

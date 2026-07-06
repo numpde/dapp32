@@ -22,7 +22,7 @@ import {
 } from "./abi-values.ts"
 import type { AbiTupleParameter } from "./abi-values.ts"
 import { findUniqueAbiFunction, singleFunctionAbi } from "./abi-functions.ts"
-import { assertClientChain } from "./chain.ts"
+import { assertClientChain, requireEvmAddress } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
 import type { CamPublicClient, ResolvedCamContract, RouteResult } from "./types.ts"
 
@@ -58,10 +58,11 @@ export async function callCamRoute({
   })
 
   const account = routeAccount(context)
+  const address = requireEvmAddress(contract.address, "contract.address")
   let raw: unknown
   try {
     raw = await publicClient.readContract({
-      address: contract.address,
+      address,
       abi: singleFunctionAbi(routeFunction),
       functionName: routeFunction.name,
       args,
