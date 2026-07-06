@@ -117,11 +117,13 @@ function errorPath(error: unknown): string | undefined {
 }
 
 export function errorMessage(error: unknown): string {
+  let message: string
   try {
-    return error instanceof Error ? error.message : String(error)
+    message = error instanceof Error ? error.message : String(error)
   } catch {
-    return "unprintable error"
+    message = "unprintable error"
   }
+  return message
 }
 
 function errorProperty(error: unknown, key: string): unknown {
@@ -129,11 +131,16 @@ function errorProperty(error: unknown, key: string): unknown {
     return undefined
   }
 
+  let value: unknown
   try {
-    return key in error ? (error as Record<string, unknown>)[key] : undefined
+    if (key in error) {
+      value = (error as Record<string, unknown>)[key]
+    }
   } catch {
-    return undefined
+    // Error-like values can be provider/proxy objects. Issue construction must
+    // not replace the original validation failure with a property trap error.
   }
+  return value
 }
 
 function formatIssueSummary(issues: readonly CamConformanceIssue[]): string {
