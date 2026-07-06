@@ -52,3 +52,20 @@ test("errorMessage keeps custom revert names when args are cyclic", () => {
 
   assert.equal(errorMessage(error), "transaction failed: BadArgs()")
 })
+
+test("errorMessage bounds untrusted provider text", () => {
+  const long = "x".repeat(1_000)
+
+  assert.equal(errorMessage(new Error(long)), `${"x".repeat(500)}...`)
+  assert.equal(
+    errorMessage(new Error("transaction failed", {
+      cause: {
+        data: {
+          errorName: "BadArgs",
+          args: [long],
+        },
+      },
+    })),
+    `transaction failed: BadArgs("${"x".repeat(499)}...)`,
+  )
+})

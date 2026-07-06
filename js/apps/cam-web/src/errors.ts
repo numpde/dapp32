@@ -1,3 +1,5 @@
+const MAX_ERROR_TEXT_LENGTH = 500
+
 export function errorMessage(error: unknown): string {
   const chain = errorChain(error)
   const summary = errorSummary(firstErrorInChain(chain, error))
@@ -13,10 +15,10 @@ function errorSummary(error: unknown): string {
   }
 
   if (error instanceof Error) {
-    return error.message
+    return boundedErrorText(error.message)
   }
 
-  return String(error)
+  return boundedErrorText(String(error))
 }
 
 function errorDetail(chain: readonly unknown[]): string | undefined {
@@ -83,7 +85,7 @@ function errorCustomRevert(error: unknown): string | undefined {
 
 function readableErrorString(error: unknown, key: string): string | undefined {
   const value = errorProperty(error, key)
-  return typeof value === "string" && isReadableErrorText(value) ? value : undefined
+  return typeof value === "string" && isReadableErrorText(value) ? boundedErrorText(value) : undefined
 }
 
 function isReadableErrorText(value: string): boolean {
@@ -112,17 +114,23 @@ function errorProperty(error: unknown, key: string): unknown {
 
 function formatErrorArgument(value: unknown): string {
   if (typeof value === "bigint") return value.toString()
-  if (typeof value === "string") return JSON.stringify(value)
+  if (typeof value === "string") return boundedErrorText(JSON.stringify(value))
   if (typeof value === "number" || typeof value === "boolean" || value === null) return String(value)
   try {
     const json = JSON.stringify(value, (_, item: unknown) => typeof item === "bigint" ? item.toString() : item)
     if (json !== undefined) {
-      return json
+      return boundedErrorText(json)
     }
   } catch {
     // Keep custom error names useful even when provider-supplied args are
     // cyclic or otherwise not JSON-serializable.
   }
 
-  return String(value)
+  return boundedErrorText(String(value))
+}
+
+function boundedErrorText(value: string): string {
+  return value.length <= MAX_ERROR_TEXT_LENGTH
+    ? value
+    : `${value.slice(0, MAX_ERROR_TEXT_LENGTH)}...`
 }
