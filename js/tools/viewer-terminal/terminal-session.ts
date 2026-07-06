@@ -18,7 +18,7 @@ import type {
 
 import { parsePositiveIntegerText } from "../input.ts"
 import { createTerminalBackendFromEnv } from "./backends/index.ts"
-import { formatValue } from "./format.ts"
+import { formatDisplayText, formatValue } from "./format.ts"
 import type {
   DebugEvent,
   TerminalBackend,
@@ -259,10 +259,10 @@ function labelForAction(action: ResolvedButtonNode): string {
 
 function formatError(error: unknown): string {
   if (error instanceof Error) {
-    return `Error: ${error.message}\n`
+    return `Error: ${formatDisplayText(error.message)}\n`
   }
 
-  return `Error: ${String(error)}\n`
+  return `Error: ${formatDisplayText(String(error))}\n`
 }
 
 function printState(snapshot: CamViewerSnapshot): void {

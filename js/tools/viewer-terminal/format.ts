@@ -2,18 +2,18 @@ const MAX_FORMAT_VALUE_LENGTH = 2_000
 
 export function formatValue(value: unknown): string {
   if (typeof value === "bigint") {
-    return boundedFormatText(value.toString())
+    return formatDisplayText(value.toString())
   }
 
   if (typeof value === "string") {
-    return boundedFormatText(value)
+    return formatDisplayText(value)
   }
 
   const json = JSON.stringify(value)
-  return boundedFormatText(json === undefined ? String(value) : json)
+  return formatDisplayText(json === undefined ? String(value) : json)
 }
 
-function boundedFormatText(value: string): string {
+export function formatDisplayText(value: string): string {
   // formatValue feeds the human terminal render/prompt path. Keep structured
   // JSON commands unbounded, but avoid accidental screen floods from RPC/CAM
   // values during ordinary interactive rendering.
