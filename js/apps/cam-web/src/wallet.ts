@@ -9,6 +9,9 @@ import {
   requireEvmAddress,
 } from "@cam/evm-viem"
 import {
+  requireHttpURL,
+} from "@cam/protocol"
+import {
   shortenAddress,
 } from "./evm.ts"
 
@@ -24,6 +27,7 @@ export type WalletChainOptions = {
 
 export function walletChain(options: WalletChainOptions) {
   const id = evmChainIdNumber(options.chainId)
+  const rpcUrl = requireHttpURL(options.rpcUrl, "rpcUrl").href
   return {
     id,
     name: `CAM ${options.chainId}`,
@@ -34,7 +38,7 @@ export function walletChain(options: WalletChainOptions) {
     },
     rpcUrls: {
       default: {
-        http: [options.rpcUrl],
+        http: [rpcUrl],
       },
     },
   } as const

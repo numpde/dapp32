@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { ensureConnectedWalletAccount, ensureInjectedWalletChain } from "../src/wallet.ts"
+import { ensureConnectedWalletAccount, ensureInjectedWalletChain, walletChain } from "../src/wallet.ts"
 
 const ACCOUNT = "0x0000000000000000000000000000000000000001"
 const OTHER_ACCOUNT = "0x0000000000000000000000000000000000000002"
@@ -22,6 +22,21 @@ test("wallet account check rejects stale connected account state", async () => {
   await assert.rejects(
     ensureConnectedWalletAccount(ACCOUNT),
     /Connected wallet account changed/,
+  )
+})
+
+test("wallet chain helper validates RPC URLs at the wallet boundary", () => {
+  assert.deepEqual(walletChain({
+    chainId: "eip155:31337",
+    rpcUrl: "http://127.0.0.1:8545/rpc",
+  }).rpcUrls.default.http, ["http://127.0.0.1:8545/rpc"])
+
+  assert.throws(
+    () => walletChain({
+      chainId: "eip155:31337",
+      rpcUrl: "javascript:alert(1)",
+    }),
+    /rpcUrl: expected http or https URL/,
   )
 })
 
