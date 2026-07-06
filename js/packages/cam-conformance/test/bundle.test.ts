@@ -17,7 +17,6 @@ import {
 import type { AbiDeclarationCase } from "../../../../tests/fixtures/cam/abi-declaration-cases.mts"
 import {
   abiIssueLocationsFor,
-  duplicateViewEntrySignatureAbiBytes,
   issueLocations,
   issueRules,
   jsonBytes,
@@ -768,19 +767,7 @@ test("route function references must be names or full signatures", () => {
   ])
 })
 
-test("ABI resource validation rejects invalid published function shapes", () => {
-  assert.deepEqual(abiIssueLocationsFor(encoder.encode("{")), [
-    ["CAM_ABI_INVALID", undefined],
-  ])
-
-  assert.deepEqual(abiIssueLocationsFor(jsonBytes({ abi: [] })), [
-    ["CAM_ABI_INVALID", undefined],
-  ])
-
-  assert.deepEqual(abiIssueLocationsFor(duplicateViewEntrySignatureAbiBytes()), [
-    ["CAM_ABI_INVALID", "1"],
-  ])
-
+test("ABI resource validation accumulates multiple declaration issues", () => {
   assert.deepEqual(abiIssueLocationsFor(jsonBytes([
     {
       name: "viewEntry",
@@ -792,18 +779,6 @@ test("ABI resource validation rejects invalid published function shapes", () => 
   ])), [
     ["CAM_ABI_INVALID", "0.type"],
     ["CAM_ABI_INVALID", "1.type"],
-  ])
-
-  assert.deepEqual(abiIssueLocationsFor(jsonBytes([
-    {
-      type: "function",
-      name: "view-entry",
-      stateMutability: "view",
-      inputs: [],
-      outputs: [],
-    },
-  ])), [
-    ["CAM_ABI_INVALID", "0.name"],
   ])
 
   assert.deepEqual(abiIssueLocationsFor(jsonBytes([
@@ -827,77 +802,6 @@ test("ABI resource validation rejects invalid published function shapes", () => 
   ])), [
     ["CAM_ABI_INVALID", "0.inputs.0"],
     ["CAM_ABI_INVALID", "0.outputs.0"],
-  ])
-
-  assert.deepEqual(abiIssueLocationsFor(jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [
-        {
-          name: "broken",
-          type: "uint256[2][]",
-        },
-      ],
-      outputs: [viewOutput()],
-    },
-  ])), [
-    ["CAM_ABI_INVALID", "0.inputs.0"],
-  ])
-
-  assert.deepEqual(abiIssueLocationsFor(jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [
-        {
-          name: "inputTuple",
-          type: "tuple",
-          components: [
-            {
-              type: "string",
-            },
-          ],
-        },
-      ],
-      outputs: [
-        {
-          name: "outputTuple",
-          type: "tuple",
-          components: [
-            {
-              type: "string",
-            },
-          ],
-        },
-      ],
-    },
-  ])), [
-    ["CAM_ABI_INVALID", "0.inputs.0.components.0.name"],
-    ["CAM_ABI_INVALID", "0.outputs.0.components.0.name"],
-  ])
-
-  assert.deepEqual(abiIssueLocationsFor(jsonBytes([
-    {
-      type: "function",
-      name: "viewEntry",
-      stateMutability: "view",
-      inputs: [
-        {
-          name: "amount",
-          type: "uint256",
-        },
-        {
-          name: "amount",
-          type: "uint256",
-        },
-      ],
-      outputs: [],
-    },
-  ])), [
-    ["CAM_ABI_INVALID", "0.inputs.1.name"],
   ])
 
   assert.deepEqual(abiIssueLocationsFor(jsonBytes([
@@ -982,6 +886,11 @@ test("conformance ABI declaration parsing rejects unsupported publication shapes
     ["duplicate tuple component name", [["CAM_ABI_INVALID", "0.inputs.0.components.1.name"]]],
     ["duplicate function signature", [["CAM_ABI_INVALID", "1"]]],
   ])
+
+  assert.deepEqual(
+    [...expectedLocations.keys()].sort(),
+    ABI_DECLARATION_REJECTED_CASES.map(({ label }) => label).sort(),
+  )
 
   for (const testCase of ABI_DECLARATION_REJECTED_CASES) {
     const locations = expectedLocations.get(testCase.label)
