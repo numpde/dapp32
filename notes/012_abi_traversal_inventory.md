@@ -213,9 +213,6 @@ Already covered by existing tests:
   duplicate signatures, named input/component requirements, unsupported scalar
   types, fixed arrays, tuple components, and input/output array/object shape
   failures.
-
-Missing or weak characterization before extraction:
-
 - No known ABI characterization gaps remain in this inventory.
 
 ## Recommendation
