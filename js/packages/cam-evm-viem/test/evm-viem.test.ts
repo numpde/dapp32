@@ -94,6 +94,8 @@ test("validates EVM address and chain boundary values", () => {
   assert.equal(evmChainIdHex("eip155:31337"), "0x7a69")
   assert.throws(() => requireEvmAddress("0xabc", "account"), /address/)
   assert.throws(() => requireEvmChainId("31337"), /CAIP-2/)
+  assert.throws(() => requireEvmChainId("eip155:9007199254740992"), /safe integer/)
+  assert.throws(() => evmChainIdHex("eip155:9007199254740992"), /safe integer/)
 })
 
 test("validates EVM HTTP client transport URLs before creating clients", () => {

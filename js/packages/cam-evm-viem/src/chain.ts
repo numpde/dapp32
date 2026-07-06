@@ -22,26 +22,31 @@ export function requireEvmAddress(value: string, label: string): Address {
 }
 
 export function requireEvmChainId(value: string): string {
-  if (!/^eip155:[1-9][0-9]*$/.test(value)) {
-    throw new Error("chainId: expected CAIP-2 EVM chain id, for example eip155:31337")
-  }
-
+  chainIdDecimal(value)
   return value
 }
 
 export function evmChainIdHex(chainId: string): Hex {
-  const decimal = requireEvmChainId(chainId).slice(EVM_CHAIN_PREFIX.length)
+  const decimal = chainIdDecimal(chainId)
   return `0x${BigInt(decimal).toString(16)}`
 }
 
 export function evmChainIdNumber(chainId: string): number {
-  const decimal = requireEvmChainId(chainId).slice(EVM_CHAIN_PREFIX.length)
+  return Number(chainIdDecimal(chainId))
+}
+
+function chainIdDecimal(value: string): string {
+  if (!/^eip155:[1-9][0-9]*$/.test(value)) {
+    throw new Error("chainId: expected CAIP-2 EVM chain id, for example eip155:31337")
+  }
+
+  const decimal = value.slice(EVM_CHAIN_PREFIX.length)
   const numeric = Number(decimal)
   if (!Number.isSafeInteger(numeric)) {
     throw new Error("chainId: expected a safe integer chain id")
   }
 
-  return numeric
+  return decimal
 }
 
 export async function assertClientChain(
