@@ -1,5 +1,4 @@
 import {
-  callCamRoute,
   loadCamFromHost,
   resolveCamContracts,
   verifyCamResourceIntegrity,
@@ -11,12 +10,8 @@ import {
   resolveCamResourceURI,
   toInertValue,
 } from "@cam/protocol"
-import {
-  createContext,
-  routeRequiresAccount,
-} from "@cam/core"
 import type { CamDocument } from "@cam/core"
-import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
+import type { InertRecord, InertValue } from "@cam/protocol"
 import {
   parseUi,
 } from "@cam/screen"
@@ -35,8 +30,9 @@ import {
 } from "./interactions.ts"
 import {
   resolveViewerCurrentUi,
-  resolveViewerInitialUi,
 } from "./ui-resolution.ts"
+import { resolveViewerReadRoute } from "./read-resolution.ts"
+import type { ViewerResolvedReadView } from "./read-resolution.ts"
 import { prepareViewerContractCall } from "./write-preparation.ts"
 import type {
   CamViewerAccount,
@@ -55,13 +51,7 @@ type CamViewerLoadedState = {
   readonly ui: UiDocument
 }
 
-type CurrentView = {
-  readonly route: string
-  readonly inputs: InertRecord
-  readonly state: InertRecord
-  readonly resolvedUi: ResolvedUiNode
-  readonly values: readonly InertValue[]
-}
+type CurrentView = ViewerResolvedReadView
 
 export function createCamViewerSession({
   publicClient,
@@ -226,36 +216,16 @@ export function createCamViewerSession({
     nextInputs: InertRecord,
   ): Promise<CurrentView> {
     const routeInputs = cloneViewerData<InertRecord>(nextInputs, "inputs")
-    const routeDeclaration = current.cam.routes[nextRoute]
-    if (routeDeclaration === undefined || routeDeclaration.kind !== "read") {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM navigation route must be declared as read: ${nextRoute}`)
-    }
-    assertRouteAccountAvailable(current.cam, nextRoute)
-
-    const routeResult = await callCamRoute({
+    return await resolveViewerReadRoute({
       publicClient,
       cam: current.cam,
       contracts: current.contracts,
-      route: nextRoute,
-      context: routeContext(routeInputs, []),
-    })
-
-    const initial = resolveViewerInitialUi({
-      cam: current.cam,
       ui: current.ui,
       host: sessionHost,
       ...(account === undefined ? {} : { account }),
       route: nextRoute,
       inputs: routeInputs,
-      values: routeResult.values,
     })
-    return {
-      route: nextRoute,
-      inputs: routeInputs,
-      state: initial.state,
-      resolvedUi: initial.resolvedUi,
-      values: routeResult.values,
-    }
   }
 
   async function loadUi(uri: string, integrity: string): Promise<UiDocument> {
@@ -298,18 +268,6 @@ export function createCamViewerSession({
     })
   }
 
-  function routeContext(
-    inputs: InertRecord,
-    outputs: readonly InertValue[],
-  ): CamRuntimeContext {
-    return createContext({
-      host: sessionHost,
-      ...(account === undefined ? {} : { account }),
-      inputs,
-      outputs,
-    })
-  }
-
   function assertLoaded(): CamViewerLoadedState {
     if (loadedState === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session is not loaded")
@@ -324,12 +282,6 @@ export function createCamViewerSession({
     }
 
     return currentView
-  }
-
-  function assertRouteAccountAvailable(cam: CamDocument, route: string): void {
-    if (account === undefined && routeRequiresAccount(cam, route)) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM route requires an account: ${route}`)
-    }
   }
 
   return {
