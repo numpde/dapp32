@@ -78,9 +78,10 @@ function errorCustomRevert(error: unknown): string | undefined {
   if (errorName === undefined) return undefined
 
   const args = errorProperty(data, "args")
-  return Array.isArray(args)
+  const customError = Array.isArray(args)
     ? `${errorName}(${args.map(formatErrorArgument).join(", ")})`
     : `${errorName}()`
+  return boundedErrorText(customError)
 }
 
 function readableErrorString(error: unknown, key: string): string | undefined {

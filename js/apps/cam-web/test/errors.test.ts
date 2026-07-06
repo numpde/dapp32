@@ -66,6 +66,18 @@ test("errorMessage bounds untrusted provider text", () => {
         },
       },
     })),
-    `transaction failed: BadArgs("${"x".repeat(499)}...)`,
+    `transaction failed: ${`BadArgs("${long}")`.slice(0, 500)}...`,
+  )
+
+  assert.equal(
+    errorMessage(new Error("transaction failed", {
+      cause: {
+        data: {
+          errorName: "ManyArgs",
+          args: Array.from({ length: 200 }, (_, index) => index),
+        },
+      },
+    })),
+    `transaction failed: ${`ManyArgs(${Array.from({ length: 200 }, (_, index) => index).join(", ")})`.slice(0, 500)}...`,
   )
 })
