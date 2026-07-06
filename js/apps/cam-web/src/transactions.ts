@@ -33,6 +33,8 @@ export type TransactionReader<TReceipt> = {
 
 export type PreparedCallSimulationClient = Parameters<typeof simulateCamContractCall>[0]["publicClient"]
 
+const MAX_DIAGNOSTIC_ERROR_LENGTH = 500
+
 export type PreparedCallSubmitterPorts<TWalletClient, TChain> = {
   readonly ensureAccount: (address: Address) => Promise<void>
   readonly simulate: (args: {
@@ -163,11 +165,12 @@ export async function submittedTransactionDiagnosis({
 }
 
 function diagnosticErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.length > 0) {
-    return error.message
-  }
-
-  return String(error)
+  const message = error instanceof Error && error.message.length > 0
+    ? error.message
+    : String(error)
+  return message.length <= MAX_DIAGNOSTIC_ERROR_LENGTH
+    ? message
+    : `${message.slice(0, MAX_DIAGNOSTIC_ERROR_LENGTH)}...`
 }
 
 async function readSubmittedTransaction(
