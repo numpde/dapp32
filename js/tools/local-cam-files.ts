@@ -1,5 +1,5 @@
-import { lstatSync, readFileSync } from "node:fs"
-import { lstat, readFile, realpath } from "node:fs/promises"
+import { closeSync, lstatSync, openSync, readSync } from "node:fs"
+import { lstat, open, realpath } from "node:fs/promises"
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 
 import {
@@ -113,7 +113,7 @@ export async function readBoundedFile(path: string, label: string): Promise<Uint
   const pathStat = await assertRegularFile(path, label)
   assertResourceSize(pathStat.size, label)
 
-  const bytes = await readFile(path)
+  const bytes = await readFileWithinResourceLimit(path, label)
   assertCamResourceSize(bytes, label)
   return bytes
 }
@@ -122,7 +122,7 @@ export function readBoundedFileSync(path: string, label: string): Uint8Array {
   const pathStat = assertRegularFileSync(path, label)
   assertResourceSize(pathStat.size, label)
 
-  const bytes = readFileSync(path)
+  const bytes = readFileWithinResourceLimitSync(path, label)
   assertCamResourceSize(bytes, label)
   return bytes
 }
@@ -151,6 +151,64 @@ function assertResourceSize(size: number | bigint, label: string): void {
   if (BigInt(size) > BigInt(CAM_RESOURCE_MAX_BYTES)) {
     throw new Error(`${label} is too large: exceeds ${CAM_RESOURCE_MAX_BYTES} bytes`)
   }
+}
+
+async function readFileWithinResourceLimit(path: string, label: string): Promise<Uint8Array> {
+  const handle = await open(path, "r")
+  try {
+    const chunks: Uint8Array[] = []
+    let byteLength = 0
+
+    while (true) {
+      const chunk = new Uint8Array(Math.min(64 * 1024, CAM_RESOURCE_MAX_BYTES + 1 - byteLength))
+      const { bytesRead } = await handle.read(chunk, 0, chunk.byteLength)
+      if (bytesRead === 0) break
+
+      byteLength += bytesRead
+      if (byteLength > CAM_RESOURCE_MAX_BYTES) {
+        throw new Error(`${label} is too large: exceeds ${CAM_RESOURCE_MAX_BYTES} bytes`)
+      }
+      chunks.push(chunk.subarray(0, bytesRead))
+    }
+
+    return concatenateChunks(chunks, byteLength)
+  } finally {
+    await handle.close()
+  }
+}
+
+function readFileWithinResourceLimitSync(path: string, label: string): Uint8Array {
+  const fd = openSync(path, "r")
+  try {
+    const chunks: Uint8Array[] = []
+    let byteLength = 0
+
+    while (true) {
+      const chunk = new Uint8Array(Math.min(64 * 1024, CAM_RESOURCE_MAX_BYTES + 1 - byteLength))
+      const bytesRead = readSync(fd, chunk, 0, chunk.byteLength, null)
+      if (bytesRead === 0) break
+
+      byteLength += bytesRead
+      if (byteLength > CAM_RESOURCE_MAX_BYTES) {
+        throw new Error(`${label} is too large: exceeds ${CAM_RESOURCE_MAX_BYTES} bytes`)
+      }
+      chunks.push(chunk.subarray(0, bytesRead))
+    }
+
+    return concatenateChunks(chunks, byteLength)
+  } finally {
+    closeSync(fd)
+  }
+}
+
+function concatenateChunks(chunks: readonly Uint8Array[], byteLength: number): Uint8Array {
+  const bytes = new Uint8Array(byteLength)
+  let offset = 0
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return bytes
 }
 
 function pathEscapesRoot(path: string): boolean {
