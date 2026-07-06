@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { deploymentFromBroadcast } from "./local-rpc.ts"
+import { deploymentFromBroadcast, traceContractArgs } from "./local-rpc.ts"
 
 const ACCOUNT = "0x0000000000000000000000000000000000000001"
 const CAM_ROOT = "0x0000000000000000000000000000000000000002"
@@ -38,6 +38,11 @@ test("Forge broadcast deployment parser returns the unambiguous deployment", () 
     account: ACCOUNT,
     camRoot: CAM_ROOT,
   })
+})
+
+test("local RPC trace preserves viem integer args without inert coercion", () => {
+  assert.deepEqual(traceContractArgs([1n, "serial"]), [1n, "serial"])
+  assert.deepEqual(traceContractArgs(undefined), [])
 })
 
 function broadcast({

@@ -9,7 +9,7 @@ export type DebugEvent =
     readonly step: number
     readonly kind: "contract-read"
     readonly functionName: string
-    readonly args: readonly InertValue[]
+    readonly args: readonly unknown[]
     readonly result: unknown
   }
   | {

@@ -12,7 +12,6 @@ import {
 import {
   createSameOriginHttpResourceLoader,
   parseJsonBytes,
-  toInertValue,
 } from "../../../packages/cam-protocol/dist/index.js"
 
 import type {
@@ -93,9 +92,7 @@ function tracedPublicClient(publicClient: CamPublicClient, events: DebugEvent[])
     },
     async readContract(request) {
       const result = await publicClient.readContract(request)
-      const args = Array.isArray(request.args)
-        ? request.args.map((arg: unknown) => toInertValue(arg))
-        : []
+      const args = traceContractArgs(request.args)
       events.push({
         step: events.length + 1,
         kind: "contract-read",
@@ -106,6 +103,10 @@ function tracedPublicClient(publicClient: CamPublicClient, events: DebugEvent[])
       return result
     },
   }
+}
+
+export function traceContractArgs(args: unknown): readonly unknown[] {
+  return Array.isArray(args) ? [...args] : []
 }
 
 function readBroadcastDeployment(path: string): BroadcastDeployment {
