@@ -238,7 +238,7 @@ try {
 }
 
 function writeFatalError(error: unknown, json: boolean): void {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = fatalErrorMessage(error)
   if (json) {
     // JSON mode is for automation. Keep even operator/file failures parseable;
     // build logs stay on stderr in the Compose wrapper.
@@ -247,6 +247,14 @@ function writeFatalError(error: unknown, json: boolean): void {
   }
 
   process.stderr.write(`cam-publication-preflight: ${humanOutputField(message)}\n`)
+}
+
+function fatalErrorMessage(error: unknown): string {
+  try {
+    return error instanceof Error ? error.message : String(error)
+  } catch {
+    return "unprintable error"
+  }
 }
 
 function humanOutputField(value: string): string {
