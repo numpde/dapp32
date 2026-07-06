@@ -39,9 +39,9 @@ function reader(options: {
   readonly txMissing?: boolean
   readonly pendingNonce?: number
   readonly receipt?: TestReceipt
-  readonly receiptError?: Error
-  readonly txError?: Error
-  readonly countError?: Error
+  readonly receiptError?: unknown
+  readonly txError?: unknown
+  readonly countError?: unknown
 } = {}): TransactionReader<TestReceipt> {
   let tx: SubmittedTransaction | null | undefined
   if (options.txMissing === true) {
@@ -362,6 +362,28 @@ test("receipt timeout bounds follow-up diagnosis errors", async () => {
     (error) => error instanceof Error
       && error.message.includes(`The viewer also could not inspect the submitted transaction on localhost:8545: ${"x".repeat(500)}...`)
       && !error.message.includes("x".repeat(501)),
+  )
+})
+
+test("receipt timeout survives hostile follow-up diagnosis errors", async () => {
+  const hostile = {
+    toString() {
+      throw new Error("hostile toString")
+    },
+  }
+
+  await assert.rejects(
+    () => waitForSubmittedTransactionReceipt({
+      client: reader({
+        receiptError: new Error("timeout"),
+        countError: hostile,
+      }),
+      txHash,
+      rpcEndpoint: "localhost:8545",
+      pollingIntervalMs: 500,
+      timeoutMs: 20_000,
+    }),
+    /The viewer also could not inspect the submitted transaction on localhost:8545: unprintable error\./,
   )
 })
 

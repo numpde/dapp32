@@ -165,9 +165,14 @@ export async function submittedTransactionDiagnosis({
 }
 
 function diagnosticErrorMessage(error: unknown): string {
-  const message = error instanceof Error && error.message.length > 0
-    ? error.message
-    : String(error)
+  let message: string
+  try {
+    message = error instanceof Error && error.message.length > 0
+      ? error.message
+      : String(error)
+  } catch {
+    message = "unprintable error"
+  }
   return message.length <= MAX_DIAGNOSTIC_ERROR_LENGTH
     ? message
     : `${message.slice(0, MAX_DIAGNOSTIC_ERROR_LENGTH)}...`
