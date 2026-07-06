@@ -156,13 +156,28 @@ def refresh_integrity_field(
 
 def resource_integrity(manifest_path: Path, uri: object, path: str) -> str:
     resource_path = local_resource_path(manifest_path, uri, path)
-    resource_bytes = resource_path.read_bytes()
-    if len(resource_bytes) > MAX_CAM_RESOURCE_BYTES:
-        raise CamResourceIntegrityError(
-            f"{manifest_path}: CAM resource is too large: {uri} exceeds {MAX_CAM_RESOURCE_BYTES} bytes",
-        )
-    digest = hashlib.sha256(resource_bytes).hexdigest()
+    digest = resource_sha256(manifest_path, resource_path, uri)
     return f"{INTEGRITY_PREFIX}{digest}"
+
+
+def resource_sha256(manifest_path: Path, resource_path: Path, uri: object) -> str:
+    digest = hashlib.sha256()
+    byte_count = 0
+
+    with resource_path.open("rb") as resource_file:
+        while True:
+            chunk = resource_file.read(64 * 1024)
+            if not chunk:
+                break
+
+            byte_count += len(chunk)
+            if byte_count > MAX_CAM_RESOURCE_BYTES:
+                raise CamResourceIntegrityError(
+                    f"{manifest_path}: CAM resource is too large: {uri} exceeds {MAX_CAM_RESOURCE_BYTES} bytes",
+                )
+            digest.update(chunk)
+
+    return digest.hexdigest()
 
 
 def local_resource_path(manifest_path: Path, uri: object, path: str) -> Path:
