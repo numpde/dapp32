@@ -691,6 +691,60 @@ test("collects expression reference occurrences with paths and syntax findings",
   )
 })
 
+test("collects expression references without following object cycles", () => {
+  const shared = { value: "$inputs.shared" }
+  const cyclicRecord: Record<string, unknown> = {
+    direct: "$inputs.direct",
+    sharedA: shared,
+    sharedB: shared,
+  }
+  cyclicRecord.self = cyclicRecord
+
+  const cyclicArray: unknown[] = ["$inputs.array"]
+  cyclicArray.push(cyclicArray)
+
+  assert.deepEqual(
+    collectExpressionReferences({
+      cyclicRecord,
+      cyclicArray,
+    }, { numericSegments: true }),
+    [
+      {
+        path: "cyclicRecord.direct",
+        value: "$inputs.direct",
+        reference: {
+          root: "inputs",
+          segments: ["direct"],
+        },
+      },
+      {
+        path: "cyclicRecord.sharedA.value",
+        value: "$inputs.shared",
+        reference: {
+          root: "inputs",
+          segments: ["shared"],
+        },
+      },
+      {
+        path: "cyclicRecord.sharedB.value",
+        value: "$inputs.shared",
+        reference: {
+          root: "inputs",
+          segments: ["shared"],
+        },
+      },
+      {
+        path: "cyclicArray.0",
+        value: "$inputs.array",
+        reference: {
+          root: "inputs",
+          segments: ["array"],
+        },
+      },
+    ],
+  )
+})
+
 test("collects route expression policy diagnostics", () => {
   const diagnostics = collectCamRouteExpressionDiagnostics({
     resource: "cam",

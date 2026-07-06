@@ -103,7 +103,7 @@ export function collectExpressionReferences(
   path = "",
 ): readonly ExpressionReferenceOccurrence[] {
   const occurrences: ExpressionReferenceOccurrence[] = []
-  collectExpressionReferencesInto(value, options, path, occurrences)
+  collectExpressionReferencesInto(value, options, path, occurrences, new WeakSet<object>())
   return occurrences
 }
 
@@ -231,6 +231,7 @@ function collectExpressionReferencesInto(
   options: ExpressionReferenceOptions,
   path: string,
   occurrences: ExpressionReferenceOccurrence[],
+  ancestors: WeakSet<object>,
 ): void {
   if (typeof value === "string") {
     if (!isExpressionReferenceString(value)) return
@@ -243,18 +244,24 @@ function collectExpressionReferencesInto(
   }
 
   if (Array.isArray(value)) {
+    if (ancestors.has(value)) return
+    ancestors.add(value)
     for (let index = 0; index < value.length; index++) {
       if (index in value) {
-        collectExpressionReferencesInto(value[index], options, joinPath(path, String(index)), occurrences)
+        collectExpressionReferencesInto(value[index], options, joinPath(path, String(index)), occurrences, ancestors)
       }
     }
+    ancestors.delete(value)
     return
   }
 
   if (isRecordObject(value)) {
+    if (ancestors.has(value)) return
+    ancestors.add(value)
     for (const [key, item] of Object.entries(value)) {
-      collectExpressionReferencesInto(item, options, joinPath(path, key), occurrences)
+      collectExpressionReferencesInto(item, options, joinPath(path, key), occurrences, ancestors)
     }
+    ancestors.delete(value)
   }
 }
 
