@@ -8,7 +8,6 @@ import {
   assertCamResourceSize,
   CAM_UI_NAMESPACE,
   createStringMap,
-  isCamNamespaceNameForType,
   parseJsonBytes,
   resolveCamResourceURI,
   toInertValue,
@@ -16,7 +15,6 @@ import {
 import {
   createContext,
   routeRequiresAccount,
-  resolveRouteCall,
   resolveRouteThen,
 } from "@cam/core"
 import type { CamDocument } from "@cam/core"
@@ -41,11 +39,11 @@ import {
   assertStatePatchTargets,
   interpretRenderedAction,
 } from "./interactions.ts"
+import { prepareViewerContractCall } from "./write-preparation.ts"
 import type {
   CamViewerAccount,
   CamViewerActionResult,
   CamViewerLoadedSnapshot,
-  CamViewerPreparedContractCall,
   CamViewerSession,
   CamViewerSnapshot,
   CreateCamViewerSessionOptions,
@@ -204,7 +202,14 @@ export function createCamViewerSession({
 
     return {
       type: "contractCall",
-      call: prepareContractCall(interpretation.route, interpretation.inputs),
+      call: prepareViewerContractCall({
+        cam: current.cam,
+        contracts: current.contracts,
+        host: sessionHost,
+        ...(account === undefined ? {} : { account }),
+        route: interpretation.route,
+        inputs: interpretation.inputs,
+      }),
     }
   }
 
@@ -309,37 +314,6 @@ export function createCamViewerSession({
       return resolveUiNode(current.ui, then.function, then.args, uiContext(inputs, values, state))
     } catch (cause) {
       throw accountAwareUiError(cause)
-    }
-  }
-
-  function prepareContractCall(route: string, inputs: InertRecord): CamViewerPreparedContractCall {
-    const current = assertLoaded()
-    const routeDeclaration = current.cam.routes[route]
-    if (routeDeclaration === undefined) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route does not exist: ${route}`)
-    }
-    if (routeDeclaration.kind !== "write") {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action route must be declared as write: ${route}`)
-    }
-    assertRouteAccountAvailable(current.cam, route)
-
-    const context = routeContext(inputs, [])
-    const call = resolveRouteCall(current.cam, route, context)
-    if (call === undefined || !isCamNamespaceNameForType(call.namespace, "contract")) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM write route must call a contract namespace: ${route}`)
-    }
-    const contract = current.contracts[call.namespace]
-    if (contract === undefined) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action references unresolved namespace: ${call.namespace}`)
-    }
-
-    return {
-      route,
-      address: contract.address,
-      abi: cloneViewerData<ResolvedCamContract["abi"]>(contract.abi, "contract.abi"),
-      function: call.function,
-      args: call.args,
-      then: resolveRouteThen(current.cam, route, context),
     }
   }
 
