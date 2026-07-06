@@ -93,6 +93,20 @@ class CamAbiResourceTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid ABI export dapp directory name"):
                 build_abi_plan_rows(root)
 
+    def test_abi_export_plan_rejects_invalid_roots(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "real-dapps"
+            target.mkdir()
+            link = root / "dapps"
+            link.symlink_to(target, target_is_directory=True)
+
+            with self.assertRaisesRegex(ValueError, "refusing symlinked ABI export root"):
+                build_abi_plan_rows(link)
+
+            with self.assertRaisesRegex(ValueError, "ABI export root is not a directory"):
+                build_abi_plan_rows(root / "missing")
+
 
 if __name__ == "__main__":
     unittest.main()

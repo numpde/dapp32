@@ -37,6 +37,11 @@ class AbiPlanRow:
 
 
 def build_abi_plan_rows(root: Path) -> list[AbiPlanRow]:
+    if root.is_symlink():
+        raise CamAbiPlanError(f"refusing symlinked ABI export root: {root}")
+    if not root.is_dir():
+        raise CamAbiPlanError(f"ABI export root is not a directory: {root}")
+
     rows: list[AbiPlanRow] = []
 
     for dapp in sorted(root.iterdir(), key=lambda path: path.name):
