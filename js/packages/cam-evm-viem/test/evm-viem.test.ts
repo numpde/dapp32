@@ -7,6 +7,11 @@ import { sha256, toFunctionSelector } from "viem"
 import type { Abi, AbiParameter, Address, Chain, Hex } from "viem"
 
 import {
+  ABI_DECLARATION_ACCEPTED_CASES,
+  ABI_DECLARATION_REJECTED_CASES,
+} from "../../../../tests/fixtures/cam/abi-declaration-cases.mts"
+import type { AbiDeclarationCase } from "../../../../tests/fixtures/cam/abi-declaration-cases.mts"
+import {
   CamEvmError,
   callCamRoute,
   createHttpCamPublicClient,
@@ -520,196 +525,18 @@ test("resolveCamContracts rejects invalid bindings and malformed ABIs", async ()
 })
 
 test("runtime ABI declaration parsing accepts the supported publication surface", async () => {
-  const acceptedCases = [
-    {
-      label: "valid function with named inputs and unnamed output",
-      abiBytes: encodeJson([{
-        type: "function",
-        name: "viewEntry",
-        stateMutability: "view",
-        inputs: [{ name: "account", type: "address" }],
-        outputs: [{ type: "string" }],
-      }]),
-    },
-    {
-      label: "non-function ABI item is not treated as a CAM callable surface",
-      abiBytes: encodeJson([
-        {
-          type: "event",
-          name: "Saved",
-          inputs: [{ indexed: false, name: "value", type: "uint256[2]" }],
-        },
-        {
-          type: "function",
-          name: "viewEntry",
-          stateMutability: "view",
-          inputs: [],
-          outputs: [{ type: "string" }],
-        },
-      ]),
-    },
-    {
-      label: "payable declaration is accepted before route policy decides usability",
-      abiBytes: encodeJson([{
-        type: "function",
-        name: "pay",
-        stateMutability: "payable",
-        inputs: [],
-        outputs: [],
-      }]),
-    },
-    {
-      label: "nested dynamic arrays of tuples with named components",
-      abiBytes: encodeJson([{
-        type: "function",
-        name: "viewNested",
-        stateMutability: "view",
-        inputs: [{
-          name: "groups",
-          type: "tuple[][]",
-          components: [
-            { name: "count", type: "uint8" },
-            { name: "owner", type: "address" },
-          ],
-        }],
-        outputs: [{
-          type: "tuple[][]",
-          components: [
-            { name: "count", type: "uint8" },
-            { name: "owner", type: "address" },
-          ],
-        }],
-      }]),
-    },
-  ] as const
+  assertUniqueAbiDeclarationLabels()
 
-  for (const { label, abiBytes } of acceptedCases) {
-    await assertRuntimeAbiAccepted(abiBytes, label)
+  for (const testCase of ABI_DECLARATION_ACCEPTED_CASES) {
+    await assertRuntimeAbiAccepted(abiCaseBytes(testCase), testCase.label)
   }
 })
 
 test("runtime ABI declaration parsing rejects unsupported publication shapes", async () => {
-  const rejectedCases = [
-    { label: "ABI resource is not JSON", abiBytes: new TextEncoder().encode("{") },
-    { label: "ABI resource is not an array", abiBytes: encodeJson({ abi: [] }) },
-    { label: "ABI item is not an object", abiBytes: encodeJson([null]) },
-    { label: "ABI item type missing", abiBytes: encodeJson([{ name: "viewEntry" }]) },
-    { label: "ABI item type empty", abiBytes: encodeJson([{ type: "", name: "viewEntry" }]) },
-    {
-      label: "function name missing",
-      abiBytes: encodeJson([{ type: "function", stateMutability: "view", inputs: [], outputs: [] }]),
-    },
-    {
-      label: "function name unsupported",
-      abiBytes: encodeJson([{ type: "function", name: "view-entry", stateMutability: "view", inputs: [], outputs: [] }]),
-    },
-    {
-      label: "stateMutability missing",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", inputs: [], outputs: [] }]),
-    },
-    {
-      label: "stateMutability unsupported",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "mutable", inputs: [], outputs: [] }]),
-    },
-    {
-      label: "inputs is not an array",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: {}, outputs: [] }]),
-    },
-    {
-      label: "outputs is not an array",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [], outputs: {} }]),
-    },
-    {
-      label: "input is not an object",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [null], outputs: [] }]),
-    },
-    {
-      label: "output is not an object",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [], outputs: [null] }]),
-    },
-    {
-      label: "input type missing",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "value" }], outputs: [] }]),
-    },
-    {
-      label: "output type missing",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [], outputs: [{}] }]),
-    },
-    {
-      label: "unsupported scalar type",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "value", type: "uint257" }], outputs: [] }]),
-    },
-    {
-      label: "fixed-size array",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "values", type: "uint256[2]" }], outputs: [] }]),
-    },
-    {
-      label: "components on non-tuple type",
-      abiBytes: encodeJson([{
-        type: "function",
-        name: "viewEntry",
-        stateMutability: "view",
-        inputs: [{ name: "value", type: "uint256", components: [{ name: "inner", type: "uint256" }] }],
-        outputs: [],
-      }]),
-    },
-    {
-      label: "tuple without components",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "value", type: "tuple" }], outputs: [] }]),
-    },
-    {
-      label: "tuple component is not an object",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "value", type: "tuple", components: [null] }], outputs: [] }]),
-    },
-    {
-      label: "unnamed function input",
-      abiBytes: encodeJson([{ type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [] }]),
-    },
-    {
-      label: "duplicate function input name",
-      abiBytes: encodeJson([{
-        type: "function",
-        name: "viewEntry",
-        stateMutability: "view",
-        inputs: [{ name: "value", type: "uint256" }, { name: "value", type: "uint256" }],
-        outputs: [],
-      }]),
-    },
-    {
-      label: "unnamed tuple component",
-      abiBytes: encodeJson([{
-        type: "function",
-        name: "viewEntry",
-        stateMutability: "view",
-        inputs: [{ name: "value", type: "tuple", components: [{ type: "uint256" }] }],
-        outputs: [],
-      }]),
-    },
-    {
-      label: "duplicate tuple component name",
-      abiBytes: encodeJson([{
-        type: "function",
-        name: "viewEntry",
-        stateMutability: "view",
-        inputs: [{
-          name: "value",
-          type: "tuple",
-          components: [{ name: "amount", type: "uint256" }, { name: "amount", type: "uint256" }],
-        }],
-        outputs: [],
-      }]),
-    },
-    {
-      label: "duplicate function signature",
-      abiBytes: encodeJson([
-        { type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [] },
-        { type: "function", name: "viewEntry", stateMutability: "view", inputs: [{ name: "otherAccount", type: "address" }], outputs: [] },
-      ]),
-    },
-  ] as const
+  assertUniqueAbiDeclarationLabels()
 
-  for (const { label, abiBytes } of rejectedCases) {
-    await assertRuntimeAbiInvalid(abiBytes, label)
+  for (const testCase of ABI_DECLARATION_REJECTED_CASES) {
+    await assertRuntimeAbiInvalid(abiCaseBytes(testCase), testCase.label)
   }
 })
 
@@ -1635,6 +1462,19 @@ async function assertRuntimeAbiInvalid(abiBytes: Uint8Array, label: string): Pro
     (error) => error instanceof CamEvmError && error.code === "CAM_ABI_INVALID",
     label,
   )
+}
+
+function abiCaseBytes(testCase: AbiDeclarationCase): Uint8Array {
+  if ("rawText" in testCase) return new TextEncoder().encode(testCase.rawText)
+  return encodeJson(testCase.value)
+}
+
+function assertUniqueAbiDeclarationLabels(): void {
+  const labels = [
+    ...ABI_DECLARATION_ACCEPTED_CASES,
+    ...ABI_DECLARATION_REJECTED_CASES,
+  ].map(({ label }) => label)
+  assert.equal(new Set(labels).size, labels.length)
 }
 
 async function resolveContractsWithUiAbi(abiBytes: Uint8Array) {
