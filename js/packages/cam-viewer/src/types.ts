@@ -1,4 +1,5 @@
 import type { InertRecord, InertValue } from "@cam/protocol"
+import type { CamResolvedInvocation } from "@cam/core"
 import type {
   CamContractCall,
   CamHost,
@@ -7,7 +8,6 @@ import type {
 } from "@cam/evm-viem"
 import type {
   ResolvedButtonNode,
-  ResolvedUiCall,
   ResolvedUiNode,
 } from "@cam/screen"
 
@@ -62,5 +62,5 @@ export type CamViewerActionResult =
 
 export type CamViewerPreparedContractCall = CamContractCall & {
   readonly route: string
-  readonly then: ResolvedUiCall
+  readonly then: CamResolvedInvocation
 }
