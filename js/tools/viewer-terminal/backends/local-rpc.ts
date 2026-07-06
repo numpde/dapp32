@@ -36,6 +36,11 @@ type BroadcastDeployment = {
   readonly camRoot: CamHost["address"]
 }
 
+type CreatedContract = {
+  readonly address: CamHost["address"]
+  readonly transactionHash: string
+}
+
 export function createLocalRpcBackend(
   env: NodeJS.ProcessEnv,
   {
@@ -121,28 +126,31 @@ export function deploymentFromBroadcast(broadcast: unknown): BroadcastDeployment
   const chain = requiredField(root, "chain")
 
   const camRoot = findCreatedContract(transactions, "CamRoot")
-  const account = firstReceiptSender(receipts)
+  const account = receiptSenderForTransaction(receipts, camRoot.transactionHash)
   const chainId = `eip155:${requiredChainNumber(chain)}`
 
   return {
     chainId,
     account,
-    camRoot,
+    camRoot: camRoot.address,
   }
 }
 
-function findCreatedContract(transactions: readonly unknown[], contractName: string): CamHost["address"] {
-  const matches: CamHost["address"][] = []
-  for (const item of transactions) {
-    const tx = requiredRecord(item, "transactions[]")
+function findCreatedContract(transactions: readonly unknown[], contractName: string): CreatedContract {
+  const matches: CreatedContract[] = []
+  transactions.forEach((item, index) => {
+    const tx = requiredRecord(item, `transactions.${index}`)
     if (
       tx.transactionType === "CREATE"
       && tx.contractName === contractName
       && typeof tx.contractAddress === "string"
     ) {
-      matches.push(requireEvmAddress(tx.contractAddress, `transactions[].${contractName}.contractAddress`))
+      matches.push({
+        address: requireEvmAddress(tx.contractAddress, `transactions.${index}.${contractName}.contractAddress`),
+        transactionHash: requiredString(tx, "hash", `transactions.${index}.hash`),
+      })
     }
-  }
+  })
 
   if (matches.length === 0) {
     throw new Error(`Forge broadcast did not create required contract: ${contractName}`)
@@ -154,18 +162,21 @@ function findCreatedContract(transactions: readonly unknown[], contractName: str
   return matches[0]
 }
 
-function firstReceiptSender(receipts: readonly unknown[]): CamHost["address"] {
+function receiptSenderForTransaction(receipts: readonly unknown[], transactionHash: string): CamHost["address"] {
   const senders = new Set<CamHost["address"]>()
   receipts.forEach((item, index) => {
     const receipt = requiredRecord(item, `receipts.${index}`)
+    if (receipt.transactionHash !== transactionHash) {
+      return
+    }
     senders.add(requireEvmAddress(requiredString(receipt, "from", `receipts.${index}.from`), `receipts.${index}.from`))
   })
 
   if (senders.size === 0) {
-    throw new Error("Forge broadcast has no receipts")
+    throw new Error(`Forge broadcast has no receipt for deployment transaction: ${transactionHash}`)
   }
   if (senders.size > 1) {
-    throw new Error("Forge broadcast has multiple receipt senders")
+    throw new Error(`Forge broadcast has multiple receipt senders for deployment transaction: ${transactionHash}`)
   }
 
   return [...senders][0]
