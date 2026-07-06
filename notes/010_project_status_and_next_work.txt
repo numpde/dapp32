@@ -2,6 +2,11 @@ Project status and next work
 Date: 2026-06-09
 Last reviewed: 2026-06-21
 
+Status: historical orientation note. For current refactor sequencing, use
+notes/011_architecture_composition_audit_2026_07_05.md and
+notes/012_abi_traversal_inventory.md. Do not treat branch posture or next-work
+claims below as current without re-checking the repo.
+
 Purpose
 -------
 
@@ -25,7 +30,7 @@ Current shape
 
 Repository posture:
 
-    main is clean locally and far ahead of origin.
+    Branch posture is historical in this note; re-check `git status -sb`.
     The repo is Docker-first through Makefile targets.
     JS workspace state lives under js/.
     Solidity dependency state lives under dapps/.
