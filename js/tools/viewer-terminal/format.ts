@@ -9,8 +9,14 @@ export function formatValue(value: unknown): string {
     return formatDisplayText(value)
   }
 
-  const json = JSON.stringify(value)
-  return formatDisplayText(json === undefined ? String(value) : json)
+  let text: string
+  try {
+    const json = JSON.stringify(value)
+    text = json === undefined ? String(value) : json
+  } catch {
+    text = "[unprintable value]"
+  }
+  return formatDisplayText(text)
 }
 
 export function formatDisplayText(value: string): string {
