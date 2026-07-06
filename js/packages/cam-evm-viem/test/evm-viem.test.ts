@@ -639,60 +639,32 @@ test("callCamRoute reports CAM errors for malformed direct ABI signature lookup"
 })
 
 test("callCamRoute normalizes safe number integer outputs from real RPC clients", async () => {
-  const fixture = integerOutputRouteFixture()
-  const result = await callCamRoute({
-    publicClient: createPublicClient(publicClientFixtureOptions({
-      routeResults: {
-        [fixture.functionName]: 0,
-      },
-    })),
-    cam: fixture.cam,
-    contracts: {
-      [BIKE_UI_NAMESPACE]: {
-        address: uiAddress,
-        abi: fixture.abi,
-      },
-    },
-    route: fixture.route,
-    context: {
-      host,
-      account: { address: userAddress },
-      inputs: {},
-      outputs: [],
-    },
+  const route = "integerRoute"
+  const functionName = "viewInteger"
+  const abi = readAbi(functionName, [{ name: "value", type: "uint256" }])
+
+  const result = await callSyntheticReadRoute({
+    route,
+    functionName,
+    abi,
+    routeResult: 0,
   })
 
   assert.equal(result.values[0], "0")
 })
 
 test("callCamRoute rejects non-canonical integer output shapes", async () => {
-  const fixture = integerOutputRouteFixture()
+  const route = "integerRoute"
+  const functionName = "viewInteger"
+  const abi = readAbi(functionName, [{ name: "value", type: "uint256" }])
 
   for (const value of [Number.MAX_SAFE_INTEGER + 1, "1"]) {
-    await assert.rejects(
-      () => callCamRoute({
-        publicClient: createPublicClient(publicClientFixtureOptions({
-          routeResults: {
-            [fixture.functionName]: value,
-          },
-        })),
-        cam: fixture.cam,
-        contracts: {
-          [BIKE_UI_NAMESPACE]: {
-            address: uiAddress,
-            abi: fixture.abi,
-          },
-        },
-        route: fixture.route,
-        context: {
-          host,
-          account: { address: userAddress },
-          inputs: {},
-          outputs: [],
-        },
-      }),
-      (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-    )
+    await assertInvalidSyntheticRouteResult({
+      route,
+      functionName,
+      abi,
+      routeResult: value,
+    }, `integer output rejects ${String(value)}`)
   }
 })
 
@@ -1580,52 +1552,6 @@ function camWithRouteCallFunction(routeName: string, functionName: string) {
       },
     },
   })
-}
-
-function integerOutputRouteFixture(): {
-  readonly route: string
-  readonly functionName: string
-  readonly cam: ReturnType<typeof parseCam>
-  readonly abi: Abi
-} {
-  const route = "integerRoute"
-  const functionName = "viewInteger"
-
-  return {
-    route,
-    functionName,
-    cam: parseCam({
-      ...camJson,
-      routes: {
-        ...camJson.routes,
-        [route]: {
-          kind: "read",
-          inputs: [],
-          call: {
-            namespace: BIKE_UI_NAMESPACE,
-            function: functionName,
-            args: {},
-          },
-          then: {
-            namespace: "ui",
-            function: "app",
-            args: {
-              view: "$outputs.0",
-            },
-          },
-        },
-      },
-    }),
-    abi: [
-      {
-        type: "function",
-        name: functionName,
-        stateMutability: "view",
-        inputs: [],
-        outputs: [{ name: "value", type: "uint256" }],
-      },
-    ] as const satisfies Abi,
-  }
 }
 
 function resourceIntegrity(bytes: Uint8Array): string {
