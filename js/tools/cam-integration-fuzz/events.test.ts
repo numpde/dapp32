@@ -9,3 +9,13 @@ test("errorMessage bounds integration fuzz event errors", () => {
   assert.equal(errorMessage(new Error(long)), `${"x".repeat(1_000)}...`)
   assert.equal(errorMessage(long), `${"x".repeat(1_000)}...`)
 })
+
+test("errorMessage survives hostile thrown values", () => {
+  const hostile = {
+    toString() {
+      throw new Error("stringification failed")
+    },
+  }
+
+  assert.equal(errorMessage(hostile), "[unprintable error]")
+})
