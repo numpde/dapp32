@@ -6,74 +6,28 @@ import type { CamDocument, CamRoute } from "@cam/core"
 import type { Address } from "viem"
 
 import { CamViewerError } from "../src/errors.ts"
-import { requireViewerRoute } from "../src/route-preflight.ts"
+import { assertViewerRouteAccountAvailable } from "../src/route-preflight.ts"
 
 const account = {
   address: "0x0000000000000000000000000000000000000acc" as Address,
 }
 
-test("requireViewerRoute returns matching viewer routes", () => {
-  const route = requireViewerRoute({
-    cam: camDocument(),
-    route: "readRoute",
-    kind: "read",
-    missingMessage: "missing read route",
-    wrongKindMessage: "wrong route kind",
-  })
-
-  assert.equal(route.kind, "read")
-})
-
-test("requireViewerRoute separates missing routes from wrong route kinds", () => {
+test("assertViewerRouteAccountAvailable enforces account preflight for route expressions", () => {
   assert.throws(
-    () => requireViewerRoute({
-      cam: camDocument(),
-      route: "missingRoute",
-      kind: "read",
-      missingMessage: "missing read route",
-      wrongKindMessage: "wrong route kind",
-    }),
-    (error) => error instanceof CamViewerError
-      && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED"
-      && error.message === "missing read route",
-  )
-
-  assert.throws(
-    () => requireViewerRoute({
-      cam: camDocument(),
-      route: "writeRoute",
-      kind: "read",
-      missingMessage: "missing read route",
-      wrongKindMessage: "wrong route kind",
-    }),
-    (error) => error instanceof CamViewerError
-      && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED"
-      && error.message === "wrong route kind",
-  )
-})
-
-test("requireViewerRoute enforces account preflight for route expressions", () => {
-  assert.throws(
-    () => requireViewerRoute({
+    () => assertViewerRouteAccountAvailable({
       cam: camDocument(),
       route: "accountRead",
-      kind: "read",
-      missingMessage: "missing read route",
-      wrongKindMessage: "wrong route kind",
     }),
     (error) => error instanceof CamViewerError
       && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED"
       && error.message === "CAM route requires an account: accountRead",
   )
 
-  assert.equal(requireViewerRoute({
+  assert.doesNotThrow(() => assertViewerRouteAccountAvailable({
     cam: camDocument(),
     route: "accountRead",
-    kind: "read",
     account,
-    missingMessage: "missing read route",
-    wrongKindMessage: "wrong route kind",
-  }).kind, "read")
+  }))
 })
 
 function camDocument(): CamDocument {

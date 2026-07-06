@@ -9,7 +9,8 @@ import type { CamHost, CamPublicClient, ResolvedCamContract } from "@cam/evm-vie
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type { ResolvedUiNode, UiDocument } from "@cam/screen"
 
-import { requireViewerRoute } from "./route-preflight.ts"
+import { CamViewerError } from "./errors.ts"
+import { assertViewerRouteAccountAvailable } from "./route-preflight.ts"
 import { resolveViewerInitialUi } from "./ui-resolution.ts"
 import type { CamViewerAccount } from "./types.ts"
 
@@ -40,13 +41,14 @@ export async function resolveViewerReadRoute({
   readonly route: string
   readonly inputs: InertRecord
 }): Promise<ViewerResolvedReadView> {
-  requireViewerRoute({
+  const routeDeclaration = cam.routes[route]
+  if (routeDeclaration === undefined || routeDeclaration.kind !== "read") {
+    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM navigation route must be declared as read: ${route}`)
+  }
+  assertViewerRouteAccountAvailable({
     cam,
     route,
-    kind: "read",
     ...(account === undefined ? {} : { account }),
-    missingMessage: `CAM navigation route must be declared as read: ${route}`,
-    wrongKindMessage: `CAM navigation route must be declared as read: ${route}`,
   })
 
   const routeResult = await callCamRoute({
