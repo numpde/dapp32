@@ -93,8 +93,7 @@ export async function handlePreparedWrite({
       call: contractCallSummary(call),
     })
   } catch (cause) {
-    const error = cause instanceof Error ? cause : new Error(String(cause))
-    const message = errorMessage(error)
+    const message = errorMessage(cause)
     if (message.length === 0) {
       throw new Error(`write simulation for ${call.route} failed without a useful error`)
     }
