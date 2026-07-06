@@ -37,13 +37,13 @@ test("prepareViewerContractCall prepares a write route call", () => {
   assert.deepEqual(call.args, toInertValue({
     serialNumber: "ABC123",
   }))
-  assert.deepEqual(call.then, {
+  assert.deepEqual(call.then, toInertValue({
     namespace: "routes",
     function: "readRoute",
     args: toInertValue({
       serialNumber: "ABC123",
     }),
-  })
+  }))
   assert.deepEqual(call.abi, toInertValue(contracts["contracts.App"]?.abi))
 })
 
@@ -166,10 +166,11 @@ test("prepareViewerContractCall rejects unresolved contract namespaces", () => {
   )
 })
 
-test("prepareViewerContractCall clones the prepared ABI", () => {
+test("prepareViewerContractCall clones prepared payload data", () => {
   const contracts = resolvedContracts()
-  const call = prepareViewerContractCall({
-    cam: camDocument(),
+  const cam = camDocument()
+  const first = prepareViewerContractCall({
+    cam,
     contracts,
     host,
     route: "writeRoute",
@@ -178,8 +179,57 @@ test("prepareViewerContractCall clones the prepared ABI", () => {
     },
   })
 
-  assert.notEqual(call.abi, contracts["contracts.App"]?.abi)
-  assert.deepEqual(call.abi, toInertValue(contracts["contracts.App"]?.abi))
+  ;(first.abi as unknown as unknown[]).push({
+    type: "function",
+    name: "mutated",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [],
+  })
+  ;(first.args as Record<string, unknown>).serialNumber = "MUTATED"
+  ;(first.then.args as Record<string, unknown>).serialNumber = "MUTATED"
+
+  const second = prepareViewerContractCall({
+    cam,
+    contracts,
+    host,
+    route: "writeRoute",
+    inputs: {
+      serialNumber: "ABC123",
+    },
+  })
+
+  assert.notEqual(first.abi, contracts["contracts.App"]?.abi)
+  assert.deepEqual(second.abi, toInertValue(contracts["contracts.App"]?.abi))
+  assert.deepEqual(second.args, toInertValue({
+    serialNumber: "ABC123",
+  }))
+  assert.deepEqual(second.then.args, toInertValue({
+    serialNumber: "ABC123",
+  }))
+})
+
+test("prepareViewerContractCall rejects non-cloneable contract ABIs", () => {
+  const contracts = resolvedContracts()
+  const abi = contracts["contracts.App"]?.abi as Abi
+  const cyclic: Record<string, unknown> = {}
+  cyclic.self = cyclic
+  ;(abi[0] as Record<string, unknown>).outputs = [cyclic]
+
+  assert.throws(
+    () => prepareViewerContractCall({
+      cam: camDocument(),
+      contracts,
+      host,
+      route: "writeRoute",
+      inputs: {
+        serialNumber: "ABC123",
+      },
+    }),
+    (error) => error instanceof CamViewerError
+      && error.code === "CAM_VIEWER_INVALID_INERT_VALUE"
+      && /contract\.abi/.test(error.message),
+  )
 })
 
 test("prepareViewerContractCall resolves continuations with the route context", () => {

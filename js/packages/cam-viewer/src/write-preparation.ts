@@ -64,18 +64,22 @@ export function prepareViewerContractCall({
     address: contract.address,
     abi: cloneContractAbi(contract.abi),
     function: call.function,
-    args: call.args,
-    then: resolveRouteThen(cam, route, context),
+    args: clonePreparedCallData(call.args, "call.args"),
+    then: clonePreparedCallData(resolveRouteThen(cam, route, context), "call.then"),
   }
 }
 
 function cloneContractAbi(abi: ResolvedCamContract["abi"]): ResolvedCamContract["abi"] {
+  return clonePreparedCallData(abi, "contract.abi")
+}
+
+function clonePreparedCallData<T>(value: T, path: string): T {
   try {
-    return toInertValue(abi) as ResolvedCamContract["abi"]
+    return toInertValue(value) as T
   } catch (cause) {
     throw new CamViewerError(
       "CAM_VIEWER_INVALID_INERT_VALUE",
-      "CAM viewer data is not safely cloneable: contract.abi",
+      `CAM viewer data is not safely cloneable: ${path}`,
       cause,
     )
   }
