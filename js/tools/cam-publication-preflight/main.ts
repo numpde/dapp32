@@ -203,12 +203,12 @@ function writeResult(result: PreflightResult, json: boolean): void {
   }
 
   process.stdout.write("cam-publication-preflight: ok\n")
-  process.stdout.write(`root=${result.rootPath}\n`)
-  process.stdout.write(`CAM_URI=${result.camURI}\n`)
-  process.stdout.write(`CAM_HASH=${result.camHash}\n`)
+  process.stdout.write(`root=${humanOutputField(result.rootPath)}\n`)
+  process.stdout.write(`CAM_URI=${humanOutputField(result.camURI)}\n`)
+  process.stdout.write(`CAM_HASH=${humanOutputField(result.camHash)}\n`)
   process.stdout.write(`resources=${result.resources.length}\n`)
   for (const uri of result.resources) {
-    process.stdout.write(`  ${uri}\n`)
+    process.stdout.write(`  ${humanOutputField(uri)}\n`)
   }
 }
 
