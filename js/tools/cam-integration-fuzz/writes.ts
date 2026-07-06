@@ -22,6 +22,7 @@ import {
 } from "../../packages/cam-screen/dist/index.js"
 import {
   emit,
+  errorMessage,
 } from "./events.ts"
 import type {
   RunnerOptions,
@@ -93,7 +94,8 @@ export async function handlePreparedWrite({
     })
   } catch (cause) {
     const error = cause instanceof Error ? cause : new Error(String(cause))
-    if (error.message.length === 0) {
+    const message = errorMessage(error)
+    if (message.length === 0) {
       throw new Error(`write simulation for ${call.route} failed without a useful error`)
     }
     emit({
@@ -103,10 +105,10 @@ export async function handlePreparedWrite({
       route: call.route,
       status: "rejected",
       call: contractCallSummary(call),
-      error: error.message,
+      error: message,
     })
     if (writeContext.kind === "local-fixture") {
-      throw new Error(`presented write button failed simulation: ${call.route}: ${error.message}`)
+      throw new Error(`presented write button failed simulation: ${call.route}: ${message}`)
     }
     return
   }
