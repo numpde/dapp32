@@ -108,18 +108,32 @@ export function conformanceRules<const Rules extends Readonly<Record<CamConforma
 }
 
 function errorPath(error: unknown): string | undefined {
-  if (typeof error === "object" && error !== null && "path" in error) {
-    const path = error.path
-    if (typeof path === "string" && path.length > 0) {
-      return path
-    }
+  const path = errorProperty(error, "path")
+  if (typeof path === "string" && path.length > 0) {
+    return path
   }
 
   return undefined
 }
 
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
+  try {
+    return error instanceof Error ? error.message : String(error)
+  } catch {
+    return "unprintable error"
+  }
+}
+
+function errorProperty(error: unknown, key: string): unknown {
+  if (typeof error !== "object" || error === null) {
+    return undefined
+  }
+
+  try {
+    return key in error ? (error as Record<string, unknown>)[key] : undefined
+  } catch {
+    return undefined
+  }
 }
 
 function formatIssueSummary(issues: readonly CamConformanceIssue[]): string {

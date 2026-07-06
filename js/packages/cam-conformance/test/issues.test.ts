@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   conformanceRules,
+  issueFromError,
 } from "../src/issues.ts"
 
 test("conformance rule descriptors compile to stable issue codes only", () => {
@@ -23,4 +24,44 @@ test("conformance rule descriptors compile to stable issue codes only", () => {
       CAM_TEST_RULE: "CAM_TEST_RULE",
     },
   )
+})
+
+test("issueFromError preserves readable error paths", () => {
+  const error = new Error("bad route") as Error & { path: string }
+  error.path = "routes.entry"
+
+  assert.deepEqual(issueFromError({
+    rule: "CAM_TEST_FAILURE",
+    resource: "cam.json",
+    error,
+  }), {
+    rule: "CAM_TEST_FAILURE",
+    severity: "error",
+    resource: "cam.json",
+    path: "routes.entry",
+    message: "bad route",
+  })
+})
+
+test("issueFromError survives hostile error path and stringification", () => {
+  const hostile = new Proxy({
+    toString() {
+      throw new Error("hostile toString")
+    },
+  }, {
+    has() {
+      throw new Error("hostile has")
+    },
+  })
+
+  assert.deepEqual(issueFromError({
+    rule: "CAM_TEST_FAILURE",
+    resource: "cam.json",
+    error: hostile,
+  }), {
+    rule: "CAM_TEST_FAILURE",
+    severity: "error",
+    resource: "cam.json",
+    message: "unprintable error",
+  })
 })
