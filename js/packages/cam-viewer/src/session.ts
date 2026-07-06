@@ -7,7 +7,6 @@ import {
 import {
   assertCamResourceSize,
   CAM_UI_NAMESPACE,
-  createStringMap,
   parseJsonBytes,
   resolveCamResourceURI,
   toInertValue,
@@ -15,21 +14,16 @@ import {
 import {
   createContext,
   routeRequiresAccount,
-  resolveRouteThen,
 } from "@cam/core"
 import type { CamDocument } from "@cam/core"
 import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 import {
-  UiError,
   parseUi,
-  resolveInitialUiNode,
-  resolveUiNode,
 } from "@cam/screen"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type {
   ResolvedButtonNode,
   ResolvedUiNode,
-  UiRuntimeContext,
   UiDocument,
 } from "@cam/screen"
 
@@ -39,6 +33,10 @@ import {
   assertStatePatchTargets,
   interpretRenderedAction,
 } from "./interactions.ts"
+import {
+  resolveViewerCurrentUi,
+  resolveViewerInitialUi,
+} from "./ui-resolution.ts"
 import { prepareViewerContractCall } from "./write-preparation.ts"
 import type {
   CamViewerAccount,
@@ -242,7 +240,15 @@ export function createCamViewerSession({
       context: routeContext(routeInputs, []),
     })
 
-    const initial = resolveInitialUi(current, nextRoute, routeInputs, routeResult.values)
+    const initial = resolveViewerInitialUi({
+      cam: current.cam,
+      ui: current.ui,
+      host: sessionHost,
+      ...(account === undefined ? {} : { account }),
+      route: nextRoute,
+      inputs: routeInputs,
+      values: routeResult.values,
+    })
     return {
       route: nextRoute,
       inputs: routeInputs,
@@ -273,30 +279,6 @@ export function createCamViewerSession({
     }
   }
 
-  function resolveInitialUi(
-    current: CamViewerLoadedState,
-    route: string,
-    inputs: InertRecord,
-    values: readonly InertValue[],
-  ): {
-    readonly state: InertRecord
-    readonly resolvedUi: ResolvedUiNode
-  } {
-    const context = routeContext(inputs, values)
-    const then = resolveRouteThen(current.cam, route, context)
-    if (then.namespace !== CAM_UI_NAMESPACE) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
-    }
-
-    // UI initial resolution is deliberately two-pass: input nodes establish the
-    // state values first, then action nodes can safely read $state.
-    try {
-      return resolveInitialUiNode(current.ui, then.function, then.args, uiContext(inputs, values, createStringMap<InertValue>()))
-    } catch (cause) {
-      throw accountAwareUiError(cause)
-    }
-  }
-
   function resolveCurrentUi(
     route: string,
     inputs: InertRecord,
@@ -304,17 +286,16 @@ export function createCamViewerSession({
     state: InertRecord,
   ): ResolvedUiNode {
     const current = assertLoaded()
-    const context = routeContext(inputs, values)
-    const then = resolveRouteThen(current.cam, route, context)
-    if (then.namespace !== CAM_UI_NAMESPACE) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM read route must continue to ui namespace: ${route}`)
-    }
-
-    try {
-      return resolveUiNode(current.ui, then.function, then.args, uiContext(inputs, values, state))
-    } catch (cause) {
-      throw accountAwareUiError(cause)
-    }
+    return resolveViewerCurrentUi({
+      cam: current.cam,
+      ui: current.ui,
+      host: sessionHost,
+      ...(account === undefined ? {} : { account }),
+      route,
+      inputs,
+      values,
+      state,
+    })
   }
 
   function routeContext(
@@ -327,17 +308,6 @@ export function createCamViewerSession({
       inputs,
       outputs,
     })
-  }
-
-  function uiContext(
-    inputs: InertRecord,
-    outputs: readonly InertValue[],
-    state: InertRecord,
-  ): UiRuntimeContext {
-    return {
-      ...routeContext(inputs, outputs),
-      state,
-    }
   }
 
   function assertLoaded(): CamViewerLoadedState {
@@ -360,19 +330,6 @@ export function createCamViewerSession({
     if (account === undefined && routeRequiresAccount(cam, route)) {
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM route requires an account: ${route}`)
     }
-  }
-
-  function accountAwareUiError(cause: unknown): never {
-    if (
-      account === undefined
-      && cause instanceof UiError
-      && cause.code === "UI_UNRESOLVED_VALUE"
-      && cause.unresolvedRoot === "account"
-    ) {
-      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "CAM UI requires an account", cause)
-    }
-
-    throw cause
   }
 
   return {
