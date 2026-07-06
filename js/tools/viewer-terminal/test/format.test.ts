@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { formatDisplayText, formatValue } from "../format.ts"
+import { formatDisplayText, formatError, formatValue } from "../format.ts"
 
 test("formatValue bounds human terminal display text", () => {
   const long = "x".repeat(2_500)
@@ -33,4 +33,18 @@ test("formatValue survives unprintable terminal values", () => {
   assert.equal(formatValue(hostileJson), "[unprintable value]")
   assert.equal(formatValue(hostileFallback), "[unprintable value]")
   assert.equal(formatValue(undefined), "undefined")
+})
+
+test("formatError survives hostile thrown values", () => {
+  const hostile = {
+    toJSON() {
+      return undefined
+    },
+    toString() {
+      throw new Error("stringification failed")
+    },
+  }
+
+  assert.equal(formatError(new Error("failed")), "Error: failed\n")
+  assert.equal(formatError(hostile), "Error: [unprintable value]\n")
 })

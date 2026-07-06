@@ -19,6 +19,14 @@ export function formatValue(value: unknown): string {
   return formatDisplayText(text)
 }
 
+export function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return `Error: ${formatDisplayText(error.message)}\n`
+  }
+
+  return `Error: ${formatValue(error)}\n`
+}
+
 export function formatDisplayText(value: string): string {
   // formatValue feeds the human terminal render/prompt path. Keep structured
   // JSON commands unbounded, but avoid accidental screen floods from RPC/CAM
