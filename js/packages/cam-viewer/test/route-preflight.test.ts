@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { CAM_VERSION } from "@cam/protocol"
 import type { CamDocument, CamRoute } from "@cam/core"
 import type { Address } from "viem"
 
@@ -77,7 +78,7 @@ test("requireViewerRoute enforces account preflight for route expressions", () =
 
 function camDocument(): CamDocument {
   return {
-    cam: "1",
+    cam: CAM_VERSION,
     entry: "readRoute",
     namespaces: {},
     routes: {

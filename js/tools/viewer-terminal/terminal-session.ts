@@ -238,7 +238,7 @@ function renderNode(
 
 function textFieldValue(node: ResolvedUiNode, state: Record<string, unknown>): unknown {
   if (node.element !== "TextField") {
-    return ""
+    throw new Error(`expected TextField node, got ${node.element}`)
   }
 
   return state[node.state.key]
