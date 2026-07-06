@@ -1108,6 +1108,34 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
     /ended before Content-Length/,
   )
 
+  let cancelledAfterContentLength = false
+  await assert.rejects(
+    () => readBoundedResponseBytes({
+      body: {
+        getReader() {
+          let read = false
+          return {
+            async read() {
+              if (read) return { done: true }
+              read = true
+              return { done: false, value: new TextEncoder().encode("toolong") }
+            },
+            async cancel() {
+              cancelledAfterContentLength = true
+            },
+          }
+        },
+      },
+      headers: {
+        get(name) {
+          return name.toLowerCase() === "content-length" ? "3" : null
+        },
+      },
+    }, "https://example.test/x", 10),
+    /exceeded Content-Length/,
+  )
+  assert.equal(cancelledAfterContentLength, true)
+
   await assert.rejects(
     () => readBoundedResponseBytes({
       body: {

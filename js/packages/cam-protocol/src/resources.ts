@@ -568,6 +568,14 @@ export async function readBoundedResponseBytes(
       }
 
       byteLength += value.byteLength
+      if (contentLength !== undefined && byteLength > contentLength) {
+        try {
+          await reader.cancel?.()
+        } catch {
+          // Preserve the framing-policy failure; cancellation is cleanup.
+        }
+        throw new Error(`CAM resource exceeded Content-Length bytes: ${uri}`)
+      }
       if (byteLength > maxBytes) {
         try {
           await reader.cancel?.()
