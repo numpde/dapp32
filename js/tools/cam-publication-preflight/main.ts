@@ -37,6 +37,8 @@ type ResourceDiscoveryRoot =
   | { readonly ok: true, readonly value: unknown }
   | { readonly ok: false }
 
+const MAX_HUMAN_OUTPUT_FIELD_LENGTH = 1_000
+
 async function main(argv: readonly string[]): Promise<number> {
   const options = parseArgs(argv)
   const result = await preflight(options)
@@ -194,8 +196,8 @@ function writeResult(result: PreflightResult, json: boolean): void {
   if (!result.ok) {
     process.stderr.write(`cam-publication-preflight: failed with ${result.issues.length} issue(s)\n`)
     for (const issue of result.issues) {
-      const path = issue.path === undefined ? "" : ` ${issue.path}`
-      process.stderr.write(`${issue.rule}${path}: ${issue.message}\n`)
+      const path = issue.path === undefined ? "" : ` ${humanOutputField(issue.path)}`
+      process.stderr.write(`${issue.rule}${path}: ${humanOutputField(issue.message)}\n`)
     }
     return
   }
@@ -244,5 +246,13 @@ function writeFatalError(error: unknown, json: boolean): void {
     return
   }
 
-  process.stderr.write(`cam-publication-preflight: ${message}\n`)
+  process.stderr.write(`cam-publication-preflight: ${humanOutputField(message)}\n`)
+}
+
+function humanOutputField(value: string): string {
+  // Human stderr is for CI/operator logs. JSON mode above remains complete for
+  // automation; text mode should not flood logs with manifest-controlled text.
+  return value.length <= MAX_HUMAN_OUTPUT_FIELD_LENGTH
+    ? value
+    : `${value.slice(0, MAX_HUMAN_OUTPUT_FIELD_LENGTH)}...`
 }
