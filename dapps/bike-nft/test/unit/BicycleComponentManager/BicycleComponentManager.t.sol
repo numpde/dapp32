@@ -354,6 +354,18 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.revokeComponentDelegate(SERIAL, address(0));
     }
 
+    /// @dev Delegation duration is a policy value, not arithmetic input. Reject
+    /// impossible durations here so later grants fail with manager-owned errors
+    /// instead of Solidity overflow panics.
+    function test_delegationMaxDurationRejectsTimestampOverflowEnvelope() external {
+        uint48 overflowingDuration = type(uint48).max;
+
+        vm.expectRevert(
+            abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, overflowingDuration)
+        );
+        manager.setMaxDelegationDuration(overflowingDuration);
+    }
+
     /// @dev Missing/retired status updates are separate capabilities. The test
     /// exercises owner writes first, then delegate writes with the exact
     /// capability mask needed for the status transitions.

@@ -662,7 +662,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     }
 
     function _setMaxDelegationDuration(uint48 duration) internal {
-        if (duration == 0) revert InvalidDelegationExpiry(0);
+        if (duration == 0 || duration > type(uint48).max - _now48()) revert InvalidDelegationExpiry(duration);
 
         uint48 oldDuration = _maxDelegationDuration;
         _maxDelegationDuration = duration;
