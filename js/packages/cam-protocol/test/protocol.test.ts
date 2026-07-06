@@ -894,6 +894,26 @@ test("resolves expression payloads with caller-owned normalization and errors", 
 
   assert.equal(resolved.owner, "0x0000000000000000000000000000000000000001")
   assert.equal(runtime.resolveValue("$$values.0.owner", { values: [] }, "field"), "$values.0.owner")
+
+  const shared = { owner: "$values.0.owner" }
+  assert.deepEqual(
+    runtime.parsePayload({ first: shared, second: shared }, "payload"),
+    { first: shared, second: shared },
+  )
+
+  const cyclicPayload: Record<string, unknown> = {}
+  cyclicPayload.self = cyclicPayload
+  assert.throws(
+    () => runtime.parsePayload(cyclicPayload, "payload"),
+    /payload\.self: expected a JSON value/,
+  )
+
+  const cyclicValue: Record<string, unknown> = {}
+  cyclicValue.self = cyclicValue
+  assert.throws(
+    () => runtime.resolveValue(cyclicValue, {}, "field"),
+    /field\.self: expected a JSON value/,
+  )
 })
 
 test("validates, clones, and rejects non-inert protocol values", () => {

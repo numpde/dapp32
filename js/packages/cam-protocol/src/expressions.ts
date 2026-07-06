@@ -126,28 +126,38 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
     checkedExpressionReference(value, path)
   }
 
-  function validateValue(value: unknown, path: string): void {
+  function validateValue(value: unknown, path: string, ancestors = new WeakSet<object>()): void {
     if (typeof value === "string") {
       validateString(value, path)
       return
     }
 
     if (Array.isArray(value)) {
+      if (ancestors.has(value)) {
+        throw options.error("invalidField", "expected a JSON value", path)
+      }
+      ancestors.add(value)
       for (let index = 0; index < value.length; index++) {
         const itemPath = joinPath(path, String(index))
         if (!(index in value)) {
           throw options.error("invalidField", "expected a JSON value", itemPath)
         }
 
-        validateValue(value[index], itemPath)
+        validateValue(value[index], itemPath, ancestors)
       }
+      ancestors.delete(value)
       return
     }
 
     if (isRecordObject(value)) {
-      for (const [key, item] of Object.entries(value)) {
-        validateValue(item, joinPath(path, key))
+      if (ancestors.has(value)) {
+        throw options.error("invalidField", "expected a JSON value", path)
       }
+      ancestors.add(value)
+      for (const [key, item] of Object.entries(value)) {
+        validateValue(item, joinPath(path, key), ancestors)
+      }
+      ancestors.delete(value)
       return
     }
 
@@ -162,23 +172,34 @@ export function createExpressionRuntime<T>(options: ExpressionRuntimeOptions<T>)
   }
 
   function resolveValue(value: T, context: object, path: string): T {
-    return options.normalize(resolveNode(value, context, path), path)
+    return options.normalize(resolveNode(value, context, path, new WeakSet<object>()), path)
   }
 
-  function resolveNode(value: unknown, context: object, path: string): unknown {
+  function resolveNode(value: unknown, context: object, path: string, ancestors: WeakSet<object>): unknown {
     if (typeof value === "string") {
       return resolveString(value, context, path)
     }
 
     if (Array.isArray(value)) {
-      return value.map((item, index) => resolveNode(item, context, joinPath(path, String(index))))
+      if (ancestors.has(value)) {
+        throw options.error("invalidField", "expected a JSON value", path)
+      }
+      ancestors.add(value)
+      const resolved = value.map((item, index) => resolveNode(item, context, joinPath(path, String(index)), ancestors))
+      ancestors.delete(value)
+      return resolved
     }
 
     if (isRecordObject(value)) {
+      if (ancestors.has(value)) {
+        throw options.error("invalidField", "expected a JSON value", path)
+      }
+      ancestors.add(value)
       const resolved = createStringMap<unknown>()
       for (const [key, item] of Object.entries(value)) {
-        resolved[key] = resolveNode(item, context, joinPath(path, key))
+        resolved[key] = resolveNode(item, context, joinPath(path, key), ancestors)
       }
+      ancestors.delete(value)
       return resolved
     }
 
