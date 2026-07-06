@@ -28,6 +28,8 @@ contract DepositVaultTest is Test {
     bytes32 private constant DEPOSIT_INTENT_TYPEHASH = keccak256(
         "DepositIntent(bytes32 paymentRef,address payer,address treasury,uint256 amount,uint256 nonce,uint256 deadline)"
     );
+    uint256 private constant SECP256K1_HALF_ORDER =
+        0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0;
 
     address private owner = address(this);
     address private treasury = address(0x7100);
@@ -129,8 +131,46 @@ contract DepositVaultTest is Test {
         vm.prank(payer);
         vault.deposit{value: intent.amount}(intent, hex"1234");
 
-        assertEq(vault.nonces(payer), 0);
-        assertEq(treasury.balance, 0);
+        assertDepositState(payer, 0, 0);
+    }
+
+    /// @notice Malformed signatures use the vault-owned rejection surface and leave accounting untouched.
+    /// @dev Recovery-library detail is not public API; malformed bytes normalize to recovered signer address(0).
+    function testMalformedSignaturesUseStableInvalidIntentSignatureSurface() external {
+        DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
+        bytes memory validSignature = signIntent(SIGNER_KEY, intent);
+        bytes32 highS = bytes32(SECP256K1_HALF_ORDER + 1);
+
+        bytes[] memory malformedSignatures = new bytes[](6);
+        malformedSignatures[0] = hex"";
+        malformedSignatures[1] = hex"1234";
+        malformedSignatures[2] = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)));
+        malformedSignatures[3] = bytes.concat(validSignature, hex"00");
+        malformedSignatures[4] = abi.encodePacked(bytes32(uint256(1)), bytes32(uint256(2)), bytes1(uint8(29)));
+        malformedSignatures[5] = abi.encodePacked(bytes32(uint256(1)), highS, bytes1(uint8(27)));
+
+        for (uint256 i = 0; i < malformedSignatures.length; i++) {
+            vm.expectRevert(
+                abi.encodeWithSelector(DepositVault.InvalidIntentSignature.selector, intentSigner, address(0))
+            );
+            vm.prank(payer);
+            vault.deposit{value: intent.amount}(intent, malformedSignatures[i]);
+
+            assertDepositState(payer, 0, 0);
+        }
+    }
+
+    /// @notice Well-formed but unauthorized signatures still report the recovered signer.
+    /// @dev This distinguishes authorization failure from malformed-signature recovery failure.
+    function testWrongSignerSignatureReportsRecoveredSigner() external {
+        DepositVault.DepositIntent memory intent = defaultIntent(100 ether, 0);
+        address recovered = vm.addr(OTHER_SIGNER_KEY);
+
+        vm.expectRevert(abi.encodeWithSelector(DepositVault.InvalidIntentSignature.selector, intentSigner, recovered));
+        vm.prank(payer);
+        vault.deposit{value: intent.amount}(intent, signIntent(OTHER_SIGNER_KEY, intent));
+
+        assertDepositState(payer, 0, 0);
     }
 
     /// @notice Expired, ledger-ambiguous, zero-value, or value-mismatched intents are rejected.
@@ -368,5 +408,14 @@ contract DepositVaultTest is Test {
 
     function receiptIdFor(address receiptPayer, uint256 nonce) private view returns (bytes32) {
         return keccak256(abi.encode(block.chainid, address(vault), receiptPayer, nonce));
+    }
+
+    function assertDepositState(address receiptPayer, uint256 expectedNonce, uint256 expectedTreasuryBalance)
+        private
+        view
+    {
+        assertEq(vault.nonces(receiptPayer), expectedNonce, "payer nonce");
+        assertEq(treasury.balance, expectedTreasuryBalance, "treasury balance");
+        assertEq(address(vault).balance, 0, "vault balance");
     }
 }
