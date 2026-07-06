@@ -13,6 +13,10 @@ import type {
 import {
   shortenAddress,
 } from "./evm.ts"
+import {
+  displayText,
+  formatInertValue,
+} from "./display.ts"
 
 export function ConnectionSummary({
   chainId,
@@ -124,12 +128,12 @@ function UiNodeView({
         </>
       )
     case "Text":
-      return <p className="text-row">{stringProp(node.props, "text")}</p>
+      return <p className="text-row">{displayText(stringProp(node.props, "text"))}</p>
     case "TextField": {
       const name = stateKey(node)
       return (
         <label className="field">
-          <span>{stringProp(node.props, "label")}</span>
+          <span>{displayText(stringProp(node.props, "label"))}</span>
           <input
             // The CAM state key is the field identity. Expose the same name to
             // the DOM so tests, autofill, and agents do not need a parallel
@@ -161,7 +165,7 @@ function UiNodeView({
             void onAction(node)
           }}
         >
-          {stringProp(node.props, "label")}
+          {displayText(stringProp(node.props, "label"))}
         </button>
       )
   }
@@ -210,15 +214,8 @@ function KeyValue({
 }): ReactElement {
   return (
     <div className="key-value">
-      <span className="key-label">{label}</span>
-      <span className={mono ? "mono" : undefined}>{value}</span>
+      <span className="key-label">{displayText(label)}</span>
+      <span className={mono ? "mono" : undefined}>{displayText(value)}</span>
     </div>
   )
-}
-
-function formatInertValue(value: InertValue): string {
-  if (value === null) return "null"
-  if (typeof value === "string") return value
-  if (typeof value === "number" || typeof value === "boolean") return String(value)
-  return JSON.stringify(value)
 }
