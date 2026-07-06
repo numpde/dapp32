@@ -250,11 +250,13 @@ function writeFatalError(error: unknown, json: boolean): void {
 }
 
 function fatalErrorMessage(error: unknown): string {
+  let message: string
   try {
-    return error instanceof Error ? error.message : String(error)
+    message = error instanceof Error ? error.message : String(error)
   } catch {
-    return "unprintable error"
+    message = "unprintable error"
   }
+  return message
 }
 
 function humanOutputField(value: string): string {
