@@ -4,8 +4,9 @@ Date: 2026-07-05
 Revised: 2026-07-06
 
 Purpose: keep the refactor queue honest after the protocol-fact, ABI
-characterization, viewer, and transaction slices. This note is a sequencing
-guide, not a second source of truth for behavior.
+characterization, viewer, transaction, and DepositVault signature-boundary
+slices. This note is a sequencing guide, not a second source of truth for
+behavior.
 
 ## Current State
 
@@ -26,6 +27,14 @@ The original broad risks have been reduced:
   resolution, and route preflight are internal modules.
 - Browser transaction execution is outside `App.tsx` behind explicit wallet,
   public-client, receipt, and freshness ports.
+- DepositVault malformed signature recovery is normalized to the vault-owned
+  `InvalidIntentSignature(expectedSigner, address(0))` surface and
+  characterized against malformed bytes, wrong signer recovery, and no
+  accounting side effects.
+
+Current conclusion: pause the architecture cleanup arc. New work should come
+from a concrete feature, bug, failing invariant, or duplicated semantic rule,
+not from continuing to split files because earlier notes listed broad risks.
 
 Checklist:
 
@@ -33,6 +42,7 @@ Checklist:
 - [ ] Prefer deletion or narrower helpers over expanding an existing substrate.
 - [ ] Preserve runtime/conformance reporting differences unless a behavior
   change is explicit.
+- [ ] Treat completed arcs as closed unless new evidence shows real drift.
 
 ## Preserved Invariants
 
@@ -55,6 +65,8 @@ Checklist:
 - [ ] Keep public APIs stable unless the commit documents the API change.
 
 ## Remaining Refactor Pressure
+
+These are watch points, not an active refactor backlog.
 
 ### 1. Viewer Session State Boundary
 
@@ -85,8 +97,9 @@ Checklist:
 
 ### 3. ABI Traversal
 
-The ABI inventory is current and says not to extract a walker. Treat that as a
-stop sign until production code changes create a smaller, proven seam.
+The ABI inventory in `notes/012_abi_traversal_inventory.md` has no known
+characterization gaps and says not to extract a walker. Treat that as a stop
+sign until production code changes create a smaller, proven seam.
 
 Checklist:
 
@@ -120,3 +133,18 @@ Stop a refactor when any of these become true:
 - The new abstraction has only hypothetical consumers.
 - The change adds more fixture scaffolding than behavior it protects.
 - A local comment is needed to justify why unrelated concerns live together.
+
+## Paused Arcs
+
+- Do not create `@cam/facts` yet. The protocol-internal fact substrate is still
+  provisional and intentionally narrow.
+- Do not extract a broad route fact layer. Current substrates cover root,
+  namespaces, resource declarations, route invocations, route inputs, and route
+  expression diagnostics without owning route execution or reporting policy.
+- Do not extract an ABI traversal helper until production duplication pressure
+  appears; characterization is complete enough to guard future changes.
+- Do not continue splitting `CamViewerSession` without a reducer/store or host
+  integration need. Account rollback, snapshot cloning, load-state mutation,
+  and current-view ownership are stateful lifecycle concerns.
+- Prefer feature- or bug-driven work next. Architecture cleanup is complete
+  enough to pause.
