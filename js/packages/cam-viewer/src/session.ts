@@ -1,5 +1,7 @@
 import {
   loadCamFromHost,
+  requireEvmAddress,
+  requireEvmChainId,
   resolveCamContracts,
   verifyCamResourceIntegrity,
 } from "@cam/evm-viem"
@@ -310,13 +312,13 @@ function uiResourceDeclaration(cam: CamDocument, camURI: string): {
 }
 
 function cloneAccount(source: CamViewerAccount): CamViewerAccount {
-  return { address: source.address }
+  return { address: requireEvmAddress(source.address, "account.address") }
 }
 
 function cloneHost(source: CamHost): CamHost {
   return {
-    chainId: source.chainId,
-    address: source.address,
+    chainId: requireEvmChainId(source.chainId),
+    address: requireEvmAddress(source.address, "host.address"),
   }
 }
 

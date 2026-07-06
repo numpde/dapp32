@@ -144,6 +144,49 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
   ])
 })
 
+test("session creation validates host and account boundary values", () => {
+  const options = sessionFixtureOptions({})
+
+  assert.throws(
+    () => createCamViewerSession({
+      ...options,
+      host: {
+        ...host,
+        chainId: "31337",
+      },
+      account: { address: userAddress },
+      inputs: {},
+      allowUnsignedCamHash: true,
+    }),
+    /expected CAIP-2 EVM chain id/,
+  )
+
+  assert.throws(
+    () => createCamViewerSession({
+      ...options,
+      host: {
+        ...host,
+        address: "not-an-address" as Address,
+      },
+      account: { address: userAddress },
+      inputs: {},
+      allowUnsignedCamHash: true,
+    }),
+    /host\.address/,
+  )
+
+  assert.throws(
+    () => createCamViewerSession({
+      ...options,
+      host,
+      account: { address: "not-an-address" as Address },
+      inputs: {},
+      allowUnsignedCamHash: true,
+    }),
+    /account\.address/,
+  )
+})
+
 test("load rejects routes that require an account when none is available", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
   const session = createCamViewerSession({
