@@ -79,6 +79,17 @@ class PackageMetadataTest(unittest.TestCase):
         # lock. Additional lock formats would create a second dependency truth.
         self.assertEqual({"js/package-lock.json"}, lockfiles)
 
+    def test_npm_policy_stays_in_compose(self) -> None:
+        npmrc_files = {
+            path.relative_to(repo_path(".")).as_posix()
+            for path in repo_path(".").rglob(".npmrc")
+            if "node_modules" not in path.relative_to(repo_path(".")).parts
+        }
+
+        # Registry/install policy belongs to the Docker dependency lane. A repo
+        # .npmrc would silently change host npm behavior outside that boundary.
+        self.assertEqual(set(), npmrc_files)
+
     def test_package_manifests_are_declared_workspace_members(self) -> None:
         package_manifests = {
             path
