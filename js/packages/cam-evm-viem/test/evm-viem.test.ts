@@ -4,7 +4,7 @@ import test from "node:test"
 import { parseCam } from "@cam/core"
 import { CAM_RESOURCE_MAX_BYTES, toInertValue } from "@cam/protocol"
 import { sha256, toFunctionSelector } from "viem"
-import type { Abi, Address, Chain, Hex } from "viem"
+import type { Abi, AbiParameter, Address, Chain, Hex } from "viem"
 
 import {
   CamEvmError,
@@ -699,126 +699,33 @@ test("callCamRoute rejects non-canonical integer output shapes", async () => {
 test("callCamRoute rejects invalid bytes output shapes", async () => {
   const bytesRoute = "bytesRoute"
   const bytesFunction = "viewBytes"
-  const cam = parseCam({
-    ...camJson,
-    routes: {
-      ...camJson.routes,
-      [bytesRoute]: {
-        kind: "read",
-        inputs: [],
-        call: {
-          namespace: BIKE_UI_NAMESPACE,
-          function: bytesFunction,
-          args: {},
-        },
-        then: {
-          namespace: "ui",
-          function: "app",
-          args: {
-            view: "$outputs.0",
-          },
-        },
-      },
-    },
-  })
-  const abi = [
-    {
-      type: "function",
-      name: bytesFunction,
-      stateMutability: "view",
-      inputs: [],
-      outputs: [{ name: "value", type: "bytes" }],
-    },
-  ] as const satisfies Abi
+  const abi = readAbi(bytesFunction, [{ name: "value", type: "bytes" }])
 
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [bytesFunction]: "0xabc",
-        },
-      })),
-      cam,
-      contracts: {
-        [BIKE_UI_NAMESPACE]: {
-          address: uiAddress,
-          abi,
-        },
-      },
-      route: bytesRoute,
-      context: {
-        host,
-        account: { address: userAddress },
-        inputs: {},
-        outputs: [],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-  )
+  await assertInvalidSyntheticRouteResult({
+    route: bytesRoute,
+    functionName: bytesFunction,
+    abi,
+    routeResult: "0xabc",
+  })
 })
 
 test("callCamRoute normalizes array-like decoded tuple outputs by ABI component name", async () => {
   const tupleRoute = "tupleRoute"
   const tupleFunction = "viewTuple"
-  const cam = parseCam({
-    ...camJson,
-    routes: {
-      ...camJson.routes,
-      [tupleRoute]: {
-        kind: "read",
-        inputs: [],
-        call: {
-          namespace: BIKE_UI_NAMESPACE,
-          function: tupleFunction,
-          args: {},
-        },
-        then: {
-          namespace: "ui",
-          function: "app",
-          args: {
-            view: "$outputs.0",
-          },
-        },
-      },
-    },
-  })
-  const abi = [
-    {
-      type: "function",
-      name: tupleFunction,
-      stateMutability: "view",
-      inputs: [],
-      outputs: [{
-        name: "view_",
-        type: "tuple",
-        components: [
-          { name: "status", type: "uint8" },
-          { name: "owner", type: "address" },
-        ],
-      }],
-    },
-  ] as const satisfies Abi
+  const abi = readAbi(tupleFunction, [{
+    name: "view_",
+    type: "tuple",
+    components: [
+      { name: "status", type: "uint8" },
+      { name: "owner", type: "address" },
+    ],
+  }])
 
-  const result = await callCamRoute({
-    publicClient: createPublicClient(publicClientFixtureOptions({
-      routeResults: {
-        [tupleFunction]: [1, userAddress],
-      },
-    })),
-    cam,
-    contracts: {
-      [BIKE_UI_NAMESPACE]: {
-        address: uiAddress,
-        abi,
-      },
-    },
+  const result = await callSyntheticReadRoute({
     route: tupleRoute,
-    context: {
-      host,
-      account: { address: userAddress },
-      inputs: {},
-      outputs: [],
-    },
+    functionName: tupleFunction,
+    abi,
+    routeResult: [1, userAddress],
   })
 
   assert.deepEqual(result.values[0], toInertValue({
@@ -826,178 +733,67 @@ test("callCamRoute normalizes array-like decoded tuple outputs by ABI component 
     owner: userAddress,
   }))
 
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [tupleFunction]: {
-            status: 1,
-            owner: userAddress,
-            extra: "rejected",
-          },
-        },
-      })),
-      cam,
-      contracts: {
-        [BIKE_UI_NAMESPACE]: {
-          address: uiAddress,
-          abi,
-        },
-      },
-      route: tupleRoute,
-      context: {
-        host,
-        account: { address: userAddress },
-        inputs: {},
-        outputs: [],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-  )
-
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [tupleFunction]: [1, userAddress, "rejected"],
-        },
-      })),
-      cam,
-      contracts: {
-        [BIKE_UI_NAMESPACE]: {
-          address: uiAddress,
-          abi,
-        },
-      },
-      route: tupleRoute,
-      context: {
-        host,
-        account: { address: userAddress },
-        inputs: {},
-        outputs: [],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-  )
-
-  const duplicateComponentAbi = [
-    {
-      type: "function",
-      name: tupleFunction,
-      stateMutability: "view",
-      inputs: [],
-      outputs: [{
-        name: "view_",
-        type: "tuple",
-        components: [
-          { name: "status", type: "uint8" },
-          { name: "status", type: "uint8" },
-        ],
-      }],
+  await assertInvalidSyntheticRouteResult({
+    route: tupleRoute,
+    functionName: tupleFunction,
+    abi,
+    routeResult: {
+      status: 1,
+      owner: userAddress,
+      extra: "rejected",
     },
-  ] as const satisfies Abi
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [tupleFunction]: [1, 2],
-        },
-      })),
-      cam,
-      contracts: {
-        [BIKE_UI_NAMESPACE]: {
-          address: uiAddress,
-          abi: duplicateComponentAbi,
-        },
-      },
-      route: tupleRoute,
-      context: {
-        host,
-        account: { address: userAddress },
-        inputs: {},
-        outputs: [],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-  )
+  }, "tuple record extra field")
+
+  await assertInvalidSyntheticRouteResult({
+    route: tupleRoute,
+    functionName: tupleFunction,
+    abi,
+    routeResult: [1, userAddress, "rejected"],
+  }, "tuple array too many elements")
+
+  const duplicateComponentAbi = readAbi(tupleFunction, [{
+    name: "view_",
+    type: "tuple",
+    components: [
+      { name: "status", type: "uint8" },
+      { name: "status", type: "uint8" },
+    ],
+  }])
+  await assertInvalidSyntheticRouteResult({
+    route: tupleRoute,
+    functionName: tupleFunction,
+    abi: duplicateComponentAbi,
+    routeResult: [1, 2],
+  }, "tuple duplicate component names")
 })
 
 test("callCamRoute normalizes nested dynamic arrays of tuple outputs", async () => {
   const tupleRoute = "nestedTupleRoute"
   const tupleFunction = "viewNestedTuples"
-  const cam = parseCam({
-    ...camJson,
-    routes: {
-      ...camJson.routes,
-      [tupleRoute]: {
-        kind: "read",
-        inputs: [],
-        call: {
-          namespace: BIKE_UI_NAMESPACE,
-          function: tupleFunction,
-          args: {},
-        },
-        then: {
-          namespace: "ui",
-          function: "app",
-          args: {
-            view: "$outputs.0",
-          },
-        },
-      },
-    },
-  })
-  const abi = [
-    {
-      type: "function",
-      name: tupleFunction,
-      stateMutability: "view",
-      inputs: [],
-      outputs: [{
-        name: "groups",
-        type: "tuple[][]",
-        components: [
-          { name: "serialNumber", type: "string" },
-          { name: "count", type: "uint8" },
-          { name: "owner", type: "address" },
-        ],
-      }],
-    },
-  ] as const satisfies Abi
-
-  async function readNestedTuples(routeResult: unknown) {
-    return callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [tupleFunction]: routeResult,
-        },
-      })),
-      cam,
-      contracts: {
-        [BIKE_UI_NAMESPACE]: {
-          address: uiAddress,
-          abi,
-        },
-      },
-      route: tupleRoute,
-      context: {
-        host,
-        account: { address: userAddress },
-        inputs: {},
-        outputs: [],
-      },
-    })
-  }
-
-  const recordResult = await readNestedTuples([
-    [
-      {
-        serialNumber: "ABC123",
-        count: 7n,
-        owner: userAddress,
-      },
+  const abi = readAbi(tupleFunction, [{
+    name: "groups",
+    type: "tuple[][]",
+    components: [
+      { name: "serialNumber", type: "string" },
+      { name: "count", type: "uint8" },
+      { name: "owner", type: "address" },
     ],
-  ])
+  }])
+
+  const recordResult = await callSyntheticReadRoute({
+    route: tupleRoute,
+    functionName: tupleFunction,
+    abi,
+    routeResult: [
+      [
+        {
+          serialNumber: "ABC123",
+          count: 7n,
+          owner: userAddress,
+        },
+      ],
+    ],
+  })
   assert.deepEqual(recordResult.values[0], toInertValue([
     [
       {
@@ -1008,11 +804,16 @@ test("callCamRoute normalizes nested dynamic arrays of tuple outputs", async () 
     ],
   ]))
 
-  const arrayResult = await readNestedTuples([
-    [
-      ["ABC123", 7n, userAddress],
+  const arrayResult = await callSyntheticReadRoute({
+    route: tupleRoute,
+    functionName: tupleFunction,
+    abi,
+    routeResult: [
+      [
+        ["ABC123", 7n, userAddress],
+      ],
     ],
-  ])
+  })
   assert.deepEqual(arrayResult.values[0], toInertValue([
     [
       {
@@ -1023,144 +824,94 @@ test("callCamRoute normalizes nested dynamic arrays of tuple outputs", async () 
     ],
   ]))
 
-  for (const routeResult of [
-    [
-      [
-        {
-          serialNumber: "ABC123",
-          count: 7n,
-          owner: userAddress,
-          extra: "rejected",
-        },
+  const invalidCases = [
+    {
+      label: "nested tuple record extra field",
+      routeResult: [
+        [
+          {
+            serialNumber: "ABC123",
+            count: 7n,
+            owner: userAddress,
+            extra: "rejected",
+          },
+        ],
       ],
-    ],
-    [
-      [
-        ["ABC123", 7n, userAddress, "rejected"],
+    },
+    {
+      label: "nested tuple array too many elements",
+      routeResult: [
+        [
+          ["ABC123", 7n, userAddress, "rejected"],
+        ],
       ],
-    ],
-    [
-      [
-        ["ABC123", 7n],
+    },
+    {
+      label: "nested tuple array too few elements",
+      routeResult: [
+        [
+          ["ABC123", 7n],
+        ],
       ],
-    ],
-    [
-      [
-        ["ABC123", 300n, userAddress],
+    },
+    {
+      label: "nested tuple uint8 range failure",
+      routeResult: [
+        [
+          ["ABC123", 300n, userAddress],
+        ],
       ],
-    ],
-    [
-      [
-        ["ABC123", "7", userAddress],
+    },
+    {
+      label: "nested tuple uint8 type failure",
+      routeResult: [
+        [
+          ["ABC123", "7", userAddress],
+        ],
       ],
-    ],
-  ]) {
-    await assert.rejects(
-      () => readNestedTuples(routeResult),
-      (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-    )
+    },
+  ] as const
+
+  for (const { label, routeResult } of invalidCases) {
+    await assertInvalidSyntheticRouteResult({
+      route: tupleRoute,
+      functionName: tupleFunction,
+      abi,
+      routeResult,
+    }, label)
   }
 
-  const duplicateComponentAbi = [
-    {
-      ...abi[0],
-      outputs: [{
-        name: "groups",
-        type: "tuple[][]",
-        components: [
-          { name: "serialNumber", type: "string" },
-          { name: "serialNumber", type: "string" },
-        ],
-      }],
-    },
-  ] as const satisfies Abi
+  const duplicateComponentAbi = readAbi(tupleFunction, [{
+    name: "groups",
+    type: "tuple[][]",
+    components: [
+      { name: "serialNumber", type: "string" },
+      { name: "serialNumber", type: "string" },
+    ],
+  }])
 
-  await assert.rejects(
-    () => callCamRoute({
-      publicClient: createPublicClient(publicClientFixtureOptions({
-        routeResults: {
-          [tupleFunction]: [
-            [
-              ["ABC123", "duplicate"],
-            ],
-          ],
-        },
-      })),
-      cam,
-      contracts: {
-        [BIKE_UI_NAMESPACE]: {
-          address: uiAddress,
-          abi: duplicateComponentAbi,
-        },
-      },
-      route: tupleRoute,
-      context: {
-        host,
-        account: { address: userAddress },
-        inputs: {},
-        outputs: [],
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
-  )
+  await assertInvalidSyntheticRouteResult({
+    route: tupleRoute,
+    functionName: tupleFunction,
+    abi: duplicateComponentAbi,
+    routeResult: [
+      [
+        ["ABC123", "duplicate"],
+      ],
+    ],
+  }, "nested tuple duplicate component names")
 })
 
 test("callCamRoute treats a single array output as one ABI output", async () => {
   const arrayRoute = "arrayRoute"
   const arrayFunction = "viewArray"
-  const cam = parseCam({
-    ...camJson,
-    routes: {
-      ...camJson.routes,
-      [arrayRoute]: {
-        kind: "read",
-        inputs: [],
-        call: {
-          namespace: BIKE_UI_NAMESPACE,
-          function: arrayFunction,
-          args: {},
-        },
-        then: {
-          namespace: "ui",
-          function: "app",
-          args: {
-            view: "$outputs.0",
-          },
-        },
-      },
-    },
-  })
-  const abi = [
-    {
-      type: "function",
-      name: arrayFunction,
-      stateMutability: "view",
-      inputs: [],
-      outputs: [{ name: "items", type: "string[]" }],
-    },
-  ] as const satisfies Abi
-  const publicClient = createPublicClient(publicClientFixtureOptions({
-    routeResults: {
-      [arrayFunction]: ["one", "two"],
-    },
-  }))
+  const abi = readAbi(arrayFunction, [{ name: "items", type: "string[]" }])
 
-  const result = await callCamRoute({
-    publicClient,
-    cam,
-    contracts: {
-      [BIKE_UI_NAMESPACE]: {
-        address: uiAddress,
-        abi,
-      },
-    },
+  const result = await callSyntheticReadRoute({
     route: arrayRoute,
-    context: {
-      host,
-      account: { address: userAddress },
-      inputs: {},
-      outputs: [],
-    },
+    functionName: arrayFunction,
+    abi,
+    routeResult: ["one", "two"],
   })
 
   assert.deepEqual(result.values, toInertValue([["one", "two"]]))
@@ -1704,6 +1455,92 @@ function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOption
     routeResults: NO_ROUTE_RESULTS,
     ...overrides,
   }
+}
+
+function camWithSyntheticReadRoute({
+  route,
+  functionName,
+}: {
+  readonly route: string
+  readonly functionName: string
+}) {
+  return parseCam({
+    ...camJson,
+    routes: {
+      ...camJson.routes,
+      [route]: {
+        kind: "read",
+        inputs: [],
+        call: {
+          namespace: BIKE_UI_NAMESPACE,
+          function: functionName,
+          args: {},
+        },
+        then: {
+          namespace: "ui",
+          function: "app",
+          args: {
+            view: "$outputs.0",
+          },
+        },
+      },
+    },
+  })
+}
+
+function readAbi(functionName: string, outputs: readonly AbiParameter[]): Abi {
+  return [{
+    type: "function",
+    name: functionName,
+    stateMutability: "view",
+    inputs: [],
+    outputs,
+  }]
+}
+
+async function callSyntheticReadRoute({
+  route,
+  functionName,
+  abi,
+  routeResult,
+}: {
+  readonly route: string
+  readonly functionName: string
+  readonly abi: Abi
+  readonly routeResult: unknown
+}) {
+  return callCamRoute({
+    publicClient: createPublicClient(publicClientFixtureOptions({
+      routeResults: {
+        [functionName]: routeResult,
+      },
+    })),
+    cam: camWithSyntheticReadRoute({ route, functionName }),
+    contracts: {
+      [BIKE_UI_NAMESPACE]: {
+        address: uiAddress,
+        abi,
+      },
+    },
+    route,
+    context: {
+      host,
+      account: { address: userAddress },
+      inputs: {},
+      outputs: [],
+    },
+  })
+}
+
+async function assertInvalidSyntheticRouteResult(
+  args: Parameters<typeof callSyntheticReadRoute>[0],
+  label?: string,
+) {
+  await assert.rejects(
+    () => callSyntheticReadRoute(args),
+    (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
+    label,
+  )
 }
 
 function camWithNamespaceIntegrity(namespace: string, bytes: Uint8Array) {
