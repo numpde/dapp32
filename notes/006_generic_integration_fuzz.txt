@@ -1,6 +1,11 @@
 Generic CAM integration fuzzing
 Date: 2026-06-01
 
+Status: historical design rationale for the integration fuzz lane. The runner
+and dapp wrapper now exist; use the Make targets, AGENTS.md, and current notes
+for operation. Treat staged implementation details below as audit context, not
+as current backlog, unless the repo is rechecked first.
+
 Purpose
 -------
 

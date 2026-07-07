@@ -1,6 +1,13 @@
 Protocol boundary normalization
 Date: 2026-06-01
 
+Status: historical boundary-hardening checklist. Several items have landed or
+been superseded by protocol facts, ABI characterization, viewer decomposition,
+and local tooling hardening. Use AGENTS.md plus
+notes/011_architecture_composition_audit_2026_07_05.md and
+notes/012_abi_traversal_inventory.md for current stop criteria. Treat the
+checklist below as audit prompts, not an active work queue.
+
 Problem
 -------
 

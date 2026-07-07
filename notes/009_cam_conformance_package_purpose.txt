@@ -146,27 +146,27 @@ assertCamBundle(bundle): void
 Primitive ownership
 -------------------
 
-`@cam/conformance` should not reimplement primitive semantics.
+`@cam/conformance` should not reimplement primitive semantics or import runtime
+facades to borrow them.
 
 Use:
 
   @cam/protocol
     strict JSON parsing, duplicate-key rejection, inert values, expression
-    grammar, resource byte limits, hash helpers.
+    grammar, resource byte limits, hash helpers, CAM fact collectors, and
+    protocol-owned UI/CAM structural helpers.
 
-  @cam/core
-    CAM document parsing, namespaces, route inputs, route call and continuation
-    shapes.
+Do not make `@cam/conformance` depend on `@cam/core`, `@cam/screen`,
+`@cam/evm-viem`, `@cam/viewer`, apps, or tools. Runtime packages and
+conformance may share protocol substrates, but conformance maps protocol facts
+and diagnostics to publication issues instead of reusing runtime fail-fast
+parsers or renderer behavior.
 
-  @cam/screen
-    UI document parsing, UI node shape, Include/Button rules, UI state rules.
-
-Do not make `@cam/conformance` depend on `@cam/evm-viem` by default. The EVM
-adapter owns concrete RPC/viem normalization at runtime, but conformance is a
-builder-facing publication gate and should stay usable without browser/DOM or
-wallet-adapter type surfaces. When conformance checks ABI declarations, keep
-the supported ABI subset aligned with the EVM adapter through focused parity
-tests and shared protocol primitives rather than importing the adapter itself.
+The EVM adapter owns concrete RPC/viem normalization at runtime; conformance is
+a builder-facing publication gate and should stay usable without browser/DOM,
+wallet, RPC, or adapter type surfaces. Keep ABI declaration behavior aligned
+through shared protocol primitives, shared data-only fixtures, and focused
+parity tests rather than importing the adapter itself.
 
 `@cam/conformance` owns only cross-document and publication-level rules that no
 single primitive package can know alone.
@@ -177,10 +177,11 @@ Rules it should own
 
 Bundle-level conformance:
 
-  main.json parses with the runtime CAM parser.
+  main.json is structurally accepted by the shared protocol CAM facts and
+  validators that runtime parsers also consume.
   Every declared local resource exists in the bundle.
   Every declared integrity digest matches the referenced bytes.
-  ui.json parses with the runtime UI parser.
+  ui.json satisfies the protocol UI document rules that renderers consume.
   Every declared ABI is valid for the CAM-supported EVM ABI subset.
 
 Cross-document CAM rules:
@@ -338,8 +339,8 @@ The first implementation slice is complete:
   A valid minimal CAM bundle returns no issues.
   A missing ui.json resource produces one precise issue.
   An integrity mismatch produces one precise issue.
-  The package uses existing parser/value primitives instead of reimplementing
-  them.
+  The package uses existing protocol fact/parser/value primitives instead of
+  reimplementing them.
 
 Route, ABI, UI dataflow, and UI typeflow conformance rules now exist. Further
 work should deepen diagnostics or remove drift, not expand the package shape by

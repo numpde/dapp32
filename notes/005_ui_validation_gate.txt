@@ -1,6 +1,13 @@
 CAM UI validation gate
 Date: 2026-06-01
 
+Status: historical validation-design note. The integration fuzz and ABI
+normalization work this page motivated has since been implemented and
+characterized. Use notes/011_architecture_composition_audit_2026_07_05.md,
+notes/012_abi_traversal_inventory.md, and AGENTS.md for current sequencing and
+stop criteria; keep this page as rationale for validation gates, not as a live
+backlog.
+
 Problem
 -------
 
@@ -260,8 +267,11 @@ Those checks are useful, but none of them validates the whole contract-defined
 UI boundary.
 
 
-Near-term implementation order
-------------------------------
+Historical near-term implementation order
+-----------------------------------------
+
+This was the initial June 2026 sequence. Recheck the repo and current notes
+before treating any item here as still open.
 
 1. Fix the current integer normalization bug and add a small package regression
    test for number-valued integer outputs.
