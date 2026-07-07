@@ -354,16 +354,46 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.revokeComponentDelegate(SERIAL, address(0));
     }
 
-    /// @dev Delegation duration is a policy value, not arithmetic input. Reject
-    /// impossible durations here so later grants fail with manager-owned errors
-    /// instead of Solidity overflow panics.
-    function test_delegationMaxDurationRejectsTimestampOverflowEnvelope() external {
-        uint48 overflowingDuration = type(uint48).max;
+    /// @dev Delegation expiry validation is subtraction-based, so the
+    /// configured duration is policy only; even extreme durations cannot turn
+    /// later grants into Solidity arithmetic panics as time advances.
+    function test_delegationExpiryValidationIsOverflowProof() external {
+        registerDefaultComponent();
+
+        uint64 updateMetadataCapability = manager.CAP_UPDATE_METADATA();
+        uint48 now_ = uint48(block.timestamp);
+        uint48 maxDuration = 10;
 
         vm.expectRevert(
-            abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, overflowingDuration)
+            abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, uint48(0))
         );
-        manager.setMaxDelegationDuration(overflowingDuration);
+        manager.setMaxDelegationDuration(0);
+
+        manager.setMaxDelegationDuration(maxDuration);
+
+        vm.prank(owner);
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, now_ + maxDuration);
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, now_ + maxDuration + 1)
+        );
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, now_ + maxDuration + 1);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, now_));
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, now_);
+
+        uint48 nearEnvelopeDuration = type(uint48).max - now_;
+        manager.setMaxDelegationDuration(nearEnvelopeDuration);
+        vm.warp(block.timestamp + 1);
+
+        vm.prank(owner);
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, type(uint48).max);
+
+        manager.setMaxDelegationDuration(type(uint48).max);
+        vm.prank(owner);
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, type(uint48).max);
     }
 
     /// @dev Missing/retired status updates are separate capabilities. The test

@@ -641,9 +641,10 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         }
 
         uint48 now_ = _now48();
-        uint48 maxValidUntil = now_ + _maxDelegationDuration;
-
-        if (validUntil <= now_ || validUntil > maxValidUntil) {
+        if (validUntil <= now_) {
+            revert InvalidDelegationExpiry(validUntil);
+        }
+        if (validUntil - now_ > _maxDelegationDuration) {
             revert InvalidDelegationExpiry(validUntil);
         }
     }
@@ -662,7 +663,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     }
 
     function _setMaxDelegationDuration(uint48 duration) internal {
-        if (duration == 0 || duration > type(uint48).max - _now48()) revert InvalidDelegationExpiry(duration);
+        if (duration == 0) revert InvalidDelegationExpiry(duration);
 
         uint48 oldDuration = _maxDelegationDuration;
         _maxDelegationDuration = duration;
