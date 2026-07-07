@@ -1,7 +1,7 @@
 # Architecture Composition Audit
 
 Date: 2026-07-05
-Revised: 2026-07-06
+Revised: 2026-07-07
 
 Purpose: keep the refactor queue honest after the protocol-fact, ABI
 characterization, viewer, transaction, and DepositVault signature-boundary
@@ -31,6 +31,11 @@ The original broad risks have been reduced:
   `InvalidIntentSignature(expectedSigner, address(0))` surface and
   characterized against malformed bytes, wrong signer recovery, and no
   accounting side effects.
+- Bicycle delegation expiry validation is subtraction-based, so extreme
+  configured durations and later timestamp drift cannot leak Solidity
+  arithmetic panics through delegation grants.
+- Local CAM resource size boundaries are characterized for the TypeScript file
+  readers and Python integrity refresher at the public tool boundary.
 
 Current conclusion: pause the architecture cleanup arc. New work should come
 from a concrete feature, bug, failing invariant, or duplicated semantic rule,
@@ -43,6 +48,8 @@ Checklist:
 - [ ] Preserve runtime/conformance reporting differences unless a behavior
   change is explicit.
 - [ ] Treat completed arcs as closed unless new evidence shows real drift.
+- [ ] Do not add private test seams solely to exercise defensive race-path
+  resource readers.
 
 ## Preserved Invariants
 
@@ -134,6 +141,22 @@ Stop a refactor when any of these become true:
 - The change adds more fixture scaffolding than behavior it protects.
 - A local comment is needed to justify why unrelated concerns live together.
 
+Further cleanup should be feature-, bug-, or invariant-driven. Avoid extraction
+when the only motivation is file size; prefer extraction only when there is a
+duplicated semantic rule, a cross-package interpretation risk, or a testability
+boundary that cannot otherwise be pinned.
+
+Specific current stop points:
+
+- Protocol facts remain provisional and rooted in `@cam/protocol`.
+- ABI traversal remains characterized, not abstracted.
+- Viewer session keeps mutable lifecycle state, account rollback, loading, and
+  snapshot cloning.
+- Local tooling hardening should prefer public-boundary tests over private
+  seams.
+- Contract hardening should keep public revert surfaces vault/manager-owned
+  rather than leaking dependency or arithmetic failures.
+
 ## Paused Arcs
 
 - Do not create `@cam/facts` yet. The protocol-internal fact substrate is still
@@ -146,5 +169,8 @@ Stop a refactor when any of these become true:
 - Do not continue splitting `CamViewerSession` without a reducer/store or host
   integration need. Account rollback, snapshot cloning, load-state mutation,
   and current-view ownership are stateful lifecycle concerns.
+- Do not add private seams only to test local resource growth races. Public
+  exact-limit and over-limit behavior is pinned; race guards remain defensive
+  implementation detail unless a real bug appears.
 - Prefer feature- or bug-driven work next. Architecture cleanup is complete
   enough to pause.

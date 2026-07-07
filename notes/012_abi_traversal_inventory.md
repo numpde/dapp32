@@ -218,6 +218,11 @@ Already covered by existing tests:
 
 ## Recommendation
 
+Status as of 2026-07-07: characterization is complete for the currently known
+ABI traversal/declaration seams. Do not extract a shared ABI helper without a
+new production change that demonstrates repeated metadata traversal with only
+direction-specific hooks.
+
 Do not extract an ABI traversal helper yet. The inventory is closed for now:
 new ABI work should be driven by a production change or a failing invariant,
 not by this note's historical duplication survey.
