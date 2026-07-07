@@ -117,8 +117,9 @@ Keep the project small, explicit, and protocol-first.
   deliberately different and locally documented.
 - Protocol CAM fact collectors under `@cam/protocol` are a provisional internal
   substrate for shared document meaning. Until the boundary is boring, only
-  `@cam/core` and `@cam/conformance` may consume them; apps, tools, viewers,
-  fixtures, and package tests outside those owners must not.
+  `@cam/protocol` itself, `@cam/core`, and `@cam/conformance` may consume them;
+  apps, tools, viewers, fixtures, and package tests outside those owners must
+  not.
 - Expression reference occurrence collection is a protocol-owned shared helper,
   but is not itself a provisional CAM fact collector.
 - The current provisional CAM fact boundary owns CAM root/version/top-level fields,
@@ -194,6 +195,25 @@ Keep the project small, explicit, and protocol-first.
   fits cleanly into an existing file, test suite, or workflow.
 - When history is still local and unpushed, prefer a clean rewritten commit
   over follow-up commits that only undo mistakes.
+- Treat `notes/011_architecture_composition_audit_2026_07_05.md` and
+  `notes/012_abi_traversal_inventory.md` as current stop signs, not stale
+  backlogs. Protocol facts, ABI traversal, and viewer session decomposition are
+  paused until a concrete product change, failing invariant, or duplicated
+  semantic rule creates new pressure.
+- Do not extract a shared ABI traversal helper merely because traversal
+  skeletons look similar. Runtime input/output normalization, conformance route
+  checks, and UI typeflow intentionally differ in value policy, unknown
+  handling, and reporting.
+- Do not keep splitting `CamViewerSession` for file-size reasons. It should
+  retain mutable lifecycle state, account rollback, loading, current-view
+  ownership, and snapshot cloning unless a reducer/store or host integration
+  need appears.
+- Local CAM resource hardening should prefer public-boundary tests over private
+  test seams. Exact-limit and over-limit behavior is pinned; defensive
+  race/growth guards do not need new API surface unless a real bug appears.
+- Contract hardening should keep public revert surfaces owned by the relevant
+  contract, such as vault or manager errors, instead of leaking dependency
+  errors or Solidity arithmetic panics.
 
 ## Change Discipline
 
