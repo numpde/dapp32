@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import unittest
@@ -196,7 +197,33 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
             (manifest_path.parent / "abi").mkdir(parents=True)
+            resource_uri = "./abi/UI.json"
             (manifest_path.parent / "abi" / "UI.json").write_bytes(b"0" * (MAX_CAM_RESOURCE_BYTES + 1))
+            write_json(
+                manifest_path,
+                {
+                    "namespaces": {
+                        "contracts.UI": {
+                            "type": "contract",
+                            "abiURI": resource_uri,
+                            "integrity": ZERO_SHA256,
+                        },
+                    },
+                },
+            )
+
+            with self.assertRaisesRegex(
+                CamResourceIntegrityError,
+                rf"{re.escape(str(manifest_path))}: CAM resource is too large: {re.escape(resource_uri)}",
+            ):
+                refresh_manifest(manifest_path)
+
+    def test_refresh_manifest_hashes_exact_limit_resources(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            (manifest_path.parent / "abi").mkdir(parents=True)
+            resource_bytes = b"0" * MAX_CAM_RESOURCE_BYTES
+            (manifest_path.parent / "abi" / "UI.json").write_bytes(resource_bytes)
             write_json(
                 manifest_path,
                 {
@@ -210,8 +237,16 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 },
             )
 
-            with self.assertRaisesRegex(CamResourceIntegrityError, "CAM resource is too large"):
-                refresh_manifest(manifest_path)
+            self.assertTrue(refresh_manifest(manifest_path))
+            updated = read_strict_json(manifest_path)
+
+        self.assertIsInstance(updated, dict)
+        namespaces = updated["namespaces"]
+        self.assertIsInstance(namespaces, dict)
+        self.assertEqual(
+            f"sha256:0x{sha256_hex(resource_bytes)}",
+            namespaces["contracts.UI"]["integrity"],
+        )
 
     def test_refresh_manifest_rejects_malformed_namespaces(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -272,6 +307,10 @@ def numeric_product(expression: str) -> int:
         result *= int(term.strip())
 
     return result
+
+
+def sha256_hex(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
 
 
 def write_json(path: Path, document: object) -> None:
