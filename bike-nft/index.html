@@ -18,8 +18,6 @@
       --blue: #244f86;
       --rust: #a44631;
       --code: #edf2f7;
-      --callout: #fffaf7;
-      --callout-ink: #55342d;
       --shadow: 0 16px 34px rgba(23, 32, 43, 0.08);
     }
 
@@ -40,8 +38,6 @@
         --blue: #8bb7f0;
         --rust: #e18a72;
         --code: #202a36;
-        --callout: #281b18;
-        --callout-ink: #f0c1b4;
         --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
       }
     }
@@ -58,8 +54,6 @@
       --blue: #8bb7f0;
       --rust: #e18a72;
       --code: #202a36;
-      --callout: #281b18;
-      --callout-ink: #f0c1b4;
       --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
     }
 
@@ -210,15 +204,6 @@
       font-size: clamp(2.4rem, 7vw, 5.1rem);
       line-height: 0.98;
       letter-spacing: 0;
-    }
-
-    .eyebrow {
-      margin: 0 0 12px;
-      color: var(--green);
-      font-size: 0.83rem;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
     }
 
     .lede {
@@ -428,18 +413,6 @@
       border-bottom: 0;
     }
 
-    .callout {
-      padding: 16px 18px;
-      border-left: 4px solid var(--rust);
-      background: var(--callout);
-      color: var(--callout-ink);
-    }
-
-    .callout p {
-      margin-bottom: 0;
-      color: inherit;
-    }
-
     @media (max-width: 900px) {
       .hero,
       .grid,
@@ -498,7 +471,6 @@
   <header>
     <div class="shell hero">
       <div>
-        <p class="eyebrow">Reference CAM dapp</p>
         <h1>Bike NFT component registry</h1>
         <p class="lede">
           Bike NFT is a contract-defined workflow for registering
@@ -765,14 +737,6 @@
             token contracts still enforce all business rules onchain.
           </p>
         </article>
-      </div>
-      <div class="callout">
-        <p>
-          V1 deliberately excludes claim flows, recovery/dispute hard transfers,
-          transfer locks, upgrade roles, and paymaster/relayer authority. Those
-          require additional product semantics and contract authority, not just
-          new UI buttons.
-        </p>
       </div>
     </section>
   </main>
