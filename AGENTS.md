@@ -12,6 +12,47 @@ structured manifests that can be rendered for humans or interpreted by agents.
 
 Keep the project small, explicit, and protocol-first.
 
+## Operating Mode
+
+Default to small, evidence-backed changes.
+
+Do not continue broad cleanup by momentum. Start new work only from a concrete
+feature, bug, failing invariant, security boundary, or duplicated semantic
+rule. Let code grow from demonstrated pressure: write the smallest truthful
+shape first, then add structure only when the current next step proves it needs
+that structure.
+
+Before adding or revising code, ask what fact the code is trying to own, which
+boundary naturally owns that fact, what bad input or state drift should fail
+there instead of later, and what can be deleted or made impossible instead of
+documented as caller discipline.
+
+Work in small inspectable slices. After each slice, read it back and ask whether
+it is necessary, repo-native, and at the right abstraction level before adding
+the next one. Prefer local patterns and repo-native objects until they fail to
+express the current invariant clearly.
+
+Add abstractions, types, fields, CLI flags, helpers, lanes, adapters, or
+artifact shapes only when they remove current duplication, protect a real
+boundary, name a real domain concept, or create a durable replacement seam.
+Do not encode likely future reporting, debugging, plotting, or convenience
+needs before a current caller exists.
+
+Keep internal objects internal. Flatten to JSON-safe artifact fields only at
+artifact boundaries. Use explicit domain names over generic containers; avoid
+`context`, `record`, `payload`, and `data` when a more specific product name is
+known.
+
+Respect mechanical reality. Code that looks clean but ignores memory,
+streaming, timeouts, concurrency, atomicity, retries, or auditability is not
+clean. Bad input should fail at the boundary that owns the raw fact, not later
+as a misleading product decision.
+
+Let tests state product law. Tests should pin intended behavior and boundary
+expectations, not accidental implementation details. If review finds only
+taste, file size, or hypothetical pressure, do not add code or new seams; leave
+the repo unchanged or update the appropriate note.
+
 ## Branch Posture
 
 - `main` is the clean rebuild branch.
