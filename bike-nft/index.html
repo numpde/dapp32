@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bike NFT - dapp32</title>
+  <meta name="description" content="Bike NFT is the dapp32 reference app: a contract-defined bicycle component registry with ERC-721 component tokens, manager-owned permissions, and CAM routes a generic viewer can render.">
+  <style>
+    :root {
+      color-scheme: light dark;
+      --ink: #1b2430;
+      --muted: #647386;
+      --soft: #f5f7fa;
+      --panel: #ffffff;
+      --chrome: #fbfcfe;
+      --line: #d8e0ea;
+      --green: #116b5f;
+      --blue: #244f86;
+      --rust: #a44631;
+      --code: #edf2f7;
+      --callout: #fffaf7;
+      --callout-ink: #55342d;
+      --shadow: 0 16px 34px rgba(23, 32, 43, 0.08);
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        color-scheme: dark;
+        --ink: #e8eef6;
+        --muted: #a7b4c5;
+        --soft: #0f141b;
+        --panel: #151c25;
+        --chrome: #111820;
+        --line: #2a3442;
+        --green: #5cc1aa;
+        --blue: #8bb7f0;
+        --rust: #e18a72;
+        --code: #202a36;
+        --callout: #281b18;
+        --callout-ink: #f0c1b4;
+        --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
+      }
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --ink: #e8eef6;
+      --muted: #a7b4c5;
+      --soft: #0f141b;
+      --panel: #151c25;
+      --chrome: #111820;
+      --line: #2a3442;
+      --green: #5cc1aa;
+      --blue: #8bb7f0;
+      --rust: #e18a72;
+      --code: #202a36;
+      --callout: #281b18;
+      --callout-ink: #f0c1b4;
+      --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--soft);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--green);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: var(--code);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .shell {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      border-bottom: 1px solid var(--line);
+      background: var(--chrome);
+    }
+
+    .topbar .shell {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      min-height: 66px;
+    }
+
+    .brand {
+      color: var(--ink);
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      font-size: 0.94rem;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    .theme-toggle {
+      position: relative;
+      display: inline-grid;
+      grid-template-columns: 1fr 1fr;
+      place-items: center;
+      width: 66px;
+      height: 34px;
+      padding: 0 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--ink);
+      font: inherit;
+      font-size: 0.92rem;
+      cursor: pointer;
+      box-shadow: inset 0 1px 2px rgba(23, 32, 43, 0.08);
+    }
+
+    .theme-toggle:hover {
+      border-color: var(--green);
+    }
+
+    .theme-toggle:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--green), transparent 68%);
+      outline-offset: 2px;
+    }
+
+    .theme-toggle::before {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: var(--green);
+      box-shadow: 0 4px 10px rgba(17, 107, 95, 0.25);
+      transition: transform 160ms ease;
+    }
+
+    .theme-toggle[data-theme-state="dark"]::before {
+      transform: translateX(32px);
+    }
+
+    .theme-toggle span {
+      position: relative;
+      z-index: 1;
+      line-height: 1;
+      color: var(--muted);
+    }
+
+    .theme-toggle[data-theme-state="light"] .theme-sun,
+    .theme-toggle[data-theme-state="dark"] .theme-moon {
+      color: #ffffff;
+    }
+
+    header {
+      padding: 54px 0 42px;
+      background: var(--chrome);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.8fr);
+      gap: 34px;
+      align-items: center;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 820px;
+      font-size: clamp(2.4rem, 7vw, 5.1rem);
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--green);
+      font-size: 0.83rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .lede {
+      max-width: 760px;
+      margin: 20px 0 0;
+      color: var(--muted);
+      font-size: clamp(1.05rem, 2vw, 1.24rem);
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 9px 14px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--ink);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .button.primary {
+      border-color: var(--green);
+      background: var(--green);
+      color: #ffffff;
+    }
+
+    .registry-panel {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .registry-panel h2 {
+      margin: 0 0 14px;
+      font-size: 1rem;
+    }
+
+    .component-card {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--soft);
+    }
+
+    .serial {
+      margin: 0 0 10px;
+      color: var(--green);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+
+    .status-row {
+      display: grid;
+      grid-template-columns: 118px 1fr;
+      gap: 10px;
+      padding: 8px 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .status-row span {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .status-row strong {
+      font-size: 0.94rem;
+    }
+
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 0.84rem;
+      font-weight: 700;
+    }
+
+    main {
+      padding: 34px 0 60px;
+    }
+
+    section {
+      margin-top: 42px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.55rem;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    .narrow {
+      max-width: 820px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+
+    .two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .card {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .card p,
+    li {
+      color: var(--muted);
+    }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .flow-step {
+      position: relative;
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .flow-step strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--green);
+    }
+
+    .flow-step p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .route-table {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .callout {
+      padding: 16px 18px;
+      border-left: 4px solid var(--rust);
+      background: var(--callout);
+      color: var(--callout-ink);
+    }
+
+    .callout p {
+      margin-bottom: 0;
+      color: inherit;
+    }
+
+    @media (max-width: 900px) {
+      .hero,
+      .grid,
+      .two,
+      .flow {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar .shell {
+        align-items: flex-start;
+        flex-direction: column;
+        justify-content: center;
+        padding: 14px 0;
+      }
+
+      .topbar-actions {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 12px;
+      }
+    }
+  </style>
+  <script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem("dapp32-theme")
+        if (storedTheme === "light" || storedTheme === "dark") {
+          document.documentElement.dataset.theme = storedTheme
+        }
+      } catch (error) {
+        document.documentElement.removeAttribute("data-theme")
+      }
+    })()
+  </script>
+</head>
+<body>
+  <div class="topbar">
+    <div class="shell">
+      <a class="brand" href="../">dapp32</a>
+      <div class="topbar-actions">
+        <nav aria-label="Primary">
+          <a href="../">Overview</a>
+          <a href="#workflow">Workflow</a>
+          <a href="#authority">Authority</a>
+          <a href="#cam">CAM routes</a>
+          <a href="#boundaries">Boundaries</a>
+        </nav>
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
+          <span class="theme-sun" aria-hidden="true">☀</span>
+          <span class="theme-moon" aria-hidden="true">☾</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <header>
+    <div class="shell hero">
+      <div>
+        <p class="eyebrow">Reference CAM dapp</p>
+        <h1>Bike NFT component registry</h1>
+        <p class="lede">
+          Bike NFT is a contract-defined workflow for registering
+          serial-numbered bicycle components as ERC-721 tokens, looking them up
+          by serial number, and exposing owner/delegate actions through a
+          generic CAM viewer.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/numpde/dapp32/tree/main/dapps/bike-nft">Source</a>
+          <a class="button" href="#cam">CAM routes</a>
+          <a class="button" href="../">dapp32 overview</a>
+        </div>
+      </div>
+
+      <aside class="registry-panel" aria-label="Component registry example">
+        <h2>Example component view</h2>
+        <div class="component-card">
+          <p class="serial">DEMO-FRAME-001</p>
+          <div class="status-row">
+            <span>Status</span>
+            <strong>active</strong>
+          </div>
+          <div class="status-row">
+            <span>Token</span>
+            <strong>ERC-721 component NFT</strong>
+          </div>
+          <div class="status-row">
+            <span>Owner actions</span>
+            <strong>metadata, missing, retire</strong>
+          </div>
+          <div class="chips" aria-label="Visible workflow actions">
+            <span class="chip">look up</span>
+            <span class="chip">register</span>
+            <span class="chip">update URI</span>
+            <span class="chip">mark missing</span>
+            <span class="chip">retire</span>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section id="what" class="narrow">
+      <h2>What the app does</h2>
+      <p>
+        The app models a bicycle component registry. A trusted registrar creates
+        a verified record for a physical component serial number and mints a
+        normal ERC-721 token to the owner. The manager contract stores the
+        serial lookup, status, registrar, timestamps, token contract, and token
+        id. The NFT contract remains a regular token contract, so wallets and
+        indexers can treat component ownership normally.
+      </p>
+      <p>
+        The visible app is defined by CAM resources. A host contract publishes
+        the manifest URI/hash and contract address bindings; the generic viewer
+        loads those resources, calls the read routes, renders the declared UI
+        nodes, and prepares wallet writes from the manifest routes.
+      </p>
+    </section>
+
+    <section id="workflow">
+      <h2>User workflow</h2>
+      <div class="flow">
+        <article class="flow-step">
+          <strong>1. Look up</strong>
+          <p>Enter the serial number stamped on a component and read the current registry projection.</p>
+        </article>
+        <article class="flow-step">
+          <strong>2. Register</strong>
+          <p>A registrar mints the component NFT and creates the verified serial record.</p>
+        </article>
+        <article class="flow-step">
+          <strong>3. Maintain</strong>
+          <p>The owner or a scoped delegate updates metadata, reports missing status, or clears it.</p>
+        </article>
+        <article class="flow-step">
+          <strong>4. Finalize</strong>
+          <p>The owner can retire the component; retirement remains registry-final even if the NFT later transfers.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="contracts">
+      <h2>Onchain pieces</h2>
+      <div class="grid">
+        <article class="card">
+          <h3><code>CamRoot</code></h3>
+          <p>
+            Publishes the CAM URI/hash and resolves manifest contract names to
+            deployed addresses for this chain.
+          </p>
+        </article>
+        <article class="card">
+          <h3><code>BicycleComponents</code></h3>
+          <p>
+            A non-upgradeable ERC-721 collection. It owns token behavior,
+            transferability, token URI storage, and collection metadata.
+          </p>
+        </article>
+        <article class="card">
+          <h3><code>BicycleComponentManager</code></h3>
+          <p>
+            The registry and policy contract. It owns serial lookup, status,
+            component delegations, account info, attestations, and write
+            permissions.
+          </p>
+        </article>
+        <article class="card">
+          <h3><code>BicycleComponentManagerUI</code></h3>
+          <p>
+            A read-only route projection contract. It never writes manager
+            state; it returns semantic view data and action names for CAM.
+          </p>
+        </article>
+        <article class="card">
+          <h3>CAM manifest</h3>
+          <p>
+            Declares contract namespaces, read routes, write routes, ABI
+            resources, and the UI resource consumed by generic viewers.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Generic viewer</h3>
+          <p>
+            Renders the workflow from manifest data and prepares contract calls;
+            business authority remains in the manager and token contracts.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section id="authority">
+      <h2>Authority model</h2>
+      <div class="grid two">
+        <article class="card">
+          <h3>Registrar authority</h3>
+          <p>
+            Registrars create verified component records and mint component
+            tokens to owners. Removing the registrar role immediately changes
+            both write authority and the registration view.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Owner authority</h3>
+          <p>
+            Current ERC-721 owners can update component metadata, report missing
+            status, clear missing status, retire components, and delegate
+            selected capabilities.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Scoped delegates</h3>
+          <p>
+            Delegates receive explicit capabilities with an expiry. Delegations
+            only work while the grantor remains the token owner, so an ordinary
+            ERC-721 sale invalidates old repair-shop permissions.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Attesters and accounts</h3>
+          <p>
+            Registrars and status attesters can emit event-only provenance.
+            Account info is self-managed by the account address and is used by
+            the read projection.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section id="cam">
+      <h2>CAM routes</h2>
+      <p class="narrow">
+        The manifest exposes a small route graph. Read routes return semantic
+        app views; write routes prepare wallet calls to the manager and then
+        continue back to the component view.
+      </p>
+      <div class="route-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Route</th>
+              <th>Kind</th>
+              <th>Contract function</th>
+              <th>User-facing purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>entry</code></td>
+              <td>read</td>
+              <td><code>viewEntry(account)</code></td>
+              <td>Initial lookup screen and registration availability.</td>
+            </tr>
+            <tr>
+              <td><code>component</code></td>
+              <td>read</td>
+              <td><code>viewComponent(serialNumber, account)</code></td>
+              <td>Component lookup, owner view, current status, token URI, and available actions.</td>
+            </tr>
+            <tr>
+              <td><code>register</code></td>
+              <td>read</td>
+              <td><code>viewRegister(serialNumber, account)</code></td>
+              <td>Registration readiness for a serial number.</td>
+            </tr>
+            <tr>
+              <td><code>registerComponent</code></td>
+              <td>write</td>
+              <td><code>registerComponent(owner, serialNumber, tokenURI_)</code></td>
+              <td>Registrar mints the component NFT and creates the verified record.</td>
+            </tr>
+            <tr>
+              <td><code>updateComponentMetadata</code></td>
+              <td>write</td>
+              <td><code>setComponentMetadata(serialNumber, tokenURI_)</code></td>
+              <td>Owner or delegate updates the component token URI.</td>
+            </tr>
+            <tr>
+              <td><code>markComponentMissing</code></td>
+              <td>write</td>
+              <td><code>markMissing(serialNumber)</code></td>
+              <td>Owner or delegate reports the component missing.</td>
+            </tr>
+            <tr>
+              <td><code>clearComponentMissing</code></td>
+              <td>write</td>
+              <td><code>clearMissing(serialNumber)</code></td>
+              <td>Owner or delegate restores the component to active status.</td>
+            </tr>
+            <tr>
+              <td><code>retireComponent</code></td>
+              <td>write</td>
+              <td><code>retireComponent(serialNumber)</code></td>
+              <td>Owner or delegate moves the registry record to final retired state.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="boundaries">
+      <h2>Important boundaries</h2>
+      <div class="grid">
+        <article class="card">
+          <h3>The UI contract is read-only</h3>
+          <p>
+            <code>BicycleComponentManagerUI</code> has no roles, no owner, and no
+            write functions. It selects views and actions from manager state.
+          </p>
+        </article>
+        <article class="card">
+          <h3>The token remains standard</h3>
+          <p>
+            Transfers and approvals are ordinary ERC-721 operations on
+            <code>BicycleComponents</code>. Registry status is manager truth, not
+            a transfer hook in V1.
+          </p>
+        </article>
+        <article class="card">
+          <h3>The manifest is not authority</h3>
+          <p>
+            CAM describes reads, UI nodes, and prepared writes. The manager and
+            token contracts still enforce all business rules onchain.
+          </p>
+        </article>
+      </div>
+      <div class="callout">
+        <p>
+          V1 deliberately excludes claim flows, recovery/dispute hard transfers,
+          transfer locks, upgrade roles, and paymaster/relayer authority. Those
+          require additional product semantics and contract authority, not just
+          new UI buttons.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      var key = "dapp32-theme"
+      var button = document.getElementById("theme-toggle")
+      var systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
+      if (!button) return
+
+      function storedTheme() {
+        try {
+          var value = localStorage.getItem(key)
+          return value === "light" || value === "dark" ? value : null
+        } catch (error) {
+          return null
+        }
+      }
+
+      function applyTheme(value) {
+        document.documentElement.dataset.theme = value
+        try {
+          localStorage.setItem(key, value)
+        } catch (error) {
+          return
+        }
+      }
+
+      function effectiveTheme() {
+        return storedTheme() || (systemTheme.matches ? "dark" : "light")
+      }
+
+      function updateButton() {
+        var currentTheme = effectiveTheme()
+        var nextTheme = currentTheme === "dark" ? "light" : "dark"
+        button.dataset.themeState = currentTheme
+        button.setAttribute("aria-label", "Switch to " + nextTheme + " mode")
+        button.setAttribute("title", "Switch to " + nextTheme + " mode")
+      }
+
+      button.addEventListener("click", function () {
+        applyTheme(effectiveTheme() === "dark" ? "light" : "dark")
+        updateButton()
+      })
+
+      systemTheme.addEventListener("change", function () {
+        if (!storedTheme()) updateButton()
+      })
+
+      updateButton()
+    })()
+  </script>
+</body>
+</html>
