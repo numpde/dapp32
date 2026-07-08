@@ -52,6 +52,7 @@ const host: CamHost = bikeHost
 const otherUserAddress = "0x0000000000000000000000000000000000000099"
 const BIKE_REPORT_URI = "fixture://bike-nft/reports/session-missing.json"
 const BIKE_RESOLUTION_URI = "fixture://bike-nft/reports/session-recovered.json"
+const BIKE_ACCOUNT_INFO_URI = "fixture://bike-nft/accounts/session-owner.json"
 const NO_RESOURCE_OVERRIDES = {}
 
 test("bike fixture models the real UI projection branch states", () => {
@@ -128,7 +129,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
   assert.deepEqual(snapshot.values, toInertValue([
     {
       viewId: "entry",
-      actions: ["lookupComponent", "openRegister"],
+      actions: ["lookupComponent", "openRegister", "setAccountInfo"],
       account: userAddress,
       canRegister: true,
       accountInfo: "Mock registrar account",
@@ -460,6 +461,33 @@ test("updateState resolves route actions, while write routes are surfaced withou
   const publicClient = createPublicClient(publicClientFixtureOptions({ routeResults }))
   const session = createSession(sessionFixtureOptions({ publicClient }))
   await session.load()
+
+  const accountSnapshot = session.updateState({
+    accountInfo: BIKE_ACCOUNT_INFO_URI,
+  })
+  assert.equal("children" in accountSnapshot.resolvedUi, true)
+  if (!("children" in accountSnapshot.resolvedUi)) {
+    assert.fail("expected entry root children")
+  }
+  const accountButton = accountSnapshot.resolvedUi.children.find((child) =>
+    child.element === "Button" && child.call.function === "setAccountInfo"
+  )
+  assert.equal(accountButton?.element, "Button")
+  if (accountButton?.element !== "Button") {
+    assert.fail("expected account-info write button")
+  }
+
+  const accountResult = await session.dispatchAction(accountButton)
+  assert.equal(accountResult.type, "contractCall")
+  if (accountResult.type !== "contractCall") {
+    assert.fail("expected account-info contract call action result")
+  }
+  assert.equal(accountResult.call.route, "setAccountInfo")
+  assert.equal(accountResult.call.address, managerAddress)
+  assert.equal(accountResult.call.function, "setAccountInfo")
+  assert.deepEqual(accountResult.call.args, toInertValue({ infoURI: BIKE_ACCOUNT_INFO_URI }))
+  assert.equal(accountResult.call.then.namespace, "routes")
+  assert.equal(accountResult.call.then.function, BIKE_ROUTE_ENTRY)
 
   const snapshot = session.updateState({
     serialNumber: BIKE_SERIAL_NUMBER,

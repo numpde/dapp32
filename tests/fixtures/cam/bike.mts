@@ -82,7 +82,7 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
 
   return {
     viewId: "entry",
-    actions: lookupAndRegisterActions(),
+    actions: entryActions(),
     account,
     canRegister,
     accountInfo: bikeAccountInfo(account),
@@ -199,6 +199,10 @@ function bikeAccountInfo(account: string): string {
 
 function lookupAndRegisterActions(): string[] {
   return ["lookupComponent", "openRegister"]
+}
+
+function entryActions(): string[] {
+  return ["lookupComponent", "openRegister", "setAccountInfo"]
 }
 
 function lookupOnlyActions(): string[] {

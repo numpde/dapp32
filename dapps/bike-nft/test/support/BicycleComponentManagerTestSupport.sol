@@ -20,6 +20,7 @@ abstract contract BicycleComponentManagerTestSupport is Test {
 
     string internal constant ACTION_LOOKUP_COMPONENT = "lookupComponent";
     string internal constant ACTION_OPEN_REGISTER = "openRegister";
+    string internal constant ACTION_SET_ACCOUNT_INFO = "setAccountInfo";
     string internal constant ACTION_REGISTER_COMPONENT = "registerComponent";
     string internal constant ACTION_UPDATE_COMPONENT_METADATA = "updateComponentMetadata";
     string internal constant ACTION_MARK_COMPONENT_MISSING = "markComponentMissing";
@@ -46,6 +47,10 @@ abstract contract BicycleComponentManagerTestSupport is Test {
 
     function assertLookupAndRegisterActions(string[] memory actual) internal pure {
         assertActions(actual, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER));
+    }
+
+    function assertEntryActions(string[] memory actual) internal pure {
+        assertActions(actual, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER, ACTION_SET_ACCOUNT_INFO));
     }
 
     function assertRegisterReadyActions(string[] memory actual) internal pure {

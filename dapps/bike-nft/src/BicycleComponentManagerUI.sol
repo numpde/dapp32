@@ -32,6 +32,7 @@ contract BicycleComponentManagerUI {
 
     string private constant ACTION_LOOKUP_COMPONENT = "lookupComponent";
     string private constant ACTION_OPEN_REGISTER = "openRegister";
+    string private constant ACTION_SET_ACCOUNT_INFO = "setAccountInfo";
     string private constant ACTION_REGISTER_COMPONENT = "registerComponent";
     string private constant ACTION_UPDATE_COMPONENT_METADATA = "updateComponentMetadata";
     string private constant ACTION_MARK_COMPONENT_MISSING = "markComponentMissing";
@@ -101,7 +102,7 @@ contract BicycleComponentManagerUI {
         _setBaseView(view_, account);
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
-        view_.actions = _lookupAndRegisterActions();
+        view_.actions = _entryActions();
     }
 
     /// @notice Route projection for component lookup and detail views.
@@ -232,6 +233,13 @@ contract BicycleComponentManagerUI {
         actions = new string[](2);
         actions[0] = ACTION_LOOKUP_COMPONENT;
         actions[1] = ACTION_OPEN_REGISTER;
+    }
+
+    function _entryActions() internal pure returns (string[] memory actions) {
+        actions = new string[](3);
+        actions[0] = ACTION_LOOKUP_COMPONENT;
+        actions[1] = ACTION_OPEN_REGISTER;
+        actions[2] = ACTION_SET_ACCOUNT_INFO;
     }
 
     function _lookupOnlyActions() internal pure returns (string[] memory actions) {

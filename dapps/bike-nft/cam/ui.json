@@ -61,6 +61,16 @@
         {
           "element": "TextField",
           "props": {
+            "label": "Account info URI"
+          },
+          "state": {
+            "key": "accountInfo",
+            "defaultValue": "$view.accountInfo"
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
             "label": "Serial number"
           },
           "state": {
@@ -429,6 +439,22 @@
         "args": {
           "serialNumber": "$state.serialNumber",
           "tokenURI": "$state.tokenURI"
+        }
+      }
+    },
+    "setAccountInfo": {
+      "requires": [
+        "view"
+      ],
+      "element": "Button",
+      "props": {
+        "label": "Prepare account info update"
+      },
+      "call": {
+        "namespace": "routes",
+        "function": "setAccountInfo",
+        "args": {
+          "accountInfo": "$state.accountInfo"
         }
       }
     },
