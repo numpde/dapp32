@@ -388,6 +388,16 @@
           }
         },
         {
+          "element": "TextField",
+          "props": {
+            "label": "Component owner"
+          },
+          "state": {
+            "key": "owner",
+            "defaultValue": ""
+          }
+        },
+        {
           "element": "Address",
           "props": {
             "label": "Component contract",
@@ -486,6 +496,7 @@
         "namespace": "routes",
         "function": "registerComponent",
         "args": {
+          "owner": "$state.owner",
           "serialNumber": "$state.serialNumber",
           "tokenURI": "$state.tokenURI"
         }

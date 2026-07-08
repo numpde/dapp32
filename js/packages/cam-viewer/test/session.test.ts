@@ -34,6 +34,7 @@ import {
   BIKE_UI_URI,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
+  BIKE_VIEW_REGISTER,
   BIKE_ZERO_ADDRESS,
   BIKE_ZERO_BYTES32,
   bikeComponentRouteResult,
@@ -53,9 +54,11 @@ import {
 
 const host: CamHost = bikeHost
 const otherUserAddress = "0x0000000000000000000000000000000000000099"
+const registeredOwnerAddress = "0x0000000000000000000000000000000000000200"
 const BIKE_REPORT_URI = "fixture://bike-nft/reports/session-missing.json"
 const BIKE_RESOLUTION_URI = "fixture://bike-nft/reports/session-recovered.json"
 const BIKE_ACCOUNT_INFO_URI = "fixture://bike-nft/accounts/session-owner.json"
+const BIKE_REGISTRATION_TOKEN_URI = "fixture://bike-nft/tokens/session-registration.json"
 const NO_RESOURCE_OVERRIDES = {}
 
 test("bike fixture models the real UI projection branch states", () => {
@@ -552,6 +555,43 @@ test("updateState resolves route actions, while write routes are surfaced withou
   assert.equal(accountResult.call.then.namespace, "routes")
   assert.equal(accountResult.call.then.function, BIKE_ROUTE_ENTRY)
 
+  routeResults[BIKE_VIEW_REGISTER] = bikeRegisterRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress)
+  const registerSnapshot = await session.navigate("register", { serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER })
+  assert.equal(registerSnapshot.state.owner, "")
+  const preparedRegisterSnapshot = session.updateState({
+    owner: registeredOwnerAddress,
+    tokenURI: BIKE_REGISTRATION_TOKEN_URI,
+  })
+  assert.deepEqual(preparedRegisterSnapshot.values, registerSnapshot.values)
+  assert.equal("children" in preparedRegisterSnapshot.resolvedUi, true)
+  if (!("children" in preparedRegisterSnapshot.resolvedUi)) {
+    assert.fail("expected register root children")
+  }
+  const registerButton = preparedRegisterSnapshot.resolvedUi.children.find((child) =>
+    child.element === "Button" && child.call.function === "registerComponent"
+  )
+  assert.equal(registerButton?.element, "Button")
+  if (registerButton?.element !== "Button") {
+    assert.fail("expected registration write button")
+  }
+
+  const registerResult = await session.dispatchAction(registerButton)
+  assert.equal(registerResult.type, "contractCall")
+  if (registerResult.type !== "contractCall") {
+    assert.fail("expected registration contract call action result")
+  }
+  assert.equal(registerResult.call.route, "registerComponent")
+  assert.equal(registerResult.call.address, managerAddress)
+  assert.equal(registerResult.call.function, "registerComponent")
+  assert.deepEqual(registerResult.call.args, toInertValue({
+    owner: registeredOwnerAddress,
+    serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER,
+    tokenURI_: BIKE_REGISTRATION_TOKEN_URI,
+  }))
+  assert.equal(registerResult.call.then.namespace, "routes")
+  assert.equal(registerResult.call.then.function, BIKE_ROUTE_COMPONENT)
+
+  await session.navigate(BIKE_ROUTE_ENTRY, {})
   const snapshot = session.updateState({
     serialNumber: BIKE_SERIAL_NUMBER,
   })

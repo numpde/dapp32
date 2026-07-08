@@ -18,7 +18,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xa6b0fd249d77a9a1c3ebc0c316162d0acbf9a070bcbe4a6920d66f5925e15478"
+      "integrity": "sha256:0x9367ff1b241f40d2c117ce071b5112cc6cf858d7aed7f353185923e4727a2811"
     }
   },
   "routes": {
@@ -85,6 +85,7 @@
     "registerComponent": {
       "kind": "write",
       "inputs": [
+        "owner",
         "serialNumber",
         "tokenURI"
       ],
@@ -92,7 +93,7 @@
         "namespace": "contracts.BicycleComponentManager",
         "function": "registerComponent",
         "args": {
-          "owner": "$account.address",
+          "owner": "$inputs.owner",
           "serialNumber": "$inputs.serialNumber",
           "tokenURI_": "$inputs.tokenURI"
         }
