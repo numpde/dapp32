@@ -50,6 +50,7 @@ import {
 
 const host: CamHost = bikeHost
 const otherUserAddress = "0x0000000000000000000000000000000000000099"
+const BIKE_DEFAULT_REPORT_URI = "fixture://bike-nft/reports/missing-report.json"
 const NO_RESOURCE_OVERRIDES = {}
 
 test("bike fixture models the real UI projection branch states", () => {
@@ -491,7 +492,10 @@ test("updateState resolves route actions, while write routes are surfaced withou
   assert.equal(contractResult.call.address, managerAddress)
   assert.equal(contractResult.call.function, BIKE_MARK_MISSING)
   assert.deepEqual(contractResult.call.abi, toInertValue(bikeManagerAbi))
-  assert.deepEqual(contractResult.call.args, toInertValue({ serialNumber: BIKE_SERIAL_NUMBER }))
+  assert.deepEqual(
+    contractResult.call.args,
+    toInertValue({ serialNumber: BIKE_SERIAL_NUMBER, reportURI: BIKE_DEFAULT_REPORT_URI }),
+  )
   assert.equal(contractResult.call.then.namespace, "routes")
   assert.equal(contractResult.call.then.function, BIKE_ROUTE_COMPONENT)
   assert.equal(publicClient.calls.length, callsBefore)
@@ -514,6 +518,7 @@ test("dispatchAction rejects actions that are not rendered in the current view",
         function: BIKE_MARK_MISSING,
         args: {
           serialNumber: BIKE_SERIAL_NUMBER,
+          reportURI: BIKE_DEFAULT_REPORT_URI,
         },
       },
     }),

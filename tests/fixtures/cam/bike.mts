@@ -19,7 +19,7 @@ export const BIKE_ROUTE_COMPONENT = "component"
 export const BIKE_VIEW_ENTRY = "viewEntry"
 export const BIKE_VIEW_COMPONENT = "viewComponent"
 export const BIKE_VIEW_REGISTER = "viewRegister"
-export const BIKE_MARK_MISSING = "markMissing"
+export const BIKE_MARK_MISSING = "markComponentMissing"
 
 export const BIKE_CAM_URI = "ipfs://QmYwAPJzv5CZsnAzt8auVZRnJQt6P2JxC1ZyQ3GzFZ2q6x/main.json"
 

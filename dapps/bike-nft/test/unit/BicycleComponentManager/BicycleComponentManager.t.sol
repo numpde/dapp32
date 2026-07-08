@@ -29,6 +29,26 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
     string private constant SECOND_SERIAL = "BIKE-WHEEL-002";
     string private constant TOKEN_URI = "fixture://bike-nft/components/frame-001.json";
     string private constant UPDATED_TOKEN_URI = "fixture://bike-nft/components/frame-001-updated.json";
+    string private constant REPORT_URI = "fixture://bike-nft/reports/frame-001-missing.json";
+    string private constant RESOLUTION_URI = "fixture://bike-nft/reports/frame-001-recovered.json";
+
+    event ComponentReported(
+        bytes32 indexed serialHash,
+        address indexed tokenContract,
+        uint256 indexed tokenId,
+        address reporter,
+        string serialNumber,
+        string reportURI
+    );
+
+    event ComponentReportResolved(
+        bytes32 indexed serialHash,
+        address indexed tokenContract,
+        uint256 indexed tokenId,
+        address resolver,
+        string serialNumber,
+        string resolutionURI
+    );
 
     /// @dev Each test starts with one configured component collection and one
     /// read-only UI helper. The manager must own minting and metadata rights on
@@ -143,7 +163,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertActiveOwnerActions(view_.actions);
 
         vm.prank(owner);
-        manager.markMissing(SERIAL);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.statusId, "missing", "missing component semantic status mismatch");
@@ -246,13 +266,10 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.setComponentMetadata("", TOKEN_URI);
 
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
-        manager.markMissing("");
+        manager.markComponentMissing("", REPORT_URI);
 
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
-        manager.clearMissing("");
-
-        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
-        manager.setMissingStatus("", true);
+        manager.clearComponentMissing("", RESOLUTION_URI);
 
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.retireComponent("");
@@ -401,12 +418,16 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
     /// capability mask needed for the status transitions.
     function test_ownerAndDelegatesCanMoveThroughMissingAndRetiredStatuses() external {
         registerDefaultComponent();
+        bytes32 serialHash = manager.serialHashOf(SERIAL);
+        uint256 tokenId = manager.tokenIdOf(SERIAL);
         uint64 markMissingCapability = manager.CAP_MARK_MISSING();
         uint64 clearMissingCapability = manager.CAP_CLEAR_MISSING();
         uint64 retireCapability = manager.CAP_RETIRE();
 
         vm.prank(owner);
-        manager.markMissing(SERIAL);
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit ComponentReported(serialHash, address(components), tokenId, owner, SERIAL, REPORT_URI);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
@@ -414,7 +435,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         );
 
         vm.prank(owner);
-        manager.clearMissing(SERIAL);
+        vm.expectEmit(true, true, true, true, address(manager));
+        emit ComponentReportResolved(serialHash, address(components), tokenId, owner, SERIAL, RESOLUTION_URI);
+        manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Active),
@@ -426,11 +449,11 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.setComponentDelegate(SERIAL, delegate, capabilities, uint48(block.timestamp + 1 days));
 
         vm.prank(delegate);
-        manager.markMissing(SERIAL);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
         assertTrue(manager.missingStatus(SERIAL), "delegate should mark missing");
 
         vm.prank(delegate);
-        manager.clearMissing(SERIAL);
+        manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
         assertFalse(manager.missingStatus(SERIAL), "delegate should clear missing");
 
         vm.prank(delegate);
@@ -442,15 +465,17 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         );
     }
 
-    /// @dev `setMissingStatus` is the generic status toggle behind the public
-    /// mark/clear helpers. It must enforce the same capability and status rules
-    /// so clients cannot bypass workflow checks by calling the lower-level API.
-    function test_setMissingStatusUsesSameAuthorizationAndStateMachineAsMarkAndClear() external {
+    /// @dev Missing and recovery reports are external documents referenced by
+    /// URI. Empty strings would create irreversible status events that cannot
+    /// be interpreted by users, indexers, or recovery agents.
+    function test_missingLifecycleRequiresReportAndResolutionUris() external {
         registerDefaultComponent();
-
         bytes32 serialHash = manager.serialHashOf(SERIAL);
         uint64 markMissingCapability = manager.CAP_MARK_MISSING();
         uint64 clearMissingCapability = manager.CAP_CLEAR_MISSING();
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.markComponentMissing("", "");
 
         vm.prank(stranger);
         vm.expectRevert(
@@ -458,19 +483,19 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
                 BicycleComponentManager.Unauthorized.selector, stranger, serialHash, markMissingCapability
             )
         );
-        manager.setMissingStatus(SERIAL, true);
+        manager.markComponentMissing(SERIAL, "");
 
         vm.prank(owner);
-        manager.setMissingStatus(SERIAL, true);
-        assertTrue(manager.missingStatus(SERIAL), "owner should mark missing through generic setter");
+        vm.expectRevert(BicycleComponentManager.EmptyLifecycleURI.selector);
+        manager.markComponentMissing(SERIAL, "");
 
         vm.prank(owner);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
+
         vm.expectRevert(
-            abi.encodeWithSelector(
-                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Missing
-            )
+            abi.encodeWithSelector(BicycleComponentManager.ComponentNotRegistered.selector, manager.serialHashOf(SECOND_SERIAL))
         );
-        manager.setMissingStatus(SERIAL, true);
+        manager.clearComponentMissing(SECOND_SERIAL, "");
 
         vm.prank(stranger);
         vm.expectRevert(
@@ -478,19 +503,11 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
                 BicycleComponentManager.Unauthorized.selector, stranger, serialHash, clearMissingCapability
             )
         );
-        manager.setMissingStatus(SERIAL, false);
+        manager.clearComponentMissing(SERIAL, "");
 
         vm.prank(owner);
-        manager.setMissingStatus(SERIAL, false);
-        assertFalse(manager.missingStatus(SERIAL), "owner should clear missing through generic setter");
-
-        vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Active
-            )
-        );
-        manager.setMissingStatus(SERIAL, false);
+        vm.expectRevert(BicycleComponentManager.EmptyLifecycleURI.selector);
+        manager.clearComponentMissing(SERIAL, "");
     }
 
     /// @dev Pause is an emergency write gate on the manager. The test samples
@@ -512,7 +529,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.prank(owner);
         vm.expectRevert(Pausable.EnforcedPause.selector);
-        manager.markMissing(SERIAL);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
     }
 
     /// @dev Attestations are event provenance rather than component mutation.

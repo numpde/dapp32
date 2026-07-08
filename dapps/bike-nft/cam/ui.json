@@ -181,6 +181,26 @@
           }
         },
         {
+          "element": "TextField",
+          "props": {
+            "label": "Missing report URI"
+          },
+          "state": {
+            "key": "reportURI",
+            "defaultValue": "fixture://bike-nft/reports/missing-report.json"
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Resolution URI"
+          },
+          "state": {
+            "key": "resolutionURI",
+            "defaultValue": "fixture://bike-nft/reports/resolution.json"
+          }
+        },
+        {
           "element": "Status",
           "props": {
             "label": "Serial hash",
@@ -382,7 +402,8 @@
         "namespace": "routes",
         "function": "markComponentMissing",
         "args": {
-          "serialNumber": "$view.serialNumber"
+          "serialNumber": "$view.serialNumber",
+          "reportURI": "$state.reportURI"
         }
       }
     },
@@ -398,7 +419,8 @@
         "namespace": "routes",
         "function": "clearComponentMissing",
         "args": {
-          "serialNumber": "$view.serialNumber"
+          "serialNumber": "$view.serialNumber",
+          "resolutionURI": "$state.resolutionURI"
         }
       }
     },

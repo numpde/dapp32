@@ -34,6 +34,8 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
     string private constant BUYER_INFO_URI = "fixture://bike-nft/accounts/buyer.json";
     string private constant SHOP_TOKEN_URI = "fixture://bike-nft/scenario/shop-updated-frame-001.json";
     string private constant OWNER_INFO_URI = "fixture://bike-nft/accounts/owner.json";
+    string private constant REPORT_URI = "fixture://bike-nft/reports/scenario-frame-001-missing.json";
+    string private constant RESOLUTION_URI = "fixture://bike-nft/reports/scenario-frame-001-recovered.json";
     string private constant REGISTRAR_ATTESTATION_URI = "fixture://bike-nft/attestations/registrar-inspection.json";
     string private constant STATUS_ATTESTATION_URI = "fixture://bike-nft/attestations/status-attester-inspection.json";
 
@@ -137,7 +139,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertActiveOwnerActions(view_.actions);
 
         vm.prank(owner);
-        manager.markMissing(SERIAL);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(
@@ -149,7 +151,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertMissingOwnerActions(view_.actions);
 
         vm.prank(owner);
-        manager.clearMissing(SERIAL);
+        manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
 
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(
@@ -188,7 +190,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.setComponentDelegate(SERIAL, delegate, allCapabilities, uint48(block.timestamp + 7 days));
 
         vm.prank(delegate);
-        manager.markMissing(SERIAL);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
 
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
@@ -210,7 +212,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertMissingOwnerActions(buyerView.actions);
 
         vm.prank(buyer);
-        manager.clearMissing(SERIAL);
+        manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
         assertActiveOwnerActions(ui.viewComponent(SERIAL, buyer).actions);
 
         vm.prank(buyer);
@@ -282,7 +284,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.setComponentMetadata(SERIAL, SHOP_TOKEN_URI);
 
         vm.prank(delegate);
-        manager.markMissing(SERIAL);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
 
         BicycleComponentManagerUI.AppView memory shopView = ui.viewComponent(SERIAL, delegate);
         assertEq(shopView.tokenURI, SHOP_TOKEN_URI, "delegate metadata should be visible");
@@ -464,7 +466,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
                 BicycleComponentManager.Unauthorized.selector, delegate, serialHash, markMissingCapability
             )
         );
-        manager.markMissing(SERIAL);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
 
         BicycleComponentManagerUI.AppView memory ownerView = ui.viewComponent(SERIAL, owner);
         assertEq(ownerView.tokenURI, SHOP_TOKEN_URI, "revocation should not roll back completed work");
@@ -521,7 +523,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
                 BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
             )
         );
-        manager.markMissing(SERIAL);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
 
         vm.prank(buyer);
         vm.expectRevert(
@@ -529,15 +531,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
                 BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
             )
         );
-        manager.clearMissing(SERIAL);
-
-        vm.prank(buyer);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
-            )
-        );
-        manager.setMissingStatus(SERIAL, false);
+        manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
     }
 
     // The component-token contract is a real dependency, not a passive data

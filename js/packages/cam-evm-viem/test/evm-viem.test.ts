@@ -72,6 +72,7 @@ const ROOT_CAM_HASH = "camHash"
 const NO_ROUTE_RESULTS = {}
 const uiAbi = uiAbiJson as Abi
 const managerAbi = managerAbiJson as Abi
+const bikeMissingReportURI = "fixture://bike-nft/reports/js-missing.json"
 const testChain: Chain = {
   id: 31337,
   name: "CAM test chain",
@@ -866,6 +867,7 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
       function: BIKE_MARK_MISSING,
       args: {
         serialNumber: BIKE_SERIAL_NUMBER,
+        reportURI: bikeMissingReportURI,
       },
     },
   })
@@ -877,7 +879,7 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
       address: managerAddress,
       abi: markMissingAbi,
       functionName: BIKE_MARK_MISSING,
-      args: [BIKE_SERIAL_NUMBER],
+      args: [BIKE_SERIAL_NUMBER, bikeMissingReportURI],
       chain: testChain,
     },
   ])
@@ -934,6 +936,7 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
         function: BIKE_MARK_MISSING,
         args: {
           serialNumber: BIKE_SERIAL_NUMBER,
+          reportURI: bikeMissingReportURI,
         },
       },
     }),
@@ -950,6 +953,7 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
       function: BIKE_MARK_MISSING,
       args: {
         serialNumber: BIKE_SERIAL_NUMBER,
+        reportURI: bikeMissingReportURI,
       },
     },
   })
@@ -959,7 +963,7 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
       address: managerAddress,
       abi: markMissingAbi,
       functionName: BIKE_MARK_MISSING,
-      args: [BIKE_SERIAL_NUMBER],
+      args: [BIKE_SERIAL_NUMBER, bikeMissingReportURI],
       account: userAddress,
     },
   ])
@@ -1145,9 +1149,10 @@ test("sendCamContractCall resolves full signatures for overloaded writes", async
     call: {
       address: managerAddress,
       abi,
-      function: `${BIKE_MARK_MISSING}(string)`,
+      function: `${BIKE_MARK_MISSING}(string,string)`,
       args: {
         serialNumber: BIKE_SERIAL_NUMBER,
+        reportURI: bikeMissingReportURI,
       },
     },
   })
@@ -1157,7 +1162,7 @@ test("sendCamContractCall resolves full signatures for overloaded writes", async
       address: managerAddress,
       abi: [findAbiFunction(abi, BIKE_MARK_MISSING)],
       functionName: BIKE_MARK_MISSING,
-      args: [BIKE_SERIAL_NUMBER],
+      args: [BIKE_SERIAL_NUMBER, bikeMissingReportURI],
       chain: testChain,
     },
   ])
@@ -1523,6 +1528,10 @@ function overloadedMarkMissingAbi(): Abi {
       inputs: [
         {
           name: "serialNumber",
+          type: "string",
+        },
+        {
+          name: "reportURI",
           type: "string",
         },
         {

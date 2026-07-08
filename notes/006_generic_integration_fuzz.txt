@@ -268,7 +268,7 @@ It will not know:
     seeded component DEMO-FRAME-001 should exist
     registrar should see exactly these buttons
     non-registrar must not register
-    marking missing should remove markMissing and add clearMissing
+    marking missing should remove markComponentMissing and add clearComponentMissing
     a specific token ID should be minted
 
 Those are dapp-owned workflow assertions. They can be added later beside CAM

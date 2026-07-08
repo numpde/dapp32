@@ -96,6 +96,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     error InvalidCapabilityMask(uint64 capabilities);
     error InvalidDelegationExpiry(uint48 validUntil);
     error InvalidStatus(ComponentStatus status);
+    error EmptyLifecycleURI();
     error DoesNotAcceptPayments();
     error UnknownFunction(bytes4 selector);
 
@@ -134,6 +135,24 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         string serialNumber,
         ComponentStatus oldStatus,
         ComponentStatus newStatus
+    );
+
+    event ComponentReported(
+        bytes32 indexed serialHash,
+        address indexed tokenContract,
+        uint256 indexed tokenId,
+        address reporter,
+        string serialNumber,
+        string reportURI
+    );
+
+    event ComponentReportResolved(
+        bytes32 indexed serialHash,
+        address indexed tokenContract,
+        uint256 indexed tokenId,
+        address resolver,
+        string serialNumber,
+        string resolutionURI
     );
 
     event ComponentDelegationSet(
@@ -256,16 +275,12 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         );
     }
 
-    function markMissing(string calldata serialNumber) external whenNotPaused {
-        _setMissing(serialNumber, true);
+    function markComponentMissing(string calldata serialNumber, string calldata reportURI) external whenNotPaused {
+        _setMissing(serialNumber, true, reportURI);
     }
 
-    function clearMissing(string calldata serialNumber) external whenNotPaused {
-        _setMissing(serialNumber, false);
-    }
-
-    function setMissingStatus(string calldata serialNumber, bool isMissing) external whenNotPaused {
-        _setMissing(serialNumber, isMissing);
+    function clearComponentMissing(string calldata serialNumber, string calldata resolutionURI) external whenNotPaused {
+        _setMissing(serialNumber, false, resolutionURI);
     }
 
     function retireComponent(string calldata serialNumber) external whenNotPaused {
@@ -566,7 +581,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         emit ComponentRegistered(serialHash, tokenContract, tokenId, owner, _msgSender(), serialNumber, tokenURI_);
     }
 
-    function _setMissing(string calldata serialNumber, bool isMissing) internal {
+    function _setMissing(string calldata serialNumber, bool isMissing, string calldata lifecycleURI) internal {
         bytes32 serialHash = _requireSerialNumber(serialNumber);
         ComponentRecord storage record = _requireRegistered(serialHash);
         address actor = _msgSender();
@@ -576,13 +591,19 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
                 revert Unauthorized(actor, serialHash, CAP_MARK_MISSING);
             }
             if (record.status != ComponentStatus.Active) revert InvalidStatus(record.status);
+            if (bytes(lifecycleURI).length == 0) revert EmptyLifecycleURI();
             _updateStatus(record, actor, ComponentStatus.Missing);
+            emit ComponentReported(record.serialHash, record.tokenContract, record.tokenId, actor, record.serialNumber, lifecycleURI);
         } else {
             if (!_canAct(record, actor, CAP_CLEAR_MISSING)) {
                 revert Unauthorized(actor, serialHash, CAP_CLEAR_MISSING);
             }
             if (record.status != ComponentStatus.Missing) revert InvalidStatus(record.status);
+            if (bytes(lifecycleURI).length == 0) revert EmptyLifecycleURI();
             _updateStatus(record, actor, ComponentStatus.Active);
+            emit ComponentReportResolved(
+                record.serialHash, record.tokenContract, record.tokenId, actor, record.serialNumber, lifecycleURI
+            );
         }
     }
 

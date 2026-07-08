@@ -10,7 +10,7 @@
     "contracts.BicycleComponentManager": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManager.json",
-      "integrity": "sha256:0x79799b5e6f26d796af04de48ac89fb7074cd42d6d28c4064071f74663fdcb794"
+      "integrity": "sha256:0xcc36dbe7a334a5ad3de990a532fa44530fcc9063aead9ba05fe7f16872b79c37"
     },
     "routes": {
       "type": "routes"
@@ -18,7 +18,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x18e9620c64352b81d94cecc0e74c6706c55c1436028aa9762e7ca84d61cbe4e0"
+      "integrity": "sha256:0x4aa73daabc2c1de37e7b45e37d5be4320d85c8f6b4fbf95d1e4e8300fa430b94"
     }
   },
   "routes": {
@@ -130,13 +130,15 @@
     "markComponentMissing": {
       "kind": "write",
       "inputs": [
-        "serialNumber"
+        "serialNumber",
+        "reportURI"
       ],
       "call": {
         "namespace": "contracts.BicycleComponentManager",
-        "function": "markMissing",
+        "function": "markComponentMissing",
         "args": {
-          "serialNumber": "$inputs.serialNumber"
+          "serialNumber": "$inputs.serialNumber",
+          "reportURI": "$inputs.reportURI"
         }
       },
       "then": {
@@ -150,13 +152,15 @@
     "clearComponentMissing": {
       "kind": "write",
       "inputs": [
-        "serialNumber"
+        "serialNumber",
+        "resolutionURI"
       ],
       "call": {
         "namespace": "contracts.BicycleComponentManager",
-        "function": "clearMissing",
+        "function": "clearComponentMissing",
         "args": {
-          "serialNumber": "$inputs.serialNumber"
+          "serialNumber": "$inputs.serialNumber",
+          "resolutionURI": "$inputs.resolutionURI"
         }
       },
       "then": {
