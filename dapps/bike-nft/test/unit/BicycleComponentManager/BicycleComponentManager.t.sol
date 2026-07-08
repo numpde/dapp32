@@ -434,6 +434,15 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
             "component should be missing"
         );
+        assertFalse(manager.canRetire(owner, SERIAL), "missing report must be resolved before retirement");
+
+        vm.prank(owner);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Missing
+            )
+        );
+        manager.retireComponent(SERIAL);
 
         vm.prank(owner);
         vm.expectEmit(true, true, true, true, address(manager));

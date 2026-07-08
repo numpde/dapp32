@@ -70,8 +70,7 @@ abstract contract BicycleComponentManagerTestSupport is Test {
             expectedActions(
                 ACTION_LOOKUP_COMPONENT,
                 ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_CLEAR_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
+                ACTION_CLEAR_COMPONENT_MISSING
             )
         );
     }

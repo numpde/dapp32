@@ -145,7 +145,7 @@ export function bikeComponentRouteResult(
     canUpdateMetadata: canAct && !isRetired,
     canMarkMissing: canAct && isActive,
     canClearMissing: canAct && isMissing,
-    canRetire: canAct && !isRetired,
+    canRetire: canAct && isActive,
     componentsAddress: BIKE_ZERO_ADDRESS,
   }
 }
@@ -215,7 +215,7 @@ function componentActions(canAct: boolean, status: BikeComponentFixtureStatus): 
   }
 
   if (status === "missing") {
-    return ["lookupComponent", "updateComponentMetadata", "clearComponentMissing", "retireComponent"]
+    return ["lookupComponent", "updateComponentMetadata", "clearComponentMissing"]
   }
 
   return ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"]

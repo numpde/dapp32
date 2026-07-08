@@ -73,10 +73,11 @@ test("bike fixture models the real UI projection branch states", () => {
   })
   assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "missing"), {
     viewId: "component.missing",
-    actions: ["lookupComponent", "updateComponentMetadata", "clearComponentMissing", "retireComponent"],
+    actions: ["lookupComponent", "updateComponentMetadata", "clearComponentMissing"],
     statusId: "missing",
     canMarkMissing: false,
     canClearMissing: true,
+    canRetire: false,
   })
   assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "retired"), {
     viewId: "component.retired",

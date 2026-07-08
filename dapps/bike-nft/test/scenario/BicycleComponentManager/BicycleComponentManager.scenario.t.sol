@@ -306,7 +306,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
 
         assertActions(
             ui.viewComponent(SERIAL, delegate).actions,
-            expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_CLEAR_COMPONENT_MISSING, ACTION_RETIRE_COMPONENT)
+            expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_CLEAR_COMPONENT_MISSING)
         );
 
         vm.warp(resolveAndCloseValidUntil);

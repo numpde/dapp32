@@ -291,7 +291,10 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         if (!_canAct(record, actor, CAP_RETIRE)) {
             revert Unauthorized(actor, serialHash, CAP_RETIRE);
         }
-        if (record.status == ComponentStatus.Retired) revert InvalidStatus(record.status);
+        // A missing report must be resolved with a URI before the component
+        // enters the final Retired state; otherwise indexers see an open report
+        // with no closing event.
+        if (record.status != ComponentStatus.Active) revert InvalidStatus(record.status);
 
         _updateStatus(record, actor, ComponentStatus.Retired);
     }
@@ -541,8 +544,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
 
     function canRetire(address actor, string calldata serialNumber) external view override returns (bool) {
         ComponentRecord storage record = _componentRecords[serialHashOf(serialNumber)];
-        return record.status != ComponentStatus.None && record.status != ComponentStatus.Retired
-            && _canAct(record, actor, CAP_RETIRE);
+        return record.status == ComponentStatus.Active && _canAct(record, actor, CAP_RETIRE);
     }
 
     // ---------------------------------------------------------------------

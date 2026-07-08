@@ -31,7 +31,6 @@ test("bike mock backend renders active and missing lifecycle branches explicitly
     "component",
     "updateComponentMetadata",
     "clearComponentMissing",
-    "retireComponent",
   ])
   assert.equal(Object.hasOwn(missing.state, "reportURI"), false)
   assert.equal(Object.hasOwn(missing.state, "resolutionURI"), true)
