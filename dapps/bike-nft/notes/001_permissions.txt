@@ -77,7 +77,7 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 | `retireComponent(serial)` | Current ERC-721 owner or `CAP_RETIRE` delegate | Active components only. Resolve any missing report first so retirement does not leave an open report without a resolution event. Treat retirement as final/irreversible unless explicitly designed otherwise. |
 | `setComponentDelegate(serial, delegate, caps, validUntil)` | Current ERC-721 owner | Store `grantor = owner`. Delegation is valid only while `ownerOf(tokenContract, tokenId) == grantor`. |
 | `revokeComponentDelegate(serial, delegate)` | Current ERC-721 owner | Old-owner delegations are automatically ineffective after transfer. |
-| `addComponentAttestation(serial, attestationType, uri)` | Original registrar or `STATUS_ATTESTER_ROLE` | Does not alter ownership, token URI, or missing status. |
+| `addComponentAttestation(serial, attestationType, uri)` | Original registrar or `STATUS_ATTESTER_ROLE` | Requires non-empty type and URI. Does not alter ownership, token URI, or missing status. |
 | `setAccountInfo(uri)` | `msg.sender` only | Prefer no `account` parameter. If kept, require `account == msg.sender`. |
 | `pause()` | `PAUSER_ROLE` | Emergency stop for manager writes. |
 | `unpause()` | `PAUSER_ROLE` or separate governance role | Consider separate unpause authority later. |

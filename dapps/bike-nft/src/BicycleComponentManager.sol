@@ -97,6 +97,8 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     error InvalidDelegationExpiry(uint48 validUntil);
     error InvalidStatus(ComponentStatus status);
     error EmptyLifecycleURI();
+    error EmptyAttestationType();
+    error EmptyAttestationURI();
     error DoesNotAcceptPayments();
     error UnknownFunction(bytes4 selector);
 
@@ -373,6 +375,8 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         if (actor != record.registrar && !hasRole(STATUS_ATTESTER_ROLE, actor)) {
             revert Unauthorized(actor, serialHash, 0);
         }
+        if (attestationType == bytes32(0)) revert EmptyAttestationType();
+        if (bytes(attestationURI).length == 0) revert EmptyAttestationURI();
 
         emit ComponentAttestationAdded(
             serialHash,

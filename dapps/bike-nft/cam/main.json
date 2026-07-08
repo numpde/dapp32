@@ -10,7 +10,7 @@
     "contracts.BicycleComponentManager": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManager.json",
-      "integrity": "sha256:0x71bbc2ac36979e4e1d6644791ce4628184433f641912ec834b2ee8ac274abbba"
+      "integrity": "sha256:0x31348163767c31f88e54be9eff98e56687c59869059b9b8454cc2627df1909e6"
     },
     "routes": {
       "type": "routes"

@@ -556,6 +556,14 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.addComponentAttestation(SERIAL, attestationType, "fixture://attestations/unauthorized.json");
 
         vm.prank(registrar);
+        vm.expectRevert(BicycleComponentManager.EmptyAttestationType.selector);
+        manager.addComponentAttestation(SERIAL, bytes32(0), "fixture://attestations/empty-type.json");
+
+        vm.prank(registrar);
+        vm.expectRevert(BicycleComponentManager.EmptyAttestationURI.selector);
+        manager.addComponentAttestation(SERIAL, attestationType, "");
+
+        vm.prank(registrar);
         manager.addComponentAttestation(SERIAL, attestationType, "fixture://attestations/registrar.json");
 
         vm.prank(statusAttester);

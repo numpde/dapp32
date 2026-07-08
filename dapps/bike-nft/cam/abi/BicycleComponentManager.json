@@ -1794,6 +1794,16 @@
   },
   {
     "type": "error",
+    "name": "EmptyAttestationType",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "EmptyAttestationURI",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "EmptyLifecycleURI",
     "inputs": []
   },
