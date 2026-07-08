@@ -81,6 +81,14 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 | `unpause()` | `PAUSER_ROLE` or separate governance role | Consider separate unpause authority later. |
 | `grantRole(...)` / `revokeRole(...)` | `DEFAULT_ADMIN_ROLE` | Registrar onboarding/removal. Prefer Safe/timelock. |
 
+## Pause Projection Limitation
+
+Emergency pause is enforced by the write functions. The read-only UI projection
+still reports the owner/delegate actions that would be valid for the component
+state, because it is not the authority that submits or simulates writes and it
+does not inspect component-token pause state. Callers must treat prepared
+transactions as subject to execution-time pause checks.
+
 ## Explicitly Out of V1
 
 | Feature | Reason |
