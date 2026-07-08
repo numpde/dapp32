@@ -266,6 +266,8 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
     /// serial hash. The UI may represent empty input as a route state, but the
     /// manager must never register or query it as a real component identity.
     function test_emptySerialNumberIsRejectedAtManagerBoundary() external {
+        uint64 updateMetadataCapability = manager.CAP_UPDATE_METADATA();
+
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.serialHashOf("");
 
@@ -274,6 +276,42 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.componentBySerial("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.isRegistered("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.tokenReference("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.ownerOf("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.componentURI("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.componentStatus("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.missingStatus("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.componentDelegation("", delegate);
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.permissionsOf(owner, "");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.canUpdateMetadata(owner, "");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.canMarkMissing(owner, "");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.canClearMissing(owner, "");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.canRetire(owner, "");
 
         vm.prank(registrar);
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
@@ -290,6 +328,12 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.retireComponent("");
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.setComponentDelegate("", delegate, updateMetadataCapability, uint48(block.timestamp + 1 days));
+
+        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
+        manager.revokeComponentDelegate("", delegate);
     }
 
     /// @dev Component metadata is the registry's user-readable evidence
