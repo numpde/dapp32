@@ -36,6 +36,7 @@ import {
   BIKE_ZERO_BYTES32,
   bikeComponentRouteResult,
   bikeContractAddresses,
+  bikeEntryRouteResult,
   bikeHost,
   bikeRegisterRouteResult,
   bikeRouteResults,
@@ -97,6 +98,18 @@ test("bike fixture models the real UI projection branch states", () => {
     canUpdateMetadata: false,
     canMarkMissing: false,
     canRetire: false,
+  })
+
+  assertBikeProjection(bikeEntryRouteResult(BIKE_ZERO_ADDRESS), {
+    viewId: "entry",
+    actions: ["lookupComponent"],
+    canRegister: false,
+  })
+  assertBikeProjection(bikeEntryRouteResult(userAddress), {
+    viewId: "entry",
+    actions: ["lookupComponent", "openRegister", "setAccountInfo"],
+    account: userAddress,
+    canRegister: true,
   })
 
   assertBikeProjection(bikeRegisterRouteResult("", userAddress), {

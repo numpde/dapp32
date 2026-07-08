@@ -82,7 +82,7 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
 
   return {
     viewId: "entry",
-    actions: entryActions(),
+    actions: account === BIKE_ZERO_ADDRESS ? lookupOnlyActions() : entryActions(),
     account,
     canRegister,
     accountInfo: bikeAccountInfo(account),
