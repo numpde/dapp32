@@ -339,6 +339,8 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
 
     /// @notice Sets the caller's public profile/contact-info URI.
     /// @dev Store a URI or content hash, not sensitive plaintext personal data.
+    /// Empty string intentionally clears optional profile metadata; component
+    /// metadata and lifecycle reports have stricter non-empty guards.
     function setAccountInfo(string calldata infoURI) external whenNotPaused {
         address account = _msgSender();
         _accountInfo[account] = infoURI;
