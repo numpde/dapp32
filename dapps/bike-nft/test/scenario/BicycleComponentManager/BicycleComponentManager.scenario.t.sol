@@ -290,6 +290,15 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         );
         assertEq(shopView.statusId, "missing", "delegate missing semantic status");
         assertEq(shopView.missingReportURI, REPORT_URI, "delegate report URI should project");
+        assertEq(shopView.authorityId, "delegate", "delegate authority source should project");
+        assertEq(shopView.delegationGrantor, owner, "delegate authority grantor should project");
+        assertEq(
+            shopView.delegationCapabilities,
+            inspectAndReportCapabilities,
+            "delegate authority capabilities should project"
+        );
+        assertEq(shopView.delegationValidUntil, validUntil, "delegate authority expiry should project");
+        assertTrue(shopView.delegationActive, "delegate authority should project as active");
         assertActions(shopView.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA));
 
         uint64 resolveAndCloseCapabilities = manager.CAP_CLEAR_MISSING() | manager.CAP_RETIRE();
@@ -305,7 +314,13 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         vm.warp(resolveAndCloseValidUntil);
 
         assertEq(manager.permissionsOf(delegate, SERIAL), 0, "delegate permissions should expire");
-        assertLookupOnly(ui.viewComponent(SERIAL, delegate).actions);
+        shopView = ui.viewComponent(SERIAL, delegate);
+        assertEq(shopView.authorityId, "none", "expired delegate authority source should clear");
+        assertEq(shopView.delegationGrantor, address(0), "expired delegate grantor should clear");
+        assertEq(shopView.delegationCapabilities, 0, "expired delegate capabilities should clear");
+        assertEq(shopView.delegationValidUntil, 0, "expired delegate expiry should clear");
+        assertFalse(shopView.delegationActive, "expired delegate authority should project inactive");
+        assertLookupOnly(shopView.actions);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),

@@ -43,6 +43,9 @@ contract BicycleComponentManagerUI {
     string private constant STATUS_ACTIVE = "active";
     string private constant STATUS_MISSING = "missing";
     string private constant STATUS_RETIRED = "retired";
+    string private constant AUTHORITY_NONE = "none";
+    string private constant AUTHORITY_OWNER = "owner";
+    string private constant AUTHORITY_DELEGATE = "delegate";
 
     /// @notice Semantic view state consumed by the CAM UI schema.
     /// @dev
@@ -70,6 +73,11 @@ contract BicycleComponentManagerUI {
         string serialNumber;
         uint64 permissions;
         bool isOwner;
+        string authorityId;
+        address delegationGrantor;
+        uint64 delegationCapabilities;
+        uint48 delegationValidUntil;
+        bool delegationActive;
         bool canUpdateMetadata;
         bool canMarkMissing;
         bool canClearMissing;
@@ -157,6 +165,7 @@ contract BicycleComponentManagerUI {
         // The manager stores status as a Solidity enum, but CAM view data must
         // expose stable semantic IDs so generic renderers never decode ordinals.
         view_.statusId = _componentStatusId(IBicycleComponentManagerView.ComponentStatus.None);
+        view_.authorityId = AUTHORITY_NONE;
 
         // Intentional default: address(0) leaves canRegister=false and
         // accountInfo="" through Solidity struct defaults. That is convenient
@@ -199,6 +208,19 @@ contract BicycleComponentManagerUI {
         if (account != address(0)) {
             view_.permissions = manager.permissionsOf(account, serialNumber);
             view_.isOwner = component.owner == account;
+            (
+                view_.delegationGrantor,
+                view_.delegationCapabilities,
+                view_.delegationValidUntil,
+                view_.delegationActive
+            ) = manager.componentDelegation(serialNumber, account);
+            if (view_.isOwner || !view_.delegationActive) {
+                view_.delegationGrantor = address(0);
+                view_.delegationCapabilities = 0;
+                view_.delegationValidUntil = 0;
+                view_.delegationActive = false;
+            }
+            view_.authorityId = _authorityId(view_.isOwner, view_.delegationActive);
             view_.canUpdateMetadata = manager.canUpdateMetadata(account, serialNumber);
             view_.canMarkMissing = manager.canMarkMissing(account, serialNumber);
             view_.canClearMissing = manager.canClearMissing(account, serialNumber);
@@ -229,6 +251,12 @@ contract BicycleComponentManagerUI {
         if (status == IBicycleComponentManagerView.ComponentStatus.Retired) return VIEW_COMPONENT_RETIRED;
 
         revert UnsupportedComponentStatus(status);
+    }
+
+    function _authorityId(bool isOwner, bool delegationActive) internal pure returns (string memory) {
+        if (isOwner) return AUTHORITY_OWNER;
+        if (delegationActive) return AUTHORITY_DELEGATE;
+        return AUTHORITY_NONE;
     }
 
     function _lookupAndRegisterActions(bool canRegister) internal pure returns (string[] memory actions) {

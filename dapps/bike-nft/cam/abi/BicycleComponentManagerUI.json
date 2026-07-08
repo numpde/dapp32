@@ -153,6 +153,31 @@
             "internalType": "bool"
           },
           {
+            "name": "authorityId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "delegationGrantor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "delegationCapabilities",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "delegationValidUntil",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "delegationActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
             "name": "canUpdateMetadata",
             "type": "bool",
             "internalType": "bool"
@@ -295,6 +320,31 @@
           },
           {
             "name": "isOwner",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "authorityId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "delegationGrantor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "delegationCapabilities",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "delegationValidUntil",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "delegationActive",
             "type": "bool",
             "internalType": "bool"
           },
@@ -446,6 +496,31 @@
           },
           {
             "name": "isOwner",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "authorityId",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "delegationGrantor",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "delegationCapabilities",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "delegationValidUntil",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "delegationActive",
             "type": "bool",
             "internalType": "bool"
           },

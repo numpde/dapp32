@@ -36,6 +36,11 @@ interface IBicycleComponentManagerView is IERC165 {
 
     function componentBySerial(string calldata serialNumber) external view returns (ComponentView memory view_);
 
+    function componentDelegation(string calldata serialNumber, address delegate)
+        external
+        view
+        returns (address grantor, uint64 capabilities, uint48 validUntil, bool active);
+
     function permissionsOf(address actor, string calldata serialNumber) external view returns (uint64 capabilities);
 
     function canUpdateMetadata(address actor, string calldata serialNumber) external view returns (bool);

@@ -167,6 +167,41 @@
           }
         },
         {
+          "element": "Status",
+          "props": {
+            "label": "Current authority",
+            "value": "$view.authorityId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Delegation active",
+            "value": "$view.delegationActive"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Delegation grantor",
+            "address": "$view.delegationGrantor"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Delegation capabilities",
+            "value": "$view.delegationCapabilities"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Delegation valid until",
+            "value": "$view.delegationValidUntil"
+          }
+        },
+        {
           "element": "Nft",
           "props": {
             "contractAddress": "$view.tokenContract",
