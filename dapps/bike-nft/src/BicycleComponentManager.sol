@@ -95,6 +95,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     error InvalidCapabilityMask(uint64 capabilities);
     error InvalidDelegationExpiry(uint48 validUntil);
     error InvalidStatus(ComponentStatus status);
+    error EmptyTokenURI();
     error EmptyLifecycleURI();
     error DoesNotAcceptPayments();
     error UnknownFunction(bytes4 selector);
@@ -254,6 +255,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
             revert Unauthorized(actor, serialHash, CAP_UPDATE_METADATA);
         }
         if (record.status == ComponentStatus.Retired) revert InvalidStatus(record.status);
+        if (bytes(tokenURI_).length == 0) revert EmptyTokenURI();
 
         IBicycleComponents(record.tokenContract).setTokenURI(record.tokenId, tokenURI_);
         record.updatedAt = _now48();
@@ -521,6 +523,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         if (_componentRecords[serialHash].status != ComponentStatus.None) {
             revert ComponentAlreadyRegistered(serialHash);
         }
+        if (bytes(tokenURI_).length == 0) revert EmptyTokenURI();
 
         tokenId = uint256(serialHash);
 

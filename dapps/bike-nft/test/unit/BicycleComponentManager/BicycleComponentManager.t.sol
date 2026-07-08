@@ -292,6 +292,21 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.retireComponent("");
     }
 
+    /// @dev Component metadata is the registry's user-readable evidence
+    /// pointer. Empty strings would create verified records or updates that
+    /// indexers cannot resolve.
+    function test_emptyComponentMetadataUriIsRejectedAtManagerBoundary() external {
+        vm.prank(registrar);
+        vm.expectRevert(BicycleComponentManager.EmptyTokenURI.selector);
+        manager.registerComponent(owner, SERIAL, "");
+
+        registerDefaultComponent();
+
+        vm.prank(owner);
+        vm.expectRevert(BicycleComponentManager.EmptyTokenURI.selector);
+        manager.setComponentMetadata(SERIAL, "");
+    }
+
     /// @dev Delegation is capability- and owner-scoped. This test checks the
     /// full lifecycle that makes delegations safe: unauthorized users fail,
     /// owners and active delegates can write, expiry removes power at the
