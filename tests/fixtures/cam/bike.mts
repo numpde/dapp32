@@ -39,6 +39,8 @@ export const BIKE_TOKEN_ID = BigInt(BIKE_SERIAL_HASH)
 export const BIKE_UNKNOWN_TOKEN_ID = BigInt(BIKE_UNKNOWN_SERIAL_HASH)
 export const BIKE_UNSIGNED_CAM_HASH = BIKE_ZERO_BYTES32
 
+export type BikeComponentFixtureStatus = "active" | "missing"
+
 export const bikeHost = {
   chainId: BIKE_HOST_CHAIN_ID,
   address: BIKE_HOST_ADDRESS,
@@ -63,10 +65,11 @@ export function bikeAddressForContract(name: string): BikeFixtureAddress {
 export function bikeRouteResults(
   serialNumber: string,
   account: string,
+  status: BikeComponentFixtureStatus,
 ): Record<string, unknown> {
   return {
     [BIKE_VIEW_ENTRY]: bikeEntryRouteResult(account),
-    [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber, account),
+    [BIKE_VIEW_COMPONENT]: bikeComponentRouteResult(serialNumber, account, status),
     [BIKE_VIEW_REGISTER]: bikeRegisterRouteResult(serialNumber, account),
   }
 }
@@ -108,14 +111,16 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
 export function bikeComponentRouteResult(
   serialNumber: string,
   account: string,
+  status: BikeComponentFixtureStatus,
 ): Record<string, unknown> {
   const exists = serialNumber === BIKE_SERIAL_NUMBER
   const empty = serialNumber.length === 0
   const canAct = exists && account === BIKE_ACCOUNT_ADDRESS
+  const isMissing = exists && status === "missing"
 
   return {
     viewId: empty ? "component.empty" : exists ? "component.found" : "component.notFound",
-    actions: exists ? componentActions(canAct) : lookupAndRegisterActions(),
+    actions: exists ? componentActions(canAct, isMissing) : lookupAndRegisterActions(),
     account,
     canRegister: bikeCanRegister(account),
     accountInfo: bikeAccountInfo(account),
@@ -128,7 +133,7 @@ export function bikeComponentRouteResult(
     owner: exists ? BIKE_ACCOUNT_ADDRESS : BIKE_ZERO_ADDRESS,
     ownerInfo: exists ? "Mock owner account" : "",
     registrar: exists ? BIKE_ACCOUNT_ADDRESS : BIKE_ZERO_ADDRESS,
-    statusId: exists ? "active" : "none",
+    statusId: exists ? isMissing ? "missing" : "active" : "none",
     tokenURI: exists ? `ipfs://example/token/${serialNumber}` : "",
     registeredAt: exists ? 1n : 0n,
     updatedAt: exists ? 2n : 0n,
@@ -136,8 +141,8 @@ export function bikeComponentRouteResult(
     permissions: canAct ? 15n : 0n,
     isOwner: canAct,
     canUpdateMetadata: canAct,
-    canMarkMissing: canAct,
-    canClearMissing: false,
+    canMarkMissing: canAct && !isMissing,
+    canClearMissing: canAct && isMissing,
     canRetire: canAct,
     componentsAddress: BIKE_ZERO_ADDRESS,
   }
@@ -202,9 +207,13 @@ function registerReadyActions(): string[] {
   return ["registerComponent", "lookupComponent"]
 }
 
-function componentActions(canAct: boolean): string[] {
+function componentActions(canAct: boolean, isMissing: boolean): string[] {
   if (!canAct) {
     return lookupOnlyActions()
+  }
+
+  if (isMissing) {
+    return ["lookupComponent", "updateComponentMetadata", "clearComponentMissing", "retireComponent"]
   }
 
   return ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"]

@@ -1388,16 +1388,16 @@
         "internalType": "address"
       },
       {
-        "name": "tokenId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
         "name": "resolver",
         "type": "address",
-        "indexed": false,
+        "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       },
       {
         "name": "serialNumber",
@@ -1431,16 +1431,16 @@
         "internalType": "address"
       },
       {
-        "name": "tokenId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
         "name": "reporter",
         "type": "address",
-        "indexed": false,
+        "indexed": true,
         "internalType": "address"
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       },
       {
         "name": "serialNumber",

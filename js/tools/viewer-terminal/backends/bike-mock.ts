@@ -111,7 +111,7 @@ function mockReadContract(functionName: string, args: readonly InertValue[]): un
       return bikeEntryRouteResult(requireStringArgs(functionName, args, 1)[0])
     case BIKE_VIEW_COMPONENT: {
       const routeArgs = requireStringArgs(functionName, args, 2)
-      return bikeComponentRouteResult(routeArgs[0], routeArgs[1])
+      return bikeComponentRouteResult(routeArgs[0], routeArgs[1], "active")
     }
     case BIKE_VIEW_REGISTER: {
       const routeArgs = requireStringArgs(functionName, args, 2)

@@ -10,7 +10,7 @@
     "contracts.BicycleComponentManager": {
       "type": "contract",
       "abiURI": "./abi/BicycleComponentManager.json",
-      "integrity": "sha256:0xcc36dbe7a334a5ad3de990a532fa44530fcc9063aead9ba05fe7f16872b79c37"
+      "integrity": "sha256:0x71bbc2ac36979e4e1d6644791ce4628184433f641912ec834b2ee8ac274abbba"
     },
     "routes": {
       "type": "routes"
@@ -18,7 +18,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x4aa73daabc2c1de37e7b45e37d5be4320d85c8f6b4fbf95d1e4e8300fa430b94"
+      "integrity": "sha256:0x6db6c7d71dfab466bc86779bf45ee0db22fbadb6bccc5d56e1abe0da9356c623"
     }
   },
   "routes": {

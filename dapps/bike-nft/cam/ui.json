@@ -187,7 +187,7 @@
           },
           "state": {
             "key": "reportURI",
-            "defaultValue": "fixture://bike-nft/reports/missing-report.json"
+            "defaultValue": ""
           }
         },
         {
@@ -197,7 +197,7 @@
           },
           "state": {
             "key": "resolutionURI",
-            "defaultValue": "fixture://bike-nft/reports/resolution.json"
+            "defaultValue": ""
           }
         },
         {
@@ -413,7 +413,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Prepare missing clear"
+        "label": "Prepare recovery resolution"
       },
       "call": {
         "namespace": "routes",

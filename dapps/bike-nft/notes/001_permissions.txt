@@ -119,6 +119,15 @@ function _hasCapability(uint256 recordId, address actor, uint64 capability) inte
 }
 ```
 
+## Lifecycle Report URI Rule
+
+Missing and recovery report URIs are event-only external references. They are
+not registry authority by themselves, and the manager only rejects empty strings.
+Operators should prefer content-addressed or otherwise immutable URIs and an
+offchain schema for report/resolution documents. Indexers should pair each
+`ComponentReported` or `ComponentReportResolved` log with the adjacent
+`ComponentStatusUpdated` log from the same transaction.
+
 ## V2 Candidates
 
 - Transfer locks for `Missing`, `Disputed`, or `Retired` states.

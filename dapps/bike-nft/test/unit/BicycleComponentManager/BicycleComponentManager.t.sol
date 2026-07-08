@@ -35,8 +35,8 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
     event ComponentReported(
         bytes32 indexed serialHash,
         address indexed tokenContract,
-        uint256 indexed tokenId,
-        address reporter,
+        address indexed reporter,
+        uint256 tokenId,
         string serialNumber,
         string reportURI
     );
@@ -44,8 +44,8 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
     event ComponentReportResolved(
         bytes32 indexed serialHash,
         address indexed tokenContract,
-        uint256 indexed tokenId,
-        address resolver,
+        address indexed resolver,
+        uint256 tokenId,
         string serialNumber,
         string resolutionURI
     );
@@ -426,7 +426,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.prank(owner);
         vm.expectEmit(true, true, true, true, address(manager));
-        emit ComponentReported(serialHash, address(components), tokenId, owner, SERIAL, REPORT_URI);
+        emit ComponentReported(serialHash, address(components), owner, tokenId, SERIAL, REPORT_URI);
         manager.markComponentMissing(SERIAL, REPORT_URI);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
@@ -436,7 +436,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.prank(owner);
         vm.expectEmit(true, true, true, true, address(manager));
-        emit ComponentReportResolved(serialHash, address(components), tokenId, owner, SERIAL, RESOLUTION_URI);
+        emit ComponentReportResolved(serialHash, address(components), owner, tokenId, SERIAL, RESOLUTION_URI);
         manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),

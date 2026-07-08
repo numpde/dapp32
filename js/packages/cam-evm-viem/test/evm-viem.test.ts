@@ -316,7 +316,7 @@ test("runtime ABI declaration parsing rejects unsupported publication shapes", a
 
 test("callCamRoute orders named args by ABI and returns normalized route values", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({
-    routeResults: bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
+    routeResults: bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active"),
   }))
 
   const result = await callCamRoute({

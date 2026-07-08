@@ -50,27 +50,35 @@ import {
 
 const host: CamHost = bikeHost
 const otherUserAddress = "0x0000000000000000000000000000000000000099"
-const BIKE_DEFAULT_REPORT_URI = "fixture://bike-nft/reports/missing-report.json"
+const BIKE_REPORT_URI = "fixture://bike-nft/reports/session-missing.json"
+const BIKE_RESOLUTION_URI = "fixture://bike-nft/reports/session-recovered.json"
 const NO_RESOURCE_OVERRIDES = {}
 
 test("bike fixture models the real UI projection branch states", () => {
-  assertBikeProjection(bikeComponentRouteResult("", userAddress), {
+  assertBikeProjection(bikeComponentRouteResult("", userAddress, "active"), {
     viewId: "component.empty",
     actions: ["lookupComponent", "openRegister"],
   })
-  assertBikeProjection(bikeComponentRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress), {
+  assertBikeProjection(bikeComponentRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress, "active"), {
     viewId: "component.notFound",
     actions: ["lookupComponent", "openRegister"],
     serialHash: BIKE_UNKNOWN_SERIAL_HASH,
     tokenId: BIKE_UNKNOWN_TOKEN_ID,
   })
-  assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress), {
+  assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "active"), {
     viewId: "component.found",
     actions: ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"],
     serialHash: BIKE_SERIAL_HASH,
     tokenId: BIKE_TOKEN_ID,
   })
-  assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, otherUserAddress), {
+  assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "missing"), {
+    viewId: "component.found",
+    actions: ["lookupComponent", "updateComponentMetadata", "clearComponentMissing", "retireComponent"],
+    statusId: "missing",
+    canMarkMissing: false,
+    canClearMissing: true,
+  })
+  assertBikeProjection(bikeComponentRouteResult(BIKE_SERIAL_NUMBER, otherUserAddress, "active"), {
     viewId: "component.found",
     actions: ["lookupComponent"],
     permissions: 0n,
@@ -438,7 +446,8 @@ test("updateState rejects fields that are not backed by rendered inputs", async 
 })
 
 test("updateState resolves route actions, while write routes are surfaced without sending", async () => {
-  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  const publicClient = createPublicClient(publicClientFixtureOptions({ routeResults }))
   const session = createSession(sessionFixtureOptions({ publicClient }))
   await session.load()
 
@@ -469,11 +478,15 @@ test("updateState resolves route actions, while write routes are surfaced withou
   assert.equal(publicClient.calls.at(-1)?.functionName, BIKE_VIEW_COMPONENT)
   assert.deepEqual(publicClient.calls.at(-1)?.args, [BIKE_SERIAL_NUMBER, userAddress])
 
-  assert.equal("children" in result.snapshot.resolvedUi, true)
-  if (!("children" in result.snapshot.resolvedUi)) {
+  const reportSnapshot = session.updateState({
+    reportURI: BIKE_REPORT_URI,
+  })
+
+  assert.equal("children" in reportSnapshot.resolvedUi, true)
+  if (!("children" in reportSnapshot.resolvedUi)) {
     assert.fail("expected resolved root children")
   }
-  const writeButton = result.snapshot.resolvedUi.children.find((child) =>
+  const writeButton = reportSnapshot.resolvedUi.children.find((child) =>
     child.element === "Button" && child.call.function === "markComponentMissing"
   )
   assert.equal(writeButton?.element, "Button")
@@ -494,11 +507,44 @@ test("updateState resolves route actions, while write routes are surfaced withou
   assert.deepEqual(contractResult.call.abi, toInertValue(bikeManagerAbi))
   assert.deepEqual(
     contractResult.call.args,
-    toInertValue({ serialNumber: BIKE_SERIAL_NUMBER, reportURI: BIKE_DEFAULT_REPORT_URI }),
+    toInertValue({ serialNumber: BIKE_SERIAL_NUMBER, reportURI: BIKE_REPORT_URI }),
   )
   assert.equal(contractResult.call.then.namespace, "routes")
   assert.equal(contractResult.call.then.function, BIKE_ROUTE_COMPONENT)
   assert.equal(publicClient.calls.length, callsBefore)
+
+  const missingResult = bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "missing")
+  routeResults[BIKE_VIEW_COMPONENT] = missingResult
+  const missingSnapshot = await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  const resolutionSnapshot = session.updateState({
+    resolutionURI: BIKE_RESOLUTION_URI,
+  })
+
+  assert.deepEqual(resolutionSnapshot.values, missingSnapshot.values)
+  assert.equal("children" in resolutionSnapshot.resolvedUi, true)
+  if (!("children" in resolutionSnapshot.resolvedUi)) {
+    assert.fail("expected missing resolved root children")
+  }
+  const clearButton = resolutionSnapshot.resolvedUi.children.find((child) =>
+    child.element === "Button" && child.call.function === "clearComponentMissing"
+  )
+  assert.equal(clearButton?.element, "Button")
+  if (clearButton?.element !== "Button") {
+    assert.fail("expected resolved clear button")
+  }
+
+  const clearResult = await session.dispatchAction(clearButton)
+  assert.equal(clearResult.type, "contractCall")
+  if (clearResult.type !== "contractCall") {
+    assert.fail("expected clear contract call action result")
+  }
+  assert.equal(clearResult.call.route, "clearComponentMissing")
+  assert.equal(clearResult.call.address, managerAddress)
+  assert.equal(clearResult.call.function, "clearComponentMissing")
+  assert.deepEqual(clearResult.call.args, toInertValue({
+    serialNumber: BIKE_SERIAL_NUMBER,
+    resolutionURI: BIKE_RESOLUTION_URI,
+  }))
 })
 
 test("dispatchAction rejects actions that are not rendered in the current view", async () => {
@@ -518,7 +564,7 @@ test("dispatchAction rejects actions that are not rendered in the current view",
         function: BIKE_MARK_MISSING,
         args: {
           serialNumber: BIKE_SERIAL_NUMBER,
-          reportURI: BIKE_DEFAULT_REPORT_URI,
+          reportURI: BIKE_REPORT_URI,
         },
       },
     }),
@@ -589,7 +635,7 @@ function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOption
     camHash: BIKE_UNSIGNED_CAM_HASH,
     supportsCamInterface: true,
     addresses: bikeContractAddresses,
-    routeResults: bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress),
+    routeResults: bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active"),
     ...overrides,
   }
 }

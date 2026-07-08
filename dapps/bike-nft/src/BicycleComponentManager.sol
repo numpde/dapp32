@@ -140,8 +140,8 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     event ComponentReported(
         bytes32 indexed serialHash,
         address indexed tokenContract,
-        uint256 indexed tokenId,
-        address reporter,
+        address indexed reporter,
+        uint256 tokenId,
         string serialNumber,
         string reportURI
     );
@@ -149,8 +149,8 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     event ComponentReportResolved(
         bytes32 indexed serialHash,
         address indexed tokenContract,
-        uint256 indexed tokenId,
-        address resolver,
+        address indexed resolver,
+        uint256 tokenId,
         string serialNumber,
         string resolutionURI
     );
@@ -593,7 +593,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
             if (record.status != ComponentStatus.Active) revert InvalidStatus(record.status);
             if (bytes(lifecycleURI).length == 0) revert EmptyLifecycleURI();
             _updateStatus(record, actor, ComponentStatus.Missing);
-            emit ComponentReported(record.serialHash, record.tokenContract, record.tokenId, actor, record.serialNumber, lifecycleURI);
+            emit ComponentReported(record.serialHash, record.tokenContract, actor, record.tokenId, record.serialNumber, lifecycleURI);
         } else {
             if (!_canAct(record, actor, CAP_CLEAR_MISSING)) {
                 revert Unauthorized(actor, serialHash, CAP_CLEAR_MISSING);
@@ -602,7 +602,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
             if (bytes(lifecycleURI).length == 0) revert EmptyLifecycleURI();
             _updateStatus(record, actor, ComponentStatus.Active);
             emit ComponentReportResolved(
-                record.serialHash, record.tokenContract, record.tokenId, actor, record.serialNumber, lifecycleURI
+                record.serialHash, record.tokenContract, actor, record.tokenId, record.serialNumber, lifecycleURI
             );
         }
     }
