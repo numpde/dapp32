@@ -61,9 +61,19 @@ test("bike fixture models the real UI projection branch states", () => {
     viewId: "component.empty",
     actions: ["lookupComponent", "openRegister"],
   })
+  assertBikeProjection(bikeComponentRouteResult("", BIKE_ZERO_ADDRESS, "active"), {
+    viewId: "component.empty",
+    actions: ["lookupComponent"],
+  })
   assertBikeProjection(bikeComponentRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress, "active"), {
     viewId: "component.notFound",
     actions: ["lookupComponent", "openRegister"],
+    serialHash: BIKE_UNKNOWN_SERIAL_HASH,
+    tokenId: BIKE_UNKNOWN_TOKEN_ID,
+  })
+  assertBikeProjection(bikeComponentRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, BIKE_ZERO_ADDRESS, "active"), {
+    viewId: "component.notFound",
+    actions: ["lookupComponent"],
     serialHash: BIKE_UNKNOWN_SERIAL_HASH,
     tokenId: BIKE_UNKNOWN_TOKEN_ID,
   })
@@ -115,6 +125,10 @@ test("bike fixture models the real UI projection branch states", () => {
   assertBikeProjection(bikeRegisterRouteResult("", userAddress), {
     viewId: "register.empty",
     actions: ["lookupComponent", "openRegister"],
+  })
+  assertBikeProjection(bikeRegisterRouteResult("", BIKE_ZERO_ADDRESS), {
+    viewId: "register.empty",
+    actions: ["lookupComponent"],
   })
   assertBikeProjection(bikeRegisterRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress), {
     viewId: "register.ready",

@@ -82,7 +82,7 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
 
   return {
     viewId: "entry",
-    actions: account === BIKE_ZERO_ADDRESS ? lookupOnlyActions() : entryActions(),
+    actions: entryActions(account),
     account,
     canRegister,
     accountInfo: bikeAccountInfo(account),
@@ -122,7 +122,7 @@ export function bikeComponentRouteResult(
 
   return {
     viewId: empty ? "component.empty" : exists ? componentViewId(status) : "component.notFound",
-    actions: exists ? componentActions(canAct, status) : lookupAndRegisterActions(),
+    actions: exists ? componentActions(canAct, status) : lookupAndRegisterActions(account),
     account,
     canRegister: bikeCanRegister(account),
     accountInfo: bikeAccountInfo(account),
@@ -163,7 +163,7 @@ export function bikeRegisterRouteResult(
     viewId: !hasSerialNumber ? "register.empty" : ready ? "register.ready" : "register.blocked",
     actions: ready
       ? registerReadyActions()
-      : hasSerialNumber ? lookupOnlyActions() : lookupAndRegisterActions(),
+      : hasSerialNumber ? lookupOnlyActions() : lookupAndRegisterActions(account),
     account,
     canRegister,
     exists,
@@ -197,11 +197,19 @@ function bikeAccountInfo(account: string): string {
   return bikeCanRegister(account) ? "Mock registrar account" : ""
 }
 
-function lookupAndRegisterActions(): string[] {
+function lookupAndRegisterActions(account: string): string[] {
+  if (account === BIKE_ZERO_ADDRESS) {
+    return lookupOnlyActions()
+  }
+
   return ["lookupComponent", "openRegister"]
 }
 
-function entryActions(): string[] {
+function entryActions(account: string): string[] {
+  if (account === BIKE_ZERO_ADDRESS) {
+    return lookupOnlyActions()
+  }
+
   return ["lookupComponent", "openRegister", "setAccountInfo"]
 }
 

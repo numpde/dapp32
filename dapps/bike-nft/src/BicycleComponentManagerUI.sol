@@ -102,7 +102,7 @@ contract BicycleComponentManagerUI {
         _setBaseView(view_, account);
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
-        view_.actions = account == address(0) ? _lookupOnlyActions() : _entryActions();
+        view_.actions = _entryActions(account);
     }
 
     /// @notice Route projection for component lookup and detail views.
@@ -112,7 +112,7 @@ contract BicycleComponentManagerUI {
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_COMPONENT_EMPTY;
             view_.serialNumber = serialNumber;
-            view_.actions = _lookupAndRegisterActions();
+            view_.actions = _lookupAndRegisterActions(account);
             return view_;
         }
 
@@ -120,7 +120,7 @@ contract BicycleComponentManagerUI {
         if (!view_.exists) {
             view_.viewId = VIEW_COMPONENT_NOT_FOUND;
         }
-        view_.actions = view_.exists ? _componentActions(view_) : _lookupAndRegisterActions();
+        view_.actions = view_.exists ? _componentActions(view_) : _lookupAndRegisterActions(account);
     }
 
     /// @notice Route projection for component registration views.
@@ -132,7 +132,7 @@ contract BicycleComponentManagerUI {
 
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_REGISTER_EMPTY;
-            view_.actions = _lookupAndRegisterActions();
+            view_.actions = _lookupAndRegisterActions(account);
             return view_;
         }
 
@@ -229,13 +229,21 @@ contract BicycleComponentManagerUI {
         revert UnsupportedComponentStatus(status);
     }
 
-    function _lookupAndRegisterActions() internal pure returns (string[] memory actions) {
+    function _lookupAndRegisterActions(address account) internal pure returns (string[] memory actions) {
+        if (account == address(0)) {
+            return _lookupOnlyActions();
+        }
+
         actions = new string[](2);
         actions[0] = ACTION_LOOKUP_COMPONENT;
         actions[1] = ACTION_OPEN_REGISTER;
     }
 
-    function _entryActions() internal pure returns (string[] memory actions) {
+    function _entryActions(address account) internal pure returns (string[] memory actions) {
+        if (account == address(0)) {
+            return _lookupOnlyActions();
+        }
+
         actions = new string[](3);
         actions[0] = ACTION_LOOKUP_COMPONENT;
         actions[1] = ACTION_OPEN_REGISTER;

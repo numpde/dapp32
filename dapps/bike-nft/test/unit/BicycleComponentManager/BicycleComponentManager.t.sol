@@ -139,14 +139,27 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "empty component view mismatch");
         assertLookupAndRegisterActions(view_.actions);
 
+        view_ = ui.viewComponent("", address(0));
+        assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "anonymous empty component view mismatch");
+        assertLookupOnly(view_.actions);
+
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "missing component view mismatch");
         assertEq(view_.serialNumber, SERIAL, "missing component serial mismatch");
         assertLookupAndRegisterActions(view_.actions);
 
+        view_ = ui.viewComponent(SERIAL, address(0));
+        assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "anonymous missing component view mismatch");
+        assertEq(view_.serialNumber, SERIAL, "anonymous missing component serial mismatch");
+        assertLookupOnly(view_.actions);
+
         view_ = ui.viewRegister("", registrar);
         assertEq(view_.viewId, VIEW_REGISTER_EMPTY, "empty register view mismatch");
         assertLookupAndRegisterActions(view_.actions);
+
+        view_ = ui.viewRegister("", address(0));
+        assertEq(view_.viewId, VIEW_REGISTER_EMPTY, "anonymous empty register view mismatch");
+        assertLookupOnly(view_.actions);
 
         view_ = ui.viewRegister(SERIAL, registrar);
         assertEq(view_.viewId, VIEW_REGISTER_READY, "ready register view mismatch");
