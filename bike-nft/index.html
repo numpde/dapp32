@@ -575,8 +575,8 @@
           <h3><code>BicycleComponentManager</code></h3>
           <p>
             The registry and policy contract. It owns serial lookup, status,
-            component delegations, account info, attestations, and write
-            permissions.
+            component delegations, account info, missing report state,
+            lifecycle events, and write permissions.
           </p>
         </article>
         <article class="card">
@@ -631,11 +631,11 @@
           </p>
         </article>
         <article class="card">
-          <h3>Attesters and accounts</h3>
+          <h3>Account metadata</h3>
           <p>
-            Registrars and status attesters can emit event-only provenance.
             Account info is self-managed by the account address and is used by
-            the read projection.
+            the read projection. Report and resolution documents remain
+            external URI references, not registry authority.
           </p>
         </article>
       </div>
@@ -646,7 +646,7 @@
       <p class="narrow">
         The manifest exposes a small route graph. Read routes return semantic
         app views; write routes prepare wallet calls to the manager and then
-        continue back to the component view.
+        continue to the declared follow-up read route.
       </p>
       <div class="route-table">
         <table>
@@ -681,7 +681,13 @@
               <td><code>registerComponent</code></td>
               <td>write</td>
               <td><code>registerComponent(owner, serialNumber, tokenURI_)</code></td>
-              <td>Registrar mints the component NFT and creates the verified record.</td>
+              <td>Registrar supplies an explicit owner, mints the component NFT, and creates the verified record.</td>
+            </tr>
+            <tr>
+              <td><code>setAccountInfo</code></td>
+              <td>write</td>
+              <td><code>setAccountInfo(infoURI)</code></td>
+              <td>The connected account publishes or clears its own account metadata URI.</td>
             </tr>
             <tr>
               <td><code>updateComponentMetadata</code></td>
@@ -692,14 +698,14 @@
             <tr>
               <td><code>markComponentMissing</code></td>
               <td>write</td>
-              <td><code>markMissing(serialNumber)</code></td>
-              <td>Owner or delegate reports the component missing.</td>
+              <td><code>markComponentMissing(serialNumber, reportURI)</code></td>
+              <td>Owner or delegate reports the component missing with an external report URI.</td>
             </tr>
             <tr>
               <td><code>clearComponentMissing</code></td>
               <td>write</td>
-              <td><code>clearMissing(serialNumber)</code></td>
-              <td>Owner or delegate restores the component to active status.</td>
+              <td><code>clearComponentMissing(serialNumber, resolutionURI)</code></td>
+              <td>Owner or delegate restores the component to active status with an external resolution URI.</td>
             </tr>
             <tr>
               <td><code>retireComponent</code></td>
@@ -719,7 +725,8 @@
           <h3>The UI contract is read-only</h3>
           <p>
             <code>BicycleComponentManagerUI</code> has no roles, no owner, and no
-            write functions. It selects views and actions from manager state.
+            write functions. It selects views and actions from manager state,
+            including hiding manager writes while the registry is paused.
           </p>
         </article>
         <article class="card">
