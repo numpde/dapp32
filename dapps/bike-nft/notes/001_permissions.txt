@@ -83,11 +83,15 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 
 ## Pause Projection Limitation
 
-Emergency pause is enforced by the write functions. The read-only UI projection
-still reports the owner/delegate actions that would be valid for the component
-state, because it is not the authority that submits or simulates writes and it
-does not inspect component-token pause state. Callers must treat prepared
-transactions as subject to execution-time pause checks.
+Emergency pause is enforced by the manager write functions. The read-only UI
+projection also exposes `paused` and suppresses manager write actions while the
+manager is paused, so generic viewers do not advertise guaranteed-reverting
+manager calls.
+
+The projection still cannot prove every downstream execution boundary. In
+particular, component-token pause or wallet/RPC state can still make a prepared
+transaction fail at execution time. Callers must treat prepared transactions as
+subject to final execution checks.
 
 ## Explicitly Out of V1
 
