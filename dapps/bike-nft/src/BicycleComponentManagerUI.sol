@@ -64,6 +64,7 @@ contract BicycleComponentManagerUI {
         address registrar;
         string statusId;
         string tokenURI;
+        string missingReportURI;
         uint48 registeredAt;
         uint48 updatedAt;
         string serialNumber;
@@ -177,6 +178,7 @@ contract BicycleComponentManagerUI {
         view_.registrar = component.registrar;
         view_.statusId = _componentStatusId(component.status);
         view_.tokenURI = component.tokenURI;
+        view_.missingReportURI = component.missingReportURI;
         view_.registeredAt = component.registeredAt;
         view_.updatedAt = component.updatedAt;
         view_.serialNumber = component.exists ? component.serialNumber : serialNumber;

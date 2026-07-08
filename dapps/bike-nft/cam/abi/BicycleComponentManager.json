@@ -407,6 +407,11 @@
             "internalType": "string"
           },
           {
+            "name": "missingReportURI",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
             "name": "registeredAt",
             "type": "uint48",
             "internalType": "uint48"

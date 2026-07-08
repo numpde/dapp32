@@ -57,6 +57,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         uint256 tokenId;
         address registrar;
         ComponentStatus status;
+        string missingReportURI;
         uint48 registeredAt;
         uint48 updatedAt;
         string serialNumber;
@@ -379,6 +380,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         view_.registrar = record.registrar;
         view_.status = record.status;
         view_.tokenURI = _tokenURI(record);
+        view_.missingReportURI = record.missingReportURI;
         view_.registeredAt = record.registeredAt;
         view_.updatedAt = record.updatedAt;
         view_.serialNumber = record.serialNumber;
@@ -539,6 +541,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
             tokenId: tokenId,
             registrar: _msgSender(),
             status: ComponentStatus.Active,
+            missingReportURI: "",
             registeredAt: now_,
             updatedAt: now_,
             serialNumber: serialNumber
@@ -558,6 +561,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
             }
             if (record.status != ComponentStatus.Active) revert InvalidStatus(record.status);
             if (bytes(lifecycleURI).length == 0) revert EmptyLifecycleURI();
+            record.missingReportURI = lifecycleURI;
             _updateStatus(record, actor, ComponentStatus.Missing);
             emit ComponentReported(record.serialHash, record.tokenContract, actor, record.tokenId, record.serialNumber, lifecycleURI);
         } else {
@@ -566,6 +570,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
             }
             if (record.status != ComponentStatus.Missing) revert InvalidStatus(record.status);
             if (bytes(lifecycleURI).length == 0) revert EmptyLifecycleURI();
+            delete record.missingReportURI;
             _updateStatus(record, actor, ComponentStatus.Active);
             emit ComponentReportResolved(
                 record.serialHash, record.tokenContract, actor, record.tokenId, record.serialNumber, lifecycleURI

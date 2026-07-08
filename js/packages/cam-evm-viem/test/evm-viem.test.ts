@@ -356,6 +356,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     registrar: userAddress,
     statusId: "active",
     tokenURI: `ipfs://example/token/${BIKE_SERIAL_NUMBER}`,
+    missingReportURI: "",
     registeredAt: "1",
     updatedAt: "2",
     serialNumber: BIKE_SERIAL_NUMBER,

@@ -139,6 +139,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
             "missing status should persist"
         );
         assertEq(view_.statusId, "missing", "missing semantic status should project");
+        assertEq(view_.missingReportURI, REPORT_URI, "missing report URI should project");
         assertMissingOwnerActions(view_.actions);
 
         vm.prank(owner);
@@ -152,6 +153,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
             "clear missing should restore active status"
         );
         assertEq(view_.statusId, "active", "clear missing should restore semantic active status");
+        assertEq(view_.missingReportURI, "", "clear missing should remove active report URI");
         assertActiveOwnerActions(view_.actions);
 
         vm.prank(owner);
@@ -287,6 +289,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
             "delegate should move component to missing"
         );
         assertEq(shopView.statusId, "missing", "delegate missing semantic status");
+        assertEq(shopView.missingReportURI, REPORT_URI, "delegate report URI should project");
         assertActions(shopView.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA));
 
         uint64 resolveAndCloseCapabilities = manager.CAP_CLEAR_MISSING() | manager.CAP_RETIRE();

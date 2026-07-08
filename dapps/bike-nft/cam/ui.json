@@ -254,6 +254,13 @@
           }
         },
         {
+          "element": "Status",
+          "props": {
+            "label": "Missing report URI",
+            "value": "$view.missingReportURI"
+          }
+        },
+        {
           "element": "TextField",
           "props": {
             "label": "Resolution URI"

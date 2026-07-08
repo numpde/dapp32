@@ -3,6 +3,7 @@ import { createHash } from "node:crypto"
 import test from "node:test"
 
 import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, toInertValue, UI_VERSION } from "@cam/protocol"
+import { forEachResolvedUiNode, type ResolvedUiNode } from "@cam/screen"
 
 import {
   createCamViewerSession,
@@ -18,6 +19,7 @@ import {
   BIKE_CAM_URI as camURI,
   BIKE_MARK_MISSING,
   BIKE_MANAGER_ADDRESS as managerAddress,
+  BIKE_MISSING_REPORT_URI,
   BIKE_ROUTE_COMPONENT,
   BIKE_ROUTE_ENTRY,
   BIKE_SERIAL_HASH,
@@ -99,6 +101,7 @@ test("bike fixture models the real UI projection branch states", () => {
     viewId: "component.missing",
     actions: ["lookupComponent", "updateComponentMetadata", "clearComponentMissing"],
     statusId: "missing",
+    missingReportURI: BIKE_MISSING_REPORT_URI,
     canMarkMissing: false,
     canClearMissing: true,
     canRetire: false,
@@ -193,6 +196,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
       registrar: BIKE_ZERO_ADDRESS,
       statusId: "none",
       tokenURI: "",
+      missingReportURI: "",
       registeredAt: "0",
       updatedAt: "0",
       permissions: "0",
@@ -604,6 +608,10 @@ test("updateState resolves route actions, while write routes are surfaced withou
   const missingResult = bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "missing")
   routeResults[BIKE_VIEW_COMPONENT] = missingResult
   const missingSnapshot = await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  assert.equal(
+    resolvedStatusValue(missingSnapshot.resolvedUi, "Missing report URI"),
+    BIKE_MISSING_REPORT_URI,
+  )
   const resolutionSnapshot = session.updateState({
     resolutionURI: BIKE_RESOLUTION_URI,
   })
@@ -634,6 +642,16 @@ test("updateState resolves route actions, while write routes are surfaced withou
     resolutionURI: BIKE_RESOLUTION_URI,
   }))
 })
+
+function resolvedStatusValue(root: ResolvedUiNode, label: string): unknown {
+  let value: unknown
+  forEachResolvedUiNode(root, (node) => {
+    if (node.element === "Status" && node.props.label === label) {
+      value = node.props.value
+    }
+  })
+  return value
+}
 
 test("dispatchAction rejects actions that are not rendered in the current view", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({}))

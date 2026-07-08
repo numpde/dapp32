@@ -22,6 +22,7 @@ interface IBicycleComponentManagerView is IERC165 {
         address registrar;
         ComponentStatus status;
         string tokenURI;
+        string missingReportURI;
         uint48 registeredAt;
         uint48 updatedAt;
         string serialNumber;

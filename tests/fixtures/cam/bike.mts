@@ -32,6 +32,7 @@ export const BIKE_UI_URI = bikeResourceURI(BIKE_RELATIVE_UI_URI)
 
 export const BIKE_SERIAL_NUMBER = "ABC123"
 export const BIKE_UNKNOWN_SERIAL_NUMBER = "UNKNOWN123"
+export const BIKE_MISSING_REPORT_URI = "fixture://bike-nft/reports/mock-missing.json"
 export const BIKE_ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
 export const BIKE_SERIAL_HASH = "0x1111111111111111111111111111111111111111111111111111111111111111"
 export const BIKE_UNKNOWN_SERIAL_HASH = "0x2222222222222222222222222222222222222222222222222222222222222222"
@@ -96,6 +97,7 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
     registrar: BIKE_ZERO_ADDRESS,
     statusId: "none",
     tokenURI: "",
+    missingReportURI: "",
     registeredAt: 0n,
     updatedAt: 0n,
     permissions: 0n,
@@ -137,6 +139,7 @@ export function bikeComponentRouteResult(
     registrar: exists ? BIKE_ACCOUNT_ADDRESS : BIKE_ZERO_ADDRESS,
     statusId: exists ? status : "none",
     tokenURI: exists ? `ipfs://example/token/${serialNumber}` : "",
+    missingReportURI: isMissing ? BIKE_MISSING_REPORT_URI : "",
     registeredAt: exists ? 1n : 0n,
     updatedAt: exists ? 2n : 0n,
     serialNumber,
@@ -178,6 +181,7 @@ export function bikeRegisterRouteResult(
     registrar: BIKE_ZERO_ADDRESS,
     statusId: "none",
     tokenURI: "",
+    missingReportURI: "",
     registeredAt: 0n,
     updatedAt: 0n,
     permissions: 0n,

@@ -104,6 +104,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertEq(component.registrar, registrar, "component view registrar mismatch");
         assertEq(uint8(component.status), uint8(IBicycleComponentManagerView.ComponentStatus.Active), "status mismatch");
         assertEq(component.tokenURI, TOKEN_URI, "component view token URI mismatch");
+        assertEq(component.missingReportURI, "", "active component should not have a missing report");
         assertEq(component.serialNumber, SERIAL, "component view serial mismatch");
 
         vm.prank(registrar);
@@ -189,6 +190,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_MISSING, "missing component view mismatch");
         assertEq(view_.statusId, "missing", "missing component semantic status mismatch");
+        assertEq(view_.missingReportURI, REPORT_URI, "missing component report URI mismatch");
         assertMissingOwnerActions(view_.actions);
 
         view_ = ui.viewRegister(SERIAL, registrar);
@@ -584,10 +586,12 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         vm.prank(delegate);
         manager.markComponentMissing(SERIAL, REPORT_URI);
         assertTrue(manager.missingStatus(SERIAL), "delegate should mark missing");
+        assertEq(manager.componentBySerial(SERIAL).missingReportURI, REPORT_URI, "missing report should be visible");
 
         vm.prank(delegate);
         manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
         assertFalse(manager.missingStatus(SERIAL), "delegate should clear missing");
+        assertEq(manager.componentBySerial(SERIAL).missingReportURI, "", "missing report should clear on resolution");
 
         vm.prank(delegate);
         manager.retireComponent(SERIAL);
