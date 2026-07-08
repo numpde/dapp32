@@ -61,6 +61,11 @@ test("bike fixture models the real UI projection branch states", () => {
     viewId: "component.empty",
     actions: ["lookupComponent", "openRegister"],
   })
+  assertBikeProjection(bikeComponentRouteResult("", otherUserAddress, "active"), {
+    viewId: "component.empty",
+    actions: ["lookupComponent"],
+    canRegister: false,
+  })
   assertBikeProjection(bikeComponentRouteResult("", BIKE_ZERO_ADDRESS, "active"), {
     viewId: "component.empty",
     actions: ["lookupComponent"],
@@ -70,6 +75,13 @@ test("bike fixture models the real UI projection branch states", () => {
     actions: ["lookupComponent", "openRegister"],
     serialHash: BIKE_UNKNOWN_SERIAL_HASH,
     tokenId: BIKE_UNKNOWN_TOKEN_ID,
+  })
+  assertBikeProjection(bikeComponentRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, otherUserAddress, "active"), {
+    viewId: "component.notFound",
+    actions: ["lookupComponent"],
+    serialHash: BIKE_UNKNOWN_SERIAL_HASH,
+    tokenId: BIKE_UNKNOWN_TOKEN_ID,
+    canRegister: false,
   })
   assertBikeProjection(bikeComponentRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, BIKE_ZERO_ADDRESS, "active"), {
     viewId: "component.notFound",
@@ -121,10 +133,21 @@ test("bike fixture models the real UI projection branch states", () => {
     account: userAddress,
     canRegister: true,
   })
+  assertBikeProjection(bikeEntryRouteResult(otherUserAddress), {
+    viewId: "entry",
+    actions: ["lookupComponent", "setAccountInfo"],
+    account: otherUserAddress,
+    canRegister: false,
+  })
 
   assertBikeProjection(bikeRegisterRouteResult("", userAddress), {
     viewId: "register.empty",
     actions: ["lookupComponent", "openRegister"],
+  })
+  assertBikeProjection(bikeRegisterRouteResult("", otherUserAddress), {
+    viewId: "register.empty",
+    actions: ["lookupComponent"],
+    canRegister: false,
   })
   assertBikeProjection(bikeRegisterRouteResult("", BIKE_ZERO_ADDRESS), {
     viewId: "register.empty",

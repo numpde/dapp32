@@ -97,6 +97,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     error InvalidStatus(ComponentStatus status);
     error EmptyTokenURI();
     error EmptyLifecycleURI();
+    error TimestampOutOfRange(uint256 timestamp);
     error DoesNotAcceptPayments();
     error UnknownFunction(bytes4 selector);
 
@@ -615,6 +616,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         // precondition failed unless a dedicated diagnostic view is added.
         if (delegation.grantor == address(0)) return 0;
         if (delegation.capabilities == 0) return 0;
+        if (block.timestamp > type(uint48).max) revert TimestampOutOfRange(block.timestamp);
         if (delegation.validUntil <= block.timestamp) return 0;
         if (_ownerOf(record) != delegation.grantor) return 0;
 
@@ -694,6 +696,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     }
 
     function _now48() internal view returns (uint48) {
+        if (block.timestamp > type(uint48).max) revert TimestampOutOfRange(block.timestamp);
         return uint48(block.timestamp);
     }
 

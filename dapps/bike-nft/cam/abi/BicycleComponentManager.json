@@ -1783,6 +1783,17 @@
   },
   {
     "type": "error",
+    "name": "TimestampOutOfRange",
+    "inputs": [
+      {
+        "name": "timestamp",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "Unauthorized",
     "inputs": [
       {

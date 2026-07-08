@@ -94,7 +94,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent("", owner);
         assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "empty lookup should have its own view");
         assertEq(view_.serialNumber, "", "empty lookup should preserve the submitted serial");
-        assertLookupAndRegisterActions(view_.actions);
+        assertLookupOnly(view_.actions);
 
         view_ = ui.viewRegister("", registrar);
         assertEq(view_.viewId, VIEW_REGISTER_EMPTY, "empty registration should have its own view");
@@ -109,6 +109,10 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "unknown serial should be not-found");
         assertFalse(view_.exists, "unknown serial must not be treated as a component");
         assertEq(view_.serialNumber, SERIAL, "not-found view should preserve lookup serial");
+        assertLookupOnly(view_.actions);
+
+        view_ = ui.viewComponent(SERIAL, registrar);
+        assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "registrar unknown serial should be not-found");
         assertLookupAndRegisterActions(view_.actions);
 
         vm.prank(registrar);

@@ -135,9 +135,14 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertFalse(view_.canRegister, "anonymous entry should not claim registrar authority");
         assertLookupOnly(view_.actions);
 
+        view_ = ui.viewEntry(owner);
+        assertEq(view_.viewId, VIEW_ENTRY, "connected non-registrar entry view mismatch");
+        assertFalse(view_.canRegister, "connected non-registrar entry should not claim registrar authority");
+        assertConnectedEntryActions(view_.actions);
+
         view_ = ui.viewComponent("", owner);
         assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "empty component view mismatch");
-        assertLookupAndRegisterActions(view_.actions);
+        assertLookupOnly(view_.actions);
 
         view_ = ui.viewComponent("", address(0));
         assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "anonymous empty component view mismatch");
@@ -146,7 +151,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "missing component view mismatch");
         assertEq(view_.serialNumber, SERIAL, "missing component serial mismatch");
-        assertLookupAndRegisterActions(view_.actions);
+        assertLookupOnly(view_.actions);
 
         view_ = ui.viewComponent(SERIAL, address(0));
         assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "anonymous missing component view mismatch");
@@ -487,6 +492,49 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.setMaxDelegationDuration(type(uint48).max);
         vm.prank(owner);
         manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, type(uint48).max);
+    }
+
+    /// @dev Manager timestamps are stored as uint48. Once the chain timestamp
+    /// exceeds that envelope, writes must fail with a manager-owned error
+    /// rather than silently wrapping recorded times.
+    function test_managerTimestampWritesRejectOutOfRangeBlockTime() external {
+        registerDefaultComponent();
+
+        uint256 tooLate = uint256(type(uint48).max) + 1;
+        uint64 updateMetadataCapability = manager.CAP_UPDATE_METADATA();
+        manager.setMaxDelegationDuration(type(uint48).max);
+
+        vm.prank(owner);
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, type(uint48).max);
+
+        vm.warp(tooLate);
+
+        vm.prank(registrar);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.TimestampOutOfRange.selector, tooLate));
+        manager.registerComponent(secondOwner, SECOND_SERIAL, TOKEN_URI);
+        assertFalse(manager.isRegistered(SECOND_SERIAL), "out-of-range registration must not persist");
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.TimestampOutOfRange.selector, tooLate));
+        manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
+        assertEq(components.tokenURI(manager.tokenIdOf(SERIAL)), TOKEN_URI, "failed metadata write must roll back");
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.TimestampOutOfRange.selector, tooLate));
+        manager.markComponentMissing(SERIAL, REPORT_URI);
+        assertEq(
+            uint8(manager.componentStatus(SERIAL)),
+            uint8(IBicycleComponentManagerView.ComponentStatus.Active),
+            "failed status write must roll back"
+        );
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.TimestampOutOfRange.selector, tooLate));
+        manager.setComponentDelegate(SERIAL, delegate, updateMetadataCapability, type(uint48).max);
+
+        vm.prank(delegate);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.TimestampOutOfRange.selector, tooLate));
+        manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
     }
 
     /// @dev Missing/retired status updates are separate capabilities. The test

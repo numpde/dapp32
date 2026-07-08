@@ -198,7 +198,7 @@ function bikeAccountInfo(account: string): string {
 }
 
 function lookupAndRegisterActions(account: string): string[] {
-  if (account === BIKE_ZERO_ADDRESS) {
+  if (!bikeCanRegister(account)) {
     return lookupOnlyActions()
   }
 
@@ -208,6 +208,10 @@ function lookupAndRegisterActions(account: string): string[] {
 function entryActions(account: string): string[] {
   if (account === BIKE_ZERO_ADDRESS) {
     return lookupOnlyActions()
+  }
+
+  if (!bikeCanRegister(account)) {
+    return ["lookupComponent", "setAccountInfo"]
   }
 
   return ["lookupComponent", "openRegister", "setAccountInfo"]

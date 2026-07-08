@@ -53,6 +53,10 @@ abstract contract BicycleComponentManagerTestSupport is Test {
         assertActions(actual, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_OPEN_REGISTER, ACTION_SET_ACCOUNT_INFO));
     }
 
+    function assertConnectedEntryActions(string[] memory actual) internal pure {
+        assertActions(actual, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_SET_ACCOUNT_INFO));
+    }
+
     function assertRegisterReadyActions(string[] memory actual) internal pure {
         assertActions(actual, expectedActions(ACTION_REGISTER_COMPONENT, ACTION_LOOKUP_COMPONENT));
     }

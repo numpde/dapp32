@@ -102,7 +102,7 @@ contract BicycleComponentManagerUI {
         _setBaseView(view_, account);
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
-        view_.actions = _entryActions(account);
+        view_.actions = _entryActions(account, view_.canRegister);
     }
 
     /// @notice Route projection for component lookup and detail views.
@@ -112,7 +112,7 @@ contract BicycleComponentManagerUI {
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_COMPONENT_EMPTY;
             view_.serialNumber = serialNumber;
-            view_.actions = _lookupAndRegisterActions(account);
+            view_.actions = _lookupAndRegisterActions(view_.canRegister);
             return view_;
         }
 
@@ -120,7 +120,7 @@ contract BicycleComponentManagerUI {
         if (!view_.exists) {
             view_.viewId = VIEW_COMPONENT_NOT_FOUND;
         }
-        view_.actions = view_.exists ? _componentActions(view_) : _lookupAndRegisterActions(account);
+        view_.actions = view_.exists ? _componentActions(view_) : _lookupAndRegisterActions(view_.canRegister);
     }
 
     /// @notice Route projection for component registration views.
@@ -132,7 +132,7 @@ contract BicycleComponentManagerUI {
 
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_REGISTER_EMPTY;
-            view_.actions = _lookupAndRegisterActions(account);
+            view_.actions = _lookupAndRegisterActions(view_.canRegister);
             return view_;
         }
 
@@ -229,8 +229,8 @@ contract BicycleComponentManagerUI {
         revert UnsupportedComponentStatus(status);
     }
 
-    function _lookupAndRegisterActions(address account) internal pure returns (string[] memory actions) {
-        if (account == address(0)) {
+    function _lookupAndRegisterActions(bool canRegister) internal pure returns (string[] memory actions) {
+        if (!canRegister) {
             return _lookupOnlyActions();
         }
 
@@ -239,9 +239,16 @@ contract BicycleComponentManagerUI {
         actions[1] = ACTION_OPEN_REGISTER;
     }
 
-    function _entryActions(address account) internal pure returns (string[] memory actions) {
+    function _entryActions(address account, bool canRegister) internal pure returns (string[] memory actions) {
         if (account == address(0)) {
             return _lookupOnlyActions();
+        }
+
+        if (!canRegister) {
+            actions = new string[](2);
+            actions[0] = ACTION_LOOKUP_COMPONENT;
+            actions[1] = ACTION_SET_ACCOUNT_INFO;
+            return actions;
         }
 
         actions = new string[](3);
