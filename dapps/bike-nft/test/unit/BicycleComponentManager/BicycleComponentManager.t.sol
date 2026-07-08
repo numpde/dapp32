@@ -157,7 +157,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         registerDefaultComponent();
 
         view_ = ui.viewComponent(SERIAL, owner);
-        assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "found component view mismatch");
+        assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "active component view mismatch");
         assertEq(view_.tokenURI, TOKEN_URI, "found component token URI mismatch");
         assertEq(view_.statusId, "active", "found component semantic status mismatch");
         assertActiveOwnerActions(view_.actions);
@@ -166,6 +166,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.markComponentMissing(SERIAL, REPORT_URI);
 
         view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_MISSING, "missing component view mismatch");
         assertEq(view_.statusId, "missing", "missing component semantic status mismatch");
         assertMissingOwnerActions(view_.actions);
 

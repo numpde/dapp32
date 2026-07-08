@@ -10,7 +10,9 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 abstract contract BicycleComponentManagerTestSupport is Test {
     string internal constant VIEW_ENTRY = "entry";
     string internal constant VIEW_COMPONENT_EMPTY = "component.empty";
-    string internal constant VIEW_COMPONENT_FOUND = "component.found";
+    string internal constant VIEW_COMPONENT_ACTIVE = "component.active";
+    string internal constant VIEW_COMPONENT_MISSING = "component.missing";
+    string internal constant VIEW_COMPONENT_RETIRED = "component.retired";
     string internal constant VIEW_COMPONENT_NOT_FOUND = "component.notFound";
     string internal constant VIEW_REGISTER_EMPTY = "register.empty";
     string internal constant VIEW_REGISTER_READY = "register.ready";

@@ -82,7 +82,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertEq(components.tokenURI(tokenId), TOKEN_URI, "component token URI mismatch");
 
         view_ = ui.viewComponent(SERIAL, owner);
-        assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "component route should find registered component");
+        assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "component route should find active registered component");
         assertEq(view_.owner, owner, "component view owner mismatch");
         assertEq(view_.tokenContract, address(components), "component view token contract mismatch");
         assertEq(view_.tokenId, tokenId, "component view token id mismatch");
@@ -129,7 +129,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.registerComponent(owner, SERIAL, TOKEN_URI);
 
         view_ = ui.viewComponent(SERIAL, owner);
-        assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "registered serial should be found");
+        assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "registered serial should be active");
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Active),
@@ -142,6 +142,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.markComponentMissing(SERIAL, REPORT_URI);
 
         view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_MISSING, "missing semantic view should project");
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
@@ -154,6 +155,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
 
         view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "clear missing should restore active view");
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Active),
@@ -166,6 +168,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.retireComponent(SERIAL);
 
         view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.viewId, VIEW_COMPONENT_RETIRED, "retired semantic view should project");
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
@@ -329,7 +332,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.pause();
 
         BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent(SERIAL, owner);
-        assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "pause should not hide registered components");
+        assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "pause should not hide active registered components");
         assertEq(view_.ownerInfo, OWNER_INFO_URI, "pause should not hide owner profile data");
         assertActiveOwnerActions(view_.actions);
 
@@ -430,7 +433,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.registerComponent(owner, SECOND_SERIAL, SECOND_TOKEN_URI);
 
         assertEq(
-            ui.viewComponent(SECOND_SERIAL, owner).viewId, VIEW_COMPONENT_FOUND, "restored registrar should register"
+            ui.viewComponent(SECOND_SERIAL, owner).viewId, VIEW_COMPONENT_ACTIVE, "restored registrar should register"
         );
     }
 
@@ -484,6 +487,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.retireComponent(SERIAL);
 
         BicycleComponentManagerUI.AppView memory retiredOwnerView = ui.viewComponent(SERIAL, owner);
+        assertEq(retiredOwnerView.viewId, VIEW_COMPONENT_RETIRED, "owner retired view mismatch");
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
@@ -499,6 +503,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.setAccountInfo(BUYER_INFO_URI);
 
         BicycleComponentManagerUI.AppView memory retiredBuyerView = ui.viewComponent(SERIAL, buyer);
+        assertEq(retiredBuyerView.viewId, VIEW_COMPONENT_RETIRED, "buyer retired view mismatch");
         assertEq(retiredBuyerView.owner, buyer, "retired token should still transfer");
         assertEq(retiredBuyerView.ownerInfo, BUYER_INFO_URI, "retired view should follow current owner profile");
         assertEq(
@@ -543,7 +548,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         components.pause();
 
         BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent(SERIAL, owner);
-        assertEq(view_.viewId, VIEW_COMPONENT_FOUND, "token pause should not hide existing manager record");
+        assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "token pause should not hide active manager record");
         assertEq(view_.tokenURI, TOKEN_URI, "token pause should not hide token URI reads");
 
         vm.prank(registrar);
@@ -563,7 +568,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.registerComponent(buyer, SECOND_SERIAL, SECOND_TOKEN_URI);
 
         assertEq(ui.viewComponent(SERIAL, owner).tokenURI, UPDATED_TOKEN_URI, "metadata write should resume");
-        assertEq(ui.viewComponent(SECOND_SERIAL, buyer).viewId, VIEW_COMPONENT_FOUND, "minting should resume");
+        assertEq(ui.viewComponent(SECOND_SERIAL, buyer).viewId, VIEW_COMPONENT_ACTIVE, "minting should resume");
     }
 
     /// @dev Register the canonical scenario component through the registrar so

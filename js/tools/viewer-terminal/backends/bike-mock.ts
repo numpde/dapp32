@@ -28,6 +28,7 @@ import {
   bikeComponentRouteResult,
   bikeEntryRouteResult,
   bikeRegisterRouteResult,
+  type BikeComponentFixtureStatus,
 } from "../../../../tests/fixtures/cam/bike.mts"
 
 import type {
@@ -44,17 +45,22 @@ const BIKE_MOCK_CAM_BASE_URI = `${BIKE_MOCK_CAM_ORIGIN}/`
 const BIKE_MOCK_CAM_URI = new URL("main.json", BIKE_MOCK_CAM_BASE_URI).href
 const BIKE_MOCK_CAM_BASE_PATH = "/work/cam/bike-nft"
 
+export type BikeMockBackendOptions = TerminalBackendOptions & {
+  readonly componentStatus: BikeComponentFixtureStatus
+}
+
 export function createBikeMockBackend({
   allowUnsignedCamHash,
+  componentStatus,
   initialInputs,
-}: TerminalBackendOptions): TerminalBackend {
+}: BikeMockBackendOptions): TerminalBackend {
   return {
     name: "mock:bike-nft",
-    description: "offline bike NFT fixture",
+    description: `offline bike NFT fixture (${componentStatus} component)`,
     hostLabel: `${BIKE_HOST_CHAIN_ID} ${BIKE_HOST_ADDRESS}`,
     createSession(events) {
       return createCamViewerSession({
-        publicClient: createMockPublicClient(events),
+        publicClient: createMockPublicClient(events, componentStatus),
         host: {
           chainId: BIKE_HOST_CHAIN_ID,
           address: BIKE_HOST_ADDRESS,
@@ -70,7 +76,7 @@ export function createBikeMockBackend({
   }
 }
 
-function createMockPublicClient(events: DebugEvent[]): TerminalPublicClient {
+function createMockPublicClient(events: DebugEvent[], componentStatus: BikeComponentFixtureStatus): TerminalPublicClient {
   const publicClient: TerminalPublicClient = {
     async getChainId(): Promise<number> {
       return 31337
@@ -79,7 +85,7 @@ function createMockPublicClient(events: DebugEvent[]): TerminalPublicClient {
       const args = request.args === undefined
         ? []
         : request.args.map((arg) => toInertValue(arg))
-      const result = mockReadContract(request.functionName, args)
+      const result = mockReadContract(request.functionName, args, componentStatus)
       events.push({
         step: events.length + 1,
         kind: "contract-read",
@@ -94,7 +100,11 @@ function createMockPublicClient(events: DebugEvent[]): TerminalPublicClient {
   return publicClient
 }
 
-function mockReadContract(functionName: string, args: readonly InertValue[]): unknown {
+function mockReadContract(
+  functionName: string,
+  args: readonly InertValue[],
+  componentStatus: BikeComponentFixtureStatus,
+): unknown {
   switch (functionName) {
     case "camURI":
       requireNoArgs(functionName, args)
@@ -111,7 +121,7 @@ function mockReadContract(functionName: string, args: readonly InertValue[]): un
       return bikeEntryRouteResult(requireStringArgs(functionName, args, 1)[0])
     case BIKE_VIEW_COMPONENT: {
       const routeArgs = requireStringArgs(functionName, args, 2)
-      return bikeComponentRouteResult(routeArgs[0], routeArgs[1], "active")
+      return bikeComponentRouteResult(routeArgs[0], routeArgs[1], componentStatus)
     }
     case BIKE_VIEW_REGISTER: {
       const routeArgs = requireStringArgs(functionName, args, 2)

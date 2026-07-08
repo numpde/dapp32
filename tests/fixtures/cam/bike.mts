@@ -39,7 +39,7 @@ export const BIKE_TOKEN_ID = BigInt(BIKE_SERIAL_HASH)
 export const BIKE_UNKNOWN_TOKEN_ID = BigInt(BIKE_UNKNOWN_SERIAL_HASH)
 export const BIKE_UNSIGNED_CAM_HASH = BIKE_ZERO_BYTES32
 
-export type BikeComponentFixtureStatus = "active" | "missing"
+export type BikeComponentFixtureStatus = "active" | "missing" | "retired"
 
 export const bikeHost = {
   chainId: BIKE_HOST_CHAIN_ID,
@@ -75,8 +75,8 @@ export function bikeRouteResults(
 }
 
 // This fixture mirrors the route projection in BicycleComponentManagerUI, not
-// the whole manager. It deliberately models one registered active component and
-// treats every other non-empty serial as unregistered.
+// the whole manager. It deliberately models one registered component with an
+// explicit status and treats every other non-empty serial as unregistered.
 export function bikeEntryRouteResult(account: string): Record<string, unknown> {
   const canRegister = bikeCanRegister(account)
 
@@ -116,11 +116,13 @@ export function bikeComponentRouteResult(
   const exists = serialNumber === BIKE_SERIAL_NUMBER
   const empty = serialNumber.length === 0
   const canAct = exists && account === BIKE_ACCOUNT_ADDRESS
+  const isActive = exists && status === "active"
   const isMissing = exists && status === "missing"
+  const isRetired = exists && status === "retired"
 
   return {
-    viewId: empty ? "component.empty" : exists ? "component.found" : "component.notFound",
-    actions: exists ? componentActions(canAct, isMissing) : lookupAndRegisterActions(),
+    viewId: empty ? "component.empty" : exists ? componentViewId(status) : "component.notFound",
+    actions: exists ? componentActions(canAct, status) : lookupAndRegisterActions(),
     account,
     canRegister: bikeCanRegister(account),
     accountInfo: bikeAccountInfo(account),
@@ -133,17 +135,17 @@ export function bikeComponentRouteResult(
     owner: exists ? BIKE_ACCOUNT_ADDRESS : BIKE_ZERO_ADDRESS,
     ownerInfo: exists ? "Mock owner account" : "",
     registrar: exists ? BIKE_ACCOUNT_ADDRESS : BIKE_ZERO_ADDRESS,
-    statusId: exists ? isMissing ? "missing" : "active" : "none",
+    statusId: exists ? status : "none",
     tokenURI: exists ? `ipfs://example/token/${serialNumber}` : "",
     registeredAt: exists ? 1n : 0n,
     updatedAt: exists ? 2n : 0n,
     serialNumber,
     permissions: canAct ? 15n : 0n,
     isOwner: canAct,
-    canUpdateMetadata: canAct,
-    canMarkMissing: canAct && !isMissing,
+    canUpdateMetadata: canAct && !isRetired,
+    canMarkMissing: canAct && isActive,
     canClearMissing: canAct && isMissing,
-    canRetire: canAct,
+    canRetire: canAct && !isRetired,
     componentsAddress: BIKE_ZERO_ADDRESS,
   }
 }
@@ -207,16 +209,20 @@ function registerReadyActions(): string[] {
   return ["registerComponent", "lookupComponent"]
 }
 
-function componentActions(canAct: boolean, isMissing: boolean): string[] {
-  if (!canAct) {
+function componentActions(canAct: boolean, status: BikeComponentFixtureStatus): string[] {
+  if (!canAct || status === "retired") {
     return lookupOnlyActions()
   }
 
-  if (isMissing) {
+  if (status === "missing") {
     return ["lookupComponent", "updateComponentMetadata", "clearComponentMissing", "retireComponent"]
   }
 
   return ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"]
+}
+
+function componentViewId(status: BikeComponentFixtureStatus): string {
+  return `component.${status}`
 }
 
 function bikeResourceURI(relativeURI: string): string {

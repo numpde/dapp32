@@ -171,6 +171,31 @@
           }
         },
         {
+          "element": "Status",
+          "props": {
+            "label": "Serial hash",
+            "value": "$view.serialHash"
+          }
+        }
+      ]
+    },
+    "component.active": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "component.found",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
           "element": "TextField",
           "props": {
             "label": "New token URI"
@@ -189,6 +214,34 @@
             "key": "reportURI",
             "defaultValue": ""
           }
+        }
+      ]
+    },
+    "component.missing": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "component.found",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "New token URI"
+          },
+          "state": {
+            "key": "tokenURI",
+            "defaultValue": "$view.tokenURI"
+          }
         },
         {
           "element": "TextField",
@@ -199,15 +252,21 @@
             "key": "resolutionURI",
             "defaultValue": ""
           }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Serial hash",
-            "value": "$view.serialHash"
-          }
         }
       ]
+    },
+    "component.retired": {
+      "requires": [
+        "view"
+      ],
+      "element": "Include",
+      "call": {
+        "namespace": "ui",
+        "function": "component.found",
+        "args": {
+          "view": "$view"
+        }
+      }
     },
     "register.empty": {
       "requires": [

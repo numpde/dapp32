@@ -22,7 +22,9 @@ contract BicycleComponentManagerUI {
 
     string private constant VIEW_ENTRY = "entry";
     string private constant VIEW_COMPONENT_EMPTY = "component.empty";
-    string private constant VIEW_COMPONENT_FOUND = "component.found";
+    string private constant VIEW_COMPONENT_ACTIVE = "component.active";
+    string private constant VIEW_COMPONENT_MISSING = "component.missing";
+    string private constant VIEW_COMPONENT_RETIRED = "component.retired";
     string private constant VIEW_COMPONENT_NOT_FOUND = "component.notFound";
     string private constant VIEW_REGISTER_EMPTY = "register.empty";
     string private constant VIEW_REGISTER_READY = "register.ready";
@@ -114,7 +116,9 @@ contract BicycleComponentManagerUI {
         }
 
         _setComponentView(view_, serialNumber, account);
-        view_.viewId = view_.exists ? VIEW_COMPONENT_FOUND : VIEW_COMPONENT_NOT_FOUND;
+        if (!view_.exists) {
+            view_.viewId = VIEW_COMPONENT_NOT_FOUND;
+        }
         view_.actions = view_.exists ? _componentActions(view_) : _lookupAndRegisterActions();
     }
 
@@ -183,6 +187,8 @@ contract BicycleComponentManagerUI {
             return;
         }
 
+        view_.viewId = _componentViewId(component.status);
+
         if (component.owner != address(0)) {
             view_.ownerInfo = manager.accountInfo(component.owner);
         }
@@ -206,6 +212,18 @@ contract BicycleComponentManagerUI {
         if (status == IBicycleComponentManagerView.ComponentStatus.Active) return STATUS_ACTIVE;
         if (status == IBicycleComponentManagerView.ComponentStatus.Missing) return STATUS_MISSING;
         if (status == IBicycleComponentManagerView.ComponentStatus.Retired) return STATUS_RETIRED;
+
+        revert UnsupportedComponentStatus(status);
+    }
+
+    function _componentViewId(IBicycleComponentManagerView.ComponentStatus status)
+        internal
+        pure
+        returns (string memory)
+    {
+        if (status == IBicycleComponentManagerView.ComponentStatus.Active) return VIEW_COMPONENT_ACTIVE;
+        if (status == IBicycleComponentManagerView.ComponentStatus.Missing) return VIEW_COMPONENT_MISSING;
+        if (status == IBicycleComponentManagerView.ComponentStatus.Retired) return VIEW_COMPONENT_RETIRED;
 
         revert UnsupportedComponentStatus(status);
     }
