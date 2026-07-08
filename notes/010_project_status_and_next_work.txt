@@ -133,7 +133,7 @@ What is already strong
 
    The scenario suite covers registration, lookup states, missing/clear/retire,
    used-bike sale behavior, delegation expiry/ownership transfer, component
-   collection rollover, account info, attestations, and UI projection alignment.
+   collection rollover, account info, and UI projection alignment.
 
 4. Local operation is runnable.
 
@@ -180,7 +180,6 @@ What still deserves focus:
     Delegation expiry at exact boundary timestamps.
     Ownership transfer invalidating old owner/delegate permissions.
     Component collection rollover preserving old records.
-    Attestation provenance and authorization boundaries.
     Pause behavior, if pause is intended to cover all mutating paths.
     UI projection action lists for every important business state.
 

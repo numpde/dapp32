@@ -19,7 +19,7 @@ import {IBicycleComponentManagerView} from "./IBicycleComponentManagerView.sol";
 /// - verified registrar-created records;
 /// - missing / retired status;
 /// - owner-granted delegates for registry actions;
-/// - account profile URIs and event-only attestations.
+/// - account profile URIs.
 ///
 /// The manager has one configured component-token contract for new
 /// registrations. Each registered component stores its own `tokenContract`, so
@@ -32,7 +32,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant CONFIGURER_ROLE = keccak256("CONFIGURER_ROLE");
     bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
-    bytes32 public constant STATUS_ATTESTER_ROLE = keccak256("STATUS_ATTESTER_ROLE");
 
     // ---------------------------------------------------------------------
     // Component-level delegation capabilities
@@ -97,8 +96,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     error InvalidDelegationExpiry(uint48 validUntil);
     error InvalidStatus(ComponentStatus status);
     error EmptyLifecycleURI();
-    error EmptyAttestationType();
-    error EmptyAttestationURI();
     error DoesNotAcceptPayments();
     error UnknownFunction(bytes4 selector);
 
@@ -166,16 +163,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         uint48 validUntil
     );
 
-    event ComponentAttestationAdded(
-        bytes32 indexed serialHash,
-        bytes32 indexed attestationType,
-        address indexed attester,
-        address tokenContract,
-        uint256 tokenId,
-        string serialNumber,
-        string attestationURI
-    );
-
     // ---------------------------------------------------------------------
     // Construction
     // ---------------------------------------------------------------------
@@ -189,7 +176,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         _grantRole(PAUSER_ROLE, admin);
         _grantRole(CONFIGURER_ROLE, admin);
         _grantRole(REGISTRAR_ROLE, admin);
-        _grantRole(STATUS_ATTESTER_ROLE, admin);
 
         _setMaxDelegationDuration(DEFAULT_MAX_DELEGATION_DURATION);
         _setComponentsAddress(componentsAddress_);
@@ -355,38 +341,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         address account = _msgSender();
         _accountInfo[account] = infoURI;
         emit AccountInfoSet(account, infoURI);
-    }
-
-    // ---------------------------------------------------------------------
-    // Attestations
-    // ---------------------------------------------------------------------
-
-    /// @notice Emits an attestation for a registered component without changing ownership or status.
-    /// @dev The original registrar or STATUS_ATTESTER_ROLE can add official notes/evidence URIs.
-    function addComponentAttestation(
-        string calldata serialNumber,
-        bytes32 attestationType,
-        string calldata attestationURI
-    ) external whenNotPaused {
-        bytes32 serialHash = _requireSerialNumber(serialNumber);
-        ComponentRecord storage record = _requireRegistered(serialHash);
-        address actor = _msgSender();
-
-        if (actor != record.registrar && !hasRole(STATUS_ATTESTER_ROLE, actor)) {
-            revert Unauthorized(actor, serialHash, 0);
-        }
-        if (attestationType == bytes32(0)) revert EmptyAttestationType();
-        if (bytes(attestationURI).length == 0) revert EmptyAttestationURI();
-
-        emit ComponentAttestationAdded(
-            serialHash,
-            attestationType,
-            actor,
-            record.tokenContract,
-            record.tokenId,
-            record.serialNumber,
-            attestationURI
-        );
     }
 
     // ---------------------------------------------------------------------

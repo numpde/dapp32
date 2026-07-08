@@ -20,7 +20,6 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
 
     address private admin = address(this);
     address private registrar = address(0x1001);
-    address private statusAttester = address(0x1002);
     address private owner = address(0x2001);
     address private buyer = address(0x2002);
     address private delegate = address(0x3001);
@@ -36,22 +35,10 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
     string private constant OWNER_INFO_URI = "fixture://bike-nft/accounts/owner.json";
     string private constant REPORT_URI = "fixture://bike-nft/reports/scenario-frame-001-missing.json";
     string private constant RESOLUTION_URI = "fixture://bike-nft/reports/scenario-frame-001-recovered.json";
-    string private constant REGISTRAR_ATTESTATION_URI = "fixture://bike-nft/attestations/registrar-inspection.json";
-    string private constant STATUS_ATTESTATION_URI = "fixture://bike-nft/attestations/status-attester-inspection.json";
-
-    event ComponentAttestationAdded(
-        bytes32 indexed serialHash,
-        bytes32 indexed attestationType,
-        address indexed attester,
-        address tokenContract,
-        uint256 tokenId,
-        string serialNumber,
-        string attestationURI
-    );
 
     /// @dev Scenarios start from the standard local app shape: one collection,
     /// one manager, one UI projection, and the two operational roles needed for
-    /// registration/status provenance.
+    /// registration and lifecycle-status workflows.
     function setUp() external {
         components = new BicycleComponents("Bike Components", "BIKE", admin, 0, "", "");
         manager = new BicycleComponentManager(admin, 0, address(components));
@@ -61,7 +48,6 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         components.grantRole(components.TOKEN_URI_SETTER_ROLE(), address(manager));
 
         manager.grantRole(manager.REGISTRAR_ROLE(), registrar);
-        manager.grantRole(manager.STATUS_ATTESTER_ROLE(), statusAttester);
     }
 
     // A happy-path registrar flow should keep the manager record, ERC721 token,
@@ -349,54 +335,12 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.setAccountInfo(BUYER_INFO_URI);
 
-        vm.prank(registrar);
-        vm.expectRevert(Pausable.EnforcedPause.selector);
-        manager.addComponentAttestation(SERIAL, keccak256("paused-inspection"), REGISTRAR_ATTESTATION_URI);
-
         manager.unpause();
 
         vm.prank(owner);
         manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
 
         assertEq(ui.viewComponent(SERIAL, owner).tokenURI, UPDATED_TOKEN_URI, "writes should resume after unpause");
-    }
-
-    // Attestations are provenance events, not hidden component state. Official
-    // notes from the registrar and status attester should emit stable evidence
-    // while ownership, status, and timestamps remain unchanged.
-    function test_officialAttestationsAreEventOnlyProvenanceAndDoNotMutateComponentState() external {
-        registerDefaultComponent();
-
-        bytes32 serialHash = manager.serialHashOf(SERIAL);
-        uint256 tokenId = manager.tokenIdOf(SERIAL);
-        bytes32 inspectionType = keccak256("inspection");
-
-        IBicycleComponentManagerView.ComponentView memory beforeView = manager.componentBySerial(SERIAL);
-
-        vm.expectEmit(true, true, true, true, address(manager));
-        emit ComponentAttestationAdded(
-            serialHash, inspectionType, registrar, address(components), tokenId, SERIAL, REGISTRAR_ATTESTATION_URI
-        );
-        vm.prank(registrar);
-        manager.addComponentAttestation(SERIAL, inspectionType, REGISTRAR_ATTESTATION_URI);
-
-        vm.expectEmit(true, true, true, true, address(manager));
-        emit ComponentAttestationAdded(
-            serialHash, inspectionType, statusAttester, address(components), tokenId, SERIAL, STATUS_ATTESTATION_URI
-        );
-        vm.prank(statusAttester);
-        manager.addComponentAttestation(SERIAL, inspectionType, STATUS_ATTESTATION_URI);
-
-        vm.prank(stranger);
-        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.Unauthorized.selector, stranger, serialHash, 0));
-        manager.addComponentAttestation(SERIAL, inspectionType, "fixture://bike-nft/attestations/forged.json");
-
-        IBicycleComponentManagerView.ComponentView memory afterView = manager.componentBySerial(SERIAL);
-        assertEq(afterView.owner, beforeView.owner, "attestation must not alter owner");
-        assertEq(uint8(afterView.status), uint8(beforeView.status), "attestation must not alter status");
-        assertEq(afterView.tokenURI, beforeView.tokenURI, "attestation must not alter token URI");
-        assertEq(afterView.registeredAt, beforeView.registeredAt, "attestation must not alter registration time");
-        assertEq(afterView.updatedAt, beforeView.updatedAt, "attestation must not alter update time");
     }
 
     // Registrar roles are operational state, not static manifest truth. The UI

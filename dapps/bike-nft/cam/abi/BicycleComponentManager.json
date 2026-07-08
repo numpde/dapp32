@@ -147,19 +147,6 @@
   },
   {
     "type": "function",
-    "name": "STATUS_ATTESTER_ROLE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "VALID_CAPABILITY_MASK",
     "inputs": [],
     "outputs": [
@@ -196,29 +183,6 @@
       }
     ],
     "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "addComponentAttestation",
-    "inputs": [
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "attestationType",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "attestationURI",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1189,55 +1153,6 @@
   },
   {
     "type": "event",
-    "name": "ComponentAttestationAdded",
-    "inputs": [
-      {
-        "name": "serialHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "attestationType",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "attester",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "tokenContract",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      },
-      {
-        "name": "tokenId",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "serialNumber",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "attestationURI",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "ComponentDelegationSet",
     "inputs": [
       {
@@ -1790,16 +1705,6 @@
   {
     "type": "error",
     "name": "DoesNotAcceptPayments",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "EmptyAttestationType",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "EmptyAttestationURI",
     "inputs": []
   },
   {

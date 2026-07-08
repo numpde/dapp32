@@ -95,7 +95,6 @@ Fuzzing is useful, but it must be aimed at the right surfaces.
    - role boundaries;
    - status transitions;
    - delegation expiry;
-   - attestation write paths;
    - metadata update rules;
    - write functions never bypass manager authorization.
 

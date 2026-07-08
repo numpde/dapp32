@@ -19,7 +19,6 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
     address private admin = address(this);
     address private registrar = address(0x1001);
-    address private statusAttester = address(0x1002);
     address private owner = address(0x2001);
     address private secondOwner = address(0x2002);
     address private delegate = address(0x3001);
@@ -62,7 +61,6 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         components.grantRole(components.TOKEN_URI_SETTER_ROLE(), address(manager));
 
         manager.grantRole(manager.REGISTRAR_ROLE(), registrar);
-        manager.grantRole(manager.STATUS_ATTESTER_ROLE(), statusAttester);
     }
 
     /// @dev Registration is the root write path. It must reject non-registrars,
@@ -545,34 +543,6 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         vm.prank(owner);
         vm.expectRevert(Pausable.EnforcedPause.selector);
         manager.markComponentMissing(SERIAL, REPORT_URI);
-    }
-
-    /// @dev Attestations are event provenance rather than component mutation.
-    /// This unit test focuses on who can emit them; the scenario suite checks
-    /// that emitted attestations do not alter stored component state.
-    function test_onlyRegistrarOrStatusAttesterCanAddComponentAttestation() external {
-        registerDefaultComponent();
-
-        bytes32 serialHash = manager.serialHashOf(SERIAL);
-        bytes32 attestationType = keccak256("inspection");
-
-        vm.prank(stranger);
-        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.Unauthorized.selector, stranger, serialHash, 0));
-        manager.addComponentAttestation(SERIAL, attestationType, "fixture://attestations/unauthorized.json");
-
-        vm.prank(registrar);
-        vm.expectRevert(BicycleComponentManager.EmptyAttestationType.selector);
-        manager.addComponentAttestation(SERIAL, bytes32(0), "fixture://attestations/empty-type.json");
-
-        vm.prank(registrar);
-        vm.expectRevert(BicycleComponentManager.EmptyAttestationURI.selector);
-        manager.addComponentAttestation(SERIAL, attestationType, "");
-
-        vm.prank(registrar);
-        manager.addComponentAttestation(SERIAL, attestationType, "fixture://attestations/registrar.json");
-
-        vm.prank(statusAttester);
-        manager.addComponentAttestation(SERIAL, attestationType, "fixture://attestations/status-attester.json");
     }
 
     /// @dev Most tests need the same active component baseline. Keeping the

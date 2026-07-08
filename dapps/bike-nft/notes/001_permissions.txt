@@ -26,7 +26,7 @@ This plan targets the current V1 architecture:
 | --- | --- | --- |
 | `CamRoot` | `Ownable2Step` | Owner should be a Safe or timelock. Controls CAM URI/hash and contract address bindings. |
 | `BicycleComponents` | `AccessControl` | Non-upgradeable. Admin grants minter/metadata/config/pause roles. |
-| `BicycleComponentManager` | `AccessControl` | Non-upgradeable V1. Admin manages registrars/config/status attesters. |
+| `BicycleComponentManager` | `AccessControl` | Non-upgradeable V1. Admin manages registrars and configuration. |
 | `BicycleComponentManagerUI` | Immutable constructor wiring | Read-only route projection. No roles on the manager. No write authority. |
 
 ## `CamRoot` Permissions
@@ -60,7 +60,6 @@ This plan targets the current V1 architecture:
 | `REGISTRAR_ROLE` | Creates verified component records | Shops, manufacturers, trusted operators |
 | `CONFIGURER_ROLE` | Configures the component token contract | Safe or timelock |
 | `PAUSER_ROLE` | Emergency pause of manager writes | Emergency Safe |
-| `STATUS_ATTESTER_ROLE` | Adds official attestations | Optional V1 role |
 
 Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not include `RECOVERY_ROLE` until recovery/dispute is implemented. Do not include `WITHDRAWER_ROLE` unless the manager collects fees.
 
@@ -77,7 +76,6 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 | `retireComponent(serial)` | Current ERC-721 owner or `CAP_RETIRE` delegate | Active components only. Resolve any missing report first so retirement does not leave an open report without a resolution event. Treat retirement as final/irreversible unless explicitly designed otherwise. |
 | `setComponentDelegate(serial, delegate, caps, validUntil)` | Current ERC-721 owner | Store `grantor = owner`. Delegation is valid only while `ownerOf(tokenContract, tokenId) == grantor`. |
 | `revokeComponentDelegate(serial, delegate)` | Current ERC-721 owner | Old-owner delegations are automatically ineffective after transfer. |
-| `addComponentAttestation(serial, attestationType, uri)` | Original registrar or `STATUS_ATTESTER_ROLE` | Requires non-empty type and URI. Does not alter ownership, token URI, or missing status. |
 | `setAccountInfo(uri)` | `msg.sender` only | Prefer no `account` parameter. If kept, require `account == msg.sender`. |
 | `pause()` | `PAUSER_ROLE` | Emergency stop for manager writes. |
 | `unpause()` | `PAUSER_ROLE` or separate governance role | Consider separate unpause authority later. |
