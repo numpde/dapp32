@@ -102,7 +102,7 @@ contract BicycleComponentManagerUI {
         _setBaseView(view_, account);
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
-        view_.actions = _entryActions();
+        view_.actions = account == address(0) ? _lookupOnlyActions() : _entryActions();
     }
 
     /// @notice Route projection for component lookup and detail views.

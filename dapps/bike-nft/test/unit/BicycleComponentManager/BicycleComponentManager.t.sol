@@ -132,6 +132,11 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertTrue(view_.canRegister, "entry account should be allowed to register");
         assertEntryActions(view_.actions);
 
+        view_ = ui.viewEntry(address(0));
+        assertEq(view_.viewId, VIEW_ENTRY, "anonymous entry view mismatch");
+        assertFalse(view_.canRegister, "anonymous entry should not claim registrar authority");
+        assertLookupOnly(view_.actions);
+
         view_ = ui.viewComponent("", owner);
         assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "empty component view mismatch");
         assertLookupAndRegisterActions(view_.actions);
