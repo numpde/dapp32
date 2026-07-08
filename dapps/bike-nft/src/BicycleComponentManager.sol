@@ -201,6 +201,10 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         return _componentsAddress;
     }
 
+    function paused() public view override(Pausable, IBicycleComponentManagerView) returns (bool) {
+        return super.paused();
+    }
+
     /// @notice Sets the component-token contract for future registrations.
     /// @dev Existing records keep their original token contract.
     function setComponentsAddress(address tokenContract) external onlyRole(CONFIGURER_ROLE) {

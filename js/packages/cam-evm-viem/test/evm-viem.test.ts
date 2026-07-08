@@ -345,6 +345,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     viewId: "component.active",
     actions: ["lookupComponent", "updateComponentMetadata", "markComponentMissing", "retireComponent"],
     account: userAddress,
+    paused: false,
     canRegister: true,
     accountInfo: "Mock registrar account",
     exists: true,

@@ -178,12 +178,16 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
 
   assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
   assert.equal(snapshot.resolvedUi.element, "Screen")
-  assert.equal(snapshot.resolvedUi.children[0]?.element, "Fragment")
+  assert.equal(snapshot.resolvedUi.children[0]?.element, "Status")
+  assert.equal(snapshot.resolvedUi.children[0]?.props.label, "Registry paused")
+  assert.equal(snapshot.resolvedUi.children[0]?.props.value, false)
+  assert.equal(snapshot.resolvedUi.children[1]?.element, "Fragment")
   assert.deepEqual(snapshot.values, toInertValue([
     {
       viewId: "entry",
       actions: ["lookupComponent", "openRegister", "setAccountInfo"],
       account: userAddress,
+      paused: false,
       canRegister: true,
       accountInfo: "Mock registrar account",
       serialNumber: "",

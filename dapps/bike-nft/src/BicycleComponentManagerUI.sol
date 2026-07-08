@@ -56,6 +56,7 @@ contract BicycleComponentManagerUI {
         string viewId;
         string[] actions;
         address account;
+        bool paused;
         bool canRegister;
         string accountInfo;
         bool exists;
@@ -111,7 +112,7 @@ contract BicycleComponentManagerUI {
         _setBaseView(view_, account);
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
-        view_.actions = _entryActions(account, view_.canRegister);
+        view_.actions = _entryActions(account, view_.canRegister, view_.paused);
     }
 
     /// @notice Route projection for component lookup and detail views.
@@ -121,7 +122,7 @@ contract BicycleComponentManagerUI {
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_COMPONENT_EMPTY;
             view_.serialNumber = serialNumber;
-            view_.actions = _lookupAndRegisterActions(view_.canRegister);
+            view_.actions = _lookupAndRegisterActions(view_.canRegister, view_.paused);
             return view_;
         }
 
@@ -129,7 +130,7 @@ contract BicycleComponentManagerUI {
         if (!view_.exists) {
             view_.viewId = VIEW_COMPONENT_NOT_FOUND;
         }
-        view_.actions = view_.exists ? _componentActions(view_) : _lookupAndRegisterActions(view_.canRegister);
+        view_.actions = view_.exists ? _componentActions(view_) : _lookupAndRegisterActions(view_.canRegister, view_.paused);
     }
 
     /// @notice Route projection for component registration views.
@@ -141,7 +142,7 @@ contract BicycleComponentManagerUI {
 
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_REGISTER_EMPTY;
-            view_.actions = _lookupAndRegisterActions(view_.canRegister);
+            view_.actions = _lookupAndRegisterActions(view_.canRegister, view_.paused);
             return view_;
         }
 
@@ -153,7 +154,7 @@ contract BicycleComponentManagerUI {
 
         if (view_.canRegister && !view_.exists) {
             view_.viewId = VIEW_REGISTER_READY;
-            view_.actions = _registerReadyActions();
+            view_.actions = _registerReadyActions(view_.paused);
         } else {
             view_.viewId = VIEW_REGISTER_BLOCKED;
             view_.actions = _lookupOnlyActions();
@@ -162,6 +163,7 @@ contract BicycleComponentManagerUI {
 
     function _setBaseView(AppView memory view_, address account) internal view {
         view_.account = account;
+        view_.paused = manager.paused();
         // The manager stores status as a Solidity enum, but CAM view data must
         // expose stable semantic IDs so generic renderers never decode ordinals.
         view_.statusId = _componentStatusId(IBicycleComponentManagerView.ComponentStatus.None);
@@ -259,8 +261,8 @@ contract BicycleComponentManagerUI {
         return AUTHORITY_NONE;
     }
 
-    function _lookupAndRegisterActions(bool canRegister) internal pure returns (string[] memory actions) {
-        if (!canRegister) {
+    function _lookupAndRegisterActions(bool canRegister, bool paused) internal pure returns (string[] memory actions) {
+        if (paused || !canRegister) {
             return _lookupOnlyActions();
         }
 
@@ -269,8 +271,12 @@ contract BicycleComponentManagerUI {
         actions[1] = ACTION_OPEN_REGISTER;
     }
 
-    function _entryActions(address account, bool canRegister) internal pure returns (string[] memory actions) {
+    function _entryActions(address account, bool canRegister, bool paused) internal pure returns (string[] memory actions) {
         if (account == address(0)) {
+            return _lookupOnlyActions();
+        }
+
+        if (paused) {
             return _lookupOnlyActions();
         }
 
@@ -292,13 +298,21 @@ contract BicycleComponentManagerUI {
         actions[0] = ACTION_LOOKUP_COMPONENT;
     }
 
-    function _registerReadyActions() internal pure returns (string[] memory actions) {
+    function _registerReadyActions(bool paused) internal pure returns (string[] memory actions) {
+        if (paused) {
+            return _lookupOnlyActions();
+        }
+
         actions = new string[](2);
         actions[0] = ACTION_REGISTER_COMPONENT;
         actions[1] = ACTION_LOOKUP_COMPONENT;
     }
 
     function _componentActions(AppView memory view_) internal pure returns (string[] memory actions) {
+        if (view_.paused) {
+            return _lookupOnlyActions();
+        }
+
         uint256 count = 1;
         if (view_.canUpdateMetadata) count++;
         if (view_.canMarkMissing) count++;

@@ -85,6 +85,7 @@ export function bikeEntryRouteResult(account: string): Record<string, unknown> {
     viewId: "entry",
     actions: entryActions(account),
     account,
+    paused: false,
     canRegister,
     accountInfo: bikeAccountInfo(account),
     serialNumber: "",
@@ -131,6 +132,7 @@ export function bikeComponentRouteResult(
     viewId: empty ? "component.empty" : exists ? componentViewId(status) : "component.notFound",
     actions: exists ? componentActions(canAct, status) : lookupAndRegisterActions(account),
     account,
+    paused: false,
     canRegister: bikeCanRegister(account),
     accountInfo: bikeAccountInfo(account),
     exists,
@@ -178,6 +180,7 @@ export function bikeRegisterRouteResult(
       ? registerReadyActions()
       : hasSerialNumber ? lookupOnlyActions() : lookupAndRegisterActions(account),
     account,
+    paused: false,
     canRegister,
     exists,
     serialHash: hasSerialNumber ? exists ? BIKE_SERIAL_HASH : BIKE_UNKNOWN_SERIAL_HASH : BIKE_ZERO_BYTES32,

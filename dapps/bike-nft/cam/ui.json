@@ -11,6 +11,13 @@
       },
       "children": [
         {
+          "element": "Status",
+          "props": {
+            "label": "Registry paused",
+            "value": "$view.paused"
+          }
+        },
+        {
           "element": "Include",
           "call": {
             "namespace": "ui",

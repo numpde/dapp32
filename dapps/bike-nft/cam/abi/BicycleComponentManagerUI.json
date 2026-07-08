@@ -68,6 +68,11 @@
             "internalType": "address"
           },
           {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
             "name": "canRegister",
             "type": "bool",
             "internalType": "bool"
@@ -237,6 +242,11 @@
             "name": "account",
             "type": "address",
             "internalType": "address"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
           },
           {
             "name": "canRegister",
@@ -413,6 +423,11 @@
             "name": "account",
             "type": "address",
             "internalType": "address"
+          },
+          {
+            "name": "paused",
+            "type": "bool",
+            "internalType": "bool"
           },
           {
             "name": "canRegister",

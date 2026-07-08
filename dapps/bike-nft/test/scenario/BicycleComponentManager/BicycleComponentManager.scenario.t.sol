@@ -339,10 +339,25 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
 
         manager.pause();
 
-        BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent(SERIAL, owner);
+        BicycleComponentManagerUI.AppView memory view_ = ui.viewEntry(registrar);
+        assertTrue(view_.paused, "pause should project to entry views");
+        assertLookupOnly(view_.actions);
+
+        view_ = ui.viewComponent(SECOND_SERIAL, registrar);
+        assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "pause should keep lookup projection available");
+        assertTrue(view_.paused, "pause should project to lookup views");
+        assertLookupOnly(view_.actions);
+
+        view_ = ui.viewRegister(SECOND_SERIAL, registrar);
+        assertEq(view_.viewId, VIEW_REGISTER_READY, "pause should not hide registration readiness facts");
+        assertTrue(view_.paused, "pause should project to registration views");
+        assertLookupOnly(view_.actions);
+
+        view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "pause should not hide active registered components");
+        assertTrue(view_.paused, "pause should project to CAM views");
         assertEq(view_.ownerInfo, OWNER_INFO_URI, "pause should not hide owner profile data");
-        assertActiveOwnerActions(view_.actions);
+        assertLookupOnly(view_.actions);
 
         vm.prank(owner);
         vm.expectRevert(Pausable.EnforcedPause.selector);
@@ -362,7 +377,10 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         vm.prank(owner);
         manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
 
-        assertEq(ui.viewComponent(SERIAL, owner).tokenURI, UPDATED_TOKEN_URI, "writes should resume after unpause");
+        view_ = ui.viewComponent(SERIAL, owner);
+        assertEq(view_.tokenURI, UPDATED_TOKEN_URI, "writes should resume after unpause");
+        assertFalse(view_.paused, "unpause should project to CAM views");
+        assertActiveOwnerActions(view_.actions);
     }
 
     // Registrar roles are operational state, not static manifest truth. The UI
