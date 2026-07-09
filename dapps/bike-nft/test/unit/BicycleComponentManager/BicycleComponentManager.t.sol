@@ -63,6 +63,48 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.grantRole(manager.REGISTRAR_ROLE(), registrar);
     }
 
+    /// @dev The manager and UI should never become value sinks or generic
+    /// receivers. Low-level calls keep this boundary independent from ABI
+    /// typing and assert the exact contract-owned error surface.
+    function test_managerAndUiRejectNativeValueAndUnknownCalls() external {
+        vm.deal(address(this), 4 wei);
+
+        (bool managerReceiveOk, bytes memory managerReceiveError) = address(manager).call{value: 1 wei}("");
+        assertFalse(managerReceiveOk, "manager should reject direct native value");
+        assertEq(
+            managerReceiveError,
+            abi.encodeWithSelector(BicycleComponentManager.DoesNotAcceptPayments.selector),
+            "manager receive error"
+        );
+
+        (bool managerFallbackOk, bytes memory managerFallbackError) = address(manager).call(hex"deadbeef");
+        assertFalse(managerFallbackOk, "manager should reject unknown selectors");
+        assertEq(
+            managerFallbackError,
+            abi.encodeWithSelector(BicycleComponentManager.UnknownFunction.selector, bytes4(hex"deadbeef")),
+            "manager fallback error"
+        );
+
+        (bool uiReceiveOk, bytes memory uiReceiveError) = address(ui).call{value: 1 wei}("");
+        assertFalse(uiReceiveOk, "UI should reject direct native value");
+        assertEq(
+            uiReceiveError,
+            abi.encodeWithSelector(BicycleComponentManagerUI.DoesNotAcceptPayments.selector),
+            "UI receive error"
+        );
+
+        (bool uiFallbackOk, bytes memory uiFallbackError) = address(ui).call(hex"deadbeef");
+        assertFalse(uiFallbackOk, "UI should reject unknown selectors");
+        assertEq(
+            uiFallbackError,
+            abi.encodeWithSelector(BicycleComponentManagerUI.UnknownFunction.selector, bytes4(hex"deadbeef")),
+            "UI fallback error"
+        );
+
+        assertEq(address(manager).balance, 0, "manager should not retain native value");
+        assertEq(address(ui).balance, 0, "UI should not retain native value");
+    }
+
     /// @dev Registration is the root write path. It must reject non-registrars,
     /// mint the deterministic component token, store the manager record, expose
     /// the same data through the view interface, and reject serial reuse.

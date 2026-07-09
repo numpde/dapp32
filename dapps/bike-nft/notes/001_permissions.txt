@@ -44,8 +44,8 @@ This plan targets the current V1 architecture:
 | `mint(to, tokenId, uri)` | `MINTER_ROLE` | Usually granted to `BicycleComponentManager`. |
 | `safeMint(to, tokenId, uri, data)` | `MINTER_ROLE` | Same, with receiver check. |
 | `setTokenURI(tokenId, uri)` | `TOKEN_URI_SETTER_ROLE` | Usually granted to `BicycleComponentManager`. Manager performs owner/delegate authorization first. |
-| `pause()` | `PAUSER_ROLE` | Emergency stop for mint/metadata operations and, if pausable ERC-721 is used, transfers. |
-| `unpause()` | `PAUSER_ROLE` or separate safer role | Consider separate unpause authority later. |
+| `pause()` | `PAUSER_ROLE` | Emergency stop for mint/metadata operations and transfers. |
+| `unpause()` | `PAUSER_ROLE` | Same current role as pause; split this only with a deliberate governance change. |
 | `setBaseURI(uri)` | `CONFIGURER_ROLE` | Collection config only. |
 | `setContractURI(uri)` | `CONFIGURER_ROLE` | Collection metadata only. |
 | `grantRole(...)` / `revokeRole(...)` | `DEFAULT_ADMIN_ROLE` | Prefer Safe/timelock. |
@@ -78,7 +78,7 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 | `revokeComponentDelegate(serial, delegate)` | Current ERC-721 owner | Old-owner delegations are automatically ineffective after transfer. |
 | `setAccountInfo(uri)` | `msg.sender` only | Prefer no `account` parameter. If kept, require `account == msg.sender`. |
 | `pause()` | `PAUSER_ROLE` | Emergency stop for manager writes. |
-| `unpause()` | `PAUSER_ROLE` or separate governance role | Consider separate unpause authority later. |
+| `unpause()` | `PAUSER_ROLE` | Same current role as pause; split this only with a deliberate governance change. |
 | `grantRole(...)` / `revokeRole(...)` | `DEFAULT_ADMIN_ROLE` | Registrar onboarding/removal. Prefer Safe/timelock. |
 
 ## Pause Projection Limitation
