@@ -32,6 +32,8 @@ interface IBicycleComponentManagerView is IERC165 {
 
     function paused() external view returns (bool);
 
+    function componentTokenPaused() external view returns (bool);
+
     function accountInfo(address account) external view returns (string memory);
 
     function canRegister(address actor) external view returns (bool);

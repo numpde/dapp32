@@ -146,14 +146,14 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
 
         view_ = ui.viewComponent(SERIAL, owner);
-        assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "clear missing should restore active view");
+        assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "resolved report should restore active view");
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Active),
-            "clear missing should restore active status"
+            "resolved report should restore active status"
         );
-        assertEq(view_.statusId, "active", "clear missing should restore semantic active status");
-        assertEq(view_.missingReportURI, "", "clear missing should remove active report URI");
+        assertEq(view_.statusId, "active", "resolved report should restore semantic active status");
+        assertEq(view_.missingReportURI, "", "resolved report should remove active report URI");
         assertActiveOwnerActions(view_.actions);
 
         vm.prank(owner);
@@ -534,6 +534,36 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent(SERIAL, owner);
         assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "token pause should not hide active manager record");
         assertEq(view_.tokenURI, TOKEN_URI, "token pause should not hide token URI reads");
+        assertFalse(view_.paused, "token pause must not masquerade as manager pause");
+        assertTrue(view_.componentTokenPaused, "token pause should project to CAM views");
+        assertActions(
+            view_.actions,
+            expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_MARK_COMPONENT_MISSING, ACTION_RETIRE_COMPONENT)
+        );
+
+        view_ = ui.viewEntry(registrar);
+        assertEq(view_.viewId, VIEW_ENTRY, "token pause should not hide entry view");
+        assertFalse(view_.paused, "token pause must not mark entry manager paused");
+        assertTrue(view_.componentTokenPaused, "token pause should project to entry views");
+        assertActions(view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_SET_ACCOUNT_INFO));
+
+        view_ = ui.viewComponent("", registrar);
+        assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "token pause should not hide empty lookup view");
+        assertFalse(view_.paused, "token pause must not mark empty lookup manager paused");
+        assertTrue(view_.componentTokenPaused, "token pause should project to empty lookup views");
+        assertLookupOnly(view_.actions);
+
+        view_ = ui.viewComponent(SECOND_SERIAL, registrar);
+        assertEq(view_.viewId, VIEW_COMPONENT_NOT_FOUND, "token pause should not hide missing component facts");
+        assertFalse(view_.paused, "token pause must not mark missing lookup manager paused");
+        assertTrue(view_.componentTokenPaused, "token pause should project to missing lookup views");
+        assertLookupOnly(view_.actions);
+
+        view_ = ui.viewRegister(SECOND_SERIAL, registrar);
+        assertEq(view_.viewId, VIEW_REGISTER_READY, "token pause should not hide registration readiness facts");
+        assertFalse(view_.paused, "token pause must not mark manager paused");
+        assertTrue(view_.componentTokenPaused, "token pause should project to registration views");
+        assertLookupOnly(view_.actions);
 
         vm.prank(registrar);
         vm.expectRevert(Pausable.EnforcedPause.selector);

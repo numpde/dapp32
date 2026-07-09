@@ -545,6 +545,19 @@
   },
   {
     "type": "function",
+    "name": "componentTokenPaused",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "componentURI",
     "inputs": [
       {
@@ -1669,6 +1682,22 @@
     "inputs": [
       {
         "name": "serialHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ComponentManagerMissingTokenRole",
+    "inputs": [
+      {
+        "name": "tokenContract",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "role",
         "type": "bytes32",
         "internalType": "bytes32"
       }

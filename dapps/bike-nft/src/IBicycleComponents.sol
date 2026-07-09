@@ -22,6 +22,9 @@ interface IBicycleComponents is IERC721Metadata {
     /// @notice Returns true if `tokenId` exists.
     function exists(uint256 tokenId) external view returns (bool);
 
+    /// @notice Returns true while privileged token writes and transfers are paused.
+    function paused() external view returns (bool);
+
     /// @notice Returns the base URI prefix used by tokenURI.
     function baseURI() external view returns (string memory);
 

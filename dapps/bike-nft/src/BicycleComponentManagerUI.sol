@@ -79,6 +79,7 @@ contract BicycleComponentManagerUI {
         uint64 delegationCapabilities;
         uint48 delegationValidUntil;
         bool delegationActive;
+        bool componentTokenPaused;
         bool canUpdateMetadata;
         bool canMarkMissing;
         bool canClearMissing;
@@ -96,9 +97,8 @@ contract BicycleComponentManagerUI {
     constructor(address managerAddress) {
         if (managerAddress == address(0)) revert ZeroAddress();
         if (managerAddress.code.length == 0) revert ManagerHasNoCode(managerAddress);
-        try IBicycleComponentManagerView(managerAddress).supportsInterface(type(IBicycleComponentManagerView).interfaceId) returns (
-            bool supported
-        ) {
+        try IBicycleComponentManagerView(managerAddress)
+            .supportsInterface(type(IBicycleComponentManagerView).interfaceId) returns (bool supported) {
             if (!supported) revert ManagerUnsupported(managerAddress);
         } catch {
             revert ManagerUnsupported(managerAddress);
@@ -112,7 +112,7 @@ contract BicycleComponentManagerUI {
         _setBaseView(view_, account);
         view_.viewId = VIEW_ENTRY;
         view_.serialNumber = "";
-        view_.actions = _entryActions(account, view_.canRegister, view_.paused);
+        view_.actions = _entryActions(account, view_.canRegister, view_.paused, view_.componentTokenPaused);
     }
 
     /// @notice Route projection for component lookup and detail views.
@@ -122,7 +122,7 @@ contract BicycleComponentManagerUI {
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_COMPONENT_EMPTY;
             view_.serialNumber = serialNumber;
-            view_.actions = _lookupAndRegisterActions(view_.canRegister, view_.paused);
+            view_.actions = _lookupAndRegisterActions(view_.canRegister, view_.paused, view_.componentTokenPaused);
             return view_;
         }
 
@@ -130,7 +130,9 @@ contract BicycleComponentManagerUI {
         if (!view_.exists) {
             view_.viewId = VIEW_COMPONENT_NOT_FOUND;
         }
-        view_.actions = view_.exists ? _componentActions(view_) : _lookupAndRegisterActions(view_.canRegister, view_.paused);
+        view_.actions = view_.exists
+            ? _componentActions(view_)
+            : _lookupAndRegisterActions(view_.canRegister, view_.paused, view_.componentTokenPaused);
     }
 
     /// @notice Route projection for component registration views.
@@ -142,7 +144,7 @@ contract BicycleComponentManagerUI {
 
         if (_isEmpty(serialNumber)) {
             view_.viewId = VIEW_REGISTER_EMPTY;
-            view_.actions = _lookupAndRegisterActions(view_.canRegister, view_.paused);
+            view_.actions = _lookupAndRegisterActions(view_.canRegister, view_.paused, view_.componentTokenPaused);
             return view_;
         }
 
@@ -154,7 +156,7 @@ contract BicycleComponentManagerUI {
 
         if (view_.canRegister && !view_.exists) {
             view_.viewId = VIEW_REGISTER_READY;
-            view_.actions = _registerReadyActions(view_.paused);
+            view_.actions = _registerReadyActions(view_.paused || view_.componentTokenPaused);
         } else {
             view_.viewId = VIEW_REGISTER_BLOCKED;
             view_.actions = _lookupOnlyActions();
@@ -164,6 +166,7 @@ contract BicycleComponentManagerUI {
     function _setBaseView(AppView memory view_, address account) internal view {
         view_.account = account;
         view_.paused = manager.paused();
+        view_.componentTokenPaused = manager.componentTokenPaused();
         // The manager stores status as a Solidity enum, but CAM view data must
         // expose stable semantic IDs so generic renderers never decode ordinals.
         view_.statusId = _componentStatusId(IBicycleComponentManagerView.ComponentStatus.None);
@@ -248,7 +251,9 @@ contract BicycleComponentManagerUI {
         pure
         returns (string memory)
     {
-        if (status == IBicycleComponentManagerView.ComponentStatus.Active) return VIEW_COMPONENT_ACTIVE;
+        if (status == IBicycleComponentManagerView.ComponentStatus.Active) {
+            return VIEW_COMPONENT_ACTIVE;
+        }
         if (status == IBicycleComponentManagerView.ComponentStatus.Missing) return VIEW_COMPONENT_MISSING;
         if (status == IBicycleComponentManagerView.ComponentStatus.Retired) return VIEW_COMPONENT_RETIRED;
 
@@ -261,8 +266,12 @@ contract BicycleComponentManagerUI {
         return AUTHORITY_NONE;
     }
 
-    function _lookupAndRegisterActions(bool canRegister, bool paused) internal pure returns (string[] memory actions) {
-        if (paused || !canRegister) {
+    function _lookupAndRegisterActions(bool canRegister, bool managerPaused, bool tokenPaused)
+        internal
+        pure
+        returns (string[] memory actions)
+    {
+        if (managerPaused || tokenPaused || !canRegister) {
             return _lookupOnlyActions();
         }
 
@@ -271,16 +280,20 @@ contract BicycleComponentManagerUI {
         actions[1] = ACTION_OPEN_REGISTER;
     }
 
-    function _entryActions(address account, bool canRegister, bool paused) internal pure returns (string[] memory actions) {
+    function _entryActions(address account, bool canRegister, bool managerPaused, bool tokenPaused)
+        internal
+        pure
+        returns (string[] memory actions)
+    {
         if (account == address(0)) {
             return _lookupOnlyActions();
         }
 
-        if (paused) {
+        if (managerPaused) {
             return _lookupOnlyActions();
         }
 
-        if (!canRegister) {
+        if (tokenPaused || !canRegister) {
             actions = new string[](2);
             actions[0] = ACTION_LOOKUP_COMPONENT;
             actions[1] = ACTION_SET_ACCOUNT_INFO;
@@ -314,7 +327,7 @@ contract BicycleComponentManagerUI {
         }
 
         uint256 count = 1;
-        if (view_.canUpdateMetadata) count++;
+        if (!view_.componentTokenPaused && view_.canUpdateMetadata) count++;
         if (view_.canMarkMissing) count++;
         if (view_.canClearMissing) count++;
         if (view_.canRetire) count++;
@@ -323,7 +336,9 @@ contract BicycleComponentManagerUI {
         uint256 index;
 
         actions[index++] = ACTION_LOOKUP_COMPONENT;
-        if (view_.canUpdateMetadata) actions[index++] = ACTION_UPDATE_COMPONENT_METADATA;
+        if (!view_.componentTokenPaused && view_.canUpdateMetadata) {
+            actions[index++] = ACTION_UPDATE_COMPONENT_METADATA;
+        }
         if (view_.canMarkMissing) actions[index++] = ACTION_MARK_COMPONENT_MISSING;
         if (view_.canClearMissing) actions[index++] = ACTION_CLEAR_COMPONENT_MISSING;
         if (view_.canRetire) actions[index++] = ACTION_RETIRE_COMPONENT;

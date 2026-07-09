@@ -8,6 +8,7 @@ import {ERC721Pausable} from "@openzeppelin-contracts-5.6.1/token/ERC721/extensi
 import {ERC721URIStorage} from "@openzeppelin-contracts-5.6.1/token/ERC721/extensions/ERC721URIStorage.sol";
 import {IERC721Metadata} from "@openzeppelin-contracts-5.6.1/token/ERC721/extensions/IERC721Metadata.sol";
 import {IERC165} from "@openzeppelin-contracts-5.6.1/utils/introspection/IERC165.sol";
+import {Pausable} from "@openzeppelin-contracts-5.6.1/utils/Pausable.sol";
 
 import {IBicycleComponents} from "./IBicycleComponents.sol";
 
@@ -78,6 +79,11 @@ contract BicycleComponents is
     /// @notice Resumes token transfers, minting, and metadata updates.
     function unpause() external onlyRole(PAUSER_ROLE) {
         _unpause();
+    }
+
+    /// @inheritdoc IBicycleComponents
+    function paused() public view override(Pausable, IBicycleComponents) returns (bool) {
+        return super.paused();
     }
 
     /// @inheritdoc IBicycleComponents

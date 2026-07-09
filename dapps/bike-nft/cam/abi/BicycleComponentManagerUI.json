@@ -183,6 +183,11 @@
             "internalType": "bool"
           },
           {
+            "name": "componentTokenPaused",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
             "name": "canUpdateMetadata",
             "type": "bool",
             "internalType": "bool"
@@ -355,6 +360,11 @@
           },
           {
             "name": "delegationActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentTokenPaused",
             "type": "bool",
             "internalType": "bool"
           },
@@ -536,6 +546,11 @@
           },
           {
             "name": "delegationActive",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "componentTokenPaused",
             "type": "bool",
             "internalType": "bool"
           },

@@ -90,6 +90,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     error EmptySerialNumber();
     error ComponentsHasNoCode(address tokenContract);
     error ComponentsUnsupported(address tokenContract);
+    error ComponentManagerMissingTokenRole(address tokenContract, bytes32 role);
     error ComponentAlreadyRegistered(bytes32 serialHash);
     error ComponentNotRegistered(bytes32 serialHash);
     error Unauthorized(address actor, bytes32 serialHash, uint64 requiredCapability);
@@ -180,7 +181,7 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         _grantRole(CONFIGURER_ROLE, admin);
 
         _setMaxDelegationDuration(DEFAULT_MAX_DELEGATION_DURATION);
-        _setComponentsAddress(componentsAddress_);
+        _setComponentsAddress(componentsAddress_, false);
     }
 
     // ---------------------------------------------------------------------
@@ -204,10 +205,15 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         return super.paused();
     }
 
+    /// @notice Whether the current component-token collection rejects token writes/transfers.
+    function componentTokenPaused() external view override returns (bool) {
+        return IBicycleComponents(_componentsAddress).paused();
+    }
+
     /// @notice Sets the component-token contract for future registrations.
     /// @dev Existing records keep their original token contract.
     function setComponentsAddress(address tokenContract) external onlyRole(CONFIGURER_ROLE) {
-        _setComponentsAddress(tokenContract);
+        _setComponentsAddress(tokenContract, true);
     }
 
     function maxDelegationDuration() external view returns (uint48) {
@@ -566,7 +572,9 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
             if (bytes(lifecycleURI).length == 0) revert EmptyLifecycleURI();
             record.missingReportURI = lifecycleURI;
             _updateStatus(record, actor, ComponentStatus.Missing);
-            emit ComponentReported(record.serialHash, record.tokenContract, actor, record.tokenId, record.serialNumber, lifecycleURI);
+            emit ComponentReported(
+                record.serialHash, record.tokenContract, actor, record.tokenId, record.serialNumber, lifecycleURI
+            );
         } else {
             if (!_canAct(record, actor, CAP_CLEAR_MISSING)) {
                 revert Unauthorized(actor, serialHash, CAP_CLEAR_MISSING);
@@ -649,9 +657,12 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     // Internal configuration/read helpers
     // ---------------------------------------------------------------------
 
-    function _setComponentsAddress(address tokenContract) internal {
+    function _setComponentsAddress(address tokenContract, bool requireManagerPrivileges) internal {
         if (tokenContract == address(0)) revert ZeroAddress();
         _requireSupportedComponents(tokenContract);
+        if (requireManagerPrivileges) {
+            _requireManagerTokenPrivileges(tokenContract);
+        }
 
         address oldTokenContract = _componentsAddress;
         _componentsAddress = tokenContract;
@@ -674,6 +685,41 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         } catch {
             revert ComponentsUnsupported(tokenContract);
         }
+    }
+
+    function _requireManagerTokenPrivileges(address tokenContract) internal view {
+        // Constructor wiring cannot require roles because the manager address
+        // does not exist until deployment completes. Rotation is different: if
+        // the collection exposes the BicycleComponents role surface, fail before
+        // installing a token the manager is already known unable to operate.
+        (bool hasMinterRoleId, bytes32 minterRole) = _tokenRoleId(tokenContract, "MINTER_ROLE()");
+        if (hasMinterRoleId && !_tokenHasRole(tokenContract, minterRole, address(this))) {
+            revert ComponentManagerMissingTokenRole(tokenContract, minterRole);
+        }
+
+        (bool hasTokenUriSetterRoleId, bytes32 tokenUriSetterRole) =
+            _tokenRoleId(tokenContract, "TOKEN_URI_SETTER_ROLE()");
+        if (hasTokenUriSetterRoleId && !_tokenHasRole(tokenContract, tokenUriSetterRole, address(this))) {
+            revert ComponentManagerMissingTokenRole(tokenContract, tokenUriSetterRole);
+        }
+    }
+
+    function _tokenRoleId(address tokenContract, string memory signature)
+        internal
+        view
+        returns (bool ok, bytes32 role)
+    {
+        bytes memory result;
+        (ok, result) = tokenContract.staticcall(abi.encodeWithSelector(bytes4(keccak256(bytes(signature)))));
+        if (!ok || result.length != 32) return (false, bytes32(0));
+        role = abi.decode(result, (bytes32));
+    }
+
+    function _tokenHasRole(address tokenContract, bytes32 role, address account) internal view returns (bool) {
+        (bool ok, bytes memory result) =
+            tokenContract.staticcall(abi.encodeWithSignature("hasRole(bytes32,address)", role, account));
+        if (!ok || result.length != 32) return false;
+        return abi.decode(result, (bool));
     }
 
     function _requireSerialNumber(string calldata serialNumber) internal pure returns (bytes32 serialHash) {

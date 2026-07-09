@@ -331,6 +331,28 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.ComponentsHasNoCode.selector, address(0xdead)));
         manager.setComponentsAddress(address(0xdead));
 
+        BicycleComponents unprivilegedComponents = new BicycleComponents("Bike Components 3", "BIKE3", admin, 0, "", "");
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.ComponentManagerMissingTokenRole.selector,
+                address(unprivilegedComponents),
+                unprivilegedComponents.MINTER_ROLE()
+            )
+        );
+        manager.setComponentsAddress(address(unprivilegedComponents));
+
+        BicycleComponents metadataLockedComponents =
+            new BicycleComponents("Bike Components 4", "BIKE4", admin, 0, "", "");
+        metadataLockedComponents.grantRole(metadataLockedComponents.MINTER_ROLE(), address(manager));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BicycleComponentManager.ComponentManagerMissingTokenRole.selector,
+                address(metadataLockedComponents),
+                metadataLockedComponents.TOKEN_URI_SETTER_ROLE()
+            )
+        );
+        manager.setComponentsAddress(address(metadataLockedComponents));
+
         manager.setComponentsAddress(address(secondComponents));
         assertEq(manager.componentsAddress(), address(secondComponents), "component address mismatch");
 
@@ -690,7 +712,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.prank(delegate);
         manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
-        assertFalse(manager.missingStatus(SERIAL), "delegate should clear missing");
+        assertFalse(manager.missingStatus(SERIAL), "delegate should resolve missing report");
         assertEq(manager.componentBySerial(SERIAL).missingReportURI, "", "missing report should clear on resolution");
 
         vm.prank(delegate);
@@ -730,7 +752,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.markComponentMissing(SERIAL, REPORT_URI);
 
         vm.expectRevert(
-            abi.encodeWithSelector(BicycleComponentManager.ComponentNotRegistered.selector, manager.serialHashOf(SECOND_SERIAL))
+            abi.encodeWithSelector(
+                BicycleComponentManager.ComponentNotRegistered.selector, manager.serialHashOf(SECOND_SERIAL)
+            )
         );
         manager.clearComponentMissing(SECOND_SERIAL, "");
 
@@ -831,6 +855,10 @@ contract RevertingReadComponents is IBicycleComponents {
 
     function exists(uint256 tokenId) external view returns (bool) {
         return _owners[tokenId] != address(0);
+    }
+
+    function paused() external pure returns (bool) {
+        return false;
     }
 
     function baseURI() external pure returns (string memory) {
