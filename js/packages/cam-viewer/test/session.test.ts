@@ -61,7 +61,7 @@ const BIKE_ACCOUNT_INFO_URI = "fixture://bike-nft/accounts/session-owner.json"
 const BIKE_REGISTRATION_TOKEN_URI = "fixture://bike-nft/tokens/session-registration.json"
 const NO_RESOURCE_OVERRIDES = {}
 
-test("bike fixture models the real UI projection branch states", () => {
+test("bike fixture covers unpaused fixture projection cases", () => {
   assertBikeProjection(bikeComponentRouteResult("", userAddress, "active"), {
     viewId: "component.empty",
     actions: ["lookupComponent", "openRegister"],

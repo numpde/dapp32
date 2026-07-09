@@ -75,9 +75,10 @@ export function bikeRouteResults(
   }
 }
 
-// This fixture mirrors the route projection in BicycleComponentManagerUI, not
-// the whole manager. It deliberately models one registered component with an
-// explicit status and treats every other non-empty serial as unregistered.
+// This fixture supplies unpaused happy-path CAM route results for TypeScript
+// tests. It is not a complete BicycleComponentManagerUI projection model and
+// does not model manager/token pause branches unless a test explicitly needs
+// that boundary later.
 export function bikeEntryRouteResult(account: string): Record<string, unknown> {
   const canRegister = bikeCanRegister(account)
 

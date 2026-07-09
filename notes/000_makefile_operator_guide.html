@@ -576,7 +576,7 @@
             </div>
             <div class="fact">
               <strong>Packages</strong>
-              <code>package-ci</code>, a Make aggregation over <code>package-test</code>, <code>viewer-terminal-check</code>, and <code>cam-publication-preflight-check</code>. The package lane tests the JS workspace; the tool lanes smoke-run the terminal and publication-preflight boundaries through their own Compose services.
+              <code>package-ci</code>, a Make aggregation over <code>package-test</code>, <code>viewer-terminal-check</code>, <code>cam-publication-preflight-check</code>, and <code>cam-integration-fuzz-check</code>. The package lane tests the JS workspace; the tool lanes smoke-run the terminal and publication-preflight boundaries, while integration-fuzz typechecks and tests its runner through Compose.
             </div>
             <div class="fact">
               <strong>Network</strong>
