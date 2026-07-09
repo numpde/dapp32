@@ -174,6 +174,16 @@ class RepositoryHygieneTest(unittest.TestCase):
         if "No known ABI characterization gaps remain" in inventory:
             self.assertNotIn("deserve characterization before any abstraction", inventory)
 
+    def test_bike_component_admin_does_not_receive_operational_token_roles_by_default(self) -> None:
+        source = read_text(repo_path("dapps/bike-nft/src/BicycleComponents.sol"))
+        constructor_body = self.solidity_constructor_body(source, "BicycleComponents")
+
+        # The manager is the registry policy boundary. Constructor-time
+        # operational role references are suspect regardless of grant helper or
+        # local alias; the fixture test owns the positive manager grants.
+        self.assertNotIn("MINTER_ROLE", constructor_body)
+        self.assertNotIn("TOKEN_URI_SETTER_ROLE", constructor_body)
+
     def test_compose_project_names_are_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
 
@@ -374,6 +384,27 @@ class RepositoryHygieneTest(unittest.TestCase):
             for line in makefile.splitlines()
             if (match := MAKE_TARGET_RE.match(line)) is not None
         ]
+
+    def solidity_constructor_body(self, source: str, contract_name: str) -> str:
+        match = re.search(r"\bconstructor\s*\(", source)
+        if match is None:
+            self.fail(f"{contract_name} must have a constructor")
+
+        open_brace = source.find("{", match.end())
+        if open_brace == -1:
+            self.fail(f"{contract_name} constructor body not found")
+
+        depth = 0
+        for index in range(open_brace, len(source)):
+            char = source[index]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return source[open_brace + 1:index]
+
+        self.fail(f"{contract_name} constructor body is unterminated")
 
     def make_target_prereqs(self, makefile: str, target: str) -> tuple[str, ...]:
         for line in makefile.splitlines():
