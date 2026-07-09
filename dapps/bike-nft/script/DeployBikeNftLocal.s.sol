@@ -4,8 +4,12 @@ import {Script, console2} from "forge-std-1.12.0/src/Script.sol";
 
 import {BikeNftLocalFixture} from "./BikeNftLocalFixture.sol";
 
-/// @notice Deploys the bike NFT CAM fixture to a local or explicitly selected chain.
+/// @notice Deploys the bike NFT CAM fixture to the local Anvil lane.
 /// @dev
+/// This script deliberately seeds demo components, grants the broadcaster local
+/// registrar authority, and uses zero admin delay. Do not use it as a live-chain
+/// deployment script.
+///
 /// Required environment:
 /// - PRIVATE_KEY: deployer/admin private key used by Forge broadcast.
 /// - CAM_URI: exact CAM document URI to store in CamRoot.

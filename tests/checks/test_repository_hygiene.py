@@ -192,6 +192,15 @@ class RepositoryHygieneTest(unittest.TestCase):
         # grant registrars, but must not become one through constructor default.
         self.assertNotIn("REGISTRAR_ROLE", constructor_body)
 
+    def test_bike_local_deploy_script_warns_against_live_chain_use(self) -> None:
+        source = read_text(repo_path("dapps/bike-nft/script/DeployBikeNftLocal.s.sol"))
+
+        # The local script seeds demo state and uses zero admin delay. Keep the
+        # operator-facing comment explicit so it is not mistaken for production
+        # deployment guidance.
+        self.assertIn("Deploys the bike NFT CAM fixture to the local Anvil lane", source)
+        self.assertIn("Do not use it as a live-chain", source)
+
     def test_compose_project_names_are_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
 
