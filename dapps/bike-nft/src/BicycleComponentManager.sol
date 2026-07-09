@@ -685,6 +685,11 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
         } catch {
             revert ComponentsUnsupported(tokenContract);
         }
+
+        try IBicycleComponents(tokenContract).paused() returns (bool) {}
+        catch {
+            revert ComponentsUnsupported(tokenContract);
+        }
     }
 
     function _requireManagerTokenPrivileges(address tokenContract) internal view {

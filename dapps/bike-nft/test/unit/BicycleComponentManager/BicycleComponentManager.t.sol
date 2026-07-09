@@ -308,6 +308,15 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         new BicycleComponentManagerUI(address(components));
     }
 
+    function test_managerConstructorRejectsUnsupportedComponentPauseSurface() external {
+        RevertingPausedComponents revertingPausedComponents = new RevertingPausedComponents();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(BicycleComponentManager.ComponentsUnsupported.selector, address(revertingPausedComponents))
+        );
+        new BicycleComponentManager(admin, 0, address(revertingPausedComponents));
+    }
+
     /// @dev Component collection rotation should affect only future
     /// registrations. Existing records keep their original token contract so
     /// historic component lookups remain stable across configuration changes.
@@ -330,6 +339,12 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.ComponentsHasNoCode.selector, address(0xdead)));
         manager.setComponentsAddress(address(0xdead));
+
+        RevertingPausedComponents revertingPausedComponents = new RevertingPausedComponents();
+        vm.expectRevert(
+            abi.encodeWithSelector(BicycleComponentManager.ComponentsUnsupported.selector, address(revertingPausedComponents))
+        );
+        manager.setComponentsAddress(address(revertingPausedComponents));
 
         BicycleComponents unprivilegedComponents = new BicycleComponents("Bike Components 3", "BIKE3", admin, 0, "", "");
         vm.expectRevert(
@@ -812,6 +827,18 @@ contract RecordingERC721Receiver is IERC721Receiver {
     function onERC721Received(address, address, uint256, bytes calldata) external returns (bytes4) {
         _received = true;
         return IERC721Receiver.onERC721Received.selector;
+    }
+}
+
+contract RevertingPausedComponents {
+    error PausedUnavailable();
+
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return interfaceId == type(IBicycleComponents).interfaceId;
+    }
+
+    function paused() external pure returns (bool) {
+        revert PausedUnavailable();
     }
 }
 
