@@ -63,11 +63,17 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.grantRole(manager.REGISTRAR_ROLE(), registrar);
     }
 
-    /// @dev The manager and UI should never become value sinks or generic
-    /// receivers. Low-level calls keep this boundary independent from ABI
-    /// typing and assert the exact contract-owned error surface.
-    function test_managerAndUiRejectNativeValueAndUnknownCalls() external {
+    /// @dev Registry contracts should not become native-value sinks or generic
+    /// receivers. Manager/UI own typed errors; the ERC-721 token currently relies
+    /// on Solidity's non-payable/no-fallback rejection, so pin only the boundary.
+    function test_bikeContractsRejectNativeValueAndUnknownCalls() external {
         vm.deal(address(this), 4 wei);
+
+        (bool componentsReceiveOk,) = address(components).call{value: 1 wei}("");
+        assertFalse(componentsReceiveOk, "component token should reject direct native value");
+
+        (bool componentsFallbackOk,) = address(components).call(hex"deadbeef");
+        assertFalse(componentsFallbackOk, "component token should reject unknown selectors");
 
         (bool managerReceiveOk, bytes memory managerReceiveError) = address(manager).call{value: 1 wei}("");
         assertFalse(managerReceiveOk, "manager should reject direct native value");
@@ -103,6 +109,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         assertEq(address(manager).balance, 0, "manager should not retain native value");
         assertEq(address(ui).balance, 0, "UI should not retain native value");
+        assertEq(address(components).balance, 0, "component token should not retain native value");
     }
 
     /// @dev Registration is the root write path. It must reject non-registrars,
