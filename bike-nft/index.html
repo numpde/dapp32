@@ -618,8 +618,10 @@
           <h3>Owner authority</h3>
           <p>
             Current ERC-721 owners can update component metadata, report missing
-            status, clear missing status, retire components, and delegate
-            selected capabilities.
+            status, clear missing status, and retire components. The manager
+            contract also supports scoped delegation. V1 CAM uses active
+            delegations to expose delegate-authorized actions, but does not
+            expose a grant/revoke workflow.
           </p>
         </article>
         <article class="card">
@@ -627,7 +629,9 @@
           <p>
             Delegates receive explicit capabilities with an expiry. Delegations
             only work while the grantor remains the token owner, so an ordinary
-            ERC-721 sale invalidates old repair-shop permissions.
+            ERC-721 sale invalidates old repair-shop permissions. Grant and
+            revoke calls remain contract-level operations because capability and
+            expiry inputs need a lower-error UI than V1 provides.
           </p>
         </article>
         <article class="card">
