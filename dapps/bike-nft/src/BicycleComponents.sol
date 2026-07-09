@@ -19,8 +19,8 @@ import {IBicycleComponents} from "./IBicycleComponents.sol";
 /// - owners can use standard ERC-721 approvals and transfers;
 /// - wallets, explorers, marketplaces, and indexers can treat tokens normally;
 /// - minting and token URI updates are exposed through a small role-gated API;
-/// - serial-number lookup, missing status, registrar rules, delegations, and
-///   recovery/dispute state belong in BicycleComponentManager.
+/// - serial-number lookup, missing-report lifecycle, registrar rules,
+///   delegations, and recovery/dispute state belong in BicycleComponentManager.
 ///
 /// The contract is intentionally not upgradeable. If token behavior needs to
 /// change later, deploy a new component-token contract and update the manager's

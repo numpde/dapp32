@@ -71,8 +71,8 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 | `setComponentsAddress(tokenContract)` | `CONFIGURER_ROLE` | Future registrations only. Does not reinterpret old records. |
 | `setMaxDelegationDuration(duration)` | `CONFIGURER_ROLE` | Caps owner-granted delegation windows. |
 | `setComponentMetadata(serial, uri)` | Current ERC-721 owner or `CAP_UPDATE_METADATA` delegate | Manager calls token `setTokenURI` after authorization. Empty metadata URIs are rejected at the manager boundary. |
-| `markComponentMissing(serial, reportURI)` | Current ERC-721 owner or `CAP_MARK_MISSING` delegate | Moves active components to missing and emits a report URI. V1 status only; does not block ERC-721 transfer unless token later enforces locks. |
-| `clearComponentMissing(serial, resolutionURI)` | Current ERC-721 owner or `CAP_CLEAR_MISSING` delegate | Restores missing components to active and emits a resolution URI. Ordinary registrars should not clear missing status by role alone. |
+| `markComponentMissing(serial, reportURI)` | Current ERC-721 owner or `CAP_MARK_MISSING` delegate | Opens a missing report and emits the report URI. V1 stores missing status plus the active report URI; it does not block ERC-721 transfer unless token behavior later adds explicit transfer locks. |
+| `clearComponentMissing(serial, resolutionURI)` | Current ERC-721 owner or `CAP_CLEAR_MISSING` delegate | Resolves an open missing report and emits the resolution URI. Ordinary registrars should not resolve reports by role alone. |
 | `retireComponent(serial)` | Current ERC-721 owner or `CAP_RETIRE` delegate | Active components only. Resolve any missing report first so retirement does not leave an open report without a resolution event. Treat retirement as final/irreversible unless explicitly designed otherwise. |
 | `setComponentDelegate(serial, delegate, caps, validUntil)` | Current ERC-721 owner | Store `grantor = owner`. Delegation is valid only while `ownerOf(tokenContract, tokenId) == grantor`. |
 | `revokeComponentDelegate(serial, delegate)` | Current ERC-721 owner | Old-owner delegations are automatically ineffective after transfer. |
