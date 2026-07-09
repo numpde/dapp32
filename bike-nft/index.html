@@ -653,12 +653,13 @@
         continue to the declared follow-up read route.
       </p>
       <div class="route-table">
-        <table>
+        <table data-check="bike-routes">
           <thead>
             <tr>
               <th>Route</th>
               <th>Kind</th>
               <th>Contract function</th>
+              <th>Continuation</th>
               <th>User-facing purpose</th>
             </tr>
           </thead>
@@ -667,54 +668,63 @@
               <td><code>entry</code></td>
               <td>read</td>
               <td><code>viewEntry(account)</code></td>
+              <td><code>ui.app(view=$outputs.0)</code></td>
               <td>Initial lookup screen and registration availability.</td>
             </tr>
             <tr>
               <td><code>component</code></td>
               <td>read</td>
               <td><code>viewComponent(serialNumber, account)</code></td>
+              <td><code>ui.app(view=$outputs.0)</code></td>
               <td>Component lookup, owner view, current status, token URI, and available actions.</td>
             </tr>
             <tr>
               <td><code>register</code></td>
               <td>read</td>
               <td><code>viewRegister(serialNumber, account)</code></td>
+              <td><code>ui.app(view=$outputs.0)</code></td>
               <td>Registration readiness for a serial number.</td>
             </tr>
             <tr>
               <td><code>registerComponent</code></td>
               <td>write</td>
               <td><code>registerComponent(owner, serialNumber, tokenURI_)</code></td>
+              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
               <td>Registrar supplies an explicit owner, mints the component NFT, and creates the verified record.</td>
             </tr>
             <tr>
               <td><code>setAccountInfo</code></td>
               <td>write</td>
               <td><code>setAccountInfo(infoURI)</code></td>
+              <td><code>routes.entry()</code></td>
               <td>The connected account publishes or clears its own account metadata URI.</td>
             </tr>
             <tr>
               <td><code>updateComponentMetadata</code></td>
               <td>write</td>
               <td><code>setComponentMetadata(serialNumber, tokenURI_)</code></td>
+              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
               <td>Owner or delegate updates the component token URI.</td>
             </tr>
             <tr>
               <td><code>markComponentMissing</code></td>
               <td>write</td>
               <td><code>markComponentMissing(serialNumber, reportURI)</code></td>
+              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
               <td>Owner or delegate reports the component missing with an external report URI.</td>
             </tr>
             <tr>
               <td><code>clearComponentMissing</code></td>
               <td>write</td>
               <td><code>clearComponentMissing(serialNumber, resolutionURI)</code></td>
+              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
               <td>Owner or delegate restores the component to active status with an external resolution URI.</td>
             </tr>
             <tr>
               <td><code>retireComponent</code></td>
               <td>write</td>
               <td><code>retireComponent(serialNumber)</code></td>
+              <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
               <td>Owner or delegate moves the registry record to final retired state.</td>
             </tr>
           </tbody>
