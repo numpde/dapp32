@@ -136,7 +136,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
-            "missing status should persist"
+            "missing report should persist"
         );
         assertEq(view_.statusId, "missing", "missing semantic status should project");
         assertEq(view_.missingReportURI, REPORT_URI, "missing report URI should project");

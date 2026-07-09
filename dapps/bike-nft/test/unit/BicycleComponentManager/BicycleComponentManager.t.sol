@@ -685,7 +685,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.prank(delegate);
         manager.markComponentMissing(SERIAL, REPORT_URI);
-        assertTrue(manager.missingStatus(SERIAL), "delegate should mark missing");
+        assertTrue(manager.missingStatus(SERIAL), "delegate should open missing report");
         assertEq(manager.componentBySerial(SERIAL).missingReportURI, REPORT_URI, "missing report should be visible");
 
         vm.prank(delegate);
