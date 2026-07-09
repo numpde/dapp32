@@ -81,17 +81,21 @@ Do not include `UPGRADER_ROLE` in V1 if the manager is non-upgradeable. Do not i
 | `unpause()` | `PAUSER_ROLE` | Same current role as pause; split this only with a deliberate governance change. |
 | `grantRole(...)` / `revokeRole(...)` | `DEFAULT_ADMIN_ROLE` | Registrar onboarding/removal. Prefer Safe/timelock. |
 
-## Pause Projection Limitation
+## Pause Projection
 
 Emergency pause is enforced by the manager write functions. The read-only UI
 projection also exposes `paused` and suppresses manager write actions while the
 manager is paused, so generic viewers do not advertise guaranteed-reverting
 manager calls.
 
-The projection still cannot prove every downstream execution boundary. In
-particular, component-token pause or wallet/RPC state can still make a prepared
-transaction fail at execution time. Callers must treat prepared transactions as
-subject to final execution checks.
+Component-token pause is a separate downstream boundary: the manager projects
+`componentTokenPaused` and the UI suppresses token-dependent writes while it is
+true. Manager-owned writes, such as report lifecycle updates and account info,
+remain available because they do not call the token.
+
+Prepared transactions are still subject to final execution checks. A token can
+pause after view resolution, wallet/RPC/account state can change, and direct
+contract calls bypass the CAM UI projection.
 
 ## Delegation CAM Surface
 
