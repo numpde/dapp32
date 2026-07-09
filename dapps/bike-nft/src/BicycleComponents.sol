@@ -59,8 +59,6 @@ contract BicycleComponents is
     ) ERC721(tokenName, tokenSymbol) AccessControlDefaultAdminRules(adminDelay, admin) {
         _grantRole(PAUSER_ROLE, admin);
         _grantRole(CONFIGURER_ROLE, admin);
-        _grantRole(MINTER_ROLE, admin);
-        _grantRole(TOKEN_URI_SETTER_ROLE, admin);
 
         _setBaseURI(baseTokenURI);
         _setContractURI(collectionURI);

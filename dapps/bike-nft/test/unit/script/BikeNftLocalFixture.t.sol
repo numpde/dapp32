@@ -53,6 +53,23 @@ contract BikeNftLocalFixtureTest is Test {
         BikeNftLocalFixture.Deployment memory deployment = harness.deployCleanForTest();
 
         assertFalse(
+            deployment.components.hasRole(deployment.components.MINTER_ROLE(), address(harness)),
+            "fixture admin should not retain direct mint authority"
+        );
+        assertFalse(
+            deployment.components.hasRole(deployment.components.TOKEN_URI_SETTER_ROLE(), address(harness)),
+            "fixture admin should not retain direct metadata authority"
+        );
+        assertTrue(
+            deployment.components.hasRole(deployment.components.MINTER_ROLE(), address(deployment.manager)),
+            "manager should own mint authority"
+        );
+        assertTrue(
+            deployment.components.hasRole(deployment.components.TOKEN_URI_SETTER_ROLE(), address(deployment.manager)),
+            "manager should own metadata authority"
+        );
+
+        assertFalse(
             deployment.manager.componentBySerial("DEMO-FRAME-001").exists, "clean fixture should not seed frame"
         );
         assertFalse(
