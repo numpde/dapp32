@@ -2,6 +2,7 @@ pragma solidity 0.8.35;
 
 import {IAccessControl} from "@openzeppelin-contracts-5.6.1/access/IAccessControl.sol";
 import {Pausable} from "@openzeppelin-contracts-5.6.1/utils/Pausable.sol";
+import {IERC721Receiver} from "@openzeppelin-contracts-5.6.1/token/ERC721/IERC721Receiver.sol";
 
 import "../../../src/BicycleComponentManager.sol";
 import "../../../src/BicycleComponentManagerUI.sol";
@@ -112,6 +113,58 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertEq(address(components).balance, 0, "component token should not retain native value");
     }
 
+    /// @dev Registrar authority creates verified records, so deployment admin
+    /// should not receive it silently. Onboarding must be an explicit admin act.
+    function test_managerAdminIsNotRegistrarByDefault() external {
+        BicycleComponentManager freshManager = new BicycleComponentManager(admin, 0, address(components));
+
+        assertFalse(freshManager.hasRole(freshManager.REGISTRAR_ROLE(), admin), "admin should not be registrar");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, admin, freshManager.REGISTRAR_ROLE()
+            )
+        );
+        freshManager.registerComponent(owner, SERIAL, TOKEN_URI);
+
+        freshManager.grantRole(freshManager.REGISTRAR_ROLE(), registrar);
+        components.grantRole(components.MINTER_ROLE(), address(freshManager));
+        components.grantRole(components.TOKEN_URI_SETTER_ROLE(), address(freshManager));
+
+        vm.prank(registrar);
+        freshManager.registerComponent(owner, SERIAL, TOKEN_URI);
+
+        assertTrue(freshManager.componentBySerial(SERIAL).exists, "explicit registrar grant should register");
+    }
+
+    /// @dev Empty token URIs are invalid at both registry and token role
+    /// boundaries. The token check matters if operational roles are later
+    /// granted to a different manager or emergency maintenance contract.
+    function test_componentTokenRejectsEmptyTokenUriAtRoleBoundary() external {
+        uint256 tokenId = 1;
+        RecordingERC721Receiver receiver = new RecordingERC721Receiver();
+
+        components.grantRole(components.MINTER_ROLE(), address(this));
+        components.grantRole(components.TOKEN_URI_SETTER_ROLE(), address(this));
+
+        vm.expectRevert(BicycleComponents.EmptyTokenURI.selector);
+        components.mint(owner, tokenId, "");
+
+        vm.expectRevert(BicycleComponents.EmptyTokenURI.selector);
+        components.safeMint(owner, tokenId, "", "");
+
+        vm.expectRevert(BicycleComponents.EmptyTokenURI.selector);
+        components.safeMint(address(receiver), tokenId, "", "");
+        assertFalse(receiver.received(), "empty URI should fail before receiver callback");
+
+        components.safeMint(owner, tokenId, TOKEN_URI, "");
+
+        vm.expectRevert(BicycleComponents.EmptyTokenURI.selector);
+        components.setTokenURI(tokenId, "");
+
+        assertEq(components.tokenURI(tokenId), TOKEN_URI, "failed empty update must preserve token URI");
+    }
+
     /// @dev Registration is the root write path. It must reject non-registrars,
     /// mint the deterministic component token, store the manager record, expose
     /// the same data through the view interface, and reject serial reuse.
@@ -158,9 +211,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.prank(registrar);
         vm.expectRevert(
-            abi.encodeWithSelector(
-                BicycleComponentManager.ComponentAlreadyRegistered.selector, manager.serialHashOf(SERIAL)
-            )
+            abi.encodeWithSelector(BicycleComponentManager.ComponentAlreadyRegistered.selector, expectedSerialHash)
         );
         manager.registerComponent(secondOwner, SERIAL, TOKEN_URI);
     }
@@ -724,6 +775,19 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
     function registerDefaultComponent() private {
         vm.prank(registrar);
         manager.registerComponent(owner, SERIAL, TOKEN_URI);
+    }
+}
+
+contract RecordingERC721Receiver is IERC721Receiver {
+    bool private _received;
+
+    function received() external view returns (bool) {
+        return _received;
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external returns (bytes4) {
+        _received = true;
+        return IERC721Receiver.onERC721Received.selector;
     }
 }
 

@@ -57,7 +57,7 @@ This plan targets the current V1 architecture:
 | Role | Purpose | V1 holder |
 | --- | --- | --- |
 | `DEFAULT_ADMIN_ROLE` | Grants/revokes manager roles | Safe or timelock |
-| `REGISTRAR_ROLE` | Creates verified component records | Shops, manufacturers, trusted operators |
+| `REGISTRAR_ROLE` | Creates verified component records | Shops, manufacturers, trusted operators; grant explicitly, not by constructor default |
 | `CONFIGURER_ROLE` | Configures the component token contract | Safe or timelock |
 | `PAUSER_ROLE` | Emergency pause of manager writes | Emergency Safe |
 

@@ -40,6 +40,8 @@ contract BicycleComponents is
     string private _baseTokenURI;
     string private _contractMetadataURI;
 
+    error EmptyTokenURI();
+
     event BaseURIUpdated(string oldBaseURI, string newBaseURI);
     event ContractURIUpdated(string oldContractURI, string newContractURI);
 
@@ -106,6 +108,7 @@ contract BicycleComponents is
     /// @inheritdoc IBicycleComponents
     /// @dev Restricted to accounts/contracts with MINTER_ROLE.
     function mint(address to, uint256 tokenId, string calldata uri) external onlyRole(MINTER_ROLE) whenNotPaused {
+        _requireTokenURI(uri);
         _mint(to, tokenId);
         _setTokenURI(tokenId, uri);
     }
@@ -117,6 +120,7 @@ contract BicycleComponents is
         onlyRole(MINTER_ROLE)
         whenNotPaused
     {
+        _requireTokenURI(uri);
         _safeMint(to, tokenId, data);
         _setTokenURI(tokenId, uri);
     }
@@ -124,6 +128,7 @@ contract BicycleComponents is
     /// @inheritdoc IBicycleComponents
     /// @dev Restricted to accounts/contracts with TOKEN_URI_SETTER_ROLE.
     function setTokenURI(uint256 tokenId, string calldata uri) external onlyRole(TOKEN_URI_SETTER_ROLE) whenNotPaused {
+        _requireTokenURI(uri);
         _requireOwned(tokenId);
         _setTokenURI(tokenId, uri);
     }
@@ -149,6 +154,10 @@ contract BicycleComponents is
         _contractMetadataURI = collectionURI;
 
         emit ContractURIUpdated(oldContractURI, collectionURI);
+    }
+
+    function _requireTokenURI(string calldata uri) internal pure {
+        if (bytes(uri).length == 0) revert EmptyTokenURI();
     }
 
     function _baseURI() internal view override returns (string memory) {

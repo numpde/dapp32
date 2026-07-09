@@ -184,6 +184,14 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertNotIn("MINTER_ROLE", constructor_body)
         self.assertNotIn("TOKEN_URI_SETTER_ROLE", constructor_body)
 
+    def test_bike_manager_admin_does_not_receive_registrar_role_by_default(self) -> None:
+        source = read_text(repo_path("dapps/bike-nft/src/BicycleComponentManager.sol"))
+        constructor_body = self.solidity_constructor_body(source, "BicycleComponentManager")
+
+        # Registration creates verified component records. Deployment admin can
+        # grant registrars, but must not become one through constructor default.
+        self.assertNotIn("REGISTRAR_ROLE", constructor_body)
+
     def test_compose_project_names_are_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
 

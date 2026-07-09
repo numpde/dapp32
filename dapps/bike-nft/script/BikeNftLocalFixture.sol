@@ -50,6 +50,7 @@ contract BikeNftLocalFixture {
 
         deployment.components.grantRole(deployment.components.MINTER_ROLE(), address(deployment.manager));
         deployment.components.grantRole(deployment.components.TOKEN_URI_SETTER_ROLE(), address(deployment.manager));
+        deployment.manager.grantRole(deployment.manager.REGISTRAR_ROLE(), broadcasterAdmin);
 
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER_UI, address(deployment.ui));
         deployment.camRoot.setContractAddress(CAM_CONTRACT_MANAGER, address(deployment.manager));

@@ -178,7 +178,6 @@ contract BicycleComponentManager is AccessControlDefaultAdminRules, Pausable, IB
     {
         _grantRole(PAUSER_ROLE, admin);
         _grantRole(CONFIGURER_ROLE, admin);
-        _grantRole(REGISTRAR_ROLE, admin);
 
         _setMaxDelegationDuration(DEFAULT_MAX_DELEGATION_DURATION);
         _setComponentsAddress(componentsAddress_);

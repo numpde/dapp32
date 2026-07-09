@@ -68,6 +68,10 @@ contract BikeNftLocalFixtureTest is Test {
             deployment.components.hasRole(deployment.components.TOKEN_URI_SETTER_ROLE(), address(deployment.manager)),
             "manager should own metadata authority"
         );
+        assertTrue(
+            deployment.manager.hasRole(deployment.manager.REGISTRAR_ROLE(), address(harness)),
+            "local fixture broadcaster should be explicit registrar"
+        );
 
         assertFalse(
             deployment.manager.componentBySerial("DEMO-FRAME-001").exists, "clean fixture should not seed frame"
