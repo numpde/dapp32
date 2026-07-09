@@ -183,9 +183,13 @@ The package-level viewer test proves the headless state machine. The browser
 still needs its own gate because rendering and wallet preparation are product
 surface.
 
-Proposed target:
+Proposed future target, not a supported Make lane today:
 
     make bike-nft-viewer-e2e
+
+The currently supported browser lane is `make bike-nft-viewer-gui`; it starts
+the local fixture and prints a URL for manual browser inspection. Add the e2e
+target only when the browser runner exists as a Docker-backed check.
 
 Runtime shape:
 
