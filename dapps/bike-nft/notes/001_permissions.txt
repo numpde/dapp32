@@ -89,9 +89,9 @@ manager is paused, so generic viewers do not advertise guaranteed-reverting
 manager calls.
 
 Component-token pause is a separate downstream boundary: the manager projects
-`componentTokenPaused` and the UI suppresses token-dependent writes while it is
-true. Manager-owned writes, such as report lifecycle updates and account info,
-remain available because they do not call the token.
+`componentTokenPaused` and the UI suppresses registration and component metadata
+writes while it is true. Manager-owned writes, such as report lifecycle updates
+and account info, remain available because they do not call the token.
 
 Prepared transactions are still subject to final execution checks. A token can
 pause after view resolution, wallet/RPC/account state can change, and direct
