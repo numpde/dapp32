@@ -93,6 +93,15 @@ particular, component-token pause or wallet/RPC state can still make a prepared
 transaction fail at execution time. Callers must treat prepared transactions as
 subject to final execution checks.
 
+## Delegation CAM Surface
+
+Delegation is contract-supported and projected in read views, but V1 CAM does
+not yet expose grant/revoke writes. That is intentional until the product has a
+clear, low-error UI for capability masks, expiry, and delegate addresses.
+Owners can still manage delegation by direct contract calls; generic CAM users
+should treat displayed delegation fields as current authority context, not as a
+complete delegation-management workflow.
+
 ## Explicitly Out of V1
 
 | Feature | Reason |
