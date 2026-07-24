@@ -3,10 +3,15 @@ import test from "node:test"
 
 import {
   CAM_SUPPORTED_VERSIONS,
+  isRecordObject,
+  parseJsonBytes,
 } from "@cam/protocol"
 
 import type {
   CamConformanceIssue,
+} from "../src/index.ts"
+import {
+  validateCamBundle,
 } from "../src/index.ts"
 import {
   validateNamespaceDeclarations,
@@ -17,6 +22,10 @@ import {
 import {
   validateRouteDeclarations,
 } from "../src/manifest/routes.ts"
+import {
+  jsonBytes,
+  minimalBundle,
+} from "./fixtures.ts"
 
 function rootDocument(version: unknown): Record<string, unknown> {
   return {
@@ -57,6 +66,21 @@ function rootDocument(version: unknown): Record<string, unknown> {
     },
   }
 }
+
+test("bundle conformance accepts each supported CAM version", () => {
+  for (const version of CAM_SUPPORTED_VERSIONS) {
+    const bundle = minimalBundle()
+    const root = parseJsonBytes(bundle.rootBytes)
+    assert.equal(isRecordObject(root), true)
+    if (!isRecordObject(root)) continue
+
+    root.cam = version
+    assert.deepEqual(validateCamBundle({
+      ...bundle,
+      rootBytes: jsonBytes(root),
+    }), [])
+  }
+})
 
 test("conformance preserves the root version on every declared route", () => {
   for (const expectedVersion of CAM_SUPPORTED_VERSIONS) {
