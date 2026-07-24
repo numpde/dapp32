@@ -1,7 +1,7 @@
-import type { CamRouteKind, CamRuntimeContext, InertValue } from "@cam/protocol"
+import type { CamRouteKind, CamRuntimeContext, CamVersion, InertValue } from "@cam/protocol"
 
 export type CamDocument = {
-  readonly cam: string
+  readonly cam: CamVersion
   readonly entry: string
   readonly namespaces: Record<string, CamNamespace>
   readonly routes: Record<string, CamRoute>
