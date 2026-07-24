@@ -66,11 +66,12 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   }
 
   const root = rootResult.value
-  if (!validateRootManifest({
+  const version = validateRootManifest({
     resource: bundle.rootURI,
     root,
     issues,
-  })) {
+  })
+  if (version === undefined) {
     return issues
   }
   // Structural inventory joins root namespaces/resources/routes so later
@@ -98,6 +99,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   const routes = validateRouteDeclarations({
     resource: bundle.rootURI,
     root,
+    version,
     namespaces,
     issues,
   })
