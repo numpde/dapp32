@@ -3,6 +3,7 @@ import {
 } from "@cam/protocol"
 import type {
   CamFactDiagnostic,
+  CamVersion,
 } from "@cam/protocol"
 
 import {
@@ -34,12 +35,12 @@ export function validateRootManifest({
   readonly resource: string
   readonly root: unknown
   readonly issues: CamConformanceIssue[]
-}): boolean {
+}): CamVersion | undefined {
   const result = collectCamRootFact(root, { resource })
   for (const diagnostic of result.diagnostics) {
     issues.push(rootFactDiagnosticIssue(diagnostic))
   }
-  return result.value !== undefined
+  return result.value?.version
 }
 
 function rootFactDiagnosticIssue(diagnostic: CamFactDiagnostic): CamConformanceIssue {
