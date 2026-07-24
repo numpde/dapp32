@@ -5,7 +5,9 @@ import {
   CAM_MANIFEST_TOP_LEVEL_KEYS,
 } from "../manifest.ts"
 import {
-  CAM_VERSION,
+  CAM_SUPPORTED_VERSIONS,
+  isCamVersion,
+  type CamVersion,
 } from "../versions.ts"
 import {
   camFactDiagnostic,
@@ -16,7 +18,7 @@ import {
 export type CamRootFact = {
   readonly resource: string
   readonly value: Record<string, unknown>
-  readonly version: typeof CAM_VERSION
+  readonly version: CamVersion
 }
 
 export function collectCamRootFact(
@@ -35,25 +37,26 @@ export function collectCamRootFact(
     return { diagnostics }
   }
 
-  if (input.cam !== CAM_VERSION) {
+  if (!isCamVersion(input.cam)) {
     diagnostics.push(camFactDiagnostic({
       code: "CAM_FACT_ROOT_VERSION_INVALID",
       resource: options.resource,
       path: "cam",
       message: typeof input.cam === "string" && input.cam.length > 0
         ? `unsupported CAM version: ${input.cam}`
-        : `CAM version must be ${CAM_VERSION}`,
+        : `CAM version must be ${CAM_SUPPORTED_VERSIONS.join(" or ")}`,
     }))
     return { diagnostics }
   }
 
+  const version = input.cam
   for (const key of Object.keys(input)) {
     if (CAM_MANIFEST_TOP_LEVEL_KEYS.has(key)) continue
     diagnostics.push(camFactDiagnostic({
       code: "CAM_FACT_ROOT_FIELD_UNKNOWN",
       resource: options.resource,
       path: key,
-      message: `field is not allowed in CAM ${CAM_VERSION}: ${key}`,
+      message: `field is not allowed in CAM ${version}: ${key}`,
     }))
   }
 
@@ -61,7 +64,7 @@ export function collectCamRootFact(
     value: {
       resource: options.resource,
       value: input,
-      version: CAM_VERSION,
+      version,
     },
     diagnostics,
   }
