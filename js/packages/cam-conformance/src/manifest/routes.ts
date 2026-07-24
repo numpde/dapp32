@@ -11,6 +11,7 @@ import type {
   CamNamespaceType,
   CamFactDiagnostic,
   CamRouteKind,
+  CamVersion,
 } from "@cam/protocol"
 
 import {
@@ -29,6 +30,7 @@ type DeclaredInvocation = {
 }
 
 export type DeclaredRoute = {
+  readonly version: CamVersion
   readonly name: string
   readonly kind: CamRouteKind
   readonly inputs: readonly string[]
@@ -70,11 +72,13 @@ const RULES = conformanceRules({
 export function validateRouteDeclarations({
   resource,
   root,
+  version,
   namespaces,
   issues,
 }: {
   readonly resource: string
   readonly root: unknown
+  readonly version: CamVersion
   readonly namespaces: readonly DeclaredNamespace[]
   readonly issues: CamConformanceIssue[]
 }): readonly DeclaredRoute[] {
@@ -87,7 +91,7 @@ export function validateRouteDeclarations({
 
   const namespaceTypes = new Map(namespaces.map((namespace) => [namespace.name, namespace.type]))
   validateEntryRoute(resource, root.entry, root.routes, issues)
-  return validateRoutes(resource, root.routes, namespaceTypes, issues)
+  return validateRoutes(resource, root.routes, namespaceTypes, version, issues)
 }
 
 function validateEntryRoute(
@@ -119,6 +123,7 @@ function validateRoutes(
   resource: string,
   routes: Record<string, unknown>,
   namespaces: ReadonlyMap<string, CamNamespaceType>,
+  version: CamVersion,
   issues: CamConformanceIssue[],
 ): readonly DeclaredRoute[] {
   const declaredRoutes: DeclaredRoute[] = []
@@ -145,6 +150,7 @@ function validateRoutes(
         issues,
       })
       declaredRoutes.push({
+        version,
         name: routeName,
         kind,
         inputs,
