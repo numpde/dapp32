@@ -28,8 +28,13 @@ export type {
 } from "./abi-types.ts"
 
 export {
+  CAM_SUPPORTED_VERSIONS,
   CAM_VERSION,
+  isCamVersion,
   UI_VERSION,
+} from "./versions.ts"
+export type {
+  CamVersion,
 } from "./versions.ts"
 
 export {
