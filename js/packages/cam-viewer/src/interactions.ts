@@ -39,23 +39,20 @@ export function interpretRenderedAction(cam: CamDocument, action: ResolvedButton
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action references unknown route: ${route}`)
   }
 
-  if (camRoute.kind === "read") {
-    return {
-      type: "navigate",
-      route,
-      inputs: action.call.args,
-    }
+  switch (camRoute.kind) {
+    case "read":
+      return {
+        type: "navigate",
+        route,
+        inputs: action.call.args,
+      }
+    case "write":
+      return {
+        type: "contractCall",
+        route,
+        inputs: action.call.args,
+      }
   }
-
-  if (camRoute.kind === "write") {
-    return {
-      type: "contractCall",
-      route,
-      inputs: action.call.args,
-    }
-  }
-
-  throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `unsupported CAM route kind: ${camRoute.kind}`)
 }
 
 export function assertActionIsRendered(resolvedUi: ResolvedUiNode, action: ResolvedButtonNode): void {
