@@ -10,6 +10,7 @@ import {
 } from "../src/index.ts"
 import type {
   CamContractCall,
+  CamEvmErrorCode,
   CamSimulationClient,
   CamWalletClient,
 } from "../src/index.ts"
@@ -116,20 +117,20 @@ test("transaction value accepts the full uint256 runtime range", async () => {
 })
 
 test("payable and nonpayable runtime calls enforce value presence", async () => {
-  await assertInvalidValue({
+  await assertWriteError({
     address: contract,
     abi: payableAbi,
     function: "fund",
     args: { memo: "escrow" },
-  })
+  }, "CAM_WRITE_FUNCTION_PAYABLE_UNSUPPORTED")
 
-  await assertInvalidValue({
+  await assertWriteError({
     address: contract,
     abi: nonpayableAbi,
     function: "save",
     args: {},
     value: "1",
-  })
+  }, "CAM_WRITE_INVALID_VALUE")
 })
 
 test("transaction value rejects non-decimal and out-of-range inert values", async () => {
@@ -141,24 +142,17 @@ test("transaction value rejects non-decimal and out-of-range inert values", asyn
     "1.5",
     "115792089237316195423570985008687907853269984665640564039457584007913129639936",
   ] as const) {
-    await assertInvalidValue(payableCall(value), String(value))
+    await assertWriteError(payableCall(value), "CAM_WRITE_INVALID_VALUE", String(value))
   }
 })
 
 test("read-only functions remain invalid write targets", async () => {
-  await assert.rejects(
-    () => simulateCamContractCall({
-      publicClient: noopSimulationClient(),
-      account,
-      call: {
-        address: contract,
-        abi: viewAbi,
-        function: "viewEntry",
-        args: {},
-      },
-    }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_FUNCTION_NOT_MUTABLE",
-  )
+  await assertWriteError({
+    address: contract,
+    abi: viewAbi,
+    function: "viewEntry",
+    args: {},
+  }, "CAM_WRITE_FUNCTION_NOT_MUTABLE")
 })
 
 function payableCall(value: CamContractCall["value"]): CamContractCall {
@@ -173,14 +167,18 @@ function payableCall(value: CamContractCall["value"]): CamContractCall {
   }
 }
 
-async function assertInvalidValue(call: CamContractCall, label?: string): Promise<void> {
+async function assertWriteError(
+  call: CamContractCall,
+  code: CamEvmErrorCode,
+  label?: string,
+): Promise<void> {
   await assert.rejects(
     () => simulateCamContractCall({
       publicClient: noopSimulationClient(),
       account,
       call,
     }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_VALUE",
+    (error) => error instanceof CamEvmError && error.code === code,
     label,
   )
 }
