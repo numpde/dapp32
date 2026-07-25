@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   CAM_SUPPORTED_VERSIONS,
   CAM_VERSION,
+  camVersionSupportsWriteValue,
   collectCamRootFact,
   isCamVersion,
 } from "../src/index.ts"
@@ -17,6 +18,8 @@ test("owns the supported CAM version inventory", () => {
   assert.equal(isCamVersion("1.1.0"), true)
   assert.equal(isCamVersion("1.2.0"), false)
   assert.equal(isCamVersion(null), false)
+  assert.equal(camVersionSupportsWriteValue("1.0.0"), false)
+  assert.equal(camVersionSupportsWriteValue("1.1.0"), true)
 })
 
 test("collects each supported CAM root version exactly", () => {
