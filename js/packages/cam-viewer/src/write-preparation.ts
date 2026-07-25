@@ -67,6 +67,9 @@ export function prepareViewerContractCall({
     abi: cloneContractAbi(contract.abi),
     function: call.function,
     args: clonePreparedCallData(call.args, "call.args"),
+    ...(call.value === undefined
+      ? {}
+      : { value: clonePreparedCallData(call.value, "call.value") }),
     then: clonePreparedCallData(resolveRouteThen(cam, route, context), "call.then"),
   }
 }

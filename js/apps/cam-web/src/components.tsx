@@ -17,6 +17,9 @@ import {
   displayText,
   formatInertValue,
 } from "./display.ts"
+import {
+  preparedCallFields,
+} from "./prepared-call.ts"
 
 export function ConnectionSummary({
   chainId,
@@ -87,11 +90,9 @@ export function PreparedCallView({
   return (
     <section className="panel prepared-call">
       <h2>Prepared contract call</h2>
-      <KeyValue label="Route" value={call.route} mono={false} />
-      <KeyValue label="Address" value={call.address} mono={true} />
-      <KeyValue label="Function" value={call.function} mono={false} />
-      <KeyValue label="Args" value={formatInertValue(call.args)} mono={false} />
-      <KeyValue label="Then" value={`${call.then.namespace}.${call.then.function} ${formatInertValue(call.then.args)}`} mono={false} />
+      {preparedCallFields(call).map((field) => (
+        <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} />
+      ))}
       <button
         className="send-button"
         type="button"
