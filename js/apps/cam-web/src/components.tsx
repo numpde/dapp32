@@ -91,6 +91,9 @@ export function PreparedCallView({
       <KeyValue label="Address" value={call.address} mono={true} />
       <KeyValue label="Function" value={call.function} mono={false} />
       <KeyValue label="Args" value={formatInertValue(call.args)} mono={false} />
+      {call.value === undefined ? null : (
+        <KeyValue label="Value (wei)" value={formatInertValue(call.value)} mono={true} />
+      )}
       <KeyValue label="Then" value={`${call.then.namespace}.${call.then.function} ${formatInertValue(call.then.args)}`} mono={false} />
       <button
         className="send-button"
