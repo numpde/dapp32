@@ -1,6 +1,7 @@
 import {
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
+  camVersionSupportsWriteValue,
   collectCamInvocationFact,
   collectCamRouteExpressionDiagnostics,
   collectCamRouteInputsFact,
@@ -34,9 +35,13 @@ export type DeclaredRoute = {
   readonly name: string
   readonly kind: CamRouteKind
   readonly inputs: readonly string[]
+  readonly value?: unknown
   readonly call: DeclaredInvocation
   readonly then: DeclaredInvocation
 }
+
+const BASE_ROUTE_FIELDS: ReadonlySet<string> = new Set(["kind", "inputs", "call", "then"])
+const WRITE_VALUE_ROUTE_FIELDS: ReadonlySet<string> = new Set([...BASE_ROUTE_FIELDS, "value"])
 
 const RULES = conformanceRules({
   CAM_ENTRY_ROUTE_INVALID: {
@@ -139,12 +144,17 @@ function validateRoutes(
     const kind = validateRouteKind(resource, routeName, route.kind, issues)
     const inputs = validateRouteInputList(resource, routeName, route.inputs, issues)
     const invocations = validateRouteInvocations(resource, routeName, route, namespaces, issues)
+    if (kind !== undefined) {
+      validateRouteFields(resource, routeName, route, version, kind, issues)
+    }
     if (kind !== undefined && inputs !== undefined && invocations !== undefined) {
+      const value = routeValue(route, version, kind)
       validateRouteExpressionReferences({
         resource,
         routeName,
         inputs,
         kind,
+        value,
         callArgs: invocations.call.args,
         thenArgs: invocations.then.args,
         issues,
@@ -154,6 +164,7 @@ function validateRoutes(
         name: routeName,
         kind,
         inputs,
+        ...(value.present ? { value: value.value } : {}),
         call: invocations.call,
         then: invocations.then,
       })
@@ -161,6 +172,38 @@ function validateRoutes(
   }
 
   return declaredRoutes
+}
+
+function validateRouteFields(
+  resource: string,
+  routeName: string,
+  route: Record<string, unknown>,
+  version: CamVersion,
+  kind: CamRouteKind,
+  issues: CamConformanceIssue[],
+): void {
+  const allowed = kind === "write" && camVersionSupportsWriteValue(version)
+    ? WRITE_VALUE_ROUTE_FIELDS
+    : BASE_ROUTE_FIELDS
+  for (const field of Object.keys(route)) {
+    if (allowed.has(field)) continue
+    issues.push(routeDeclarationIssue(
+      resource,
+      `routes.${routeName}.${field}`,
+      `field is not allowed in CAM ${version}: ${field}`,
+    ))
+  }
+}
+
+function routeValue(
+  route: Record<string, unknown>,
+  version: CamVersion,
+  kind: CamRouteKind,
+): { readonly present: false } | { readonly present: true, readonly value: unknown } {
+  if (kind !== "write" || !camVersionSupportsWriteValue(version) || !Object.hasOwn(route, "value")) {
+    return { present: false }
+  }
+  return { present: true, value: route.value }
 }
 
 function validateRouteKind(
@@ -240,6 +283,7 @@ function validateRouteExpressionReferences({
   routeName,
   inputs,
   kind,
+  value,
   callArgs,
   thenArgs,
   issues,
@@ -248,6 +292,7 @@ function validateRouteExpressionReferences({
   readonly routeName: string
   readonly inputs: readonly string[]
   readonly kind: CamRouteKind
+  readonly value: { readonly present: false } | { readonly present: true, readonly value: unknown }
   readonly callArgs: Record<string, unknown>
   readonly thenArgs: Record<string, unknown>
   readonly issues: CamConformanceIssue[]
@@ -262,6 +307,19 @@ function validateRouteExpressionReferences({
     outputUnavailableMessage: "route call arguments cannot reference outputs before the call runs",
   })) {
     issues.push(routeExpressionFactDiagnosticIssue(diagnostic))
+  }
+
+  if (value.present) {
+    for (const diagnostic of collectCamRouteExpressionDiagnostics({
+      resource,
+      value: value.value,
+      path: `routes.${routeName}.value`,
+      declaredInputs,
+      allowOutputs: false,
+      outputUnavailableMessage: "write route value cannot reference transaction outputs",
+    })) {
+      issues.push(routeExpressionFactDiagnosticIssue(diagnostic))
+    }
   }
 
   for (const diagnostic of collectCamRouteExpressionDiagnostics({
