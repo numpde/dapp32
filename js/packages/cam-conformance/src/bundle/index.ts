@@ -7,8 +7,10 @@ import type {
 
 import {
   contractFunctionsByNamespace,
-  validateRouteAbiCompatibility,
 } from "../abi/routes.ts"
+import {
+  validateVersionedRouteAbiCompatibility,
+} from "../abi/versioned-routes.ts"
 import {
   validateNamespaceDeclarations,
 } from "../manifest/namespaces.ts"
@@ -38,8 +40,8 @@ import {
   validateUiDataflow,
 } from "../ui/dataflow.ts"
 import {
-  validateUiTypeflow,
-} from "../ui/typeflow.ts"
+  validateVersionedUiTypeflow,
+} from "../ui/versioned-typeflow.ts"
 import {
   validateUiExpressionRoots,
 } from "../expressions/ui.ts"
@@ -66,11 +68,12 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   }
 
   const root = rootResult.value
-  if (!validateRootManifest({
+  const version = validateRootManifest({
     resource: bundle.rootURI,
     root,
     issues,
-  })) {
+  })
+  if (version === undefined) {
     return issues
   }
   // Structural inventory joins root namespaces/resources/routes so later
@@ -98,6 +101,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   const routes = validateRouteDeclarations({
     resource: bundle.rootURI,
     root,
+    version,
     namespaces,
     issues,
   })
@@ -119,13 +123,13 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     uiNodes,
     issues,
   })
-  validateRouteAbiCompatibility({
+  validateVersionedRouteAbiCompatibility({
     resource: bundle.rootURI,
     routes,
     functionsByNamespace,
     issues,
   })
-  validateUiTypeflow({
+  validateVersionedUiTypeflow({
     uiDocument,
     routes,
     functionsByNamespace,

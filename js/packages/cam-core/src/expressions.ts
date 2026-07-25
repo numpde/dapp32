@@ -51,6 +51,14 @@ export function resolveArgs(
   return resolved
 }
 
+export function resolveExpressionValue(
+  value: InertValue,
+  context: CamRuntimeContext,
+  path: string,
+): InertValue {
+  return CAM_EXPRESSIONS.resolveValue(value, context, path)
+}
+
 export function validateExpressionValue(value: unknown, path: string): void {
   CAM_EXPRESSIONS.validateValue(value, path)
 }

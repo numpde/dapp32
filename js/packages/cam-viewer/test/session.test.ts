@@ -213,6 +213,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
       delegationCapabilities: "0",
       delegationValidUntil: "0",
       delegationActive: false,
+      componentTokenPaused: false,
       canUpdateMetadata: false,
       canMarkMissing: false,
       canClearMissing: false,

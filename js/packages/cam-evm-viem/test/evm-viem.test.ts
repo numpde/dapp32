@@ -368,6 +368,7 @@ test("callCamRoute orders named args by ABI and returns normalized route values"
     delegationCapabilities: "0",
     delegationValidUntil: "0",
     delegationActive: false,
+    componentTokenPaused: false,
     canUpdateMetadata: true,
     canMarkMissing: true,
     canClearMissing: false,
@@ -506,7 +507,6 @@ test("callCamRoute normalizes array-like decoded tuple outputs by ABI component 
     status: "1",
     owner: userAddress,
   }))
-
   await assertInvalidSyntheticRouteResult({
     route: tupleRoute,
     functionName: tupleFunction,
@@ -517,14 +517,12 @@ test("callCamRoute normalizes array-like decoded tuple outputs by ABI component 
       extra: "rejected",
     },
   }, "tuple record extra field")
-
   await assertInvalidSyntheticRouteResult({
     route: tupleRoute,
     functionName: tupleFunction,
     abi,
     routeResult: [1, userAddress, "rejected"],
   }, "tuple array too many elements")
-
   const duplicateComponentAbi = readAbi(tupleFunction, [{
     name: "view_",
     type: "tuple",

@@ -2,8 +2,11 @@ export type {
   CamDocument,
   CamInvocation,
   CamNamespace,
+  CamReadRoute,
   CamResolvedInvocation,
+  CamResolvedRouteCall,
   CamRoute,
+  CamWriteRoute,
 } from "./types.ts"
 
 export { CamError } from "./errors.ts"

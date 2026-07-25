@@ -1,25 +1,33 @@
 import { CamError } from "./errors.ts"
-import { resolveArgs } from "./expressions.ts"
+import { resolveArgs, resolveExpressionValue } from "./expressions.ts"
 import {
   collectExpressionReferences,
   diffNameSets,
   hasOwn,
 } from "@cam/protocol"
-import type { CamRuntimeContext } from "@cam/protocol"
-import type { CamDocument, CamResolvedInvocation, CamRoute } from "./types.ts"
+import type { CamRuntimeContext, InertValue } from "@cam/protocol"
+import type { CamDocument, CamResolvedInvocation, CamResolvedRouteCall, CamRoute } from "./types.ts"
 
 export function resolveRouteCall(
   cam: CamDocument,
   routeName: string,
   context: CamRuntimeContext,
-): CamResolvedInvocation {
+): CamResolvedRouteCall {
   const route = routeForName(cam, routeName)
   assertRouteInputs(route, routeName, context)
 
-  return {
+  const call = {
     namespace: route.call.namespace,
     function: route.call.function,
     args: resolveArgs(route.call.args, context),
+  }
+  if (route.kind === "read" || route.value === undefined) {
+    return call
+  }
+
+  return {
+    ...call,
+    value: resolveExpressionValue(route.value, context, `routes.${routeName}.value`),
   }
 }
 
@@ -43,8 +51,13 @@ export function routeRequiresAccount(cam: CamDocument, routeName: string): boole
   // This is a preflight extractor, not another expression parser. Validation
   // owns expression grammar; this only answers whether an anonymous session can
   // attempt the route at all.
-  return [route.call.args, route.then.args].some((args) =>
-    collectExpressionReferences(args, { numericSegments: true })
+  const surfaces: readonly InertValue[] = [
+    route.call.args,
+    route.then.args,
+    ...(route.kind === "write" && route.value !== undefined ? [route.value] : []),
+  ]
+  return surfaces.some((value) =>
+    collectExpressionReferences(value, { numericSegments: true })
       .some((occurrence) => occurrence.reference?.root === "account")
   )
 }
