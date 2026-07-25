@@ -88,9 +88,12 @@ function writeValue(
 ): bigint | undefined {
   if (stateMutability === "payable") {
     if (call.value === undefined) {
+      // Preserve the pre-1.1 runtime code for callers that already distinguish
+      // a payable ABI target with no usable CAM value model. Payable calls with
+      // a declared value now proceed through the normal uint256 boundary below.
       throw new CamEvmError(
-        "CAM_WRITE_INVALID_VALUE",
-        `payable CAM write call must declare transaction value: ${call.function}`,
+        "CAM_WRITE_FUNCTION_PAYABLE_UNSUPPORTED",
+        `payable CAM write call requires transaction value: ${call.function}`,
       )
     }
     return normalizeTransactionValue(call.value, call.function)
