@@ -77,7 +77,7 @@ import {
 } from "../src/index.ts"
 
 test("exports protocol document versions from the protocol package", () => {
-  assert.equal(CAM_VERSION, "1.0.0")
+  assert.equal(CAM_VERSION, "1.1.0")
   assert.equal(UI_VERSION, "1.0.0")
 })
 

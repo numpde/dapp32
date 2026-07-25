@@ -10,7 +10,7 @@ import {
 } from "../src/index.ts"
 
 test("owns the supported CAM version inventory", () => {
-  assert.equal(CAM_VERSION, "1.0.0")
+  assert.equal(CAM_VERSION, "1.1.0")
   assert.deepEqual([...CAM_SUPPORTED_VERSIONS], ["1.0.0", "1.1.0"])
   assert.equal(Object.isFrozen(CAM_SUPPORTED_VERSIONS), true)
 
