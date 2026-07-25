@@ -40,8 +40,8 @@ import {
   validateUiDataflow,
 } from "../ui/dataflow.ts"
 import {
-  validateUiTypeflow,
-} from "../ui/typeflow.ts"
+  validateVersionedUiTypeflow,
+} from "../ui/versioned-typeflow.ts"
 import {
   validateUiExpressionRoots,
 } from "../expressions/ui.ts"
@@ -129,7 +129,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     functionsByNamespace,
     issues,
   })
-  validateUiTypeflow({
+  validateVersionedUiTypeflow({
     uiDocument,
     routes,
     functionsByNamespace,
