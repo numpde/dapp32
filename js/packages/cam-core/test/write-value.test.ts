@@ -2,6 +2,10 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  toInertValue,
+} from "@cam/protocol"
+
+import {
   CamError,
   createContext,
   parseCam,
@@ -116,7 +120,7 @@ test("CAM 1.1 parses and resolves write-route value expressions", () => {
   assert.deepEqual(call, {
     namespace: "contracts.App",
     function: "pay",
-    args: {},
+    args: toInertValue({}),
     value: "1000000000000000000",
   })
   assert.equal(routeRequiresAccount(cam, "valueRoute"), false)
