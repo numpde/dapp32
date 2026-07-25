@@ -7,8 +7,10 @@ import type {
 
 import {
   contractFunctionsByNamespace,
-  validateRouteAbiCompatibility,
 } from "../abi/routes.ts"
+import {
+  validateVersionedRouteAbiCompatibility,
+} from "../abi/versioned-routes.ts"
 import {
   validateNamespaceDeclarations,
 } from "../manifest/namespaces.ts"
@@ -121,7 +123,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     uiNodes,
     issues,
   })
-  validateRouteAbiCompatibility({
+  validateVersionedRouteAbiCompatibility({
     resource: bundle.rootURI,
     routes,
     functionsByNamespace,
