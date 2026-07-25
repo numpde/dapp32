@@ -30,6 +30,7 @@ export type {
 export {
   CAM_SUPPORTED_VERSIONS,
   CAM_VERSION,
+  camVersionSupportsWriteValue,
   isCamVersion,
   UI_VERSION,
 } from "./versions.ts"
