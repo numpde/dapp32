@@ -54,19 +54,19 @@ test("prepared CAM 1.1 calls disclose the resolved transaction value as inert da
     inputs: { amount: "1000000000000000000" },
   })
 
-  assert.deepEqual(prepared, toInertValue({
+  assert.deepEqual(prepared, {
     route: "write",
     address: contractAddress,
-    abi: payableAbi,
+    abi: toInertValue(payableAbi),
     function: "fund",
-    args: { memo: "escrow" },
+    args: toInertValue({ memo: "escrow" }),
     value: "1000000000000000000",
-    then: {
+    then: toInertValue({
       namespace: "routes",
       function: "entry",
       args: {},
-    },
-  }))
+    }),
+  })
 })
 
 test("prepared nonpayable calls retain the value-free call shape", () => {
