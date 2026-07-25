@@ -63,6 +63,7 @@ export type CamContractCall = {
   readonly abi: Abi
   readonly function: string
   readonly args: Record<string, InertValue>
+  readonly value?: InertValue
 }
 
 export type CamWalletClient = {
@@ -71,6 +72,7 @@ export type CamWalletClient = {
     readonly abi: Abi
     readonly functionName: string
     readonly args?: readonly unknown[]
+    readonly value?: bigint
     readonly chain: Chain
   }) => Promise<Hex>
 }
@@ -81,6 +83,7 @@ export type CamSimulationClient = {
     readonly abi: Abi
     readonly functionName: string
     readonly args?: readonly unknown[]
+    readonly value?: bigint
     readonly account: Address
   }) => Promise<unknown>
 }
