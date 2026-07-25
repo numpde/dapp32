@@ -51,7 +51,7 @@ test("prepared CAM 1.1 calls disclose the resolved transaction value as inert da
     contracts: contracts(payableAbi),
     host,
     route: "write",
-    inputs: toInertValue({ amount: "1000000000000000000" }),
+    inputs: { amount: "1000000000000000000" },
   })
 
   assert.deepEqual(prepared, toInertValue({
