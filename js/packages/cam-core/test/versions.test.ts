@@ -63,6 +63,6 @@ test("parseCam still rejects versions outside the supported inventory", () => {
       error instanceof CamError
       && error.code === "CAM_INVALID_FIELD"
       && error.path === "cam"
-      && error.message === "unsupported CAM version: 2.0.0",
+      && error.message === "cam: unsupported CAM version: 2.0.0",
   )
 })
