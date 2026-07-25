@@ -8,7 +8,6 @@ import {
   issueLocations,
   issueRules,
   jsonBytes,
-  minimalBundle,
   replaceBundleResources,
   validateEditedRoot,
   viewEntryFunction,
@@ -150,7 +149,6 @@ test("bundle validation still rejects unsupported versions before value semantic
 })
 
 function validateUiValueTypeflow(amountType: "uint256" | "address" | "bool") {
-  const bundle = minimalBundle()
   const abiBytes = jsonBytes([
     {
       type: "function",
@@ -190,7 +188,7 @@ function validateUiValueTypeflow(amountType: "uint256" | "address" | "bool") {
     },
   })
 
-  return validateEditedRoot<RootWithNamespacesAndRoutes & Record<string, unknown>>((root) => {
+  return validateEditedRoot<RootWithNamespacesAndRoutes & Record<string, unknown>>((root, bundle) => {
     root.cam = "1.1.0"
     root.routes.fund = {
       kind: "write",
