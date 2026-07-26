@@ -2,70 +2,92 @@
 
 Date: 2026-07-26
 
-Status: proposed implementation plan and current next-work note.
+Status: audited implementation plan and current next-work note.
 
 Purpose: define a second contract-defined application that exercises CAM 1.1
-native transaction values, multi-actor timed workflows, pull-payment accounting,
-and dynamic action projection. Shape the application so it can later become the
-first explicit CAM machine fixture without redesigning the Solidity API or CAM
-bundle.
+native transaction values, nested ABI inputs, multi-actor timed workflows,
+pull-payment accounting, dynamic action projection, and eventual explicit
+state-machine verification. Shape the application so a future CAM machine
+resource is additive rather than requiring a Solidity or route redesign.
 
-## Decision Summary
+## Audit Verdict
 
-Build a single-milestone native-asset escrow as a machine-shaped CAM 1.1
-application.
+Build the escrow, but do not treat the whole application as one finite-state
+machine.
 
-The responsibility boundary is:
+The application has three distinct workflow scopes:
+
+1. **agreement factory**: preview and create a prospective agreement;
+2. **stored agreement machine**: move one funded agreement through acceptance,
+   submission, dispute, settlement, and terminal outcomes;
+3. **account credit workflow**: withdraw credits aggregated across agreements.
+
+Only the second scope is the first explicit CAM machine candidate.
+
+The earlier draft incorrectly treated `createAgreement` as an edge from a
+prospective `none` state. That does not compose cleanly with one canonical
+instance observation: creation availability depends on the full prospective
+parameter tuple, while stored agreement observation depends only on an
+agreement ID. The stored agreement machine therefore starts at `funded` after a
+successful factory call.
+
+The earlier draft also over-specified an `expectedAgreementId` contract
+argument and a duplicate top-level CAM `amount` input. Neither is needed. The
+contract derives the ID from the client/reference pair, and the CAM route uses
+one nested `params` value as the source of both calldata and transaction value.
+
+The final responsibility boundary is:
 
 ```text
 CamEscrow
-    owns state, deadlines, authorization, settlement, accounting, and exact
-    transition availability
+    owns agreement state, deadlines, actor authorization, action availability,
+    settlement, liabilities, document commitments, and canonical transition
+    events
 
 CamEscrowUI
     reads CamEscrow and maps contract facts to stable semantic machine, state,
-    view, authority, and transition IDs
+    authority, view, and transition IDs
 
 CAM 1.1 bundle
-    binds transition IDs to explicit routes, contract calls, native values,
-    inputs, and canonical post-write continuations
+    binds application actions to explicit routes, nested contract arguments,
+    native value, and post-write observations
 
 Generic viewer
-    permits only actions rendered from the current observation, prepares and
-    simulates the declared call, submits it, then re-observes the agreement
+    permits only currently rendered actions, prepares and simulates the call,
+    submits it, and refreshes from current chain state
 
 Future CAM machine resource
-    declares the labelled transition graph and lets conformance/viewers verify
-    source states, target states, terminality, instance preservation, and
-    observed enabled transitions
+    declares the stored agreement labelled transition graph and binds routes,
+    observations, and transition-event witnesses
 ```
 
-Do not add the CAM machine resource before the escrow works end to end under CAM
-1.1. Do choose all application IDs and route boundaries now so the later machine
-resource is additive.
+Do not implement the generic machine resource before the escrow works end to
+end under CAM 1.1. Do fix all state IDs, transition IDs, observation routes, and
+event identities now so the later resource is declarative.
 
 ## Why Escrow Is the Next Application
 
 Bike NFT exercises read projections, permissions, dynamic views, ordinary write
 routes, and local deployment. Escrow adds materially different pressure:
 
-- a payable CAM 1.1 creation route;
-- the same amount crossing both calldata and the transaction-value envelope;
+- a payable CAM 1.1 route;
+- one nested amount value crossing calldata and the transaction envelope;
 - multiple actors with different enabled transitions;
-- state-dependent deadlines and permissionless timeout finalization;
-- externally referenced evidence with immutable content commitments;
-- liabilities that move from active escrow to withdrawal credits;
-- workflow state that may change outside the current viewer;
-- a clear future labelled-transition-system model.
+- exact deadline boundaries and permissionless timeout finalization;
+- external evidence anchored by content commitments;
+- liabilities moving from active escrow to aggregated withdrawal credits;
+- workflow state changing outside the current viewer;
+- a useful labelled-transition-system model;
+- receipt-time transition evidence needed for concurrent execution.
 
-The escrow is a protocol-validation application, not a complete commercial
+This is a protocol-validation application, not a complete commercial escrow or
 arbitration product.
 
-## Product Model
+## Product and Trust Model
 
 The application is a:
 
-> Single-milestone, native-asset, trusted-arbitrator escrow with client
+> Single-milestone, native-asset, designated-arbitrator escrow with client
 > cancellation before acceptance and bounded optimistic settlement.
 
 Participants:
@@ -73,14 +95,18 @@ Participants:
 - **client**: creates and funds the agreement;
 - **contractor**: accepts, performs, submits, and receives payment on approval or
   contractor-favoring timeout;
-- **arbitrator**: chooses the beneficiary only after a client dispute;
-- **finalizer**: any connected account may execute an already predetermined
-  timeout outcome.
+- **arbitrator**: selects the beneficiary only after a client dispute;
+- **finalizer**: any nonzero caller may execute an already predetermined timeout
+  outcome.
 
-The arbitrator is selected by the client and accepted implicitly by the
-contractor when the contractor accepts. The contract cannot establish the
-arbitrator's neutrality, competence, or availability. The arbitrator may be an
-EOA, Safe, DAO executor, or another contract; do not require deployed code.
+The arbitrator is selected by the client and accepted by the contractor only in
+the limited sense that the contractor sees the address and terms before calling
+`acceptAgreement`. The contract does not prove that the arbitrator consented,
+is neutral, is competent, or is available. Role-address separation also does
+not prove human or organizational independence.
+
+The arbitrator may be an EOA, Safe, DAO executor, or another contract. Do not
+require code at the arbitrator address.
 
 The contract is:
 
@@ -91,13 +117,44 @@ The contract is:
 - pull-payment based;
 - explicit about every timeout outcome.
 
-## State Machine
+### Arbitration timeout outcome
+
+If the arbitrator does not rule before the arbitration deadline, the amount is
+released to the contractor.
+
+This is deliberate:
+
+- client inaction after an undisputed submission already favors the contractor;
+- opening a dispute must not create an indefinite client veto;
+- refund-on-inactivity would let a client select an inert arbitrator and recover
+  every disputed amount;
+- a split fallback is arbitrary and introduces partial-settlement accounting.
+
+This policy is contractor-favoring. A contractor can submit poor work and still
+receive payment if the client-selected arbitrator does not act. The client must
+therefore choose an arbitrator whose availability it trusts, and the contractor
+must decide whether to accept those terms. V1 does not solve that institutional
+problem.
+
+### Client cancellation and transaction ordering
+
+The client may cancel only before contractor acceptance. A cancellation and an
+acceptance submitted near each other are resolved by chain ordering: whichever
+valid transaction executes first wins. Contractors must not begin relying on an
+acceptance until the acceptance transaction is confirmed.
+
+### Arbitrator compensation and consent
+
+V1 has no arbitrator fee, acknowledgement transaction, availability registry, or
+appeal process. It assumes arbitrator motivation or compensation exists out of
+band. Requiring arbitrator acknowledgement would add another pre-acceptance
+state and transaction and is deliberately deferred.
+
+## Stored Agreement State Machine
+
+The stored machine begins only after funded creation succeeds:
 
 ```text
-None
-  │
-  │ createAgreement + exact native value
-  ▼
 Funded
   ├── client cancels before deadline ──────────────────► Refunded
   │                                                        ClientCancellation
@@ -134,25 +191,11 @@ Disputed
 ```
 
 `Released` and `Refunded` are terminal agreement states. They mean that the
-agreement amount has been credited to a beneficiary for withdrawal, not
-necessarily that the beneficiary has already transferred the native value out of
-the contract.
+amount has been credited for withdrawal, not necessarily transferred out of the
+contract.
 
-### Arbitration timeout outcome
-
-An arbitration timeout releases the amount to the contractor.
-
-This is deliberate:
-
-- before a dispute, client inaction after submission already leads to contractor
-  payment;
-- the client must not gain an indefinite veto merely by opening a dispute;
-- refund-on-arbitrator-inactivity would let a client choose an inert arbitrator,
-  dispute every submission, and recover the amount;
-- a split fallback is arbitrary and introduces partial-settlement accounting
-  without an objective rule.
-
-The contractor sees the arbitrator and arbitration duration before accepting.
+`AgreementState.None` remains a storage/read sentinel for an uninstantiated ID,
+but it is not a state in the stored agreement machine.
 
 ## Exact Time Semantics
 
@@ -172,9 +215,9 @@ finalizeAcceptanceTimeout at deadline  succeeds
 ```
 
 The same rule applies to submission, approval, dispute, arbitration resolution,
-and all timeout functions.
+and all timeout transitions.
 
-Every nonterminal stored state has exactly one finite active deadline:
+Every active stored state has exactly one deadline:
 
 | State | Active deadline |
 |---|---|
@@ -184,20 +227,39 @@ Every nonterminal stored state has exactly one finite active deadline:
 | `Disputed` | arbitration deadline |
 | terminal | zero |
 
-Read the current timestamp once per transition:
+Use `uint64` for configured durations and `uint256` for stored timestamps and
+deadlines. Timestamp packing is not worth introducing a cast-based liveness
+boundary in a contract already storing dynamic strings.
+
+Pin a meaningful maximum phase duration:
 
 ```solidity
-uint48 now_ = _now48();
-agreement.updatedAt = now_;
-agreement.deadline = _deadlineAfter(now_, duration);
+uint64 public constant MAX_PHASE_DURATION = 365 days;
 ```
 
-Do not call separate timestamp helpers for `updatedAt` and `deadline` even though
-the block timestamp cannot change within one transaction.
+Each duration must satisfy:
 
-## Use Exact Public Timeout Functions
+```text
+1 <= duration <= MAX_PHASE_DURATION
+```
 
-Expose one public Solidity function per semantic timeout transition:
+Merely requiring a finite integer would permit multi-million-year locks and
+would not justify the phrase “bounded settlement.” The one-year cap is product
+policy, not an EVM necessity; changing it later requires a new deployment.
+
+When a transition starts a phase:
+
+```solidity
+uint256 now_ = block.timestamp;
+agreement.updatedAt = now_;
+agreement.deadline = now_ + duration;
+```
+
+Solidity checked arithmetic owns overflow rejection.
+
+## Exact Public Timeout Functions
+
+Expose one public function per semantic timeout transition:
 
 ```solidity
 function finalizeAcceptanceTimeout(bytes32 agreementId) external;
@@ -206,27 +268,26 @@ function finalizeReviewTimeout(bytes32 agreementId) external;
 function finalizeArbitrationTimeout(bytes32 agreementId) external;
 ```
 
-The functions may share private machinery, but each public function validates
-one exact source state and produces one exact settlement reason.
+The functions may share private machinery, but each validates one exact source
+state and produces one exact settlement reason.
 
-Do not expose only a generic `finalizeExpiredAgreement` function. A generic
-function would weaken the binding between a CAM route name and its actual effect:
-a route named `finalizeReviewTimeout` could invoke the generic function while the
-agreement was `Funded` and produce an acceptance-timeout refund.
+Do not expose only a generic `finalizeExpiredAgreement`. A route named
+`finalizeReviewTimeout` must not be able to invoke a generic function while the
+agreement is `Funded` and obtain an acceptance-timeout refund.
 
-The exact API gives a one-to-one relationship:
+The binding is intentionally one-to-one:
 
 ```text
-CAM transition ID
+transition ID
     ↔ CAM route
     ↔ Solidity function
     ↔ source state
-    ↔ settlement outcome
+    ↔ effect and settlement reason
 ```
 
 ## Agreement Identity
 
-Use a deployment-scoped, client-scoped deterministic agreement ID:
+Use a deployment-scoped, client-scoped deterministic ID:
 
 ```solidity
 bytes32 private constant AGREEMENT_ID_DOMAIN =
@@ -255,82 +316,80 @@ Properties:
 
 - different clients may use the same readable reference;
 - different escrow deployments produce different IDs;
-- the ID is available before creation executes;
-- every later mutation uses one compact `bytes32`;
-- CAM continuations do not depend on transaction return values;
-- the same client cannot reuse a reference, including after settlement.
+- the ID can be previewed before creation;
+- every stored-machine mutation uses one `bytes32`;
+- the same client cannot reuse a reference after any outcome;
+- CAM does not need a transaction return value for later lookup.
 
-Do not include `block.chainid` in the storage-key formula. A later chain-ID
-change must not make reference lookup compute a different key for existing
-storage. The externally complete identity remains:
+The ID intentionally binds only the escrow deployment, client, and exact
+reference bytes. It does **not** commit to contractor, arbitrator, amount,
+durations, or documents. Those terms are reviewed in calldata and stored in the
+agreement. Do not claim that the ID is a terms hash.
+
+Do not include `block.chainid` in the storage-key formula. A chain-ID change must
+not make reference lookup compute a new key for existing storage. The externally
+complete identity remains:
 
 ```text
 chain ID + escrow contract address + agreement ID
 ```
 
-Agreement references are exact byte strings. The contract does not trim,
-case-fold, or Unicode-normalize them.
+References are byte-exact. The contract does not trim, case-fold, or Unicode
+normalize them.
 
-## Bind Creation to the Expected Machine Instance
+## Creation Is a Factory Operation
 
-Creation accepts the prospective instance ID:
+Creation is not a transition in the stored agreement machine.
+
+Use:
 
 ```solidity
 function createAgreement(
-    bytes32 expectedAgreementId,
     CreateAgreementParams calldata params
-) external payable;
+) external payable returns (bytes32 agreementId);
 ```
 
-The contract recomputes the ID from `address(this)`, `msg.sender`, and
-`params.agreementRef`, and rejects a mismatch:
+The contract derives the agreement ID from `msg.sender` and
+`params.agreementRef`, validates the terms, stores the agreement directly in
+`Funded`, increases active liabilities, emits the creation event, and returns
+the ID for ordinary direct callers.
 
-```solidity
-error UnexpectedAgreementId(bytes32 expected, bytes32 actual);
-```
+No `expectedAgreementId` argument is needed. Such an argument would only bind
+the caller to the client/reference-derived key, not to the full agreement terms,
+and would complicate CAM authoring without adding material contract safety.
 
-The same ID is used by the future CAM route for:
-
-1. the contract call;
-2. the post-write continuation;
-3. the machine instance being observed.
-
-If a manifest, caller, or integration error supplies an ID that does not
-correspond to the terms, creation reverts instead of creating one instance and
-navigating to another.
+The CAM continuation can look up the created agreement by the same client and
+reference used in the call. A future machine-aware viewer can compare the
+prospective ID returned by the preview with the ID observed after creation.
 
 ## Bind Declared Amount to Native Value
 
-Retain an explicit amount in the creation parameters and require exact native
-value:
+Keep one amount inside the creation tuple and require exact native value:
 
 ```solidity
 if (params.amount == 0) revert ZeroAmount();
-
 if (msg.value != params.amount) {
     revert UnexpectedNativeAmount(params.amount, msg.value);
 }
 ```
 
-The redundancy is useful. It binds the economic term declared in calldata to
-the transaction envelope. The future CAM route carries the same input through
-both channels:
+The future CAM route uses the same nested value for both channels:
 
 ```json
 {
-  "value": "$inputs.amount",
+  "inputs": ["params"],
+  "value": "$inputs.params.amount",
   "call": {
     "args": {
-      "params": {
-        "amount": "$inputs.amount"
-      }
+      "params": "$inputs.params"
     }
   }
 }
 ```
 
-A disagreement between the reviewed terms and the native value must fail at the
-contract boundary.
+Do not add a second top-level `amount` route input. A single expression source is
+stronger and simpler than relying on conformance or runtime code to prove two
+independent inputs equal.
 
 ## Content-Committed Evidence
 
@@ -345,9 +404,10 @@ struct DocumentRef {
 }
 ```
 
-The digest is SHA-256 over the exact referenced bytes. The contract cannot fetch
-or verify the document, but it records an immutable content commitment that
-participants and generic clients can verify.
+The digest identifies the canonical application document bytes agreed by the
+parties, independent of HTTP compression or other transport encoding. The URI
+is a locator only. The contract cannot retrieve or verify the bytes; viewers and
+participants must verify the digest before relying on the document.
 
 Each agreement may store:
 
@@ -358,7 +418,7 @@ DocumentRef dispute;
 DocumentRef resolution;
 ```
 
-Recommended limits:
+Pin limits:
 
 ```solidity
 uint256 public constant MAX_AGREEMENT_REF_BYTES = 128;
@@ -370,16 +430,24 @@ Validate every supplied document:
 ```text
 URI nonempty
 URI byte length <= MAX_DOCUMENT_URI_BYTES
-digest != bytes32(0)
+sha256Digest != bytes32(0)
 ```
 
 Absent documents use the default empty URI and zero digest.
 
-The contract does not parse or restrict URI schemes. Navigation and supported
-scheme policy belong to clients; the digest is the immutable authority.
+The contract does not parse URI schemes. Navigation policy belongs to clients;
+the digest, not the locator, is the content authority.
 
 All actors, amounts, references, deadlines, URIs, and digests are public.
 Sensitive material should be encrypted off-chain before publication.
+
+Storing the locators on-chain is intentionally expensive. Event-only locators
+would reduce storage but would force generic viewers to depend on an indexer.
+The 512-byte cap keeps the direct-state design bounded.
+
+Document commitments prove content identity, not comprehension, validity, or
+consent. The client signals terms by creation and the contractor signals
+acceptance by `acceptAgreement`; the arbitrator gives no on-chain consent in V1.
 
 ## Creation Tuple
 
@@ -388,17 +456,13 @@ Use nested tuples rather than a long positional signature:
 ```solidity
 struct CreateAgreementParams {
     string agreementRef;
-
     address contractor;
     address arbitrator;
-
     uint256 amount;
-
-    uint48 acceptanceDuration;
-    uint48 workDuration;
-    uint48 reviewDuration;
-    uint48 arbitrationDuration;
-
+    uint64 acceptanceDuration;
+    uint64 workDuration;
+    uint64 reviewDuration;
+    uint64 arbitrationDuration;
     DocumentRef terms;
 }
 ```
@@ -409,17 +473,18 @@ Creation validation requires:
 agreement reference nonempty and <= 128 bytes
 contractor nonzero
 arbitrator nonzero
-client, contractor, and arbitrator pairwise distinct
+client, contractor, and arbitrator role addresses pairwise distinct
 contractor != address(this)
 arbitrator != address(this)
 amount > 0
 msg.value == amount
-all four durations > 0
+each duration in [1, MAX_PHASE_DURATION]
 terms document valid
 agreement ID unused
-first deadline representable as uint48
-expected agreement ID exact
 ```
+
+Pairwise address distinction prevents one address from exercising multiple
+contract roles, but it does not prove organizational independence.
 
 The agreement immediately enters `Funded`; there is no separate unfunded
 `Created` state or funding transaction.
@@ -443,150 +508,28 @@ block.timestamp < acceptance deadline
 The client receives a withdrawal credit and the settlement reason is
 `ClientCancellation`.
 
-This protects the client from a mistaken contractor, arbitrator, amount, or
-terms reference before the contractor accepts. Once accepted, unilateral
-cancellation is no longer available.
-
-No contractor-decline operation is needed in V1. The contractor may leave the
-offer unaccepted; the client may cancel before the deadline or finalize an
-acceptance-timeout refund afterward.
-
-## Core-Owned Transition Availability
-
-The projection must not reimplement actor, state, deadline, or terminality
-rules.
-
-The read interface exposes action availability with one field per agreement
-transition:
-
-```solidity
-struct AgreementActions {
-    bool cancelAgreement;
-    bool acceptAgreement;
-    bool submitAgreement;
-    bool approveAgreement;
-    bool disputeAgreement;
-
-    bool finalizeAcceptanceTimeout;
-    bool finalizeWorkTimeout;
-    bool finalizeReviewTimeout;
-
-    bool resolveForClient;
-    bool resolveForContractor;
-
-    bool finalizeArbitrationTimeout;
-}
-```
-
-Expose:
-
-```solidity
-function actionsFor(
-    bytes32 agreementId,
-    address actor
-) external view returns (AgreementActions memory);
-```
-
-Action matrix:
-
-### `Funded`, before deadline
-
-```text
-client      → cancelAgreement
-contractor  → acceptAgreement
-```
-
-### `Funded`, deadline reached
-
-```text
-any nonzero actor → finalizeAcceptanceTimeout
-```
-
-### `Accepted`, before deadline
-
-```text
-contractor → submitAgreement
-```
-
-### `Accepted`, deadline reached
-
-```text
-any nonzero actor → finalizeWorkTimeout
-```
-
-### `Submitted`, before deadline
-
-```text
-client → approveAgreement
-client → disputeAgreement
-```
-
-### `Submitted`, deadline reached
-
-```text
-any nonzero actor → finalizeReviewTimeout
-```
-
-### `Disputed`, before deadline
-
-```text
-arbitrator → resolveForClient
-arbitrator → resolveForContractor
-```
-
-### `Disputed`, deadline reached
-
-```text
-any nonzero actor → finalizeArbitrationTimeout
-```
-
-### Terminal, missing, or disconnected actor
-
-All agreement-transition fields are false. In particular, `actor == address(0)`
-means no connected account and therefore no write transition.
-
-Use one internal action computation:
-
-```solidity
-function _actionsFor(
-    Agreement storage agreement,
-    address actor,
-    uint48 now_
-) private view returns (AgreementActions memory);
-```
-
-Every public transition calls the same function before mutation. This makes the
-public `actionsFor` result and the actual actor/state/time preconditions share
-one implementation.
-
-Payload validation remains separate. For example, `submitAgreement == true`
-means that actor, state, and time permit submission; an invalid `DocumentRef`
-still produces a document-validation error.
-
-A stable structured transition error may use:
-
-```solidity
-error ActionUnavailable(
-    bytes32 agreementId,
-    AgreementAction action,
-    address actor,
-    AgreementState state,
-    uint48 deadline,
-    uint48 currentTime
-);
-```
+No contractor-decline transition is needed in V1. The contractor may leave the
+offer unaccepted; the client may cancel before the deadline or anyone may
+finalize the acceptance-timeout refund afterward.
 
 ## Creation Preview
 
-Creation is the one transition whose source is a prospective, not-yet-stored
-instance.
+Creation availability depends on the prospective parameter tuple and therefore
+belongs to the factory workflow, not `AgreementActions`.
 
 Expose a non-reverting preview:
 
 ```solidity
 struct CreateAgreementPreview {
     bytes32 agreementId;
-    bool canCreateWithExactValue;
+    uint256 requiredValue;
+    bool agreementRefValid;
+    bool partiesValid;
+    bool amountValid;
+    bool durationsValid;
+    bool termsValid;
+    bool idAvailable;
+    bool canCreate;
 }
 
 function previewCreateAgreement(
@@ -595,24 +538,19 @@ function previewCreateAgreement(
 ) external view returns (CreateAgreementPreview memory);
 ```
 
-It computes the prospective ID and checks all creation preconditions except the
-transaction-envelope fact `msg.value == params.amount`.
+`canCreate` checks current contract state and all structural preconditions except
+facts outside the read call:
 
-The boolean means:
+- the eventual `msg.value` equals `requiredValue`;
+- the wallet has sufficient funds;
+- the preview remains current until execution;
+- no competing transaction creates the same ID first.
 
-> This actor and parameter set are structurally creatable if the transaction
-> supplies exactly `params.amount` native units.
+`createAgreement` uses the same validation predicates, then checks exact native
+value and revalidates current state.
 
-`createAgreement` reuses the same internal validation and adds the native-value
-check.
-
-This lets the future projection represent a real prospective machine state:
-
-```text
-stateId       = none
-instanceId    = prospective agreement ID
-transitionIds = [createAgreement] only when preview allows it
-```
+The preview is a diagnostic factory view. Do not fabricate an agreement-machine
+`none` state or include `createAgreement` in the stored machine transition set.
 
 ## Read-Only ERC-165 Interface
 
@@ -622,17 +560,18 @@ Add:
 dapps/escrow/src/ICamEscrowView.sol
 ```
 
-The interface extends `IERC165` and owns the reader-facing enums, structures,
-and read functions:
+The interface extends `IERC165` and owns reader-facing enums, structs, and read
+functions:
 
 - `DocumentRef`;
 - `CreateAgreementParams`;
 - `CreateAgreementPreview`;
 - `AgreementState`;
 - `SettlementReason`;
+- `AgreementAction`;
 - `AgreementView`;
 - `AgreementActions`;
-- identity, preview, observation, action, withdrawal-credit, and liability reads.
+- identity, preview, observation, action, credit, and liability reads.
 
 `CamEscrow` advertises:
 
@@ -652,28 +591,21 @@ Use:
 struct AgreementView {
     bytes32 agreementId;
     bool exists;
-
     AgreementState state;
     SettlementReason settlementReason;
-
     address client;
     address contractor;
     address arbitrator;
-
     uint256 amount;
-
-    uint48 acceptanceDuration;
-    uint48 workDuration;
-    uint48 reviewDuration;
-    uint48 arbitrationDuration;
-
-    uint48 createdAt;
-    uint48 updatedAt;
-    uint48 deadline;
+    uint64 acceptanceDuration;
+    uint64 workDuration;
+    uint64 reviewDuration;
+    uint64 arbitrationDuration;
+    uint256 createdAt;
+    uint256 updatedAt;
+    uint256 deadline;
     bool deadlineReached;
-
     string agreementRef;
-
     DocumentRef terms;
     DocumentRef submission;
     DocumentRef dispute;
@@ -694,7 +626,11 @@ function agreementByReference(
 ) external view returns (AgreementView memory);
 ```
 
-A missing agreement is a valid observation and must not revert:
+Lookup does not apply creation validation to the reference. Empty, oversized, or
+otherwise non-creatable references may be queried and simply produce an absent
+observation.
+
+A missing agreement is valid data and must not revert:
 
 ```text
 agreementId = requested or computed ID
@@ -703,13 +639,90 @@ state = None
 all remaining fields = defaults
 ```
 
+## Core-Owned Transition Availability
+
+The projection must not reimplement actor, state, deadline, or terminality
+rules.
+
+The read interface exposes one boolean per stored-machine transition:
+
+```solidity
+struct AgreementActions {
+    bool cancelAgreement;
+    bool acceptAgreement;
+    bool submitAgreement;
+    bool approveAgreement;
+    bool disputeAgreement;
+    bool finalizeAcceptanceTimeout;
+    bool finalizeWorkTimeout;
+    bool finalizeReviewTimeout;
+    bool resolveForClient;
+    bool resolveForContractor;
+    bool finalizeArbitrationTimeout;
+}
+```
+
+Expose:
+
+```solidity
+function actionsFor(
+    bytes32 agreementId,
+    address actor
+) external view returns (AgreementActions memory);
+```
+
+Action matrix:
+
+| State/time | Actor | Enabled transition |
+|---|---|---|
+| `Funded`, before deadline | client | `cancelAgreement` |
+| `Funded`, before deadline | contractor | `acceptAgreement` |
+| `Funded`, deadline reached | any nonzero actor | `finalizeAcceptanceTimeout` |
+| `Accepted`, before deadline | contractor | `submitAgreement` |
+| `Accepted`, deadline reached | any nonzero actor | `finalizeWorkTimeout` |
+| `Submitted`, before deadline | client | `approveAgreement`, `disputeAgreement` |
+| `Submitted`, deadline reached | any nonzero actor | `finalizeReviewTimeout` |
+| `Disputed`, before deadline | arbitrator | `resolveForClient`, `resolveForContractor` |
+| `Disputed`, deadline reached | any nonzero actor | `finalizeArbitrationTimeout` |
+| terminal, absent, or actor zero | any | none |
+
+Use one canonical predicate rather than materializing all booleans in every
+write:
+
+```solidity
+function _isActionAvailable(
+    Agreement storage agreement,
+    AgreementAction action,
+    address actor,
+    uint256 now_
+) private view returns (bool);
+```
+
+`actionsFor` calls this predicate for each action. Each write calls it only for
+its own action and reverts with a structured error when false:
+
+```solidity
+error ActionUnavailable(
+    bytes32 agreementId,
+    AgreementAction action,
+    address actor,
+    AgreementState state,
+    uint256 deadline,
+    uint256 currentTime
+);
+```
+
+For evidence-bearing transitions, check action availability before validating
+the submitted `DocumentRef`. This pins the equivalence between projected action
+availability and actor/state/time call availability; payload validity remains a
+separate error surface.
+
 ## Contract API
 
 ```solidity
 function createAgreement(
-    bytes32 expectedAgreementId,
     CreateAgreementParams calldata params
-) external payable;
+) external payable returns (bytes32 agreementId);
 
 function cancelAgreement(bytes32 agreementId) external;
 function acceptAgreement(bytes32 agreementId) external;
@@ -748,22 +761,19 @@ function withdrawTo(address payable recipient) external;
 `withdrawTo` uses `ReentrancyGuard`.
 
 No overloads. No generic timeout function. No owner. No pause. No
-upgradeability. No external calls during agreement transitions or settlement.
-The only external native-value call occurs during withdrawal.
+upgradeability. No external calls during creation, agreement transitions, or
+settlement. The only external native-value call occurs during withdrawal.
 
 ## Settlement Reasons
 
 ```solidity
 enum SettlementReason {
     None,
-
     ClientCancellation,
     AcceptanceTimeout,
     WorkTimeout,
-
     ClientApproval,
     ReviewTimeout,
-
     ArbitratorToClient,
     ArbitratorToContractor,
     ArbitrationTimeout
@@ -786,13 +796,13 @@ Released:
     ArbitrationTimeout
 ```
 
-Use two private terminal helpers rather than one helper that accepts arbitrary
-terminal state/reason combinations:
+Use two private terminal helpers:
 
 ```solidity
 function _refundClient(
     bytes32 agreementId,
     Agreement storage agreement,
+    AgreementAction action,
     SettlementReason reason,
     address actor
 ) private;
@@ -800,10 +810,14 @@ function _refundClient(
 function _releaseContractor(
     bytes32 agreementId,
     Agreement storage agreement,
+    AgreementAction action,
     SettlementReason reason,
     address actor
 ) private;
 ```
+
+Do not use one generic helper that accepts arbitrary terminal state/reason
+combinations.
 
 ## Accounting
 
@@ -811,7 +825,6 @@ Store:
 
 ```solidity
 mapping(address => uint256) private _withdrawable;
-
 uint256 public totalEscrowed;
 uint256 public totalWithdrawable;
 ```
@@ -834,7 +847,7 @@ Settlement:
 
 ```text
 totalEscrowed decreases by amount
-beneficiary withdrawal credit increases by amount
+beneficiary credit increases by amount
 totalWithdrawable increases by amount
 ```
 
@@ -852,8 +865,7 @@ The solvency invariant is:
 totalEscrowed + totalWithdrawable <= address(this).balance;
 ```
 
-The inequality is intentional because native value can be forcibly sent without
-invoking `receive` or `fallback`.
+The inequality permits forcibly sent native value.
 
 Reject withdrawal when:
 
@@ -863,9 +875,9 @@ recipient == address(this)
 caller has no withdrawal credit
 ```
 
-The caller always withdraws its complete credit but may select another
-recipient. This prevents a smart-account beneficiary from trapping funds merely
-because its own receive function rejects native value.
+The caller withdraws its complete aggregated credit but may choose another
+recipient. This helps smart-account beneficiaries whose own receive function
+rejects native value, provided the smart account can call `withdrawTo`.
 
 Use checks-effects-interactions. A failed native transfer reverts and restores
 the credit and totals atomically.
@@ -887,45 +899,70 @@ fallback() external payable {
 Forced native value remains inert. Do not introduce an administrator solely to
 sweep unsolicited surplus.
 
-## Events
+## Canonical Transition Evidence
 
-Use lifecycle-specific evidence events and one canonical terminal event:
+Latest-state reobservation is not an exact postcondition proof. After one
+transaction succeeds, another transaction may legitimately advance the same
+agreement before the viewer reobserves it.
+
+Emit one canonical transition event for every stored-machine transition:
 
 ```solidity
-event AgreementCreated(...);
-event AgreementAccepted(...);
-event AgreementSubmitted(...);
-event AgreementDisputed(...);
-event AgreementResolved(...);
-
-event AgreementSettled(
+event AgreementTransitioned(
     bytes32 indexed agreementId,
+    bytes32 indexed transitionId,
     address indexed actor,
-    address indexed beneficiary,
-    AgreementState terminalState,
-    SettlementReason reason,
-    uint256 amount
-);
-
-event Withdrawal(
-    address indexed account,
-    address indexed recipient,
-    uint256 amount
+    AgreementState fromState,
+    AgreementState toState,
+    SettlementReason settlementReason,
+    uint256 deadline
 );
 ```
 
-Document-bearing events include URI and SHA-256 digest. Do not force optional
-resolution data into timeout or cancellation events merely to maintain one
-oversized signature.
+Use:
+
+```solidity
+transitionId = keccak256(bytes(<exact CAM transition/route name>));
+```
+
+Examples:
+
+```text
+keccak256("acceptAgreement")
+keccak256("finalizeReviewTimeout")
+keccak256("resolveForClient")
+```
+
+Emit exactly one `AgreementTransitioned` event per successful stored-machine
+transition. Creation is a factory operation and emits `AgreementCreated`, not a
+fictional transition from `None`.
+
+Also emit document-specific and accounting events:
+
+```solidity
+event AgreementCreated(...);
+event AgreementDocumentRecorded(...);
+event AgreementCreditCreated(...);
+event Withdrawal(...);
+```
+
+`AgreementCreated` includes the initial funded deadline and terms commitment.
+`AgreementDocumentRecorded` identifies submission, dispute, or resolution.
+`AgreementCreditCreated` identifies beneficiary, amount, and settlement reason.
+
+The canonical transition event supports indexers, model-based tests, and future
+receipt-time machine verification without forcing the viewer to interpret
+latest state as the exact receipt-time state.
 
 ## Machine-Shaped Projection
 
-A later `CamEscrowUI` contract returns:
+A later `CamEscrowUI` returns:
 
 ```solidity
 struct MachineView {
     string machineId;
     bytes32 instanceId;
+    bool instantiated;
     string stateId;
     string[] transitionIds;
     bool terminal;
@@ -933,12 +970,10 @@ struct MachineView {
 
 struct AppView {
     MachineView machine;
-
     address account;
     AgreementView agreement;
     AgreementActions actions;
     uint256 accountWithdrawable;
-
     string viewId;
     string authorityId;
 }
@@ -953,7 +988,6 @@ escrow.agreement.v1
 Stable state IDs:
 
 ```text
-none
 funded
 accepted
 submitted
@@ -970,10 +1004,9 @@ released.arbitratorToContractor
 released.arbitrationTimeout
 ```
 
-Stable transition IDs equal CAM write-route names:
+Stable stored-machine transition IDs:
 
 ```text
-createAgreement
 cancelAgreement
 acceptAgreement
 submitAgreement
@@ -987,64 +1020,91 @@ resolveForContractor
 finalizeArbitrationTimeout
 ```
 
-The projection maps exact core action booleans to the exact transition IDs. It
-performs no role, state, deadline, or terminality calculation.
+`createAgreement` is not in this list. It belongs to the factory workflow.
+`withdrawTo` belongs to the account-credit workflow.
 
-It may map Solidity enums to semantic IDs, choose display views, identify the
-current actor role, and include account-level withdrawal information.
-
-## Agreement and Withdrawal Are Separate Workflows
-
-`withdrawTo` does not change one agreement's lifecycle state. One account credit
-may aggregate settlements from several agreements.
-
-Do not model:
+For an absent ID:
 
 ```text
-Released → Withdrawn
+instantiated = false
+stateId = ""
+transitionIds = []
+terminal = false
 ```
 
-inside the agreement machine.
+Do not invent a formal `none` state in the stored machine.
 
-For CAM 1.1, treat `withdrawTo` as an auxiliary account-level route. A later
-protocol may model it as a separate credit machine or as an orthogonal machine
-region, but the first agreement machine should remain instance-local.
+The projection maps exact core action booleans to exact transition IDs. It may
+map enums to semantic IDs, choose display views, and identify the current actor
+role. It performs no actor/state/deadline authorization calculation.
+
+Creation preview has a separate projection/view shape. It may display the
+prospective ID and structural checks and render the factory `createAgreement`
+action when `preview.canCreate` is true, but it does not claim the agreement
+machine is instantiated.
 
 ## Canonical CAM 1.1 Routes
 
-The future bundle should contain:
+The bundle should contain three route groups.
 
-### Canonical stored-instance observation
+### Factory routes
+
+```text
+createAgreementPreview(params)
+createAgreement(params)
+```
+
+Creation uses one nested source value:
+
+```json
+{
+  "createAgreement": {
+    "kind": "write",
+    "inputs": ["params"],
+    "value": "$inputs.params.amount",
+    "call": {
+      "namespace": "contracts.CamEscrow",
+      "function": "createAgreement",
+      "args": {
+        "params": "$inputs.params"
+      }
+    },
+    "then": {
+      "namespace": "routes",
+      "function": "lookupAgreement",
+      "args": {
+        "client": "$account.address",
+        "agreementRef": "$inputs.params.agreementRef"
+      }
+    }
+  }
+}
+```
+
+The contract checks `msg.value == params.amount`. The continuation uses the same
+client/reference identity inputs and observes the resulting ID.
+
+### Observation routes
+
+```text
+lookupAgreement(client, agreementRef)
+agreement(agreementId)
+```
+
+`agreement(agreementId)` is the canonical stored-instance observation used by
+all stored-machine transition continuations.
+
+`lookupAgreement` supports readable navigation and the special post-create
+handoff.
+
+### Stored-machine transition routes
+
+Each transition route has the same name as the transition ID, calls the exact
+Solidity function, and continues to:
 
 ```text
 agreement(agreementId)
 ```
-
-Every stored agreement transition continues to this route with the same
-`agreementId`.
-
-### Readable lookup
-
-```text
-lookupAgreement(client, agreementRef)
-```
-
-It computes/displays the deterministic instance ID and the current agreement
-observation.
-
-### Prospective creation observation
-
-```text
-createAgreementPreview(params)
-```
-
-It returns the prospective instance ID, `none` machine state, and whether
-creation is structurally available with exact value.
-
-### Agreement transition routes
-
-Each transition gets a CAM write route whose name equals its transition ID and
-whose call targets the corresponding exact Solidity function.
 
 Example:
 
@@ -1071,104 +1131,44 @@ Example:
 }
 ```
 
-Creation uses the same-instance rule:
+### Credit routes
 
-```json
-{
-  "createAgreement": {
-    "kind": "write",
-    "inputs": ["agreementId", "params", "amount"],
-    "value": "$inputs.amount",
-    "call": {
-      "namespace": "contracts.CamEscrow",
-      "function": "createAgreement",
-      "args": {
-        "expectedAgreementId": "$inputs.agreementId",
-        "params": "$inputs.params"
-      }
-    },
-    "then": {
-      "namespace": "routes",
-      "function": "agreement",
-      "args": {
-        "agreementId": "$inputs.agreementId"
-      }
-    }
-  }
-}
-```
-
-The reviewed `amount` must be the same value represented inside `params.amount`.
-The contract equality check is the final authority if a malformed bundle or
-direct caller supplies inconsistent values.
+`withdrawTo` and account-credit observation remain auxiliary routes outside the
+agreement machine.
 
 ## What CAM 1.1 Provides
 
-Without an explicit machine resource, CAM 1.1 still provides:
+CAM 1.1 already provides:
 
 - hash-pinned route and UI declarations;
 - closed-world route/resource parsing;
 - ABI-compatible nested tuple arguments;
 - exact native transaction value;
 - simulation and wallet submission;
-- a declared post-write continuation;
-- dispatch only from the currently rendered action set;
-- re-observation through the canonical agreement route.
+- declared post-write continuations;
+- dispatch only from currently rendered actions;
+- current-state reobservation.
 
-The application can therefore expose a clean machine envelope today:
+The application can therefore expose a disciplined machine envelope by
+convention:
 
 ```text
 machine ID
 instance ID
+instantiated flag
 state ID
 enabled transition IDs
 ```
 
-This is an operational state machine by convention, not yet a CAM-level formal
-declaration.
-
-## What CAM 1.1 Does Not Prove
-
-CAM 1.1 does not declare or prove:
-
-- that `funded` is a machine state;
-- that `acceptAgreement` has source `funded`;
-- that its target must be `accepted`;
-- that terminal states have no outgoing transitions;
-- that a transition's continuation observes the same machine instance;
-- that every observed transition ID belongs to a declared graph;
-- that a successful write reached one of the declared target states.
-
-The contract and its tests remain the authority for state-machine correctness.
+CAM 1.1 does not yet declare the graph or verify transition witnesses.
 
 ## Future CAM Machine Resource
 
-After the CAM 1.1 escrow bundle works, introduce a hash-pinned machine namespace
-in a new CAM version:
+After the escrow bundle works under CAM 1.1, introduce a hash-pinned machine
+resource in a new CAM version.
 
-```json
-{
-  "machines.EscrowAgreement": {
-    "type": "machine",
-    "uri": "./escrow-agreement.machine.json",
-    "integrity": "sha256:0x..."
-  }
-}
-```
-
-The machine resource declares:
-
-- machine schema version and machine ID;
-- canonical observation route;
-- instance-expression binding;
-- state-expression binding;
-- enabled-transition-expression binding;
-- initial state;
-- terminal states;
-- transition IDs;
-- transition source states;
-- transition target states;
-- route binding.
+The first machine resource should model only stored agreements. Its initial
+state is `funded`; creation is an external instantiation/factory operation.
 
 Illustrative shape:
 
@@ -1179,12 +1179,18 @@ Illustrative shape:
   "observe": {
     "route": "agreement",
     "instance": "$outputs.0.machine.instanceId",
+    "instantiated": "$outputs.0.machine.instantiated",
     "state": "$outputs.0.machine.stateId",
     "enabled": "$outputs.0.machine.transitionIds"
   },
+  "transitionEvent": {
+    "namespace": "contracts.CamEscrow",
+    "event": "AgreementTransitioned",
+    "instanceField": "agreementId",
+    "transitionField": "transitionId"
+  },
   "states": {
-    "none": {"initial": true},
-    "funded": {},
+    "funded": {"initial": true},
     "accepted": {},
     "submitted": {},
     "disputed": {},
@@ -1207,82 +1213,93 @@ Illustrative shape:
 }
 ```
 
-Do not add executable actor/time guards to the machine resource. A CAM guard
-language would duplicate Solidity authorization and require comparison,
-arithmetic, timestamp, missing-value, and error semantics. The correct division
-is:
+Factory/instantiation metadata may be added later, but it should not be forced
+into the first graph schema.
+
+Do not add executable actor/time guards to the resource. The division remains:
 
 ```text
 machine resource declares possible labelled edges
-contract projection declares currently enabled edges for this actor and instance
+actor-specific observation declares currently enabled edges
 contract write functions enforce guards and effects
-viewer verifies observed execution against the declared graph
+receipt event witnesses the transition that actually executed
 ```
 
-## Future Static Conformance
+The graph is actor-independent; the enabled set is actor- and observation-
+specific. A future resource/runtime must preserve that distinction rather than
+mistaking one account's disabled edge for a globally impossible transition.
 
-Machine-aware conformance should be able to prove:
+## Honest Static-Conformance Boundary
+
+Machine-aware conformance can prove graph and declaration properties:
 
 ### Graph integrity
 
-- all state and transition IDs are unique;
-- every source and target state exists;
-- an initial state exists;
-- terminal states have no outgoing transitions;
-- nonterminal states are reachable from the initial state;
-- dead states and transitions are reported.
+- state and transition IDs are unique;
+- all source/target states exist;
+- exactly one initial stored state exists;
+- terminal states have no declared outgoing edges;
+- all states and transitions are graph-reachable.
 
-### Route binding
+### Route and ABI binding
 
-- the observation route exists and is a read route;
-- each transition references an existing write route;
+- the observation route exists and is read-only;
+- every transition references an existing write route;
+- each route calls the expected exact function;
 - each transition route continues to the canonical observation route;
-- route inputs can supply the observation instance input;
-- payable transitions satisfy CAM value rules;
-- transition route names and machine IDs are unambiguous.
+- continuation inputs preserve the agreement ID;
+- payable routes satisfy CAM value and ABI rules;
+- observation expressions resolve to the required ABI shapes;
+- the declared transition event exists in the ABI with compatible fields.
 
-### ABI and observation binding
+### UI declaration binding
 
-- instance resolves to a supported stable identifier type;
-- state resolves to `string`;
-- enabled transitions resolve to `string[]`;
-- route arguments and outputs remain ABI-compatible.
+- every transition ID has a corresponding UI action node;
+- each such node calls the declared route;
+- statically known action names are declared transitions.
 
-### UI binding
+Static conformance cannot prove that a dynamic contract output never contains an
+unknown transition, that terminal observations emit no actions, or that the
+Solidity implementation reaches only declared targets. Those require runtime
+checks and contract tests.
 
-- every transition has a matching UI action node;
-- each matching action calls the declared route;
-- statically known actions do not call undeclared transitions;
-- terminal state views do not expose agreement transitions.
+Creation instance preservation also cannot be reduced to one stored-machine
+continuation check. Static conformance can verify that the create continuation
+threads the same actor/reference inputs; runtime can compare previewed and
+observed IDs.
 
-### Instance preservation
+## Future Runtime Verification Under Concurrency
 
-- each transition continuation observes the same logical instance;
-- creation binds the prospective instance used in the call to the instance used
-  in the continuation.
+A machine-aware viewer must remain observation-driven and race-aware.
 
-## Future Runtime Verification
+Before submission:
 
-A machine-aware viewer should remain observation-driven. It must not treat local
-workflow state as authoritative because another wallet may mutate the agreement.
+1. observe the current stored instance for the current actor;
+2. verify the machine, state, and transition IDs are declared;
+3. verify the selected transition is declared from the observed state;
+4. verify it is in the contract-projected enabled set;
+5. verify it is currently rendered;
+6. prepare, disclose, and simulate the exact call/value.
 
-A transition execution should:
+After submission:
 
-1. run the canonical observation route;
-2. extract machine ID, instance ID, state ID, and enabled transition IDs;
-3. reject unknown state or transition IDs;
-4. verify that the selected transition is declared from the observed state;
-5. verify that it is contract-projected as enabled;
-6. verify that it is present in the currently rendered UI;
-7. prepare and disclose the declared call and native value;
-8. simulate and submit it;
-9. wait for a successful receipt;
-10. execute the declared continuation;
-11. reobserve the same instance;
-12. verify that the resulting state is among the declared targets;
-13. emit a structured transition trace.
+1. wait for a successful receipt;
+2. verify that the expected escrow contract emitted exactly one matching
+   `AgreementTransitioned` event for the instance and transition ID;
+3. verify the event's from/to/reason fields match the declared edge;
+4. refresh through the declared continuation;
+5. treat the refreshed observation as latest UI state, not necessarily the exact
+   receipt-time target;
+6. emit a structured trace containing both the witnessed transition and the
+   latest observed state.
 
-Example trace:
+Another transaction may advance the agreement between the receipt and latest
+reobservation. Therefore, do not require latest state to equal the immediate
+target. An optional historical `eth_call` at the receipt block may provide
+additional corroboration when the RPC supports it, but the canonical transition
+event is the portable receipt-time witness.
+
+A structured trace may contain:
 
 ```json
 {
@@ -1290,35 +1307,40 @@ Example trace:
   "instance": "0x...",
   "transition": "approveAgreement",
   "from": "submitted",
-  "to": "released.clientApproval",
+  "witnessedTo": "released.clientApproval",
+  "latestObserved": "released.clientApproval",
   "transaction": "0x...",
   "receiptStatus": "success"
 }
 ```
 
-The viewer still does not become the authorization authority. The contract write
-function remains final.
+The viewer does not become an authorization authority. The contract remains
+final.
 
 ## Contract-Level Proof Obligations
 
-Even an explicit CAM machine resource cannot prove that the Solidity bytecode
-implements the declared graph.
+Even an explicit CAM machine resource cannot prove that the bytecode implements
+the declared graph.
 
 Contract tests and invariants must prove:
 
-- action projection is sound and complete;
-- every transition produces the intended state and settlement reason;
-- no hidden or invalid path mutates the agreement;
-- active states always have finite deadlines;
+- `actionsFor` is sound and complete for actor/state/time availability;
+- every public transition produces the intended state, reason, beneficiary, and
+  deadline;
+- exact timeout functions reject all other source states;
+- every stored transition emits exactly one correct canonical transition event;
+- active states have deadlines bounded by `MAX_PHASE_DURATION` from phase entry;
 - terminal states are irreversible;
 - liabilities are conserved;
-- one funded amount cannot be both active escrow and withdrawal credit;
-- timeout functions match exact source states;
-- the arbitrator and fallback economics match the documented model.
+- one funded amount is not both active escrow and withdrawal credit;
+- reference-derived IDs are unique under the documented scope;
+- factory preview predicates agree with exact-value creation in unchanged test
+  state;
+- arbitration and fallback economics match the documented trust model.
 
-The future machine descriptor should become common input for conformance,
-runtime verification, graph visualization, and model-based contract tests. It
-does not become the on-chain state-machine executor.
+The future descriptor may become common input for conformance, receipt
+verification, graph visualization, and model-based tests. It does not become an
+on-chain executor.
 
 ## Delivery Sequence
 
@@ -1355,14 +1377,16 @@ dapps/escrow/
 
 Scope:
 
-- core interface and contract;
-- economic and trust-assumption README;
-- exhaustive deterministic action/state/time tests;
-- complete workflow scenarios;
+- view interface and core contract;
+- economic/trust README;
+- factory preview and exact-value creation;
+- deterministic identity, action, timing, settlement, event, and accounting
+  tests;
+- complete workflows;
 - malicious withdrawal receivers and forced-native tests.
 
-Do not change generic CAM packages, projection code, CAM JSON, deployment scripts,
-Makefile, or Compose.
+Do not change generic CAM packages, projection code, CAM JSON, deployment
+scripts, Makefile, or Compose.
 
 ### Slice 2: fuzz and stateful invariants
 
@@ -1376,15 +1400,16 @@ Prove:
 
 ```text
 totalEscrowed + totalWithdrawable <= contract balance
-sum(active agreement amounts) == totalEscrowed
-sum(tracked withdrawal credits) == totalWithdrawable
+sum(tracked active agreement amounts) == totalEscrowed
+sum(tracked credits) == totalWithdrawable
 active agreement => deadline != 0 and settlementReason == None
 terminal agreement => deadline == 0 and settlementReason != None
-terminal state and settlement reason agree
-one funded amount is not both active and credited
+terminal state and reason agree
+one amount is not both active and credited
 terminal states never transition again
-actionsFor agrees with actual call availability
-previewCreateAgreement agrees with exact-value creation
+actionsFor agrees with valid calls
+transition events agree with state changes
+preview agrees with exact-value creation in unchanged state
 ```
 
 ### Slice 3: machine-shaped projection
@@ -1398,10 +1423,10 @@ agent/cam-escrow-projection
 Add `CamEscrowUI` with:
 
 - ERC-165 backing-contract verification;
-- `MachineView`;
+- stored `MachineView` with `instantiated` flag;
+- separate factory preview view;
 - stable machine/state/transition IDs;
 - exact mapping from core action booleans;
-- prospective `none` projection;
 - state × actor × time projection tests;
 - no copied authorization logic.
 
@@ -1416,14 +1441,13 @@ agent/cam-escrow-bundle
 Add:
 
 - CAM 1.1 root manifest;
-- ABI resources;
-- UI resource;
+- ABI and UI resources;
 - integrity digests;
 - nested creation tuple;
-- exact native value;
-- one route per transition;
-- canonical same-instance agreement continuations;
-- auxiliary withdrawal route;
+- `value: $inputs.params.amount`;
+- factory, observation, transition, and credit routes;
+- canonical stored-instance continuations;
+- post-create client/reference lookup;
 - publication-preflight and focused conformance tests.
 
 ### Slice 5: local vertical workflow
@@ -1441,8 +1465,9 @@ Add:
 - browser and terminal scenarios;
 - real payable creation;
 - account switching;
-- acceptance, submission, approval, dispute, arbitration, timeout, and withdrawal
-  paths.
+- acceptance, submission, approval, dispute, arbitration, timeout, and
+  withdrawal paths;
+- stale-view/race regressions where practical.
 
 ### Slice 6: generic machine resource
 
@@ -1455,12 +1480,16 @@ agent/cam-machine-resource
 Add a new CAM version with:
 
 - machine namespace and resource parser;
-- graph conformance;
-- route, ABI, UI, and continuation joins;
-- pre/post-observation runtime verification;
-- structured transition traces;
+- stored-machine graph conformance;
+- route, ABI, UI, continuation, and event joins;
+- actor-specific enabled-transition observation;
+- receipt-event verification;
+- structured traces;
 - graph export;
 - model-based walks.
+
+Factory/instantiation formalization should be a separate extension unless the
+stored-machine implementation demonstrates a minimal, generic shape.
 
 ## Core Deterministic Test Matrix
 
@@ -1468,23 +1497,25 @@ Add a new CAM version with:
 
 Test:
 
-- exact agreement ID formula;
-- different escrow deployments produce different IDs;
+- exact agreement-ID formula;
+- different deployments produce different IDs;
 - same reference under different clients produces different IDs;
 - one client cannot reuse a reference after any outcome;
-- expected agreement ID mismatch;
+- ID remains reference-scoped rather than terms-scoped;
 - exact amount, underpayment, and overpayment;
-- invalid or pairwise-equal actors;
-- actor equal to the escrow contract;
-- empty and oversized references;
-- empty, oversized, or zero-digest documents;
-- zero duration for each phase;
-- deadline overflow;
-- successful storage of all immutable creation terms;
+- one nested amount source in the eventual route model;
+- invalid and pairwise-equal role addresses;
+- contractor/arbitrator equal to the escrow contract;
+- contract accounts as valid contractor/arbitrator addresses;
+- empty and oversized references, measured in bytes;
+- empty, oversized, and zero-digest documents;
+- zero and over-maximum duration for each phase;
+- successful storage of immutable creation terms;
 - initial deadline and accounting;
+- preview field correctness and preview/create agreement in unchanged state;
 - ERC-165 support and random-interface rejection.
 
-### Action equivalence matrix
+### Action equivalence
 
 For every active state, test at:
 
@@ -1504,11 +1535,12 @@ unrelated account
 address(0) read context
 ```
 
-Assert both:
+Using a fresh fixture per attempted transition, assert:
 
 1. `actionsFor` returns the exact booleans;
-2. a transition succeeds exactly when its corresponding boolean is true, subject
-   only to separately valid payload data.
+2. the corresponding call succeeds exactly when its boolean is true, assuming a
+   separately valid payload;
+3. evidence-payload errors occur only after action availability succeeds.
 
 ### Complete outcomes
 
@@ -1525,48 +1557,71 @@ create → accept → submit → dispute → arbitrator releases contractor
 create → accept → submit → dispute → arbitration timeout → contractor release
 ```
 
+For every path, assert state, reason, deadline, beneficiary, liabilities,
+documents, and canonical event fields.
+
 ### Accounting and adversarial withdrawal
 
 Test:
 
 - several concurrent independent agreements;
 - aggregated withdrawal credits;
-- exact escrow and withdrawal totals after every transition;
+- exact escrow and credit totals after every transition;
 - one agreement cannot alter another;
 - terminal agreements reject all transitions;
 - failed recipient transfers restore accounting;
 - reentrant recipients cannot double-withdraw;
 - alternate withdrawal recipient;
 - zero/self recipient rejection;
+- beneficiary contract that can redirect but cannot receive directly;
 - direct transfer rejection;
 - unknown-selector rejection;
 - forced native value increases balance but not liabilities.
+
+### Transition-event witness
+
+Test:
+
+- exactly one canonical transition event per stored transition;
+- exact transition ID hash;
+- exact source and target states;
+- exact settlement reason;
+- exact actor and next deadline;
+- no stored-machine transition event for factory creation;
+- no agreement transition event for withdrawal.
 
 ## First-Slice Acceptance Gate
 
 The core slice is ready only when:
 
-1. Creation binds expected instance ID, declared amount, and native value.
-2. Every active stored state has one exact finite deadline.
-3. Every timeout has its own public function and exact documented outcome.
-4. Arbitrator inactivity cannot lock funds indefinitely.
-5. Client cancellation protects mistaken unaccepted offers.
-6. External evidence is content-committed with SHA-256.
-7. The core contract owns exact transition availability.
-8. `actionsFor` and actual actor/state/time call availability agree.
-9. Missing agreements are observable as `None` rather than exceptional.
-10. Terminal state and settlement reason cannot disagree.
-11. Settlement moves liabilities exactly once.
-12. Failed or reentrant withdrawals cannot lose or duplicate credit.
-13. Forced native value cannot corrupt liabilities.
-14. The read interface is ERC-165 discoverable.
-15. No generic CAM package changes appear in the branch.
+1. Creation uses one nested amount source and binds calldata amount to native
+   value.
+2. Creation is treated as factory instantiation, not a fake `none`-state edge.
+3. Agreement IDs are documented accurately as client/reference keys, not terms
+   commitments.
+4. Every phase duration is bounded by explicit V1 policy.
+5. Every active state has one exact deadline.
+6. Every timeout has its own public function and outcome.
+7. Arbitrator inactivity cannot lock funds indefinitely.
+8. Client cancellation protects mistaken unaccepted offers.
+9. External evidence is content-committed with SHA-256.
+10. Core action availability and write guards share one predicate.
+11. `actionsFor` and actual actor/state/time availability agree.
+12. Missing agreements are ordinary absent observations.
+13. Terminal state and settlement reason cannot disagree.
+14. Settlement moves liabilities exactly once.
+15. Failed or reentrant withdrawals cannot lose or duplicate credit.
+16. Forced native value cannot corrupt liabilities.
+17. Every stored transition emits one canonical receipt-time witness.
+18. The read interface is ERC-165 discoverable.
+19. No generic CAM package changes appear in the branch.
 
 ## Explicit Non-Goals
 
 V1 intentionally omits:
 
 - decentralized or neutral arbitration guarantees;
+- arbitrator consent/acknowledgement;
 - arbitrator compensation;
 - appeals;
 - partial or split awards;
@@ -1574,7 +1629,7 @@ V1 intentionally omits:
 - ERC-20 payments;
 - application fees;
 - amendments;
-- contractor resubmission;
+- contractor resubmission or counter-evidence rounds;
 - contractor decline;
 - relayers or meta-transactions;
 - agreement enumeration and search;
@@ -1585,18 +1640,61 @@ V1 intentionally omits:
 - emergency pause;
 - upgrades.
 
-The absence of an arbitrator fee is explicit: V1 assumes that the arbitrator is
-motivated or compensated out of band.
+## Rejected Alternatives
+
+### Unfunded `Created` state
+
+Rejected because it creates permanent unfunded records, adds a transaction, and
+weakens the payable CAM test.
+
+### Generic timeout function
+
+Rejected because it weakens route/effect binding and future graph verification.
+
+### Terms-bound agreement ID
+
+Rejected because readable reference lookup and permanent reference uniqueness
+are more useful for V1. Terms remain stored and reviewed separately. Revisit
+only if content-addressed agreements become a product requirement.
+
+### `expectedAgreementId` creation argument
+
+Rejected because it binds only the reference-derived key, adds stale-preview
+failure modes, and is unnecessary when the continuation uses client/reference
+lookup.
+
+### Duplicate top-level amount route input
+
+Rejected because `$inputs.params.amount` can source both calldata and native
+value directly.
+
+### Executable CAM guard language
+
+Rejected because it would duplicate contract authorization, timestamp,
+comparison, and error semantics.
+
+### Latest-state equality as transition proof
+
+Rejected because concurrent transactions may validly advance the instance before
+reobservation. Use receipt-time transition evidence and latest-state refresh for
+different purposes.
+
+### Treating withdrawal as an agreement state
+
+Rejected because withdrawal credits aggregate across agreements and belong to an
+account-level workflow.
 
 ## Final Architectural Position
 
 The target relationship is:
 
-> CAM declares the labelled transition system; the contract projection declares
-> the currently enabled edges; the contract enforces guards and effects; and the
-> generic viewer verifies that successful executions refine the declared graph.
+> CAM declares the stored labelled transition system; an actor-specific contract
+> observation declares currently enabled edges; the contract enforces guards,
+> effects, and accounting; a canonical receipt event witnesses the executed edge;
+> and the generic viewer refreshes latest state without confusing it with the
+> exact receipt-time postcondition.
 
-Under CAM 1.1, this remains a disciplined application convention. The escrow
-core, projection IDs, exact routes, and canonical continuations should be built
-so that a later machine resource makes the convention explicit rather than
-requiring an application rewrite.
+Under CAM 1.1, this is a disciplined application convention. The escrow core,
+projection IDs, exact routes, canonical events, and observations should be built
+so a later machine resource makes the convention explicit rather than requiring
+an application rewrite.
