@@ -18,8 +18,12 @@ Prefer the smallest truthful model:
 - no second validation API when simulation already owns the write boundary;
 - no derived read field without a current caller;
 - no configurable generalization without a demonstrated use case;
-- no CAM-specific concepts in the Solidity contract;
+- no dormant storage, no-op hook, or reserved enum value for a hypothetical future;
+- no CAM-specific concept in the Solidity contract;
 - no generic CAM extension until a working second application proves the need.
+
+Anticipating a likely extension means preserving one narrow semantic seam, not
+implementing half of the extension in advance.
 
 ## Decision
 
@@ -72,8 +76,10 @@ are closer to ±20.
 | Decision | Confidence | Main reason it may change |
 |---|---:|---|
 | Escrow is the best second dapp | 85% | Another app may test generic CAM reuse with less product policy. |
-| Retain designated arbitration in V1 | 65% | It materially enlarges the state machine and test surface. |
-| Let parties pre-agree which party receives funds after arbitration timeout | 85% | It removes the protocol's arbitrary choice while keeping settlement binary. |
+| Retain designated arbitration in V1 | 70% | It materially enlarges the state machine and test surface. |
+| Do not require arbitrator acknowledgement in V1 | 90% | A real deployment may require stronger evidence of arbitrator availability. |
+| Preserve future acknowledgement through one acceptance-readiness seam | 90% | A later design may need a distinct acknowledgement phase rather than one extra predicate. |
+| Let parties pre-agree the arbitration-timeout beneficiary | 85% | It removes the protocol's arbitrary choice while keeping settlement binary. |
 | Reject arbitrary timeout splits in V1 | 85% | No current use requires partial settlement; it adds incentives, dual credits, rounding, and UI surface. |
 | Permit client cancellation before acceptance | 85% | It adds a race and terminal state but prevents obvious mistaken-offer locks. |
 | Encode terminal outcomes directly in the state enum | 85% | The enum is larger, but invalid state/reason combinations become impossible. |
@@ -96,10 +102,10 @@ are closer to ±20.
   viewer code, isolate the exact generic gap before changing the application.
 - Do not start a generic machine resource from this note. Require the working CAM
   1.1 escrow plus a repeated machine need or a failing generic invariant.
-- Keep the three numeric caps as fixed V1 policy. Do not parameterize them until a
+- Keep the numeric caps as fixed V1 policy. Do not parameterize them until a
   concrete deployment needs different values.
 
-## Arbitration and Pre-Agreed Failure Risk
+## Arbitration Terms
 
 A two-party optimistic payment would be simpler, but it would not be a credible
 escrow: after a bad submission, the client would have no unilateral way to stop
@@ -115,33 +121,79 @@ claim neutral arbitration:
 - arbitrator compensation is out of band;
 - there is no appeal or partial award.
 
-Arbitrator inactivity has no universally fair outcome. The agreement therefore
-contains one immutable, structured term:
+### No arbitrator acknowledgement in V1
 
-```solidity
-enum ArbitrationTimeoutBeneficiary {
-    Client,
-    Contractor
-}
-```
+The arbitrator does not sign, call, or acknowledge the agreement on-chain before
+the contractor may accept it.
 
-The client proposes the beneficiary at creation. Before acceptance, the contractor
-must be shown:
+`Funded` means only:
+
+> Native value is escrowed and the contractor has not accepted.
+
+It does not mean that the arbitrator knows about, accepted, or is available for
+the agreement.
+
+Before the contractor accepts, the UI must show:
 
 ```text
 arbitrator address
 arbitration duration
 arbitration-timeout beneficiary
+arbitrator acknowledgement: not required and not recorded on-chain
 ```
 
-Calling `acceptAgreement` accepts those stored terms. If the arbitrator does not
-rule before the deadline, `finalizeArbitrationTimeout` credits the pre-agreed
-beneficiary.
+The contractor decides whether to accept that risk. The contract does not infer
+arbitrator consent from address selection, code presence, past activity, or any
+off-chain statement.
+
+### Future acknowledgement seam
+
+Do not add an unused acknowledgement field, event, state, signature nonce, storage
+gap, or no-op hook to V1.
+
+Preserve one semantic seam instead: all contractor-acceptance readiness is owned
+by the core action predicate used by both `availableActions` and
+`acceptAgreement`.
+
+In V1, `AcceptAgreement` requires only:
+
+```text
+state == Funded
+actor == contractor
+block.timestamp < deadline
+```
+
+A future non-upgradeable V2 may add arbitrator acknowledgement and tighten this
+single readiness rule. It may use a boolean acknowledgement inside `Funded`, or a
+new acknowledgement phase; that choice is deliberately deferred because it also
+determines when the contractor-acceptance clock begins.
+
+A V2 would be a new deployment and should use a new machine ID. V1 storage and ABI
+are not distorted to make that migration look upgradeable.
+
+### Pre-agreed arbitration-timeout beneficiary
+
+Arbitrator inactivity has no universally fair outcome. The agreement therefore
+contains one immutable, structured term:
+
+```solidity
+enum ArbitrationTimeoutBeneficiary {
+    None,
+    Client,
+    Contractor
+}
+```
+
+`None` is a sentinel and is invalid at creation. The client proposes `Client` or
+`Contractor`; the contractor sees and accepts that stored term before work begins.
+
+If the arbitrator does not rule before the deadline,
+`finalizeArbitrationTimeout` credits the pre-agreed beneficiary.
 
 This does not make the rule neutral; it makes the risk allocation explicit. A
 client-favoring fallback can make opportunistic disputes attractive. A
 contractor-favoring fallback can pay a contractor after poor work when the
-arbitrator fails to act. Both parties see the choice before work begins.
+arbitrator fails to act. Both parties see the choice before acceptance.
 
 Do not support arbitrary percentages in V1. Binary choice already expresses who
 bears arbitrator-inactivity risk. Arbitrary splits would add partial-settlement
@@ -206,10 +258,10 @@ become a beneficiary's withdrawal credit; it does not mean the native value has
 already left the contract.
 
 One semantic transition, `finalizeArbitrationTimeout`, has two possible target
-states selected by an immutable agreement term. This is not nondeterminism for a
-particular agreement: its beneficiary is fixed before contractor acceptance.
+states selected by immutable instance data. It is deterministic for a particular
+agreement because the beneficiary is fixed before contractor acceptance.
 
-### Time semantics
+## Time and Ordering Semantics
 
 Use one boundary everywhere:
 
@@ -246,8 +298,6 @@ agreement.deadline = block.timestamp + duration;
 The one-year value is product policy, not an EVM or CAM requirement. Four phases
 can still span almost four years in total.
 
-### Transaction ordering
-
 Client cancellation and contractor acceptance intentionally compete while the
 agreement is `Funded`. If both are submitted, chain ordering decides which
 succeeds; the second transaction observes a changed state and reverts.
@@ -255,6 +305,9 @@ succeeds; the second transaction observes a changed state and reverts.
 Simulation and wallet review reduce stale-action risk but do not reserve a state.
 Contractors should rely on confirmed acceptance, not an unconfirmed transaction or
 a rendered button.
+
+No deadline can be extended after entering its phase. No timeout executes
+automatically; a transaction must finalize it.
 
 ## Agreement Identity
 
@@ -334,8 +387,8 @@ Do not duplicate the same locators in events without an indexer requirement.
 
 Do not store an arbitrator-rationale document in V1. The binary state transition
 is the settlement authority. A rationale may be useful but changes neither
-authorization nor accounting, while terms/submission/dispute already exercise
-content-committed documents.
+authorization nor accounting, while terms, submission, and dispute already
+exercise content-committed documents.
 
 ## Creation
 
@@ -364,7 +417,8 @@ function createAgreement(
 Creation:
 
 1. derives the ID from `msg.sender` and `params.agreementRef`;
-2. validates the reference, parties, amount, durations, and terms document;
+2. validates the reference, parties, timeout beneficiary, amount, durations, and
+   terms document;
 3. requires the ID to be unused;
 4. requires `msg.value == params.amount` exactly;
 5. stores the agreement directly as `Funded`;
@@ -380,6 +434,7 @@ reference byte length in [1, MAX_AGREEMENT_REF_BYTES]
 contractor and arbitrator nonzero
 client, contractor, and arbitrator pairwise distinct
 contractor and arbitrator different from address(this)
+timeout beneficiary is Client or Contractor
 amount > 0
 msg.value == amount
 each duration in [1, MAX_PHASE_DURATION]
@@ -424,17 +479,23 @@ expression for calldata and transaction value:
 Do not add a duplicate top-level amount input. The contract's exact equality
 check binds the reviewed economic term to the native-value envelope.
 
-## Read Interface
+## Storage and Read Interface
 
-Add a read-only ERC-165 interface:
+Keep internal agreement storage private:
+
+```solidity
+mapping(bytes32 agreementId => Agreement agreement) private _agreements;
+```
+
+Do not expose an autogenerated public mapping tuple as a second read ABI. The
+read-only ERC-165 interface owns the stable reader-facing representation:
 
 ```text
 dapps/escrow/src/ICamEscrowView.sol
 ```
 
-It owns reader-facing enums and structs and exposes only the reads required by the
-projection. `CamEscrow` advertises both `ICamEscrowView` and `IERC165`; the later
-projection verifies that interface before accepting its backing contract.
+`CamEscrow` advertises both `ICamEscrowView` and `IERC165`; `CamEscrowUI` verifies
+that interface before accepting its backing contract.
 
 A compact observation is:
 
@@ -485,10 +546,22 @@ computed ID, `state == None`, and default remaining fields. Lookup need not appl
 creation-length policy to the query string; non-creatable references simply map
 to absent IDs.
 
+The interface also exposes:
+
+```solidity
+function availableActions(
+    bytes32 agreementId,
+    address actor
+) external view returns (AgreementAction[] memory);
+
+function withdrawable(address account) external view returns (uint256);
+function totalLiabilities() external view returns (uint256);
+```
+
 ## Core-Owned Enabled Actions
 
-The projection must not reimplement actor, state, deadline, or terminality rules.
-The core exposes the control-enabled edge set:
+The projection must not reimplement actor, state, deadline, terminality, or future
+acceptance-readiness rules. The core exposes the control-enabled edge set:
 
 ```solidity
 enum AgreementAction {
@@ -504,15 +577,10 @@ enum AgreementAction {
     ResolveForContractor,
     FinalizeArbitrationTimeout
 }
-
-function availableActions(
-    bytes32 agreementId,
-    address actor
-) external view returns (AgreementAction[] memory);
 ```
 
-Return actions in enum order. Missing agreements, terminal agreements, and
-`actor == address(0)` return an empty array.
+`availableActions` returns actions in enum order. Missing agreements, terminal
+agreements, and `actor == address(0)` return an empty array.
 
 | State/time | Actor | Enabled actions |
 |---|---|---|
@@ -544,7 +612,8 @@ function _isActionAvailable(
 
 `availableActions` evaluates it in canonical order. Every write evaluates it for
 its own action before payload validation and mutation. This gives one owner for
-actor/state/time legality without making writes allocate the full array.
+actor/state/time legality and the future arbitrator-acknowledgement seam without
+making writes allocate the full array.
 
 A structured public error may report:
 
@@ -558,6 +627,10 @@ error ActionUnavailable(
     uint256 currentTime
 );
 ```
+
+Writes require the agreement to exist. Reads return an absent observation; writes
+against `None` use a stable agreement-not-found error rather than disguising
+absence as an ordinary unavailable action.
 
 ## Write API
 
@@ -603,12 +676,42 @@ Use no overloads, owner, pause, upgradeability, or external calls during creatio
 agreement transitions, or settlement. `withdrawTo` is the only path that sends
 native value and uses `ReentrancyGuard`.
 
+## Failure Surface
+
+Prefer contract-owned, domain-specific errors. The implementation should have
+stable errors for at least:
+
+```text
+invalid reference length
+invalid party configuration
+invalid arbitration-timeout beneficiary
+zero or mismatched amount
+invalid phase duration
+invalid document URI or digest
+agreement already exists
+agreement not found
+action unavailable
+invalid withdrawal recipient
+no withdrawal credit
+native transfer failure
+direct native transfer
+unknown function
+```
+
+Do not leak OpenZeppelin or arithmetic errors where a contract-owned boundary can
+report the same failure more clearly. Solidity checked arithmetic may own truly
+unreachable overflow under the bounded-duration policy.
+
+For evidence-bearing transitions, test action availability before document
+validity. This preserves the equivalence between `availableActions` and the
+actor/state/time portion of the write guard while keeping payload errors separate.
+
 ## Accounting
 
 Store:
 
 ```solidity
-mapping(address => uint256) public withdrawable;
+mapping(address account => uint256 amount) public withdrawable;
 uint256 public totalEscrowed;
 uint256 public totalWithdrawable;
 ```
@@ -772,11 +875,18 @@ finalizeArbitrationTimeout
 
 The projection maps `availableActions` to those IDs. It may map enums to semantic
 IDs, choose display views, and identify the current role. It must not recalculate
-authorization or deadline rules.
+authorization, deadlines, or acceptance readiness.
 
-Before rendering `acceptAgreement`, the projection/UI must display the structured
-arbitrator, arbitration duration, and arbitration-timeout beneficiary. This is a
-presentation obligation, not a new contract guard.
+Before rendering `acceptAgreement`, the projection/UI must display:
+
+```text
+arbitrator address
+arbitration duration
+arbitration-timeout beneficiary
+arbitrator acknowledgement: not required and not recorded on-chain
+```
+
+This is a presentation obligation, not a new contract guard.
 
 For an absent ID:
 
@@ -803,6 +913,9 @@ Use three route groups.
 createAgreementForm
 createAgreement(params)
 ```
+
+`createAgreementForm` is a read route into `CamEscrowUI`; it does not require a
+creation-preview method on `CamEscrow`.
 
 Creation has one nested input source:
 
@@ -867,6 +980,34 @@ CAM 1.1 already supplies:
 The machine envelope remains an application convention. CAM 1.1 does not declare
 source/target states, terminality, or graph reachability.
 
+## Future Arbitrator Acknowledgement
+
+A future acknowledgement-required version must be driven by a concrete need such
+as a real arbitrator service, compensation flow, or availability guarantee.
+
+The preserved seam is sufficient:
+
+```text
+core acceptance-readiness predicate
+    → availableActions includes or suppresses AcceptAgreement
+    → acceptAgreement enforces the same result
+    → projection renders only the core-provided action
+```
+
+A future V2 may add:
+
+```text
+arbitrator acknowledgement state or field
+acknowledgement transaction or signature
+acknowledgement expiry
+possibly a new contractor-acceptance deadline rule
+```
+
+None of those concepts exists in V1 storage or ABI. The unresolved future design
+question is whether arbitrator acknowledgement consumes the original acceptance
+period or starts a fresh contractor-acceptance period. Do not answer that before a
+real acknowledgement workflow exists.
+
 ## Future Machine Formalization
 
 Do not predesign a full generic machine schema now. After the escrow works end to
@@ -883,8 +1024,8 @@ end, the demonstrated minimum may include:
 
 `finalizeArbitrationTimeout` demonstrates that one declared transition may have
 more than one possible target, selected by immutable instance data. A future
-machine schema should support a target set without trying to reproduce the
-contract's guard or payout logic.
+machine schema should support a target set without reproducing contract guard or
+payout logic.
 
 The first descriptor, if justified, should model stored agreements only, with
 `funded` as the initial state. Factory instantiation and aggregated credit
@@ -957,8 +1098,9 @@ arbitration timeout credits exactly the configured party
 ### Slice 3: projection
 
 Implement `CamEscrowUI`, ERC-165 backing verification, semantic state/transition
-IDs, mapping from `availableActions`, timeout-beneficiary disclosure, account
-credit display, and state × actor × time tests. Copy no authorization logic.
+IDs, mapping from `availableActions`, explicit no-acknowledgement disclosure,
+timeout-beneficiary disclosure, account credit display, and state × actor × time
+tests. Copy no authorization logic.
 
 ### Slice 4: CAM 1.1 bundle
 
@@ -969,10 +1111,10 @@ and publication-preflight/conformance coverage.
 ### Slice 5: local vertical workflow
 
 Add deployment and local browser/terminal scenarios for payable creation, account
-switching, acceptance, submission, approval, dispute, both arbitration outcomes,
-both arbitration-timeout beneficiaries, other timeouts, and withdrawal. Add
-multi-account runner machinery only if this concrete fixture shows that separate
-role lanes are insufficient.
+switching, acceptance without arbitrator acknowledgement, submission, approval,
+dispute, both arbitration outcomes, both arbitration-timeout beneficiaries, other
+timeouts, and withdrawal. Add multi-account runner machinery only if this concrete
+fixture shows that separate role lanes are insufficient.
 
 A generic CAM machine resource is not a scheduled implementation slice. Reopen
 that work only after the CAM 1.1 vertical slice identifies stable, repeated needs.
@@ -988,12 +1130,23 @@ Test:
 - permanent same-client reference uniqueness;
 - reference and document byte limits;
 - pairwise-distinct valid role addresses, including contract accounts;
-- both arbitration-timeout beneficiary values;
+- invalid `None` timeout beneficiary and both valid beneficiaries;
 - zero, underpaid, and overpaid amount;
 - zero and over-maximum durations;
 - exact initial state, deadline, stored terms, and liability;
 - missing agreement reads;
 - ERC-165 support.
+
+### No-acknowledgement law
+
+Test:
+
+- contractor acceptance requires no arbitrator transaction or signature;
+- `Funded` does not imply or expose arbitrator consent;
+- `availableActions` can expose `AcceptAgreement` without any arbitrator action;
+- `acceptAgreement` and `availableActions` use the same readiness predicate;
+- no acknowledgement field, transition, event, or function exists in the V1 ABI;
+- the projection later displays the no-acknowledgement warning before acceptance.
 
 ### Action equivalence
 
@@ -1043,19 +1196,20 @@ Test:
 - zero/self recipient rejection;
 - direct transfer and unknown-selector rejection;
 - forced native value increasing balance but not liabilities;
-- arbitration timeout creates exactly one full credit and no rounding residue.
+- arbitration timeout creates one full credit, no split, no rounding, and no
+  residual liability.
 
 ### Policy-risk tests
 
 Pin the non-neutral product rules explicitly:
 
-- a dispute at `reviewDeadline - 1` can delay settlement by almost the full
+- no arbitrator acknowledgement is required or recorded;
+- a dispute at `reviewDeadline - 1` can delay payment by almost the full
   arbitration duration;
-- the pre-agreed timeout beneficiary, not the protocol, determines inactivity risk;
-- cancellation and acceptance races are resolved by transaction ordering;
-- no caller can extend a phase deadline after entering that phase;
-- no automatic settlement occurs without a transaction;
-- accepting the agreement does not prove the arbitrator acknowledged the role.
+- arbitration timeout follows the pre-agreed binary beneficiary;
+- cancellation and acceptance races are resolved solely by transaction ordering;
+- no caller can extend a deadline after entering its phase;
+- no automatic settlement occurs without a transaction.
 
 ## Acceptance Gate for the Core Slice
 
@@ -1063,34 +1217,34 @@ The first implementation is ready only when:
 
 1. Creation uses one nested amount source and exact native value.
 2. Creation instantiates `Funded`; it is not modeled as a fake stored-state edge.
-3. IDs are client/reference keys, not terms commitments.
+3. IDs are documented as client/reference keys, not terms commitments.
 4. Every active state has one bounded deadline.
-5. Every semantic timeout has an exact public function.
+5. Every semantic timeout has an exact public function and outcome.
 6. Arbitration inactivity cannot lock funds indefinitely.
-7. Arbitration-timeout risk is an immutable binary term visible before acceptance.
-8. No partial settlement or arbitrary split exists in V1.
-9. Core observation owns the actor-specific control-enabled edge set.
-10. Terminal outcomes are single enum states, so state/reason disagreement is
+7. The timeout beneficiary is an immutable pre-agreed binary term.
+8. Arbitrator acknowledgement is neither required nor implied in V1.
+9. Acceptance readiness has one core predicate shared by observation and writes.
+10. The projection can later consume that predicate without copying authorization.
+11. Terminal outcomes are single enum states, so state/reason disagreement is
     unrepresentable.
-11. Terms, submissions, and disputes are content-committed; arbitrator resolution
+12. Terms, submissions, and disputes are content-committed; arbitrator resolution
     requires no extra document.
-12. Settlement moves one liability exactly once.
-13. Failed or reentrant withdrawals cannot lose or duplicate credit.
-14. Forced native value cannot corrupt liabilities.
-15. Every stored transition emits one domain state-change event.
-16. The read interface is ERC-165 discoverable and contains no speculative timing
-    or reporting fields.
-17. No generic CAM package changes appear in the branch.
+13. Settlement moves one liability exactly once.
+14. Failed or reentrant withdrawals cannot lose or duplicate credit.
+15. Forced native value cannot corrupt liabilities.
+16. Every stored transition emits one domain state-change event.
+17. The read interface is ERC-165 discoverable and contains no speculative timing,
+    acknowledgement, or reporting fields.
+18. No generic CAM package changes appear in the branch.
 
 ## Explicit Non-Goals
 
 V1 omits:
 
 - neutral or decentralized arbitration guarantees;
-- arbitrator acknowledgement, rationale document, or compensation;
-- arbitrary timeout splits or arbitrator-selected partial awards;
-- appeals, evidence rounds, or resubmission;
-- amendments;
+- arbitrator acknowledgement, consent proof, rationale document, or compensation;
+- appeals, partial awards, arbitrary splits, or evidence rounds;
+- amendments or contractor resubmission;
 - multiple milestones;
 - ERC-20 payments, fees, or relayers;
 - discovery, enumeration, or reputation;
@@ -1103,18 +1257,20 @@ V1 omits:
 ### No dispute path
 
 Rejected because it would make the client unable to stop payment after a bad
-submission. Arbitration remains a medium-confidence product choice.
+submission. The arbitrator is retained as a real escrow concept, albeit with only
+moderate confidence.
 
-### Globally fixed arbitration-timeout beneficiary
+### Arbitrator acknowledgement in V1
 
-Rejected because neither client nor contractor is a universally neutral fallback.
-The parties choose the risk bearer before contractor acceptance.
+Rejected because it adds another transaction, readiness fact, timeout question,
+and possibly another phase before a real arbitrator integration requires them.
+The future seam is the shared acceptance-readiness predicate, not dormant V1 data.
 
-### Arbitrary timeout split
+### Arbitrator acknowledgement scaffolding
 
-Rejected because binary choice already expresses who bears inactivity risk. A
-basis-point split would add partial settlement, dual credits, rounding, broader
-incentives, UI surface, and invariants without a demonstrated caller.
+Rejected. Do not add a false field, empty hook, reserved state, storage gap, or
+placeholder event. V1 is non-upgradeable; a future acknowledgement-required
+contract is a new version and deployment.
 
 ### Unfunded `Created` state
 
@@ -1124,8 +1280,8 @@ weakening the payable CAM test.
 ### Creation preview
 
 Rejected because it duplicates validation, becomes stale, and still cannot prove
-wallet balance, future native value, or ordering. Write simulation owns this
-boundary.
+wallet balance, future native value, or ordering. Write simulation already owns
+this boundary.
 
 ### `expectedAgreementId`
 
@@ -1142,6 +1298,12 @@ readable lookup simple. External identity already includes chain and contract.
 Rejected because `$inputs.params.amount` can source both calldata and native
 value.
 
+### Arbitrary timeout split
+
+Rejected because the binary beneficiary already captures who bears inactivity
+risk. Percentages add partial settlement, dual credits, rounding, more incentives,
+and more UI/test surface without a demonstrated use.
+
 ### Generic timeout function
 
 Rejected because a stale semantic route could succeed in a later expired phase
@@ -1154,8 +1316,8 @@ make the machine graph and storage agree directly.
 
 ### Arbitrator-rationale document
 
-Rejected for V1 because the binary on-chain ruling is sufficient for settlement,
-and another locator/digest changes neither authorization nor accounting.
+Rejected for V1 because the binary on-chain outcome is sufficient for settlement,
+and the extra locator/digest changes neither authorization nor accounting.
 
 ### CAM transition hashes in Solidity events
 
@@ -1165,8 +1327,9 @@ manifest's route names.
 ### Derived read fields
 
 `exists`, `deadlineReached`, `createdAt`, `updatedAt`, and a machine `terminal`
-flag are omitted until a caller proves they are needed. Their meanings are already
-represented by state, deadline, blocks, events, or the state inventory.
+flag are omitted until an actual caller proves they are needed. Their current
+meanings are represented by state, deadline, blocks, events, or the state
+inventory.
 
 ### Withdrawal as an agreement state
 
