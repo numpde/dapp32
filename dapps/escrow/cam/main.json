@@ -1,0 +1,374 @@
+{
+  "cam": "1.1.0",
+  "entry": "createAgreementForm",
+  "namespaces": {
+    "contracts.CamEscrowUI": {
+      "type": "contract",
+      "abiURI": "./abi/CamEscrowUI.json",
+      "integrity": "sha256:0xda65461aea049b402a0e20a3ae61aee3ddb432d0d8ca0cd5a5a06d8504e504ee"
+    },
+    "contracts.CamEscrow": {
+      "type": "contract",
+      "abiURI": "./abi/CamEscrow.json",
+      "integrity": "sha256:0x7a045dd107831e544c86d32017e3cf913c741239dc37506d2507a36a8c2d82f2"
+    },
+    "routes": {
+      "type": "routes"
+    },
+    "ui": {
+      "type": "ui",
+      "uri": "./ui.json",
+      "integrity": "sha256:0x8cbb5feaa782862c8ef72e1dd1604fcbd60df207054ad97e7e0d3d8a98ccdf1d"
+    }
+  },
+  "routes": {
+    "createAgreementForm": {
+      "kind": "read",
+      "inputs": [],
+      "call": {
+        "namespace": "contracts.CamEscrowUI",
+        "function": "viewCreateAgreement",
+        "args": {
+          "client": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": "$outputs.0"
+        }
+      }
+    },
+    "lookupAgreement": {
+      "kind": "read",
+      "inputs": [
+        "client",
+        "agreementRef"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrowUI",
+        "function": "viewAgreementByReference",
+        "args": {
+          "client": "$inputs.client",
+          "agreementRef": "$inputs.agreementRef",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": "$outputs.0"
+        }
+      }
+    },
+    "agreement": {
+      "kind": "read",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrowUI",
+        "function": "viewAgreement",
+        "args": {
+          "agreementId": "$inputs.agreementId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": "$outputs.0"
+        }
+      }
+    },
+    "accountCredit": {
+      "kind": "read",
+      "inputs": [
+        "account"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrowUI",
+        "function": "viewAccountCredit",
+        "args": {
+          "account": "$inputs.account"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "app",
+        "args": {
+          "view": "$outputs.0"
+        }
+      }
+    },
+    "createAgreement": {
+      "kind": "write",
+      "inputs": [
+        "params"
+      ],
+      "value": "$inputs.params.amount",
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "createAgreement",
+        "args": {
+          "params": "$inputs.params"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "lookupAgreement",
+        "args": {
+          "client": "$account.address",
+          "agreementRef": "$inputs.params.agreementRef"
+        }
+      }
+    },
+    "cancelAgreement": {
+      "kind": "write",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "cancelAgreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "acceptAgreement": {
+      "kind": "write",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "acceptAgreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "approveAgreement": {
+      "kind": "write",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "approveAgreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "finalizeAcceptanceTimeout": {
+      "kind": "write",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "finalizeAcceptanceTimeout",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "finalizeWorkTimeout": {
+      "kind": "write",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "finalizeWorkTimeout",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "finalizeReviewTimeout": {
+      "kind": "write",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "finalizeReviewTimeout",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "resolveForClient": {
+      "kind": "write",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "resolveForClient",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "resolveForContractor": {
+      "kind": "write",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "resolveForContractor",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "finalizeArbitrationTimeout": {
+      "kind": "write",
+      "inputs": [
+        "agreementId"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "finalizeArbitrationTimeout",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "submitAgreement": {
+      "kind": "write",
+      "inputs": [
+        "agreementId",
+        "submission"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "submitAgreement",
+        "args": {
+          "agreementId": "$inputs.agreementId",
+          "submission": "$inputs.submission"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "disputeAgreement": {
+      "kind": "write",
+      "inputs": [
+        "agreementId",
+        "dispute"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "disputeAgreement",
+        "args": {
+          "agreementId": "$inputs.agreementId",
+          "dispute": "$inputs.dispute"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "agreement",
+        "args": {
+          "agreementId": "$inputs.agreementId"
+        }
+      }
+    },
+    "withdrawTo": {
+      "kind": "write",
+      "inputs": [
+        "recipient"
+      ],
+      "call": {
+        "namespace": "contracts.CamEscrow",
+        "function": "withdrawTo",
+        "args": {
+          "recipient": "$inputs.recipient"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "accountCredit",
+        "args": {
+          "account": "$account.address"
+        }
+      }
+    }
+  }
+}
