@@ -17,6 +17,7 @@ DEPLOY = "compose/escrow/release/deploy.yml"
 VERIFY = "compose/escrow/release/verify.yml"
 OUTPUT_DIR = "/tmp/escrow-release-output"
 ARTIFACT_FILE = "/tmp/escrow-release-output/deployment.json"
+ARGUMENTS_FILE = f"{ARTIFACT_FILE}.args"
 RPC_URL_FILE = "/tmp/escrow-release-rpc-url"
 PRIVATE_KEY_FILE = "/tmp/escrow-release-private-key"
 SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
@@ -63,29 +64,57 @@ class EscrowReleasePostureTest(unittest.TestCase):
             [{"source": "deployer_private_key", "target": "deployer_private_key"}],
             compose_sequence_or_empty(deploy, "secrets"),
         )
-        self.assertIn("eth_sendRawTransaction", compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"])
+        proxy_methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
+        self.assertIn("eth_sendRawTransaction", proxy_methods)
+        self.assertIn("eth_getStorageAt", proxy_methods)
+
+        deploy_command = compose_command_text(deploy)
+        self.assertIn("release-plan.args", deploy_command)
+        self.assertNotIn("vm.readFile", deploy_command)
+        self.assertIn("umask 077", deploy_command)
 
         for service in (plan, deploy, artifact):
             output = compose_volume(service, "/release-output")
             self.assertEqual(OUTPUT_DIR, output["source"])
             self.assertIsNot(output.get("read_only"), True)
 
-    def test_verifier_has_no_signing_or_send_authority(self) -> None:
+    def test_verifier_has_offline_source_gate_and_no_signing_or_send_authority(self) -> None:
         config = rendered_compose_config(VERIFY, env=RELEASE_ENV)
+        input_check = compose_service(config, "escrow-release-verify-input")
         proxy = compose_service(config, "escrow-release-verify-rpc-proxy")
         verify = compose_service(config, "verify-escrow-release")
 
-        self.assertNotIn("eth_sendRawTransaction", compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"])
+        self.assertEqual("none", input_check["network_mode"])
+        self.assertIn("tools/escrow-release/verify-input.ts", compose_command_text(input_check))
+        self.assertEqual(
+            "service_completed_successfully",
+            verify["depends_on"]["escrow-release-verify-input"]["condition"],
+        )
+
+        proxy_methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
+        self.assertNotIn("eth_sendRawTransaction", proxy_methods)
+        self.assertIn("eth_getStorageAt", proxy_methods)
         self.assertNotIn("PRIVATE_KEY", compose_mapping(verify, "environment"))
         self.assertEqual([], [
             secret
             for secret in compose_sequence_or_empty(verify, "secrets")
             if secret.get("target") == "deployer_private_key"
         ])
-        artifact = compose_volume(verify, "/deployment/deployment.json")
+
+        artifact = compose_volume(input_check, "/deployment/deployment.json")
+        arguments_input = compose_volume(input_check, "/deployment/deployment.args")
+        arguments_verify = compose_volume(verify, "/deployment/deployment.args")
         self.assertEqual(ARTIFACT_FILE, artifact["source"])
-        self.assertIs(artifact["read_only"], True)
-        self.assertNotIn("--broadcast", compose_command_text(verify))
+        self.assertEqual(ARGUMENTS_FILE, arguments_input["source"])
+        self.assertEqual(ARGUMENTS_FILE, arguments_verify["source"])
+        for volume in (artifact, arguments_input, arguments_verify):
+            self.assertIs(volume["read_only"], True)
+            self.assertIs(volume["bind"]["create_host_path"], False)
+
+        verify_command = compose_command_text(verify)
+        self.assertIn("deployment.args", verify_command)
+        self.assertNotIn("--broadcast", verify_command)
+        self.assertNotIn("vm.readFile", verify_command)
 
 
 if __name__ == "__main__":
