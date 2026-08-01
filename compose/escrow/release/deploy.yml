@@ -191,7 +191,7 @@ services:
       RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
       RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
       RPC_ALLOWED_METHODS: >-
-        eth_chainId eth_getTransactionReceipt eth_getCode eth_call
+        eth_chainId eth_blockNumber eth_getTransactionReceipt eth_getCode eth_call
     volumes:
       - *rpc_url_bind
     networks:
