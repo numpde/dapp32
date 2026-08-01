@@ -1,7 +1,16 @@
 import type { AbiParameter } from "viem"
 import {
   abiDynamicArrayElementType,
+  isAbiIntegerValue,
 } from "@cam/protocol"
+import type { InertValue } from "@cam/protocol"
+
+const UINT256 = {
+  bits: 256,
+  signed: false,
+} as const
+
+export type EvmTransactionValue = bigint
 
 export type AbiTupleParameter = AbiParameter & {
   readonly type: "tuple"
@@ -24,4 +33,9 @@ export function isTupleParameter(parameter: AbiParameter): parameter is AbiTuple
   }
 
   return Array.isArray((parameter as { readonly components?: unknown }).components)
+}
+
+export function evmUint256Value(value: InertValue): EvmTransactionValue | undefined {
+  if (!isAbiIntegerValue(value, UINT256)) return undefined
+  return BigInt(value as string | number)
 }
