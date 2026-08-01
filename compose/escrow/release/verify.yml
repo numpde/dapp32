@@ -20,6 +20,14 @@ x-deployment-arguments: &deployment_arguments
   bind:
     create_host_path: false
 
+x-node-modules: &node_modules
+  type: bind
+  source: ../../../js/node_modules
+  target: /work/js/node_modules
+  read_only: true
+  bind:
+    create_host_path: false
+
 services:
   escrow-release-verify-input:
     extends:
@@ -36,7 +44,7 @@ services:
     volumes:
       - ../../../dapps:/work/dapps:ro
       - ../../../js:/input/js:ro
-      - ../../../js/node_modules:/work/js/node_modules:ro
+      - *node_modules
       - *deployment_artifact
       - *deployment_arguments
     command:
