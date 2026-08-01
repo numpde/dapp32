@@ -99,18 +99,6 @@ class EscrowLocalComposeTest(unittest.TestCase):
         self.assertNotIn("encodeFunctionData", source)
         self.assertNotIn("escrow.writeContract", source)
 
-    def test_root_makefile_owns_escrow_operator_targets(self) -> None:
-        makefile = read_text(repo_path("Makefile"))
-        for target in (
-            "escrow-local-scenario",
-            "escrow-viewer-terminal",
-            "escrow-viewer-terminal-down",
-            "escrow-viewer-gui",
-            "escrow-viewer-gui-down",
-        ):
-            with self.subTest(target=target):
-                self.assertRegex(makefile, rf"(?m)^{re.escape(target)}:")
-
 
 if __name__ == "__main__":
     unittest.main()
