@@ -306,20 +306,19 @@ export async function writeNewText(path: string, value: string, label: string): 
   }
 
   const stagePath = join(parent, `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`)
-  const handle = await open(stagePath, "wx", 0o600)
   try {
-    await handle.writeFile(value, { encoding: "utf-8" })
-    await handle.sync()
-  } finally {
-    await handle.close()
-  }
-
-  try {
+    const handle = await open(stagePath, "wx", 0o600)
+    try {
+      await handle.writeFile(value, { encoding: "utf-8" })
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
     await link(stagePath, path)
+    await syncDirectory(parent)
   } finally {
     await rm(stagePath, { force: true })
   }
-  await syncDirectory(parent)
 }
 
 function requiredSafeInteger(value: unknown, label: string): number {
