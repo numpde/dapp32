@@ -82,8 +82,7 @@ contract CamEscrowTest is CamEscrowTestBase {
         assertEq(view_.contractor, contractor);
         assertEq(view_.arbitrator, arbitrator);
         assertEq(
-            uint256(view_.arbitrationTimeoutBeneficiary),
-            uint256(ICamEscrowView.ArbitrationTimeoutBeneficiary.Client)
+            uint256(view_.arbitrationTimeoutBeneficiary), uint256(ICamEscrowView.ArbitrationTimeoutBeneficiary.Client)
         );
         assertEq(view_.amount, AMOUNT);
         assertEq(view_.acceptanceDuration, ACCEPTANCE_DURATION);
@@ -141,9 +140,7 @@ contract CamEscrowTest is CamEscrowTestBase {
 
         params = _defaultParams(_stringOfLength(escrow.MAX_AGREEMENT_REF_BYTES() + 1));
         vm.expectRevert(
-            abi.encodeWithSelector(
-                CamEscrow.InvalidReferenceLength.selector, escrow.MAX_AGREEMENT_REF_BYTES() + 1
-            )
+            abi.encodeWithSelector(CamEscrow.InvalidReferenceLength.selector, escrow.MAX_AGREEMENT_REF_BYTES() + 1)
         );
         escrow.createAgreement{value: AMOUNT}(params);
 
@@ -163,9 +160,7 @@ contract CamEscrowTest is CamEscrowTestBase {
         escrow.createAgreement(params);
 
         params = _defaultParams("underpaid");
-        vm.expectRevert(
-            abi.encodeWithSelector(CamEscrow.NativeAmountMismatch.selector, AMOUNT, AMOUNT - 1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(CamEscrow.NativeAmountMismatch.selector, AMOUNT, AMOUNT - 1));
         escrow.createAgreement{value: AMOUNT - 1}(params);
 
         params = _defaultParams("empty-uri");
@@ -201,16 +196,8 @@ contract CamEscrowTest is CamEscrowTestBase {
     function testAcceptanceNeedsNoArbitratorActionAndSharesTheAvailableActionPredicate() external {
         bytes32 agreementId = _create("no-ack");
 
-        _assertActions(
-            agreementId,
-            contractor,
-            _actions1(ICamEscrowView.AgreementAction.AcceptAgreement)
-        );
-        _assertActions(
-            agreementId,
-            address(this),
-            _actions1(ICamEscrowView.AgreementAction.CancelAgreement)
-        );
+        _assertActions(agreementId, contractor, _actions1(ICamEscrowView.AgreementAction.AcceptAgreement));
+        _assertActions(agreementId, address(this), _actions1(ICamEscrowView.AgreementAction.CancelAgreement));
         _assertNoActions(agreementId, arbitrator);
         _assertNoActions(agreementId, address(0));
 
@@ -245,23 +232,11 @@ contract CamEscrowTest is CamEscrowTestBase {
         uint256 deadline = escrow.agreementById(agreementId).deadline;
 
         vm.warp(deadline - 1);
-        _assertActions(
-            agreementId,
-            contractor,
-            _actions1(ICamEscrowView.AgreementAction.AcceptAgreement)
-        );
+        _assertActions(agreementId, contractor, _actions1(ICamEscrowView.AgreementAction.AcceptAgreement));
 
         vm.warp(deadline);
-        _assertActions(
-            agreementId,
-            contractor,
-            _actions1(ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout)
-        );
-        _assertActions(
-            agreementId,
-            unrelated,
-            _actions1(ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout)
-        );
+        _assertActions(agreementId, contractor, _actions1(ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout));
+        _assertActions(agreementId, unrelated, _actions1(ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout));
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -284,22 +259,12 @@ contract CamEscrowTest is CamEscrowTestBase {
         uint256 deadline = escrow.agreementById(agreementId).deadline;
 
         vm.warp(deadline - 1);
-        _assertActions(
-            agreementId,
-            address(this),
-            _actions1(ICamEscrowView.AgreementAction.CancelAgreement)
-        );
-        _assertActions(
-            agreementId,
-            contractor,
-            _actions1(ICamEscrowView.AgreementAction.AcceptAgreement)
-        );
+        _assertActions(agreementId, address(this), _actions1(ICamEscrowView.AgreementAction.CancelAgreement));
+        _assertActions(agreementId, contractor, _actions1(ICamEscrowView.AgreementAction.AcceptAgreement));
         _assertNoActions(agreementId, arbitrator);
         _assertNoActions(agreementId, unrelated);
 
-        _assertPublicTimeoutAction(
-            agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout
-        );
+        _assertPublicTimeoutAction(agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout);
     }
 
     /// @notice Accepted exposes submission before expiry and public work-timeout finalization afterward.
@@ -310,17 +275,11 @@ contract CamEscrowTest is CamEscrowTestBase {
 
         vm.warp(deadline - 1);
         _assertNoActions(agreementId, address(this));
-        _assertActions(
-            agreementId,
-            contractor,
-            _actions1(ICamEscrowView.AgreementAction.SubmitAgreement)
-        );
+        _assertActions(agreementId, contractor, _actions1(ICamEscrowView.AgreementAction.SubmitAgreement));
         _assertNoActions(agreementId, arbitrator);
         _assertNoActions(agreementId, unrelated);
 
-        _assertPublicTimeoutAction(
-            agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeWorkTimeout
-        );
+        _assertPublicTimeoutAction(agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeWorkTimeout);
     }
 
     /// @notice Submitted exposes client approval/dispute before expiry and public review finalization afterward.
@@ -334,18 +293,13 @@ contract CamEscrowTest is CamEscrowTestBase {
         _assertActions(
             agreementId,
             address(this),
-            _actions2(
-                ICamEscrowView.AgreementAction.ApproveAgreement,
-                ICamEscrowView.AgreementAction.DisputeAgreement
-            )
+            _actions2(ICamEscrowView.AgreementAction.ApproveAgreement, ICamEscrowView.AgreementAction.DisputeAgreement)
         );
         _assertNoActions(agreementId, contractor);
         _assertNoActions(agreementId, arbitrator);
         _assertNoActions(agreementId, unrelated);
 
-        _assertPublicTimeoutAction(
-            agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeReviewTimeout
-        );
+        _assertPublicTimeoutAction(agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeReviewTimeout);
     }
 
     /// @notice Disputed exposes only arbitrator outcomes before expiry and public fallback afterward.
@@ -361,15 +315,12 @@ contract CamEscrowTest is CamEscrowTestBase {
             agreementId,
             arbitrator,
             _actions2(
-                ICamEscrowView.AgreementAction.ResolveForClient,
-                ICamEscrowView.AgreementAction.ResolveForContractor
+                ICamEscrowView.AgreementAction.ResolveForClient, ICamEscrowView.AgreementAction.ResolveForContractor
             )
         );
         _assertNoActions(agreementId, unrelated);
 
-        _assertPublicTimeoutAction(
-            agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeArbitrationTimeout
-        );
+        _assertPublicTimeoutAction(agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeArbitrationTimeout);
     }
 
     /// @notice State, actor, and time legality is checked before evidence payload validity.
@@ -440,9 +391,7 @@ contract CamEscrowTest is CamEscrowTestBase {
         assertEq(escrow.totalLiabilities(), 2 * AMOUNT);
 
         RejectNativeRecipient rejecting = new RejectNativeRecipient();
-        vm.expectRevert(
-            abi.encodeWithSelector(CamEscrow.NativeTransferFailed.selector, address(rejecting), 2 * AMOUNT)
-        );
+        vm.expectRevert(abi.encodeWithSelector(CamEscrow.NativeTransferFailed.selector, address(rejecting), 2 * AMOUNT));
         escrow.withdrawTo(payable(address(rejecting)));
 
         assertEq(escrow.withdrawable(address(this)), 2 * AMOUNT);
@@ -483,14 +432,10 @@ contract CamEscrowTest is CamEscrowTestBase {
         );
         escrow.cancelAgreement(agreementId);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(CamEscrow.InvalidWithdrawalRecipient.selector, address(0))
-        );
+        vm.expectRevert(abi.encodeWithSelector(CamEscrow.InvalidWithdrawalRecipient.selector, address(0)));
         escrow.withdrawTo(payable(address(0)));
 
-        vm.expectRevert(
-            abi.encodeWithSelector(CamEscrow.InvalidWithdrawalRecipient.selector, address(escrow))
-        );
+        vm.expectRevert(abi.encodeWithSelector(CamEscrow.InvalidWithdrawalRecipient.selector, address(escrow)));
         escrow.withdrawTo(payable(address(escrow)));
 
         assertEq(escrow.withdrawable(address(this)), AMOUNT);
@@ -503,8 +448,7 @@ contract CamEscrowTest is CamEscrowTestBase {
         CamEscrow.CreateAgreementParams memory params = _defaultParams("reentrant-withdrawal");
         params.contractor = address(reentrant);
         bytes32 agreementId = escrow.createAgreement{value: AMOUNT}(params);
-        ICamEscrowView.DocumentRef memory submission =
-            _document("ipfs://submission", "submission");
+        ICamEscrowView.DocumentRef memory submission = _document("ipfs://submission", "submission");
 
         reentrant.accept(agreementId);
         reentrant.submit(agreementId, submission);
@@ -512,9 +456,7 @@ contract CamEscrowTest is CamEscrowTestBase {
 
         assertEq(escrow.withdrawable(address(reentrant)), AMOUNT);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(CamEscrow.NativeTransferFailed.selector, address(reentrant), AMOUNT)
-        );
+        vm.expectRevert(abi.encodeWithSelector(CamEscrow.NativeTransferFailed.selector, address(reentrant), AMOUNT));
         reentrant.withdraw(true);
 
         assertEq(escrow.withdrawable(address(reentrant)), AMOUNT);
@@ -530,18 +472,12 @@ contract CamEscrowTest is CamEscrowTestBase {
     function testDirectTransfersUnknownSelectorsAndForcedSurplus() external {
         (bool ok, bytes memory result) = payable(address(escrow)).call{value: 1 ether}("");
         assertFalse(ok);
-        assertEq(
-            keccak256(result),
-            keccak256(abi.encodeWithSelector(CamEscrow.DirectNativeTransferDisabled.selector))
-        );
+        assertEq(keccak256(result), keccak256(abi.encodeWithSelector(CamEscrow.DirectNativeTransferDisabled.selector)));
 
         bytes4 selector = bytes4(0x12345678);
         (ok, result) = address(escrow).call(abi.encodeWithSelector(selector));
         assertFalse(ok);
-        assertEq(
-            keccak256(result),
-            keccak256(abi.encodeWithSelector(CamEscrow.UnknownFunction.selector, selector))
-        );
+        assertEq(keccak256(result), keccak256(abi.encodeWithSelector(CamEscrow.UnknownFunction.selector, selector)));
 
         bytes32 agreementId = _create("forced-surplus");
         assertEq(escrow.totalLiabilities(), AMOUNT);

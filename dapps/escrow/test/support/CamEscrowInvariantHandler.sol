@@ -78,32 +78,17 @@ contract CamEscrowInvariantHandler is Test {
     }
 
     /// @notice Creates bounded, uniquely keyed agreements across a fixed actor pool.
-    function createAgreement(
-        uint256 roleSeed,
-        uint96 amountSeed,
-        uint64 durationSeed,
-        bool timeoutToContractor
-    ) external {
+    function createAgreement(uint256 roleSeed, uint96 amountSeed, uint64 durationSeed, bool timeoutToContractor)
+        external
+    {
         if (_agreements.length >= MAX_TRACKED_AGREEMENTS) return;
 
-        CreationCase memory case_ = _creationCase(
-            roleSeed,
-            amountSeed,
-            durationSeed,
-            timeoutToContractor
-        );
+        CreationCase memory case_ = _creationCase(roleSeed, amountSeed, durationSeed, timeoutToContractor);
         bytes32 agreementId = keccak256(abi.encode(case_.client, case_.agreementRef));
         uint256 deadline = block.timestamp + case_.params.acceptanceDuration;
 
         vm.expectEmit(true, true, true, true, address(escrow));
-        emit AgreementCreated(
-            agreementId,
-            case_.client,
-            case_.contractor,
-            case_.arbitrator,
-            case_.amount,
-            deadline
-        );
+        emit AgreementCreated(agreementId, case_.client, case_.contractor, case_.arbitrator, case_.amount, deadline);
 
         vm.prank(case_.client);
         bytes32 returnedId = escrow.createAgreement{value: case_.amount}(case_.params);
@@ -314,12 +299,10 @@ contract CamEscrowInvariantHandler is Test {
         return _actors[index];
     }
 
-    function _creationCase(
-        uint256 roleSeed,
-        uint96 amountSeed,
-        uint64 durationSeed,
-        bool timeoutToContractor
-    ) private returns (CreationCase memory case_) {
+    function _creationCase(uint256 roleSeed, uint96 amountSeed, uint64 durationSeed, bool timeoutToContractor)
+        private
+        returns (CreationCase memory case_)
+    {
         (case_.client, case_.contractor, case_.arbitrator) = _roles(roleSeed);
         case_.amount = bound(uint256(amountSeed), 1, MAX_AMOUNT);
         case_.sequence = _agreements.length;
@@ -342,11 +325,7 @@ contract CamEscrowInvariantHandler is Test {
         });
     }
 
-    function _roles(uint256 seed)
-        private
-        view
-        returns (address client, address contractor, address arbitrator)
-    {
+    function _roles(uint256 seed) private view returns (address client, address contractor, address arbitrator) {
         uint256 clientIndex = seed % ACTOR_COUNT;
         uint256 contractorIndex = (clientIndex + 1 + ((seed >> 8) % (ACTOR_COUNT - 1))) % ACTOR_COUNT;
         uint256 arbitratorIndex = (clientIndex + 1 + ((seed >> 16) % (ACTOR_COUNT - 1))) % ACTOR_COUNT;
@@ -371,11 +350,7 @@ contract CamEscrowInvariantHandler is Test {
 
         vm.expectEmit(true, true, false, true, address(escrow));
         emit AgreementStateChanged(
-            tracked.agreementId,
-            actor,
-            snapshot.agreement.state,
-            snapshot.targetState,
-            snapshot.targetDeadline
+            tracked.agreementId, actor, snapshot.agreement.state, snapshot.targetState, snapshot.targetDeadline
         );
 
         vm.prank(actor);
@@ -385,10 +360,11 @@ contract CamEscrowInvariantHandler is Test {
         _assertTransitionAfter(tracked.agreementId, snapshot);
     }
 
-    function _transitionSnapshot(
-        bytes32 agreementId,
-        ICamEscrowView.AgreementAction action
-    ) private view returns (TransitionSnapshot memory snapshot) {
+    function _transitionSnapshot(bytes32 agreementId, ICamEscrowView.AgreementAction action)
+        private
+        view
+        returns (TransitionSnapshot memory snapshot)
+    {
         snapshot.agreement = escrow.agreementById(agreementId);
         snapshot.targetState = _targetState(snapshot.agreement, action);
         snapshot.targetDeadline = _targetDeadline(snapshot.agreement, action);
@@ -400,10 +376,7 @@ contract CamEscrowInvariantHandler is Test {
         }
     }
 
-    function _assertTransitionAfter(
-        bytes32 agreementId,
-        TransitionSnapshot memory snapshot
-    ) private view {
+    function _assertTransitionAfter(bytes32 agreementId, TransitionSnapshot memory snapshot) private view {
         ICamEscrowView.AgreementView memory after_ = escrow.agreementById(agreementId);
         assertEq(uint256(after_.state), uint256(snapshot.targetState));
         assertEq(after_.deadline, snapshot.targetDeadline);
@@ -414,24 +387,18 @@ contract CamEscrowInvariantHandler is Test {
             return;
         }
 
+        assertEq(escrow.totalEscrowed(), snapshot.escrowedBefore - snapshot.agreement.amount);
+        assertEq(escrow.totalWithdrawable(), snapshot.withdrawableBefore + snapshot.agreement.amount);
         assertEq(
-            escrow.totalEscrowed(),
-            snapshot.escrowedBefore - snapshot.agreement.amount
-        );
-        assertEq(
-            escrow.totalWithdrawable(),
-            snapshot.withdrawableBefore + snapshot.agreement.amount
-        );
-        assertEq(
-            escrow.withdrawable(snapshot.beneficiary),
-            snapshot.beneficiaryCreditBefore + snapshot.agreement.amount
+            escrow.withdrawable(snapshot.beneficiary), snapshot.beneficiaryCreditBefore + snapshot.agreement.amount
         );
     }
 
-    function _targetState(
-        ICamEscrowView.AgreementView memory agreement,
-        ICamEscrowView.AgreementAction action
-    ) private pure returns (ICamEscrowView.AgreementState) {
+    function _targetState(ICamEscrowView.AgreementView memory agreement, ICamEscrowView.AgreementAction action)
+        private
+        pure
+        returns (ICamEscrowView.AgreementState)
+    {
         if (action == ICamEscrowView.AgreementAction.CancelAgreement) {
             return ICamEscrowView.AgreementState.CancelledByClient;
         }
@@ -468,10 +435,11 @@ contract CamEscrowInvariantHandler is Test {
         return ICamEscrowView.AgreementState.ReleasedAfterArbitrationTimeout;
     }
 
-    function _targetDeadline(
-        ICamEscrowView.AgreementView memory agreement,
-        ICamEscrowView.AgreementAction action
-    ) private view returns (uint256) {
+    function _targetDeadline(ICamEscrowView.AgreementView memory agreement, ICamEscrowView.AgreementAction action)
+        private
+        view
+        returns (uint256)
+    {
         if (action == ICamEscrowView.AgreementAction.AcceptAgreement) {
             return block.timestamp + agreement.workDuration;
         }
@@ -484,10 +452,11 @@ contract CamEscrowInvariantHandler is Test {
         return 0;
     }
 
-    function _beneficiary(
-        ICamEscrowView.AgreementView memory agreement,
-        ICamEscrowView.AgreementAction action
-    ) private pure returns (address) {
+    function _beneficiary(ICamEscrowView.AgreementView memory agreement, ICamEscrowView.AgreementAction action)
+        private
+        pure
+        returns (address)
+    {
         if (
             action == ICamEscrowView.AgreementAction.AcceptAgreement
                 || action == ICamEscrowView.AgreementAction.SubmitAgreement
@@ -515,11 +484,10 @@ contract CamEscrowInvariantHandler is Test {
             : agreement.contractor;
     }
 
-    function _actionCallData(
-        ICamEscrowView.AgreementAction action,
-        bytes32 agreementId,
-        uint256 seed
-    ) private returns (bytes memory) {
+    function _actionCallData(ICamEscrowView.AgreementAction action, bytes32 agreementId, uint256 seed)
+        private
+        returns (bytes memory)
+    {
         if (action == ICamEscrowView.AgreementAction.CancelAgreement) {
             return abi.encodeWithSelector(CamEscrow.cancelAgreement.selector, agreementId);
         }
@@ -528,9 +496,7 @@ contract CamEscrowInvariantHandler is Test {
         }
         if (action == ICamEscrowView.AgreementAction.SubmitAgreement) {
             return abi.encodeWithSelector(
-                CamEscrow.submitAgreement.selector,
-                agreementId,
-                _document("terminal-submission", agreementId, seed)
+                CamEscrow.submitAgreement.selector, agreementId, _document("terminal-submission", agreementId, seed)
             );
         }
         if (action == ICamEscrowView.AgreementAction.ApproveAgreement) {
@@ -538,9 +504,7 @@ contract CamEscrowInvariantHandler is Test {
         }
         if (action == ICamEscrowView.AgreementAction.DisputeAgreement) {
             return abi.encodeWithSelector(
-                CamEscrow.disputeAgreement.selector,
-                agreementId,
-                _document("terminal-dispute", agreementId, seed)
+                CamEscrow.disputeAgreement.selector, agreementId, _document("terminal-dispute", agreementId, seed)
             );
         }
         if (action == ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout) {
@@ -579,10 +543,11 @@ contract CamEscrowInvariantHandler is Test {
         return _actors[seed % _actors.length];
     }
 
-    function _containsAction(
-        ICamEscrowView.AgreementAction[] memory actions,
-        ICamEscrowView.AgreementAction expected
-    ) private pure returns (bool) {
+    function _containsAction(ICamEscrowView.AgreementAction[] memory actions, ICamEscrowView.AgreementAction expected)
+        private
+        pure
+        returns (bool)
+    {
         for (uint256 i = 0; i < actions.length; i++) {
             if (actions[i] == expected) return true;
         }

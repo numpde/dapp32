@@ -36,10 +36,10 @@ abstract contract CamEscrowTestBase is Test {
         return _create(agreementRef, ICamEscrowView.ArbitrationTimeoutBeneficiary.Client);
     }
 
-    function _create(
-        string memory agreementRef,
-        ICamEscrowView.ArbitrationTimeoutBeneficiary timeoutBeneficiary
-    ) internal returns (bytes32) {
+    function _create(string memory agreementRef, ICamEscrowView.ArbitrationTimeoutBeneficiary timeoutBeneficiary)
+        internal
+        returns (bytes32)
+    {
         CamEscrow.CreateAgreementParams memory params = _defaultParams(agreementRef);
         params.arbitrationTimeoutBeneficiary = timeoutBeneficiary;
         return escrow.createAgreement{value: AMOUNT}(params);
@@ -53,8 +53,7 @@ abstract contract CamEscrowTestBase is Test {
         params.agreementRef = agreementRef;
         params.contractor = contractor;
         params.arbitrator = arbitrator;
-        params.arbitrationTimeoutBeneficiary =
-            ICamEscrowView.ArbitrationTimeoutBeneficiary.Client;
+        params.arbitrationTimeoutBeneficiary = ICamEscrowView.ArbitrationTimeoutBeneficiary.Client;
         params.amount = AMOUNT;
         params.acceptanceDuration = ACCEPTANCE_DURATION;
         params.workDuration = WORK_DURATION;
@@ -97,18 +96,14 @@ abstract contract CamEscrowTestBase is Test {
         vm.warp(escrow.agreementById(agreementId).deadline);
     }
 
-    function _assertState(bytes32 agreementId, ICamEscrowView.AgreementState expectedState)
-        internal
-        view
-    {
+    function _assertState(bytes32 agreementId, ICamEscrowView.AgreementState expectedState) internal view {
         assertEq(uint256(escrow.agreementById(agreementId).state), uint256(expectedState));
     }
 
-    function _assertActions(
-        bytes32 agreementId,
-        address actor,
-        ICamEscrowView.AgreementAction[] memory expected
-    ) internal view {
+    function _assertActions(bytes32 agreementId, address actor, ICamEscrowView.AgreementAction[] memory expected)
+        internal
+        view
+    {
         ICamEscrowView.AgreementAction[] memory actual = escrow.availableActions(agreementId, actor);
         assertEq(actual.length, expected.length);
         for (uint256 i = 0; i < expected.length; i++) {
@@ -129,10 +124,11 @@ abstract contract CamEscrowTestBase is Test {
         actions[0] = action;
     }
 
-    function _actions2(
-        ICamEscrowView.AgreementAction first,
-        ICamEscrowView.AgreementAction second
-    ) internal pure returns (ICamEscrowView.AgreementAction[] memory actions) {
+    function _actions2(ICamEscrowView.AgreementAction first, ICamEscrowView.AgreementAction second)
+        internal
+        pure
+        returns (ICamEscrowView.AgreementAction[] memory actions)
+    {
         actions = new ICamEscrowView.AgreementAction[](2);
         actions[0] = first;
         actions[1] = second;

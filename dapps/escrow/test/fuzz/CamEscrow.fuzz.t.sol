@@ -22,11 +22,7 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
     ) external {
         uint256 amount = bound(uint256(amountSeed), 1, 100 ether);
         uint64 maximumDuration = escrow.MAX_PHASE_DURATION();
-        uint256 referenceLength = bound(
-            uint256(referenceLengthSeed),
-            1,
-            escrow.MAX_AGREEMENT_REF_BYTES()
-        );
+        uint256 referenceLength = bound(uint256(referenceLengthSeed), 1, escrow.MAX_AGREEMENT_REF_BYTES());
         string memory agreementRef = _stringOfLength(referenceLength);
 
         CamEscrow.CreateAgreementParams memory params = _defaultParams(agreementRef);
@@ -62,11 +58,7 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
     }
 
     /// @notice In Funded, every selected edge is listed exactly when its write guard succeeds.
-    function testFuzzFundedActionsAgreeWithWrites(
-        uint8 actorSeed,
-        uint8 timeSeed,
-        uint8 actionSeed
-    ) external {
+    function testFuzzFundedActionsAgreeWithWrites(uint8 actorSeed, uint8 timeSeed, uint8 actionSeed) external {
         bytes32 agreementId = _create("fuzz-funded-actions");
         ICamEscrowView.AgreementAction action;
         uint256 selected = actionSeed % 3;
@@ -78,11 +70,7 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
     }
 
     /// @notice In Accepted, submission and the exact work-timeout edge agree with observation.
-    function testFuzzAcceptedActionsAgreeWithWrites(
-        uint8 actorSeed,
-        uint8 timeSeed,
-        bool chooseTimeout
-    ) external {
+    function testFuzzAcceptedActionsAgreeWithWrites(uint8 actorSeed, uint8 timeSeed, bool chooseTimeout) external {
         bytes32 agreementId = _create("fuzz-accepted-actions");
         _accept(agreementId);
         ICamEscrowView.AgreementAction action = chooseTimeout
@@ -93,11 +81,7 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
     }
 
     /// @notice In Submitted, both client choices and the exact review-timeout edge agree with observation.
-    function testFuzzSubmittedActionsAgreeWithWrites(
-        uint8 actorSeed,
-        uint8 timeSeed,
-        uint8 actionSeed
-    ) external {
+    function testFuzzSubmittedActionsAgreeWithWrites(uint8 actorSeed, uint8 timeSeed, uint8 actionSeed) external {
         bytes32 agreementId = _create("fuzz-submitted-actions");
         _accept(agreementId);
         _submit(agreementId, "ipfs://fuzz-submission", "fuzz-submission");
@@ -226,10 +210,11 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
         return unrelated;
     }
 
-    function _actionCallData(
-        ICamEscrowView.AgreementAction action,
-        bytes32 agreementId
-    ) private pure returns (bytes memory) {
+    function _actionCallData(ICamEscrowView.AgreementAction action, bytes32 agreementId)
+        private
+        pure
+        returns (bytes memory)
+    {
         if (action == ICamEscrowView.AgreementAction.CancelAgreement) {
             return abi.encodeWithSelector(CamEscrow.cancelAgreement.selector, agreementId);
         }
@@ -241,8 +226,7 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
                 CamEscrow.submitAgreement.selector,
                 agreementId,
                 ICamEscrowView.DocumentRef({
-                    uri: "ipfs://fuzz-action-submission",
-                    sha256Digest: sha256(bytes("fuzz-action-submission"))
+                    uri: "ipfs://fuzz-action-submission", sha256Digest: sha256(bytes("fuzz-action-submission"))
                 })
             );
         }
@@ -254,8 +238,7 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
                 CamEscrow.disputeAgreement.selector,
                 agreementId,
                 ICamEscrowView.DocumentRef({
-                    uri: "ipfs://fuzz-action-dispute",
-                    sha256Digest: sha256(bytes("fuzz-action-dispute"))
+                    uri: "ipfs://fuzz-action-dispute", sha256Digest: sha256(bytes("fuzz-action-dispute"))
                 })
             );
         }
@@ -277,10 +260,11 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
         return abi.encodeWithSelector(CamEscrow.finalizeArbitrationTimeout.selector, agreementId);
     }
 
-    function _targetState(
-        ICamEscrowView.AgreementView memory agreement,
-        ICamEscrowView.AgreementAction action
-    ) private pure returns (ICamEscrowView.AgreementState) {
+    function _targetState(ICamEscrowView.AgreementView memory agreement, ICamEscrowView.AgreementAction action)
+        private
+        pure
+        returns (ICamEscrowView.AgreementState)
+    {
         if (action == ICamEscrowView.AgreementAction.CancelAgreement) {
             return ICamEscrowView.AgreementState.CancelledByClient;
         }
@@ -316,10 +300,11 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
             : ICamEscrowView.AgreementState.ReleasedAfterArbitrationTimeout;
     }
 
-    function _containsAction(
-        ICamEscrowView.AgreementAction[] memory actions,
-        ICamEscrowView.AgreementAction expected
-    ) private pure returns (bool) {
+    function _containsAction(ICamEscrowView.AgreementAction[] memory actions, ICamEscrowView.AgreementAction expected)
+        private
+        pure
+        returns (bool)
+    {
         for (uint256 i = 0; i < actions.length; i++) {
             if (actions[i] == expected) return true;
         }

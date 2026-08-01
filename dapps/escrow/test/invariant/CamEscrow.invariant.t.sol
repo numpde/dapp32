@@ -81,10 +81,7 @@ contract CamEscrowInvariantTest is Test {
         assertEq(trackedAmounts, handler.totalCreated());
         assertEq(activeAmounts, escrow.totalEscrowed());
         assertEq(terminalAmounts, escrow.totalWithdrawable() + handler.totalWithdrawn());
-        assertEq(
-            handler.totalCreated(),
-            escrow.totalEscrowed() + escrow.totalWithdrawable() + handler.totalWithdrawn()
-        );
+        assertEq(handler.totalCreated(), escrow.totalEscrowed() + escrow.totalWithdrawable() + handler.totalWithdrawn());
     }
 
     /// @notice Aggregate per-account credits are exactly the declared withdrawable liability.
@@ -114,8 +111,9 @@ contract CamEscrowInvariantTest is Test {
         for (uint256 i = 0; i < handler.agreementCount(); i++) {
             CamEscrowInvariantHandler.TrackedAgreement memory tracked = handler.agreementAt(i);
             ICamEscrowView.AgreementView memory agreement = escrow.agreementById(tracked.agreementId);
-            if (_isActive(agreement.state)) assertGt(agreement.deadline, 0);
-            else {
+            if (_isActive(agreement.state)) {
+                assertGt(agreement.deadline, 0);
+            } else {
                 assertTrue(_isTerminal(agreement.state));
                 assertEq(agreement.deadline, 0);
             }
@@ -131,10 +129,7 @@ contract CamEscrowInvariantTest is Test {
 
             assertEq(escrow.availableActions(tracked.agreementId, address(0)).length, 0);
             for (uint256 j = 0; j < handler.actorCount(); j++) {
-                assertEq(
-                    escrow.availableActions(tracked.agreementId, handler.actorAt(j)).length,
-                    0
-                );
+                assertEq(escrow.availableActions(tracked.agreementId, handler.actorAt(j)).length, 0);
             }
         }
     }

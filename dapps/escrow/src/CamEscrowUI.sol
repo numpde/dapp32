@@ -58,8 +58,7 @@ contract CamEscrowUI {
     string private constant BENEFICIARY_CLIENT = "client";
     string private constant BENEFICIARY_CONTRACTOR = "contractor";
 
-    string private constant ACKNOWLEDGEMENT_DISCLOSURE =
-        "not required and not recorded on-chain";
+    string private constant ACKNOWLEDGEMENT_DISCLOSURE = "not required and not recorded on-chain";
 
     struct MachineView {
         string machineId;
@@ -102,9 +101,7 @@ contract CamEscrowUI {
     error EscrowUnsupported(address escrowAddress);
     error UnsupportedAgreementState(ICamEscrowView.AgreementState state);
     error UnsupportedAgreementAction(ICamEscrowView.AgreementAction action);
-    error UnsupportedArbitrationTimeoutBeneficiary(
-        ICamEscrowView.ArbitrationTimeoutBeneficiary beneficiary
-    );
+    error UnsupportedArbitrationTimeoutBeneficiary(ICamEscrowView.ArbitrationTimeoutBeneficiary beneficiary);
     error DoesNotAcceptPayments();
     error UnknownFunction(bytes4 selector);
 
@@ -112,8 +109,7 @@ contract CamEscrowUI {
         if (escrowAddress == address(0)) revert ZeroAddress();
         if (escrowAddress.code.length == 0) revert EscrowHasNoCode(escrowAddress);
 
-        try ICamEscrowView(escrowAddress).supportsInterface(type(ICamEscrowView).interfaceId)
-        returns (bool supported) {
+        try ICamEscrowView(escrowAddress).supportsInterface(type(ICamEscrowView).interfaceId) returns (bool supported) {
             if (!supported) revert EscrowUnsupported(escrowAddress);
         } catch {
             revert EscrowUnsupported(escrowAddress);
@@ -124,11 +120,7 @@ contract CamEscrowUI {
 
     /// @notice Returns immutable V1 creation policy and the creation action.
     /// @dev An anonymous viewer receives no wallet action, but all policy values.
-    function viewCreateAgreement(address client)
-        external
-        view
-        returns (CreateAgreementView memory view_)
-    {
+    function viewCreateAgreement(address client) external view returns (CreateAgreementView memory view_) {
         view_.viewId = VIEW_CREATE;
         view_.client = client;
         view_.maxAgreementRefBytes = escrow.MAX_AGREEMENT_REF_BYTES();
@@ -145,29 +137,21 @@ contract CamEscrowUI {
     }
 
     /// @notice Projects one agreement by its contract-scoped identifier.
-    function viewAgreement(bytes32 agreementId, address actor)
-        external
-        view
-        returns (AgreementAppView memory view_)
-    {
+    function viewAgreement(bytes32 agreementId, address actor) external view returns (AgreementAppView memory view_) {
         return _agreementView(escrow.agreementById(agreementId), actor);
     }
 
     /// @notice Projects one agreement by its client/reference lookup key.
-    function viewAgreementByReference(
-        address client,
-        string calldata agreementRef,
-        address actor
-    ) external view returns (AgreementAppView memory view_) {
+    function viewAgreementByReference(address client, string calldata agreementRef, address actor)
+        external
+        view
+        returns (AgreementAppView memory view_)
+    {
         return _agreementView(escrow.agreementByReference(client, agreementRef), actor);
     }
 
     /// @notice Projects one account's aggregate pull-payment credit.
-    function viewAccountCredit(address account)
-        external
-        view
-        returns (AccountCreditView memory view_)
-    {
+    function viewAccountCredit(address account) external view returns (AccountCreditView memory view_) {
         view_.account = account;
         view_.amount = account == address(0) ? 0 : escrow.withdrawable(account);
 
@@ -181,10 +165,11 @@ contract CamEscrowUI {
         view_.actions[0] = ACTION_WITHDRAW;
     }
 
-    function _agreementView(
-        ICamEscrowView.AgreementView memory agreement,
-        address actor
-    ) private view returns (AgreementAppView memory view_) {
+    function _agreementView(ICamEscrowView.AgreementView memory agreement, address actor)
+        private
+        view
+        returns (AgreementAppView memory view_)
+    {
         view_.actor = actor;
         view_.agreement = agreement;
         view_.machine.machineId = MACHINE_AGREEMENT;
@@ -198,14 +183,10 @@ contract CamEscrowUI {
 
         view_.machine.instantiated = true;
         view_.machine.stateId = _stateId(agreement.state);
-        view_.machine.transitionIds = _transitionIds(
-            escrow.availableActions(agreement.agreementId, actor)
-        );
+        view_.machine.transitionIds = _transitionIds(escrow.availableActions(agreement.agreementId, actor));
         view_.viewId = _agreementViewId(agreement.state);
         view_.actorRoleId = _actorRoleId(agreement, actor);
-        view_.arbitrationTimeoutBeneficiaryId = _timeoutBeneficiaryId(
-            agreement.arbitrationTimeoutBeneficiary
-        );
+        view_.arbitrationTimeoutBeneficiaryId = _timeoutBeneficiaryId(agreement.arbitrationTimeoutBeneficiary);
         view_.arbitratorAcknowledgementRequired = false;
         view_.arbitratorAcknowledgementDisclosure = ACKNOWLEDGEMENT_DISCLOSURE;
     }
@@ -221,11 +202,7 @@ contract CamEscrowUI {
         }
     }
 
-    function _stateId(ICamEscrowView.AgreementState state)
-        private
-        pure
-        returns (string memory)
-    {
+    function _stateId(ICamEscrowView.AgreementState state) private pure returns (string memory) {
         if (state == ICamEscrowView.AgreementState.Funded) return STATE_FUNDED;
         if (state == ICamEscrowView.AgreementState.Accepted) return STATE_ACCEPTED;
         if (state == ICamEscrowView.AgreementState.Submitted) return STATE_SUBMITTED;
@@ -261,11 +238,7 @@ contract CamEscrowUI {
         revert UnsupportedAgreementState(state);
     }
 
-    function _transitionId(ICamEscrowView.AgreementAction action)
-        private
-        pure
-        returns (string memory)
-    {
+    function _transitionId(ICamEscrowView.AgreementAction action) private pure returns (string memory) {
         if (action == ICamEscrowView.AgreementAction.CancelAgreement) {
             return TRANSITION_CANCEL;
         }
@@ -303,16 +276,10 @@ contract CamEscrowUI {
         revert UnsupportedAgreementAction(action);
     }
 
-    function _agreementViewId(ICamEscrowView.AgreementState state)
-        private
-        pure
-        returns (string memory)
-    {
+    function _agreementViewId(ICamEscrowView.AgreementState state) private pure returns (string memory) {
         if (
-            state == ICamEscrowView.AgreementState.Funded
-                || state == ICamEscrowView.AgreementState.Accepted
-                || state == ICamEscrowView.AgreementState.Submitted
-                || state == ICamEscrowView.AgreementState.Disputed
+            state == ICamEscrowView.AgreementState.Funded || state == ICamEscrowView.AgreementState.Accepted
+                || state == ICamEscrowView.AgreementState.Submitted || state == ICamEscrowView.AgreementState.Disputed
         ) {
             return VIEW_AGREEMENT_ACTIVE;
         }
@@ -324,10 +291,11 @@ contract CamEscrowUI {
         revert UnsupportedAgreementState(state);
     }
 
-    function _actorRoleId(
-        ICamEscrowView.AgreementView memory agreement,
-        address actor
-    ) private pure returns (string memory) {
+    function _actorRoleId(ICamEscrowView.AgreementView memory agreement, address actor)
+        private
+        pure
+        returns (string memory)
+    {
         if (actor == address(0)) return ROLE_NONE;
         if (actor == agreement.client) return ROLE_CLIENT;
         if (actor == agreement.contractor) return ROLE_CONTRACTOR;
@@ -335,9 +303,11 @@ contract CamEscrowUI {
         return ROLE_NONE;
     }
 
-    function _timeoutBeneficiaryId(
-        ICamEscrowView.ArbitrationTimeoutBeneficiary beneficiary
-    ) private pure returns (string memory) {
+    function _timeoutBeneficiaryId(ICamEscrowView.ArbitrationTimeoutBeneficiary beneficiary)
+        private
+        pure
+        returns (string memory)
+    {
         if (beneficiary == ICamEscrowView.ArbitrationTimeoutBeneficiary.Client) {
             return BENEFICIARY_CLIENT;
         }

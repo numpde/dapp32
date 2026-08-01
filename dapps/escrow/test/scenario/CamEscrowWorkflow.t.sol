@@ -11,11 +11,7 @@ contract CamEscrowWorkflowTest is CamEscrowTestBase {
 
         escrow.cancelAgreement(agreementId);
 
-        _assertTerminal(
-            agreementId,
-            ICamEscrowView.AgreementState.CancelledByClient,
-            address(this)
-        );
+        _assertTerminal(agreementId, ICamEscrowView.AgreementState.CancelledByClient, address(this));
         _withdrawClient(payable(address(0x1001)));
     }
 
@@ -30,11 +26,7 @@ contract CamEscrowWorkflowTest is CamEscrowTestBase {
         ICamEscrowView.AgreementView memory view_ = escrow.agreementById(agreementId);
         assertEq(view_.submission.uri, "ipfs://submission");
         assertEq(view_.submission.sha256Digest, sha256(bytes("submission")));
-        _assertTerminal(
-            agreementId,
-            ICamEscrowView.AgreementState.ReleasedByClientApproval,
-            contractor
-        );
+        _assertTerminal(agreementId, ICamEscrowView.AgreementState.ReleasedByClientApproval, contractor);
         _withdrawContractor(payable(address(0x1002)));
     }
 
@@ -46,11 +38,7 @@ contract CamEscrowWorkflowTest is CamEscrowTestBase {
         vm.prank(finalizer);
         escrow.finalizeAcceptanceTimeout(agreementId);
 
-        _assertTerminal(
-            agreementId,
-            ICamEscrowView.AgreementState.RefundedAfterAcceptanceTimeout,
-            address(this)
-        );
+        _assertTerminal(agreementId, ICamEscrowView.AgreementState.RefundedAfterAcceptanceTimeout, address(this));
         _withdrawClient(payable(address(0x1003)));
     }
 
@@ -63,11 +51,7 @@ contract CamEscrowWorkflowTest is CamEscrowTestBase {
         vm.prank(finalizer);
         escrow.finalizeWorkTimeout(agreementId);
 
-        _assertTerminal(
-            agreementId,
-            ICamEscrowView.AgreementState.RefundedAfterWorkTimeout,
-            address(this)
-        );
+        _assertTerminal(agreementId, ICamEscrowView.AgreementState.RefundedAfterWorkTimeout, address(this));
         _withdrawClient(payable(address(0x1004)));
     }
 
@@ -81,11 +65,7 @@ contract CamEscrowWorkflowTest is CamEscrowTestBase {
         vm.prank(finalizer);
         escrow.finalizeReviewTimeout(agreementId);
 
-        _assertTerminal(
-            agreementId,
-            ICamEscrowView.AgreementState.ReleasedAfterReviewTimeout,
-            contractor
-        );
+        _assertTerminal(agreementId, ICamEscrowView.AgreementState.ReleasedAfterReviewTimeout, contractor);
         _withdrawContractor(payable(address(0x1005)));
     }
 
@@ -98,69 +78,47 @@ contract CamEscrowWorkflowTest is CamEscrowTestBase {
         escrow.resolveForClient(agreementId);
 
         _assertDisputeStored(agreementId);
-        _assertTerminal(
-            agreementId,
-            ICamEscrowView.AgreementState.RefundedByArbitrator,
-            address(this)
-        );
+        _assertTerminal(agreementId, ICamEscrowView.AgreementState.RefundedByArbitrator, address(this));
         _withdrawClient(payable(address(0x1006)));
     }
 
     /// @notice The arbitrator may resolve a live dispute completely for the contractor.
     function testArbitratorReleasesContractor() external {
-        bytes32 agreementId = _create(
-            "scenario", ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor
-        );
+        bytes32 agreementId = _create("scenario", ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor);
         _acceptSubmitAndDispute(agreementId);
 
         vm.prank(arbitrator);
         escrow.resolveForContractor(agreementId);
 
         _assertDisputeStored(agreementId);
-        _assertTerminal(
-            agreementId,
-            ICamEscrowView.AgreementState.ReleasedByArbitrator,
-            contractor
-        );
+        _assertTerminal(agreementId, ICamEscrowView.AgreementState.ReleasedByArbitrator, contractor);
         _withdrawContractor(payable(address(0x1007)));
     }
 
     /// @notice Client-configured arbitration timeout refunds only the client and leaves no residual contractor credit.
     function testArbitrationTimeoutConfiguredForClientRefundsClientInFull() external {
-        bytes32 agreementId = _create(
-            "scenario", ICamEscrowView.ArbitrationTimeoutBeneficiary.Client
-        );
+        bytes32 agreementId = _create("scenario", ICamEscrowView.ArbitrationTimeoutBeneficiary.Client);
         _acceptSubmitAndDispute(agreementId);
         _warpToDeadline(agreementId);
 
         vm.prank(finalizer);
         escrow.finalizeArbitrationTimeout(agreementId);
 
-        _assertTerminal(
-            agreementId,
-            ICamEscrowView.AgreementState.RefundedAfterArbitrationTimeout,
-            address(this)
-        );
+        _assertTerminal(agreementId, ICamEscrowView.AgreementState.RefundedAfterArbitrationTimeout, address(this));
         assertEq(escrow.withdrawable(contractor), 0);
         _withdrawClient(payable(address(0x1008)));
     }
 
     /// @notice Contractor-configured arbitration timeout releases only the contractor and leaves no residual client credit.
     function testArbitrationTimeoutConfiguredForContractorReleasesContractorInFull() external {
-        bytes32 agreementId = _create(
-            "scenario", ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor
-        );
+        bytes32 agreementId = _create("scenario", ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor);
         _acceptSubmitAndDispute(agreementId);
         _warpToDeadline(agreementId);
 
         vm.prank(finalizer);
         escrow.finalizeArbitrationTimeout(agreementId);
 
-        _assertTerminal(
-            agreementId,
-            ICamEscrowView.AgreementState.ReleasedAfterArbitrationTimeout,
-            contractor
-        );
+        _assertTerminal(agreementId, ICamEscrowView.AgreementState.ReleasedAfterArbitrationTimeout, contractor);
         assertEq(escrow.withdrawable(address(this)), 0);
         _withdrawContractor(payable(address(0x1009)));
     }
@@ -171,11 +129,10 @@ contract CamEscrowWorkflowTest is CamEscrowTestBase {
         assertEq(view_.dispute.sha256Digest, sha256(bytes("dispute")));
     }
 
-    function _assertTerminal(
-        bytes32 agreementId,
-        ICamEscrowView.AgreementState expectedState,
-        address beneficiary
-    ) private view {
+    function _assertTerminal(bytes32 agreementId, ICamEscrowView.AgreementState expectedState, address beneficiary)
+        private
+        view
+    {
         ICamEscrowView.AgreementView memory view_ = escrow.agreementById(agreementId);
         assertEq(uint256(view_.state), uint256(expectedState));
         assertEq(view_.deadline, 0);

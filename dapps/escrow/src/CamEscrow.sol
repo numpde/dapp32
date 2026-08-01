@@ -103,11 +103,7 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
     /// @notice Creates and immediately funds one agreement.
     /// @dev The timeout beneficiary error covers the in-range `None` sentinel.
     /// Out-of-range enum ordinals are rejected by Solidity's ABI boundary.
-    function createAgreement(CreateAgreementParams calldata params)
-        external
-        payable
-        returns (bytes32 agreementId)
-    {
+    function createAgreement(CreateAgreementParams calldata params) external payable returns (bytes32 agreementId) {
         _validateReference(params.agreementRef);
         _validateParties(msg.sender, params.contractor, params.arbitrator);
         _validateTimeoutBeneficiary(params.arbitrationTimeoutBeneficiary);
@@ -144,12 +140,7 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
         _totalEscrowed += params.amount;
 
         emit AgreementCreated(
-            agreementId,
-            msg.sender,
-            params.contractor,
-            params.arbitrator,
-            params.amount,
-            agreement.deadline
+            agreementId, msg.sender, params.contractor, params.arbitrator, params.amount, agreement.deadline
         );
     }
 
@@ -164,13 +155,7 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
         Agreement storage agreement = _requireAgreement(agreementId);
         uint256 now_ = block.timestamp;
         _requireActionAvailable(agreementId, agreement, AgreementAction.AcceptAgreement, msg.sender, now_);
-        _advance(
-            agreementId,
-            agreement,
-            AgreementState.Accepted,
-            now_ + uint256(agreement.workDuration),
-            msg.sender
-        );
+        _advance(agreementId, agreement, AgreementState.Accepted, now_ + uint256(agreement.workDuration), msg.sender);
     }
 
     function submitAgreement(bytes32 agreementId, DocumentRef calldata submission) external {
@@ -181,26 +166,14 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
 
         agreement.submission.uri = submission.uri;
         agreement.submission.sha256Digest = submission.sha256Digest;
-        _advance(
-            agreementId,
-            agreement,
-            AgreementState.Submitted,
-            now_ + uint256(agreement.reviewDuration),
-            msg.sender
-        );
+        _advance(agreementId, agreement, AgreementState.Submitted, now_ + uint256(agreement.reviewDuration), msg.sender);
     }
 
     function approveAgreement(bytes32 agreementId) external {
         Agreement storage agreement = _requireAgreement(agreementId);
         uint256 now_ = block.timestamp;
         _requireActionAvailable(agreementId, agreement, AgreementAction.ApproveAgreement, msg.sender, now_);
-        _settle(
-            agreementId,
-            agreement,
-            AgreementState.ReleasedByClientApproval,
-            agreement.contractor,
-            msg.sender
-        );
+        _settle(agreementId, agreement, AgreementState.ReleasedByClientApproval, agreement.contractor, msg.sender);
     }
 
     function disputeAgreement(bytes32 agreementId, DocumentRef calldata dispute) external {
@@ -212,105 +185,59 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
         agreement.dispute.uri = dispute.uri;
         agreement.dispute.sha256Digest = dispute.sha256Digest;
         _advance(
-            agreementId,
-            agreement,
-            AgreementState.Disputed,
-            now_ + uint256(agreement.arbitrationDuration),
-            msg.sender
+            agreementId, agreement, AgreementState.Disputed, now_ + uint256(agreement.arbitrationDuration), msg.sender
         );
     }
 
     function finalizeAcceptanceTimeout(bytes32 agreementId) external {
         Agreement storage agreement = _requireAgreement(agreementId);
         uint256 now_ = block.timestamp;
-        _requireActionAvailable(
-            agreementId, agreement, AgreementAction.FinalizeAcceptanceTimeout, msg.sender, now_
-        );
-        _settle(
-            agreementId,
-            agreement,
-            AgreementState.RefundedAfterAcceptanceTimeout,
-            agreement.client,
-            msg.sender
-        );
+        _requireActionAvailable(agreementId, agreement, AgreementAction.FinalizeAcceptanceTimeout, msg.sender, now_);
+        _settle(agreementId, agreement, AgreementState.RefundedAfterAcceptanceTimeout, agreement.client, msg.sender);
     }
 
     function finalizeWorkTimeout(bytes32 agreementId) external {
         Agreement storage agreement = _requireAgreement(agreementId);
         uint256 now_ = block.timestamp;
         _requireActionAvailable(agreementId, agreement, AgreementAction.FinalizeWorkTimeout, msg.sender, now_);
-        _settle(
-            agreementId,
-            agreement,
-            AgreementState.RefundedAfterWorkTimeout,
-            agreement.client,
-            msg.sender
-        );
+        _settle(agreementId, agreement, AgreementState.RefundedAfterWorkTimeout, agreement.client, msg.sender);
     }
 
     function finalizeReviewTimeout(bytes32 agreementId) external {
         Agreement storage agreement = _requireAgreement(agreementId);
         uint256 now_ = block.timestamp;
         _requireActionAvailable(agreementId, agreement, AgreementAction.FinalizeReviewTimeout, msg.sender, now_);
-        _settle(
-            agreementId,
-            agreement,
-            AgreementState.ReleasedAfterReviewTimeout,
-            agreement.contractor,
-            msg.sender
-        );
+        _settle(agreementId, agreement, AgreementState.ReleasedAfterReviewTimeout, agreement.contractor, msg.sender);
     }
 
     function resolveForClient(bytes32 agreementId) external {
         Agreement storage agreement = _requireAgreement(agreementId);
         uint256 now_ = block.timestamp;
         _requireActionAvailable(agreementId, agreement, AgreementAction.ResolveForClient, msg.sender, now_);
-        _settle(
-            agreementId,
-            agreement,
-            AgreementState.RefundedByArbitrator,
-            agreement.client,
-            msg.sender
-        );
+        _settle(agreementId, agreement, AgreementState.RefundedByArbitrator, agreement.client, msg.sender);
     }
 
     function resolveForContractor(bytes32 agreementId) external {
         Agreement storage agreement = _requireAgreement(agreementId);
         uint256 now_ = block.timestamp;
         _requireActionAvailable(agreementId, agreement, AgreementAction.ResolveForContractor, msg.sender, now_);
-        _settle(
-            agreementId,
-            agreement,
-            AgreementState.ReleasedByArbitrator,
-            agreement.contractor,
-            msg.sender
-        );
+        _settle(agreementId, agreement, AgreementState.ReleasedByArbitrator, agreement.contractor, msg.sender);
     }
 
     function finalizeArbitrationTimeout(bytes32 agreementId) external {
         Agreement storage agreement = _requireAgreement(agreementId);
         uint256 now_ = block.timestamp;
-        _requireActionAvailable(
-            agreementId, agreement, AgreementAction.FinalizeArbitrationTimeout, msg.sender, now_
-        );
+        _requireActionAvailable(agreementId, agreement, AgreementAction.FinalizeArbitrationTimeout, msg.sender, now_);
 
         if (agreement.arbitrationTimeoutBeneficiary == ArbitrationTimeoutBeneficiary.Client) {
             _settle(
-                agreementId,
-                agreement,
-                AgreementState.RefundedAfterArbitrationTimeout,
-                agreement.client,
-                msg.sender
+                agreementId, agreement, AgreementState.RefundedAfterArbitrationTimeout, agreement.client, msg.sender
             );
             return;
         }
         if (agreement.arbitrationTimeoutBeneficiary == ArbitrationTimeoutBeneficiary.Contractor) {
             _settle(
-                agreementId,
-                agreement,
-                AgreementState.ReleasedAfterArbitrationTimeout,
-                agreement.contractor,
-                msg.sender
+                agreementId, agreement, AgreementState.ReleasedAfterArbitrationTimeout, agreement.contractor, msg.sender
             );
             return;
         }
@@ -337,21 +264,11 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
         emit Withdrawal(account, recipient, amount);
     }
 
-    function agreementIdOf(address client, string calldata agreementRef)
-        external
-        pure
-        override
-        returns (bytes32)
-    {
+    function agreementIdOf(address client, string calldata agreementRef) external pure override returns (bytes32) {
         return _agreementId(client, agreementRef);
     }
 
-    function agreementById(bytes32 agreementId)
-        external
-        view
-        override
-        returns (AgreementView memory view_)
-    {
+    function agreementById(bytes32 agreementId) external view override returns (AgreementView memory view_) {
         return _agreementView(agreementId);
     }
 
@@ -423,12 +340,11 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
         return interfaceId == type(ICamEscrowView).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
-    function _isActionAvailable(
-        Agreement storage agreement,
-        AgreementAction action,
-        address actor,
-        uint256 now_
-    ) private view returns (bool) {
+    function _isActionAvailable(Agreement storage agreement, AgreementAction action, address actor, uint256 now_)
+        private
+        view
+        returns (bool)
+    {
         if (actor == address(0)) return false;
 
         if (action == AgreementAction.CancelAgreement) {
@@ -437,20 +353,18 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
         if (action == AgreementAction.AcceptAgreement) {
             // This is the deliberate V1/V2 readiness seam. V1 requires no
             // arbitrator transaction, signature, or acknowledgement.
-            return agreement.state == AgreementState.Funded && actor == agreement.contractor
-                && now_ < agreement.deadline;
+            return
+                agreement.state == AgreementState.Funded && actor == agreement.contractor && now_ < agreement.deadline;
         }
         if (action == AgreementAction.SubmitAgreement) {
-            return agreement.state == AgreementState.Accepted && actor == agreement.contractor
-                && now_ < agreement.deadline;
+            return
+                agreement.state == AgreementState.Accepted && actor == agreement.contractor && now_ < agreement.deadline;
         }
         if (action == AgreementAction.ApproveAgreement) {
-            return agreement.state == AgreementState.Submitted && actor == agreement.client
-                && now_ < agreement.deadline;
+            return agreement.state == AgreementState.Submitted && actor == agreement.client && now_ < agreement.deadline;
         }
         if (action == AgreementAction.DisputeAgreement) {
-            return agreement.state == AgreementState.Submitted && actor == agreement.client
-                && now_ < agreement.deadline;
+            return agreement.state == AgreementState.Submitted && actor == agreement.client && now_ < agreement.deadline;
         }
         if (action == AgreementAction.FinalizeAcceptanceTimeout) {
             return agreement.state == AgreementState.Funded && now_ >= agreement.deadline;
@@ -462,12 +376,12 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
             return agreement.state == AgreementState.Submitted && now_ >= agreement.deadline;
         }
         if (action == AgreementAction.ResolveForClient) {
-            return agreement.state == AgreementState.Disputed && actor == agreement.arbitrator
-                && now_ < agreement.deadline;
+            return
+                agreement.state == AgreementState.Disputed && actor == agreement.arbitrator && now_ < agreement.deadline;
         }
         if (action == AgreementAction.ResolveForContractor) {
-            return agreement.state == AgreementState.Disputed && actor == agreement.arbitrator
-                && now_ < agreement.deadline;
+            return
+                agreement.state == AgreementState.Disputed && actor == agreement.arbitrator && now_ < agreement.deadline;
         }
         if (action == AgreementAction.FinalizeArbitrationTimeout) {
             return agreement.state == AgreementState.Disputed && now_ >= agreement.deadline;
@@ -484,9 +398,7 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
         uint256 now_
     ) private view {
         if (!_isActionAvailable(agreement, action, actor, now_)) {
-            revert ActionUnavailable(
-                agreementId, action, actor, agreement.state, agreement.deadline, now_
-            );
+            revert ActionUnavailable(agreementId, action, actor, agreement.state, agreement.deadline, now_);
         }
     }
 
@@ -536,10 +448,8 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
         view_.deadline = agreement.deadline;
         view_.agreementRef = agreement.agreementRef;
         view_.terms = DocumentRef({uri: agreement.terms.uri, sha256Digest: agreement.terms.sha256Digest});
-        view_.submission =
-            DocumentRef({uri: agreement.submission.uri, sha256Digest: agreement.submission.sha256Digest});
-        view_.dispute =
-            DocumentRef({uri: agreement.dispute.uri, sha256Digest: agreement.dispute.sha256Digest});
+        view_.submission = DocumentRef({uri: agreement.submission.uri, sha256Digest: agreement.submission.sha256Digest});
+        view_.dispute = DocumentRef({uri: agreement.dispute.uri, sha256Digest: agreement.dispute.sha256Digest});
     }
 
     function _requireAgreement(bytes32 agreementId) private view returns (Agreement storage agreement) {
@@ -556,9 +466,8 @@ contract CamEscrow is ReentrancyGuard, ICamEscrowView {
 
     function _validateParties(address client, address contractor, address arbitrator) private view {
         if (
-            contractor == address(0) || arbitrator == address(0) || client == contractor
-                || client == arbitrator || contractor == arbitrator || contractor == address(this)
-                || arbitrator == address(this)
+            contractor == address(0) || arbitrator == address(0) || client == contractor || client == arbitrator
+                || contractor == arbitrator || contractor == address(this) || arbitrator == address(this)
         ) {
             revert InvalidPartyConfiguration(client, contractor, arbitrator);
         }

@@ -32,27 +32,15 @@ contract CamEscrowUITest is CamEscrowTestBase {
         new CamEscrowUI(address(0));
 
         address noCode = address(0x1234);
-        vm.expectRevert(
-            abi.encodeWithSelector(CamEscrowUI.EscrowHasNoCode.selector, noCode)
-        );
+        vm.expectRevert(abi.encodeWithSelector(CamEscrowUI.EscrowHasNoCode.selector, noCode));
         new CamEscrowUI(noCode);
 
         FalseEscrowInterface falseInterface = new FalseEscrowInterface();
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CamEscrowUI.EscrowUnsupported.selector,
-                address(falseInterface)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CamEscrowUI.EscrowUnsupported.selector, address(falseInterface)));
         new CamEscrowUI(address(falseInterface));
 
         RevertingEscrowInterface revertingInterface = new RevertingEscrowInterface();
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CamEscrowUI.EscrowUnsupported.selector,
-                address(revertingInterface)
-            )
-        );
+        vm.expectRevert(abi.encodeWithSelector(CamEscrowUI.EscrowUnsupported.selector, address(revertingInterface)));
         new CamEscrowUI(address(revertingInterface));
 
         assertEq(address(ui.escrow()), address(escrow));
@@ -61,8 +49,7 @@ contract CamEscrowUITest is CamEscrowTestBase {
 
     /// @notice The creation projection exposes fixed policy and no anonymous wallet action.
     function testCreateAgreementViewOwnsPolicyAndWalletAction() external view {
-        CamEscrowUI.CreateAgreementView memory authenticated =
-            ui.viewCreateAgreement(address(this));
+        CamEscrowUI.CreateAgreementView memory authenticated = ui.viewCreateAgreement(address(this));
         _assertString(authenticated.viewId, "escrow.create");
         assertEq(authenticated.client, address(this));
         assertEq(authenticated.maxAgreementRefBytes, escrow.MAX_AGREEMENT_REF_BYTES());
@@ -73,17 +60,15 @@ contract CamEscrowUITest is CamEscrowTestBase {
         _assertString(authenticated.arbitrationTimeoutBeneficiaryIds[1], "contractor");
         _assertStrings(authenticated.actions, _strings1("createAgreement"));
 
-        CamEscrowUI.CreateAgreementView memory anonymous =
-            ui.viewCreateAgreement(address(0));
-        assertEq(anonymous.actions.length, 0);
-        assertEq(anonymous.arbitrationTimeoutBeneficiaryIds.length, 2);
+        CamEscrowUI.CreateAgreementView memory anonymousView = ui.viewCreateAgreement(address(0));
+        assertEq(anonymousView.actions.length, 0);
+        assertEq(anonymousView.arbitrationTimeoutBeneficiaryIds.length, 2);
     }
 
     /// @notice Missing agreement projection is a stable uninstantiated machine observation.
     function testAbsentAgreementProjection() external view {
         bytes32 missingId = keccak256("missing-projection");
-        CamEscrowUI.AgreementAppView memory view_ =
-            ui.viewAgreement(missingId, contractor);
+        CamEscrowUI.AgreementAppView memory view_ = ui.viewAgreement(missingId, contractor);
 
         _assertString(view_.viewId, "escrow.agreement.absent");
         _assertString(view_.machine.machineId, "escrow.agreement.v1");
@@ -94,10 +79,7 @@ contract CamEscrowUITest is CamEscrowTestBase {
         assertEq(view_.actor, contractor);
         _assertString(view_.actorRoleId, "none");
         assertEq(view_.agreement.agreementId, missingId);
-        assertEq(
-            uint256(view_.agreement.state),
-            uint256(ICamEscrowView.AgreementState.None)
-        );
+        assertEq(uint256(view_.agreement.state), uint256(ICamEscrowView.AgreementState.None));
         _assertString(view_.arbitrationTimeoutBeneficiaryId, "");
         assertFalse(view_.arbitratorAcknowledgementRequired);
         _assertString(view_.arbitratorAcknowledgementDisclosure, "");
@@ -106,8 +88,7 @@ contract CamEscrowUITest is CamEscrowTestBase {
     /// @notice ID and reference observations project the same stored agreement facts.
     function testReferenceAndIdProjectionAreEquivalent() external {
         bytes32 agreementId = _create("projection-parity");
-        CamEscrowUI.AgreementAppView memory byId =
-            ui.viewAgreement(agreementId, contractor);
+        CamEscrowUI.AgreementAppView memory byId = ui.viewAgreement(agreementId, contractor);
         CamEscrowUI.AgreementAppView memory byReference =
             ui.viewAgreementByReference(address(this), "projection-parity", contractor);
 
@@ -120,20 +101,13 @@ contract CamEscrowUITest is CamEscrowTestBase {
         assertEq(byReference.agreement.amount, byId.agreement.amount);
         _assertString(byReference.agreement.agreementRef, byId.agreement.agreementRef);
         _assertString(byReference.agreement.terms.uri, byId.agreement.terms.uri);
-        assertEq(
-            byReference.agreement.terms.sha256Digest,
-            byId.agreement.terms.sha256Digest
-        );
+        assertEq(byReference.agreement.terms.sha256Digest, byId.agreement.terms.sha256Digest);
     }
 
     /// @notice Funded contractor view discloses the exact no-acknowledgement risk and fallback party.
     function testAcceptanceRiskDisclosureIsExplicitAndStructured() external {
-        bytes32 clientFallback = _create(
-            "client-fallback",
-            ICamEscrowView.ArbitrationTimeoutBeneficiary.Client
-        );
-        CamEscrowUI.AgreementAppView memory clientView =
-            ui.viewAgreement(clientFallback, contractor);
+        bytes32 clientFallback = _create("client-fallback", ICamEscrowView.ArbitrationTimeoutBeneficiary.Client);
+        CamEscrowUI.AgreementAppView memory clientView = ui.viewAgreement(clientFallback, contractor);
 
         _assertString(clientView.viewId, "escrow.agreement.active");
         _assertString(clientView.machine.machineId, "escrow.agreement.v1");
@@ -143,17 +117,11 @@ contract CamEscrowUITest is CamEscrowTestBase {
         _assertString(clientView.actorRoleId, "contractor");
         _assertString(clientView.arbitrationTimeoutBeneficiaryId, "client");
         assertFalse(clientView.arbitratorAcknowledgementRequired);
-        _assertString(
-            clientView.arbitratorAcknowledgementDisclosure,
-            "not required and not recorded on-chain"
-        );
+        _assertString(clientView.arbitratorAcknowledgementDisclosure, "not required and not recorded on-chain");
 
-        bytes32 contractorFallback = _create(
-            "contractor-fallback",
-            ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor
-        );
-        CamEscrowUI.AgreementAppView memory contractorView =
-            ui.viewAgreement(contractorFallback, contractor);
+        bytes32 contractorFallback =
+            _create("contractor-fallback", ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor);
+        CamEscrowUI.AgreementAppView memory contractorView = ui.viewAgreement(contractorFallback, contractor);
         _assertString(contractorView.arbitrationTimeoutBeneficiaryId, "contractor");
     }
 
@@ -197,11 +165,7 @@ contract CamEscrowUITest is CamEscrowTestBase {
         uint256 deadline = escrow.agreementById(agreementId).deadline;
 
         vm.warp(deadline - 1);
-        _assertTransitions(
-            agreementId,
-            address(this),
-            _strings2("approveAgreement", "disputeAgreement")
-        );
+        _assertTransitions(agreementId, address(this), _strings2("approveAgreement", "disputeAgreement"));
         _assertNoTransitions(agreementId, contractor);
         _assertNoTransitions(agreementId, arbitrator);
         _assertNoTransitions(agreementId, unrelated);
@@ -220,11 +184,7 @@ contract CamEscrowUITest is CamEscrowTestBase {
         vm.warp(deadline - 1);
         _assertNoTransitions(agreementId, address(this));
         _assertNoTransitions(agreementId, contractor);
-        _assertTransitions(
-            agreementId,
-            arbitrator,
-            _strings2("resolveForClient", "resolveForContractor")
-        );
+        _assertTransitions(agreementId, arbitrator, _strings2("resolveForClient", "resolveForContractor"));
         _assertNoTransitions(agreementId, unrelated);
         _assertNoTransitions(agreementId, address(0));
         _assertStateId(agreementId, "disputed");
@@ -272,24 +232,16 @@ contract CamEscrowUITest is CamEscrowTestBase {
         _acceptSubmitAndDispute(arbitratorContractor);
         vm.prank(arbitrator);
         escrow.resolveForContractor(arbitratorContractor);
-        _assertTerminalStateId(
-            arbitratorContractor,
-            "released.arbitratorToContractor"
-        );
+        _assertTerminalStateId(arbitratorContractor, "released.arbitratorToContractor");
 
-        bytes32 timeoutClient = _create(
-            "state-timeout-client",
-            ICamEscrowView.ArbitrationTimeoutBeneficiary.Client
-        );
+        bytes32 timeoutClient = _create("state-timeout-client", ICamEscrowView.ArbitrationTimeoutBeneficiary.Client);
         _acceptSubmitAndDispute(timeoutClient);
         _warpToDeadline(timeoutClient);
         escrow.finalizeArbitrationTimeout(timeoutClient);
         _assertTerminalStateId(timeoutClient, "refunded.arbitrationTimeout");
 
-        bytes32 timeoutContractor = _create(
-            "state-timeout-contractor",
-            ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor
-        );
+        bytes32 timeoutContractor =
+            _create("state-timeout-contractor", ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor);
         _acceptSubmitAndDispute(timeoutContractor);
         _warpToDeadline(timeoutContractor);
         escrow.finalizeArbitrationTimeout(timeoutContractor);
@@ -298,19 +250,17 @@ contract CamEscrowUITest is CamEscrowTestBase {
 
     /// @notice Credit projection follows aggregate core accounting and withdrawal completion.
     function testAccountCreditProjection() external {
-        CamEscrowUI.AccountCreditView memory anonymous =
-            ui.viewAccountCredit(address(0));
-        _assertString(anonymous.viewId, "escrow.credit.empty");
-        assertEq(anonymous.amount, 0);
-        assertEq(anonymous.actions.length, 0);
+        CamEscrowUI.AccountCreditView memory anonymousView = ui.viewAccountCredit(address(0));
+        _assertString(anonymousView.viewId, "escrow.credit.empty");
+        assertEq(anonymousView.amount, 0);
+        assertEq(anonymousView.actions.length, 0);
 
         bytes32 first = _create("credit-projection-1");
         bytes32 second = _create("credit-projection-2");
         escrow.cancelAgreement(first);
         escrow.cancelAgreement(second);
 
-        CamEscrowUI.AccountCreditView memory available =
-            ui.viewAccountCredit(address(this));
+        CamEscrowUI.AccountCreditView memory available = ui.viewAccountCredit(address(this));
         _assertString(available.viewId, "escrow.credit.available");
         assertEq(available.account, address(this));
         assertEq(available.amount, 2 * AMOUNT);
@@ -319,8 +269,7 @@ contract CamEscrowUITest is CamEscrowTestBase {
         address payable recipient = payable(address(0xFEE));
         escrow.withdrawTo(recipient);
 
-        CamEscrowUI.AccountCreditView memory empty =
-            ui.viewAccountCredit(address(this));
+        CamEscrowUI.AccountCreditView memory empty = ui.viewAccountCredit(address(this));
         _assertString(empty.viewId, "escrow.credit.empty");
         assertEq(empty.amount, 0);
         assertEq(empty.actions.length, 0);
@@ -330,25 +279,15 @@ contract CamEscrowUITest is CamEscrowTestBase {
     function testProjectionRejectsNativeValueAndUnknownFunctions() external {
         (bool ok, bytes memory result) = payable(address(ui)).call{value: 1 ether}("");
         assertFalse(ok);
-        assertEq(
-            keccak256(result),
-            keccak256(abi.encodeWithSelector(CamEscrowUI.DoesNotAcceptPayments.selector))
-        );
+        assertEq(keccak256(result), keccak256(abi.encodeWithSelector(CamEscrowUI.DoesNotAcceptPayments.selector)));
 
         bytes4 selector = bytes4(0x12345678);
         (ok, result) = address(ui).call(abi.encodeWithSelector(selector));
         assertFalse(ok);
-        assertEq(
-            keccak256(result),
-            keccak256(abi.encodeWithSelector(CamEscrowUI.UnknownFunction.selector, selector))
-        );
+        assertEq(keccak256(result), keccak256(abi.encodeWithSelector(CamEscrowUI.UnknownFunction.selector, selector)));
     }
 
-    function _assertTimeoutMatrix(
-        bytes32 agreementId,
-        uint256 deadline,
-        string memory timeoutTransition
-    ) private {
+    function _assertTimeoutMatrix(bytes32 agreementId, uint256 deadline, string memory timeoutTransition) private {
         vm.warp(deadline);
         _assertTimeoutActors(agreementId, timeoutTransition);
 
@@ -356,10 +295,7 @@ contract CamEscrowUITest is CamEscrowTestBase {
         _assertTimeoutActors(agreementId, timeoutTransition);
     }
 
-    function _assertTimeoutActors(bytes32 agreementId, string memory transition)
-        private
-        view
-    {
+    function _assertTimeoutActors(bytes32 agreementId, string memory transition) private view {
         string[] memory expected = _strings1(transition);
         _assertTransitions(agreementId, address(this), expected);
         _assertTransitions(agreementId, contractor, expected);
@@ -368,35 +304,21 @@ contract CamEscrowUITest is CamEscrowTestBase {
         _assertNoTransitions(agreementId, address(0));
     }
 
-    function _assertTerminalStateId(bytes32 agreementId, string memory expected)
-        private
-        view
-    {
-        CamEscrowUI.AgreementAppView memory view_ =
-            ui.viewAgreement(agreementId, unrelated);
+    function _assertTerminalStateId(bytes32 agreementId, string memory expected) private view {
+        CamEscrowUI.AgreementAppView memory view_ = ui.viewAgreement(agreementId, unrelated);
         _assertString(view_.viewId, "escrow.agreement.terminal");
         _assertString(view_.machine.stateId, expected);
         assertEq(view_.machine.transitionIds.length, 0);
     }
 
-    function _assertStateId(bytes32 agreementId, string memory expected)
-        private
-        view
-    {
+    function _assertStateId(bytes32 agreementId, string memory expected) private view {
         _assertString(ui.viewAgreement(agreementId, unrelated).machine.stateId, expected);
     }
 
-    function _assertTransitions(
-        bytes32 agreementId,
-        address actor,
-        string[] memory expected
-    ) private view {
+    function _assertTransitions(bytes32 agreementId, address actor, string[] memory expected) private view {
         CamEscrowUI.AgreementAppView memory view_ = ui.viewAgreement(agreementId, actor);
         _assertStrings(view_.machine.transitionIds, expected);
-        assertEq(
-            view_.machine.transitionIds.length,
-            escrow.availableActions(agreementId, actor).length
-        );
+        assertEq(view_.machine.transitionIds.length, escrow.availableActions(agreementId, actor).length);
     }
 
     function _assertNoTransitions(bytes32 agreementId, address actor) private view {
@@ -404,10 +326,7 @@ contract CamEscrowUITest is CamEscrowTestBase {
         assertEq(escrow.availableActions(agreementId, actor).length, 0);
     }
 
-    function _assertStrings(string[] memory actual, string[] memory expected)
-        private
-        pure
-    {
+    function _assertStrings(string[] memory actual, string[] memory expected) private pure {
         assertEq(actual.length, expected.length);
         for (uint256 i = 0; i < expected.length; i++) {
             _assertString(actual[i], expected[i]);
@@ -418,20 +337,12 @@ contract CamEscrowUITest is CamEscrowTestBase {
         assertEq(keccak256(bytes(actual)), keccak256(bytes(expected)));
     }
 
-    function _strings1(string memory value)
-        private
-        pure
-        returns (string[] memory values)
-    {
+    function _strings1(string memory value) private pure returns (string[] memory values) {
         values = new string[](1);
         values[0] = value;
     }
 
-    function _strings2(string memory first, string memory second)
-        private
-        pure
-        returns (string[] memory values)
-    {
+    function _strings2(string memory first, string memory second) private pure returns (string[] memory values) {
         values = new string[](2);
         values[0] = first;
         values[1] = second;

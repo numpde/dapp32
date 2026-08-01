@@ -26,9 +26,7 @@ contract CamEscrowPolicyTest is CamEscrowTestBase {
         params.terms.uri = _stringOfLength(escrow.MAX_DOCUMENT_URI_BYTES() + 1);
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                CamEscrow.InvalidDocumentURI.selector, escrow.MAX_DOCUMENT_URI_BYTES() + 1
-            )
+            abi.encodeWithSelector(CamEscrow.InvalidDocumentURI.selector, escrow.MAX_DOCUMENT_URI_BYTES() + 1)
         );
         escrow.createAgreement{value: AMOUNT}(params);
 
@@ -80,9 +78,7 @@ contract CamEscrowPolicyTest is CamEscrowTestBase {
     /// @notice Native value must match exactly, and every phase duration accepts its cap but rejects zero and cap-plus-one.
     function testExactValueAndEveryDurationBoundary() external {
         CamEscrow.CreateAgreementParams memory params = _defaultParams("overpaid");
-        vm.expectRevert(
-            abi.encodeWithSelector(CamEscrow.NativeAmountMismatch.selector, AMOUNT, AMOUNT + 1)
-        );
+        vm.expectRevert(abi.encodeWithSelector(CamEscrow.NativeAmountMismatch.selector, AMOUNT, AMOUNT + 1));
         escrow.createAgreement{value: AMOUNT + 1}(params);
 
         uint64 maximum = escrow.MAX_PHASE_DURATION();
@@ -95,15 +91,11 @@ contract CamEscrowPolicyTest is CamEscrowTestBase {
 
         params = _defaultParams("acceptance-zero");
         params.acceptanceDuration = 0;
-        _expectDurationError(
-            params, CamEscrow.InvalidAcceptanceDuration.selector, params.acceptanceDuration
-        );
+        _expectDurationError(params, CamEscrow.InvalidAcceptanceDuration.selector, params.acceptanceDuration);
 
         params = _defaultParams("acceptance-large");
         params.acceptanceDuration = maximum + 1;
-        _expectDurationError(
-            params, CamEscrow.InvalidAcceptanceDuration.selector, params.acceptanceDuration
-        );
+        _expectDurationError(params, CamEscrow.InvalidAcceptanceDuration.selector, params.acceptanceDuration);
 
         params = _defaultParams("work-zero");
         params.workDuration = 0;
@@ -123,27 +115,21 @@ contract CamEscrowPolicyTest is CamEscrowTestBase {
 
         params = _defaultParams("arbitration-zero");
         params.arbitrationDuration = 0;
-        _expectDurationError(
-            params, CamEscrow.InvalidArbitrationDuration.selector, params.arbitrationDuration
-        );
+        _expectDurationError(params, CamEscrow.InvalidArbitrationDuration.selector, params.arbitrationDuration);
 
         params = _defaultParams("arbitration-large");
         params.arbitrationDuration = maximum + 1;
-        _expectDurationError(
-            params, CamEscrow.InvalidArbitrationDuration.selector, params.arbitrationDuration
-        );
+        _expectDurationError(params, CamEscrow.InvalidArbitrationDuration.selector, params.arbitrationDuration);
 
         assertEq(escrow.totalLiabilities(), AMOUNT);
     }
 
     /// @notice Lookup is total over arbitrary reference bytes even when those bytes could not be used for creation.
     function testReferenceLookupDoesNotApplyCreationLengthPolicy() external view {
-        string memory nonCreatableReference =
-            _stringOfLength(escrow.MAX_AGREEMENT_REF_BYTES() + 1);
+        string memory nonCreatableReference = _stringOfLength(escrow.MAX_AGREEMENT_REF_BYTES() + 1);
         bytes32 expectedId = keccak256(abi.encode(address(this), nonCreatableReference));
 
-        ICamEscrowView.AgreementView memory view_ =
-            escrow.agreementByReference(address(this), nonCreatableReference);
+        ICamEscrowView.AgreementView memory view_ = escrow.agreementByReference(address(this), nonCreatableReference);
 
         assertEq(view_.agreementId, expectedId);
         assertEq(uint256(view_.state), uint256(ICamEscrowView.AgreementState.None));
@@ -163,17 +149,11 @@ contract CamEscrowPolicyTest is CamEscrowTestBase {
         assertEq(escrow.totalWithdrawable(), 0);
         assertEq(escrow.withdrawable(address(this)), 0);
 
-        _assertActions(
-            agreementId,
-            finalizer,
-            _actions1(ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout)
-        );
+        _assertActions(agreementId, finalizer, _actions1(ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout));
 
         vm.prank(finalizer);
         escrow.finalizeAcceptanceTimeout(agreementId);
-        _assertState(
-            agreementId, ICamEscrowView.AgreementState.RefundedAfterAcceptanceTimeout
-        );
+        _assertState(agreementId, ICamEscrowView.AgreementState.RefundedAfterAcceptanceTimeout);
         assertEq(escrow.withdrawable(address(this)), AMOUNT);
     }
 
@@ -238,8 +218,7 @@ contract CamEscrowPolicyTest is CamEscrowTestBase {
             agreementId,
             arbitrator,
             _actions2(
-                ICamEscrowView.AgreementAction.ResolveForClient,
-                ICamEscrowView.AgreementAction.ResolveForContractor
+                ICamEscrowView.AgreementAction.ResolveForClient, ICamEscrowView.AgreementAction.ResolveForContractor
             )
         );
 
@@ -265,20 +244,15 @@ contract CamEscrowPolicyTest is CamEscrowTestBase {
     ) private {
         vm.expectRevert(
             abi.encodeWithSelector(
-                CamEscrow.InvalidPartyConfiguration.selector,
-                address(this),
-                expectedContractor,
-                expectedArbitrator
+                CamEscrow.InvalidPartyConfiguration.selector, address(this), expectedContractor, expectedArbitrator
             )
         );
         escrow.createAgreement{value: AMOUNT}(params);
     }
 
-    function _expectDurationError(
-        CamEscrow.CreateAgreementParams memory params,
-        bytes4 selector,
-        uint64 duration
-    ) private {
+    function _expectDurationError(CamEscrow.CreateAgreementParams memory params, bytes4 selector, uint64 duration)
+        private
+    {
         vm.expectRevert(abi.encodeWithSelector(selector, duration));
         escrow.createAgreement{value: AMOUNT}(params);
     }
