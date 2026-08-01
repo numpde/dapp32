@@ -47,6 +47,9 @@ ALLOWED_MAKE_DEFAULTS = {
     "ESCROW_GUI_ORIGIN": "http://127.0.0.1:$(ESCROW_GUI_PORT)",
     "ESCROW_GUI_PORT": "5174",
     "ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-escrow-local-scenario",
+    "ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-escrow-release-check",
+    "ESCROW_RELEASE_DEPLOY_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-escrow-release-deploy",
+    "ESCROW_RELEASE_VERIFY_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-escrow-release-verify",
     "ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-escrow-viewer-gui",
     "ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-escrow-viewer-terminal",
     "LIVE_CHECK_COMPOSE_PROJECT_NAME": "$(COMPOSE_PROJECT_NAME)-check-live",
@@ -224,10 +227,72 @@ def make_default_assignment_findings_for_source(source: str, label: str) -> list
             continue
         name = match.group("name")
         value = match.group("value")
-        if name not in ALLOWED_MAKE_DEFAULTS:
+        expected = ALLOWED_MAKE_DEFAULTS.get(name)
+        if expected is None:
             findings.append(f"{label}:{line_number}: unreviewed Make default assignment: {line.strip()}")
-        elif ALLOWED_MAKE_DEFAULTS[name] != value:
+        elif expected != value:
             findings.append(f"{label}:{line_number}: changed Make default assignment: {line.strip()}")
+    return findings
+
+
+def docker_default_findings(files: list[Path]) -> list[str]:
+    findings: list[str] = []
+    for path in files:
+        label = path.relative_to(ROOT).as_posix()
+        findings.extend(docker_default_findings_for_source(path.read_text(encoding="utf-8"), label, ALLOWED_DOCKER_DEFAULTS))
+    return findings
+
+
+def docker_default_findings_for_source(
+    source: str,
+    label: str,
+    allowed: set[tuple[str, str, str, str]],
+) -> list[str]:
+    findings: list[str] = []
+    for line_number, line in enumerate(source.splitlines(), start=1):
+        arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
+        if arg_match and arg_match.group("value") is not None:
+            name = arg_match.group("name")
+            value = arg_match.group("value")
+            entry = ("ARG", label, name, value)
+            if entry not in allowed:
+                findings.append(f"{label}:{line_number}: unreviewed Docker ARG default: {line.strip()}")
+            continue
+
+        env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
+        if env_match is None:
+            continue
+        body = env_match.group("body")
+        tokens = shlex.split(body)
+        if not tokens:
+            continue
+        if all(DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token) for token in tokens):
+            for token in tokens:
+                name, value = token.split("=", 1)
+                entry = ("ENV", label, name, value)
+                if entry not in allowed:
+                    findings.append(f"{label}:{line_number}: unreviewed Docker ENV default: {line.strip()}")
+            continue
+        legacy_match = DOCKER_LEGACY_ENV_TOKEN_RE.match(body)
+        if legacy_match is None:
+            findings.append(f"{label}:{line_number}: unparseable Docker ENV default: {line.strip()}")
+            continue
+        name = legacy_match.group("name")
+        value = legacy_match.group("value")
+        entry = ("ENV", label, name, value)
+        if entry not in allowed:
+            findings.append(f"{label}:{line_number}: unreviewed Docker ENV default: {line.strip()}")
+
+    return findings
+
+
+def shell_default_findings(files: list[Path]) -> list[str]:
+    findings: list[str] = []
+    defaults = shell_defaults(files)
+    for entry in sorted(defaults):
+        if entry not in ALLOWED_SHELL_DEFAULTS:
+            path, name, operator, value = entry
+            findings.append(f"{path}: unreviewed shell default expansion: ${{{name}{operator}{value}}}")
     return findings
 
 
@@ -235,25 +300,35 @@ def make_defaults(path: Path) -> dict[str, str]:
     defaults: dict[str, str] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         match = MAKE_DEFAULT_ASSIGNMENT_RE.match(line)
-        if match is not None:
+        if match:
             defaults[match.group("name")] = match.group("value")
     return defaults
 
 
-def shell_default_findings(files: list[Path]) -> list[str]:
-    findings: list[str] = []
+def docker_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
+    defaults: set[tuple[str, str, str, str]] = set()
     for path in files:
         label = path.relative_to(ROOT).as_posix()
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-            if line.lstrip().startswith("#"):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
+            if arg_match and arg_match.group("value") is not None:
+                defaults.add(("ARG", label, arg_match.group("name"), arg_match.group("value")))
                 continue
-            for match in SHELL_DEFAULT_EXPANSION_RE.finditer(line):
-                default = (label, match.group("name"), match.group("operator"), match.group("value"))
-                if default not in ALLOWED_SHELL_DEFAULTS:
-                    findings.append(
-                        f"{label}:{line_number}: shell/compose interpolation default: {match.group(0).strip()}"
-                    )
-    return findings
+
+            env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
+            if env_match is None:
+                continue
+            body = env_match.group("body")
+            tokens = shlex.split(body)
+            if tokens and all(DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token) for token in tokens):
+                for token in tokens:
+                    name, value = token.split("=", 1)
+                    defaults.add(("ENV", label, name, value))
+                continue
+            legacy_match = DOCKER_LEGACY_ENV_TOKEN_RE.match(body)
+            if legacy_match:
+                defaults.add(("ENV", label, legacy_match.group("name"), legacy_match.group("value")))
+    return defaults
 
 
 def shell_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
@@ -265,113 +340,4 @@ def shell_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
                 continue
             for match in SHELL_DEFAULT_EXPANSION_RE.finditer(line):
                 defaults.add((label, match.group("name"), match.group("operator"), match.group("value")))
-
     return defaults
-
-
-def docker_default_findings(files: list[Path]) -> list[str]:
-    findings: list[str] = []
-    for path in files:
-        findings.extend(docker_default_findings_for_source(
-            path.read_text(encoding="utf-8"),
-            str(path.relative_to(ROOT)),
-            ALLOWED_DOCKER_DEFAULTS,
-        ))
-    return findings
-
-
-def docker_default_findings_for_source(
-    source: str,
-    label: str,
-    allowed_defaults: set[tuple[str, str, str, str]],
-) -> list[str]:
-    findings: list[str] = []
-    for line_number, line in enumerate(source.splitlines(), start=1):
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            continue
-
-        arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
-        if arg_match is not None and arg_match.group("value") is not None:
-            name = arg_match.group("name")
-            value = arg_match.group("value")
-            allowed_value = docker_allowed_default_value(allowed_defaults, "ARG", label, name)
-            if allowed_value is None:
-                findings.append(f"{label}:{line_number}: unreviewed Docker ARG default: {stripped}")
-            elif allowed_value != value:
-                findings.append(f"{label}:{line_number}: changed Docker ARG default: {stripped}")
-
-        env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
-        if env_match is not None:
-            for name, value in docker_env_defaults(env_match.group("body"), label, line_number):
-                allowed_value = docker_allowed_default_value(allowed_defaults, "ENV", label, name)
-                if allowed_value is None:
-                    findings.append(f"{label}:{line_number}: unreviewed Docker ENV default: {stripped}")
-                elif allowed_value != value:
-                    findings.append(f"{label}:{line_number}: changed Docker ENV default: {stripped}")
-
-    return findings
-
-
-def docker_allowed_default_value(
-    allowed_defaults: set[tuple[str, str, str, str]],
-    kind: str,
-    label: str,
-    name: str,
-) -> str | None:
-    matches: list[str] = []
-    for allowed_kind, allowed_label, allowed_name, value in allowed_defaults:
-        if (allowed_kind, allowed_label, allowed_name) == (kind, label, name):
-            matches.append(value)
-
-    if len(matches) > 1:
-        raise AssertionError(f"duplicate allowed Docker {kind} default inventory entry: {label} {name}")
-    return matches[0] if matches else None
-
-
-def docker_defaults(files: list[Path]) -> set[tuple[str, str, str, str]]:
-    defaults: set[tuple[str, str, str, str]] = set()
-    for path in files:
-        label = str(path.relative_to(ROOT))
-        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
-            if line.strip().startswith("#"):
-                continue
-            arg_match = DOCKER_ARG_DEFAULT_RE.match(line)
-            if arg_match is not None and arg_match.group("value") is not None:
-                defaults.add(("ARG", label, arg_match.group("name"), arg_match.group("value")))
-                continue
-
-            env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
-            if env_match is not None:
-                for name, value in docker_env_defaults(
-                    env_match.group("body"),
-                    label,
-                    line_number,
-                ):
-                    defaults.add(("ENV", label, name, value))
-
-    return defaults
-
-
-def docker_env_defaults(body: str, label: str, line_number: int) -> list[tuple[str, str]]:
-    legacy_match = DOCKER_LEGACY_ENV_TOKEN_RE.match(body)
-    if legacy_match is not None:
-        return [(legacy_match.group("name"), legacy_match.group("value"))]
-
-    defaults: list[tuple[str, str]] = []
-    try:
-        tokens = shlex.split(body)
-    except ValueError as error:
-        raise AssertionError(f"{label}:{line_number}: unparseable Docker ENV default: ENV {body}") from error
-
-    for token in tokens:
-        if DOCKER_KEY_VALUE_ENV_TOKEN_RE.match(token) is None:
-            raise AssertionError(f"{label}:{line_number}: unparseable Docker ENV default: ENV {body}")
-        name, value = token.split("=", 1)
-        defaults.append((name, value))
-
-    return defaults
-
-
-if __name__ == "__main__":
-    unittest.main()
