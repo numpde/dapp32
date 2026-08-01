@@ -2,7 +2,7 @@
 
 `CamEscrow` is a non-upgradeable, single-milestone native-asset escrow. A client creates and funds an agreement in one payable transaction. The contractor may accept, submit committed work evidence, and receive payment after client approval, review timeout, or an arbitrator decision. The client may cancel before acceptance, dispute a submission, or recover funds after acceptance/work timeout or an arbitrator decision.
 
-This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.1 manifest/UI/ABI bundle, deterministic/fuzz/stateful verification, and a local real-RPC vertical workflow with terminal and browser entrypoints. It deliberately contains no generic CAM machine descriptor.
+This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.1 manifest/UI/ABI bundle, deterministic/fuzz/stateful verification, a local real-RPC vertical workflow, and explicit release deployment/verification lanes. It deliberately contains no generic CAM machine descriptor.
 
 ## Roles and trust
 
@@ -226,8 +226,7 @@ Each path uses a new agreement reference, switches the viewer account through `C
 make escrow-local-scenario
 ```
 
-The Make target owns the accepted checked-in CAM hash, internal resource URI,
-fixture broadcast path, Compose project, merged files, and teardown.
+The Make target owns the accepted checked-in CAM hash, internal resource URI, fixture broadcast path, Compose project, merged files, and teardown.
 
 ### Interactive real-RPC terminal
 
@@ -244,8 +243,7 @@ account none        render an anonymous account context
 
 The terminal prepares writes but does not sign or submit them. It is useful for inspecting role-specific rendered actions and exact calldata/value preparation.
 
-The target cleans up when the terminal exits. To clean up a separately
-interrupted project, run:
+The target cleans up when the terminal exits. To clean up a separately interrupted project, run:
 
 ```bash
 make escrow-viewer-terminal-down
@@ -259,15 +257,13 @@ make escrow-viewer-gui
 
 The browser query starts with the client as the viewer identity. Actual writes remain controlled by the injected browser wallet. Import only the explicit local fixture accounts and switch wallet accounts to exercise contractor and arbitrator actions.
 
-The target cleans up when the viewer exits. To clean up a separately
-interrupted project, run:
+The target cleans up when the viewer exits. To clean up a separately interrupted project, run:
 
 ```bash
 make escrow-viewer-gui-down
 ```
 
-The default listener is `127.0.0.1:5174`. To admit another browser host, pass
-an explicit bind and matching origin:
+The default listener is `127.0.0.1:5174`. To admit another browser host, pass an explicit bind and matching origin:
 
 ```bash
 ESCROW_GUI_BIND_HOST=0.0.0.0 \
@@ -275,7 +271,84 @@ ESCROW_GUI_ORIGIN=http://host:5174 \
 make escrow-viewer-gui
 ```
 
-## Verification
+## Release deployment
+
+A release deployment is deliberately separate from the local fixture. It has no default chain, accepts no local fixture chain ID, obtains no private key from the process environment, and refuses a dirty source tree. The offline planning step validates the complete checked-in CAM bundle and computes the exact `keccak256` root hash stored in `CamRoot`.
+
+Prepare two absolute, non-symlink secret files. The deployer key file must not be group- or world-readable:
+
+```bash
+umask 077
+printf '%s\n' 'https://rpc.example.invalid' > /secure/escrow-rpc-url
+printf '%s\n' '0x<32-byte-deployer-private-key>' > /secure/escrow-deployer-key
+```
+
+Choose a new normalized output directory outside the repository. It must not already exist; the deployment target creates it with mode `0700` and never deletes it on failure because an on-chain transaction may already have succeeded.
+
+Run the release only from the exact clean commit intended for publication:
+
+```bash
+CONFIRM_ESCROW_RELEASE_DEPLOY=YES \
+ESCROW_RELEASE_EXPECTED_CHAIN_ID=<chain-id> \
+ESCROW_RELEASE_CAM_URI=https://published.example/escrow/cam/main.json \
+ESCROW_RELEASE_CAM_ROOT_OWNER=0x<final-owner> \
+RPC_URL_FILE=/secure/escrow-rpc-url \
+DEPLOYER_PRIVATE_KEY_FILE=/secure/escrow-deployer-key \
+ESCROW_RELEASE_OUTPUT_DIR=/secure/releases/escrow-<chain>-<version> \
+make escrow-release-deploy
+```
+
+The target writes:
+
+```text
+release-plan.json
+broadcast/DeployEscrowRelease.s.sol/<chain-id>/run-latest.json
+deployment.json
+```
+
+`release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, final owner, and whether the ownership handoff has already been accepted.
+
+The deployed `CamEscrow` and `CamEscrowUI` are immutable and have no owner, pause, upgrade, fee, sweep, or recovery authority. `CamRoot` remains mutable under its owner because it controls the published CAM URI/hash and contract-address bindings. If the intended root owner differs from the deployer, deployment starts an `Ownable2Step` transfer. The intended owner must review the addresses and artifact, then call `acceptOwnership()` independently. Do not treat the release as accepted while `pendingOwner()` is nonzero.
+
+## Release verification
+
+Run verification from the same exact clean source commit recorded in `deployment.json`:
+
+```bash
+RPC_URL_FILE=/secure/escrow-rpc-url \
+ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-<chain>-<version>/deployment.json \
+make escrow-release-verify
+```
+
+The verifier receives no signing key, has no transaction-submission RPC method, and does not use `--broadcast`. It checks:
+
+- current chain ID and source commit;
+- nonzero deployed code at all three addresses;
+- exact runtime bytecode against contracts compiled from the current source tree;
+- artifact code hashes;
+- CAM URI and nonzero publication-derived CAM hash;
+- final `CamRoot` ownership with no pending owner;
+- exact `CamEscrow` and `CamEscrowUI` root bindings;
+- the projection's immutable escrow address;
+- ERC-165 interfaces;
+- `totalLiabilities() <= address(CamEscrow).balance`.
+
+A deployment whose two-step ownership transfer is still pending intentionally fails verification. The original `deployment.json` remains an immutable record of the post-deployment observation; it is not rewritten after ownership acceptance.
+
+## Operational monitoring
+
+Protect the final `CamRoot` owner as release authority; operationally, use an appropriately controlled account rather than the deployer hot key. Monitor:
+
+- `OwnershipTransferStarted` and `OwnershipTransferred` on `CamRoot`;
+- `CamUpdated` and `ContractAddressSet` on `CamRoot`;
+- `AgreementCreated`, `AgreementStateChanged`, and `Withdrawal` on `CamEscrow`;
+- `totalLiabilities()` against the escrow balance;
+- active deadlines that require a public timeout transaction;
+- arbitrator availability for disputed agreements.
+
+No component automatically executes timeouts. The arbitrator is selected by each client and never acknowledges participation on-chain. A release process cannot turn those explicit V1 trust assumptions into neutrality or availability guarantees.
+
+## Verification gates
 
 The deterministic suite covers core creation, validation, absent reads, enabled-action boundaries, no-acknowledgement acceptance, exact timeout functions, complete terminal paths, document retention, pull-payment accounting, failed transfers, alternate recipients, reentrancy, direct-transfer rejection, unknown selectors, and forced surplus. Projection tests cover backing-interface verification, creation policy, absent and instantiated machine observations, all stable state IDs, actor/time transition mapping at every deadline boundary, risk disclosures, account credit, and the read-only native-value boundary.
 
@@ -285,7 +358,7 @@ The stateful invariant handler drives up to sixteen concurrent agreements across
 
 The CAM conformance suite loads the checked-in escrow bundle from repository bytes. It validates resource integrity, manifest/UI/ABI joins, nested route/value shape, exact transition bindings, and post-write continuation ownership.
 
-Run the ordinary repository gates before the local real-RPC scenario:
+Run the ordinary repository gates before either a local scenario or release ceremony:
 
 ```bash
 make format DAPP=escrow
@@ -293,6 +366,7 @@ make fmt
 make abi
 make cam-integrity
 make cam-conformance-check
+make escrow-release-check
 make checks
 make build
 make script-build
@@ -301,8 +375,6 @@ make package-test
 ```
 
 `make abi` exports only manifest-declared contracts and then refreshes integrity pins. Its Compose service has write authority only over explicitly admitted CAM ABI directories; `cam-integrity` can rewrite only explicitly admitted manifests. A clean second `make abi` run is the generated-resource idempotence check.
-
-The root Makefile does not yet expose escrow-specific wrappers for the three Compose workflows above. Until those wrappers are added, the commands in this section are the authoritative operator paths. No second Makefile is introduced.
 
 ## Explicit non-goals
 
