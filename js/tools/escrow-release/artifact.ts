@@ -86,30 +86,67 @@ async function main(): Promise<void> {
     throw new Error("release deployment receipt has no deployer")
   }
 
+  const observationBlockNumber = await client.getBlockNumber()
   const [rootCode, escrowCode, uiCode] = await Promise.all([
-    requiredCode(client.getCode({ address: contracts.camRoot.address }), "CamRoot"),
-    requiredCode(client.getCode({ address: contracts.camEscrow.address }), "CamEscrow"),
-    requiredCode(client.getCode({ address: contracts.camEscrowUI.address }), "CamEscrowUI"),
+    requiredCode(
+      client.getCode({ address: contracts.camRoot.address, blockNumber: observationBlockNumber }),
+      "CamRoot",
+    ),
+    requiredCode(
+      client.getCode({ address: contracts.camEscrow.address, blockNumber: observationBlockNumber }),
+      "CamEscrow",
+    ),
+    requiredCode(
+      client.getCode({ address: contracts.camEscrowUI.address, blockNumber: observationBlockNumber }),
+      "CamEscrowUI",
+    ),
   ])
 
   const [camURI, camHash, escrowBinding, uiBinding, owner, pendingOwner, projectionEscrow] = await Promise.all([
-    client.readContract({ address: contracts.camRoot.address, abi: CAM_ROOT_ABI, functionName: "camURI" }),
-    client.readContract({ address: contracts.camRoot.address, abi: CAM_ROOT_ABI, functionName: "camHash" }),
+    client.readContract({
+      address: contracts.camRoot.address,
+      abi: CAM_ROOT_ABI,
+      functionName: "camURI",
+      blockNumber: observationBlockNumber,
+    }),
+    client.readContract({
+      address: contracts.camRoot.address,
+      abi: CAM_ROOT_ABI,
+      functionName: "camHash",
+      blockNumber: observationBlockNumber,
+    }),
     client.readContract({
       address: contracts.camRoot.address,
       abi: CAM_ROOT_ABI,
       functionName: "contractAddress",
       args: ["CamEscrow"],
+      blockNumber: observationBlockNumber,
     }),
     client.readContract({
       address: contracts.camRoot.address,
       abi: CAM_ROOT_ABI,
       functionName: "contractAddress",
       args: ["CamEscrowUI"],
+      blockNumber: observationBlockNumber,
     }),
-    client.readContract({ address: contracts.camRoot.address, abi: CAM_ROOT_ABI, functionName: "owner" }),
-    client.readContract({ address: contracts.camRoot.address, abi: CAM_ROOT_ABI, functionName: "pendingOwner" }),
-    client.readContract({ address: contracts.camEscrowUI.address, abi: CAM_ESCROW_UI_ABI, functionName: "escrow" }),
+    client.readContract({
+      address: contracts.camRoot.address,
+      abi: CAM_ROOT_ABI,
+      functionName: "owner",
+      blockNumber: observationBlockNumber,
+    }),
+    client.readContract({
+      address: contracts.camRoot.address,
+      abi: CAM_ROOT_ABI,
+      functionName: "pendingOwner",
+      blockNumber: observationBlockNumber,
+    }),
+    client.readContract({
+      address: contracts.camEscrowUI.address,
+      abi: CAM_ESCROW_UI_ABI,
+      functionName: "escrow",
+      blockNumber: observationBlockNumber,
+    }),
   ])
 
   assertEqual(camURI, plan.camURI, "CamRoot CAM URI")
@@ -157,6 +194,7 @@ async function main(): Promise<void> {
     artifactPath,
     artifactArgumentsPath,
     chainId,
+    observationBlockNumber: observationBlockNumber.toString(),
     sourceCommit: artifact.sourceCommit,
     camRoot: artifact.camRoot,
     camEscrow: artifact.camEscrow,
