@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 
 import {
+  CAM_VERSION,
   isRecordObject,
   parseJsonBytes,
 } from "@cam/protocol"
@@ -36,7 +37,7 @@ test("checked-in escrow CAM 1.1 bundle conforms", async () => {
 test("escrow CAM routes preserve the machine and native-value boundaries", async () => {
   const rootBytes = new Uint8Array(await readFile(new URL("main.json", ESCROW_CAM_DIRECTORY)))
   const root = requiredRecord(parseJsonBytes(rootBytes), "root")
-  assert.equal(root.cam, "1.1.0")
+  assert.equal(root.cam, CAM_VERSION)
   assert.equal(root.entry, "createAgreementForm")
 
   const namespaces = requiredRecord(root.namespaces, "namespaces")
