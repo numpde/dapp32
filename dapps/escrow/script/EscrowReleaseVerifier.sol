@@ -67,7 +67,7 @@ abstract contract EscrowReleaseVerifier {
         CamEscrow escrow = CamEscrow(payable(artifact.camEscrow));
         CamEscrowUI ui = CamEscrowUI(payable(artifact.camEscrowUI));
 
-        _requireString("camURI", artifact.camURI, root.camURI());
+        _requireCamURI(artifact.camURI, root.camURI());
         if (root.camHash() != artifact.camHash) {
             revert CamHashMismatch(artifact.camHash, root.camHash());
         }
@@ -124,11 +124,8 @@ abstract contract EscrowReleaseVerifier {
         if (expected != actual) revert CodeHashMismatch(field, expected, actual);
     }
 
-    function _requireString(string memory field, string memory expected, string memory actual) private pure {
+    function _requireCamURI(string memory expected, string memory actual) private pure {
         if (keccak256(bytes(expected)) != keccak256(bytes(actual))) {
-            if (keccak256(bytes(field)) == keccak256(bytes("camURI"))) {
-                revert CamURIMismatch(expected, actual);
-            }
             revert CamURIMismatch(expected, actual);
         }
     }
