@@ -1,27 +1,23 @@
 import type { Hex } from "viem"
 
-import {
-  isAbiIntegerValue,
-} from "@cam/protocol"
-import type { InertValue } from "@cam/protocol"
-
 import { abiFunctionInputs, normalizeAbiArgs } from "./arguments.ts"
+import {
+  evmUint256Value,
+} from "./abi-values.ts"
+import type {
+  EvmTransactionValue,
+} from "./abi-values.ts"
 import { findUniqueAbiFunction, singleFunctionAbi } from "./abi-functions.ts"
 import { requireEvmAddress } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
 import type { CamContractCall, SendCamContractCallOptions, SimulateCamContractCallOptions } from "./types.ts"
-
-const UINT256 = {
-  bits: 256,
-  signed: false,
-} as const
 
 type WriteRequest = {
   readonly address: CamContractCall["address"]
   readonly abi: CamContractCall["abi"]
   readonly functionName: string
   readonly args: readonly unknown[]
-  readonly value?: bigint
+  readonly value?: EvmTransactionValue
 }
 
 export async function sendCamContractCall({
@@ -85,7 +81,7 @@ function writeRequest(call: CamContractCall): WriteRequest {
 function writeValue(
   call: CamContractCall,
   stateMutability: "pure" | "view" | "nonpayable" | "payable",
-): bigint | undefined {
+): EvmTransactionValue | undefined {
   if (stateMutability === "payable") {
     if (call.value === undefined) {
       // Preserve the pre-1.1 runtime code for callers that already distinguish
@@ -96,7 +92,15 @@ function writeValue(
         `payable CAM write call requires transaction value: ${call.function}`,
       )
     }
-    return normalizeTransactionValue(call.value, call.function)
+
+    const value = evmUint256Value(call.value)
+    if (value === undefined) {
+      throw new CamEvmError(
+        "CAM_WRITE_INVALID_VALUE",
+        `CAM transaction value must be a decimal uint256: ${call.function}`,
+      )
+    }
+    return value
   }
 
   if (stateMutability === "nonpayable") {
@@ -113,15 +117,4 @@ function writeValue(
     "CAM_WRITE_FUNCTION_NOT_MUTABLE",
     `CAM write function must be nonpayable or payable: ${call.function}`,
   )
-}
-
-function normalizeTransactionValue(value: InertValue, functionName: string): bigint {
-  if (!isAbiIntegerValue(value, UINT256)) {
-    throw new CamEvmError(
-      "CAM_WRITE_INVALID_VALUE",
-      `CAM transaction value must be a decimal uint256: ${functionName}`,
-    )
-  }
-
-  return BigInt(value as string | number)
 }
