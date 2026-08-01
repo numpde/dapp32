@@ -6,22 +6,22 @@ import {CamEscrowTestBase} from "../support/CamEscrowTestBase.sol";
 
 /// @notice Fuzz coverage for creation economics and action-observation equivalence.
 contract CamEscrowFuzzTest is CamEscrowTestBase {
+    struct ActionAttemptSnapshot {
+        ICamEscrowView.AgreementView agreement;
+        bool listed;
+        uint256 escrowedBefore;
+        uint256 withdrawableBefore;
+    }
+
     /// @notice Arbitrary valid creation inputs preserve exact identity, state, deadline, and liabilities.
     function testFuzzCreationConservesIdentityAndLiability(
         uint96 amountSeed,
-        uint64 acceptanceSeed,
-        uint64 workSeed,
-        uint64 reviewSeed,
-        uint64 arbitrationSeed,
+        uint256 durationSeed,
         uint8 referenceLengthSeed,
         bool timeoutToContractor
     ) external {
         uint256 amount = bound(uint256(amountSeed), 1, 100 ether);
         uint64 maximumDuration = escrow.MAX_PHASE_DURATION();
-        uint64 acceptanceDuration = uint64(bound(uint256(acceptanceSeed), 1, maximumDuration));
-        uint64 workDuration = uint64(bound(uint256(workSeed), 1, maximumDuration));
-        uint64 reviewDuration = uint64(bound(uint256(reviewSeed), 1, maximumDuration));
-        uint64 arbitrationDuration = uint64(bound(uint256(arbitrationSeed), 1, maximumDuration));
         uint256 referenceLength = bound(
             uint256(referenceLengthSeed),
             1,
@@ -31,16 +31,16 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
 
         CamEscrow.CreateAgreementParams memory params = _defaultParams(agreementRef);
         params.amount = amount;
-        params.acceptanceDuration = acceptanceDuration;
-        params.workDuration = workDuration;
-        params.reviewDuration = reviewDuration;
-        params.arbitrationDuration = arbitrationDuration;
+        params.acceptanceDuration = _boundedDuration(durationSeed, maximumDuration);
+        params.workDuration = _boundedDuration(durationSeed >> 64, maximumDuration);
+        params.reviewDuration = _boundedDuration(durationSeed >> 128, maximumDuration);
+        params.arbitrationDuration = _boundedDuration(durationSeed >> 192, maximumDuration);
         params.arbitrationTimeoutBeneficiary = timeoutToContractor
             ? ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor
             : ICamEscrowView.ArbitrationTimeoutBeneficiary.Client;
 
         bytes32 expectedId = keccak256(abi.encode(address(this), agreementRef));
-        uint256 expectedDeadline = block.timestamp + acceptanceDuration;
+        uint256 expectedDeadline = block.timestamp + params.acceptanceDuration;
         uint256 balanceBefore = address(escrow).balance;
 
         bytes32 agreementId = escrow.createAgreement{value: amount}(params);
@@ -51,10 +51,10 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
         assertEq(uint256(view_.state), uint256(ICamEscrowView.AgreementState.Funded));
         assertEq(view_.amount, amount);
         assertEq(view_.deadline, expectedDeadline);
-        assertEq(view_.acceptanceDuration, acceptanceDuration);
-        assertEq(view_.workDuration, workDuration);
-        assertEq(view_.reviewDuration, reviewDuration);
-        assertEq(view_.arbitrationDuration, arbitrationDuration);
+        assertEq(view_.acceptanceDuration, params.acceptanceDuration);
+        assertEq(view_.workDuration, params.workDuration);
+        assertEq(view_.reviewDuration, params.reviewDuration);
+        assertEq(view_.arbitrationDuration, params.arbitrationDuration);
         assertEq(address(escrow).balance, balanceBefore + amount);
         assertEq(escrow.totalEscrowed(), amount);
         assertEq(escrow.totalWithdrawable(), 0);
@@ -184,26 +184,27 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
         uint8 timeSeed
     ) private {
         _warpRelativeToDeadline(agreementId, timeSeed);
-        ICamEscrowView.AgreementView memory before_ = escrow.agreementById(agreementId);
-        bool listed = _containsAction(escrow.availableActions(agreementId, actor), action);
-        uint256 escrowedBefore = escrow.totalEscrowed();
-        uint256 withdrawableBefore = escrow.totalWithdrawable();
+        ActionAttemptSnapshot memory snapshot;
+        snapshot.agreement = escrow.agreementById(agreementId);
+        snapshot.listed = _containsAction(escrow.availableActions(agreementId, actor), action);
+        snapshot.escrowedBefore = escrow.totalEscrowed();
+        snapshot.withdrawableBefore = escrow.totalWithdrawable();
         bytes memory callData = _actionCallData(action, agreementId);
 
         vm.prank(actor);
         (bool ok,) = address(escrow).call(callData);
-        assertEq(ok, listed, "availableActions/write guard disagreement");
+        assertEq(ok, snapshot.listed, "availableActions/write guard disagreement");
 
         ICamEscrowView.AgreementView memory after_ = escrow.agreementById(agreementId);
         if (!ok) {
-            assertEq(uint256(after_.state), uint256(before_.state));
-            assertEq(after_.deadline, before_.deadline);
-            assertEq(escrow.totalEscrowed(), escrowedBefore);
-            assertEq(escrow.totalWithdrawable(), withdrawableBefore);
+            assertEq(uint256(after_.state), uint256(snapshot.agreement.state));
+            assertEq(after_.deadline, snapshot.agreement.deadline);
+            assertEq(escrow.totalEscrowed(), snapshot.escrowedBefore);
+            assertEq(escrow.totalWithdrawable(), snapshot.withdrawableBefore);
             return;
         }
 
-        ICamEscrowView.AgreementState expectedState = _targetState(before_, action);
+        ICamEscrowView.AgreementState expectedState = _targetState(snapshot.agreement, action);
         assertEq(uint256(after_.state), uint256(expectedState));
         if (_isTerminal(expectedState)) assertEq(after_.deadline, 0);
         else assertGt(after_.deadline, 0);
@@ -323,6 +324,10 @@ contract CamEscrowFuzzTest is CamEscrowTestBase {
             if (actions[i] == expected) return true;
         }
         return false;
+    }
+
+    function _boundedDuration(uint256 seed, uint64 maximum) private pure returns (uint64) {
+        return uint64((seed % maximum) + 1);
     }
 
     function _isTerminal(ICamEscrowView.AgreementState state) private pure returns (bool) {
