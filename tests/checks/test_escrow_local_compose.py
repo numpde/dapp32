@@ -29,6 +29,12 @@ HTTP = "compose/escrow/local/http.yml"
 SCENARIO = "compose/escrow/local/scenario.yml"
 TERMINAL = "compose/escrow/local/viewer-terminal.yml"
 GUI = "compose/escrow/local/viewer-gui.yml"
+FIXTURE_KEYS = {
+    "0x" + "ba" * 32,
+    "0x" + "ca" * 32,
+    "0x" + "da" * 32,
+    "0x" + "fa" * 32,
+}
 
 
 class EscrowLocalComposeTest(unittest.TestCase):
@@ -83,11 +89,15 @@ class EscrowLocalComposeTest(unittest.TestCase):
         self.assertEqual({"escrow-browser-gateway"}, set(exposed))
         self.assertTrue(config["networks"]["escrow_local"].get("internal", False))
 
-    def test_fixture_keys_are_obvious_local_only_values(self) -> None:
-        source = read_text(repo_path(DEPLOY))
-        keys = re.findall(r'0x([bcdf][a-f])\1{31}', source)
-        self.assertEqual(["ba", "ca", "da", "fa"], keys)
-        self.assertIn("local-only fixture value", source)
+    def test_fixture_keys_are_exact_obvious_local_values(self) -> None:
+        for path in (DEPLOY, SCENARIO):
+            with self.subTest(path=path):
+                source = read_text(repo_path(path))
+                keys = set(re.findall(r'(?m)^\s+[A-Z_]*PRIVATE_KEY:\s+"(0x[0-9a-f]+)"$', source))
+                self.assertEqual(FIXTURE_KEYS, keys)
+                self.assertTrue(all(len(key) == 66 for key in keys))
+
+        self.assertIn("local-only fixture value", read_text(repo_path(DEPLOY)))
 
     def test_vertical_runner_uses_rendered_cam_actions(self) -> None:
         source = read_text(repo_path("js/tools/escrow-local-scenario/runner.ts"))
