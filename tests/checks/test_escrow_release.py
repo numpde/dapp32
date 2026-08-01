@@ -102,8 +102,10 @@ class EscrowReleasePostureTest(unittest.TestCase):
         artifact_methods = compose_mapping(artifact_proxy, "environment")["RPC_ALLOWED_METHODS"]
         self.assertIn("eth_sendRawTransaction", deploy_methods)
         self.assertNotIn("eth_sendRawTransaction", artifact_methods)
+        self.assertIn("eth_blockNumber", artifact_methods)
         self.assertIn("eth_getTransactionReceipt", artifact_methods)
-        artifact_rpc_url = compose_volume(artifact_proxy, "/run/secrets/rpc_url")
+        self.assertEqual("1000:1000", artifact_proxy["user"])
+        artifact_rpc_url = compose_volume(artifact_proxy, "/run/inputs/rpc_url")
         self.assertEqual(RPC_URL_FILE, artifact_rpc_url["source"])
         self.assertIs(artifact_rpc_url["read_only"], True)
         self.assertEqual(1, read_text(repo_path(DEPLOY)).count("create_host_path: false"))
