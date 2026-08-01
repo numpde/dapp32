@@ -155,15 +155,42 @@ V1 omits:
 
 The deterministic suite covers creation, validation, absent reads, enabled-action boundaries, no-acknowledgement acceptance, exact timeout functions, complete terminal paths, document retention, pull-payment accounting, failed transfers, alternate recipients, reentrancy, direct-transfer rejection, unknown selectors, and forced surplus.
 
-From the repository root, with Docker and the locked dependencies available:
+The repository-wide `make fmt` lane checks every dapp. At the base commit used for this branch, unrelated existing bike and deposit sources are not clean under the currently pinned Forge formatter. Do not mix that repository-wide normalization into this escrow slice.
+
+Build the pinned Foundry image and apply formatting only to this dapp through a writable mount:
 
 ```bash
-make fmt
+docker build --tag dapp32-foundry-local containers/foundry
+
+docker run --rm --network none \
+  --user "$(id -u):$(id -g)" \
+  --env HOME=/tmp/home \
+  --volume "$PWD/dapps:/work/dapps:rw" \
+  --workdir /work/dapps \
+  dapp32-foundry-local \
+  sh -eu -c 'mkdir -p "$HOME"; forge fmt escrow/src escrow/test'
+```
+
+Check only the escrow formatting without rewriting files:
+
+```bash
+docker run --rm --network none \
+  --user "$(id -u):$(id -g)" \
+  --env HOME=/tmp/home \
+  --volume "$PWD/dapps:/work/dapps:ro" \
+  --workdir /work/dapps \
+  dapp32-foundry-local \
+  sh -eu -c 'mkdir -p "$HOME"; forge fmt --check escrow/src escrow/test'
+```
+
+Then run the repository build and deterministic tests:
+
+```bash
 make build
 make test
 ```
 
-To run only this dapp's deterministic tests inside the repository Foundry image:
+To isolate only this dapp's deterministic tests inside the repository Foundry image:
 
 ```bash
 LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
@@ -171,4 +198,4 @@ LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
   sh -eu -c 'forge test --offline --match-path "escrow/test/unit/**/*.sol" -vvv; forge test --offline --match-path "escrow/test/scenario/**/*.sol" -vvv'
 ```
 
-The ordinary `forge-test` service already discovers `escrow/test/unit` and `escrow/test/scenario`; `make test` is the authoritative repository lane.
+The ordinary `forge-test` service already discovers `escrow/test/unit` and `escrow/test/scenario`; `make test` remains the authoritative deterministic repository lane. Repository-wide formatting normalization should be handled separately from this branch.
