@@ -35,6 +35,9 @@ import type {
 import {
   resolvedUiButtons,
 } from "../../packages/cam-screen/dist/index.js"
+import type {
+  ResolvedButtonNode,
+} from "../../packages/cam-screen/dist/index.js"
 import {
   createSameOriginHttpResourceLoader,
   isRecordObject,
@@ -446,12 +449,18 @@ function assertProjectedState(session: CamViewerSession, expected: string): void
   assert.equal(machine.stateId, expected)
 }
 
-function assertRenderedAction(session: CamViewerSession, route: string) {
+function assertRenderedAction(session: CamViewerSession, route: string): ResolvedButtonNode {
   const snapshot = loadedSnapshot(session)
   const matches = resolvedUiButtons(snapshot.resolvedUi)
     .filter((button) => button.call.function === route)
-  assert.equal(matches.length, 1, `expected exactly one rendered action: ${route}`)
-  return matches[0]
+  if (matches.length !== 1) {
+    throw new Error(`expected exactly one rendered action: ${route}; found ${matches.length}`)
+  }
+  const action = matches[0]
+  if (action === undefined) {
+    throw new Error(`rendered action disappeared after cardinality check: ${route}`)
+  }
+  return action
 }
 
 function projectedView(snapshot: CamViewerLoadedSnapshot): Record<string, unknown> {
@@ -499,7 +508,11 @@ function createdContract(transactions: readonly unknown[], contractName: string)
   if (matches.length !== 1) {
     throw new Error(`Forge broadcast must create ${contractName} exactly once`)
   }
-  const address = requiredString(matches[0]?.contractAddress, `${contractName} address`)
+  const match = matches[0]
+  if (!isRecordObject(match)) {
+    throw new Error(`Forge broadcast ${contractName} entry must be an object`)
+  }
+  const address = requiredString(match.contractAddress, `${contractName} address`)
   return requireEvmAddress(address, `${contractName} address`)
 }
 
