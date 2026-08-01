@@ -9,12 +9,9 @@ import {EscrowReleaseVerifier} from "./EscrowReleaseVerifier.sol";
 /// simulation and no private key is accepted by the verification lane.
 contract VerifyEscrowRelease is Script, EscrowReleaseVerifier {
     function run() external {
-        string memory artifactPath = vm.envString("ESCROW_DEPLOYMENT_ARTIFACT_PATH");
+        requireDeploymentSchema(vm.envString("ESCROW_DEPLOYMENT_SCHEMA"));
+        Artifact memory artifact = _readEnvironment();
         string memory expectedSourceCommit = vm.envString("ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT");
-        string memory json = vm.readFile(artifactPath);
-
-        requireDeploymentSchema(vm.parseJsonString(json, ".schema"));
-        Artifact memory artifact = _parseArtifact(json);
         verifyArtifact(artifact, expectedSourceCommit);
 
         console2.log("EscrowReleaseVerified", true);
@@ -27,17 +24,17 @@ contract VerifyEscrowRelease is Script, EscrowReleaseVerifier {
         console2.log("CamHash", artifact.camHash);
     }
 
-    function _parseArtifact(string memory json) private pure returns (Artifact memory artifact) {
-        artifact.sourceCommit = vm.parseJsonString(json, ".sourceCommit");
-        artifact.chainId = vm.parseJsonUint(json, ".chainId");
-        artifact.camURI = vm.parseJsonString(json, ".camURI");
-        artifact.camHash = vm.parseJsonBytes32(json, ".camHash");
-        artifact.intendedCamRootOwner = vm.parseJsonAddress(json, ".intendedCamRootOwner");
-        artifact.camRoot = vm.parseJsonAddress(json, ".camRoot");
-        artifact.camEscrow = vm.parseJsonAddress(json, ".camEscrow");
-        artifact.camEscrowUI = vm.parseJsonAddress(json, ".camEscrowUI");
-        artifact.camRootCodeHash = vm.parseJsonBytes32(json, ".camRootCodeHash");
-        artifact.camEscrowCodeHash = vm.parseJsonBytes32(json, ".camEscrowCodeHash");
-        artifact.camEscrowUICodeHash = vm.parseJsonBytes32(json, ".camEscrowUICodeHash");
+    function _readEnvironment() private view returns (Artifact memory artifact) {
+        artifact.sourceCommit = vm.envString("ESCROW_DEPLOYMENT_SOURCE_COMMIT");
+        artifact.chainId = vm.envUint("ESCROW_DEPLOYMENT_CHAIN_ID");
+        artifact.camURI = vm.envString("ESCROW_DEPLOYMENT_CAM_URI");
+        artifact.camHash = vm.envBytes32("ESCROW_DEPLOYMENT_CAM_HASH");
+        artifact.intendedCamRootOwner = vm.envAddress("ESCROW_DEPLOYMENT_CAM_ROOT_OWNER");
+        artifact.camRoot = vm.envAddress("ESCROW_DEPLOYMENT_CAM_ROOT");
+        artifact.camEscrow = vm.envAddress("ESCROW_DEPLOYMENT_CAM_ESCROW");
+        artifact.camEscrowUI = vm.envAddress("ESCROW_DEPLOYMENT_CAM_ESCROW_UI");
+        artifact.camRootCodeHash = vm.envBytes32("ESCROW_DEPLOYMENT_CAM_ROOT_CODE_HASH");
+        artifact.camEscrowCodeHash = vm.envBytes32("ESCROW_DEPLOYMENT_CAM_ESCROW_CODE_HASH");
+        artifact.camEscrowUICodeHash = vm.envBytes32("ESCROW_DEPLOYMENT_CAM_ESCROW_UI_CODE_HASH");
     }
 }
