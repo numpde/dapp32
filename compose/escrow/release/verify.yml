@@ -1,0 +1,97 @@
+# Read-only verification for one escrow deployment artifact.
+#
+# The verifier receives no signing key. It can reach only a separate RPC proxy
+# whose allowlist excludes transaction submission and all state-changing methods.
+services:
+  escrow-release-verify-rpc-proxy:
+    build:
+      context: ../../../containers/rpc-proxy
+      dockerfile: Dockerfile
+    init: true
+    user: "65532:65532"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    environment:
+      RPC_PROXY_HOST: 0.0.0.0
+      RPC_PROXY_PORT: "8080"
+      RPC_UPSTREAM_FILE: /run/secrets/rpc_url
+      RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
+      RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
+      RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance
+        eth_getTransactionCount eth_call eth_getCode
+    secrets:
+      - source: rpc_url
+        target: rpc_url
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    networks:
+      escrow_release_verify_internal:
+        aliases:
+          - escrow-release-verify-rpc-proxy
+      escrow_release_verify_egress: {}
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).close()"
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  verify-escrow-release:
+    build:
+      context: ../../../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work/dapps
+    depends_on:
+      escrow-release-verify-rpc-proxy:
+        condition: service_healthy
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      XDG_DATA_HOME: /usr/local/share
+      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+      FOUNDRY_CONFIG: /work/dapps/foundry.toml
+      FOUNDRY_OUT: /tmp/foundry-out
+      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
+      ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT: "${ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT}"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    volumes:
+      - ../../../dapps:/work/dapps:ro
+      - "${ESCROW_DEPLOYMENT_ARTIFACT_FILE:?missing_ESCROW_DEPLOYMENT_ARTIFACT_FILE}:/deployment/deployment.json:ro"
+    networks:
+      - escrow_release_verify_internal
+    command:
+      - "forge"
+      - "script"
+      - "--offline"
+      - "escrow/script/VerifyEscrowRelease.s.sol"
+      - "--rpc-url"
+      - "http://escrow-release-verify-rpc-proxy:8080"
+      - "-vvv"
+
+secrets:
+  rpc_url:
+    file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+
+networks:
+  escrow_release_verify_internal:
+    internal: true
+  escrow_release_verify_egress: {}
