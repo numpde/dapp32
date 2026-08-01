@@ -1,5 +1,15 @@
-import { lstat, writeFile } from "node:fs/promises"
-import { dirname } from "node:path"
+import { randomUUID } from "node:crypto"
+import {
+  link,
+  lstat,
+  open,
+  rm,
+} from "node:fs/promises"
+import {
+  basename,
+  dirname,
+  join,
+} from "node:path"
 
 import {
   requireEvmAddress,
@@ -15,6 +25,36 @@ import {
 export const RELEASE_PLAN_SCHEMA = "escrow.release-plan.v1"
 export const DEPLOYMENT_SCHEMA = "escrow.deployment.v1"
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+const RELEASE_PLAN_KEYS = [
+  "schema",
+  "sourceCommit",
+  "expectedChainId",
+  "camURI",
+  "camHash",
+  "intendedCamRootOwner",
+] as const
+
+const DEPLOYMENT_KEYS = [
+  "schema",
+  "sourceCommit",
+  "chainId",
+  "deployer",
+  "camURI",
+  "camHash",
+  "intendedCamRootOwner",
+  "ownershipTransferRequired",
+  "ownershipAccepted",
+  "camRoot",
+  "camEscrow",
+  "camEscrowUI",
+  "camRootCodeHash",
+  "camEscrowCodeHash",
+  "camEscrowUICodeHash",
+  "camRootCreationTransaction",
+  "camEscrowCreationTransaction",
+  "camEscrowUICreationTransaction",
+] as const
 
 export type ReleasePlan = {
   readonly schema: typeof RELEASE_PLAN_SCHEMA
@@ -103,7 +143,7 @@ export function requiredNonzeroBytes32(value: unknown, label: string): `0x${stri
 }
 
 export function requiredTransactionHash(value: unknown, label: string): `0x${string}` {
-  return requiredBytes32(value, label)
+  return requiredNonzeroBytes32(value, label)
 }
 
 export function requiredRecord(value: unknown, label: string): Record<string, unknown> {
@@ -133,6 +173,7 @@ export function parseJsonRecord(bytes: Uint8Array, label: string): Record<string
 
 export function parseReleasePlan(bytes: Uint8Array): ReleasePlan {
   const value = parseJsonRecord(bytes, "release plan")
+  requireExactKeys(value, RELEASE_PLAN_KEYS, "release plan")
   if (value.schema !== RELEASE_PLAN_SCHEMA) {
     throw new Error(`unsupported release plan schema: ${String(value.schema)}`)
   }
@@ -152,11 +193,12 @@ export function parseReleasePlan(bytes: Uint8Array): ReleasePlan {
 
 export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
   const value = parseJsonRecord(bytes, "deployment artifact")
+  requireExactKeys(value, DEPLOYMENT_KEYS, "deployment artifact")
   if (value.schema !== DEPLOYMENT_SCHEMA) {
     throw new Error(`unsupported deployment artifact schema: ${String(value.schema)}`)
   }
 
-  return {
+  const artifact: DeploymentArtifact = {
     schema: DEPLOYMENT_SCHEMA,
     sourceCommit: requiredSourceCommit(requiredString(value.sourceCommit, "deployment sourceCommit")),
     chainId: checkedReleaseChainId(requiredSafeInteger(value.chainId, "deployment chainId")),
@@ -197,6 +239,25 @@ export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
       "deployment camEscrowUICreationTransaction",
     ),
   }
+
+  const transferRequired = artifact.deployer.toLowerCase() !== artifact.intendedCamRootOwner.toLowerCase()
+  if (artifact.ownershipTransferRequired !== transferRequired) {
+    throw new Error("deployment ownershipTransferRequired disagrees with deployer and intended owner")
+  }
+  if (!transferRequired && !artifact.ownershipAccepted) {
+    throw new Error("deployment ownershipAccepted must be true when no ownership transfer is required")
+  }
+
+  const creationTransactions = [
+    artifact.camRootCreationTransaction,
+    artifact.camEscrowCreationTransaction,
+    artifact.camEscrowUICreationTransaction,
+  ]
+  if (new Set(creationTransactions.map((hash) => hash.toLowerCase())).size !== creationTransactions.length) {
+    throw new Error("deployment creation transaction hashes must be distinct")
+  }
+
+  return artifact
 }
 
 export function releasePlanArguments(plan: ReleasePlan): string {
@@ -215,15 +276,21 @@ export function deploymentArguments(artifact: DeploymentArtifact): string {
     artifact.schema,
     artifact.sourceCommit,
     String(artifact.chainId),
+    artifact.deployer,
     artifact.camURI,
     artifact.camHash,
     artifact.intendedCamRootOwner,
+    String(artifact.ownershipTransferRequired),
+    String(artifact.ownershipAccepted),
     artifact.camRoot,
     artifact.camEscrow,
     artifact.camEscrowUI,
     artifact.camRootCodeHash,
     artifact.camEscrowCodeHash,
     artifact.camEscrowUICodeHash,
+    artifact.camRootCreationTransaction,
+    artifact.camEscrowCreationTransaction,
+    artifact.camEscrowUICreationTransaction,
   ])
 }
 
@@ -238,11 +305,21 @@ export async function writeNewText(path: string, value: string, label: string): 
     throw new Error(`${label} parent must be a real directory: ${parent}`)
   }
 
-  await writeFile(path, value, {
-    encoding: "utf-8",
-    flag: "wx",
-    mode: 0o600,
-  })
+  const stagePath = join(parent, `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`)
+  const handle = await open(stagePath, "wx", 0o600)
+  try {
+    await handle.writeFile(value, { encoding: "utf-8" })
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
+
+  try {
+    await link(stagePath, path)
+  } finally {
+    await rm(stagePath, { force: true })
+  }
+  await syncDirectory(parent)
 }
 
 function requiredSafeInteger(value: unknown, label: string): number {
@@ -252,6 +329,22 @@ function requiredSafeInteger(value: unknown, label: string): number {
   return value
 }
 
+function requireExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string,
+): void {
+  const expectedSet = new Set(expected)
+  const actual = Object.keys(value)
+  const missing = expected.filter((key) => !Object.prototype.hasOwnProperty.call(value, key))
+  const unexpected = actual.filter((key) => !expectedSet.has(key))
+  if (missing.length > 0 || unexpected.length > 0) {
+    throw new Error(
+      `${label} fields disagree: missing=[${missing.join(",")}] unexpected=[${unexpected.join(",")}]`,
+    )
+  }
+}
+
 function lines(values: readonly string[]): string {
   for (const value of values) {
     if (value.includes("\n") || value.includes("\r")) {
@@ -259,4 +352,13 @@ function lines(values: readonly string[]): string {
     }
   }
   return `${values.join("\n")}\n`
+}
+
+async function syncDirectory(path: string): Promise<void> {
+  const handle = await open(path, "r")
+  try {
+    await handle.sync()
+  } finally {
+    await handle.close()
+  }
 }
