@@ -2,7 +2,7 @@
 
 `CamEscrow` is a non-upgradeable, single-milestone native-asset escrow. A client creates and funds an agreement in one payable transaction. The contractor may accept, submit committed work evidence, and receive payment after client approval, review timeout, or an arbitrator decision. The client may cancel before acceptance, dispute a submission, or recover funds after acceptance/work timeout or an arbitrator decision.
 
-This package contains the core contract plus deterministic, fuzz, and stateful-invariant verification. It intentionally contains no CAM manifest, route projection, deployment script, browser fixture, or generic machine descriptor yet.
+This package contains the core contract, the read-only `CamEscrowUI` semantic projection, and deterministic, fuzz, and stateful-invariant verification. It intentionally contains no CAM manifest, generated ABI bundle, deployment script, browser fixture, local vertical workflow, or generic machine descriptor yet.
 
 ## Roles and trust
 
@@ -140,6 +140,32 @@ Missing reads return `AgreementState.None`; missing writes revert `AgreementNotF
 
 `availableActions()` describes only actor/state/time legality for some valid payload. Submission/dispute document validation remains at the write boundary. Each evidence-bearing write checks action availability before payload validity.
 
+## Projection boundary
+
+`CamEscrowUI` verifies that its immutable backing address has code and advertises `ICamEscrowView` through ERC-165. It has no owner, roles, write forwarding, or native-value path.
+
+It exposes four projection reads:
+
+- creation policy and the authenticated `createAgreement` action;
+- agreement observation by ID;
+- agreement observation by client/reference;
+- aggregate account credit and the conditional `withdrawTo` action.
+
+The agreement projection returns the core `AgreementView` unchanged plus a small semantic envelope:
+
+```text
+machine ID: escrow.agreement.v1
+instance ID: agreement ID
+instantiated flag
+stable state ID
+actor role ID
+core-provided enabled transitions mapped to stable route IDs
+arbitration-timeout beneficiary disclosure
+arbitrator acknowledgement: not required and not recorded on-chain
+```
+
+The projection does not recalculate authorization, deadline expiry, acceptance readiness, or terminal transitions. It calls `availableActions(agreementId, actor)` and maps the returned enum values in their core-defined order. Creation remains a factory action and withdrawal remains an account-credit action; neither is represented as an agreement-machine transition.
+
 ## Explicit non-goals
 
 V1 omits:
@@ -153,7 +179,7 @@ V1 omits:
 
 ## Tests
 
-The deterministic suite covers creation, validation, absent reads, enabled-action boundaries, no-acknowledgement acceptance, exact timeout functions, complete terminal paths, document retention, pull-payment accounting, failed transfers, alternate recipients, reentrancy, direct-transfer rejection, unknown selectors, and forced surplus.
+The deterministic suite covers core creation, validation, absent reads, enabled-action boundaries, no-acknowledgement acceptance, exact timeout functions, complete terminal paths, document retention, pull-payment accounting, failed transfers, alternate recipients, reentrancy, direct-transfer rejection, unknown selectors, and forced surplus. Projection tests cover backing-interface verification, creation policy, absent and instantiated machine observations, all stable state IDs, actor/time transition mapping at every deadline boundary, risk disclosures, account credit, and the read-only native-value boundary.
 
 The fuzz suite checks arbitrary valid creation economics and, for every active state, compares selected writes against `availableActions` at `deadline - 1`, `deadline`, and `deadline + 1`. It also fuzzes full-value arbitration-timeout settlement for both configured beneficiaries.
 
