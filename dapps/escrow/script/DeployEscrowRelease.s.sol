@@ -25,6 +25,7 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
     error InvalidSourceCommit(string sourceCommit);
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error UnsupportedReleaseChainId(uint256 chainId);
+    error CamHashSourceMismatch(bytes32 planned, bytes32 source);
     error ZeroCamHash();
     error EmptyCamURI();
     error ZeroCamRootOwner();
@@ -78,6 +79,11 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
         if (plan.camHash == bytes32(0)) revert ZeroCamHash();
         if (bytes(plan.camURI).length == 0) revert EmptyCamURI();
         if (plan.intendedCamRootOwner == address(0)) revert ZeroCamRootOwner();
+
+        bytes32 sourceCamHash = keccak256(bytes(vm.envString("ESCROW_RELEASE_CAM_ROOT_TEXT")));
+        if (plan.camHash != sourceCamHash) {
+            revert CamHashSourceMismatch(plan.camHash, sourceCamHash);
+        }
     }
 
     function _isSourceCommit(string memory value) private pure returns (bool) {
