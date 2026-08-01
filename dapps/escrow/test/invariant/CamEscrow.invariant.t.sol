@@ -22,21 +22,21 @@ contract CamEscrowInvariantTest is Test {
         }
 
         bytes4[] memory selectors = new bytes4[](15);
-        selectors[0] = handler.createAgreement.selector;
-        selectors[1] = handler.cancelAgreement.selector;
-        selectors[2] = handler.acceptAgreement.selector;
-        selectors[3] = handler.submitAgreement.selector;
-        selectors[4] = handler.approveAgreement.selector;
-        selectors[5] = handler.disputeAgreement.selector;
-        selectors[6] = handler.finalizeAcceptanceTimeout.selector;
-        selectors[7] = handler.finalizeWorkTimeout.selector;
-        selectors[8] = handler.finalizeReviewTimeout.selector;
-        selectors[9] = handler.resolveForClient.selector;
-        selectors[10] = handler.resolveForContractor.selector;
-        selectors[11] = handler.finalizeArbitrationTimeout.selector;
-        selectors[12] = handler.advanceTime.selector;
-        selectors[13] = handler.withdrawCredit.selector;
-        selectors[14] = handler.probeTerminalIrreversibility.selector;
+        selectors[0] = CamEscrowInvariantHandler.createAgreement.selector;
+        selectors[1] = CamEscrowInvariantHandler.cancelAgreement.selector;
+        selectors[2] = CamEscrowInvariantHandler.acceptAgreement.selector;
+        selectors[3] = CamEscrowInvariantHandler.submitAgreement.selector;
+        selectors[4] = CamEscrowInvariantHandler.approveAgreement.selector;
+        selectors[5] = CamEscrowInvariantHandler.disputeAgreement.selector;
+        selectors[6] = CamEscrowInvariantHandler.finalizeAcceptanceTimeout.selector;
+        selectors[7] = CamEscrowInvariantHandler.finalizeWorkTimeout.selector;
+        selectors[8] = CamEscrowInvariantHandler.finalizeReviewTimeout.selector;
+        selectors[9] = CamEscrowInvariantHandler.resolveForClient.selector;
+        selectors[10] = CamEscrowInvariantHandler.resolveForContractor.selector;
+        selectors[11] = CamEscrowInvariantHandler.finalizeArbitrationTimeout.selector;
+        selectors[12] = CamEscrowInvariantHandler.advanceTime.selector;
+        selectors[13] = CamEscrowInvariantHandler.withdrawCredit.selector;
+        selectors[14] = CamEscrowInvariantHandler.probeTerminalIrreversibility.selector;
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
     }
 
