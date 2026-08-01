@@ -20,9 +20,9 @@ services:
       ESCROW_SCENARIO_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
       ESCROW_SCENARIO_BROADCAST_PATH: "${ESCROW_BROADCAST_PATH:?missing_ESCROW_BROADCAST_PATH}"
       ESCROW_CLIENT_PRIVATE_KEY: "0xbabababababababababababababababababababababababababababababababa"
-      ESCROW_CONTRACTOR_PRIVATE_KEY: "0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca"
-      ESCROW_ARBITRATOR_PRIVATE_KEY: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"
-      ESCROW_FINALIZER_PRIVATE_KEY: "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
+      ESCROW_CONTRACTOR_PRIVATE_KEY: "0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca"
+      ESCROW_ARBITRATOR_PRIVATE_KEY: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"
+      ESCROW_FINALIZER_PRIVATE_KEY: "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
     volumes:
       - ../../../js:/input/js:ro
       - ../../../js/node_modules:/work/js/node_modules:ro
