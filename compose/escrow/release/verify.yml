@@ -1,8 +1,37 @@
 # Read-only verification for one escrow deployment artifact.
 #
-# The verifier receives no signing key. It can reach only a separate RPC proxy
-# whose allowlist excludes transaction submission and all state-changing methods.
+# The offline input service binds deployment.json and its strict companion to
+# the current source/CAM bytes. The live verifier receives no signing key and
+# can reach only a proxy whose allowlist excludes transaction submission.
 services:
+  escrow-release-verify-input:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    network_mode: "none"
+    environment:
+      ESCROW_RELEASE_DAPPS_ROOT: /work/dapps
+      ESCROW_RELEASE_CAM_ROOT_PATH: /work/dapps/escrow/cam/main.json
+      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
+      ESCROW_DEPLOYMENT_ARGUMENTS_PATH: /deployment/deployment.args
+      ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT: "${ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT}"
+    volumes:
+      - ../../../dapps:/work/dapps:ro
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+      - "${ESCROW_DEPLOYMENT_ARTIFACT_FILE:?missing_ESCROW_DEPLOYMENT_ARTIFACT_FILE}:/deployment/deployment.json:ro"
+      - "${ESCROW_DEPLOYMENT_ARGUMENTS_FILE:?missing_ESCROW_DEPLOYMENT_ARGUMENTS_FILE}:/deployment/deployment.args:ro"
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/escrow-release/tsconfig.json
+        node --experimental-strip-types tools/escrow-release/verify-input.ts
+
   escrow-release-verify-rpc-proxy:
     build:
       context: ../../../containers/rpc-proxy
@@ -53,6 +82,8 @@ services:
       dockerfile: Dockerfile
     working_dir: /work/dapps
     depends_on:
+      escrow-release-verify-input:
+        condition: service_completed_successfully
       escrow-release-verify-rpc-proxy:
         condition: service_healthy
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
@@ -69,23 +100,39 @@ services:
       FOUNDRY_CACHE_PATH: /tmp/foundry-cache
       FOUNDRY_CONFIG: /work/dapps/foundry.toml
       FOUNDRY_OUT: /tmp/foundry-out
-      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
       ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT: "${ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=512m
     volumes:
       - ../../../dapps:/work/dapps:ro
-      - "${ESCROW_DEPLOYMENT_ARTIFACT_FILE:?missing_ESCROW_DEPLOYMENT_ARTIFACT_FILE}:/deployment/deployment.json:ro"
+      - "${ESCROW_DEPLOYMENT_ARGUMENTS_FILE:?missing_ESCROW_DEPLOYMENT_ARGUMENTS_FILE}:/deployment/deployment.args:ro"
     networks:
       - escrow_release_verify_internal
     command:
-      - "forge"
-      - "script"
-      - "--offline"
-      - "escrow/script/VerifyEscrowRelease.s.sol"
-      - "--rpc-url"
-      - "http://escrow-release-verify-rpc-proxy:8080"
-      - "-vvv"
+      - "bash"
+      - "-lc"
+      - |
+        set -euo pipefail
+        mapfile -t deployment < /deployment/deployment.args
+        if [[ "$${#deployment[@]}" -ne 12 || "$${deployment[0]}" != "escrow.deployment.v1" ]]; then
+          printf '%s\n' 'deployment.args must contain the exact twelve-field deployment record' >&2
+          exit 2
+        fi
+        export ESCROW_DEPLOYMENT_SCHEMA="$${deployment[0]}"
+        export ESCROW_DEPLOYMENT_SOURCE_COMMIT="$${deployment[1]}"
+        export ESCROW_DEPLOYMENT_CHAIN_ID="$${deployment[2]}"
+        export ESCROW_DEPLOYMENT_CAM_URI="$${deployment[3]}"
+        export ESCROW_DEPLOYMENT_CAM_HASH="$${deployment[4]}"
+        export ESCROW_DEPLOYMENT_CAM_ROOT_OWNER="$${deployment[5]}"
+        export ESCROW_DEPLOYMENT_CAM_ROOT="$${deployment[6]}"
+        export ESCROW_DEPLOYMENT_CAM_ESCROW="$${deployment[7]}"
+        export ESCROW_DEPLOYMENT_CAM_ESCROW_UI="$${deployment[8]}"
+        export ESCROW_DEPLOYMENT_CAM_ROOT_CODE_HASH="$${deployment[9]}"
+        export ESCROW_DEPLOYMENT_CAM_ESCROW_CODE_HASH="$${deployment[10]}"
+        export ESCROW_DEPLOYMENT_CAM_ESCROW_UI_CODE_HASH="$${deployment[11]}"
+        forge script --offline escrow/script/VerifyEscrowRelease.s.sol \
+          --rpc-url http://escrow-release-verify-rpc-proxy:8080 \
+          -vvv
 
 secrets:
   rpc_url:
