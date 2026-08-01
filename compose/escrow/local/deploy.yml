@@ -72,9 +72,9 @@ services:
       CAM_URI: "${CAM_URI:?missing_CAM_URI}"
       CAM_HASH: "${CAM_HASH:?missing_CAM_HASH}"
       PRIVATE_KEY: "0xbabababababababababababababababababababababababababababababababa"
-      ESCROW_CONTRACTOR_PRIVATE_KEY: "0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca"
-      ESCROW_ARBITRATOR_PRIVATE_KEY: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"
-      ESCROW_FINALIZER_PRIVATE_KEY: "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
+      ESCROW_CONTRACTOR_PRIVATE_KEY: "0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca"
+      ESCROW_ARBITRATOR_PRIVATE_KEY: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"
+      ESCROW_FINALIZER_PRIVATE_KEY: "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=512m
     volumes:
