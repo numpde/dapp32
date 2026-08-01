@@ -1,0 +1,180 @@
+# Explicit live escrow release deployment.
+#
+# The plan service is offline and computes the exact checked-in CAM hash. The
+# deploy service receives its signing key only through a Docker secret and can
+# reach only the method-gated RPC proxy. The artifact service has no signing key
+# and records deployed addresses, transactions, code hashes, and ownership state.
+
+x-release-output: &release_output
+  - "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_RELEASE_OUTPUT_DIR}:/release-output:rw"
+
+services:
+  escrow-release-plan:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    network_mode: "none"
+    environment:
+      ESCROW_RELEASE_DAPPS_ROOT: /work/dapps
+      ESCROW_RELEASE_CAM_ROOT_PATH: /work/dapps/escrow/cam/main.json
+      ESCROW_RELEASE_PLAN_PATH: /release-output/release-plan.json
+      ESCROW_RELEASE_CAM_URI: "${ESCROW_RELEASE_CAM_URI:?missing_ESCROW_RELEASE_CAM_URI}"
+      ESCROW_RELEASE_EXPECTED_CHAIN_ID: "${ESCROW_RELEASE_EXPECTED_CHAIN_ID:?missing_ESCROW_RELEASE_EXPECTED_CHAIN_ID}"
+      ESCROW_RELEASE_CAM_ROOT_OWNER: "${ESCROW_RELEASE_CAM_ROOT_OWNER:?missing_ESCROW_RELEASE_CAM_ROOT_OWNER}"
+      ESCROW_RELEASE_SOURCE_COMMIT: "${ESCROW_RELEASE_SOURCE_COMMIT:?missing_ESCROW_RELEASE_SOURCE_COMMIT}"
+    volumes:
+      - ../../../dapps:/work/dapps:ro
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+      - *release_output
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/escrow-release/tsconfig.json
+        node --experimental-strip-types tools/escrow-release/plan.ts
+
+  escrow-release-rpc-proxy:
+    build:
+      context: ../../../containers/rpc-proxy
+      dockerfile: Dockerfile
+    init: true
+    user: "65532:65532"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    environment:
+      RPC_PROXY_HOST: 0.0.0.0
+      RPC_PROXY_PORT: "8080"
+      RPC_UPSTREAM_FILE: /run/secrets/rpc_url
+      RPC_PROXY_MAX_REQUEST_BYTES: "16777216"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
+      RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
+      RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance
+        eth_getTransactionCount eth_gasPrice eth_maxPriorityFeePerGas
+        eth_feeHistory eth_estimateGas eth_createAccessList eth_call eth_getCode
+        eth_sendRawTransaction eth_getTransactionReceipt eth_getTransactionByHash
+    secrets:
+      - source: rpc_url
+        target: rpc_url
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    networks:
+      escrow_release_internal:
+        aliases:
+          - escrow-release-rpc-proxy
+      escrow_release_egress: {}
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).close()"
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  deploy-escrow-release:
+    build:
+      context: ../../../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work/dapps
+    depends_on:
+      escrow-release-plan:
+        condition: service_completed_successfully
+      escrow-release-rpc-proxy:
+        condition: service_healthy
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      XDG_DATA_HOME: /usr/local/share
+      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+      FOUNDRY_CONFIG: /work/dapps/foundry.toml
+      FOUNDRY_OUT: /tmp/foundry-out
+      FOUNDRY_BROADCAST: /release-output/broadcast
+      ESCROW_RELEASE_PLAN_PATH: /release-output/release-plan.json
+    secrets:
+      - source: deployer_private_key
+        target: deployer_private_key
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    volumes:
+      - ../../../dapps:/work/dapps:ro
+      - *release_output
+    networks:
+      - escrow_release_internal
+    command:
+      - "bash"
+      - "-lc"
+      - |
+        set -euo pipefail
+        private_key="$$(tr -d '\r\n' < /run/secrets/deployer_private_key)"
+        if [[ ! "$${private_key}" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then
+          printf '%s\n' 'deployer private-key secret must contain exactly one 32-byte hex key' >&2
+          exit 2
+        fi
+        export PRIVATE_KEY="$${private_key}"
+        forge script --offline escrow/script/DeployEscrowRelease.s.sol \
+          --rpc-url http://escrow-release-rpc-proxy:8080 \
+          --broadcast \
+          -vvv
+        unset PRIVATE_KEY
+
+  escrow-release-artifact:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    depends_on:
+      deploy-escrow-release:
+        condition: service_completed_successfully
+      escrow-release-rpc-proxy:
+        condition: service_healthy
+    environment:
+      ESCROW_RELEASE_PLAN_PATH: /release-output/release-plan.json
+      ESCROW_RELEASE_BROADCAST_DIR: /release-output/broadcast
+      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /release-output/deployment.json
+      ESCROW_RELEASE_RPC_URL: http://escrow-release-rpc-proxy:8080
+    volumes:
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+      - *release_output
+    networks:
+      - escrow_release_internal
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/escrow-release/tsconfig.json
+        node --experimental-strip-types tools/escrow-release/artifact.ts
+
+secrets:
+  rpc_url:
+    file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+  deployer_private_key:
+    file: "${DEPLOYER_PRIVATE_KEY_FILE:?missing_DEPLOYER_PRIVATE_KEY_FILE}"
+
+networks:
+  escrow_release_internal:
+    internal: true
+  escrow_release_egress: {}
