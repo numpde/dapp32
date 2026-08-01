@@ -312,7 +312,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         RevertingPausedComponents revertingPausedComponents = new RevertingPausedComponents();
 
         vm.expectRevert(
-            abi.encodeWithSelector(BicycleComponentManager.ComponentsUnsupported.selector, address(revertingPausedComponents))
+            abi.encodeWithSelector(
+                BicycleComponentManager.ComponentsUnsupported.selector, address(revertingPausedComponents)
+            )
         );
         new BicycleComponentManager(admin, 0, address(revertingPausedComponents));
     }
@@ -342,7 +344,9 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         RevertingPausedComponents revertingPausedComponents = new RevertingPausedComponents();
         vm.expectRevert(
-            abi.encodeWithSelector(BicycleComponentManager.ComponentsUnsupported.selector, address(revertingPausedComponents))
+            abi.encodeWithSelector(
+                BicycleComponentManager.ComponentsUnsupported.selector, address(revertingPausedComponents)
+            )
         );
         manager.setComponentsAddress(address(revertingPausedComponents));
 
@@ -601,9 +605,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         uint48 now_ = uint48(block.timestamp);
         uint48 maxDuration = 10;
 
-        vm.expectRevert(
-            abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, uint48(0))
-        );
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, uint48(0)));
         manager.setMaxDelegationDuration(0);
 
         manager.setMaxDelegationDuration(maxDuration);

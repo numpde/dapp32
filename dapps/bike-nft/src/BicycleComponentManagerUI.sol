@@ -98,7 +98,9 @@ contract BicycleComponentManagerUI {
         if (managerAddress == address(0)) revert ZeroAddress();
         if (managerAddress.code.length == 0) revert ManagerHasNoCode(managerAddress);
         try IBicycleComponentManagerView(managerAddress)
-            .supportsInterface(type(IBicycleComponentManagerView).interfaceId) returns (bool supported) {
+            .supportsInterface(type(IBicycleComponentManagerView).interfaceId) returns (
+            bool supported
+        ) {
             if (!supported) revert ManagerUnsupported(managerAddress);
         } catch {
             revert ManagerUnsupported(managerAddress);

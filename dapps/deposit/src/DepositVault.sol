@@ -292,10 +292,8 @@ contract DepositVault is Ownable2Step, Pausable, ReentrancyGuard, EIP712, Nonces
     /// @dev Malformed ECDSA bytes map to address(0), so `deposit` keeps one
     ///      stable authorization error instead of leaking dependency errors.
     function _recoverSigner(DepositIntent calldata intent, bytes calldata signature) private view returns (address) {
-        (address recovered, ECDSA.RecoverError recoverError,) = ECDSA.tryRecoverCalldata(
-            _hashDepositIntent(intent),
-            signature
-        );
+        (address recovered, ECDSA.RecoverError recoverError,) =
+            ECDSA.tryRecoverCalldata(_hashDepositIntent(intent), signature);
         return recoverError == ECDSA.RecoverError.NoError ? recovered : address(0);
     }
 

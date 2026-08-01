@@ -76,11 +76,7 @@ abstract contract BicycleComponentManagerTestSupport is Test {
     function assertMissingOwnerActions(string[] memory actual) internal pure {
         assertActions(
             actual,
-            expectedActions(
-                ACTION_LOOKUP_COMPONENT,
-                ACTION_UPDATE_COMPONENT_METADATA,
-                ACTION_CLEAR_COMPONENT_MISSING
-            )
+            expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA, ACTION_CLEAR_COMPONENT_MISSING)
         );
     }
 

@@ -28,8 +28,7 @@ contract DepositVaultTest is Test {
     bytes32 private constant DEPOSIT_INTENT_TYPEHASH = keccak256(
         "DepositIntent(bytes32 paymentRef,address payer,address treasury,uint256 amount,uint256 nonce,uint256 deadline)"
     );
-    uint256 private constant SECP256K1_HALF_ORDER =
-        0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0;
+    uint256 private constant SECP256K1_HALF_ORDER = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0;
 
     address private owner = address(this);
     address private treasury = address(0x7100);
