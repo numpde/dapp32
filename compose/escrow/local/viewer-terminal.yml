@@ -1,0 +1,41 @@
+# Local escrow viewer terminal scenario.
+#
+# Compose this with deploy.yml and http.yml. The terminal starts as the fixture
+# client from the CamRoot deployment receipt; use `account <address>` to switch
+# to the contractor, arbitrator, or public finalizer and refresh the current
+# route through the same CamViewerSession account boundary.
+services:
+  escrow-viewer-terminal:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    depends_on:
+      deploy-escrow-local:
+        condition: service_completed_successfully
+      escrow-cam-http:
+        condition: service_healthy
+    environment:
+      CAM_VIEWER_BACKEND: local-rpc
+      CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH: "false"
+      CAM_VIEWER_RPC_URL: http://escrow-anvil:8545
+      CAM_VIEWER_BROADCAST_PATH: "${ESCROW_BROADCAST_PATH:?missing_ESCROW_BROADCAST_PATH}"
+      CAM_VIEWER_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
+      CAM_VIEWER_INITIAL_INPUTS_JSON: "{}"
+    volumes:
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+      - "escrow_broadcast:${ESCROW_BROADCAST_DIR:?missing_ESCROW_BROADCAST_DIR}:ro"
+    networks:
+      - escrow_local
+    stdin_open: true
+    tty: true
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/viewer-terminal/tsconfig.json
+        node --experimental-strip-types tools/viewer-terminal/terminal-session.ts
