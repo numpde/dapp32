@@ -232,13 +232,22 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "CAM_URI": "https://example.test/bike-nft/cam/main.json",
                 "CAM_VIEWER_RESOURCE_ORIGIN": "http://escrow-cam-http:8080",
                 "COMPOSE_PROJECT_NAME": "dapps-check",
+                "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
                 "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
                 "ESCROW_BROADCAST_PATH": "/foundry-broadcast/DeployEscrowLocal.s.sol/31337/run-latest.json",
+                "ESCROW_DEPLOYMENT_ARTIFACT_FILE": "/tmp/escrow-release-output/deployment.json",
                 "ESCROW_GUI_BIND_HOST": "127.0.0.1",
                 "ESCROW_GUI_ORIGIN": "http://127.0.0.1:5174",
                 "ESCROW_GUI_PORT": "5174",
+                "ESCROW_RELEASE_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
+                "ESCROW_RELEASE_CAM_URI": "https://example.test/escrow/cam/main.json",
+                "ESCROW_RELEASE_EXPECTED_CHAIN_ID": "11155111",
+                "ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
+                "ESCROW_RELEASE_OUTPUT_DIR": "/tmp/escrow-release-output",
+                "ESCROW_RELEASE_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
                 "LOCAL_GID": "1000",
                 "LOCAL_UID": "1000",
+                "RPC_URL_FILE": "/tmp/escrow-release-rpc-url",
             },
             RENDERED_COMPOSE_FIXTURE_ENV,
         )
@@ -304,6 +313,19 @@ class RenderedComposePostureTest(unittest.TestCase):
         }
         expected_secrets = {
             ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
+            ("compose/escrow/release/deploy.yml", "escrow-release-rpc-proxy", "rpc_url", "rpc_url"),
+            (
+                "compose/escrow/release/deploy.yml",
+                "deploy-escrow-release",
+                "deployer_private_key",
+                "deployer_private_key",
+            ),
+            (
+                "compose/escrow/release/verify.yml",
+                "escrow-release-verify-rpc-proxy",
+                "rpc_url",
+                "rpc_url",
+            ),
         }
         expected_fixture_keys = {
             ("compose/bike-nft/local/deploy.yml", "deploy-bike-nft-local", "PRIVATE_KEY", ANVIL_DEV_PRIVATE_KEY),
@@ -604,6 +626,24 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "package-apply-update",
                 str(repo_path("js/package-lock.json")),
                 "/work/package-lock.json",
+            ),
+            (
+                "compose/escrow/release/deploy.yml",
+                "escrow-release-plan",
+                "/tmp/escrow-release-output",
+                "/release-output",
+            ),
+            (
+                "compose/escrow/release/deploy.yml",
+                "deploy-escrow-release",
+                "/tmp/escrow-release-output",
+                "/release-output",
+            ),
+            (
+                "compose/escrow/release/deploy.yml",
+                "escrow-release-artifact",
+                "/tmp/escrow-release-output",
+                "/release-output",
             ),
         }
 
