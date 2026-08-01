@@ -22,6 +22,15 @@ contract CamEscrowInvariantTest is Test {
             vm.deal(handler.actorAt(i), 1_000_000 ether);
         }
 
+        // Seed real state before invariant dispatch so a future handler or
+        // targeting regression cannot make the suite pass without exercising
+        // creation and at least one stored-machine transition.
+        handler.createAgreement(0, uint96(1 ether), uint64(1 days), false);
+        handler.createAgreement(1, uint96(2 ether), uint64(2 days), true);
+        handler.acceptAgreement(0);
+        assertEq(handler.agreementCount(), 2);
+        assertEq(handler.totalCreated(), 3 ether);
+
         bytes4[] memory selectors = new bytes4[](15);
         selectors[0] = CamEscrowInvariantHandler.createAgreement.selector;
         selectors[1] = CamEscrowInvariantHandler.cancelAgreement.selector;
@@ -40,6 +49,17 @@ contract CamEscrowInvariantTest is Test {
         selectors[14] = CamEscrowInvariantHandler.probeTerminalIrreversibility.selector;
         targetContract(address(handler));
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
+    }
+
+    /// @notice The suite always contains real agreements and one confirmed transition.
+    function invariant_seededMachineCannotBecomeVacuous() external view {
+        assertGe(handler.agreementCount(), 2);
+        assertGe(handler.totalCreated(), 3 ether);
+
+        CamEscrowInvariantHandler.TrackedAgreement memory seeded = handler.agreementAt(0);
+        ICamEscrowView.AgreementState state = escrow.agreementById(seeded.agreementId).state;
+        assertTrue(state != ICamEscrowView.AgreementState.None);
+        assertTrue(state != ICamEscrowView.AgreementState.Funded);
     }
 
     /// @notice Every created amount has exactly one disposition: active, credited, or withdrawn.
