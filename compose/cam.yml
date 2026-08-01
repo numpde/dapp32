@@ -31,6 +31,7 @@ services:
       - ../tools/cam_resource_integrity.py:/work/tools/cam_resource_integrity.py:ro
       - ../tools/json_policy.py:/work/tools/json_policy.py:ro
       - ../dapps/bike-nft/cam/main.json:/work/dapps/bike-nft/cam/main.json:rw
+      - ../dapps/escrow/cam/main.json:/work/dapps/escrow/cam/main.json:rw
     command:
       - "-I"
       - "-B"
