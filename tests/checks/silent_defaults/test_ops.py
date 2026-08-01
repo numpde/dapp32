@@ -256,7 +256,8 @@ def docker_default_findings_for_source(
             value = arg_match.group("value")
             entry = ("ARG", label, name, value)
             if entry not in allowed:
-                findings.append(f"{label}:{line_number}: unreviewed Docker ARG default: {line.strip()}")
+                classification = docker_default_classification(entry, allowed)
+                findings.append(f"{label}:{line_number}: {classification} Docker ARG default: {line.strip()}")
             continue
 
         env_match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
@@ -271,7 +272,8 @@ def docker_default_findings_for_source(
                 name, value = token.split("=", 1)
                 entry = ("ENV", label, name, value)
                 if entry not in allowed:
-                    findings.append(f"{label}:{line_number}: unreviewed Docker ENV default: {line.strip()}")
+                    classification = docker_default_classification(entry, allowed)
+                    findings.append(f"{label}:{line_number}: {classification} Docker ENV default: {line.strip()}")
             continue
         legacy_match = DOCKER_LEGACY_ENV_TOKEN_RE.match(body)
         if legacy_match is None:
@@ -281,9 +283,17 @@ def docker_default_findings_for_source(
         value = legacy_match.group("value")
         entry = ("ENV", label, name, value)
         if entry not in allowed:
-            findings.append(f"{label}:{line_number}: unreviewed Docker ENV default: {line.strip()}")
+            classification = docker_default_classification(entry, allowed)
+            findings.append(f"{label}:{line_number}: {classification} Docker ENV default: {line.strip()}")
 
     return findings
+
+
+def docker_default_classification(
+    entry: tuple[str, str, str, str],
+    allowed: set[tuple[str, str, str, str]],
+) -> str:
+    return "changed" if any(allowed_entry[:3] == entry[:3] for allowed_entry in allowed) else "unreviewed"
 
 
 def shell_default_findings(files: list[Path]) -> list[str]:

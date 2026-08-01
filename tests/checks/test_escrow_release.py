@@ -79,7 +79,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertEqual({"escrow_release_internal": None}, deploy["networks"])
         self.assertEqual({"escrow_release_internal": None}, artifact["networks"])
         self.assertEqual(
-            {"escrow_release_egress": None, "escrow_release_internal": {"aliases": ["escrow-release-rpc-proxy"]}},
+            {"escrow_release_egress": {}, "escrow_release_internal": {"aliases": ["escrow-release-rpc-proxy"]}},
             proxy["networks"],
         )
         self.assertNotIn("PRIVATE_KEY", compose_mapping(deploy, "environment"))
@@ -118,7 +118,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         proxy_methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
         self.assertNotIn("eth_sendRawTransaction", proxy_methods)
         self.assertIn("eth_getStorageAt", proxy_methods)
-        self.assertIn("eth_getProof", proxy_methods)
+        self.assertNotIn("eth_getProof", proxy_methods)
         self.assertNotIn("PRIVATE_KEY", compose_mapping(verify, "environment"))
         self.assertEqual([], [
             secret
@@ -132,9 +132,20 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertEqual(ARTIFACT_FILE, artifact["source"])
         self.assertEqual(ARGUMENTS_FILE, arguments_input["source"])
         self.assertEqual(ARGUMENTS_FILE, arguments_verify["source"])
-        for volume in (artifact, arguments_input, arguments_verify):
-            self.assertIs(volume["read_only"], True)
-            self.assertIs(volume["bind"]["create_host_path"], False)
+        guarded_inputs = {
+            "input artifact": artifact,
+            "input companion": arguments_input,
+            "verifier companion": arguments_verify,
+        }
+        for label, volume in guarded_inputs.items():
+            with self.subTest(mount=label):
+                self.assertIs(volume["read_only"], True)
+
+        # Compose v2.40.3, pinned in the checks image, omits
+        # bind.create_host_path from rendered JSON. Pin the engine policy in
+        # source while the rendered assertions above own exact sources and
+        # read-only access.
+        self.assertEqual(3, read_text(repo_path(VERIFY)).count("create_host_path: false"))
 
         verify_command = compose_command_text(verify)
         self.assertIn("deployment.args", verify_command)

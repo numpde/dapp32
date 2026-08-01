@@ -37,6 +37,7 @@ PACKAGE_CI_PREREQS = (
     "viewer-terminal-check",
     "cam-publication-preflight-check",
     "cam-integration-fuzz-check",
+    "escrow-release-check",
 )
 FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
 

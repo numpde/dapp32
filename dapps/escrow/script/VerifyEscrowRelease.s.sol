@@ -21,7 +21,8 @@ contract VerifyEscrowRelease is Script, EscrowReleaseVerifier {
         console2.log("CamEscrow", artifact.camEscrow);
         console2.log("CamEscrowUI", artifact.camEscrowUI);
         console2.log("CamRootOwner", artifact.intendedCamRootOwner);
-        console2.log("CamHash", artifact.camHash);
+        console2.log("CamHash");
+        console2.logBytes32(artifact.camHash);
     }
 
     function _readEnvironment() private view returns (Artifact memory artifact) {

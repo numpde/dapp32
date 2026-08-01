@@ -78,10 +78,9 @@ export function ownershipState({
 }
 
 function createdContract(transactions: readonly unknown[], contractName: string): CreatedContract {
-  const matches = transactions.filter((item) => {
-    if (!isCreateTransaction(item)) return false
-    return item.contractName === contractName
-  })
+  const matches = transactions
+    .filter(isCreateTransaction)
+    .filter((transaction) => transaction.contractName === contractName)
   if (matches.length !== 1) {
     throw new Error(`Forge broadcast must create ${contractName} exactly once`)
   }

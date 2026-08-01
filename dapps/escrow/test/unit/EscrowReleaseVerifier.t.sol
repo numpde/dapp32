@@ -44,9 +44,7 @@ contract EscrowReleaseVerifierTest is Test {
                 SOURCE_COMMIT
             )
         );
-        verifier.verify(
-            _artifact(root, escrow, ui, finalOwner), "ffffffffffffffffffffffffffffffffffffffff"
-        );
+        verifier.verify(_artifact(root, escrow, ui, finalOwner), "ffffffffffffffffffffffffffffffffffffffff");
     }
 
     function testRejectsFixtureChain() external {
@@ -54,9 +52,7 @@ contract EscrowReleaseVerifierTest is Test {
         vm.chainId(31_337);
         EscrowReleaseVerifier.Artifact memory artifact = _artifact(root, escrow, ui, finalOwner);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(EscrowReleaseVerifier.UnsupportedReleaseChainId.selector, 31_337)
-        );
+        vm.expectRevert(abi.encodeWithSelector(EscrowReleaseVerifier.UnsupportedReleaseChainId.selector, 31_337));
         verifier.verify(artifact, SOURCE_COMMIT);
     }
 
@@ -85,9 +81,7 @@ contract EscrowReleaseVerifierTest is Test {
         _bind(root, escrow, ui);
         root.transferOwnership(finalOwner);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(EscrowReleaseVerifier.CamRootOwnershipPending.selector, finalOwner)
-        );
+        vm.expectRevert(abi.encodeWithSelector(EscrowReleaseVerifier.CamRootOwnershipPending.selector, finalOwner));
         verifier.verify(_artifact(root, escrow, ui, address(this)), SOURCE_COMMIT);
     }
 
@@ -99,10 +93,7 @@ contract EscrowReleaseVerifierTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                EscrowReleaseVerifier.ContractBindingMismatch.selector,
-                "CamEscrowUI",
-                address(ui),
-                address(0xCAFE)
+                EscrowReleaseVerifier.ContractBindingMismatch.selector, "CamEscrowUI", address(ui), address(0xCAFE)
             )
         );
         verifier.verify(_artifact(root, escrow, ui, finalOwner), SOURCE_COMMIT);

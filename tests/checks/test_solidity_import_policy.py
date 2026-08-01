@@ -16,6 +16,12 @@ FORGE_STD_PACKAGE = "forge-std"
 FORGE_STD_ALLOWED_TEST_IMPORTS = {"Test.sol"}
 FORGE_STD_ALLOWED_SCRIPT_IMPORTS = {"Script.sol"}
 DEPENDENCY_PACKAGES = (OZ_PACKAGE, FORGE_STD_PACKAGE)
+DAPPS_ROOT_ALLOWED_IMPORTS = {
+    "dapps/bike-nft/script/BikeNftLocalFixture.sol": {"cam/src/CamRoot.sol"},
+    "dapps/escrow/script/EscrowDeployment.sol": {"cam/src/CamRoot.sol"},
+    "dapps/escrow/script/EscrowReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
+    "dapps/escrow/test/unit/EscrowReleaseVerifier.t.sol": {"cam/src/CamRoot.sol"},
+}
 IMPORT_STATEMENT_RE = re.compile(r"^\s*import\b(?P<body>[^;]*);", re.MULTILINE | re.DOTALL)
 IMPORT_PATH_RE = re.compile(r'["\'](?P<path>[^"\']+)["\']')
 
@@ -75,7 +81,8 @@ class SolidityImportPolicyTest(unittest.TestCase):
         if import_path.startswith(FORGE_STD_PACKAGE):
             return self.validate_forge_std_import(source, import_path, dependency_versions[FORGE_STD_PACKAGE])
 
-        if self.is_script_source(source) and import_path == "cam/src/CamRoot.sol":
+        source_name = source.relative_to(repo_path("")).as_posix()
+        if source_name in DAPPS_ROOT_ALLOWED_IMPORTS and import_path in DAPPS_ROOT_ALLOWED_IMPORTS[source_name]:
             return self.validate_dapps_root_import(source, import_path)
 
         return f"{source}: disallowed package import {import_path}"
