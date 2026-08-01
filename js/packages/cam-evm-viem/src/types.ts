@@ -2,6 +2,8 @@ import type { Abi, Address, Chain, Hex } from "viem"
 import type { CamDocument } from "@cam/core"
 import type { InertValue } from "@cam/protocol"
 
+import type { EvmTransactionValue } from "./abi-values.ts"
+
 // Keep the adapter boundary smaller than viem's full generic PublicClient.
 // Mocks and package consumers should satisfy the CAM read surface, not viem's
 // overload-heavy implementation type.
@@ -72,7 +74,7 @@ export type CamWalletClient = {
     readonly abi: Abi
     readonly functionName: string
     readonly args?: readonly unknown[]
-    readonly value?: bigint
+    readonly value?: EvmTransactionValue
     readonly chain: Chain
   }) => Promise<Hex>
 }
@@ -83,7 +85,7 @@ export type CamSimulationClient = {
     readonly abi: Abi
     readonly functionName: string
     readonly args?: readonly unknown[]
-    readonly value?: bigint
+    readonly value?: EvmTransactionValue
     readonly account: Address
   }) => Promise<unknown>
 }
