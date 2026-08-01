@@ -71,30 +71,45 @@ class EscrowReleasePostureTest(unittest.TestCase):
     def test_deployment_signer_is_secret_file_backed_and_proxy_scoped(self) -> None:
         config = rendered_compose_config(DEPLOY, env=RELEASE_ENV)
         plan = compose_service(config, "escrow-release-plan")
-        proxy = compose_service(config, "escrow-release-rpc-proxy")
+        deploy_proxy = compose_service(config, "escrow-release-deploy-rpc-proxy")
+        artifact_proxy = compose_service(config, "escrow-release-artifact-rpc-proxy")
         deploy = compose_service(config, "deploy-escrow-release")
         artifact = compose_service(config, "escrow-release-artifact")
 
         self.assertEqual("none", plan["network_mode"])
-        self.assertEqual({"escrow_release_internal": None}, deploy["networks"])
-        self.assertEqual({"escrow_release_internal": None}, artifact["networks"])
+        self.assertEqual({"escrow_release_deploy_internal": None}, deploy["networks"])
+        self.assertEqual({"escrow_release_artifact_internal": None}, artifact["networks"])
         self.assertEqual(
-            {"escrow_release_egress": {}, "escrow_release_internal": {"aliases": ["escrow-release-rpc-proxy"]}},
-            proxy["networks"],
+            {
+                "escrow_release_deploy_egress": {},
+                "escrow_release_deploy_internal": {"aliases": ["escrow-release-deploy-rpc-proxy"]},
+            },
+            deploy_proxy["networks"],
+        )
+        self.assertEqual(
+            {
+                "escrow_release_artifact_egress": {},
+                "escrow_release_artifact_internal": {"aliases": ["escrow-release-artifact-rpc-proxy"]},
+            },
+            artifact_proxy["networks"],
         )
         self.assertNotIn("PRIVATE_KEY", compose_mapping(deploy, "environment"))
         self.assertEqual(
             [{"source": "deployer_private_key", "target": "deployer_private_key"}],
             compose_sequence_or_empty(deploy, "secrets"),
         )
-        proxy_methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
-        self.assertIn("eth_sendRawTransaction", proxy_methods)
-        self.assertIn("eth_getStorageAt", proxy_methods)
-        self.assertIn("eth_getProof", proxy_methods)
+        deploy_methods = compose_mapping(deploy_proxy, "environment")["RPC_ALLOWED_METHODS"]
+        artifact_methods = compose_mapping(artifact_proxy, "environment")["RPC_ALLOWED_METHODS"]
+        self.assertIn("eth_sendRawTransaction", deploy_methods)
+        self.assertNotIn("eth_sendRawTransaction", artifact_methods)
+        self.assertIn("eth_getTransactionReceipt", artifact_methods)
 
         deploy_command = compose_command_text(deploy)
         self.assertIn("release-plan.args", deploy_command)
-        self.assertNotIn("vm.readFile", deploy_command)
+        self.assertIn("operator-authorized release inputs", deploy_command)
+        self.assertIn("ESCROW_RELEASE_CAM_ROOT_TEXT", deploy_command)
+        self.assertIn("PRIVATE_KEY=", deploy_command)
+        self.assertNotIn("export PRIVATE_KEY", deploy_command)
         self.assertIn("umask 077", deploy_command)
 
         for service in (plan, deploy, artifact):
@@ -102,42 +117,53 @@ class EscrowReleasePostureTest(unittest.TestCase):
             self.assertEqual(OUTPUT_DIR, output["source"])
             self.assertIsNot(output.get("read_only"), True)
 
-    def test_verifier_has_offline_source_gate_and_no_signing_or_send_authority(self) -> None:
+    def test_verifier_has_offline_source_and_receipt_gates_without_send_authority(self) -> None:
         config = rendered_compose_config(VERIFY, env=RELEASE_ENV)
         input_check = compose_service(config, "escrow-release-verify-input")
         proxy = compose_service(config, "escrow-release-verify-rpc-proxy")
+        provenance = compose_service(config, "escrow-release-verify-provenance")
         verify = compose_service(config, "verify-escrow-release")
 
         self.assertEqual("none", input_check["network_mode"])
         self.assertIn("tools/escrow-release/verify-input.ts", compose_command_text(input_check))
         self.assertEqual(
             "service_completed_successfully",
-            verify["depends_on"]["escrow-release-verify-input"]["condition"],
+            provenance["depends_on"]["escrow-release-verify-input"]["condition"],
         )
+        self.assertEqual(
+            "service_completed_successfully",
+            verify["depends_on"]["escrow-release-verify-provenance"]["condition"],
+        )
+        self.assertIn("tools/escrow-release/verify-provenance.ts", compose_command_text(provenance))
 
         proxy_methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
         self.assertNotIn("eth_sendRawTransaction", proxy_methods)
         self.assertIn("eth_getStorageAt", proxy_methods)
-        self.assertNotIn("eth_getProof", proxy_methods)
-        self.assertNotIn("PRIVATE_KEY", compose_mapping(verify, "environment"))
-        self.assertEqual([], [
-            secret
-            for secret in compose_sequence_or_empty(verify, "secrets")
-            if secret.get("target") == "deployer_private_key"
-        ])
+        self.assertIn("eth_getTransactionReceipt", proxy_methods)
+        for service in (provenance, verify):
+            self.assertNotIn("PRIVATE_KEY", compose_mapping(service, "environment"))
+            self.assertEqual([], [
+                secret
+                for secret in compose_sequence_or_empty(service, "secrets")
+                if secret.get("target") == "deployer_private_key"
+            ])
 
-        artifact = compose_volume(input_check, "/deployment/deployment.json")
+        artifact_input = compose_volume(input_check, "/deployment/deployment.json")
+        artifact_provenance = compose_volume(provenance, "/deployment/deployment.json")
         arguments_input = compose_volume(input_check, "/deployment/deployment.args")
+        arguments_provenance = compose_volume(provenance, "/deployment/deployment.args")
         arguments_verify = compose_volume(verify, "/deployment/deployment.args")
-        self.assertEqual(ARTIFACT_FILE, artifact["source"])
-        self.assertEqual(ARGUMENTS_FILE, arguments_input["source"])
-        self.assertEqual(ARGUMENTS_FILE, arguments_verify["source"])
-        guarded_inputs = {
-            "input artifact": artifact,
+        self.assertEqual(ARTIFACT_FILE, artifact_input["source"])
+        self.assertEqual(ARTIFACT_FILE, artifact_provenance["source"])
+        for arguments in (arguments_input, arguments_provenance, arguments_verify):
+            self.assertEqual(ARGUMENTS_FILE, arguments["source"])
+        for label, volume in {
+            "input artifact": artifact_input,
+            "provenance artifact": artifact_provenance,
             "input companion": arguments_input,
+            "provenance companion": arguments_provenance,
             "verifier companion": arguments_verify,
-        }
-        for label, volume in guarded_inputs.items():
+        }.items():
             with self.subTest(mount=label):
                 self.assertIs(volume["read_only"], True)
 
@@ -148,7 +174,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertEqual(3, read_text(repo_path(VERIFY)).count("create_host_path: false"))
 
         verify_command = compose_command_text(verify)
-        self.assertIn("deployment.args", verify_command)
+        self.assertIn("exact eighteen-field deployment record", verify_command)
         self.assertNotIn("--broadcast", verify_command)
         self.assertNotIn("vm.readFile", verify_command)
 
