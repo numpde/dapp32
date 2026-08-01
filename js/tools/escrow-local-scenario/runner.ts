@@ -64,6 +64,7 @@ const ROLE_ENV = {
 } as const
 
 type Role = keyof typeof ROLE_ENV
+type LocalAccount = ReturnType<typeof privateKeyToAccount>
 
 type Deployment = {
   readonly camRoot: Address
@@ -72,13 +73,9 @@ type Deployment = {
 
 type Fixture = {
   readonly rpcURL: string
-  readonly resourceOrigin: string
   readonly deployment: Deployment
-  readonly host: CamHost
-  readonly accounts: Record<Role, ReturnType<typeof privateKeyToAccount>>
-  readonly privateKeys: Record<Role, Hex>
+  readonly accounts: Record<Role, LocalAccount>
   readonly chain: Chain
-  readonly publicClient: ReturnType<typeof createHttpCamPublicClient>
   readonly fullPublicClient: ReturnType<typeof createPublicClient>
   readonly session: CamViewerSession
 }
@@ -105,7 +102,11 @@ async function main(): Promise<void> {
   const escrowBalance = await fixture.fullPublicClient.getBalance({
     address: fixture.deployment.escrow,
   })
-  assert.equal(escrowBalance, 0n, "all escrow and withdrawal liabilities must be discharged")
+  assert.equal(
+    escrowBalance.toString(),
+    "0",
+    "all escrow and withdrawal liabilities must be discharged",
+  )
 
   process.stdout.write(`${JSON.stringify({
     event: "ok",
@@ -118,12 +119,10 @@ async function createFixture(): Promise<Fixture> {
   const rpcURL = requiredEnv("ESCROW_SCENARIO_RPC_URL")
   const resourceOrigin = requiredEnv("ESCROW_SCENARIO_RESOURCE_ORIGIN")
   const deployment = deploymentFromBroadcast(requiredEnv("ESCROW_SCENARIO_BROADCAST_PATH"))
-  const privateKeys = Object.fromEntries(
-    Object.entries(ROLE_ENV).map(([role, envName]) => [role, requiredPrivateKey(envName)]),
-  ) as Record<Role, Hex>
+  const privateKeys = rolePrivateKeys()
   const accounts = Object.fromEntries(
     Object.entries(privateKeys).map(([role, key]) => [role, privateKeyToAccount(key)]),
-  ) as Record<Role, ReturnType<typeof privateKeyToAccount>>
+  ) as Record<Role, LocalAccount>
 
   const chain = {
     id: 31337,
@@ -139,7 +138,7 @@ async function createFixture(): Promise<Fixture> {
       },
     },
   } satisfies Chain
-  const publicClient = createHttpCamPublicClient({ rpcURL })
+  const camPublicClient = createHttpCamPublicClient({ rpcURL })
   const fullPublicClient = createPublicClient({
     chain,
     transport: http(rpcURL),
@@ -157,7 +156,7 @@ async function createFixture(): Promise<Fixture> {
     address: deployment.camRoot,
   } satisfies CamHost
   const session = createCamViewerSession({
-    publicClient,
+    publicClient: camPublicClient,
     host,
     account: { address: accounts.client.address },
     inputs: inertRecord({}),
@@ -168,16 +167,18 @@ async function createFixture(): Promise<Fixture> {
 
   return {
     rpcURL,
-    resourceOrigin,
     deployment,
-    host,
     accounts,
-    privateKeys,
     chain,
-    publicClient,
     fullPublicClient,
     session,
   }
+}
+
+function rolePrivateKeys(): Record<Role, Hex> {
+  return Object.fromEntries(
+    Object.entries(ROLE_ENV).map(([role, envName]) => [role, requiredPrivateKey(envName)]),
+  ) as Record<Role, Hex>
 }
 
 async function cancellationScenario(fixture: Fixture): Promise<void> {
@@ -248,7 +249,10 @@ async function resolveForContractorScenario(fixture: Fixture): Promise<void> {
   await assertTerminalNoMachineActions(fixture, agreementId)
 }
 
-async function arbitrationTimeoutScenario(fixture: Fixture, beneficiary: "client" | "contractor"): Promise<void> {
+async function arbitrationTimeoutScenario(
+  fixture: Fixture,
+  beneficiary: "client" | "contractor",
+): Promise<void> {
   const agreementId = await createAgreement(
     fixture,
     `local-arbitration-timeout-${beneficiary}`,
@@ -290,7 +294,10 @@ async function createAgreement(
 
   const call = await preparedAction(fixture.session, "createAgreement")
   assert.equal(call.value, AGREEMENT_AMOUNT)
-  const params = requiredRecord(requiredRecord(call.args, "create call args").params, "create params")
+  const params = requiredRecord(
+    requiredRecord(call.args, "create call args").params,
+    "create params",
+  )
   assert.equal(params.amount, AGREEMENT_AMOUNT)
   assert.equal(params.agreementRef, agreementRef)
 
@@ -306,7 +313,9 @@ async function createAgreement(
   return agreementId
 }
 
-async function assertAcceptanceNeedsNoArbitratorAcknowledgement(fixture: Fixture): Promise<void> {
+async function assertAcceptanceNeedsNoArbitratorAcknowledgement(
+  fixture: Fixture,
+): Promise<void> {
   await setRole(fixture, "contractor")
   const view = projectedView(loadedSnapshot(fixture.session))
   assert.equal(view.arbitratorAcknowledgementRequired, false)
@@ -350,7 +359,10 @@ async function executeAction(
   return await submitPreparedCall(fixture, role, call)
 }
 
-async function preparedAction(session: CamViewerSession, route: string): Promise<CamViewerPreparedContractCall> {
+async function preparedAction(
+  session: CamViewerSession,
+  route: string,
+): Promise<CamViewerPreparedContractCall> {
   const button = assertRenderedAction(session, route)
   const result = await session.dispatchAction(button)
   if (result.type !== "contractCall") {
@@ -400,23 +412,29 @@ async function submitPreparedCall(
   return snapshot
 }
 
-async function withdrawCredit(fixture: Fixture, beneficiary: "client" | "contractor"): Promise<void> {
+async function withdrawCredit(
+  fixture: Fixture,
+  beneficiary: "client" | "contractor",
+): Promise<void> {
   const account = fixture.accounts[beneficiary].address
   await setRole(fixture, beneficiary)
   await fixture.session.navigate("accountCredit", inertRecord({ account }))
   const available = projectedView(loadedSnapshot(fixture.session))
   assert.equal(available.viewId, "escrow.credit.available")
-  assert.equal(requiredUint(available.amount, "withdrawable amount"), BigInt(AGREEMENT_AMOUNT))
+  assert.equal(requiredUintText(available.amount, "withdrawable amount"), AGREEMENT_AMOUNT)
 
   await executeAction(fixture, beneficiary, "withdrawTo", {
     recipient: account,
   })
   const empty = projectedView(loadedSnapshot(fixture.session))
   assert.equal(empty.viewId, "escrow.credit.empty")
-  assert.equal(requiredUint(empty.amount, "withdrawable amount after withdrawal"), 0n)
+  assert.equal(requiredUintText(empty.amount, "withdrawable amount after withdrawal"), "0")
 }
 
-async function assertTerminalNoMachineActions(fixture: Fixture, agreementId: string): Promise<void> {
+async function assertTerminalNoMachineActions(
+  fixture: Fixture,
+  agreementId: string,
+): Promise<void> {
   await fixture.session.navigate("agreement", inertRecord({ agreementId }))
   const view = projectedView(loadedSnapshot(fixture.session))
   assert.equal(view.viewId, "escrow.agreement.terminal")
@@ -425,15 +443,18 @@ async function assertTerminalNoMachineActions(fixture: Fixture, agreementId: str
 }
 
 async function advanceToCurrentDeadline(fixture: Fixture): Promise<void> {
-  const deadline = requiredUint(
-    requiredRecord(projectedView(loadedSnapshot(fixture.session)).agreement, "projected agreement").deadline,
-    "agreement deadline",
+  const agreement = requiredRecord(
+    projectedView(loadedSnapshot(fixture.session)).agreement,
+    "projected agreement",
   )
+  const deadline = requiredSafeUint(agreement.deadline, "agreement deadline")
   const block = await fixture.fullPublicClient.getBlock()
-  if (block.timestamp < deadline) {
-    const delta = deadline - block.timestamp
-    assert.ok(delta <= BigInt(Number.MAX_SAFE_INTEGER), "deadline delta exceeds local RPC integer range")
-    await rawRpc(fixture.rpcURL, "evm_increaseTime", [Number(delta)])
+  const currentTime = Number(block.timestamp)
+  if (!Number.isSafeInteger(currentTime) || currentTime < 0) {
+    throw new Error("local block timestamp exceeds the safe integer range")
+  }
+  if (currentTime < deadline) {
+    await rawRpc(fixture.rpcURL, "evm_increaseTime", [deadline - currentTime])
   }
   await rawRpc(fixture.rpcURL, "evm_mine", [])
 }
@@ -445,11 +466,17 @@ async function setRole(fixture: Fixture, role: Role): Promise<void> {
 }
 
 function assertProjectedState(session: CamViewerSession, expected: string): void {
-  const machine = requiredRecord(projectedView(loadedSnapshot(session)).machine, "projected machine")
+  const machine = requiredRecord(
+    projectedView(loadedSnapshot(session)).machine,
+    "projected machine",
+  )
   assert.equal(machine.stateId, expected)
 }
 
-function assertRenderedAction(session: CamViewerSession, route: string): ResolvedButtonNode {
+function assertRenderedAction(
+  session: CamViewerSession,
+  route: string,
+): ResolvedButtonNode {
   const snapshot = loadedSnapshot(session)
   const matches = resolvedUiButtons(snapshot.resolvedUi)
     .filter((button) => button.call.function === route)
@@ -464,8 +491,7 @@ function assertRenderedAction(session: CamViewerSession, route: string): Resolve
 }
 
 function projectedView(snapshot: CamViewerLoadedSnapshot): Record<string, unknown> {
-  const view = snapshot.values[0]
-  return requiredRecord(view, "projected view")
+  return requiredRecord(snapshot.values[0], "projected view")
 }
 
 function loadedSnapshot(session: CamViewerSession): CamViewerLoadedSnapshot {
@@ -498,7 +524,10 @@ function deploymentFromBroadcast(path: string): Deployment {
   }
 }
 
-function createdContract(transactions: readonly unknown[], contractName: string): Address {
+function createdContract(
+  transactions: readonly unknown[],
+  contractName: string,
+): Address {
   const matches = transactions.filter((item) => (
     isRecordObject(item)
     && item.transactionType === "CREATE"
@@ -516,7 +545,11 @@ function createdContract(transactions: readonly unknown[], contractName: string)
   return requireEvmAddress(address, `${contractName} address`)
 }
 
-async function rawRpc(rpcURL: string, method: string, params: readonly unknown[]): Promise<unknown> {
+async function rawRpc(
+  rpcURL: string,
+  method: string,
+  params: readonly unknown[],
+): Promise<unknown> {
   const response = await fetch(rpcURL, {
     method: "POST",
     headers: {
@@ -562,14 +595,23 @@ function requiredString(value: unknown, label: string): string {
   return value
 }
 
-function requiredUint(value: unknown, label: string): bigint {
+function requiredUintText(value: unknown, label: string): string {
   if (typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value)) {
-    return BigInt(value)
+    return value
   }
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
-    return BigInt(value)
+    return String(value)
   }
   throw new Error(`${label} must be an unsigned integer`)
+}
+
+function requiredSafeUint(value: unknown, label: string): number {
+  const text = requiredUintText(value, label)
+  const number = Number(text)
+  if (!Number.isSafeInteger(number)) {
+    throw new Error(`${label} exceeds the safe integer range`)
+  }
+  return number
 }
 
 function requiredEnv(name: string): string {
@@ -589,7 +631,16 @@ function requiredPrivateKey(name: string): Hex {
 }
 
 main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.stack ?? error.message : String(error)
+  let message: string
+  if (error instanceof Error) {
+    if (error.stack === undefined) {
+      message = error.message
+    } else {
+      message = error.stack
+    }
+  } else {
+    message = String(error)
+  }
   process.stderr.write(`${message}\n`)
   process.exitCode = 1
 })
