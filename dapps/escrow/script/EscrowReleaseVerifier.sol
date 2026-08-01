@@ -35,6 +35,9 @@ abstract contract EscrowReleaseVerifier {
     error InvalidArtifactSchema(string actual);
     error SourceCommitMismatch(string expected, string actual);
     error ChainIdMismatch(uint256 expected, uint256 actual);
+    error UnsupportedReleaseChainId(uint256 chainId);
+    error EmptyCamURI();
+    error ZeroCamHash();
     error ZeroAddress(string field);
     error MissingCode(string field, address target);
     error CodeHashMismatch(string field, bytes32 expected, bytes32 actual);
@@ -70,6 +73,11 @@ abstract contract EscrowReleaseVerifier {
         if (artifact.chainId != block.chainid) {
             revert ChainIdMismatch(artifact.chainId, block.chainid);
         }
+        if (artifact.chainId == 1337 || artifact.chainId == 31337) {
+            revert UnsupportedReleaseChainId(artifact.chainId);
+        }
+        if (bytes(artifact.camURI).length == 0) revert EmptyCamURI();
+        if (artifact.camHash == bytes32(0)) revert ZeroCamHash();
     }
 
     function _verifyAddressesAndCode(Artifact memory artifact) private view {
