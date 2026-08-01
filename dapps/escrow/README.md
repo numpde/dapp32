@@ -160,14 +160,14 @@ The repository-wide `make fmt` lane checks every dapp. At the base commit used f
 Build the pinned Foundry image and apply formatting only to this dapp through a writable mount:
 
 ```bash
-docker build --tag dapp32-foundry-local containers/foundry
+docker build --tag cam-escrow-foundry-local containers/foundry
 
 docker run --rm --network none \
   --user "$(id -u):$(id -g)" \
   --env HOME=/tmp/home \
   --volume "$PWD/dapps:/work/dapps:rw" \
   --workdir /work/dapps \
-  dapp32-foundry-local \
+  cam-escrow-foundry-local \
   sh -eu -c 'mkdir -p "$HOME"; forge fmt escrow/src escrow/test'
 ```
 
@@ -179,7 +179,7 @@ docker run --rm --network none \
   --env HOME=/tmp/home \
   --volume "$PWD/dapps:/work/dapps:ro" \
   --workdir /work/dapps \
-  dapp32-foundry-local \
+  cam-escrow-foundry-local \
   sh -eu -c 'mkdir -p "$HOME"; forge fmt --check escrow/src escrow/test'
 ```
 
