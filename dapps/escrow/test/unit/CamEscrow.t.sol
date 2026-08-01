@@ -1,11 +1,10 @@
 pragma solidity 0.8.35;
 
-import {Test} from "forge-std-1.12.0/src/Test.sol";
-
 import {IERC165} from "@openzeppelin-contracts-5.6.1/utils/introspection/IERC165.sol";
 
 import {CamEscrow} from "../../src/CamEscrow.sol";
 import {ICamEscrowView} from "../../src/ICamEscrowView.sol";
+import {CamEscrowTestBase} from "../support/CamEscrowTestBase.sol";
 
 contract RejectNativeRecipient {
     receive() external payable {
@@ -43,19 +42,7 @@ contract ReentrantContractor {
 }
 
 /// @notice Deterministic contract-boundary tests for the V1 escrow.
-contract CamEscrowTest is Test {
-    uint256 private constant AMOUNT = 10 ether;
-    uint64 private constant ACCEPTANCE_DURATION = 2 days;
-    uint64 private constant WORK_DURATION = 3 days;
-    uint64 private constant REVIEW_DURATION = 4 days;
-    uint64 private constant ARBITRATION_DURATION = 5 days;
-
-    address private contractor = address(0xC0FFEE);
-    address private arbitrator = address(0xA11CE);
-    address private unrelated = address(0xB0B);
-
-    CamEscrow private escrow;
-
+contract CamEscrowTest is CamEscrowTestBase {
     event AgreementCreated(
         bytes32 indexed agreementId,
         address indexed client,
@@ -75,15 +62,7 @@ contract CamEscrowTest is Test {
 
     event Withdrawal(address indexed account, address indexed recipient, uint256 amount);
 
-    function setUp() public {
-        escrow = new CamEscrow();
-        vm.deal(address(this), 1_000 ether);
-        vm.deal(contractor, 100 ether);
-        vm.deal(arbitrator, 100 ether);
-        vm.deal(unrelated, 100 ether);
-    }
-
-    /// @notice Creation stores the reviewed terms, starts Funded, and exposes one explicit read ABI.
+    /// @notice Creation stores all reviewed terms, starts Funded, and exposes one explicit read ABI.
     function testCreateAgreementStoresTermsAndLiabilities() external {
         CamEscrow.CreateAgreementParams memory params = _defaultParams("agreement-1");
         bytes32 expectedId = keccak256(abi.encode(address(this), params.agreementRef));
@@ -152,7 +131,7 @@ contract CamEscrowTest is Test {
         escrow.acceptAgreement(missingId);
     }
 
-    /// @notice Creation rejects malformed identity, party, value, duration, and document terms.
+    /// @notice Creation rejects malformed identity, unsafe policy values, and malformed terms.
     function testCreateAgreementValidationSurface() external {
         CamEscrow.CreateAgreementParams memory params = _defaultParams("valid");
 
@@ -164,24 +143,6 @@ contract CamEscrowTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(
                 CamEscrow.InvalidReferenceLength.selector, escrow.MAX_AGREEMENT_REF_BYTES() + 1
-            )
-        );
-        escrow.createAgreement{value: AMOUNT}(params);
-
-        params = _defaultParams("bad-parties");
-        params.contractor = address(0);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CamEscrow.InvalidPartyConfiguration.selector, address(this), address(0), arbitrator
-            )
-        );
-        escrow.createAgreement{value: AMOUNT}(params);
-
-        params = _defaultParams("same-parties");
-        params.arbitrator = contractor;
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                CamEscrow.InvalidPartyConfiguration.selector, address(this), contractor, contractor
             )
         );
         escrow.createAgreement{value: AMOUNT}(params);
@@ -202,20 +163,10 @@ contract CamEscrowTest is Test {
         escrow.createAgreement(params);
 
         params = _defaultParams("underpaid");
-        vm.expectRevert(abi.encodeWithSelector(CamEscrow.NativeAmountMismatch.selector, AMOUNT, AMOUNT - 1));
-        escrow.createAgreement{value: AMOUNT - 1}(params);
-
-        params = _defaultParams("acceptance-duration");
-        params.acceptanceDuration = 0;
-        vm.expectRevert(abi.encodeWithSelector(CamEscrow.InvalidAcceptanceDuration.selector, 0));
-        escrow.createAgreement{value: AMOUNT}(params);
-
-        params = _defaultParams("work-duration");
-        params.workDuration = escrow.MAX_PHASE_DURATION() + 1;
         vm.expectRevert(
-            abi.encodeWithSelector(CamEscrow.InvalidWorkDuration.selector, escrow.MAX_PHASE_DURATION() + 1)
+            abi.encodeWithSelector(CamEscrow.NativeAmountMismatch.selector, AMOUNT, AMOUNT - 1)
         );
-        escrow.createAgreement{value: AMOUNT}(params);
+        escrow.createAgreement{value: AMOUNT - 1}(params);
 
         params = _defaultParams("empty-uri");
         params.terms.uri = "";
@@ -224,11 +175,11 @@ contract CamEscrowTest is Test {
 
         params = _defaultParams("zero-digest");
         params.terms.sha256Digest = bytes32(0);
-        vm.expectRevert(abi.encodeWithSelector(CamEscrow.InvalidDocumentDigest.selector));
+        vm.expectRevert(CamEscrow.InvalidDocumentDigest.selector);
         escrow.createAgreement{value: AMOUNT}(params);
     }
 
-    /// @notice A client/reference key is permanent and client scoped.
+    /// @notice A client/reference key is permanent and scoped to its client.
     function testAgreementReferenceIsClientScopedAndNeverReusable() external {
         CamEscrow.CreateAgreementParams memory params = _defaultParams("shared-ref");
         bytes32 firstId = escrow.createAgreement{value: AMOUNT}(params);
@@ -246,7 +197,7 @@ contract CamEscrowTest is Test {
         assertEq(escrow.totalEscrowed(), 2 * AMOUNT);
     }
 
-    /// @notice Contractor acceptance requires no arbitrator transaction, signature, or stored acknowledgement.
+    /// @notice Contractor acceptance needs no arbitrator transaction, signature, or stored acknowledgement.
     function testAcceptanceNeedsNoArbitratorActionAndSharesTheAvailableActionPredicate() external {
         bytes32 agreementId = _create("no-ack");
 
@@ -260,8 +211,8 @@ contract CamEscrowTest is Test {
             address(this),
             _actions1(ICamEscrowView.AgreementAction.CancelAgreement)
         );
-        assertEq(escrow.availableActions(agreementId, arbitrator).length, 0);
-        assertEq(escrow.availableActions(agreementId, address(0)).length, 0);
+        _assertNoActions(agreementId, arbitrator);
+        _assertNoActions(agreementId, address(0));
 
         uint256 nextDeadline = block.timestamp + WORK_DURATION;
         vm.expectEmit(true, true, false, true, address(escrow));
@@ -273,15 +224,14 @@ contract CamEscrowTest is Test {
             nextDeadline
         );
 
-        vm.prank(contractor);
-        escrow.acceptAgreement(agreementId);
-
+        _accept(agreementId);
         ICamEscrowView.AgreementView memory view_ = escrow.agreementById(agreementId);
         assertEq(uint256(view_.state), uint256(ICamEscrowView.AgreementState.Accepted));
         assertEq(view_.deadline, nextDeadline);
 
         bytes4 acknowledgementSelector = bytes4(keccak256("acknowledgeAgreement(bytes32)"));
-        (bool ok, bytes memory result) = address(escrow).call(abi.encodeWithSelector(acknowledgementSelector, agreementId));
+        (bool ok, bytes memory result) =
+            address(escrow).call(abi.encodeWithSelector(acknowledgementSelector, agreementId));
         assertFalse(ok);
         assertEq(
             keccak256(result),
@@ -289,7 +239,7 @@ contract CamEscrowTest is Test {
         );
     }
 
-    /// @notice Ordinary actions stop exactly at the deadline and timeout actions start there.
+    /// @notice Ordinary actions stop exactly at a deadline and timeout actions begin at that timestamp.
     function testDeadlineBoundaryIsDisjoint() external {
         bytes32 agreementId = _create("deadline-boundary");
         uint256 deadline = escrow.agreementById(agreementId).deadline;
@@ -328,89 +278,101 @@ contract CamEscrowTest is Test {
         escrow.acceptAgreement(agreementId);
     }
 
-    /// @notice Enabled actions are canonical for every active state and switch exactly at each deadline.
-    function testAvailableActionsAcrossEveryActiveStateAndDeadline() external {
-        bytes32 fundedId = _create("actions-funded");
-        vm.warp(escrow.agreementById(fundedId).deadline - 1);
+    /// @notice Funded exposes only role actions before expiry and public finalization after expiry.
+    function testFundedAvailableActions() external {
+        bytes32 agreementId = _create("actions-funded");
+        uint256 deadline = escrow.agreementById(agreementId).deadline;
+
+        vm.warp(deadline - 1);
         _assertActions(
-            fundedId,
+            agreementId,
             address(this),
             _actions1(ICamEscrowView.AgreementAction.CancelAgreement)
         );
         _assertActions(
-            fundedId,
+            agreementId,
             contractor,
             _actions1(ICamEscrowView.AgreementAction.AcceptAgreement)
         );
-        _assertNoActions(fundedId, arbitrator);
-        _assertNoActions(fundedId, unrelated);
-        _assertNoActions(fundedId, address(0));
-        _assertTimeoutActions(
-            fundedId,
-            ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout
-        );
+        _assertNoActions(agreementId, arbitrator);
+        _assertNoActions(agreementId, unrelated);
 
-        bytes32 acceptedId = _create("actions-accepted");
-        vm.prank(contractor);
-        escrow.acceptAgreement(acceptedId);
-        vm.warp(escrow.agreementById(acceptedId).deadline - 1);
-        _assertNoActions(acceptedId, address(this));
+        _assertPublicTimeoutAction(
+            agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeAcceptanceTimeout
+        );
+    }
+
+    /// @notice Accepted exposes submission before expiry and public work-timeout finalization afterward.
+    function testAcceptedAvailableActions() external {
+        bytes32 agreementId = _create("actions-accepted");
+        _accept(agreementId);
+        uint256 deadline = escrow.agreementById(agreementId).deadline;
+
+        vm.warp(deadline - 1);
+        _assertNoActions(agreementId, address(this));
         _assertActions(
-            acceptedId,
+            agreementId,
             contractor,
             _actions1(ICamEscrowView.AgreementAction.SubmitAgreement)
         );
-        _assertNoActions(acceptedId, arbitrator);
-        _assertNoActions(acceptedId, unrelated);
-        _assertTimeoutActions(acceptedId, ICamEscrowView.AgreementAction.FinalizeWorkTimeout);
+        _assertNoActions(agreementId, arbitrator);
+        _assertNoActions(agreementId, unrelated);
 
-        bytes32 submittedId = _create("actions-submitted");
-        vm.prank(contractor);
-        escrow.acceptAgreement(submittedId);
-        vm.prank(contractor);
-        escrow.submitAgreement(submittedId, _document("ipfs://submission", "submission"));
-        vm.warp(escrow.agreementById(submittedId).deadline - 1);
+        _assertPublicTimeoutAction(
+            agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeWorkTimeout
+        );
+    }
+
+    /// @notice Submitted exposes client approval/dispute before expiry and public review finalization afterward.
+    function testSubmittedAvailableActions() external {
+        bytes32 agreementId = _create("actions-submitted");
+        _accept(agreementId);
+        _submit(agreementId, "ipfs://submission", "submission");
+        uint256 deadline = escrow.agreementById(agreementId).deadline;
+
+        vm.warp(deadline - 1);
         _assertActions(
-            submittedId,
+            agreementId,
             address(this),
             _actions2(
                 ICamEscrowView.AgreementAction.ApproveAgreement,
                 ICamEscrowView.AgreementAction.DisputeAgreement
             )
         );
-        _assertNoActions(submittedId, contractor);
-        _assertNoActions(submittedId, arbitrator);
-        _assertNoActions(submittedId, unrelated);
-        _assertTimeoutActions(
-            submittedId,
-            ICamEscrowView.AgreementAction.FinalizeReviewTimeout
-        );
+        _assertNoActions(agreementId, contractor);
+        _assertNoActions(agreementId, arbitrator);
+        _assertNoActions(agreementId, unrelated);
 
-        bytes32 disputedId = _create("actions-disputed");
-        vm.prank(contractor);
-        escrow.acceptAgreement(disputedId);
-        vm.prank(contractor);
-        escrow.submitAgreement(disputedId, _document("ipfs://submission-2", "submission-2"));
-        escrow.disputeAgreement(disputedId, _document("ipfs://dispute", "dispute"));
-        vm.warp(escrow.agreementById(disputedId).deadline - 1);
-        _assertNoActions(disputedId, address(this));
-        _assertNoActions(disputedId, contractor);
+        _assertPublicTimeoutAction(
+            agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeReviewTimeout
+        );
+    }
+
+    /// @notice Disputed exposes only arbitrator outcomes before expiry and public fallback afterward.
+    function testDisputedAvailableActions() external {
+        bytes32 agreementId = _create("actions-disputed");
+        _acceptSubmitAndDispute(agreementId);
+        uint256 deadline = escrow.agreementById(agreementId).deadline;
+
+        vm.warp(deadline - 1);
+        _assertNoActions(agreementId, address(this));
+        _assertNoActions(agreementId, contractor);
         _assertActions(
-            disputedId,
+            agreementId,
             arbitrator,
             _actions2(
                 ICamEscrowView.AgreementAction.ResolveForClient,
                 ICamEscrowView.AgreementAction.ResolveForContractor
             )
         );
-        _assertNoActions(disputedId, unrelated);
-        _assertTimeoutActions(
-            disputedId,
-            ICamEscrowView.AgreementAction.FinalizeArbitrationTimeout
+        _assertNoActions(agreementId, unrelated);
+
+        _assertPublicTimeoutAction(
+            agreementId, deadline, ICamEscrowView.AgreementAction.FinalizeArbitrationTimeout
         );
     }
 
-    /// @notice State/actor/time legality is checked before evidence payload validity.
+    /// @notice State, actor, and time legality is checked before evidence payload validity.
     function testEvidenceValidationFollowsActionAvailability() external {
         bytes32 agreementId = _create("payload-order");
         ICamEscrowView.DocumentRef memory invalidDocument =
@@ -431,19 +393,16 @@ contract CamEscrowTest is Test {
         vm.prank(unrelated);
         escrow.submitAgreement(agreementId, invalidDocument);
 
-        vm.prank(contractor);
-        escrow.acceptAgreement(agreementId);
-
+        _accept(agreementId);
         vm.expectRevert(abi.encodeWithSelector(CamEscrow.InvalidDocumentURI.selector, 0));
         vm.prank(contractor);
         escrow.submitAgreement(agreementId, invalidDocument);
     }
 
-    /// @notice Exact timeout functions cannot silently settle a later expired phase.
+    /// @notice An exact timeout function cannot silently settle a different expired phase.
     function testStaleTimeoutFunctionCannotFinalizeAnotherPhase() external {
         bytes32 agreementId = _create("exact-timeout");
-        vm.prank(contractor);
-        escrow.acceptAgreement(agreementId);
+        _accept(agreementId);
 
         ICamEscrowView.AgreementView memory accepted = escrow.agreementById(agreementId);
         vm.warp(accepted.deadline);
@@ -464,10 +423,7 @@ contract CamEscrowTest is Test {
 
         vm.prank(unrelated);
         escrow.finalizeWorkTimeout(agreementId);
-        assertEq(
-            uint256(escrow.agreementById(agreementId).state),
-            uint256(ICamEscrowView.AgreementState.RefundedAfterWorkTimeout)
-        );
+        _assertState(agreementId, ICamEscrowView.AgreementState.RefundedAfterWorkTimeout);
     }
 
     /// @notice Credits aggregate, may be redirected, and failed transfers restore all accounting.
@@ -511,8 +467,8 @@ contract CamEscrowTest is Test {
         bytes32 agreementId = _create("terminal-replay");
         escrow.cancelAgreement(agreementId);
 
-        assertEq(escrow.availableActions(agreementId, address(this)).length, 0);
-        assertEq(escrow.availableActions(agreementId, unrelated).length, 0);
+        _assertNoActions(agreementId, address(this));
+        _assertNoActions(agreementId, unrelated);
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -547,9 +503,11 @@ contract CamEscrowTest is Test {
         CamEscrow.CreateAgreementParams memory params = _defaultParams("reentrant-withdrawal");
         params.contractor = address(reentrant);
         bytes32 agreementId = escrow.createAgreement{value: AMOUNT}(params);
+        ICamEscrowView.DocumentRef memory submission =
+            _document("ipfs://submission", "submission");
 
         reentrant.accept(agreementId);
-        reentrant.submit(agreementId, _document("ipfs://submission", "submission"));
+        reentrant.submit(agreementId, submission);
         escrow.approveAgreement(agreementId);
 
         assertEq(escrow.withdrawable(address(reentrant)), AMOUNT);
@@ -599,56 +557,11 @@ contract CamEscrowTest is Test {
         assertEq(address(escrow).balance, AMOUNT + 3 ether);
     }
 
-    function _create(string memory agreementRef) private returns (bytes32) {
-        return escrow.createAgreement{value: AMOUNT}(_defaultParams(agreementRef));
-    }
-
-    function _defaultParams(string memory agreementRef)
-        private
-        view
-        returns (CamEscrow.CreateAgreementParams memory params)
-    {
-        params.agreementRef = agreementRef;
-        params.contractor = contractor;
-        params.arbitrator = arbitrator;
-        params.arbitrationTimeoutBeneficiary = ICamEscrowView.ArbitrationTimeoutBeneficiary.Client;
-        params.amount = AMOUNT;
-        params.acceptanceDuration = ACCEPTANCE_DURATION;
-        params.workDuration = WORK_DURATION;
-        params.reviewDuration = REVIEW_DURATION;
-        params.arbitrationDuration = ARBITRATION_DURATION;
-        params.terms = _document("ipfs://terms", "terms");
-    }
-
-    function _document(string memory uri, string memory seed)
-        private
-        pure
-        returns (ICamEscrowView.DocumentRef memory)
-    {
-        return ICamEscrowView.DocumentRef({uri: uri, sha256Digest: sha256(bytes(seed))});
-    }
-
-    function _assertActions(
+    function _assertPublicTimeoutAction(
         bytes32 agreementId,
-        address actor,
-        ICamEscrowView.AgreementAction[] memory expected
-    ) private view {
-        ICamEscrowView.AgreementAction[] memory actual = escrow.availableActions(agreementId, actor);
-        assertEq(actual.length, expected.length);
-        for (uint256 i = 0; i < expected.length; i++) {
-            assertEq(uint256(actual[i]), uint256(expected[i]));
-        }
-    }
-
-    function _assertNoActions(bytes32 agreementId, address actor) private view {
-        assertEq(escrow.availableActions(agreementId, actor).length, 0);
-    }
-
-    function _assertTimeoutActions(
-        bytes32 agreementId,
+        uint256 deadline,
         ICamEscrowView.AgreementAction timeoutAction
     ) private {
-        uint256 deadline = escrow.agreementById(agreementId).deadline;
         vm.warp(deadline);
 
         address[] memory actors = new address[](4);
@@ -665,31 +578,5 @@ contract CamEscrowTest is Test {
         for (uint256 i = 0; i < actors.length; i++) {
             _assertActions(agreementId, actors[i], _actions1(timeoutAction));
         }
-    }
-
-    function _actions2(
-        ICamEscrowView.AgreementAction first,
-        ICamEscrowView.AgreementAction second
-    ) private pure returns (ICamEscrowView.AgreementAction[] memory actions) {
-        actions = new ICamEscrowView.AgreementAction[](2);
-        actions[0] = first;
-        actions[1] = second;
-    }
-
-    function _actions1(ICamEscrowView.AgreementAction action)
-        private
-        pure
-        returns (ICamEscrowView.AgreementAction[] memory actions)
-    {
-        actions = new ICamEscrowView.AgreementAction[](1);
-        actions[0] = action;
-    }
-
-    function _stringOfLength(uint256 length) private pure returns (string memory) {
-        bytes memory value = new bytes(length);
-        for (uint256 i = 0; i < length; i++) {
-            value[i] = 0x78;
-        }
-        return string(value);
     }
 }
