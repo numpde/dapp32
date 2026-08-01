@@ -180,12 +180,12 @@ function walkInclude(
 ): void {
   if (!isRecordObject(node.call) || !isRecordObject(node.call.args)) return
 
-  const targetNames = staticStringList(node.call.function)
-    ?? (() => {
-      const target = staticString(node.call.function)
-      return target === undefined ? undefined : [target]
-    })()
-  if (targetNames === undefined) return
+  let targetNames = staticStringList(node.call.function)
+  if (targetNames === undefined) {
+    const target = staticString(node.call.function)
+    if (target === undefined) return
+    targetNames = [target]
+  }
 
   const nextContext = new Map<string, KnownValue>()
   for (const [name, value] of Object.entries(node.call.args)) {
