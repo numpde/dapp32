@@ -10,7 +10,7 @@ x-release-output: &release_output "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_R
 x-rpc-url-bind: &rpc_url_bind
   type: bind
   source: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
-  target: /run/secrets/rpc_url
+  target: /run/inputs/rpc_url
   read_only: true
   bind:
     create_host_path: false
@@ -185,7 +185,7 @@ services:
     environment:
       RPC_PROXY_HOST: 0.0.0.0
       RPC_PROXY_PORT: "8080"
-      RPC_UPSTREAM_FILE: /run/secrets/rpc_url
+      RPC_UPSTREAM_FILE: /run/inputs/rpc_url
       RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
       RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
       RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
