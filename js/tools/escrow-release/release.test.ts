@@ -27,13 +27,13 @@ const ZERO = "0x0000000000000000000000000000000000000000"
 const ROOT = "0x0000000000000000000000000000000000000033"
 const ESCROW = "0x0000000000000000000000000000000000000044"
 const UI = "0x0000000000000000000000000000000000000055"
-const CAM_HASH = `0x${"aa".repeat(32)}`
-const ROOT_CODE_HASH = `0x${"bb".repeat(32)}`
-const ESCROW_CODE_HASH = `0x${"cc".repeat(32)}`
-const UI_CODE_HASH = `0x${"dd".repeat(32)}`
-const ROOT_TX = `0x${"11".repeat(32)}`
-const ESCROW_TX = `0x${"22".repeat(32)}`
-const UI_TX = `0x${"33".repeat(32)}`
+const CAM_HASH = `0x${"aa".repeat(32)}` as `0x${string}`
+const ROOT_CODE_HASH = `0x${"bb".repeat(32)}` as `0x${string}`
+const ESCROW_CODE_HASH = `0x${"cc".repeat(32)}` as `0x${string}`
+const UI_CODE_HASH = `0x${"dd".repeat(32)}` as `0x${string}`
+const ROOT_TX = `0x${"11".repeat(32)}` as `0x${string}`
+const ESCROW_TX = `0x${"22".repeat(32)}` as `0x${string}`
+const UI_TX = `0x${"33".repeat(32)}` as `0x${string}`
 
 test("release chain ID is explicit and rejects fixture chains", () => {
   assert.equal(requiredReleaseChainId("1"), 1)
