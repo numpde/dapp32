@@ -17,6 +17,7 @@ import type {
 } from "../../packages/cam-screen/dist/index.js"
 
 import { parsePositiveIntegerText } from "../input.ts"
+import { parseTerminalAccount } from "./account-command.ts"
 import { createTerminalBackendFromEnv } from "./backends/index.ts"
 import { formatError, formatValue } from "./format.ts"
 import type {
@@ -102,6 +103,9 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
       case "trace":
         handleTrace(context, args)
         break
+      case "account":
+        await handleAccount(context.session, args)
+        break
       case "restart":
         await handleRestart(context)
         break
@@ -137,6 +141,14 @@ function handleSet(session: CamViewerSession, args: readonly string[]): void {
   session.updateState({
     [name]: toInertValue(valueParts.join(" ")),
   })
+}
+
+async function handleAccount(session: CamViewerSession, args: readonly string[]): Promise<void> {
+  const selection = parseTerminalAccount(args)
+  await session.setAccount(selection.kind === "none"
+    ? undefined
+    : { address: selection.address })
+  render(session.snapshot())
 }
 
 async function handleRestart(context: TerminalContext): Promise<void> {
@@ -357,6 +369,7 @@ function printHelp(): void {
     "  ui                    Print the resolved UI tree.",
     "  trace                 Print backend contract reads and resource loads.",
     "  trace clear           Clear the trace buffer.",
+    "  account <address|none> Switch the viewer account and refresh the current route.",
     "  restart               Reset the backend session and reload the entry route.",
     "  set <name> <value>    Update local UI state and re-resolve actions.",
     "  press <n>             Dispatch a resolved button action.",
