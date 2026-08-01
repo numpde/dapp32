@@ -2,7 +2,7 @@
 
 `CamEscrow` is a non-upgradeable, single-milestone native-asset escrow. A client creates and funds an agreement in one payable transaction. The contractor may accept, submit committed work evidence, and receive payment after client approval, review timeout, or an arbitrator decision. The client may cancel before acceptance, dispute a submission, or recover funds after acceptance/work timeout or an arbitrator decision.
 
-This package is the contract-only first slice. It intentionally contains no CAM manifest, route projection, deployment script, browser fixture, generic machine descriptor, fuzz tests, or stateful invariant tests yet.
+This package contains the core contract plus deterministic, fuzz, and stateful-invariant verification. It intentionally contains no CAM manifest, route projection, deployment script, browser fixture, or generic machine descriptor yet.
 
 ## Roles and trust
 
@@ -155,6 +155,10 @@ V1 omits:
 
 The deterministic suite covers creation, validation, absent reads, enabled-action boundaries, no-acknowledgement acceptance, exact timeout functions, complete terminal paths, document retention, pull-payment accounting, failed transfers, alternate recipients, reentrancy, direct-transfer rejection, unknown selectors, and forced surplus.
 
+The fuzz suite checks arbitrary valid creation economics and, for every active state, compares selected writes against `availableActions` at `deadline - 1`, `deadline`, and `deadline + 1`. It also fuzzes full-value arbitration-timeout settlement for both configured beneficiaries.
+
+The stateful invariant handler drives up to sixteen concurrent agreements across a fixed actor pool. It proves active and terminal amount conservation, aggregate-credit ownership, solvency, deadline shape, terminal action emptiness, terminal irreversibility, event/storage agreement for every successful transition, and exact single-beneficiary settlement deltas.
+
 The repository-wide `make fmt` lane checks every dapp. At the base commit used for this branch, unrelated existing bike and deposit sources are not clean under the currently pinned Forge formatter. Do not mix that repository-wide normalization into this escrow slice.
 
 Build the pinned Foundry image and apply formatting only to this dapp through a writable mount:
@@ -183,11 +187,13 @@ docker run --rm --network none \
   sh -eu -c 'mkdir -p "$HOME"; forge fmt --check escrow/src escrow/test'
 ```
 
-Then run the repository build and deterministic tests:
+Run the repository build and deterministic tests, then the heavy verification lanes:
 
 ```bash
 make build
 make test
+make fuzz
+make invariant
 ```
 
 To isolate only this dapp's deterministic tests inside the repository Foundry image:
@@ -198,4 +204,4 @@ LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
   sh -eu -c 'forge test --offline --match-path "escrow/test/unit/**/*.sol" -vvv; forge test --offline --match-path "escrow/test/scenario/**/*.sol" -vvv'
 ```
 
-The ordinary `forge-test` service already discovers `escrow/test/unit` and `escrow/test/scenario`; `make test` remains the authoritative deterministic repository lane. Repository-wide formatting normalization should be handled separately from this branch.
+The ordinary `forge-test` service already discovers `escrow/test/unit` and `escrow/test/scenario`; `make test` remains the authoritative deterministic repository lane. Fuzz and invariant tests remain in their dedicated heavier lanes. Repository-wide formatting normalization should be handled separately from this branch.
