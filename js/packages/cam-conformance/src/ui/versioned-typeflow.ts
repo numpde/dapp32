@@ -180,12 +180,8 @@ function walkInclude(
 ): void {
   if (!isRecordObject(node.call) || !isRecordObject(node.call.args)) return
 
-  let targetNames = staticStringList(node.call.function)
-  if (targetNames === undefined) {
-    const target = staticString(node.call.function)
-    if (target === undefined) return
-    targetNames = Array.of(target)
-  }
+  const targetNames = includeTargetNames(node.call.function)
+  if (targetNames === undefined) return
 
   const nextContext = new Map<string, KnownValue>()
   for (const [name, value] of Object.entries(node.call.args)) {
@@ -194,6 +190,15 @@ function walkInclude(
   for (const targetName of targetNames) {
     walkNamedNode(scope, targetName, `${path}.${targetName}`, nextContext, stack)
   }
+}
+
+function includeTargetNames(value: unknown): readonly string[] | undefined {
+  const targetNames = staticStringList(value)
+  if (targetNames !== undefined) return targetNames
+
+  const targetName = staticString(value)
+  if (targetName === undefined) return undefined
+  return [targetName]
 }
 
 function validateButtonValue(
