@@ -275,6 +275,8 @@ make escrow-viewer-gui
 
 A release deployment is deliberately separate from the local fixture. It has no default chain, accepts no local fixture chain ID, obtains no private key from the process environment, and refuses a dirty source tree. The offline planning step validates the complete checked-in CAM bundle and computes the exact `keccak256` root hash stored in `CamRoot`.
 
+Publish the exact checked-in CAM bytes at the chosen URI before deployment. The release planner binds the URI and checked-in root hash; it does not fetch the remote publication. Viewers will reject the publication if the bytes served there do not match the hash stored in `CamRoot`.
+
 Prepare two absolute, non-symlink secret files. The deployer key file must not be group- or world-readable:
 
 ```bash
@@ -302,17 +304,21 @@ The target writes:
 
 ```text
 release-plan.json
+release-plan.args
 broadcast/DeployEscrowRelease.s.sol/<chain-id>/run-latest.json
 deployment.json
+deployment.json.args
 ```
 
 `release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, final owner, and whether the ownership handoff has already been accepted.
+
+The `.args` files are strict, generated companions used to pass the same typed fields into Forge without granting filesystem cheatcode access. Treat each JSON file and its adjacent companion as one immutable release record. Do not edit either companion manually. Release files are staged and synced before no-clobber publication; a failed run preserves the output directory for forensic inspection.
 
 The deployed `CamEscrow` and `CamEscrowUI` are immutable and have no owner, pause, upgrade, fee, sweep, or recovery authority. `CamRoot` remains mutable under its owner because it controls the published CAM URI/hash and contract-address bindings. If the intended root owner differs from the deployer, deployment starts an `Ownable2Step` transfer. The intended owner must review the addresses and artifact, then call `acceptOwnership()` independently. Do not treat the release as accepted while `pendingOwner()` is nonzero.
 
 ## Release verification
 
-Run verification from the same exact clean source commit recorded in `deployment.json`:
+Run verification from the same exact clean source commit recorded in `deployment.json`, with `deployment.json.args` still adjacent to it:
 
 ```bash
 RPC_URL_FILE=/secure/escrow-rpc-url \
@@ -320,7 +326,9 @@ ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-<chain>-<version>/deploy
 make escrow-release-verify
 ```
 
-The verifier receives no signing key, has no transaction-submission RPC method, and does not use `--broadcast`. It checks:
+Verification begins offline. It strictly parses `deployment.json`, proves the companion file is its exact canonical projection, checks the current Git commit, validates the complete checked-in escrow CAM bundle, and recomputes the root hash. Only then does the live read-only verifier contact RPC.
+
+The live verifier receives no signing key, has no transaction-submission RPC method, and does not use `--broadcast`. It checks:
 
 - current chain ID and source commit;
 - nonzero deployed code at all three addresses;
@@ -333,7 +341,7 @@ The verifier receives no signing key, has no transaction-submission RPC method, 
 - ERC-165 interfaces;
 - `totalLiabilities() <= address(CamEscrow).balance`.
 
-A deployment whose two-step ownership transfer is still pending intentionally fails verification. The original `deployment.json` remains an immutable record of the post-deployment observation; it is not rewritten after ownership acceptance.
+A deployment whose two-step ownership transfer is still pending intentionally fails verification. The original `deployment.json` and companion remain immutable records of the post-deployment observation; they are not rewritten after ownership acceptance.
 
 ## Operational monitoring
 
