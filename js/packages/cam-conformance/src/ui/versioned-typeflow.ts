@@ -184,7 +184,7 @@ function walkInclude(
   if (targetNames === undefined) {
     const target = staticString(node.call.function)
     if (target === undefined) return
-    targetNames = [target]
+    targetNames = Array.of(target)
   }
 
   const nextContext = new Map<string, KnownValue>()
