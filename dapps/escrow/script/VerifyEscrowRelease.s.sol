@@ -14,21 +14,7 @@ contract VerifyEscrowRelease is Script, EscrowReleaseVerifier {
         string memory json = vm.readFile(artifactPath);
 
         requireDeploymentSchema(vm.parseJsonString(json, ".schema"));
-
-        Artifact memory artifact = Artifact({
-            sourceCommit: vm.parseJsonString(json, ".sourceCommit"),
-            chainId: vm.parseJsonUint(json, ".chainId"),
-            camURI: vm.parseJsonString(json, ".camURI"),
-            camHash: vm.parseJsonBytes32(json, ".camHash"),
-            intendedCamRootOwner: vm.parseJsonAddress(json, ".intendedCamRootOwner"),
-            camRoot: vm.parseJsonAddress(json, ".camRoot"),
-            camEscrow: vm.parseJsonAddress(json, ".camEscrow"),
-            camEscrowUI: vm.parseJsonAddress(json, ".camEscrowUI"),
-            camRootCodeHash: vm.parseJsonBytes32(json, ".camRootCodeHash"),
-            camEscrowCodeHash: vm.parseJsonBytes32(json, ".camEscrowCodeHash"),
-            camEscrowUICodeHash: vm.parseJsonBytes32(json, ".camEscrowUICodeHash")
-        });
-
+        Artifact memory artifact = _parseArtifact(json);
         verifyArtifact(artifact, expectedSourceCommit);
 
         console2.log("EscrowReleaseVerified", true);
@@ -39,5 +25,19 @@ contract VerifyEscrowRelease is Script, EscrowReleaseVerifier {
         console2.log("CamEscrowUI", artifact.camEscrowUI);
         console2.log("CamRootOwner", artifact.intendedCamRootOwner);
         console2.log("CamHash", artifact.camHash);
+    }
+
+    function _parseArtifact(string memory json) private pure returns (Artifact memory artifact) {
+        artifact.sourceCommit = vm.parseJsonString(json, ".sourceCommit");
+        artifact.chainId = vm.parseJsonUint(json, ".chainId");
+        artifact.camURI = vm.parseJsonString(json, ".camURI");
+        artifact.camHash = vm.parseJsonBytes32(json, ".camHash");
+        artifact.intendedCamRootOwner = vm.parseJsonAddress(json, ".intendedCamRootOwner");
+        artifact.camRoot = vm.parseJsonAddress(json, ".camRoot");
+        artifact.camEscrow = vm.parseJsonAddress(json, ".camEscrow");
+        artifact.camEscrowUI = vm.parseJsonAddress(json, ".camEscrowUI");
+        artifact.camRootCodeHash = vm.parseJsonBytes32(json, ".camRootCodeHash");
+        artifact.camEscrowCodeHash = vm.parseJsonBytes32(json, ".camEscrowCodeHash");
+        artifact.camEscrowUICodeHash = vm.parseJsonBytes32(json, ".camEscrowUICodeHash");
     }
 }
