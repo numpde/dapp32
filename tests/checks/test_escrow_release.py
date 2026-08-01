@@ -8,7 +8,9 @@ from .common import (
     compose_sequence_or_empty,
     compose_service,
     compose_volume,
+    read_text,
     rendered_compose_config,
+    repo_path,
 )
 
 
@@ -45,6 +47,27 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertIn("tools/escrow-release/tsconfig.json", compose_command_text(service))
         self.assertIn("tools/escrow-release/*.test.ts", compose_command_text(service))
 
+    def test_release_make_targets_fail_closed(self) -> None:
+        source = read_text(repo_path("Makefile"))
+        deploy_start = source.index("escrow-release-deploy:")
+        verify_start = source.index("escrow-release-verify:")
+        deploy = source[deploy_start:verify_start]
+        verify = source[verify_start:]
+
+        self.assertIn("CONFIRM_ESCROW_RELEASE_DEPLOY", deploy)
+        self.assertIn("git status --porcelain --untracked-files=all", deploy)
+        self.assertIn("git rev-parse --verify HEAD", deploy)
+        self.assertIn("DEPLOYER_PRIVATE_KEY_FILE", deploy)
+        self.assertIn("RPC_URL_FILE", deploy)
+        self.assertIn("must be outside the repository", deploy)
+        self.assertIn("env -u PRIVATE_KEY -u RPC_URL", deploy)
+        self.assertNotIn('rm -rf "$$output_dir"', deploy)
+
+        self.assertIn("git status --porcelain --untracked-files=all", verify)
+        self.assertIn("git rev-parse --verify HEAD", verify)
+        self.assertIn("ESCROW_DEPLOYMENT_ARTIFACT_FILE", verify)
+        self.assertIn("env -u PRIVATE_KEY -u RPC_URL", verify)
+
     def test_deployment_signer_is_secret_file_backed_and_proxy_scoped(self) -> None:
         config = rendered_compose_config(DEPLOY, env=RELEASE_ENV)
         plan = compose_service(config, "escrow-release-plan")
@@ -67,6 +90,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         proxy_methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
         self.assertIn("eth_sendRawTransaction", proxy_methods)
         self.assertIn("eth_getStorageAt", proxy_methods)
+        self.assertIn("eth_getProof", proxy_methods)
 
         deploy_command = compose_command_text(deploy)
         self.assertIn("release-plan.args", deploy_command)
@@ -94,6 +118,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         proxy_methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
         self.assertNotIn("eth_sendRawTransaction", proxy_methods)
         self.assertIn("eth_getStorageAt", proxy_methods)
+        self.assertIn("eth_getProof", proxy_methods)
         self.assertNotIn("PRIVATE_KEY", compose_mapping(verify, "environment"))
         self.assertEqual([], [
             secret
