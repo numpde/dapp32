@@ -60,9 +60,10 @@ services:
       RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
       RPC_ALLOWED_METHODS: >-
         eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance
-        eth_getTransactionCount eth_gasPrice eth_maxPriorityFeePerGas
-        eth_feeHistory eth_estimateGas eth_createAccessList eth_call eth_getCode
-        eth_sendRawTransaction eth_getTransactionReceipt eth_getTransactionByHash
+        eth_getTransactionCount eth_getStorageAt eth_gasPrice
+        eth_maxPriorityFeePerGas eth_feeHistory eth_estimateGas
+        eth_createAccessList eth_call eth_getCode eth_sendRawTransaction
+        eth_getTransactionReceipt eth_getTransactionByHash
     secrets:
       - source: rpc_url
         target: rpc_url
@@ -124,7 +125,8 @@ services:
       - "-lc"
       - |
         set -euo pipefail
-        private_key="$$(tr -d '\r\n' < /run/secrets/deployer_private_key)"
+        umask 077
+        private_key="$$(< /run/secrets/deployer_private_key)"
         if [[ ! "$${private_key}" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then
           printf '%s\n' 'deployer private-key secret must contain exactly one 32-byte hex key' >&2
           exit 2
