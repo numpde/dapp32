@@ -29,4 +29,4 @@ format:
 	  --env "DAPP=$$DAPP" \
 	  --volume "$(abspath $(DAPPS_DIR))/$$DAPP:/work/dapps/$$DAPP:rw" \
 	  forge-fmt \
-	  sh -eu -c 'set --; for dir in "$$DAPP/src" "$$DAPP/test" "$$DAPP/script"; do if [[ -d "$$dir" ]]; then set -- "$$@" "$$dir"; fi; done; forge fmt "$$@"'
+	  sh -eu -c 'set --; for dir in "$$DAPP/src" "$$DAPP/test" "$$DAPP/script"; do if [ -d "$$dir" ]; then set -- "$$@" "$$dir"; fi; done; forge fmt "$$@"'
