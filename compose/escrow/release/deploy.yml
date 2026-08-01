@@ -7,6 +7,14 @@
 
 x-release-output: &release_output "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_RELEASE_OUTPUT_DIR}:/release-output:rw"
 
+x-rpc-url-bind: &rpc_url_bind
+  type: bind
+  source: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+  target: /run/secrets/rpc_url
+  read_only: true
+  bind:
+    create_host_path: false
+
 x-rpc-proxy-base: &rpc_proxy_base
   build:
     context: ../../../containers/rpc-proxy
@@ -28,9 +36,6 @@ x-rpc-proxy-base: &rpc_proxy_base
     RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
     RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
     RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
-  secrets:
-    - source: rpc_url
-      target: rpc_url
   tmpfs:
     - /tmp:rw,nosuid,nodev,noexec,size=16m
   healthcheck:
@@ -74,7 +79,7 @@ services:
         ./node_modules/.bin/tsc -p tools/escrow-release/tsconfig.json
         node --experimental-strip-types tools/escrow-release/plan.ts
 
-  escrow-release-deploy-rpc-proxy:
+  escrow-release-rpc-proxy:
     <<: *rpc_proxy_base
     environment:
       RPC_PROXY_HOST: 0.0.0.0
@@ -90,10 +95,13 @@ services:
         eth_gasPrice eth_maxPriorityFeePerGas eth_feeHistory eth_estimateGas
         eth_createAccessList eth_call eth_getCode eth_sendRawTransaction
         eth_getTransactionReceipt eth_getTransactionByHash
+    secrets:
+      - source: rpc_url
+        target: rpc_url
     networks:
       escrow_release_deploy_internal:
         aliases:
-          - escrow-release-deploy-rpc-proxy
+          - escrow-release-rpc-proxy
       escrow_release_deploy_egress: {}
 
   deploy-escrow-release:
@@ -104,7 +112,7 @@ services:
     depends_on:
       escrow-release-plan:
         condition: service_completed_successfully
-      escrow-release-deploy-rpc-proxy:
+      escrow-release-rpc-proxy:
         condition: service_healthy
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
     read_only: true
@@ -167,7 +175,7 @@ services:
         export ESCROW_RELEASE_CAM_HASH="$${release_plan[4]}"
         export ESCROW_RELEASE_CAM_ROOT_TEXT="$${cam_root[0]}"
         PRIVATE_KEY="$${private_key}" forge script --offline escrow/script/DeployEscrowRelease.s.sol \
-          --rpc-url http://escrow-release-deploy-rpc-proxy:8080 \
+          --rpc-url http://escrow-release-rpc-proxy:8080 \
           --broadcast \
           -vvv
 
@@ -183,6 +191,8 @@ services:
       RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
       RPC_ALLOWED_METHODS: >-
         eth_chainId eth_getTransactionReceipt eth_getCode eth_call
+    volumes:
+      - *rpc_url_bind
     networks:
       escrow_release_artifact_internal:
         aliases:
