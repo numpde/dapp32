@@ -220,53 +220,19 @@ It proves all nine terminal paths and complete withdrawal:
 
 Each path uses a new agreement reference, switches the viewer account through `CamViewerSession.setAccount`, asserts the projected semantic state, verifies that terminal observations expose no machine transitions, withdraws the complete credit, and leaves no escrow balance at the end.
 
-### Common local environment
-
-The CAM hash below is the accepted hash of the checked-in root bytes:
-
-```bash
-export LOCAL_UID="$(id -u)"
-export LOCAL_GID="$(id -g)"
-export CAM_HASH=0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66
-export ESCROW_BROADCAST_DIR=/foundry-broadcast
-export ESCROW_BROADCAST_PATH=/foundry-broadcast/DeployEscrowLocal.s.sol/31337/run-latest.json
-```
-
 ### Automated nine-path workflow
 
 ```bash
-export COMPOSE_PROJECT_NAME=dapps-escrow-local
-export CAM_URI=http://escrow-cam-http:8080/main.json
-export CAM_VIEWER_RESOURCE_ORIGIN=http://escrow-cam-http:8080
-
-files=(
-  -f compose/escrow/local/deploy.yml
-  -f compose/escrow/local/http.yml
-  -f compose/escrow/local/scenario.yml
-)
-
-docker compose "${files[@]}" \
-  up --build --abort-on-container-exit \
-  --exit-code-from escrow-local-scenario \
-  escrow-local-scenario
-
-docker compose "${files[@]}" down --volumes --remove-orphans
+make escrow-local-scenario
 ```
+
+The Make target owns the accepted checked-in CAM hash, internal resource URI,
+fixture broadcast path, Compose project, merged files, and teardown.
 
 ### Interactive real-RPC terminal
 
 ```bash
-export COMPOSE_PROJECT_NAME=dapps-escrow-terminal
-export CAM_URI=http://escrow-cam-http:8080/main.json
-export CAM_VIEWER_RESOURCE_ORIGIN=http://escrow-cam-http:8080
-
-files=(
-  -f compose/escrow/local/deploy.yml
-  -f compose/escrow/local/http.yml
-  -f compose/escrow/local/viewer-terminal.yml
-)
-
-docker compose "${files[@]}" run --build --rm escrow-viewer-terminal
+make escrow-viewer-terminal
 ```
 
 The terminal starts as the client. Use:
@@ -278,43 +244,35 @@ account none        render an anonymous account context
 
 The terminal prepares writes but does not sign or submit them. It is useful for inspecting role-specific rendered actions and exact calldata/value preparation.
 
-Clean up with:
+The target cleans up when the terminal exits. To clean up a separately
+interrupted project, run:
 
 ```bash
-docker compose "${files[@]}" down --volumes --remove-orphans
+make escrow-viewer-terminal-down
 ```
 
 ### Browser viewer
 
 ```bash
-export COMPOSE_PROJECT_NAME=dapps-escrow-gui
-export ESCROW_GUI_PORT=5174
-export ESCROW_GUI_BIND_HOST=127.0.0.1
-export ESCROW_GUI_ORIGIN=http://127.0.0.1:5174
-export CAM_URI=http://127.0.0.1:5174/cam/main.json
-export CAM_VIEWER_RESOURCE_ORIGIN=http://127.0.0.1:5174
-
-files=(
-  -f compose/escrow/local/deploy.yml
-  -f compose/escrow/local/http.yml
-  -f compose/escrow/local/viewer-gui.yml
-)
-
-docker compose "${files[@]}" up --build --detach escrow-anvil escrow-cam-http
-docker compose "${files[@]}" run --build --rm --no-deps deploy-escrow-local
-viewer_url="$(docker compose "${files[@]}" run --build --rm --no-deps -T escrow-viewer-url)"
-printf '\n%s\n\n' "$viewer_url"
-docker compose "${files[@]}" \
-  up --build --force-recreate --abort-on-container-exit \
-  cam-web escrow-browser-gateway
+make escrow-viewer-gui
 ```
 
 The browser query starts with the client as the viewer identity. Actual writes remain controlled by the injected browser wallet. Import only the explicit local fixture accounts and switch wallet accounts to exercise contractor and arbitrator actions.
 
-Clean up with:
+The target cleans up when the viewer exits. To clean up a separately
+interrupted project, run:
 
 ```bash
-docker compose "${files[@]}" down --volumes --remove-orphans
+make escrow-viewer-gui-down
+```
+
+The default listener is `127.0.0.1:5174`. To admit another browser host, pass
+an explicit bind and matching origin:
+
+```bash
+ESCROW_GUI_BIND_HOST=0.0.0.0 \
+ESCROW_GUI_ORIGIN=http://host:5174 \
+make escrow-viewer-gui
 ```
 
 ## Verification

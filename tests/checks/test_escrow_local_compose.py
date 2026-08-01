@@ -50,13 +50,13 @@ class EscrowLocalComposeTest(unittest.TestCase):
             with self.subTest(service=service_name):
                 service = compose_service(config, service_name)
                 self.assertEqual([], compose_sequence_or_empty(service, "ports"))
-                self.assertFalse(service.get("privileged", False))
-                self.assertTrue(service.get("read_only", False))
+                self.assertNotIn("privileged", service)
+                self.assertIs(service["read_only"], True)
                 self.assertIn("ALL", compose_sequence_or_empty(service, "cap_drop"))
                 self.assertIn("no-new-privileges:true", compose_sequence_or_empty(service, "security_opt"))
 
         networks = config["networks"]
-        self.assertTrue(networks["escrow_local"].get("internal", False))
+        self.assertIs(networks["escrow_local"]["internal"], True)
 
     def test_only_broadcast_volume_is_writable_during_deployment(self) -> None:
         config = rendered_compose_config(DEPLOY, env=ESCROW_ENV)
@@ -87,7 +87,7 @@ class EscrowLocalComposeTest(unittest.TestCase):
             if compose_sequence_or_empty(service, "ports")
         }
         self.assertEqual({"escrow-browser-gateway"}, set(exposed))
-        self.assertTrue(config["networks"]["escrow_local"].get("internal", False))
+        self.assertIs(config["networks"]["escrow_local"]["internal"], True)
 
     def test_fixture_keys_are_exact_obvious_local_values(self) -> None:
         for path in (DEPLOY, SCENARIO):

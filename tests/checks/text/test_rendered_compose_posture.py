@@ -27,6 +27,18 @@ BIKE_NFT_GUI_BIND_HOST = "127.0.0.1"
 BIKE_NFT_GUI_ORIGIN = "http://127.0.0.1:5173"
 STANDALONE_BIKE_CAM_URI = "https://example.test/bike-nft/main.json"
 ANVIL_DEV_PRIVATE_KEY = "0xbabababababababababababababababababababababababababababababababa"
+ESCROW_FIXTURE_KEYS = {
+    "PRIVATE_KEY": ANVIL_DEV_PRIVATE_KEY,
+    "ESCROW_CONTRACTOR_PRIVATE_KEY": "0x" + "ca" * 32,
+    "ESCROW_ARBITRATOR_PRIVATE_KEY": "0x" + "da" * 32,
+    "ESCROW_FINALIZER_PRIVATE_KEY": "0x" + "fa" * 32,
+}
+ESCROW_SCENARIO_FIXTURE_KEYS = {
+    "ESCROW_CLIENT_PRIVATE_KEY": ANVIL_DEV_PRIVATE_KEY,
+    "ESCROW_CONTRACTOR_PRIVATE_KEY": "0x" + "ca" * 32,
+    "ESCROW_ARBITRATOR_PRIVATE_KEY": "0x" + "da" * 32,
+    "ESCROW_FINALIZER_PRIVATE_KEY": "0x" + "fa" * 32,
+}
 PYTHON_ALPINE_IMAGE = "docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc"
 PACKAGE_WORKSPACE_TMPFS = "/work/js:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777"
 ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000"
@@ -214,10 +226,17 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "ANVIL_HOST_PORT": "8545",
                 "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
                 "BIKE_NFT_GUI_PORT": "5173",
+                "CAM_HASH": "0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66",
                 "CAM_PREFLIGHT_ARGS": "",
                 "CAM_PREFLIGHT_ROOT_PATH": "/work/dapps/bike-nft/cam/main.json",
                 "CAM_URI": "https://example.test/bike-nft/cam/main.json",
+                "CAM_VIEWER_RESOURCE_ORIGIN": "http://escrow-cam-http:8080",
                 "COMPOSE_PROJECT_NAME": "dapps-check",
+                "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
+                "ESCROW_BROADCAST_PATH": "/foundry-broadcast/DeployEscrowLocal.s.sol/31337/run-latest.json",
+                "ESCROW_GUI_BIND_HOST": "127.0.0.1",
+                "ESCROW_GUI_ORIGIN": "http://127.0.0.1:5174",
+                "ESCROW_GUI_PORT": "5174",
                 "LOCAL_GID": "1000",
                 "LOCAL_UID": "1000",
             },
@@ -275,6 +294,13 @@ class RenderedComposePostureTest(unittest.TestCase):
                 8080,
                 "5173",
             ),
+            (
+                makefile_compose_unit("ESCROW_VIEWER_GUI_COMPOSE_FILES"),
+                "escrow-browser-gateway",
+                "127.0.0.1",
+                8080,
+                "5174",
+            ),
         }
         expected_secrets = {
             ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
@@ -306,6 +332,18 @@ class RenderedComposePostureTest(unittest.TestCase):
                 ANVIL_DEV_PRIVATE_KEY,
             ),
         }
+        for unit_name in (
+            "ESCROW_LOCAL_SCENARIO_COMPOSE_FILES",
+            "ESCROW_VIEWER_TERMINAL_COMPOSE_FILES",
+            "ESCROW_VIEWER_GUI_COMPOSE_FILES",
+        ):
+            compose_unit = makefile_compose_unit(unit_name)
+            for name, value in ESCROW_FIXTURE_KEYS.items():
+                expected_fixture_keys.add((compose_unit, "deploy-escrow-local", name, value))
+
+        scenario_unit = makefile_compose_unit("ESCROW_LOCAL_SCENARIO_COMPOSE_FILES")
+        for name, value in ESCROW_SCENARIO_FIXTURE_KEYS.items():
+            expected_fixture_keys.add((scenario_unit, "escrow-local-scenario", name, value))
         actual_ports = set()
         actual_secrets = set()
         actual_fixture_keys = set()
