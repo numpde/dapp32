@@ -1,0 +1,40 @@
+# Deterministic escrow CAM vertical workflow.
+#
+# Compose this with deploy.yml and http.yml. The runner uses the generic viewer
+# session, rendered actions, CAM write preparation, simulation, wallet submission,
+# declared continuation, and account switching for every workflow edge. It owns
+# no direct escrow-call shortcut.
+services:
+  escrow-local-scenario:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    depends_on:
+      deploy-escrow-local:
+        condition: service_completed_successfully
+      escrow-cam-http:
+        condition: service_healthy
+    environment:
+      ESCROW_SCENARIO_RPC_URL: http://escrow-anvil:8545
+      ESCROW_SCENARIO_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
+      ESCROW_SCENARIO_BROADCAST_PATH: "${ESCROW_BROADCAST_PATH:?missing_ESCROW_BROADCAST_PATH}"
+      ESCROW_CLIENT_PRIVATE_KEY: "0xbabababababababababababababababababababababababababababababababa"
+      ESCROW_CONTRACTOR_PRIVATE_KEY: "0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca"
+      ESCROW_ARBITRATOR_PRIVATE_KEY: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"
+      ESCROW_FINALIZER_PRIVATE_KEY: "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
+    volumes:
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+      - "escrow_broadcast:${ESCROW_BROADCAST_DIR:?missing_ESCROW_BROADCAST_DIR}:ro"
+    networks:
+      - escrow_local
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/escrow-local-scenario/tsconfig.json
+        node --experimental-strip-types tools/escrow-local-scenario/runner.ts
