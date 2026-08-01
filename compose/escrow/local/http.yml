@@ -1,0 +1,50 @@
+# Local escrow CAM HTTP fixture.
+#
+# Compose this with deploy.yml whenever a viewer or scenario should load the
+# checked-in CAM manifest, ABIs, and UI over the same HTTP boundary used by a
+# published deployment.
+services:
+  escrow-cam-http:
+    image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+    working_dir: /srv/cam
+    init: true
+    user: "65532:65532"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    volumes:
+      - ../../../dapps/escrow/cam:/srv/cam:ro
+    networks:
+      - escrow_local
+    command:
+      - "python3"
+      - "-I"
+      - "-B"
+      - "-m"
+      - "http.server"
+      - "8080"
+      - "--bind"
+      - "0.0.0.0"
+      - "--directory"
+      - "/srv/cam"
+    healthcheck:
+      test:
+        - "CMD"
+        - "python3"
+        - "-I"
+        - "-B"
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/main.json', timeout=2).close()"
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+networks:
+  escrow_local:
+    internal: true
