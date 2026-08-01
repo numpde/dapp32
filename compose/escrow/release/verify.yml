@@ -1,8 +1,9 @@
 # Read-only verification for one escrow deployment artifact.
 #
 # The offline input service binds deployment.json and its strict companion to
-# the current source/CAM bytes. The live verifier receives no signing key and
-# can reach only a proxy whose allowlist excludes transaction submission.
+# the current source/CAM bytes. A read-only provenance service then checks all
+# creation receipts before the Solidity verifier checks live bytecode and state.
+# No verification service has a signing key or transaction-submission method.
 
 x-deployment-artifact: &deployment_artifact
   type: bind
@@ -81,6 +82,7 @@ services:
       RPC_ALLOWED_METHODS: >-
         eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance
         eth_getTransactionCount eth_getStorageAt eth_call eth_getCode
+        eth_getTransactionReceipt
     secrets:
       - source: rpc_url
         target: rpc_url
@@ -101,13 +103,44 @@ services:
       timeout: 2s
       retries: 10
 
+  escrow-release-verify-provenance:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    depends_on:
+      escrow-release-verify-input:
+        condition: service_completed_successfully
+      escrow-release-verify-rpc-proxy:
+        condition: service_healthy
+    environment:
+      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
+      ESCROW_DEPLOYMENT_ARGUMENTS_PATH: /deployment/deployment.args
+      ESCROW_RELEASE_RPC_URL: http://escrow-release-verify-rpc-proxy:8080
+    volumes:
+      - ../../../js:/input/js:ro
+      - *node_modules
+      - *deployment_artifact
+      - *deployment_arguments
+    networks:
+      - escrow_release_verify_internal
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/escrow-release/tsconfig.json
+        node --experimental-strip-types tools/escrow-release/verify-provenance.ts
+
   verify-escrow-release:
     build:
       context: ../../../containers/foundry
       dockerfile: Dockerfile
     working_dir: /work/dapps
     depends_on:
-      escrow-release-verify-input:
+      escrow-release-verify-provenance:
         condition: service_completed_successfully
       escrow-release-verify-rpc-proxy:
         condition: service_healthy
@@ -139,22 +172,22 @@ services:
       - |
         set -euo pipefail
         mapfile -t deployment < /deployment/deployment.args
-        if [[ "$${#deployment[@]}" -ne 12 || "$${deployment[0]}" != "escrow.deployment.v1" ]]; then
-          printf '%s\n' 'deployment.args must contain the exact twelve-field deployment record' >&2
+        if [[ "$${#deployment[@]}" -ne 18 || "$${deployment[0]}" != "escrow.deployment.v1" ]]; then
+          printf '%s\n' 'deployment.args must contain the exact eighteen-field deployment record' >&2
           exit 2
         fi
         export ESCROW_DEPLOYMENT_SCHEMA="$${deployment[0]}"
         export ESCROW_DEPLOYMENT_SOURCE_COMMIT="$${deployment[1]}"
         export ESCROW_DEPLOYMENT_CHAIN_ID="$${deployment[2]}"
-        export ESCROW_DEPLOYMENT_CAM_URI="$${deployment[3]}"
-        export ESCROW_DEPLOYMENT_CAM_HASH="$${deployment[4]}"
-        export ESCROW_DEPLOYMENT_CAM_ROOT_OWNER="$${deployment[5]}"
-        export ESCROW_DEPLOYMENT_CAM_ROOT="$${deployment[6]}"
-        export ESCROW_DEPLOYMENT_CAM_ESCROW="$${deployment[7]}"
-        export ESCROW_DEPLOYMENT_CAM_ESCROW_UI="$${deployment[8]}"
-        export ESCROW_DEPLOYMENT_CAM_ROOT_CODE_HASH="$${deployment[9]}"
-        export ESCROW_DEPLOYMENT_CAM_ESCROW_CODE_HASH="$${deployment[10]}"
-        export ESCROW_DEPLOYMENT_CAM_ESCROW_UI_CODE_HASH="$${deployment[11]}"
+        export ESCROW_DEPLOYMENT_CAM_URI="$${deployment[4]}"
+        export ESCROW_DEPLOYMENT_CAM_HASH="$${deployment[5]}"
+        export ESCROW_DEPLOYMENT_CAM_ROOT_OWNER="$${deployment[6]}"
+        export ESCROW_DEPLOYMENT_CAM_ROOT="$${deployment[9]}"
+        export ESCROW_DEPLOYMENT_CAM_ESCROW="$${deployment[10]}"
+        export ESCROW_DEPLOYMENT_CAM_ESCROW_UI="$${deployment[11]}"
+        export ESCROW_DEPLOYMENT_CAM_ROOT_CODE_HASH="$${deployment[12]}"
+        export ESCROW_DEPLOYMENT_CAM_ESCROW_CODE_HASH="$${deployment[13]}"
+        export ESCROW_DEPLOYMENT_CAM_ESCROW_UI_CODE_HASH="$${deployment[14]}"
         forge script --offline escrow/script/VerifyEscrowRelease.s.sol \
           --rpc-url http://escrow-release-verify-rpc-proxy:8080 \
           -vvv
