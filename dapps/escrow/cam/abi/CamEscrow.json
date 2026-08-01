@@ -730,38 +730,38 @@
       {
         "name": "agreementId",
         "type": "bytes32",
-        "internalType": "bytes32",
-        "indexed": true
+        "indexed": true,
+        "internalType": "bytes32"
       },
       {
         "name": "client",
         "type": "address",
-        "internalType": "address",
-        "indexed": true
+        "indexed": true,
+        "internalType": "address"
       },
       {
         "name": "contractor",
         "type": "address",
-        "internalType": "address",
-        "indexed": true
+        "indexed": true,
+        "internalType": "address"
       },
       {
         "name": "arbitrator",
         "type": "address",
-        "internalType": "address",
-        "indexed": false
+        "indexed": false,
+        "internalType": "address"
       },
       {
         "name": "amount",
         "type": "uint256",
-        "internalType": "uint256",
-        "indexed": false
+        "indexed": false,
+        "internalType": "uint256"
       },
       {
         "name": "deadline",
         "type": "uint256",
-        "internalType": "uint256",
-        "indexed": false
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -773,32 +773,32 @@
       {
         "name": "agreementId",
         "type": "bytes32",
-        "internalType": "bytes32",
-        "indexed": true
+        "indexed": true,
+        "internalType": "bytes32"
       },
       {
         "name": "actor",
         "type": "address",
-        "internalType": "address",
-        "indexed": true
+        "indexed": true,
+        "internalType": "address"
       },
       {
         "name": "fromState",
         "type": "uint8",
-        "internalType": "enum ICamEscrowView.AgreementState",
-        "indexed": false
+        "indexed": false,
+        "internalType": "enum ICamEscrowView.AgreementState"
       },
       {
         "name": "toState",
         "type": "uint8",
-        "internalType": "enum ICamEscrowView.AgreementState",
-        "indexed": false
+        "indexed": false,
+        "internalType": "enum ICamEscrowView.AgreementState"
       },
       {
         "name": "deadline",
         "type": "uint256",
-        "internalType": "uint256",
-        "indexed": false
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -810,20 +810,20 @@
       {
         "name": "account",
         "type": "address",
-        "internalType": "address",
-        "indexed": true
+        "indexed": true,
+        "internalType": "address"
       },
       {
         "name": "recipient",
         "type": "address",
-        "internalType": "address",
-        "indexed": true
+        "indexed": true,
+        "internalType": "address"
       },
       {
         "name": "amount",
         "type": "uint256",
-        "internalType": "uint256",
-        "indexed": false
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false

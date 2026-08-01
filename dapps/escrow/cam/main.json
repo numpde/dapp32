@@ -10,7 +10,7 @@
     "contracts.CamEscrow": {
       "type": "contract",
       "abiURI": "./abi/CamEscrow.json",
-      "integrity": "sha256:0x7a045dd107831e544c86d32017e3cf913c741239dc37506d2507a36a8c2d82f2"
+      "integrity": "sha256:0x92cf0c11b6a960df9ad51188a6cfb0c766e35789b1dcf8bd20b5c620af63cf2a"
     },
     "routes": {
       "type": "routes"
