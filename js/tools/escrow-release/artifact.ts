@@ -19,10 +19,12 @@ import {
 } from "./artifact-model.ts"
 import {
   DEPLOYMENT_SCHEMA,
+  deploymentArguments,
   parseJsonRecord,
   parseReleasePlan,
   requiredEnv,
   writeNewJson,
+  writeNewText,
 } from "./shared.ts"
 import type {
   DeploymentArtifact,
@@ -44,6 +46,7 @@ async function main(): Promise<void> {
   const planPath = requiredEnv(process.env, "ESCROW_RELEASE_PLAN_PATH")
   const broadcastDir = requiredEnv(process.env, "ESCROW_RELEASE_BROADCAST_DIR")
   const artifactPath = requiredEnv(process.env, "ESCROW_DEPLOYMENT_ARTIFACT_PATH")
+  const artifactArgumentsPath = requiredEnv(process.env, "ESCROW_DEPLOYMENT_ARGUMENTS_PATH")
   const rpcURL = requiredEnv(process.env, "ESCROW_RELEASE_RPC_URL")
 
   const plan = parseReleasePlan(await readRegularFile(planPath, "release plan", MAX_BROADCAST_BYTES))
@@ -143,10 +146,16 @@ async function main(): Promise<void> {
     camEscrowUICreationTransaction: contracts.camEscrowUI.transactionHash,
   }
   await writeNewJson(artifactPath, artifact, "deployment artifact")
+  await writeNewText(
+    artifactArgumentsPath,
+    deploymentArguments(artifact),
+    "deployment arguments",
+  )
 
   process.stdout.write(`${JSON.stringify({
     event: "escrow_deployment_artifact",
     artifactPath,
+    artifactArgumentsPath,
     chainId,
     sourceCommit: artifact.sourceCommit,
     camRoot: artifact.camRoot,
