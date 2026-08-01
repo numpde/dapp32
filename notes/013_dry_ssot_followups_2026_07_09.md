@@ -7,12 +7,13 @@ architecture lanes from this note.
 ## Checklist
 
 - [x] Fix the gh-pages Bike NFT route checker on the gh-pages branch.
-  `/tmp/dapp32-gh-pages/check_pages.py` should derive expected routes and
-  continuations from `dapps/bike-nft/cam/main.json`, not from a hard-coded list.
-  Acceptance: the hard-coded route list is gone, the current page passes when
-  `DAPP32_REPO_ROOT` points at this checkout, and omitting a manifest route or
-  changing a route continuation would fail. This was landed in the separate
-  gh-pages checkout/commit, not in this main-branch commit.
+  The separate gh-pages checkout's `check_pages.py` should derive expected
+  routes and continuations from `dapps/bike-nft/cam/main.json`, not from a
+  hard-coded list. Acceptance: the hard-coded route list is gone, the current
+  page passes when its repository-root environment variable points at this
+  checkout, and omitting a manifest route or changing a route continuation
+  would fail. This was landed in the separate gh-pages checkout/commit, not in
+  this main-branch commit.
 
 - [x] Update the Makefile operator guide for current `package-ci`.
   `notes/000_makefile_operator_guide.html` should list the Makefile target's
