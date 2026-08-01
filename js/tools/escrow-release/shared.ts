@@ -315,10 +315,10 @@ export async function writeNewText(path: string, value: string, label: string): 
       await handle.close()
     }
     await link(stagePath, path)
-    await syncDirectory(parent)
   } finally {
     await rm(stagePath, { force: true })
   }
+  await syncDirectory(parent)
 }
 
 function requiredSafeInteger(value: unknown, label: string): number {
