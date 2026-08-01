@@ -22,11 +22,11 @@ const ACCOUNT = "0x0000000000000000000000000000000000000002"
 function camDocument({
   version,
   value,
-  routeKind = "write",
+  routeKind,
 }: {
   readonly version: "1.0.0" | "1.1.0"
   readonly value: unknown
-  readonly routeKind?: "read" | "write"
+  readonly routeKind: "read" | "write"
 }): Record<string, unknown> {
   const route = routeKind === "write"
     ? {
@@ -106,6 +106,7 @@ test("CAM 1.1 parses and resolves write-route value expressions", () => {
   const cam = parseCam(camDocument({
     version: "1.1.0",
     value: "$inputs.amount",
+    routeKind: "write",
   }))
   const route = cam.routes.valueRoute
   assert.equal(route.kind, "write")
@@ -130,6 +131,7 @@ test("write-route value participates in account preflight", () => {
   const document = camDocument({
     version: "1.1.0",
     value: "$account.address",
+    routeKind: "write",
   })
   const routes = document.routes as Record<string, Record<string, unknown>>
   routes.valueRoute.inputs = []
@@ -149,6 +151,7 @@ test("CAM 1.0 rejects write-route value as unknown syntax", () => {
     () => parseCam(camDocument({
       version: "1.0.0",
       value: "1",
+      routeKind: "write",
     })),
     (error) =>
       error instanceof CamError
