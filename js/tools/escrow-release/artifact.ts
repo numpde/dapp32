@@ -14,6 +14,7 @@ import type {
 } from "viem"
 
 import {
+  creationReceiptDeployer,
   deploymentContractsFromBroadcast,
   ownershipState,
 } from "./artifact-model.ts"
@@ -67,17 +68,16 @@ async function main(): Promise<void> {
     throw new Error(`release RPC chain mismatch: expected ${plan.expectedChainId}, got ${chainId}`)
   }
 
-  const receipts = await Promise.all([
+  const [rootReceipt, escrowReceipt, uiReceipt] = await Promise.all([
     client.getTransactionReceipt({ hash: contracts.camRoot.transactionHash }),
     client.getTransactionReceipt({ hash: contracts.camEscrow.transactionHash }),
     client.getTransactionReceipt({ hash: contracts.camEscrowUI.transactionHash }),
   ])
-  for (const [index, receipt] of receipts.entries()) {
-    if (receipt.status !== "success") {
-      throw new Error(`release creation transaction ${index} did not succeed: ${receipt.transactionHash}`)
-    }
-  }
-  const deployers = new Set(receipts.map((receipt) => getAddress(receipt.from)))
+  const deployers = new Set([
+    creationReceiptDeployer(contracts.camRoot, rootReceipt, "CamRoot"),
+    creationReceiptDeployer(contracts.camEscrow, escrowReceipt, "CamEscrow"),
+    creationReceiptDeployer(contracts.camEscrowUI, uiReceipt, "CamEscrowUI"),
+  ])
   if (deployers.size !== 1) {
     throw new Error("release creation transactions do not share one deployer")
   }
@@ -145,12 +145,12 @@ async function main(): Promise<void> {
     camEscrowCreationTransaction: contracts.camEscrow.transactionHash,
     camEscrowUICreationTransaction: contracts.camEscrowUI.transactionHash,
   }
-  await writeNewJson(artifactPath, artifact, "deployment artifact")
   await writeNewText(
     artifactArgumentsPath,
     deploymentArguments(artifact),
     "deployment arguments",
   )
+  await writeNewJson(artifactPath, artifact, "deployment artifact")
 
   process.stdout.write(`${JSON.stringify({
     event: "escrow_deployment_artifact",
