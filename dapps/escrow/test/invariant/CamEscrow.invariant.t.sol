@@ -21,7 +21,23 @@ contract CamEscrowInvariantTest is Test {
             vm.deal(handler.actorAt(i), 1_000_000 ether);
         }
 
-        targetContract(address(handler));
+        bytes4[] memory selectors = new bytes4[](15);
+        selectors[0] = handler.createAgreement.selector;
+        selectors[1] = handler.cancelAgreement.selector;
+        selectors[2] = handler.acceptAgreement.selector;
+        selectors[3] = handler.submitAgreement.selector;
+        selectors[4] = handler.approveAgreement.selector;
+        selectors[5] = handler.disputeAgreement.selector;
+        selectors[6] = handler.finalizeAcceptanceTimeout.selector;
+        selectors[7] = handler.finalizeWorkTimeout.selector;
+        selectors[8] = handler.finalizeReviewTimeout.selector;
+        selectors[9] = handler.resolveForClient.selector;
+        selectors[10] = handler.resolveForContractor.selector;
+        selectors[11] = handler.finalizeArbitrationTimeout.selector;
+        selectors[12] = handler.advanceTime.selector;
+        selectors[13] = handler.withdrawCredit.selector;
+        selectors[14] = handler.probeTerminalIrreversibility.selector;
+        targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
     }
 
     /// @notice Every created amount has exactly one disposition: active, credited, or withdrawn.
