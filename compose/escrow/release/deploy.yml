@@ -161,11 +161,6 @@ services:
           printf '%s\n' 'release-plan.args disagrees with the operator-authorized release inputs' >&2
           exit 2
         fi
-        mapfile -d '' -t cam_root < /work/dapps/escrow/cam/main.json
-        if [[ "$${#cam_root[@]}" -ne 1 || -z "$${cam_root[0]}" ]]; then
-          printf '%s\n' 'checked-in escrow CAM root must be one non-empty text file' >&2
-          exit 2
-        fi
         private_key="$$(< /run/secrets/deployer_private_key)"
         if [[ ! "$${private_key}" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then
           printf '%s\n' 'deployer private-key secret must contain exactly one 32-byte hex key' >&2
@@ -173,7 +168,6 @@ services:
         fi
         export ESCROW_RELEASE_PLAN_SCHEMA="$${release_plan[0]}"
         export ESCROW_RELEASE_CAM_HASH="$${release_plan[4]}"
-        export ESCROW_RELEASE_CAM_ROOT_TEXT="$${cam_root[0]}"
         PRIVATE_KEY="$${private_key}" forge script --offline escrow/script/DeployEscrowRelease.s.sol \
           --rpc-url http://escrow-release-rpc-proxy:8080 \
           --broadcast \

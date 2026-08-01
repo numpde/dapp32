@@ -12,6 +12,7 @@ import {EscrowDeployment} from "./EscrowDeployment.sol";
 /// release remains unverified until that owner accepts independently.
 contract DeployEscrowRelease is Script, EscrowDeployment {
     string private constant RELEASE_PLAN_SCHEMA = "escrow.release-plan.v1";
+    string private constant CAM_ROOT_PATH = "escrow/cam/main.json";
 
     struct ReleasePlan {
         string sourceCommit;
@@ -80,7 +81,7 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
         if (bytes(plan.camURI).length == 0) revert EmptyCamURI();
         if (plan.intendedCamRootOwner == address(0)) revert ZeroCamRootOwner();
 
-        bytes32 sourceCamHash = keccak256(bytes(vm.envString("ESCROW_RELEASE_CAM_ROOT_TEXT")));
+        bytes32 sourceCamHash = keccak256(vm.readFileBinary(CAM_ROOT_PATH));
         if (plan.camHash != sourceCamHash) {
             revert CamHashSourceMismatch(plan.camHash, sourceCamHash);
         }

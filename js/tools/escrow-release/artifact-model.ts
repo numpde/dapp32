@@ -27,7 +27,7 @@ export type OwnershipState = {
 
 export type CreationReceiptEvidence = {
   readonly status: "success" | "reverted"
-  readonly contractAddress: Address | null
+  readonly contractAddress: Address | null | undefined
   readonly transactionHash: Hex
   readonly from: Address
   readonly to: Address | null
@@ -60,7 +60,7 @@ export function creationReceiptDeployer(
   if (receipt.to !== null) {
     throw new Error(`${label} creation receipt unexpectedly has a destination address`)
   }
-  if (receipt.contractAddress === null) {
+  if (receipt.contractAddress === null || receipt.contractAddress === undefined) {
     throw new Error(`${label} creation receipt has no contract address`)
   }
   const actualAddress = getAddress(receipt.contractAddress)

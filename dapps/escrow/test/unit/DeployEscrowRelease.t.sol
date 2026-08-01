@@ -26,7 +26,7 @@ contract DeployEscrowReleaseHarness is DeployEscrowRelease {
 contract DeployEscrowReleaseTest is Test {
     string private constant SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567";
     string private constant CAM_URI = "https://example.test/escrow/cam/main.json";
-    string private constant CAM_ROOT_TEXT = "{\"cam\":\"1.1.0\"}\n";
+    bytes32 private constant CAM_ROOT_HASH = 0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66;
     uint256 private constant RELEASE_CHAIN_ID = 11_155_111;
     address private constant FINAL_OWNER = address(0xBEEF);
 
@@ -34,17 +34,16 @@ contract DeployEscrowReleaseTest is Test {
 
     function setUp() external {
         vm.chainId(RELEASE_CHAIN_ID);
-        vm.setEnv("ESCROW_RELEASE_CAM_ROOT_TEXT", CAM_ROOT_TEXT);
         harness = new DeployEscrowReleaseHarness();
     }
 
-    function testAcceptsPlanBoundToExactCamRootText() external view {
-        harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID, CAM_URI, keccak256(bytes(CAM_ROOT_TEXT)), FINAL_OWNER);
+    function testAcceptsPlanBoundToExactCamRootBytes() external view {
+        harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID, CAM_URI, CAM_ROOT_HASH, FINAL_OWNER);
     }
 
-    function testRejectsCamHashNotBoundToExactCamRootText() external {
+    function testRejectsCamHashNotBoundToExactCamRootBytes() external {
         bytes32 plannedHash = keccak256("other-cam-root");
-        bytes32 sourceHash = keccak256(bytes(CAM_ROOT_TEXT));
+        bytes32 sourceHash = CAM_ROOT_HASH;
 
         vm.expectRevert(
             abi.encodeWithSelector(DeployEscrowRelease.CamHashSourceMismatch.selector, plannedHash, sourceHash)
@@ -56,12 +55,6 @@ contract DeployEscrowReleaseTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(DeployEscrowRelease.ChainIdMismatch.selector, RELEASE_CHAIN_ID + 1, RELEASE_CHAIN_ID)
         );
-        harness.validate(
-            SOURCE_COMMIT,
-            RELEASE_CHAIN_ID + 1,
-            CAM_URI,
-            keccak256(bytes(CAM_ROOT_TEXT)),
-            FINAL_OWNER
-        );
+        harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID + 1, CAM_URI, CAM_ROOT_HASH, FINAL_OWNER);
     }
 }

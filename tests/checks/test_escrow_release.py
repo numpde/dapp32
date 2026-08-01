@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 import unittest
 
 from .common import (
@@ -113,7 +114,16 @@ class EscrowReleasePostureTest(unittest.TestCase):
         deploy_command = compose_command_text(deploy)
         self.assertIn("release-plan.args", deploy_command)
         self.assertIn("operator-authorized release inputs", deploy_command)
-        self.assertIn("ESCROW_RELEASE_CAM_ROOT_TEXT", deploy_command)
+        self.assertNotIn("ESCROW_RELEASE_CAM_ROOT_TEXT", deploy_command)
+        self.assertIn(
+            "vm.readFileBinary(CAM_ROOT_PATH)",
+            read_text(repo_path("dapps/escrow/script/DeployEscrowRelease.s.sol")),
+        )
+        foundry_config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
+        self.assertEqual(
+            [{"access": "read", "path": "./escrow/cam/main.json"}],
+            foundry_config["profile"]["default"]["fs_permissions"],
+        )
         self.assertIn("PRIVATE_KEY=", deploy_command)
         self.assertNotIn("export PRIVATE_KEY", deploy_command)
         self.assertIn("umask 077", deploy_command)

@@ -216,6 +216,20 @@ test("creation receipts are bound to broadcast hashes and contract addresses", (
     from: DEPLOYER,
     to: ESCROW,
   }, "CamRoot"), /unexpectedly has a destination/)
+  assert.throws(() => creationReceiptDeployer(contract, {
+    status: "success",
+    contractAddress: undefined,
+    transactionHash: ROOT_TX,
+    from: DEPLOYER,
+    to: null,
+  }, "CamRoot"), /has no contract address/)
+  assert.throws(() => creationReceiptDeployer(contract, {
+    status: "reverted",
+    contractAddress: null,
+    transactionHash: ROOT_TX,
+    from: DEPLOYER,
+    to: null,
+  }, "CamRoot"), /did not succeed/)
 })
 
 test("ownership classification distinguishes pending and accepted handoff", () => {
