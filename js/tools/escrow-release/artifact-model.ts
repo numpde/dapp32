@@ -9,7 +9,7 @@ import {
   requiredTransactionHash,
 } from "./shared.ts"
 
-type CreatedContract = {
+export type CreatedContract = {
   readonly address: Address
   readonly transactionHash: Hex
 }
@@ -25,6 +25,14 @@ export type OwnershipState = {
   readonly ownershipAccepted: boolean
 }
 
+export type CreationReceiptEvidence = {
+  readonly status: "success" | "reverted"
+  readonly contractAddress: Address | null
+  readonly transactionHash: Hex
+  readonly from: Address
+  readonly to: Address | null
+}
+
 export function deploymentContractsFromBroadcast(broadcast: unknown): DeploymentContracts {
   const root = requiredRecord(broadcast, "Forge broadcast")
   if (!Array.isArray(root.transactions)) {
@@ -36,6 +44,32 @@ export function deploymentContractsFromBroadcast(broadcast: unknown): Deployment
     camEscrow: createdContract(root.transactions, "CamEscrow"),
     camEscrowUI: createdContract(root.transactions, "CamEscrowUI"),
   }
+}
+
+export function creationReceiptDeployer(
+  contract: CreatedContract,
+  receipt: CreationReceiptEvidence,
+  label: string,
+): Address {
+  if (receipt.status !== "success") {
+    throw new Error(`${label} creation transaction did not succeed: ${receipt.transactionHash}`)
+  }
+  if (receipt.transactionHash.toLowerCase() !== contract.transactionHash.toLowerCase()) {
+    throw new Error(`${label} receipt transaction hash does not match Forge broadcast`)
+  }
+  if (receipt.to !== null) {
+    throw new Error(`${label} creation receipt unexpectedly has a destination address`)
+  }
+  if (receipt.contractAddress === null) {
+    throw new Error(`${label} creation receipt has no contract address`)
+  }
+  const actualAddress = getAddress(receipt.contractAddress)
+  if (actualAddress.toLowerCase() !== contract.address.toLowerCase()) {
+    throw new Error(
+      `${label} creation receipt address mismatch: expected ${contract.address}, got ${actualAddress}`,
+    )
+  }
+  return getAddress(receipt.from)
 }
 
 export function ownershipState({
