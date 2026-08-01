@@ -117,7 +117,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check cam-integration-fuzz-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check cam-integration-fuzz-check checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose format fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down
 
 help:
 	@printf '%s\n' \
@@ -146,6 +146,7 @@ help:
 	  '  make check-live    Run live checks that intentionally use external network' \
 	  '  make check-live-deps-egress  Prove dependency egress allow/deny behavior' \
 	  '  make check-anvil-compose  Run only the rendered Anvil Compose posture checks' \
+	  '  make format DAPP=...  Format one dapp source tree' \
 	  '  make fmt          Check Solidity formatting for all dapps' \
 	  '  make build        Compile all dapp source trees' \
 	  '  make script-build Compile all dapp deployment scripts without executing them' \
@@ -436,6 +437,55 @@ check-live-deps-egress:
 check-anvil-compose:
 	@$(LANE_GUARD); \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/checks.yml run --build --rm checks -I -B -m unittest discover -s tests/checks -t . -p test_anvil_compose.py
+
+format:
+	@$(LANE_GUARD); \
+	if [[ ! -v DAPP ]]; then \
+	  printf '%s\n' 'Set DAPP to a first-level dapp directory, for example: make format DAPP=escrow' >&2; \
+	  exit 2; \
+	fi; \
+	if [[ -z "$$DAPP" ]]; then \
+	  printf '%s\n' 'Set DAPP to a first-level dapp directory, for example: make format DAPP=escrow' >&2; \
+	  exit 2; \
+	fi; \
+	if [[ ! "$$DAPP" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then \
+	  printf '%s\n' 'DAPP must be a first-level dapp directory name, not a path or shell expression.' >&2; \
+	  exit 2; \
+	fi; \
+	dapp_dir="$(DAPPS_DIR)/$$DAPP"; \
+	if [[ ! -d "$$dapp_dir" ]]; then \
+	  printf 'DAPP does not name an existing first-level dapp directory: %s\n' "$$DAPP" >&2; \
+	  exit 2; \
+	fi; \
+	has_solidity_sources=0; \
+	for source_kind in src test script; do \
+	  if [[ -d "$$dapp_dir/$$source_kind" ]]; then \
+	    has_solidity_sources=1; \
+	  fi; \
+	done; \
+	if [[ "$$has_solidity_sources" -eq 0 ]]; then \
+	  printf 'DAPP has no Solidity src, test, or script directory: %s\n' "$$DAPP" >&2; \
+	  exit 2; \
+	fi; \
+	format_stage_dir="$$(mktemp -d)"; \
+	chmod 0700 "$$format_stage_dir"; \
+	cleanup() { \
+	  status="$$?"; \
+	  rm -rf "$$format_stage_dir"; \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/forge.yml run --build --rm \
+	  --env "DAPP=$$DAPP" \
+	  --volume "$$format_stage_dir:/format-output:rw" \
+	  forge-fmt \
+	  sh -eu -c 'staged_dapp="/format-output/$$DAPP"; mkdir -p "$$staged_dapp"; set --; for source_kind in src test script; do source_dir="$$DAPP/$$source_kind"; if [ -d "$$source_dir" ]; then staged_dir="$$staged_dapp/$$source_kind"; mkdir -p "$$staged_dir"; cp -R "$$source_dir/." "$$staged_dir/"; set -- "$$@" "$$staged_dir"; fi; done; forge fmt "$$@"'; \
+	for source_kind in src test script; do \
+	  staged_dir="$$format_stage_dir/$$DAPP/$$source_kind"; \
+	  if [[ -d "$$staged_dir" ]]; then \
+	    cp -R "$$staged_dir/." "$$dapp_dir/$$source_kind/"; \
+	  fi; \
+	done
 
 fmt:
 	$(call compose_run,forge.yml,forge-fmt)

@@ -122,6 +122,26 @@ class RepositoryHygieneTest(unittest.TestCase):
         # advertises a stale target, the safest path becomes guesswork.
         self.assertEqual(set(), advertised - targets)
 
+    def test_repository_has_one_make_entrypoint(self) -> None:
+        make_entrypoints = [
+            name for name in ["GNUmakefile", "makefile", "Makefile"] if repo_path(name).exists()
+        ]
+
+        # GNU Make silently prefers GNUmakefile, then makefile, over Makefile.
+        # A second root entrypoint can therefore bypass the operator contract
+        # and the checks that intentionally inspect Makefile.
+        self.assertEqual(["Makefile"], make_entrypoints)
+
+    def test_format_target_only_mounts_staging_output_writable(self) -> None:
+        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "format")
+
+        # Forge must finish formatting a temporary copy before Make applies
+        # results. The formatter container must never receive repository write
+        # authority, or a parse failure can leave a partially formatted dapp.
+        self.assertIn('--volume "$$format_stage_dir:/format-output:rw"', recipe)
+        self.assertEqual(1, recipe.count("--volume "))
+        self.assertNotIn(":/work/dapps/", recipe)
+
     def test_make_phony_targets_are_real_targets(self) -> None:
         makefile = read_text(repo_path("Makefile"))
         targets = self.make_targets(makefile)
