@@ -73,10 +73,10 @@ contract CamEscrowUITest is CamEscrowTestBase {
         _assertString(authenticated.arbitrationTimeoutBeneficiaryIds[1], "contractor");
         _assertStrings(authenticated.actions, _strings1("createAgreement"));
 
-        CamEscrowUI.CreateAgreementView memory anonymous =
+        CamEscrowUI.CreateAgreementView memory anonymousCreateView =
             ui.viewCreateAgreement(address(0));
-        assertEq(anonymous.actions.length, 0);
-        assertEq(anonymous.arbitrationTimeoutBeneficiaryIds.length, 2);
+        assertEq(anonymousCreateView.actions.length, 0);
+        assertEq(anonymousCreateView.arbitrationTimeoutBeneficiaryIds.length, 2);
     }
 
     /// @notice Missing agreement projection is a stable uninstantiated machine observation.
@@ -298,11 +298,11 @@ contract CamEscrowUITest is CamEscrowTestBase {
 
     /// @notice Credit projection follows aggregate core accounting and withdrawal completion.
     function testAccountCreditProjection() external {
-        CamEscrowUI.AccountCreditView memory anonymous =
+        CamEscrowUI.AccountCreditView memory anonymousCreditView =
             ui.viewAccountCredit(address(0));
-        _assertString(anonymous.viewId, "escrow.credit.empty");
-        assertEq(anonymous.amount, 0);
-        assertEq(anonymous.actions.length, 0);
+        _assertString(anonymousCreditView.viewId, "escrow.credit.empty");
+        assertEq(anonymousCreditView.amount, 0);
+        assertEq(anonymousCreditView.actions.length, 0);
 
         bytes32 first = _create("credit-projection-1");
         bytes32 second = _create("credit-projection-2");
