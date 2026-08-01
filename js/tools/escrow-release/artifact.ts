@@ -14,20 +14,18 @@ import type {
 } from "viem"
 
 import {
-  requiredNonzeroAddress,
-  requiredRecord,
-  requiredString,
-  requiredTransactionHash,
+  deploymentContractsFromBroadcast,
+  ownershipState,
+} from "./artifact-model.ts"
+import {
+  DEPLOYMENT_SCHEMA,
   parseJsonRecord,
   parseReleasePlan,
   requiredEnv,
   writeNewJson,
-  DEPLOYMENT_SCHEMA,
-  ZERO_ADDRESS,
 } from "./shared.ts"
 import type {
   DeploymentArtifact,
-  ReleasePlan,
 } from "./shared.ts"
 
 const MAX_BROADCAST_BYTES = 16 * 1024 * 1024
@@ -41,74 +39,6 @@ const CAM_ROOT_ABI = parseAbi([
 const CAM_ESCROW_UI_ABI = parseAbi([
   "function escrow() view returns (address)",
 ])
-
-type CreatedContract = {
-  readonly address: Address
-  readonly transactionHash: Hex
-}
-
-type DeploymentContracts = {
-  readonly camRoot: CreatedContract
-  readonly camEscrow: CreatedContract
-  readonly camEscrowUI: CreatedContract
-}
-
-type OwnershipState = {
-  readonly ownershipTransferRequired: boolean
-  readonly ownershipAccepted: boolean
-}
-
-export function deploymentContractsFromBroadcast(broadcast: unknown): DeploymentContracts {
-  const root = requiredRecord(broadcast, "Forge broadcast")
-  if (!Array.isArray(root.transactions)) {
-    throw new Error("Forge broadcast must contain a transactions array")
-  }
-
-  return {
-    camRoot: createdContract(root.transactions, "CamRoot"),
-    camEscrow: createdContract(root.transactions, "CamEscrow"),
-    camEscrowUI: createdContract(root.transactions, "CamEscrowUI"),
-  }
-}
-
-export function ownershipState({
-  deployer,
-  intendedOwner,
-  owner,
-  pendingOwner,
-}: {
-  readonly deployer: Address
-  readonly intendedOwner: Address
-  readonly owner: Address
-  readonly pendingOwner: Address
-}): OwnershipState {
-  const normalizedDeployer = deployer.toLowerCase()
-  const normalizedIntendedOwner = intendedOwner.toLowerCase()
-  const normalizedOwner = owner.toLowerCase()
-  const normalizedPendingOwner = pendingOwner.toLowerCase()
-  const zero = ZERO_ADDRESS.toLowerCase()
-
-  if (normalizedOwner === normalizedIntendedOwner && normalizedPendingOwner === zero) {
-    return {
-      ownershipTransferRequired: normalizedDeployer !== normalizedIntendedOwner,
-      ownershipAccepted: true,
-    }
-  }
-  if (
-    normalizedOwner === normalizedDeployer
-    && normalizedPendingOwner === normalizedIntendedOwner
-    && normalizedDeployer !== normalizedIntendedOwner
-  ) {
-    return {
-      ownershipTransferRequired: true,
-      ownershipAccepted: false,
-    }
-  }
-
-  throw new Error(
-    `unexpected CamRoot ownership state: deployer=${deployer} intended=${intendedOwner} owner=${owner} pending=${pendingOwner}`,
-  )
-}
 
 async function main(): Promise<void> {
   const planPath = requiredEnv(process.env, "ESCROW_RELEASE_PLAN_PATH")
@@ -225,36 +155,6 @@ async function main(): Promise<void> {
     intendedCamRootOwner: artifact.intendedCamRootOwner,
     ownershipAccepted: artifact.ownershipAccepted,
   })}\n`)
-}
-
-function createdContract(transactions: readonly unknown[], contractName: string): CreatedContract {
-  const matches = transactions.filter((item) => {
-    if (!isCreateTransaction(item)) return false
-    return item.contractName === contractName
-  })
-  if (matches.length !== 1) {
-    throw new Error(`Forge broadcast must create ${contractName} exactly once`)
-  }
-  const transaction = matches[0]
-  if (transaction === undefined) {
-    throw new Error(`Forge broadcast is missing ${contractName}`)
-  }
-  return {
-    address: getAddress(requiredNonzeroAddress(
-      requiredString(transaction.contractAddress, `${contractName} contractAddress`),
-      `${contractName} contractAddress`,
-    )),
-    transactionHash: requiredTransactionHash(transaction.hash, `${contractName} transaction hash`),
-  }
-}
-
-function isCreateTransaction(value: unknown): value is Record<string, unknown> {
-  return requiredRecordOrUndefined(value)?.transactionType === "CREATE"
-}
-
-function requiredRecordOrUndefined(value: unknown): Record<string, unknown> | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined
-  return value as Record<string, unknown>
 }
 
 async function requiredCode(codePromise: Promise<Hex | undefined>, label: string): Promise<Hex> {
