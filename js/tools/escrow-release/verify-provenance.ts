@@ -60,11 +60,11 @@ async function main(): Promise<void> {
     client.getTransactionReceipt({ hash: contracts.camEscrowUI.transactionHash }),
   ])
   const deployers = new Set([
-    creationReceiptDeployer(contracts.camRoot, rootReceipt, "CamRoot"),
-    creationReceiptDeployer(contracts.camEscrow, escrowReceipt, "CamEscrow"),
-    creationReceiptDeployer(contracts.camEscrowUI, uiReceipt, "CamEscrowUI"),
+    creationReceiptDeployer(contracts.camRoot, rootReceipt, "CamRoot").toLowerCase(),
+    creationReceiptDeployer(contracts.camEscrow, escrowReceipt, "CamEscrow").toLowerCase(),
+    creationReceiptDeployer(contracts.camEscrowUI, uiReceipt, "CamEscrowUI").toLowerCase(),
   ])
-  if (deployers.size !== 1 || !deployers.has(artifact.deployer)) {
+  if (deployers.size !== 1 || !deployers.has(artifact.deployer.toLowerCase())) {
     throw new Error(`release creation transaction deployer mismatch: expected ${artifact.deployer}`)
   }
 
