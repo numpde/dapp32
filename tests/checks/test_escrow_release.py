@@ -71,7 +71,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
     def test_deployment_signer_is_secret_file_backed_and_proxy_scoped(self) -> None:
         config = rendered_compose_config(DEPLOY, env=RELEASE_ENV)
         plan = compose_service(config, "escrow-release-plan")
-        deploy_proxy = compose_service(config, "escrow-release-deploy-rpc-proxy")
+        deploy_proxy = compose_service(config, "escrow-release-rpc-proxy")
         artifact_proxy = compose_service(config, "escrow-release-artifact-rpc-proxy")
         deploy = compose_service(config, "deploy-escrow-release")
         artifact = compose_service(config, "escrow-release-artifact")
@@ -82,7 +82,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertEqual(
             {
                 "escrow_release_deploy_egress": {},
-                "escrow_release_deploy_internal": {"aliases": ["escrow-release-deploy-rpc-proxy"]},
+                "escrow_release_deploy_internal": {"aliases": ["escrow-release-rpc-proxy"]},
             },
             deploy_proxy["networks"],
         )
@@ -103,6 +103,10 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertIn("eth_sendRawTransaction", deploy_methods)
         self.assertNotIn("eth_sendRawTransaction", artifact_methods)
         self.assertIn("eth_getTransactionReceipt", artifact_methods)
+        artifact_rpc_url = compose_volume(artifact_proxy, "/run/secrets/rpc_url")
+        self.assertEqual(RPC_URL_FILE, artifact_rpc_url["source"])
+        self.assertIs(artifact_rpc_url["read_only"], True)
+        self.assertEqual(1, read_text(repo_path(DEPLOY)).count("create_host_path: false"))
 
         deploy_command = compose_command_text(deploy)
         self.assertIn("release-plan.args", deploy_command)
