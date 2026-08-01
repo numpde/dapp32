@@ -60,9 +60,9 @@ services:
       RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
       RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
       RPC_ALLOWED_METHODS: >-
-        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance
-        eth_getTransactionCount eth_getStorageAt eth_gasPrice
-        eth_maxPriorityFeePerGas eth_feeHistory eth_estimateGas
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBlockByHash
+        eth_getBalance eth_getTransactionCount eth_getStorageAt eth_getProof
+        eth_gasPrice eth_maxPriorityFeePerGas eth_feeHistory eth_estimateGas
         eth_createAccessList eth_call eth_getCode eth_sendRawTransaction
         eth_getTransactionReceipt eth_getTransactionByHash
     secrets:
