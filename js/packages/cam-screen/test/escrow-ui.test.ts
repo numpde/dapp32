@@ -71,7 +71,7 @@ test("escrow creation screen resolves nested payable calldata from one form", as
   ])
 
   const create = requiredButton(resolvedUi, "createAgreement")
-  assert.deepEqual(create.call.args, {
+  assert.deepEqual(plain(create.call.args), {
     params: {
       agreementRef: "",
       contractor: "0x0000000000000000000000000000000000000000",
@@ -117,10 +117,10 @@ test("escrow active screen renders only projected transitions", async () => {
     "submissionUri",
   ])
 
-  assert.deepEqual(requiredButton(resolvedUi, "approveAgreement").call.args, {
+  assert.deepEqual(plain(requiredButton(resolvedUi, "approveAgreement").call.args), {
     agreementId: AGREEMENT_ID,
   })
-  assert.deepEqual(requiredButton(resolvedUi, "disputeAgreement").call.args, {
+  assert.deepEqual(plain(requiredButton(resolvedUi, "disputeAgreement").call.args), {
     agreementId: AGREEMENT_ID,
     dispute: {
       uri: "",
@@ -167,7 +167,7 @@ test("escrow available-credit screen binds withdrawal recipient to the account",
   ])
   assert.deepEqual(resolvedUiInputNames(resolvedUi), ["recipient"])
   assert.equal(state.recipient, ACCOUNT)
-  assert.deepEqual(requiredButton(resolvedUi, "withdrawTo").call.args, {
+  assert.deepEqual(plain(requiredButton(resolvedUi, "withdrawTo").call.args), {
     recipient: ACCOUNT,
   })
 })
@@ -257,4 +257,8 @@ function requiredButton(
   const button = resolvedUiButtons(resolvedUi).find((candidate) => candidate.call.function === functionName)
   assert.notEqual(button, undefined, `missing resolved button: ${functionName}`)
   return button as ResolvedButtonNode
+}
+
+function plain(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value)) as unknown
 }
