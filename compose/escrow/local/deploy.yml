@@ -1,0 +1,115 @@
+# Local escrow fixture scenario.
+#
+# This file owns only the private Anvil chain and the CamRoot/CamEscrow/
+# CamEscrowUI deployment. Consumer overlays add CAM HTTP serving, terminal or
+# browser viewers, and the deterministic vertical workflow.
+#
+# Every private key below is an obvious local-only fixture value. The deploy
+# service funds all four role accounts explicitly and writes only Forge broadcast
+# output to a scenario-scoped Docker volume.
+services:
+  escrow-anvil:
+    build:
+      context: ../../../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work
+    init: true
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+    networks:
+      - escrow_local
+    command:
+      - "anvil"
+      - "--host"
+      - "0.0.0.0"
+      - "--port"
+      - "8545"
+    healthcheck:
+      test:
+        - "CMD"
+        - "cast"
+        - "block-number"
+        - "--rpc-url"
+        - "http://127.0.0.1:8545"
+      interval: 2s
+      timeout: 3s
+      retries: 20
+      start_period: 2s
+
+  deploy-escrow-local:
+    build:
+      context: ../../../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work/dapps
+    depends_on:
+      escrow-anvil:
+        condition: service_healthy
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      XDG_DATA_HOME: /usr/local/share
+      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+      FOUNDRY_CONFIG: /work/dapps/foundry.toml
+      FOUNDRY_OUT: /tmp/foundry-out
+      FOUNDRY_BROADCAST: "${ESCROW_BROADCAST_DIR:?missing_ESCROW_BROADCAST_DIR}"
+      CAM_URI: "${CAM_URI:?missing_CAM_URI}"
+      CAM_HASH: "${CAM_HASH:?missing_CAM_HASH}"
+      PRIVATE_KEY: "0xbabababababababababababababababababababababababababababababababa"
+      ESCROW_CONTRACTOR_PRIVATE_KEY: "0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca"
+      ESCROW_ARBITRATOR_PRIVATE_KEY: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"
+      ESCROW_FINALIZER_PRIVATE_KEY: "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=512m
+    volumes:
+      - ../../../dapps/foundry.toml:/work/dapps/foundry.toml:ro
+      - ../../../dapps/remappings.txt:/work/dapps/remappings.txt:ro
+      - ../../../dapps/dependencies:/work/dapps/dependencies:ro
+      - ../../../dapps/escrow:/work/dapps/escrow:ro
+      - ../../../dapps/cam:/work/dapps/cam:ro
+      - "escrow_broadcast:${ESCROW_BROADCAST_DIR:?missing_ESCROW_BROADCAST_DIR}"
+    networks:
+      - escrow_local
+    command:
+      - "bash"
+      - "-lc"
+      - |
+        set -euo pipefail
+        for key in \
+          "$${PRIVATE_KEY}" \
+          "$${ESCROW_CONTRACTOR_PRIVATE_KEY}" \
+          "$${ESCROW_ARBITRATOR_PRIVATE_KEY}" \
+          "$${ESCROW_FINALIZER_PRIVATE_KEY}"
+        do
+          account="$(cast wallet address --private-key "$${key}")"
+          cast rpc anvil_setBalance "$${account}" 0x3635C9ADC5DEA00000 \
+            --rpc-url http://escrow-anvil:8545 >/dev/null
+        done
+
+        forge script --offline escrow/script/DeployEscrowLocal.s.sol \
+          --rpc-url http://escrow-anvil:8545 \
+          --broadcast \
+          -vvv
+
+networks:
+  escrow_local:
+    internal: true
+
+volumes:
+  escrow_broadcast:
