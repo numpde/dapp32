@@ -18,11 +18,13 @@ contract EscrowReleaseVerifierTest is Test {
     string private constant SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567";
     string private constant CAM_URI = "https://example.test/escrow/cam/main.json";
     bytes32 private constant CAM_HASH = keccak256("escrow-cam");
+    uint256 private constant RELEASE_CHAIN_ID = 11_155_111;
 
     address private finalOwner = address(0xBEEF);
     EscrowReleaseVerifierHarness private verifier;
 
     function setUp() external {
+        vm.chainId(RELEASE_CHAIN_ID);
         verifier = new EscrowReleaseVerifierHarness();
     }
 
@@ -45,6 +47,35 @@ contract EscrowReleaseVerifierTest is Test {
         verifier.verify(
             _artifact(root, escrow, ui, finalOwner), "ffffffffffffffffffffffffffffffffffffffff"
         );
+    }
+
+    function testRejectsFixtureChain() external {
+        (CamRoot root, CamEscrow escrow, CamEscrowUI ui) = _deployAcceptedRelease();
+        vm.chainId(31_337);
+        EscrowReleaseVerifier.Artifact memory artifact = _artifact(root, escrow, ui, finalOwner);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(EscrowReleaseVerifier.UnsupportedReleaseChainId.selector, 31_337)
+        );
+        verifier.verify(artifact, SOURCE_COMMIT);
+    }
+
+    function testRejectsZeroCamHash() external {
+        (CamRoot root, CamEscrow escrow, CamEscrowUI ui) = _deployAcceptedRelease();
+        EscrowReleaseVerifier.Artifact memory artifact = _artifact(root, escrow, ui, finalOwner);
+        artifact.camHash = bytes32(0);
+
+        vm.expectRevert(EscrowReleaseVerifier.ZeroCamHash.selector);
+        verifier.verify(artifact, SOURCE_COMMIT);
+    }
+
+    function testRejectsEmptyCamURI() external {
+        (CamRoot root, CamEscrow escrow, CamEscrowUI ui) = _deployAcceptedRelease();
+        EscrowReleaseVerifier.Artifact memory artifact = _artifact(root, escrow, ui, finalOwner);
+        artifact.camURI = "";
+
+        vm.expectRevert(EscrowReleaseVerifier.EmptyCamURI.selector);
+        verifier.verify(artifact, SOURCE_COMMIT);
     }
 
     function testRejectsPendingOwnershipEvenWhenCurrentOwnerMatchesArtifact() external {
@@ -114,18 +145,16 @@ contract EscrowReleaseVerifierTest is Test {
         view
         returns (EscrowReleaseVerifier.Artifact memory artifact)
     {
-        artifact = EscrowReleaseVerifier.Artifact({
-            sourceCommit: SOURCE_COMMIT,
-            chainId: block.chainid,
-            camURI: CAM_URI,
-            camHash: CAM_HASH,
-            intendedCamRootOwner: intendedOwner,
-            camRoot: address(root),
-            camEscrow: address(escrow),
-            camEscrowUI: address(ui),
-            camRootCodeHash: address(root).codehash,
-            camEscrowCodeHash: address(escrow).codehash,
-            camEscrowUICodeHash: address(ui).codehash
-        });
+        artifact.sourceCommit = SOURCE_COMMIT;
+        artifact.chainId = block.chainid;
+        artifact.camURI = CAM_URI;
+        artifact.camHash = CAM_HASH;
+        artifact.intendedCamRootOwner = intendedOwner;
+        artifact.camRoot = address(root);
+        artifact.camEscrow = address(escrow);
+        artifact.camEscrowUI = address(ui);
+        artifact.camRootCodeHash = address(root).codehash;
+        artifact.camEscrowCodeHash = address(escrow).codehash;
+        artifact.camEscrowUICodeHash = address(ui).codehash;
     }
 }
