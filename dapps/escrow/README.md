@@ -2,7 +2,7 @@
 
 `CamEscrow` is a non-upgradeable, single-milestone native-asset escrow. A client creates and funds an agreement in one payable transaction. The contractor may accept, submit committed work evidence, and receive payment after client approval, review timeout, or an arbitrator decision. The client may cancel before acceptance, dispute a submission, or recover funds after acceptance/work timeout or an arbitrator decision.
 
-This package contains the core contract, the read-only `CamEscrowUI` semantic projection, and deterministic, fuzz, and stateful-invariant verification. It intentionally contains no CAM manifest, generated ABI bundle, deployment script, browser fixture, local vertical workflow, or generic machine descriptor yet.
+This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.1 manifest/UI/ABI bundle, and deterministic, fuzz, stateful-invariant, and bundle-conformance verification. It intentionally contains no deployment script, browser fixture, local vertical workflow, or generic machine descriptor yet.
 
 ## Roles and trust
 
@@ -166,6 +166,35 @@ arbitrator acknowledgement: not required and not recorded on-chain
 
 The projection does not recalculate authorization, deadline expiry, acceptance readiness, or terminal transitions. It calls `availableActions(agreementId, actor)` and maps the returned enum values in their core-defined order. Creation remains a factory action and withdrawal remains an account-credit action; neither is represented as an agreement-machine transition.
 
+## CAM 1.1 bundle
+
+`cam/main.json` declares two contract namespaces, the route namespace, and the UI resource. Generated ABI resources live under `cam/abi/`; their byte identities and the UI byte identity are pinned in the manifest.
+
+The bundle has three route groups:
+
+- factory: `createAgreementForm` and payable `createAgreement`;
+- observation: `lookupAgreement`, `agreement`, and `accountCredit`;
+- writes: the eleven exact stored-machine transitions plus auxiliary `withdrawTo`.
+
+Creation has one nested input, `params`. The same nested amount expression owns both calldata and native transaction value:
+
+```json
+{
+  "inputs": ["params"],
+  "value": "$inputs.params.amount",
+  "call": {
+    "function": "createAgreement",
+    "args": {
+      "params": "$inputs.params"
+    }
+  }
+}
+```
+
+Every stored transition continues to the canonical `agreement(agreementId)` observation. Creation continues by client/reference lookup. Withdrawal continues to the caller's account-credit observation. The UI renders only transition IDs supplied by `CamEscrowUI`; it does not infer actor or deadline legality.
+
+There is deliberately no generic CAM machine resource. `escrow.agreement.v1` and its stable state/transition IDs remain an application projection until another application demonstrates a small repeated protocol need.
+
 ## Explicit non-goals
 
 V1 omits:
@@ -177,7 +206,7 @@ V1 omits:
 - ERC-20 payments, fees, relayers, pause, ownership, upgrades, or recovery hooks;
 - discovery, enumeration, privacy, reputation, or automatic timeout execution.
 
-## Tests
+## Verification
 
 The deterministic suite covers core creation, validation, absent reads, enabled-action boundaries, no-acknowledgement acceptance, exact timeout functions, complete terminal paths, document retention, pull-payment accounting, failed transfers, alternate recipients, reentrancy, direct-transfer rejection, unknown selectors, and forced surplus. Projection tests cover backing-interface verification, creation policy, absent and instantiated machine observations, all stable state IDs, actor/time transition mapping at every deadline boundary, risk disclosures, account credit, and the read-only native-value boundary.
 
@@ -185,49 +214,27 @@ The fuzz suite checks arbitrary valid creation economics and, for every active s
 
 The stateful invariant handler drives up to sixteen concurrent agreements across a fixed actor pool. It proves active and terminal amount conservation, aggregate-credit ownership, solvency, deadline shape, terminal action emptiness, terminal irreversibility, event/storage agreement for every successful transition, and exact single-beneficiary settlement deltas.
 
-The repository-wide `make fmt` lane checks every dapp. At the base commit used for this branch, unrelated existing bike and deposit sources are not clean under the currently pinned Forge formatter. Do not mix that repository-wide normalization into this escrow slice.
+The CAM conformance suite loads the checked-in escrow bundle from repository bytes. It validates resource integrity, manifest/UI/ABI joins, nested route/value shape, exact transition bindings, and post-write continuation ownership.
 
-Build the pinned Foundry image and apply formatting only to this dapp through a writable mount:
-
-```bash
-docker build --tag cam-escrow-foundry-local containers/foundry
-
-docker run --rm --network none \
-  --user "$(id -u):$(id -g)" \
-  --env HOME=/tmp/home \
-  --volume "$PWD/dapps:/work/dapps:rw" \
-  --workdir /work/dapps \
-  cam-escrow-foundry-local \
-  sh -eu -c 'mkdir -p "$HOME"; forge fmt escrow/src escrow/test'
-```
-
-Check only the escrow formatting without rewriting files:
+Use the sole repository Make entrypoint:
 
 ```bash
-docker run --rm --network none \
-  --user "$(id -u):$(id -g)" \
-  --env HOME=/tmp/home \
-  --volume "$PWD/dapps:/work/dapps:ro" \
-  --workdir /work/dapps \
-  cam-escrow-foundry-local \
-  sh -eu -c 'mkdir -p "$HOME"; forge fmt --check escrow/src escrow/test'
-```
-
-Run the repository build and deterministic tests, then the heavy verification lanes:
-
-```bash
+make format DAPP=escrow
+make fmt
+make abi
+make cam-integrity
+make cam-conformance-check
+make cam-publication-preflight \
+  DAPP=escrow \
+  CAM_URI=https://example.test/escrow/cam/main.json
+make checks
 make build
 make test
 make fuzz
 make invariant
+make package-test
 ```
 
-To isolate only this dapp's deterministic tests inside the repository Foundry image:
+`make abi` exports only manifest-declared contracts and then refreshes integrity pins. Its Compose service has write authority only over explicitly admitted CAM ABI directories; `cam-integrity` can rewrite only explicitly admitted manifests. A clean second `make abi` run is the generated-resource idempotence check.
 
-```bash
-LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
-  docker compose -f compose/forge.yml run --build --rm forge-test \
-  sh -eu -c 'forge test --offline --match-path "escrow/test/unit/**/*.sol" -vvv; forge test --offline --match-path "escrow/test/scenario/**/*.sol" -vvv'
-```
-
-The ordinary `forge-test` service already discovers `escrow/test/unit` and `escrow/test/scenario`; `make test` remains the authoritative deterministic repository lane. Fuzz and invariant tests remain in their dedicated heavier lanes. Repository-wide formatting normalization should be handled separately from this branch.
+The ordinary `forge-test` service discovers `escrow/test/unit` and `escrow/test/scenario`; `make test` remains the authoritative deterministic repository lane. Fuzz and invariant tests remain in their dedicated heavier lanes. Deployment and multi-account browser/terminal execution belong to the later local-vertical slice.
