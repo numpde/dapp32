@@ -5,8 +5,7 @@
 # reach only the method-gated RPC proxy. The artifact service has no signing key
 # and records deployed addresses, transactions, code hashes, and ownership state.
 
-x-release-output: &release_output
-  - "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_RELEASE_OUTPUT_DIR}:/release-output:rw"
+x-release-output: &release_output "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_RELEASE_OUTPUT_DIR}:/release-output:rw"
 
 services:
   escrow-release-plan:
