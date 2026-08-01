@@ -68,7 +68,7 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
         plan.intendedCamRootOwner = vm.envAddress("ESCROW_RELEASE_CAM_ROOT_OWNER");
     }
 
-    function _validatePlan(ReleasePlan memory plan) private view {
+    function _validatePlan(ReleasePlan memory plan) internal view {
         if (!_isSourceCommit(plan.sourceCommit)) revert InvalidSourceCommit(plan.sourceCommit);
         if (plan.expectedChainId != block.chainid) {
             revert ChainIdMismatch(plan.expectedChainId, block.chainid);
