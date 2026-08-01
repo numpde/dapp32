@@ -7,6 +7,14 @@
 
 x-release-output: &release_output "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_RELEASE_OUTPUT_DIR}:/release-output:rw"
 
+x-rpc-url-bind: &rpc_url_bind
+  type: bind
+  source: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+  target: /run/secrets/rpc_url
+  read_only: true
+  bind:
+    create_host_path: false
+
 x-rpc-proxy-base: &rpc_proxy_base
   build:
     context: ../../../containers/rpc-proxy
@@ -173,6 +181,7 @@ services:
 
   escrow-release-artifact-rpc-proxy:
     <<: *rpc_proxy_base
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
     environment:
       RPC_PROXY_HOST: 0.0.0.0
       RPC_PROXY_PORT: "8080"
@@ -183,9 +192,8 @@ services:
       RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
       RPC_ALLOWED_METHODS: >-
         eth_chainId eth_getTransactionReceipt eth_getCode eth_call
-    secrets:
-      - source: artifact_rpc_url
-        target: rpc_url
+    volumes:
+      - *rpc_url_bind
     networks:
       escrow_release_artifact_internal:
         aliases:
@@ -226,8 +234,6 @@ services:
 
 secrets:
   rpc_url:
-    file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
-  artifact_rpc_url:
     file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
   deployer_private_key:
     file: "${DEPLOYER_PRIVATE_KEY_FILE:?missing_DEPLOYER_PRIVATE_KEY_FILE}"
