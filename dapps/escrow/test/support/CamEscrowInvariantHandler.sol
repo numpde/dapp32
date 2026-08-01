@@ -23,6 +23,26 @@ contract CamEscrowInvariantHandler is Test {
         uint256 amount;
     }
 
+    struct CreationCase {
+        address client;
+        address contractor;
+        address arbitrator;
+        uint256 amount;
+        uint256 sequence;
+        string agreementRef;
+        CamEscrow.CreateAgreementParams params;
+    }
+
+    struct TransitionSnapshot {
+        ICamEscrowView.AgreementView agreement;
+        ICamEscrowView.AgreementState targetState;
+        uint256 targetDeadline;
+        address beneficiary;
+        uint256 escrowedBefore;
+        uint256 withdrawableBefore;
+        uint256 beneficiaryCreditBefore;
+    }
+
     CamEscrow public immutable escrow;
 
     TrackedAgreement[] private _agreements;
@@ -66,57 +86,39 @@ contract CamEscrowInvariantHandler is Test {
     ) external {
         if (_agreements.length >= MAX_TRACKED_AGREEMENTS) return;
 
-        uint256 clientIndex = roleSeed % ACTOR_COUNT;
-        uint256 contractorIndex = (clientIndex + 1 + ((roleSeed >> 8) % (ACTOR_COUNT - 1))) % ACTOR_COUNT;
-        uint256 arbitratorIndex = (clientIndex + 1 + ((roleSeed >> 16) % (ACTOR_COUNT - 1))) % ACTOR_COUNT;
-        while (arbitratorIndex == clientIndex || arbitratorIndex == contractorIndex) {
-            arbitratorIndex = (arbitratorIndex + 1) % ACTOR_COUNT;
-        }
-
-        address client = _actors[clientIndex];
-        address contractor = _actors[contractorIndex];
-        address arbitrator = _actors[arbitratorIndex];
-        uint256 amount = bound(uint256(amountSeed), 1, MAX_AMOUNT);
-        uint256 sequence = _agreements.length;
-        string memory agreementRef = string.concat("invariant-", vm.toString(sequence));
-
-        CamEscrow.CreateAgreementParams memory params;
-        params.agreementRef = agreementRef;
-        params.contractor = contractor;
-        params.arbitrator = arbitrator;
-        params.arbitrationTimeoutBeneficiary = timeoutToContractor
-            ? ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor
-            : ICamEscrowView.ArbitrationTimeoutBeneficiary.Client;
-        params.amount = amount;
-        params.acceptanceDuration = _duration(durationSeed);
-        params.workDuration = _duration(durationSeed >> 8);
-        params.reviewDuration = _duration(durationSeed >> 16);
-        params.arbitrationDuration = _duration(durationSeed >> 24);
-        params.terms = ICamEscrowView.DocumentRef({
-            uri: string.concat("ipfs://terms/", vm.toString(sequence)),
-            sha256Digest: sha256(abi.encodePacked("terms", sequence))
-        });
-
-        bytes32 agreementId = keccak256(abi.encode(client, agreementRef));
-        uint256 deadline = block.timestamp + params.acceptanceDuration;
+        CreationCase memory case_ = _creationCase(
+            roleSeed,
+            amountSeed,
+            durationSeed,
+            timeoutToContractor
+        );
+        bytes32 agreementId = keccak256(abi.encode(case_.client, case_.agreementRef));
+        uint256 deadline = block.timestamp + case_.params.acceptanceDuration;
 
         vm.expectEmit(true, true, true, true, address(escrow));
-        emit AgreementCreated(agreementId, client, contractor, arbitrator, amount, deadline);
+        emit AgreementCreated(
+            agreementId,
+            case_.client,
+            case_.contractor,
+            case_.arbitrator,
+            case_.amount,
+            deadline
+        );
 
-        vm.prank(client);
-        bytes32 returnedId = escrow.createAgreement{value: amount}(params);
+        vm.prank(case_.client);
+        bytes32 returnedId = escrow.createAgreement{value: case_.amount}(case_.params);
         assertEq(returnedId, agreementId);
 
         _agreements.push(
             TrackedAgreement({
                 agreementId: agreementId,
-                client: client,
-                contractor: contractor,
-                arbitrator: arbitrator,
-                amount: amount
+                client: case_.client,
+                contractor: case_.contractor,
+                arbitrator: case_.arbitrator,
+                amount: case_.amount
             })
         );
-        totalCreated += amount;
+        totalCreated += case_.amount;
     }
 
     function cancelAgreement(uint256 seed) external {
@@ -312,6 +314,51 @@ contract CamEscrowInvariantHandler is Test {
         return _actors[index];
     }
 
+    function _creationCase(
+        uint256 roleSeed,
+        uint96 amountSeed,
+        uint64 durationSeed,
+        bool timeoutToContractor
+    ) private returns (CreationCase memory case_) {
+        (case_.client, case_.contractor, case_.arbitrator) = _roles(roleSeed);
+        case_.amount = bound(uint256(amountSeed), 1, MAX_AMOUNT);
+        case_.sequence = _agreements.length;
+        case_.agreementRef = string.concat("invariant-", vm.toString(case_.sequence));
+
+        case_.params.agreementRef = case_.agreementRef;
+        case_.params.contractor = case_.contractor;
+        case_.params.arbitrator = case_.arbitrator;
+        case_.params.arbitrationTimeoutBeneficiary = timeoutToContractor
+            ? ICamEscrowView.ArbitrationTimeoutBeneficiary.Contractor
+            : ICamEscrowView.ArbitrationTimeoutBeneficiary.Client;
+        case_.params.amount = case_.amount;
+        case_.params.acceptanceDuration = _duration(durationSeed);
+        case_.params.workDuration = _duration(durationSeed >> 8);
+        case_.params.reviewDuration = _duration(durationSeed >> 16);
+        case_.params.arbitrationDuration = _duration(durationSeed >> 24);
+        case_.params.terms = ICamEscrowView.DocumentRef({
+            uri: string.concat("ipfs://terms/", vm.toString(case_.sequence)),
+            sha256Digest: sha256(abi.encodePacked("terms", case_.sequence))
+        });
+    }
+
+    function _roles(uint256 seed)
+        private
+        view
+        returns (address client, address contractor, address arbitrator)
+    {
+        uint256 clientIndex = seed % ACTOR_COUNT;
+        uint256 contractorIndex = (clientIndex + 1 + ((seed >> 8) % (ACTOR_COUNT - 1))) % ACTOR_COUNT;
+        uint256 arbitratorIndex = (clientIndex + 1 + ((seed >> 16) % (ACTOR_COUNT - 1))) % ACTOR_COUNT;
+        while (arbitratorIndex == clientIndex || arbitratorIndex == contractorIndex) {
+            arbitratorIndex = (arbitratorIndex + 1) % ACTOR_COUNT;
+        }
+
+        client = _actors[clientIndex];
+        contractor = _actors[contractorIndex];
+        arbitrator = _actors[arbitratorIndex];
+    }
+
     function _performIfAvailable(
         TrackedAgreement storage tracked,
         ICamEscrowView.AgreementAction action,
@@ -320,39 +367,65 @@ contract CamEscrowInvariantHandler is Test {
     ) private {
         if (!_containsAction(escrow.availableActions(tracked.agreementId, actor), action)) return;
 
-        ICamEscrowView.AgreementView memory before_ = escrow.agreementById(tracked.agreementId);
-        ICamEscrowView.AgreementState expectedState = _targetState(before_, action);
-        uint256 expectedDeadline = _targetDeadline(before_, action);
-        address beneficiary = _beneficiary(before_, action);
-        uint256 escrowedBefore = escrow.totalEscrowed();
-        uint256 withdrawableBefore = escrow.totalWithdrawable();
-        uint256 beneficiaryCreditBefore = beneficiary == address(0) ? 0 : escrow.withdrawable(beneficiary);
+        TransitionSnapshot memory snapshot = _transitionSnapshot(tracked.agreementId, action);
 
         vm.expectEmit(true, true, false, true, address(escrow));
         emit AgreementStateChanged(
             tracked.agreementId,
             actor,
-            before_.state,
-            expectedState,
-            expectedDeadline
+            snapshot.agreement.state,
+            snapshot.targetState,
+            snapshot.targetDeadline
         );
 
         vm.prank(actor);
         (bool ok,) = address(escrow).call(callData);
         assertTrue(ok);
 
-        ICamEscrowView.AgreementView memory after_ = escrow.agreementById(tracked.agreementId);
-        assertEq(uint256(after_.state), uint256(expectedState));
-        assertEq(after_.deadline, expectedDeadline);
+        _assertTransitionAfter(tracked.agreementId, snapshot);
+    }
 
-        if (beneficiary == address(0)) {
-            assertEq(escrow.totalEscrowed(), escrowedBefore);
-            assertEq(escrow.totalWithdrawable(), withdrawableBefore);
-        } else {
-            assertEq(escrow.totalEscrowed(), escrowedBefore - before_.amount);
-            assertEq(escrow.totalWithdrawable(), withdrawableBefore + before_.amount);
-            assertEq(escrow.withdrawable(beneficiary), beneficiaryCreditBefore + before_.amount);
+    function _transitionSnapshot(
+        bytes32 agreementId,
+        ICamEscrowView.AgreementAction action
+    ) private view returns (TransitionSnapshot memory snapshot) {
+        snapshot.agreement = escrow.agreementById(agreementId);
+        snapshot.targetState = _targetState(snapshot.agreement, action);
+        snapshot.targetDeadline = _targetDeadline(snapshot.agreement, action);
+        snapshot.beneficiary = _beneficiary(snapshot.agreement, action);
+        snapshot.escrowedBefore = escrow.totalEscrowed();
+        snapshot.withdrawableBefore = escrow.totalWithdrawable();
+        if (snapshot.beneficiary != address(0)) {
+            snapshot.beneficiaryCreditBefore = escrow.withdrawable(snapshot.beneficiary);
         }
+    }
+
+    function _assertTransitionAfter(
+        bytes32 agreementId,
+        TransitionSnapshot memory snapshot
+    ) private view {
+        ICamEscrowView.AgreementView memory after_ = escrow.agreementById(agreementId);
+        assertEq(uint256(after_.state), uint256(snapshot.targetState));
+        assertEq(after_.deadline, snapshot.targetDeadline);
+
+        if (snapshot.beneficiary == address(0)) {
+            assertEq(escrow.totalEscrowed(), snapshot.escrowedBefore);
+            assertEq(escrow.totalWithdrawable(), snapshot.withdrawableBefore);
+            return;
+        }
+
+        assertEq(
+            escrow.totalEscrowed(),
+            snapshot.escrowedBefore - snapshot.agreement.amount
+        );
+        assertEq(
+            escrow.totalWithdrawable(),
+            snapshot.withdrawableBefore + snapshot.agreement.amount
+        );
+        assertEq(
+            escrow.withdrawable(snapshot.beneficiary),
+            snapshot.beneficiaryCreditBefore + snapshot.agreement.amount
+        );
     }
 
     function _targetState(
