@@ -48,13 +48,31 @@ abstract contract EscrowReleaseVerifier {
     error InsolventEscrow(uint256 liabilities, uint256 balance);
 
     function verifyArtifact(Artifact memory artifact, string memory expectedSourceCommit) internal {
+        _verifyIdentity(artifact, expectedSourceCommit);
+        _verifyAddressesAndCode(artifact);
+        _verifyRootAndProjection(artifact);
+        _verifyInterfaces(artifact);
+        _verifyArtifactCodeHashes(artifact);
+        _verifySourceCodeHashes(artifact);
+        _verifySolvency(artifact.camEscrow);
+    }
+
+    function requireDeploymentSchema(string memory actual) internal pure {
+        if (keccak256(bytes(actual)) != keccak256(bytes(DEPLOYMENT_SCHEMA))) {
+            revert InvalidArtifactSchema(actual);
+        }
+    }
+
+    function _verifyIdentity(Artifact memory artifact, string memory expectedSourceCommit) private view {
         if (keccak256(bytes(artifact.sourceCommit)) != keccak256(bytes(expectedSourceCommit))) {
             revert SourceCommitMismatch(expectedSourceCommit, artifact.sourceCommit);
         }
         if (artifact.chainId != block.chainid) {
             revert ChainIdMismatch(artifact.chainId, block.chainid);
         }
+    }
 
+    function _verifyAddressesAndCode(Artifact memory artifact) private view {
         _requireAddress("camRoot", artifact.camRoot);
         _requireAddress("camEscrow", artifact.camEscrow);
         _requireAddress("camEscrowUI", artifact.camEscrowUI);
@@ -62,54 +80,62 @@ abstract contract EscrowReleaseVerifier {
         _requireCode("camRoot", artifact.camRoot);
         _requireCode("camEscrow", artifact.camEscrow);
         _requireCode("camEscrowUI", artifact.camEscrowUI);
+    }
 
+    function _verifyRootAndProjection(Artifact memory artifact) private view {
         CamRoot root = CamRoot(artifact.camRoot);
-        CamEscrow escrow = CamEscrow(payable(artifact.camEscrow));
-        CamEscrowUI ui = CamEscrowUI(payable(artifact.camEscrowUI));
-
         _requireCamURI(artifact.camURI, root.camURI());
-        if (root.camHash() != artifact.camHash) {
-            revert CamHashMismatch(artifact.camHash, root.camHash());
+
+        bytes32 actualCamHash = root.camHash();
+        if (actualCamHash != artifact.camHash) {
+            revert CamHashMismatch(artifact.camHash, actualCamHash);
         }
-        if (root.owner() != artifact.intendedCamRootOwner) {
-            revert CamRootOwnerMismatch(artifact.intendedCamRootOwner, root.owner());
+
+        address actualOwner = root.owner();
+        if (actualOwner != artifact.intendedCamRootOwner) {
+            revert CamRootOwnerMismatch(artifact.intendedCamRootOwner, actualOwner);
         }
-        if (root.pendingOwner() != address(0)) {
-            revert CamRootOwnershipPending(root.pendingOwner());
-        }
+
+        address pendingOwner = root.pendingOwner();
+        if (pendingOwner != address(0)) revert CamRootOwnershipPending(pendingOwner);
 
         _requireBinding(root, CAM_CONTRACT_ESCROW, artifact.camEscrow);
         _requireBinding(root, CAM_CONTRACT_ESCROW_UI, artifact.camEscrowUI);
-        if (address(ui.escrow()) != artifact.camEscrow) {
-            revert ProjectionBackingMismatch(artifact.camEscrow, address(ui.escrow()));
-        }
 
+        address projectionEscrow = address(CamEscrowUI(payable(artifact.camEscrowUI)).escrow());
+        if (projectionEscrow != artifact.camEscrow) {
+            revert ProjectionBackingMismatch(artifact.camEscrow, projectionEscrow);
+        }
+    }
+
+    function _verifyInterfaces(Artifact memory artifact) private view {
         _requireInterface("CamRoot ICamApp", artifact.camRoot, type(ICamApp).interfaceId);
         _requireInterface("CamRoot IERC165", artifact.camRoot, type(IERC165).interfaceId);
         _requireInterface("CamEscrow ICamEscrowView", artifact.camEscrow, type(ICamEscrowView).interfaceId);
         _requireInterface("CamEscrow IERC165", artifact.camEscrow, type(IERC165).interfaceId);
+    }
 
+    function _verifyArtifactCodeHashes(Artifact memory artifact) private view {
         _requireCodeHash("artifact CamRoot", artifact.camRootCodeHash, artifact.camRoot.codehash);
         _requireCodeHash("artifact CamEscrow", artifact.camEscrowCodeHash, artifact.camEscrow.codehash);
         _requireCodeHash("artifact CamEscrowUI", artifact.camEscrowUICodeHash, artifact.camEscrowUI.codehash);
-
-        CamRoot referenceRoot = new CamRoot(artifact.intendedCamRootOwner, artifact.camURI, artifact.camHash);
-        CamEscrow referenceEscrow = new CamEscrow();
-        CamEscrowUI referenceUI = new CamEscrowUI(artifact.camEscrow);
-
-        _requireCodeHash("source CamRoot", address(referenceRoot).codehash, artifact.camRoot.codehash);
-        _requireCodeHash("source CamEscrow", address(referenceEscrow).codehash, artifact.camEscrow.codehash);
-        _requireCodeHash("source CamEscrowUI", address(referenceUI).codehash, artifact.camEscrowUI.codehash);
-
-        uint256 liabilities = escrow.totalLiabilities();
-        uint256 balance = artifact.camEscrow.balance;
-        if (liabilities > balance) revert InsolventEscrow(liabilities, balance);
     }
 
-    function requireDeploymentSchema(string memory actual) internal pure {
-        if (keccak256(bytes(actual)) != keccak256(bytes(DEPLOYMENT_SCHEMA))) {
-            revert InvalidArtifactSchema(actual);
-        }
+    function _verifySourceCodeHashes(Artifact memory artifact) private {
+        CamRoot referenceRoot = new CamRoot(artifact.intendedCamRootOwner, artifact.camURI, artifact.camHash);
+        _requireCodeHash("source CamRoot", address(referenceRoot).codehash, artifact.camRoot.codehash);
+
+        CamEscrow referenceEscrow = new CamEscrow();
+        _requireCodeHash("source CamEscrow", address(referenceEscrow).codehash, artifact.camEscrow.codehash);
+
+        CamEscrowUI referenceUI = new CamEscrowUI(artifact.camEscrow);
+        _requireCodeHash("source CamEscrowUI", address(referenceUI).codehash, artifact.camEscrowUI.codehash);
+    }
+
+    function _verifySolvency(address escrowAddress) private view {
+        uint256 liabilities = CamEscrow(payable(escrowAddress)).totalLiabilities();
+        uint256 balance = escrowAddress.balance;
+        if (liabilities > balance) revert InsolventEscrow(liabilities, balance);
     }
 
     function _requireAddress(string memory field, address target) private pure {
