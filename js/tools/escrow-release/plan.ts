@@ -45,12 +45,12 @@ function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
 async function main(): Promise<void> {
   const options = optionsFromEnv(process.env)
   const plan = await buildReleasePlan(options)
-  await writeNewJson(options.planPath, plan, "release plan")
   await writeNewText(
     options.planArgumentsPath,
     releasePlanArguments(plan),
     "release plan arguments",
   )
+  await writeNewJson(options.planPath, plan, "release plan")
   process.stdout.write(`${JSON.stringify({
     event: "escrow_release_plan",
     sourceCommit: plan.sourceCommit,
