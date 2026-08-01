@@ -82,9 +82,9 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
         if (characters.length != 40) return false;
 
         for (uint256 i = 0; i < characters.length; i++) {
-            bytes1 character = characters[i];
-            bool decimal = character >= "0" && character <= "9";
-            bool lowercaseHex = character >= "a" && character <= "f";
+            uint8 character = uint8(characters[i]);
+            bool decimal = character >= 48 && character <= 57;
+            bool lowercaseHex = character >= 97 && character <= 102;
             if (!decimal && !lowercaseHex) return false;
         }
         return true;
