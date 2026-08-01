@@ -16,6 +16,7 @@ contract CamEscrowInvariantTest is Test {
     function setUp() public {
         escrow = new CamEscrow();
         handler = new CamEscrowInvariantHandler(escrow);
+        vm.deal(address(handler), 1_000_000 ether);
 
         for (uint256 i = 0; i < handler.actorCount(); i++) {
             vm.deal(handler.actorAt(i), 1_000_000 ether);
@@ -37,6 +38,7 @@ contract CamEscrowInvariantTest is Test {
         selectors[12] = CamEscrowInvariantHandler.advanceTime.selector;
         selectors[13] = CamEscrowInvariantHandler.withdrawCredit.selector;
         selectors[14] = CamEscrowInvariantHandler.probeTerminalIrreversibility.selector;
+        targetContract(address(handler));
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
     }
 
