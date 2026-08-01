@@ -2,7 +2,7 @@
 
 `CamEscrow` is a non-upgradeable, single-milestone native-asset escrow. A client creates and funds an agreement in one payable transaction. The contractor may accept, submit committed work evidence, and receive payment after client approval, review timeout, or an arbitrator decision. The client may cancel before acceptance, dispute a submission, or recover funds after acceptance/work timeout or an arbitrator decision.
 
-This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.1 manifest/UI/ABI bundle, and deterministic, fuzz, stateful-invariant, and bundle-conformance verification. It intentionally contains no deployment script, browser fixture, local vertical workflow, or generic machine descriptor yet.
+This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.1 manifest/UI/ABI bundle, deterministic/fuzz/stateful verification, and a local real-RPC vertical workflow with terminal and browser entrypoints. It deliberately contains no generic CAM machine descriptor.
 
 ## Roles and trust
 
@@ -126,30 +126,9 @@ struct DocumentRef {
 
 The digest commits to exact bytes. The URI is only a public retrieval hint. The contract does not fetch, decrypt, canonicalize, or verify referenced content. Sensitive material must be encrypted before publication.
 
-## Read and write boundaries
-
-Agreement storage is private. `ICamEscrowView` owns:
-
-- absent/instantiated agreement observation;
-- reference lookup;
-- actor-specific available actions;
-- policy caps;
-- accounting reads.
-
-Missing reads return `AgreementState.None`; missing writes revert `AgreementNotFound`.
-
-`availableActions()` describes only actor/state/time legality for some valid payload. Submission/dispute document validation remains at the write boundary. Each evidence-bearing write checks action availability before payload validity.
-
 ## Projection boundary
 
 `CamEscrowUI` verifies that its immutable backing address has code and advertises `ICamEscrowView` through ERC-165. It has no owner, roles, write forwarding, or native-value path.
-
-It exposes four projection reads:
-
-- creation policy and the authenticated `createAgreement` action;
-- agreement observation by ID;
-- agreement observation by client/reference;
-- aggregate account credit and the conditional `withdrawTo` action.
 
 The agreement projection returns the core `AgreementView` unchanged plus a small semantic envelope:
 
@@ -195,16 +174,148 @@ Every stored transition continues to the canonical `agreement(agreementId)` obse
 
 There is deliberately no generic CAM machine resource. `escrow.agreement.v1` and its stable state/transition IDs remain an application projection until another application demonstrates a small repeated protocol need.
 
-## Explicit non-goals
+## Local vertical workflow
 
-V1 omits:
+The local fixture deploys:
 
-- arbitrator acknowledgement, consent proof, rationale, or compensation;
-- neutral or decentralized arbitration guarantees;
-- appeals, evidence rounds, partial awards, or milestones;
-- amendments, deadline extension, or contractor resubmission;
-- ERC-20 payments, fees, relayers, pause, ownership, upgrades, or recovery hooks;
-- discovery, enumeration, privacy, reputation, or automatic timeout execution.
+```text
+CamRoot
+CamEscrow
+CamEscrowUI
+```
+
+It serves the checked-in CAM bundle over HTTP and uses four obvious local-only accounts:
+
+```text
+client / CamRoot owner
+contractor
+arbitrator
+public timeout finalizer
+```
+
+The deterministic runner exercises the generic stack rather than calling escrow writes directly:
+
+```text
+rendered CAM button
+  -> CamViewerSession.dispatchAction
+  -> prepared calldata and native value
+  -> simulation
+  -> wallet submission
+  -> receipt
+  -> declared route continuation
+  -> refreshed projected state
+```
+
+It proves all nine terminal paths and complete withdrawal:
+
+1. client cancellation;
+2. contractor acceptance without arbitrator acknowledgement, submission, and client approval;
+3. acceptance timeout;
+4. work timeout;
+5. review timeout;
+6. arbitrator refund to client;
+7. arbitrator release to contractor;
+8. arbitration timeout configured for client;
+9. arbitration timeout configured for contractor.
+
+Each path uses a new agreement reference, switches the viewer account through `CamViewerSession.setAccount`, asserts the projected semantic state, verifies that terminal observations expose no machine transitions, withdraws the complete credit, and leaves no escrow balance at the end.
+
+### Common local environment
+
+The CAM hash below is the accepted hash of the checked-in root bytes:
+
+```bash
+export LOCAL_UID="$(id -u)"
+export LOCAL_GID="$(id -g)"
+export CAM_HASH=0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66
+export ESCROW_BROADCAST_DIR=/foundry-broadcast
+export ESCROW_BROADCAST_PATH=/foundry-broadcast/DeployEscrowLocal.s.sol/31337/run-latest.json
+```
+
+### Automated nine-path workflow
+
+```bash
+export COMPOSE_PROJECT_NAME=dapps-escrow-local
+export CAM_URI=http://escrow-cam-http:8080/main.json
+export CAM_VIEWER_RESOURCE_ORIGIN=http://escrow-cam-http:8080
+
+files=(
+  -f compose/escrow/local/deploy.yml
+  -f compose/escrow/local/http.yml
+  -f compose/escrow/local/scenario.yml
+)
+
+docker compose "${files[@]}" \
+  up --build --abort-on-container-exit \
+  --exit-code-from escrow-local-scenario \
+  escrow-local-scenario
+
+docker compose "${files[@]}" down --volumes --remove-orphans
+```
+
+### Interactive real-RPC terminal
+
+```bash
+export COMPOSE_PROJECT_NAME=dapps-escrow-terminal
+export CAM_URI=http://escrow-cam-http:8080/main.json
+export CAM_VIEWER_RESOURCE_ORIGIN=http://escrow-cam-http:8080
+
+files=(
+  -f compose/escrow/local/deploy.yml
+  -f compose/escrow/local/http.yml
+  -f compose/escrow/local/viewer-terminal.yml
+)
+
+docker compose "${files[@]}" run --build --rm escrow-viewer-terminal
+```
+
+The terminal starts as the client. Use:
+
+```text
+account <address>   switch to contractor, arbitrator, or finalizer
+account none        render an anonymous account context
+```
+
+The terminal prepares writes but does not sign or submit them. It is useful for inspecting role-specific rendered actions and exact calldata/value preparation.
+
+Clean up with:
+
+```bash
+docker compose "${files[@]}" down --volumes --remove-orphans
+```
+
+### Browser viewer
+
+```bash
+export COMPOSE_PROJECT_NAME=dapps-escrow-gui
+export ESCROW_GUI_PORT=5174
+export ESCROW_GUI_BIND_HOST=127.0.0.1
+export ESCROW_GUI_ORIGIN=http://127.0.0.1:5174
+export CAM_URI=http://127.0.0.1:5174/cam/main.json
+export CAM_VIEWER_RESOURCE_ORIGIN=http://127.0.0.1:5174
+
+files=(
+  -f compose/escrow/local/deploy.yml
+  -f compose/escrow/local/http.yml
+  -f compose/escrow/local/viewer-gui.yml
+)
+
+docker compose "${files[@]}" up --build --detach escrow-anvil escrow-cam-http
+docker compose "${files[@]}" run --build --rm --no-deps deploy-escrow-local
+viewer_url="$(docker compose "${files[@]}" run --build --rm --no-deps -T escrow-viewer-url)"
+printf '\n%s\n\n' "$viewer_url"
+docker compose "${files[@]}" \
+  up --build --force-recreate --abort-on-container-exit \
+  cam-web escrow-browser-gateway
+```
+
+The browser query starts with the client as the viewer identity. Actual writes remain controlled by the injected browser wallet. Import only the explicit local fixture accounts and switch wallet accounts to exercise contractor and arbitrator actions.
+
+Clean up with:
+
+```bash
+docker compose "${files[@]}" down --volumes --remove-orphans
+```
 
 ## Verification
 
@@ -216,7 +327,7 @@ The stateful invariant handler drives up to sixteen concurrent agreements across
 
 The CAM conformance suite loads the checked-in escrow bundle from repository bytes. It validates resource integrity, manifest/UI/ABI joins, nested route/value shape, exact transition bindings, and post-write continuation ownership.
 
-Use the sole repository Make entrypoint:
+Run the ordinary repository gates before the local real-RPC scenario:
 
 ```bash
 make format DAPP=escrow
@@ -224,17 +335,24 @@ make fmt
 make abi
 make cam-integrity
 make cam-conformance-check
-make cam-publication-preflight \
-  DAPP=escrow \
-  CAM_URI=https://example.test/escrow/cam/main.json
 make checks
 make build
+make script-build
 make test
-make fuzz
-make invariant
 make package-test
 ```
 
 `make abi` exports only manifest-declared contracts and then refreshes integrity pins. Its Compose service has write authority only over explicitly admitted CAM ABI directories; `cam-integrity` can rewrite only explicitly admitted manifests. A clean second `make abi` run is the generated-resource idempotence check.
 
-The ordinary `forge-test` service discovers `escrow/test/unit` and `escrow/test/scenario`; `make test` remains the authoritative deterministic repository lane. Fuzz and invariant tests remain in their dedicated heavier lanes. Deployment and multi-account browser/terminal execution belong to the later local-vertical slice.
+The root Makefile does not yet expose escrow-specific wrappers for the three Compose workflows above. Until those wrappers are added, the commands in this section are the authoritative operator paths. No second Makefile is introduced.
+
+## Explicit non-goals
+
+V1 omits:
+
+- arbitrator acknowledgement, consent proof, rationale, or compensation;
+- neutral or decentralized arbitration guarantees;
+- appeals, evidence rounds, partial awards, or milestones;
+- amendments, deadline extension, or contractor resubmission;
+- ERC-20 payments, fees, relayers, pause, ownership, upgrades, or recovery hooks;
+- discovery, enumeration, privacy, reputation, or automatic timeout execution.
