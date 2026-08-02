@@ -17,7 +17,10 @@ ROOT_OWNED_TOOLCHAIN_DEPENDENCIES = {"typescript"}
 DEV_ONLY_DEPENDENCIES = {"@vitejs/plugin-react", "vite"}
 # Overrides are exceptional: they pin a vulnerable transitive package until the
 # owning direct dependency ships a fixed range. Keep the map small and reviewed.
-SECURITY_OVERRIDES = {"ws": "8.21.0"}
+SECURITY_OVERRIDES = {
+    "postcss": "8.5.25",
+    "ws": "8.21.0",
+}
 ROOT_WORKSPACES = [
     "packages/cam-protocol",
     "packages/cam-core",

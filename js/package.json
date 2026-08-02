@@ -18,6 +18,7 @@
     "test:workspace": "npm run build:workspace && npm test --workspaces --if-present"
   },
   "overrides": {
+    "postcss": "8.5.25",
     "ws": "8.21.0"
   },
   "devDependencies": {
