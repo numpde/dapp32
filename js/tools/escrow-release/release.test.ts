@@ -24,7 +24,7 @@ import {
   ownershipState,
 } from "./artifact-model.ts"
 import {
-  buildReleasePlan,
+  inspectReleaseBundle,
 } from "./bundle.ts"
 import {
   DEPLOYMENT_SCHEMA,
@@ -71,15 +71,12 @@ test("release identity fields reject silent or malformed authority", () => {
 })
 
 test("checked-in escrow bundle reproduces the accepted release hash", async () => {
-  const plan = await buildReleasePlan({
+  const bundle = await inspectReleaseBundle({
     dappsRootPath: DAPPS_ROOT,
     rootPath: join(DAPPS_ROOT, "escrow/cam/main.json"),
     camURI: "https://example.test/escrow/cam/main.json",
-    sourceCommit: SOURCE_COMMIT,
-    expectedChainId: 11155111,
-    intendedCamRootOwner: OWNER,
   })
-  assert.equal(plan.camHash, CHECKED_IN_CAM_HASH)
+  assert.equal(bundle.camHash, CHECKED_IN_CAM_HASH)
 })
 
 test("deployment JSON preserves the complete strict record", () => {

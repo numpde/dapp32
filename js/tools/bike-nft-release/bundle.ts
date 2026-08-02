@@ -3,12 +3,14 @@ import { keccak256 } from "viem"
 import { validateCamBundle } from "../../packages/cam-conformance/dist/index.js"
 import { camNamespaceResourceURIKey, isCamResourceNamespaceType, isRecordObject, parseJsonBytes } from "../../packages/cam-protocol/dist/index.js"
 import { checkedContainedFilePath, localCamResourcePath, readBoundedFile } from "../local-cam-files.ts"
-import { RELEASE_PLAN_SCHEMA } from "./shared.ts"
-import type { ReleasePlan } from "./shared.ts"
 
-export type ReleaseBundleInput = Omit<ReleasePlan, "schema" | "camHash"> & { readonly dappsRootPath: string; readonly rootPath: string }
+export type ReleaseBundleInput = {
+  readonly dappsRootPath: string
+  readonly rootPath: string
+  readonly camURI: string
+}
 
-export async function buildReleasePlan(input: ReleaseBundleInput): Promise<ReleasePlan> {
+export async function inspectReleaseBundle(input: ReleaseBundleInput): Promise<{ readonly camHash: `0x${string}` }> {
   const dappsRootPath = resolve(input.dappsRootPath)
   const rootPath = await checkedContainedFilePath({ rootDir: dappsRootPath, path: input.rootPath, label: "Bike NFT CAM root", boundaryLabel: "dapps root" })
   const rootBytes = await readBoundedFile(rootPath, "Bike NFT CAM root")
@@ -25,6 +27,5 @@ export async function buildReleasePlan(input: ReleaseBundleInput): Promise<Relea
   }
   const issue = validateCamBundle({ rootURI: input.camURI, rootBytes, resources })[0]
   if (issue !== undefined) throw new Error(`Bike NFT CAM bundle does not conform: ${issue.rule}: ${issue.message}`)
-  const { dappsRootPath: _dappsRootPath, rootPath: _rootPath, ...plan } = input
-  return { ...plan, schema: RELEASE_PLAN_SCHEMA, camHash: keccak256(rootBytes) }
+  return { camHash: keccak256(rootBytes) }
 }

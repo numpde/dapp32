@@ -3,7 +3,7 @@ import { dirname, join } from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
-import { buildReleasePlan } from "./bundle.ts"
+import { inspectReleaseBundle } from "./bundle.ts"
 import { creationReceiptDeployer, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
 import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
@@ -11,6 +11,7 @@ import type { DeploymentArtifact } from "./shared.ts"
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
 const hash = (byte: string) => `0x${byte.repeat(64)}` as Hex
 const SOURCE = "0123456789abcdef0123456789abcdef01234567"
+const CHECKED_IN_CAM_HASH = "0x57fa120882de1530d9b48f00e8d3e780edd42c2159378b69ce86996bfb279961"
 const DAPPS = join(dirname(fileURLToPath(import.meta.url)), "../../../dapps")
 const DEPLOYER = address("1"), OWNER = address("2"), COMPONENTS_ADMIN = address("3"), MANAGER_ADMIN = address("4")
 
@@ -21,10 +22,13 @@ test("Bike release inputs reject fixture-shaped authority", () => {
   assert.throws(() => requiredAddresses(`${address("5")},${address("5")}`, "registrars"), /duplicate/)
 })
 
-test("checked-in Bike CAM bytes produce a nonzero release hash", async () => {
-  const plan = await buildReleasePlan({ ...common(), dappsRootPath: DAPPS, rootPath: join(DAPPS, "bike-nft/cam/main.json") })
-  assert.match(plan.camHash, /^0x[0-9a-f]{64}$/)
-  assert.doesNotMatch(plan.camHash, /^0x0{64}$/)
+test("checked-in Bike CAM bytes reproduce the accepted release hash", async () => {
+  const bundle = await inspectReleaseBundle({
+    dappsRootPath: DAPPS,
+    rootPath: join(DAPPS, "bike-nft/cam/main.json"),
+    camURI: "https://example.test/bike/v1/main.json",
+  })
+  assert.equal(bundle.camHash, CHECKED_IN_CAM_HASH)
 })
 
 test("deployment artifact parsing rejects unknown fields and inconsistent authority", () => {

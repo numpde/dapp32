@@ -1,5 +1,5 @@
 import { assertPublishedCamRootURI } from "../../packages/cam-protocol/dist/index.js"
-import { buildReleasePlan } from "./bundle.ts"
+import { inspectReleaseBundle } from "./bundle.ts"
 import { parseDeploymentArtifact, requiredEnv, requiredSourceCommit, writeNewJson } from "./shared.ts"
 import { readBoundedRegularFile } from "../release-files.ts"
 
@@ -10,17 +10,11 @@ async function main(): Promise<void> {
   const expectedCommit = requiredSourceCommit(requiredEnv(env, "BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT"))
   if (artifact.sourceCommit !== expectedCommit) throw new Error(`deployment source commit mismatch: expected ${expectedCommit}, got ${artifact.sourceCommit}`)
   assertPublishedCamRootURI(artifact.camURI, "deployment camURI")
-  const sourcePlan = await buildReleasePlan({
+  const bundle = await inspectReleaseBundle({
     dappsRootPath: requiredEnv(env, "BIKE_NFT_RELEASE_DAPPS_ROOT"), rootPath: requiredEnv(env, "BIKE_NFT_RELEASE_CAM_ROOT_PATH"),
-    sourceCommit: artifact.sourceCommit, expectedChainId: artifact.chainId, camURI: artifact.camURI,
-    camRootOwner: artifact.camRootOwner, tokenName: artifact.tokenName, tokenSymbol: artifact.tokenSymbol,
-    baseTokenURI: artifact.baseTokenURI, collectionURI: artifact.collectionURI,
-    componentsAdmin: artifact.componentsAdmin, componentsAdminDelay: artifact.componentsAdminDelay,
-    componentsPauser: artifact.componentsPauser, componentsConfigurer: artifact.componentsConfigurer,
-    managerAdmin: artifact.managerAdmin, managerAdminDelay: artifact.managerAdminDelay,
-    managerPauser: artifact.managerPauser, managerConfigurer: artifact.managerConfigurer, registrars: artifact.registrars,
+    camURI: artifact.camURI,
   })
-  if (sourcePlan.camHash.toLowerCase() !== artifact.camHash.toLowerCase()) throw new Error(`deployment CAM hash does not match checked-in root bytes: expected ${sourcePlan.camHash}, got ${artifact.camHash}`)
+  if (bundle.camHash.toLowerCase() !== artifact.camHash.toLowerCase()) throw new Error(`deployment CAM hash does not match checked-in root bytes: expected ${bundle.camHash}, got ${artifact.camHash}`)
   await writeNewJson(requiredEnv(env, "BIKE_NFT_VERIFIED_ARTIFACT_PATH"), artifact, "verified deployment artifact")
   process.stdout.write(`${JSON.stringify({ event: "bike_nft_release_input_verified", sourceCommit: artifact.sourceCommit, chainId: artifact.chainId })}\n`)
 }

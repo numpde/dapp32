@@ -3,21 +3,26 @@ import {
 } from "../../packages/cam-protocol/dist/index.js"
 
 import {
-  buildReleasePlan,
-} from "./bundle.ts"
-import type {
-  ReleaseBundleInput,
+  inspectReleaseBundle,
 } from "./bundle.ts"
 import {
+  RELEASE_PLAN_SCHEMA,
   requiredEnv,
   requiredNonzeroAddress,
   requiredReleaseChainId,
   requiredSourceCommit,
   writeNewJson,
 } from "./shared.ts"
+import type { ReleasePlan } from "./shared.ts"
 
-type Options = ReleaseBundleInput & {
+type Options = {
+  readonly dappsRootPath: string
+  readonly rootPath: string
   readonly planPath: string
+  readonly camURI: string
+  readonly sourceCommit: string
+  readonly expectedChainId: number
+  readonly intendedCamRootOwner: ReleasePlan["intendedCamRootOwner"]
 }
 
 function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
@@ -40,7 +45,15 @@ function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
 
 async function main(): Promise<void> {
   const options = optionsFromEnv(process.env)
-  const plan = await buildReleasePlan(options)
+  const bundle = await inspectReleaseBundle(options)
+  const plan: ReleasePlan = {
+    schema: RELEASE_PLAN_SCHEMA,
+    sourceCommit: options.sourceCommit,
+    expectedChainId: options.expectedChainId,
+    camURI: options.camURI,
+    camHash: bundle.camHash,
+    intendedCamRootOwner: options.intendedCamRootOwner,
+  }
   await writeNewJson(options.planPath, plan, "release plan")
   process.stdout.write(`${JSON.stringify({
     event: "escrow_release_plan",

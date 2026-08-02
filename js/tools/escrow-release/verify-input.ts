@@ -2,9 +2,7 @@ import {
   assertPublishedCamRootURI,
 } from "../../packages/cam-protocol/dist/index.js"
 
-import {
-  buildReleasePlan,
-} from "./bundle.ts"
+import { inspectReleaseBundle } from "./bundle.ts"
 import { parseDeploymentArtifact, requiredEnv, requiredSourceCommit, writeNewJson } from "./shared.ts"
 import { readBoundedRegularFile } from "../release-files.ts"
 
@@ -25,17 +23,14 @@ async function main(): Promise<void> {
   }
 
   assertPublishedCamRootURI(artifact.camURI, "deployment camURI")
-  const sourcePlan = await buildReleasePlan({
+  const bundle = await inspectReleaseBundle({
     dappsRootPath: requiredEnv(process.env, "ESCROW_RELEASE_DAPPS_ROOT"),
     rootPath: requiredEnv(process.env, "ESCROW_RELEASE_CAM_ROOT_PATH"),
     camURI: artifact.camURI,
-    sourceCommit: artifact.sourceCommit,
-    expectedChainId: artifact.chainId,
-    intendedCamRootOwner: artifact.intendedCamRootOwner,
   })
-  if (sourcePlan.camHash.toLowerCase() !== artifact.camHash.toLowerCase()) {
+  if (bundle.camHash.toLowerCase() !== artifact.camHash.toLowerCase()) {
     throw new Error(
-      `deployment CAM hash does not match checked-in root bytes: expected ${sourcePlan.camHash}, got ${artifact.camHash}`,
+      `deployment CAM hash does not match checked-in root bytes: expected ${bundle.camHash}, got ${artifact.camHash}`,
     )
   }
   await writeNewJson(

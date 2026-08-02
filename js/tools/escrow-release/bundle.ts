@@ -17,23 +17,13 @@ import {
   localCamResourcePath,
   readBoundedFile,
 } from "../local-cam-files.ts"
-import {
-  RELEASE_PLAN_SCHEMA,
-} from "./shared.ts"
-import type {
-  ReleasePlan,
-} from "./shared.ts"
-
 export type ReleaseBundleInput = {
   readonly dappsRootPath: string
   readonly rootPath: string
   readonly camURI: string
-  readonly sourceCommit: string
-  readonly expectedChainId: number
-  readonly intendedCamRootOwner: ReleasePlan["intendedCamRootOwner"]
 }
 
-export async function buildReleasePlan(input: ReleaseBundleInput): Promise<ReleasePlan> {
+export async function inspectReleaseBundle(input: ReleaseBundleInput): Promise<{ readonly camHash: `0x${string}` }> {
   const dappsRootPath = resolve(input.dappsRootPath)
   const rootPath = await checkedContainedFilePath({
     rootDir: dappsRootPath,
@@ -54,14 +44,7 @@ export async function buildReleasePlan(input: ReleaseBundleInput): Promise<Relea
     throw new Error(`escrow CAM bundle does not conform: ${firstIssue.rule}: ${firstIssue.message}`)
   }
 
-  return {
-    schema: RELEASE_PLAN_SCHEMA,
-    sourceCommit: input.sourceCommit,
-    expectedChainId: input.expectedChainId,
-    camURI: input.camURI,
-    camHash: keccak256(rootBytes),
-    intendedCamRootOwner: input.intendedCamRootOwner,
-  }
+  return { camHash: keccak256(rootBytes) }
 }
 
 async function declaredLocalResources(rootPath: string, root: unknown): Promise<Map<string, Uint8Array>> {
