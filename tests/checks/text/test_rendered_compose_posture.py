@@ -259,7 +259,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "ESCROW_GUI_BIND_HOST": "127.0.0.1",
                 "ESCROW_GUI_ORIGIN": "http://127.0.0.1:5174",
                 "ESCROW_GUI_PORT": "5174",
-                "ESCROW_RELEASE_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
+                "ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
                 "ESCROW_RELEASE_CAM_URI": "https://example.test/escrow/cam/main.json",
                 "ESCROW_RELEASE_EXPECTED_CHAIN_ID": "11155111",
                 "ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",

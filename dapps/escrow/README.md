@@ -295,7 +295,7 @@ Run the release only from the exact clean commit intended for publication:
 CONFIRM_ESCROW_RELEASE_DEPLOY=YES \
 ESCROW_RELEASE_EXPECTED_CHAIN_ID=<chain-id> \
 ESCROW_RELEASE_CAM_URI=https://published.example/escrow/cam/main.json \
-ESCROW_RELEASE_CAM_ROOT_OWNER=0x<final-owner> \
+ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER=0x<intended-root-owner> \
 RPC_URL_FILE=/secure/escrow-rpc-url \
 DEPLOYER_PRIVATE_KEY_FILE=/secure/escrow-deployer-key \
 ESCROW_RELEASE_OUTPUT_DIR=/secure/releases/escrow-<chain>-<version> \

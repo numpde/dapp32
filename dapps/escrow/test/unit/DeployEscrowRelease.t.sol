@@ -9,21 +9,8 @@ contract DeployEscrowReleaseHarness is DeployEscrowRelease {
         return _parsePlan(json);
     }
 
-    function requireOperatorInputs(
-        string memory sourceCommit,
-        uint256 expectedChainId,
-        string memory camURI,
-        bytes32 camHash,
-        address intendedCamRootOwner
-    ) external view {
-        ReleasePlan memory plan = ReleasePlan({
-            sourceCommit: sourceCommit,
-            expectedChainId: expectedChainId,
-            camURI: camURI,
-            camHash: camHash,
-            intendedCamRootOwner: intendedCamRootOwner
-        });
-        _requireOperatorInputs(plan);
+    function requireOperatorInputs(ReleasePlan memory plan, OperatorInputs memory inputs) external pure {
+        _requireOperatorInputs(plan, inputs);
     }
 
     function validate(
@@ -57,15 +44,11 @@ contract DeployEscrowReleaseTest is Test {
 
     function setUp() external {
         vm.chainId(RELEASE_CHAIN_ID);
-        vm.setEnv("ESCROW_RELEASE_SOURCE_COMMIT", SOURCE_COMMIT);
-        vm.setEnv("ESCROW_RELEASE_EXPECTED_CHAIN_ID", vm.toString(RELEASE_CHAIN_ID));
-        vm.setEnv("ESCROW_RELEASE_CAM_URI", CAM_URI);
-        vm.setEnv("ESCROW_RELEASE_CAM_ROOT_OWNER", vm.toString(FINAL_OWNER));
         harness = new DeployEscrowReleaseHarness();
     }
 
-    function testAcceptsOperatorAuthorizedInputs() external view {
-        harness.requireOperatorInputs(SOURCE_COMMIT, RELEASE_CHAIN_ID, CAM_URI, CAM_ROOT_HASH, FINAL_OWNER);
+    function testAcceptsOperatorAuthorizedInputs() external {
+        harness.requireOperatorInputs(harness.parsePlan(PLAN_JSON), _operatorInputs());
     }
 
     function testParsesCanonicalReleasePlan() external view {
@@ -90,29 +73,37 @@ contract DeployEscrowReleaseTest is Test {
     }
 
     function testRejectsOperatorSourceCommitMismatch() external {
+        DeployEscrowRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
+        DeployEscrowRelease.OperatorInputs memory inputs = _operatorInputs();
+        inputs.sourceCommit = "1123456789abcdef0123456789abcdef01234567";
         vm.expectRevert(abi.encodeWithSelector(DeployEscrowRelease.OperatorInputMismatch.selector, "sourceCommit"));
-        harness.requireOperatorInputs(
-            "1123456789abcdef0123456789abcdef01234567", RELEASE_CHAIN_ID, CAM_URI, CAM_ROOT_HASH, FINAL_OWNER
-        );
+        harness.requireOperatorInputs(plan, inputs);
     }
 
     function testRejectsOperatorExpectedChainMismatch() external {
+        DeployEscrowRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
+        DeployEscrowRelease.OperatorInputs memory inputs = _operatorInputs();
+        inputs.expectedChainId++;
         vm.expectRevert(abi.encodeWithSelector(DeployEscrowRelease.OperatorInputMismatch.selector, "expectedChainId"));
-        harness.requireOperatorInputs(SOURCE_COMMIT, RELEASE_CHAIN_ID + 1, CAM_URI, CAM_ROOT_HASH, FINAL_OWNER);
+        harness.requireOperatorInputs(plan, inputs);
     }
 
     function testRejectsOperatorCamUriMismatch() external {
+        DeployEscrowRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
+        DeployEscrowRelease.OperatorInputs memory inputs = _operatorInputs();
+        inputs.camURI = "https://other.test/main.json";
         vm.expectRevert(abi.encodeWithSelector(DeployEscrowRelease.OperatorInputMismatch.selector, "camURI"));
-        harness.requireOperatorInputs(
-            SOURCE_COMMIT, RELEASE_CHAIN_ID, "https://other.test/main.json", CAM_ROOT_HASH, FINAL_OWNER
-        );
+        harness.requireOperatorInputs(plan, inputs);
     }
 
     function testRejectsOperatorOwnerMismatch() external {
+        DeployEscrowRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
+        DeployEscrowRelease.OperatorInputs memory inputs = _operatorInputs();
+        inputs.intendedCamRootOwner = address(0xCAFE);
         vm.expectRevert(
             abi.encodeWithSelector(DeployEscrowRelease.OperatorInputMismatch.selector, "intendedCamRootOwner")
         );
-        harness.requireOperatorInputs(SOURCE_COMMIT, RELEASE_CHAIN_ID, CAM_URI, CAM_ROOT_HASH, address(0xCAFE));
+        harness.requireOperatorInputs(plan, inputs);
     }
 
     function testAcceptsPlanBoundToExactCamRootBytes() external view {
@@ -134,5 +125,12 @@ contract DeployEscrowReleaseTest is Test {
             abi.encodeWithSelector(DeployEscrowRelease.ChainIdMismatch.selector, RELEASE_CHAIN_ID + 1, RELEASE_CHAIN_ID)
         );
         harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID + 1, CAM_URI, CAM_ROOT_HASH, FINAL_OWNER);
+    }
+
+    function _operatorInputs() private pure returns (DeployEscrowRelease.OperatorInputs memory inputs) {
+        inputs.sourceCommit = SOURCE_COMMIT;
+        inputs.expectedChainId = RELEASE_CHAIN_ID;
+        inputs.camURI = CAM_URI;
+        inputs.intendedCamRootOwner = FINAL_OWNER;
     }
 }

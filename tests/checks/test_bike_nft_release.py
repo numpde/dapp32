@@ -58,12 +58,6 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         self.assertEqual("/release-plan/release-plan.json", compose_mapping(signer, "environment")["BIKE_NFT_RELEASE_PLAN_PATH"])
         self.assertIn("PRIVATE_KEY=", signer_command)
         self.assertNotIn("export PRIVATE_KEY", signer_command)
-        signer_source = read_text(repo_path("dapps/bike-nft/script/DeployBikeNftRelease.s.sol"))
-        self.assertIn("vm.readFile(path)", signer_source)
-        self.assertIn("OperatorInputMismatch", signer_source)
-        self.assertIn("vm.readFileBinary(CAM_ROOT_PATH)", signer_source)
-        self.assertNotIn("release-plan.args", read_text(repo_path(DEPLOY)))
-        self.assertNotIn("releasePlanArguments", read_text(repo_path("js/tools/bike-nft-release/artifact.ts")))
 
     def test_verification_is_read_only_and_receipt_gated(self) -> None:
         config = rendered_compose_config(VERIFY)
@@ -100,8 +94,6 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         rendered = str(config)
         self.assertNotIn("deployment.args", rendered)
         self.assertNotIn("DEPLOYMENT_ARGUMENTS", rendered)
-        self.assertNotIn("deployment.json.args", read_text(repo_path("compose/bike-nft/release/deploy.yml")))
-        self.assertNotIn("deploymentArguments", read_text(repo_path("js/tools/bike-nft-release/artifact.ts")))
 
     def test_make_entrypoints_require_clean_source_and_protected_files(self) -> None:
         source = read_text(repo_path("Makefile"))

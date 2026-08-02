@@ -37,8 +37,8 @@ function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
     sourceCommit: requiredSourceCommit(requiredEnv(env, "ESCROW_RELEASE_SOURCE_COMMIT")),
     expectedChainId: requiredReleaseChainId(requiredEnv(env, "ESCROW_RELEASE_EXPECTED_CHAIN_ID")),
     intendedCamRootOwner: requiredNonzeroAddress(
-      requiredEnv(env, "ESCROW_RELEASE_CAM_ROOT_OWNER"),
-      "ESCROW_RELEASE_CAM_ROOT_OWNER",
+      requiredEnv(env, "ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER"),
+      "ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER",
     ),
   }
 }

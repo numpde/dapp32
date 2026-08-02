@@ -22,6 +22,13 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
         address intendedCamRootOwner;
     }
 
+    struct OperatorInputs {
+        string sourceCommit;
+        uint256 expectedChainId;
+        string camURI;
+        address intendedCamRootOwner;
+    }
+
     error InvalidReleasePlanSchema(string actual);
     error OperatorInputMismatch(string field);
     error InvalidSourceCommit(string sourceCommit);
@@ -34,6 +41,7 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
 
     function run() external returns (Deployment memory deployment) {
         ReleasePlan memory plan = _readPlan(vm.envString("ESCROW_RELEASE_PLAN_PATH"));
+        _requireOperatorInputs(plan, _readOperatorInputs());
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
 
@@ -71,17 +79,22 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
         plan.camURI = vm.parseJsonString(json, ".camURI");
         plan.camHash = vm.parseJsonBytes32(json, ".camHash");
         plan.intendedCamRootOwner = vm.parseJsonAddress(json, ".intendedCamRootOwner");
-
-        _requireOperatorInputs(plan);
     }
 
-    function _requireOperatorInputs(ReleasePlan memory plan) internal view {
-        _requireOperatorString("sourceCommit", plan.sourceCommit, vm.envString("ESCROW_RELEASE_SOURCE_COMMIT"));
-        if (plan.expectedChainId != vm.envUint("ESCROW_RELEASE_EXPECTED_CHAIN_ID")) {
+    function _readOperatorInputs() internal view returns (OperatorInputs memory inputs) {
+        inputs.sourceCommit = vm.envString("ESCROW_RELEASE_SOURCE_COMMIT");
+        inputs.expectedChainId = vm.envUint("ESCROW_RELEASE_EXPECTED_CHAIN_ID");
+        inputs.camURI = vm.envString("ESCROW_RELEASE_CAM_URI");
+        inputs.intendedCamRootOwner = vm.envAddress("ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER");
+    }
+
+    function _requireOperatorInputs(ReleasePlan memory plan, OperatorInputs memory inputs) internal pure {
+        _requireOperatorString("sourceCommit", plan.sourceCommit, inputs.sourceCommit);
+        if (plan.expectedChainId != inputs.expectedChainId) {
             revert OperatorInputMismatch("expectedChainId");
         }
-        _requireOperatorString("camURI", plan.camURI, vm.envString("ESCROW_RELEASE_CAM_URI"));
-        if (plan.intendedCamRootOwner != vm.envAddress("ESCROW_RELEASE_CAM_ROOT_OWNER")) {
+        _requireOperatorString("camURI", plan.camURI, inputs.camURI);
+        if (plan.intendedCamRootOwner != inputs.intendedCamRootOwner) {
             revert OperatorInputMismatch("intendedCamRootOwner");
         }
     }

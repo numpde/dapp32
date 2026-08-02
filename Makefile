@@ -897,7 +897,7 @@ escrow-release-deploy: deps-verify escrow-release-check
 	  printf '%s\n' 'Could not resolve one exact lowercase 40-character source commit.' >&2; \
 	  exit 2; \
 	fi; \
-	for name in ESCROW_RELEASE_EXPECTED_CHAIN_ID ESCROW_RELEASE_CAM_URI ESCROW_RELEASE_CAM_ROOT_OWNER RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE ESCROW_RELEASE_OUTPUT_DIR; do \
+	for name in ESCROW_RELEASE_EXPECTED_CHAIN_ID ESCROW_RELEASE_CAM_URI ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE ESCROW_RELEASE_OUTPUT_DIR; do \
 	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
 	    printf 'Missing required release input: %s\n' "$$name" >&2; \
 	    exit 2; \
@@ -913,9 +913,9 @@ escrow-release-deploy: deps-verify escrow-release-check
 	  printf '%s\n' 'ESCROW_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI without shell syntax.' >&2; \
 	  exit 2; \
 	fi; \
-	owner="$$ESCROW_RELEASE_CAM_ROOT_OWNER"; \
+	owner="$$ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER"; \
 	if [[ ! "$$owner" =~ ^0x[0-9a-fA-F]{40}$$ || "$$owner" == "0x0000000000000000000000000000000000000000" ]]; then \
-	  printf '%s\n' 'ESCROW_RELEASE_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
+	  printf '%s\n' 'ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
 	  exit 2; \
 	fi; \
 	reject_path_symlinks() { \
@@ -970,7 +970,7 @@ escrow-release-deploy: deps-verify escrow-release-check
 	    ESCROW_RELEASE_OUTPUT_DIR="$$output_dir" \
 	    ESCROW_RELEASE_CAM_URI="$$cam_uri" \
 	    ESCROW_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
-	    ESCROW_RELEASE_CAM_ROOT_OWNER="$$owner" \
+	    ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER="$$owner" \
 	    ESCROW_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
@@ -982,7 +982,7 @@ escrow-release-deploy: deps-verify escrow-release-check
 	  ESCROW_RELEASE_OUTPUT_DIR="$$output_dir" \
 	  ESCROW_RELEASE_CAM_URI="$$cam_uri" \
 	  ESCROW_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
-	  ESCROW_RELEASE_CAM_ROOT_OWNER="$$owner" \
+	  ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER="$$owner" \
 	  ESCROW_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	  RPC_URL_FILE="$$RPC_URL_FILE" \
 	  DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \

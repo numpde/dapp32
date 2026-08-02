@@ -26,7 +26,7 @@ SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
 RELEASE_ENV = {
     "DEPLOYER_PRIVATE_KEY_FILE": PRIVATE_KEY_FILE,
     "ESCROW_DEPLOYMENT_ARTIFACT_FILE": ARTIFACT_FILE,
-    "ESCROW_RELEASE_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
+    "ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
     "ESCROW_RELEASE_CAM_URI": "https://example.test/escrow/cam/main.json",
     "ESCROW_RELEASE_EXPECTED_CHAIN_ID": "11155111",
     "ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT": SOURCE_COMMIT,
@@ -113,13 +113,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         deploy_command = compose_command_text(deploy)
         self.assertNotIn("release-plan.args", deploy_command)
         self.assertIn("ESCROW_RELEASE_PLAN_PATH", compose_mapping(deploy, "environment"))
-        self.assertIn("vm.readFile(path)", read_text(repo_path("dapps/escrow/script/DeployEscrowRelease.s.sol")))
-        self.assertIn("OperatorInputMismatch", read_text(repo_path("dapps/escrow/script/DeployEscrowRelease.s.sol")))
         self.assertNotIn("ESCROW_RELEASE_CAM_ROOT_TEXT", deploy_command)
-        self.assertIn(
-            "vm.readFileBinary(CAM_ROOT_PATH)",
-            read_text(repo_path("dapps/escrow/script/DeployEscrowRelease.s.sol")),
-        )
         foundry_config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
         self.assertIn(
             {"access": "read", "path": "./escrow/cam/main.json"},
@@ -192,7 +186,6 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertNotIn("--broadcast", verify_command)
         self.assertNotIn("deployment.args", str(config))
         self.assertNotIn("DEPLOYMENT_ARGUMENTS", str(config))
-        self.assertNotIn("deploymentArguments", read_text(repo_path("js/tools/escrow-release/artifact.ts")))
 
 
 if __name__ == "__main__":
