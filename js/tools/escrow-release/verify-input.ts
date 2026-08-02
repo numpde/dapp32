@@ -1,5 +1,3 @@
-import { lstat, readFile } from "node:fs/promises"
-
 import {
   assertPublishedCamRootURI,
 } from "../../packages/cam-protocol/dist/index.js"
@@ -8,6 +6,7 @@ import {
   buildReleasePlan,
 } from "./bundle.ts"
 import { parseDeploymentArtifact, requiredEnv, requiredSourceCommit, writeNewJson } from "./shared.ts"
+import { readBoundedRegularFile } from "../release-files.ts"
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024
 
@@ -17,7 +16,7 @@ async function main(): Promise<void> {
     requiredEnv(process.env, "ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT"),
   )
   const artifact = parseDeploymentArtifact(
-    await readRegularFile(artifactPath, "deployment artifact", MAX_ARTIFACT_BYTES),
+    await readBoundedRegularFile(artifactPath, "deployment artifact", MAX_ARTIFACT_BYTES),
   )
   if (artifact.sourceCommit !== expectedSourceCommit) {
     throw new Error(
@@ -53,17 +52,6 @@ async function main(): Promise<void> {
     camHash: artifact.camHash,
     intendedCamRootOwner: artifact.intendedCamRootOwner,
   })}\n`)
-}
-
-async function readRegularFile(path: string, label: string, maximum: number): Promise<Uint8Array> {
-  const stat = await lstat(path)
-  if (stat.isSymbolicLink() || !stat.isFile()) {
-    throw new Error(`${label} must be a regular non-symlink file: ${path}`)
-  }
-  if (stat.size > maximum) {
-    throw new Error(`${label} exceeds ${maximum} bytes`)
-  }
-  return new Uint8Array(await readFile(path))
 }
 
 main().catch((error: unknown) => {

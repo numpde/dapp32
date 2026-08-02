@@ -1,5 +1,3 @@
-import { lstat, readFile } from "node:fs/promises"
-
 import {
   createPublicClient,
   http,
@@ -12,6 +10,7 @@ import type {
   DeploymentContracts,
 } from "./artifact-model.ts"
 import { parseDeploymentArtifact, requiredEnv } from "./shared.ts"
+import { readBoundedRegularFile } from "../release-files.ts"
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024
 
@@ -19,7 +18,7 @@ async function main(): Promise<void> {
   const artifactPath = requiredEnv(process.env, "ESCROW_DEPLOYMENT_ARTIFACT_PATH")
   const rpcURL = requiredEnv(process.env, "ESCROW_RELEASE_RPC_URL")
   const artifact = parseDeploymentArtifact(
-    await readRegularFile(artifactPath, "deployment artifact", MAX_ARTIFACT_BYTES),
+    await readBoundedRegularFile(artifactPath, "deployment artifact", MAX_ARTIFACT_BYTES),
   )
 
   const client = createPublicClient({ transport: http(rpcURL) })
@@ -64,17 +63,6 @@ async function main(): Promise<void> {
     camEscrowCreationTransaction: artifact.camEscrowCreationTransaction,
     camEscrowUICreationTransaction: artifact.camEscrowUICreationTransaction,
   })}\n`)
-}
-
-async function readRegularFile(path: string, label: string, maximum: number): Promise<Uint8Array> {
-  const stat = await lstat(path)
-  if (stat.isSymbolicLink() || !stat.isFile()) {
-    throw new Error(`${label} must be a regular non-symlink file: ${path}`)
-  }
-  if (stat.size > maximum) {
-    throw new Error(`${label} exceeds ${maximum} bytes`)
-  }
-  return new Uint8Array(await readFile(path))
 }
 
 main().catch((error: unknown) => {

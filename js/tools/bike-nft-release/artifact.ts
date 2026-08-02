@@ -1,4 +1,3 @@
-import { lstat, readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { createPublicClient, getAddress, http, keccak256, parseAbi } from "viem"
 import type { Address, Hex } from "viem"
@@ -6,6 +5,7 @@ import type { Abi } from "viem"
 import { creationReceiptDeployer, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
 import { DEPLOYMENT_SCHEMA, parseJsonRecord, parseReleasePlan, rejectDeployerAuthorities, requiredEnv, writeNewJson } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
+import { readBoundedRegularFile } from "../release-files.ts"
 
 const MAX_BYTES = 16 * 1024 * 1024
 const ROOT_ABI = parseAbi(["function camURI() view returns (string)", "function camHash() view returns (bytes32)", "function contractAddress(string) view returns (address)", "function owner() view returns (address)", "function pendingOwner() view returns (address)"])
@@ -16,9 +16,9 @@ const UI_ABI = parseAbi(["function manager() view returns (address)"])
 
 async function main(): Promise<void> {
   const env = process.env
-  const plan = parseReleasePlan(await readRegularFile(requiredEnv(env, "BIKE_NFT_RELEASE_PLAN_PATH"), "release plan", MAX_BYTES))
+  const plan = parseReleasePlan(await readBoundedRegularFile(requiredEnv(env, "BIKE_NFT_RELEASE_PLAN_PATH"), "release plan", MAX_BYTES))
   const broadcastPath = resolve(requiredEnv(env, "BIKE_NFT_RELEASE_BROADCAST_DIR"), "DeployBikeNftRelease.s.sol", String(plan.expectedChainId), "run-latest.json")
-  const broadcast = parseJsonRecord(await readRegularFile(broadcastPath, "Forge broadcast", MAX_BYTES), "Forge broadcast")
+  const broadcast = parseJsonRecord(await readBoundedRegularFile(broadcastPath, "Forge broadcast", MAX_BYTES), "Forge broadcast")
   const contracts = deploymentContractsFromBroadcast(broadcast)
   const client = createPublicClient({ transport: http(requiredEnv(env, "BIKE_NFT_RELEASE_RPC_URL")) })
   const chainId = await client.getChainId()
@@ -87,7 +87,6 @@ async function main(): Promise<void> {
 async function requiredCode(value: Promise<Hex | undefined>, label: string): Promise<Hex> { const code = await value; if (code === undefined || code === "0x") throw new Error(`${label} has no deployed code`); return code }
 function assertAddress(actual: Address, expected: Address, label: string): void { assertEqual(actual.toLowerCase(), expected.toLowerCase(), label) }
 function assertEqual(actual: string, expected: string, label: string): void { if (actual !== expected) throw new Error(`${label} mismatch: expected ${expected}, got ${actual}`) }
-async function readRegularFile(path: string, label: string, maximum: number): Promise<Uint8Array> { const stat = await lstat(path); if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`${label} must be a regular non-symlink file: ${path}`); if (stat.size > maximum) throw new Error(`${label} exceeds ${maximum} bytes`); return new Uint8Array(await readFile(path)) }
 main().catch((error: unknown) => {
   const message = error instanceof Error && error.stack !== undefined
     ? error.stack

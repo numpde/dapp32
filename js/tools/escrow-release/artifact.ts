@@ -1,4 +1,3 @@
-import { lstat, readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 
 import {
@@ -28,6 +27,7 @@ import {
 import type {
   DeploymentArtifact,
 } from "./shared.ts"
+import { readBoundedRegularFile } from "../release-files.ts"
 
 const MAX_BROADCAST_BYTES = 16 * 1024 * 1024
 const CAM_ROOT_ABI = parseAbi([
@@ -47,7 +47,7 @@ async function main(): Promise<void> {
   const artifactPath = requiredEnv(process.env, "ESCROW_DEPLOYMENT_ARTIFACT_PATH")
   const rpcURL = requiredEnv(process.env, "ESCROW_RELEASE_RPC_URL")
 
-  const plan = parseReleasePlan(await readRegularFile(planPath, "release plan", MAX_BROADCAST_BYTES))
+  const plan = parseReleasePlan(await readBoundedRegularFile(planPath, "release plan", MAX_BROADCAST_BYTES))
   const broadcastPath = resolve(
     broadcastDir,
     "DeployEscrowRelease.s.sol",
@@ -55,7 +55,7 @@ async function main(): Promise<void> {
     "run-latest.json",
   )
   const broadcast = parseJsonRecord(
-    await readRegularFile(broadcastPath, "Forge broadcast", MAX_BROADCAST_BYTES),
+    await readBoundedRegularFile(broadcastPath, "Forge broadcast", MAX_BROADCAST_BYTES),
     "Forge broadcast",
   )
   const contracts = deploymentContractsFromBroadcast(broadcast)
@@ -211,17 +211,6 @@ function assertEqual(actual: string, expected: string, label: string): void {
   if (actual !== expected) {
     throw new Error(`${label} mismatch: expected ${expected}, got ${actual}`)
   }
-}
-
-async function readRegularFile(path: string, label: string, maximum: number): Promise<Uint8Array> {
-  const stat = await lstat(path)
-  if (stat.isSymbolicLink() || !stat.isFile()) {
-    throw new Error(`${label} must be a regular non-symlink file: ${path}`)
-  }
-  if (stat.size > maximum) {
-    throw new Error(`${label} exceeds ${maximum} bytes`)
-  }
-  return new Uint8Array(await readFile(path))
 }
 
 main().catch((error: unknown) => {

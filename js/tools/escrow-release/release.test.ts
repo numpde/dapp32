@@ -1,9 +1,11 @@
 import assert from "node:assert/strict"
+import { execFile, execFileSync } from "node:child_process"
 import {
   mkdtemp,
   readFile,
   readdir,
   rm,
+  symlink,
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import {
@@ -12,6 +14,7 @@ import {
 } from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
+import { promisify } from "node:util"
 
 import type { Address, Hex } from "viem"
 
@@ -32,6 +35,7 @@ import {
   writeNewText,
 } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
+import { readBoundedRegularFile } from "../release-files.ts"
 
 const SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
 const DEPLOYER = "0x0000000000000000000000000000000000000011" as Address
@@ -49,6 +53,7 @@ const ESCROW_TX = `0x${"22".repeat(32)}` as Hex
 const UI_TX = `0x${"33".repeat(32)}` as Hex
 const CHECKED_IN_CAM_HASH = "0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66"
 const DAPPS_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../dapps")
+const execFileAsync = promisify(execFile)
 
 test("release chain ID is explicit and rejects fixture chains", () => {
   assert.equal(requiredReleaseChainId("1"), 1)
@@ -221,6 +226,44 @@ test("release file publication is no-clobber and leaves no staging file", async 
     await assert.rejects(writeNewText(path, "second\n", "deployment artifact"))
     assert.equal(await readFile(path, "utf-8"), "first\n")
     assert.deepEqual(await readdir(directory), ["deployment.json"])
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test("release file reads validate and bound the opened file", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "escrow-release-read-test-"))
+  const path = join(directory, "deployment.json")
+  const linkPath = join(directory, "deployment-link.json")
+  const fifoPath = join(directory, "deployment-fifo.json")
+  try {
+    await writeNewText(path, "12345", "deployment artifact")
+    assert.deepEqual(
+      await readBoundedRegularFile(path, "deployment artifact", 5),
+      new TextEncoder().encode("12345"),
+    )
+    await assert.rejects(
+      readBoundedRegularFile(path, "deployment artifact", 4),
+      /deployment artifact exceeds 4 bytes/,
+    )
+
+    await symlink(path, linkPath)
+    await assert.rejects(
+      readBoundedRegularFile(linkPath, "deployment artifact", 5),
+      /deployment artifact must be a regular non-symlink file/,
+    )
+
+    execFileSync("mkfifo", [fifoPath])
+    const readerModule = new URL("../release-files.ts", import.meta.url).href
+    const fifoProbe = [
+      `import { readBoundedRegularFile } from ${JSON.stringify(readerModule)}`,
+      `await readBoundedRegularFile(${JSON.stringify(fifoPath)}, "deployment artifact", 5).then(() => process.exit(2), () => undefined)`,
+    ].join(";")
+    await execFileAsync(
+      process.execPath,
+      ["--experimental-strip-types", "--input-type=module", "--eval", fifoProbe],
+      { timeout: 1000 },
+    )
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

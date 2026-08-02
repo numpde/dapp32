@@ -1,12 +1,12 @@
-import { lstat, readFile } from "node:fs/promises"
 import { assertPublishedCamRootURI } from "../../packages/cam-protocol/dist/index.js"
 import { buildReleasePlan } from "./bundle.ts"
 import { parseDeploymentArtifact, requiredEnv, requiredSourceCommit, writeNewJson } from "./shared.ts"
+import { readBoundedRegularFile } from "../release-files.ts"
 
 const MAX_BYTES = 1024 * 1024
 async function main(): Promise<void> {
   const env = process.env
-  const artifact = parseDeploymentArtifact(await readRegularFile(requiredEnv(env, "BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH"), "deployment artifact"))
+  const artifact = parseDeploymentArtifact(await readBoundedRegularFile(requiredEnv(env, "BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH"), "deployment artifact", MAX_BYTES))
   const expectedCommit = requiredSourceCommit(requiredEnv(env, "BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT"))
   if (artifact.sourceCommit !== expectedCommit) throw new Error(`deployment source commit mismatch: expected ${expectedCommit}, got ${artifact.sourceCommit}`)
   assertPublishedCamRootURI(artifact.camURI, "deployment camURI")
@@ -24,7 +24,6 @@ async function main(): Promise<void> {
   await writeNewJson(requiredEnv(env, "BIKE_NFT_VERIFIED_ARTIFACT_PATH"), artifact, "verified deployment artifact")
   process.stdout.write(`${JSON.stringify({ event: "bike_nft_release_input_verified", sourceCommit: artifact.sourceCommit, chainId: artifact.chainId })}\n`)
 }
-async function readRegularFile(path: string, label: string): Promise<Uint8Array> { const stat = await lstat(path); if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`${label} must be a regular non-symlink file: ${path}`); if (stat.size > MAX_BYTES) throw new Error(`${label} exceeds ${MAX_BYTES} bytes`); return new Uint8Array(await readFile(path)) }
 main().catch((error: unknown) => {
   const message = error instanceof Error && error.stack !== undefined
     ? error.stack

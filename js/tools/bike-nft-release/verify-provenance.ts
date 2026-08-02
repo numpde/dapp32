@@ -1,12 +1,12 @@
-import { lstat, readFile } from "node:fs/promises"
 import { createPublicClient, http } from "viem"
 import { creationReceiptDeployer } from "./artifact-model.ts"
 import { parseDeploymentArtifact, requiredEnv } from "./shared.ts"
+import { readBoundedRegularFile } from "../release-files.ts"
 
 const MAX_BYTES = 1024 * 1024
 async function main(): Promise<void> {
   const env = process.env
-  const artifact = parseDeploymentArtifact(await readRegularFile(requiredEnv(env, "BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH"), "deployment artifact"))
+  const artifact = parseDeploymentArtifact(await readBoundedRegularFile(requiredEnv(env, "BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH"), "deployment artifact", MAX_BYTES))
   const client = createPublicClient({ transport: http(requiredEnv(env, "BIKE_NFT_RELEASE_RPC_URL")) })
   const chainId = await client.getChainId()
   if (chainId !== artifact.chainId) throw new Error(`release RPC chain mismatch: expected ${artifact.chainId}, got ${chainId}`)
@@ -21,7 +21,6 @@ async function main(): Promise<void> {
   if (new Set(deployers).size !== 1 || deployers[0] !== artifact.deployer.toLowerCase()) throw new Error(`release creation transaction deployer mismatch: expected ${artifact.deployer}`)
   process.stdout.write(`${JSON.stringify({ event: "bike_nft_release_provenance_verified", chainId, deployer: artifact.deployer })}\n`)
 }
-async function readRegularFile(path: string, label: string): Promise<Uint8Array> { const stat = await lstat(path); if (stat.isSymbolicLink() || !stat.isFile()) throw new Error(`${label} must be a regular non-symlink file: ${path}`); if (stat.size > MAX_BYTES) throw new Error(`${label} exceeds ${MAX_BYTES} bytes`); return new Uint8Array(await readFile(path)) }
 main().catch((error: unknown) => {
   const message = error instanceof Error && error.stack !== undefined
     ? error.stack
