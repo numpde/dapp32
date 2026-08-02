@@ -37,6 +37,26 @@ contract DeployBikeNftRelease is Script {
         address[] registrars;
     }
 
+    struct OperatorInputs {
+        string sourceCommit;
+        uint256 expectedChainId;
+        string camURI;
+        address camRootOwner;
+        string tokenName;
+        string tokenSymbol;
+        string baseTokenURI;
+        string collectionURI;
+        address componentsAdmin;
+        uint48 componentsAdminDelay;
+        address componentsPauser;
+        address componentsConfigurer;
+        address managerAdmin;
+        uint48 managerAdminDelay;
+        address managerPauser;
+        address managerConfigurer;
+        address[] registrars;
+    }
+
     struct Deployment {
         CamRoot camRoot;
         BicycleComponents components;
@@ -45,6 +65,7 @@ contract DeployBikeNftRelease is Script {
     }
 
     error InvalidReleasePlanSchema(string actual);
+    error OperatorInputMismatch(string field);
     error InvalidSourceCommit(string sourceCommit);
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error UnsupportedReleaseChainId(uint256 chainId);
@@ -59,7 +80,8 @@ contract DeployBikeNftRelease is Script {
     error DeployerRetainsAuthority(string field);
 
     function run() external returns (Deployment memory deployment) {
-        ReleasePlan memory plan = _readEnvironment();
+        ReleasePlan memory plan = _readPlan(vm.envString("BIKE_NFT_RELEASE_PLAN_PATH"));
+        _requireOperatorInputs(plan, _readOperatorInputs());
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
         _validatePlan(plan, deployer);
@@ -104,37 +126,101 @@ contract DeployBikeNftRelease is Script {
         console2.log("BicycleComponentManagerUI", address(deployment.ui));
     }
 
-    function _readEnvironment() private view returns (ReleasePlan memory plan) {
-        string memory schema = vm.envString("BIKE_NFT_RELEASE_PLAN_SCHEMA");
+    function _readPlan(string memory path) internal view returns (ReleasePlan memory plan) {
+        return _parsePlan(vm.readFile(path));
+    }
+
+    function _parsePlan(string memory json) internal view returns (ReleasePlan memory plan) {
+        string memory schema = vm.parseJsonString(json, ".schema");
         if (keccak256(bytes(schema)) != keccak256(bytes(RELEASE_PLAN_SCHEMA))) {
             revert InvalidReleasePlanSchema(schema);
         }
-        plan.sourceCommit = vm.envString("BIKE_NFT_RELEASE_SOURCE_COMMIT");
-        plan.expectedChainId = vm.envUint("BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID");
-        plan.camURI = vm.envString("BIKE_NFT_RELEASE_CAM_URI");
-        plan.camHash = vm.envBytes32("BIKE_NFT_RELEASE_CAM_HASH");
-        plan.camRootOwner = vm.envAddress("BIKE_NFT_RELEASE_CAM_ROOT_OWNER");
-        plan.tokenName = vm.envString("BIKE_NFT_RELEASE_TOKEN_NAME");
-        plan.tokenSymbol = vm.envString("BIKE_NFT_RELEASE_TOKEN_SYMBOL");
-        plan.baseTokenURI = vm.envString("BIKE_NFT_RELEASE_BASE_TOKEN_URI");
-        plan.collectionURI = vm.envString("BIKE_NFT_RELEASE_COLLECTION_URI");
-        plan.componentsAdmin = vm.envAddress("BIKE_NFT_RELEASE_COMPONENTS_ADMIN");
-        uint256 componentsAdminDelay = vm.envUint("BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY");
-        if (componentsAdminDelay > type(uint48).max) {
-            revert AdminDelayOutOfRange("componentsAdminDelay", componentsAdminDelay);
+        plan.sourceCommit = vm.parseJsonString(json, ".sourceCommit");
+        plan.expectedChainId = vm.parseJsonUint(json, ".expectedChainId");
+        plan.camURI = vm.parseJsonString(json, ".camURI");
+        plan.camHash = vm.parseJsonBytes32(json, ".camHash");
+        plan.camRootOwner = vm.parseJsonAddress(json, ".camRootOwner");
+        plan.tokenName = vm.parseJsonString(json, ".tokenName");
+        plan.tokenSymbol = vm.parseJsonString(json, ".tokenSymbol");
+        plan.baseTokenURI = vm.parseJsonString(json, ".baseTokenURI");
+        plan.collectionURI = vm.parseJsonString(json, ".collectionURI");
+        plan.componentsAdmin = vm.parseJsonAddress(json, ".componentsAdmin");
+        plan.componentsAdminDelay = _readDelay(json, ".componentsAdminDelay");
+        plan.componentsPauser = vm.parseJsonAddress(json, ".componentsPauser");
+        plan.componentsConfigurer = vm.parseJsonAddress(json, ".componentsConfigurer");
+        plan.managerAdmin = vm.parseJsonAddress(json, ".managerAdmin");
+        plan.managerAdminDelay = _readDelay(json, ".managerAdminDelay");
+        plan.managerPauser = vm.parseJsonAddress(json, ".managerPauser");
+        plan.managerConfigurer = vm.parseJsonAddress(json, ".managerConfigurer");
+        plan.registrars = vm.parseJsonAddressArray(json, ".registrars");
+    }
+
+    function _readDelay(string memory json, string memory field) internal view returns (uint48) {
+        uint256 value = vm.parseJsonUint(json, field);
+        if (value > type(uint48).max) revert AdminDelayOutOfRange(field, value);
+        return uint48(value);
+    }
+
+    function _readOperatorInputs() private view returns (OperatorInputs memory inputs) {
+        inputs.sourceCommit = vm.envString("BIKE_NFT_RELEASE_SOURCE_COMMIT");
+        inputs.expectedChainId = vm.envUint("BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID");
+        inputs.camURI = vm.envString("BIKE_NFT_RELEASE_CAM_URI");
+        inputs.camRootOwner = vm.envAddress("BIKE_NFT_RELEASE_CAM_ROOT_OWNER");
+        inputs.tokenName = vm.envString("BIKE_NFT_RELEASE_TOKEN_NAME");
+        inputs.tokenSymbol = vm.envString("BIKE_NFT_RELEASE_TOKEN_SYMBOL");
+        inputs.baseTokenURI = vm.envString("BIKE_NFT_RELEASE_BASE_TOKEN_URI");
+        inputs.collectionURI = vm.envString("BIKE_NFT_RELEASE_COLLECTION_URI");
+        inputs.componentsAdmin = vm.envAddress("BIKE_NFT_RELEASE_COMPONENTS_ADMIN");
+        inputs.componentsAdminDelay =
+            _readOperatorDelay("componentsAdminDelay", "BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY");
+        inputs.componentsPauser = vm.envAddress("BIKE_NFT_RELEASE_COMPONENTS_PAUSER");
+        inputs.componentsConfigurer = vm.envAddress("BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER");
+        inputs.managerAdmin = vm.envAddress("BIKE_NFT_RELEASE_MANAGER_ADMIN");
+        inputs.managerAdminDelay = _readOperatorDelay("managerAdminDelay", "BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY");
+        inputs.managerPauser = vm.envAddress("BIKE_NFT_RELEASE_MANAGER_PAUSER");
+        inputs.managerConfigurer = vm.envAddress("BIKE_NFT_RELEASE_MANAGER_CONFIGURER");
+        inputs.registrars = vm.envAddress("BIKE_NFT_RELEASE_REGISTRARS", ",");
+    }
+
+    function _readOperatorDelay(string memory field, string memory variableName) private view returns (uint48) {
+        uint256 value = vm.envUint(variableName);
+        if (value > type(uint48).max) revert AdminDelayOutOfRange(field, value);
+        return uint48(value);
+    }
+
+    function _requireOperatorInputs(ReleasePlan memory plan, OperatorInputs memory inputs) internal pure {
+        _requireOperatorString("sourceCommit", plan.sourceCommit, inputs.sourceCommit);
+        _requireOperatorUint("expectedChainId", plan.expectedChainId, inputs.expectedChainId);
+        _requireOperatorString("camURI", plan.camURI, inputs.camURI);
+        _requireOperatorAddress("camRootOwner", plan.camRootOwner, inputs.camRootOwner);
+        _requireOperatorString("tokenName", plan.tokenName, inputs.tokenName);
+        _requireOperatorString("tokenSymbol", plan.tokenSymbol, inputs.tokenSymbol);
+        _requireOperatorString("baseTokenURI", plan.baseTokenURI, inputs.baseTokenURI);
+        _requireOperatorString("collectionURI", plan.collectionURI, inputs.collectionURI);
+        _requireOperatorAddress("componentsAdmin", plan.componentsAdmin, inputs.componentsAdmin);
+        _requireOperatorUint("componentsAdminDelay", plan.componentsAdminDelay, inputs.componentsAdminDelay);
+        _requireOperatorAddress("componentsPauser", plan.componentsPauser, inputs.componentsPauser);
+        _requireOperatorAddress("componentsConfigurer", plan.componentsConfigurer, inputs.componentsConfigurer);
+        _requireOperatorAddress("managerAdmin", plan.managerAdmin, inputs.managerAdmin);
+        _requireOperatorUint("managerAdminDelay", plan.managerAdminDelay, inputs.managerAdminDelay);
+        _requireOperatorAddress("managerPauser", plan.managerPauser, inputs.managerPauser);
+        _requireOperatorAddress("managerConfigurer", plan.managerConfigurer, inputs.managerConfigurer);
+        if (plan.registrars.length != inputs.registrars.length) revert OperatorInputMismatch("registrars");
+        for (uint256 i = 0; i < plan.registrars.length; i++) {
+            if (plan.registrars[i] != inputs.registrars[i]) revert OperatorInputMismatch("registrars");
         }
-        plan.componentsAdminDelay = uint48(componentsAdminDelay);
-        plan.componentsPauser = vm.envAddress("BIKE_NFT_RELEASE_COMPONENTS_PAUSER");
-        plan.componentsConfigurer = vm.envAddress("BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER");
-        plan.managerAdmin = vm.envAddress("BIKE_NFT_RELEASE_MANAGER_ADMIN");
-        uint256 managerAdminDelay = vm.envUint("BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY");
-        if (managerAdminDelay > type(uint48).max) {
-            revert AdminDelayOutOfRange("managerAdminDelay", managerAdminDelay);
-        }
-        plan.managerAdminDelay = uint48(managerAdminDelay);
-        plan.managerPauser = vm.envAddress("BIKE_NFT_RELEASE_MANAGER_PAUSER");
-        plan.managerConfigurer = vm.envAddress("BIKE_NFT_RELEASE_MANAGER_CONFIGURER");
-        plan.registrars = vm.envAddress("BIKE_NFT_RELEASE_REGISTRARS", ",");
+    }
+
+    function _requireOperatorString(string memory field, string memory actual, string memory expected) private pure {
+        if (keccak256(bytes(actual)) != keccak256(bytes(expected))) revert OperatorInputMismatch(field);
+    }
+
+    function _requireOperatorAddress(string memory field, address actual, address expected) private pure {
+        if (actual != expected) revert OperatorInputMismatch(field);
+    }
+
+    function _requireOperatorUint(string memory field, uint256 actual, uint256 expected) private pure {
+        if (actual != expected) revert OperatorInputMismatch(field);
     }
 
     function _validatePlan(ReleasePlan memory plan, address deployer) internal view {

@@ -54,10 +54,16 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         self.assertIsNot(compose_volume(artifact, "/release-artifact").get("read_only"), True)
 
         signer_command = compose_command_text(signer)
-        self.assertIn("operator-authorized Bike NFT inputs", signer_command)
+        self.assertNotIn("release-plan.args", signer_command)
+        self.assertEqual("/release-plan/release-plan.json", compose_mapping(signer, "environment")["BIKE_NFT_RELEASE_PLAN_PATH"])
         self.assertIn("PRIVATE_KEY=", signer_command)
         self.assertNotIn("export PRIVATE_KEY", signer_command)
-        self.assertIn("vm.readFileBinary(CAM_ROOT_PATH)", read_text(repo_path("dapps/bike-nft/script/DeployBikeNftRelease.s.sol")))
+        signer_source = read_text(repo_path("dapps/bike-nft/script/DeployBikeNftRelease.s.sol"))
+        self.assertIn("vm.readFile(path)", signer_source)
+        self.assertIn("OperatorInputMismatch", signer_source)
+        self.assertIn("vm.readFileBinary(CAM_ROOT_PATH)", signer_source)
+        self.assertNotIn("release-plan.args", read_text(repo_path(DEPLOY)))
+        self.assertNotIn("releasePlanArguments", read_text(repo_path("js/tools/bike-nft-release/artifact.ts")))
 
     def test_verification_is_read_only_and_receipt_gated(self) -> None:
         config = rendered_compose_config(VERIFY)

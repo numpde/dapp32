@@ -4,7 +4,7 @@ import { createPublicClient, getAddress, http, keccak256, parseAbi } from "viem"
 import type { Address, Hex } from "viem"
 import type { Abi } from "viem"
 import { creationReceiptDeployer, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
-import { DEPLOYMENT_SCHEMA, parseJsonRecord, parseReleasePlan, rejectDeployerAuthorities, releasePlanArguments, requiredEnv, writeNewJson } from "./shared.ts"
+import { DEPLOYMENT_SCHEMA, parseJsonRecord, parseReleasePlan, rejectDeployerAuthorities, requiredEnv, writeNewJson } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
 
 const MAX_BYTES = 16 * 1024 * 1024
@@ -17,8 +17,6 @@ const UI_ABI = parseAbi(["function manager() view returns (address)"])
 async function main(): Promise<void> {
   const env = process.env
   const plan = parseReleasePlan(await readRegularFile(requiredEnv(env, "BIKE_NFT_RELEASE_PLAN_PATH"), "release plan", MAX_BYTES))
-  const planArguments = new TextDecoder().decode(await readRegularFile(requiredEnv(env, "BIKE_NFT_RELEASE_PLAN_ARGUMENTS_PATH"), "release plan arguments", MAX_BYTES))
-  if (planArguments !== releasePlanArguments(plan)) throw new Error("release plan arguments do not exactly match release-plan.json")
   const broadcastPath = resolve(requiredEnv(env, "BIKE_NFT_RELEASE_BROADCAST_DIR"), "DeployBikeNftRelease.s.sol", String(plan.expectedChainId), "run-latest.json")
   const broadcast = parseJsonRecord(await readRegularFile(broadcastPath, "Forge broadcast", MAX_BYTES), "Forge broadcast")
   const contracts = deploymentContractsFromBroadcast(broadcast)

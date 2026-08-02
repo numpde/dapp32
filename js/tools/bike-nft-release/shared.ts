@@ -2,7 +2,7 @@ import { requireEvmAddress } from "../../packages/cam-evm-viem/dist/index.js"
 import type { CamHost } from "../../packages/cam-evm-viem/dist/index.js"
 import { isRecordObject, parseJsonBytes } from "../../packages/cam-protocol/dist/index.js"
 
-export { writeNewJson, writeNewText } from "../release-files.ts"
+export { writeNewJson } from "../release-files.ts"
 
 export const RELEASE_PLAN_SCHEMA = "bike-nft.release-plan.v1"
 export const DEPLOYMENT_SCHEMA = "bike-nft.deployment.v1"
@@ -191,7 +191,6 @@ function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "s
   }
 }
 
-export function releasePlanArguments(plan: ReleasePlan): string { return lines(PLAN_KEYS.map((key) => scalar(plan[key]))) }
 export function rejectDeployerAuthorities(value: Pick<DeploymentArtifact, "deployer"> & ReleaseAuthorities): void {
   const deployer = value.deployer.toLowerCase()
   const authorities = [value.camRootOwner, value.componentsAdmin, value.componentsPauser, value.componentsConfigurer, value.managerAdmin, value.managerPauser, value.managerConfigurer, ...value.registrars]
@@ -200,8 +199,6 @@ export function rejectDeployerAuthorities(value: Pick<DeploymentArtifact, "deplo
 
 function addressField(value: Record<string, unknown>, key: string): CamHost["address"] { return requiredNonzeroAddress(requiredString(value[key], key), key) }
 function requiredInteger(value: unknown, label: string): number { if (!Number.isSafeInteger(value)) throw new Error(`${label} must be a safe integer`); return Number(value) }
-function scalar(value: unknown): string { return Array.isArray(value) ? value.join(",") : String(value) }
-function lines(values: readonly string[]): string { for (const value of values) if (/[\r\n]/.test(value)) throw new Error("companion fields must be single-line values"); return `${values.join("\n")}\n` }
 function requireExactKeys(value: Record<string, unknown>, expected: readonly string[], label: string): void {
   const actual = Object.keys(value); const missing = expected.filter((key) => !actual.includes(key)); const unexpected = actual.filter((key) => !expected.includes(key))
   if (missing.length > 0 || unexpected.length > 0) throw new Error(`${label} fields mismatch: missing=[${missing.join(",")}] unexpected=[${unexpected.join(",")}]`)

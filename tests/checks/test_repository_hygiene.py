@@ -53,6 +53,7 @@ class RepositoryHygieneTest(unittest.TestCase):
                 {"access": "read", "path": "./escrow/cam/main.json"},
                 {"access": "read", "path": "/out/deployment.json"},
                 {"access": "read", "path": "/release-output/release-plan.json"},
+                {"access": "read", "path": "/release-plan/release-plan.json"},
             ],
             config["profile"]["default"]["fs_permissions"],
         )

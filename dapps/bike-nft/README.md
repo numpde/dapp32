@@ -92,12 +92,11 @@ This command is documentation for a future ceremony, not a command to run while 
 
 ```text
 plan/release-plan.json
-plan/release-plan.args
 broadcast/DeployBikeNftRelease.s.sol/<chain-id>/run-latest.json
 artifact/deployment.json
 ```
 
-The planner can write only `plan/`; the signer reads `plan/` and writes only `broadcast/`; the materializer reads both and writes only `artifact/`. Only the signer has the deployment key and a route to an RPC proxy admitting `eth_sendRawTransaction`. The artifact proxy has neither. Verification accepts `deployment.json` as its sole external artifact and stages one canonical snapshot for its receipt and Solidity checks.
+The planner can write only `plan/`; the signer reads `release-plan.json` directly, independently compares every operator-owned field, recomputes the exact CAM-byte hash, and writes only `broadcast/`; the materializer reads the plan and broadcast and writes only `artifact/`. Only the signer has the deployment key and a route to an RPC proxy admitting `eth_sendRawTransaction`. The artifact proxy has neither. Verification accepts `deployment.json` as its sole external artifact and stages one canonical snapshot for its receipt and Solidity checks.
 
 After independently accepting all three handoffs, verify from the same exact clean commit:
 

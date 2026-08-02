@@ -62,7 +62,6 @@ services:
       BIKE_NFT_RELEASE_DAPPS_ROOT: /work/dapps
       BIKE_NFT_RELEASE_CAM_ROOT_PATH: /work/dapps/bike-nft/cam/main.json
       BIKE_NFT_RELEASE_PLAN_PATH: /release-plan/release-plan.json
-      BIKE_NFT_RELEASE_PLAN_ARGUMENTS_PATH: /release-plan/release-plan.args
       BIKE_NFT_RELEASE_SOURCE_COMMIT: "${BIKE_NFT_RELEASE_SOURCE_COMMIT:?missing_BIKE_NFT_RELEASE_SOURCE_COMMIT}"
       BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID: "${BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID:?missing_BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID}"
       BIKE_NFT_RELEASE_CAM_URI: "${BIKE_NFT_RELEASE_CAM_URI:?missing_BIKE_NFT_RELEASE_CAM_URI}"
@@ -143,25 +142,11 @@ services:
       - |
         set -euo pipefail
         umask 077
-        mapfile -t plan < /release-plan/release-plan.args
-        if [[ "$${#plan[@]}" -ne 19 || "$${plan[0]}" != "bike-nft.release-plan.v1" ]]; then
-          printf '%s\n' 'release-plan.args must contain the exact nineteen-field Bike NFT plan' >&2
-          exit 2
-        fi
-        authorized=("" "$${BIKE_NFT_RELEASE_SOURCE_COMMIT}" "$${BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID}" "$${BIKE_NFT_RELEASE_CAM_URI}" "" "$${BIKE_NFT_RELEASE_CAM_ROOT_OWNER}" "$${BIKE_NFT_RELEASE_TOKEN_NAME}" "$${BIKE_NFT_RELEASE_TOKEN_SYMBOL}" "$${BIKE_NFT_RELEASE_BASE_TOKEN_URI}" "$${BIKE_NFT_RELEASE_COLLECTION_URI}" "$${BIKE_NFT_RELEASE_COMPONENTS_ADMIN}" "$${BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY}" "$${BIKE_NFT_RELEASE_COMPONENTS_PAUSER}" "$${BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER}" "$${BIKE_NFT_RELEASE_MANAGER_ADMIN}" "$${BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY}" "$${BIKE_NFT_RELEASE_MANAGER_PAUSER}" "$${BIKE_NFT_RELEASE_MANAGER_CONFIGURER}" "$${BIKE_NFT_RELEASE_REGISTRARS}")
-        for i in {1..18}; do
-          if [[ "$$i" != 4 && "$${plan[$$i]}" != "$${authorized[$$i]}" ]]; then
-            printf '%s\n' 'release-plan.args disagrees with operator-authorized Bike NFT inputs' >&2
-            exit 2
-          fi
-        done
         private_key="$$(< /run/secrets/deployer_private_key)"
         if [[ ! "$${private_key}" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then
           printf '%s\n' 'deployer private-key secret must contain exactly one 32-byte hex key' >&2
           exit 2
         fi
-        export BIKE_NFT_RELEASE_PLAN_SCHEMA="$${plan[0]}"
-        export BIKE_NFT_RELEASE_CAM_HASH="$${plan[4]}"
         PRIVATE_KEY="$${private_key}" forge script --offline bike-nft/script/DeployBikeNftRelease.s.sol --rpc-url http://bike-nft-release-rpc-proxy:8080 --broadcast -vvv
 
   bike-nft-release-artifact-rpc-proxy:
@@ -191,7 +176,6 @@ services:
       bike-nft-release-artifact-rpc-proxy: {condition: service_healthy}
     environment:
       BIKE_NFT_RELEASE_PLAN_PATH: /release-plan/release-plan.json
-      BIKE_NFT_RELEASE_PLAN_ARGUMENTS_PATH: /release-plan/release-plan.args
       BIKE_NFT_RELEASE_BROADCAST_DIR: /release-broadcast
       BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: /release-artifact/deployment.json
       BIKE_NFT_RELEASE_RPC_URL: http://bike-nft-release-artifact-rpc-proxy:8080

@@ -1,13 +1,12 @@
 import { assertPublishedCamRootURI } from "../../packages/cam-protocol/dist/index.js"
 import { buildReleasePlan } from "./bundle.ts"
-import { releasePlanArguments, requiredAddresses, requiredDelay, requiredEnv, requiredNonzeroAddress, requiredReleaseChainId, requiredSourceCommit, writeNewJson, writeNewText } from "./shared.ts"
+import { requiredAddresses, requiredDelay, requiredEnv, requiredNonzeroAddress, requiredReleaseChainId, requiredSourceCommit, writeNewJson } from "./shared.ts"
 
 async function main(): Promise<void> {
   const env = process.env
   const camURI = requiredEnv(env, "BIKE_NFT_RELEASE_CAM_URI")
   assertPublishedCamRootURI(camURI, "BIKE_NFT_RELEASE_CAM_URI")
   const planPath = requiredEnv(env, "BIKE_NFT_RELEASE_PLAN_PATH")
-  const argsPath = requiredEnv(env, "BIKE_NFT_RELEASE_PLAN_ARGUMENTS_PATH")
   const plan = await buildReleasePlan({
     dappsRootPath: requiredEnv(env, "BIKE_NFT_RELEASE_DAPPS_ROOT"), rootPath: requiredEnv(env, "BIKE_NFT_RELEASE_CAM_ROOT_PATH"),
     sourceCommit: requiredSourceCommit(requiredEnv(env, "BIKE_NFT_RELEASE_SOURCE_COMMIT")), expectedChainId: requiredReleaseChainId(requiredEnv(env, "BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID")), camURI,
@@ -20,7 +19,6 @@ async function main(): Promise<void> {
     managerPauser: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_MANAGER_PAUSER"), "manager pauser"), managerConfigurer: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_MANAGER_CONFIGURER"), "manager configurer"),
     registrars: requiredAddresses(requiredEnv(env, "BIKE_NFT_RELEASE_REGISTRARS"), "registrars"),
   })
-  await writeNewText(argsPath, releasePlanArguments(plan), "release plan arguments")
   await writeNewJson(planPath, plan, "release plan")
   process.stdout.write(`${JSON.stringify({ event: "bike_nft_release_plan", planPath, camHash: plan.camHash })}\n`)
 }

@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
 import { buildReleasePlan } from "./bundle.ts"
 import { creationReceiptDeployer, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
-import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, releasePlanArguments, requiredAddresses, requiredDelay } from "./shared.ts"
+import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
 
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
@@ -25,7 +25,6 @@ test("checked-in Bike CAM bytes produce a nonzero release hash", async () => {
   const plan = await buildReleasePlan({ ...common(), dappsRootPath: DAPPS, rootPath: join(DAPPS, "bike-nft/cam/main.json") })
   assert.match(plan.camHash, /^0x[0-9a-f]{64}$/)
   assert.doesNotMatch(plan.camHash, /^0x0{64}$/)
-  assert.equal(releasePlanArguments(plan).split("\n").length, 20)
 })
 
 test("deployment artifact parsing rejects unknown fields and inconsistent authority", () => {
