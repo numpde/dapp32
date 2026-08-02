@@ -1,4 +1,4 @@
 {
   "extends": "../../tsconfig.tool.json",
-  "include": ["**/*.ts", "../release-cam-bundle.test.ts"]
+  "include": ["**/*.ts", "../release-cam-bundle.test.ts", "../release-files.test.ts"]
 }

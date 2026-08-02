@@ -1,7 +1,24 @@
 import { randomUUID } from "node:crypto"
 import { constants } from "node:fs"
+import type { BigIntStats } from "node:fs"
 import { link, lstat, open, rm } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
+
+export type OpenedFileMetadata = Pick<
+  BigIntStats,
+  "dev" | "ino" | "size" | "mtimeNs" | "ctimeNs"
+>
+
+export function openedFileMetadataChanged(
+  before: OpenedFileMetadata,
+  after: OpenedFileMetadata,
+): boolean {
+  return before.dev !== after.dev
+    || before.ino !== after.ino
+    || before.size !== after.size
+    || before.mtimeNs !== after.mtimeNs
+    || before.ctimeNs !== after.ctimeNs
+}
 
 /// Publish one new release file without replacing an existing artifact.
 export async function writeNewJson(path: string, value: unknown, label: string): Promise<void> {
@@ -55,11 +72,11 @@ export async function readBoundedRegularFile(
   }
 
   try {
-    const fileStat = await handle.stat()
-    if (!fileStat.isFile()) {
+    const beforeRead = await handle.stat({ bigint: true })
+    if (!beforeRead.isFile()) {
       throw new Error(`${label} must be a regular non-symlink file: ${path}`)
     }
-    if (fileStat.size > maximumBytes) {
+    if (beforeRead.size > BigInt(maximumBytes)) {
       throw new Error(`${label} exceeds ${maximumBytes} bytes`)
     }
 
@@ -75,6 +92,11 @@ export async function readBoundedRegularFile(
         throw new Error(`${label} exceeds ${maximumBytes} bytes`)
       }
       chunks.push(chunk.subarray(0, bytesRead))
+    }
+
+    const afterRead = await handle.stat({ bigint: true })
+    if (openedFileMetadataChanged(beforeRead, afterRead)) {
+      throw new Error(`${label} changed while it was being read: ${path}`)
     }
 
     const bytes = new Uint8Array(byteLength)

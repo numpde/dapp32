@@ -16,4 +16,4 @@ services:
       - |
         npm run build:workspace
         ./node_modules/.bin/tsc -p tools/bike-nft-release/tsconfig.json
-        node --test --experimental-strip-types tools/release-cam-bundle.test.ts tools/bike-nft-release/*.test.ts
+        node --test --experimental-strip-types tools/release-cam-bundle.test.ts tools/release-files.test.ts tools/bike-nft-release/*.test.ts

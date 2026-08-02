@@ -273,21 +273,21 @@ make escrow-viewer-gui
 
 ## Release deployment
 
-A release deployment is deliberately separate from the local fixture. It has no default chain, accepts no local fixture chain ID, obtains no private key from the process environment, and refuses a dirty source tree. The offline planning step validates the complete checked-in CAM bundle and computes the exact `keccak256` root hash stored in `CamRoot`.
+A release deployment is deliberately separate from the local fixture. It has no default chain and accepts no local fixture chain ID. The offline planning step validates the complete checked-in CAM bundle and computes the exact `keccak256` root hash stored in `CamRoot`.
+
+Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in [the release ceremony guide](../../docs/release-ceremony.md).
 
 For the first public rehearsal, prepare Ethereum Sepolia (`11155111`) but do not conflate it with the local Anvil workflow. Anvil is a disposable process on the operator's machine; Sepolia is a persistent public test network with externally funded accounts, provider RPC, public CAM hosting, wallet interaction, explorer records, and an explicit finality decision.
 
 Publish the exact checked-in CAM bytes at the chosen URI before deployment. The release planner binds the URI and checked-in root hash; it does not fetch the remote publication. Viewers will reject the publication if the bytes served there do not match the hash stored in `CamRoot`.
 
-Prepare two absolute, non-symlink secret files. Both files may contain credentials and must not be group- or world-readable:
+Prepare the RPC and deployer-key files:
 
 ```bash
 umask 077
 printf '%s\n' 'https://rpc.example.invalid' > /secure/escrow-rpc-url
 printf '%s\n' '0x<32-byte-deployer-private-key>' > /secure/escrow-deployer-key
 ```
-
-Choose a new normalized output directory outside the repository. It must not already exist; the deployment target creates it with mode `0700` and never deletes it on failure because an on-chain transaction may already have succeeded.
 
 Run the release only from the exact clean commit intended for publication:
 
@@ -302,8 +302,6 @@ ESCROW_RELEASE_OUTPUT_DIR=/secure/releases/escrow-<chain>-<version> \
 make escrow-release-deploy
 ```
 
-The clean-tree check rejects visible uncommitted work that the selected commit archive would omit. The target then exports that exact commit into a private temporary ceremony directory; this archive owns the source used for dependency verification, release checks, compilation, planning, signing, and artifact generation. Each invocation derives unique Compose project names from the private directory. The snapshot is removed after successful teardown and retained for inspection if cleanup is incomplete. Docker daemon/context selection remains operator-owned.
-
 The target writes:
 
 ```text
@@ -313,10 +311,6 @@ artifact/deployment.json
 ```
 
 `plan/release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `artifact/deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, final owner, and whether the ownership handoff has already been accepted.
-
-The planner can write only `plan/`; the signer reads the plan, independently compares its operator-owned fields, recomputes the CAM hash from the exact mounted bytes, and writes only `broadcast/`; the materializer reads both and writes only `artifact/`. `artifact/deployment.json` is the sole durable deployment artifact. Release files are staged and synced before no-clobber publication; a failed run preserves the output directory for forensic inspection.
-
-The commit snapshot includes the installed npm tree after checking it against the archived lockfile and package graph. The repository does not yet prove every installed npm file byte against an independent checksum set; this lane therefore does not claim reproducible dependency-byte provenance.
 
 The deployed `CamEscrow` and `CamEscrowUI` are immutable and have no owner, pause, upgrade, fee, sweep, or recovery authority. `CamRoot` remains mutable under its owner because it controls the published CAM URI/hash and contract-address bindings. If the intended root owner differs from the deployer, deployment starts an `Ownable2Step` transfer. The intended owner must review the addresses and artifact, then call `acceptOwnership()` independently. Do not treat the release as accepted while `pendingOwner()` is nonzero.
 
@@ -330,9 +324,7 @@ ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-<chain>-<version>/artifa
 make escrow-release-verify
 ```
 
-Verification begins offline. It strictly parses `deployment.json`, checks the current Git commit, validates the complete checked-in escrow CAM bundle, recomputes the root hash, and publishes one canonical container-volume snapshot. The receipt and Solidity checks then consume that same snapshot read-only. Only those later phases contact RPC.
-
-The live verifier receives no signing key, has no transaction-submission RPC method, and does not use `--broadcast`. It checks:
+The verifier checks:
 
 - current chain ID and source commit;
 - nonzero deployed code at all three addresses;

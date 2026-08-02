@@ -65,16 +65,20 @@ contract DeployBikeNftReleaseTest is Test {
         harness.validatePlan(plan, address(0x99));
     }
 
-    function testReleaseWiringDoesNotSeedComponents() external {
+    function testReleaseWiringDoesNotRegisterOrMintSeedComponents() external {
         vm.recordLogs();
         DeployBikeNftRelease.Deployment memory deployment = harness.deployRelease(harness.parsePlan(PLAN_JSON));
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bytes32 registered = BicycleComponentManager.ComponentRegistered.selector;
+        bytes32 transfer = keccak256("Transfer(address,address,uint256)");
 
         for (uint256 i = 0; i < logs.length; i++) {
             bool isRegistration = logs[i].emitter == address(deployment.manager) && logs[i].topics.length != 0
                 && logs[i].topics[0] == registered;
-            assertFalse(isRegistration, "release deployment seeded a component");
+            bool isMint = logs[i].emitter == address(deployment.components) && logs[i].topics.length == 4
+                && logs[i].topics[0] == transfer && logs[i].topics[1] == bytes32(0);
+            assertFalse(isRegistration, "release deployment registered a seeded component");
+            assertFalse(isMint, "release deployment minted a seeded component");
         }
     }
 

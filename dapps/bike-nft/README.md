@@ -54,7 +54,9 @@ The publication preflight prints the `CAM_HASH`; the deploy planner recomputes i
 
 ## Release deployment
 
-No RPC or key is needed for `make bike-nft-release-check`. A real deployment additionally requires protected absolute files:
+Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in [the release ceremony guide](../../docs/release-ceremony.md).
+
+No RPC or key is needed for `make bike-nft-release-check`. A real deployment additionally requires these app inputs:
 
 ```bash
 umask 077
@@ -88,17 +90,13 @@ BIKE_NFT_RELEASE_OUTPUT_DIR=/secure/releases/bike-nft-sepolia-v1 \
 make bike-nft-release-deploy
 ```
 
-This command is documentation for a future ceremony, not a command to run while preparing the repository. The output directory is new, external, mode `0700`, and split by authority:
+This command is documentation for a future ceremony, not a command to run while preparing the repository. The Bike output contains:
 
 ```text
 plan/release-plan.json
 broadcast/DeployBikeNftRelease.s.sol/<chain-id>/run-latest.json
 artifact/deployment.json
 ```
-
-The clean-tree check rejects visible uncommitted work that the selected commit archive would omit. The target then exports that exact commit into a private temporary ceremony directory; this archive owns the source used for dependency verification, release checks, compilation, planning, signing, and artifact generation. Each invocation also derives unique Compose project names from the private directory, so concurrent release commands do not share Compose resources. The snapshot is removed after successful teardown and retained for inspection if cleanup is incomplete.
-
-The planner can write only `plan/`; the signer reads `release-plan.json` directly, independently compares every operator-owned field, recomputes the exact CAM-byte hash, and writes only `broadcast/`; the materializer reads the plan and broadcast and writes only `artifact/`. Only the signer has the deployment key and a route to an RPC proxy admitting `eth_sendRawTransaction`. The artifact proxy has neither. Verification accepts `deployment.json` as its sole external artifact and stages one canonical snapshot for its receipt and Solidity checks.
 
 After independently accepting all three handoffs, verify from the same exact clean commit:
 
@@ -108,7 +106,7 @@ BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/bike-nft-sepolia-v1/artifact/
 make bike-nft-release-verify
 ```
 
-Verification has no signing key or send-capable RPC method. It rechecks all four creation receipts, exact source/runtime and artifact code hashes, CAM identity and bindings, UI and manager backing, completed ownership/admin handoffs, absence of pending admin-delay changes, exact delays and metadata, current unpaused state, the manager's default delegation duration, required roles, deployer role removal, and interface support.
+Verification rechecks all four creation receipts, exact source/runtime and artifact code hashes, CAM identity and bindings, UI and manager backing, completed ownership/admin handoffs, absence of pending admin-delay changes, exact delays and metadata, current unpaused state, the manager's default delegation duration, required roles, deployer role removal, and interface support.
 
 ## Public rehearsal
 
@@ -120,9 +118,6 @@ Exercise registrar creation, token receipt, metadata update, missing/report reso
 
 - `AccessControlDefaultAdminRules` is not enumerable. Verification proves every declared holder is present and the deployer is absent; it cannot enumerate the universe of undisclosed third-party role holders from current state alone. The clean pinned script and preserved broadcast remain part of the audit evidence.
 - The repository does not choose the actual Safe/EOA addresses, the final nonzero delay, RPC provider, CAM host, browser host, block explorer, or operator finality threshold.
-- Docker daemon/context selection remains operator-owned. Release targets generate a private Compose project name per invocation; this isolates repository-owned resources but does not isolate unrelated access to the selected daemon.
-- The commit snapshot includes the installed npm tree after checking it against the archived lockfile and package graph. The repository does not yet prove every installed npm file byte against an independent checksum set; do not describe the snapshot as reproducible dependency-byte provenance.
-- Deployment is one-shot. A post-transaction failure preserves the plan and broadcast; inspect them before any further transaction. There is no automatic recovery or redeployment target.
 - The release artifact records operator intent and immutable deployment provenance, not a mutable snapshot of every later handoff state. Live verification is the authority for accepted ownership and administration.
 
 No upgrade, recovery, hidden registrar, generic CAM machine resource, or production monitoring authority is introduced by this lane.
