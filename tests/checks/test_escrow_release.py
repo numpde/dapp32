@@ -20,7 +20,6 @@ DEPLOY = "compose/escrow/release/deploy.yml"
 VERIFY = "compose/escrow/release/verify.yml"
 OUTPUT_DIR = "/tmp/escrow-release-output"
 ARTIFACT_FILE = "/tmp/escrow-release-output/deployment.json"
-ARGUMENTS_FILE = f"{ARTIFACT_FILE}.args"
 RPC_URL_FILE = "/tmp/escrow-release-rpc-url"
 PRIVATE_KEY_FILE = "/tmp/escrow-release-private-key"
 SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
@@ -165,34 +164,33 @@ class EscrowReleasePostureTest(unittest.TestCase):
             ])
 
         artifact_input = compose_volume(input_check, "/deployment/deployment.json")
-        artifact_provenance = compose_volume(provenance, "/deployment/deployment.json")
-        arguments_input = compose_volume(input_check, "/deployment/deployment.args")
-        arguments_provenance = compose_volume(provenance, "/deployment/deployment.args")
-        arguments_verify = compose_volume(verify, "/deployment/deployment.args")
         self.assertEqual(ARTIFACT_FILE, artifact_input["source"])
-        self.assertEqual(ARTIFACT_FILE, artifact_provenance["source"])
-        for arguments in (arguments_input, arguments_provenance, arguments_verify):
-            self.assertEqual(ARGUMENTS_FILE, arguments["source"])
-        for label, volume in {
-            "input artifact": artifact_input,
-            "provenance artifact": artifact_provenance,
-            "input companion": arguments_input,
-            "provenance companion": arguments_provenance,
-            "verifier companion": arguments_verify,
-        }.items():
-            with self.subTest(mount=label):
-                self.assertIs(volume["read_only"], True)
+        self.assertIs(artifact_input["read_only"], True)
+        for service in (provenance, verify):
+            self.assertEqual([], [volume for volume in compose_sequence_or_empty(service, "volumes") if volume.get("type") == "bind" and volume.get("target") == "/deployment/deployment.json"])
+
+        verified_input = compose_volume(input_check, "/out")
+        verified_provenance = compose_volume(provenance, "/out")
+        verified_verify = compose_volume(verify, "/out")
+        self.assertEqual("escrow_release_verified", verified_input["source"])
+        self.assertIsNot(verified_input.get("read_only"), True)
+        self.assertEqual({}, verified_input["volume"])
+        for volume in (verified_provenance, verified_verify):
+            self.assertEqual(verified_input["source"], volume["source"])
+            self.assertIs(volume["read_only"], True)
+            self.assertEqual({"nocopy": True}, volume["volume"])
 
         # Compose v2.40.3, pinned in the checks image, omits
         # bind.create_host_path from rendered JSON. Pin the engine policy in
         # source while the rendered assertions above own exact sources and
         # read-only access.
-        self.assertEqual(3, read_text(repo_path(VERIFY)).count("create_host_path: false"))
+        self.assertEqual(2, read_text(repo_path(VERIFY)).count("create_host_path: false"))
 
         verify_command = compose_command_text(verify)
-        self.assertIn("exact eighteen-field deployment record", verify_command)
         self.assertNotIn("--broadcast", verify_command)
-        self.assertNotIn("vm.readFile", verify_command)
+        self.assertNotIn("deployment.args", str(config))
+        self.assertNotIn("DEPLOYMENT_ARGUMENTS", str(config))
+        self.assertNotIn("deploymentArguments", read_text(repo_path("js/tools/escrow-release/artifact.ts")))
 
 
 if __name__ == "__main__":

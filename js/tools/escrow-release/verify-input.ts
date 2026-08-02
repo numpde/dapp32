@@ -7,18 +7,12 @@ import {
 import {
   buildReleasePlan,
 } from "./bundle.ts"
-import {
-  deploymentArguments,
-  parseDeploymentArtifact,
-  requiredEnv,
-  requiredSourceCommit,
-} from "./shared.ts"
+import { parseDeploymentArtifact, requiredEnv, requiredSourceCommit, writeNewJson } from "./shared.ts"
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024
 
 async function main(): Promise<void> {
   const artifactPath = requiredEnv(process.env, "ESCROW_DEPLOYMENT_ARTIFACT_PATH")
-  const argumentsPath = requiredEnv(process.env, "ESCROW_DEPLOYMENT_ARGUMENTS_PATH")
   const expectedSourceCommit = requiredSourceCommit(
     requiredEnv(process.env, "ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT"),
   )
@@ -29,14 +23,6 @@ async function main(): Promise<void> {
     throw new Error(
       `deployment source commit mismatch: expected ${expectedSourceCommit}, got ${artifact.sourceCommit}`,
     )
-  }
-
-  const argumentsText = new TextDecoder().decode(
-    await readRegularFile(argumentsPath, "deployment arguments", MAX_ARTIFACT_BYTES),
-  )
-  const expectedArguments = deploymentArguments(artifact)
-  if (argumentsText !== expectedArguments) {
-    throw new Error("deployment arguments do not exactly match deployment.json")
   }
 
   assertPublishedCamRootURI(artifact.camURI, "deployment camURI")
@@ -53,6 +39,11 @@ async function main(): Promise<void> {
       `deployment CAM hash does not match checked-in root bytes: expected ${sourcePlan.camHash}, got ${artifact.camHash}`,
     )
   }
+  await writeNewJson(
+    requiredEnv(process.env, "ESCROW_VERIFIED_ARTIFACT_PATH"),
+    artifact,
+    "verified deployment artifact",
+  )
 
   process.stdout.write(`${JSON.stringify({
     event: "escrow_release_input_verified",

@@ -1,7 +1,7 @@
 # Read-only verification for one escrow deployment artifact.
 #
-# The offline input service binds deployment.json and its strict companion to
-# the current source/CAM bytes. A read-only provenance service then checks all
+# The offline input service binds deployment.json to the current source/CAM
+# bytes and publishes one canonical snapshot. A read-only provenance service then checks all
 # creation receipts before the Solidity verifier checks live bytecode and state.
 # No verification service has a signing key or transaction-submission method.
 
@@ -13,13 +13,20 @@ x-deployment-artifact: &deployment_artifact
   bind:
     create_host_path: false
 
-x-deployment-arguments: &deployment_arguments
-  type: bind
-  source: "${ESCROW_DEPLOYMENT_ARTIFACT_FILE:?missing_ESCROW_DEPLOYMENT_ARTIFACT_FILE}.args"
-  target: /deployment/deployment.args
+x-verified-write: &verified_write
+  type: volume
+  source: escrow_release_verified
+  target: /out
+  volume:
+    nocopy: false
+
+x-verified-read: &verified_read
+  type: volume
+  source: escrow_release_verified
+  target: /out
   read_only: true
-  bind:
-    create_host_path: false
+  volume:
+    nocopy: true
 
 x-node-modules: &node_modules
   type: bind
@@ -40,14 +47,14 @@ services:
       ESCROW_RELEASE_DAPPS_ROOT: /work/dapps
       ESCROW_RELEASE_CAM_ROOT_PATH: /work/dapps/escrow/cam/main.json
       ESCROW_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
-      ESCROW_DEPLOYMENT_ARGUMENTS_PATH: /deployment/deployment.args
+      ESCROW_VERIFIED_ARTIFACT_PATH: /out/deployment.json
       ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT: "${ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT}"
     volumes:
       - ../../../dapps:/work/dapps:ro
       - ../../../js:/input/js:ro
       - *node_modules
       - *deployment_artifact
-      - *deployment_arguments
+      - *verified_write
     command:
       - "run-js-workspace"
       - "sh"
@@ -114,14 +121,12 @@ services:
       escrow-release-verify-rpc-proxy:
         condition: service_healthy
     environment:
-      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
-      ESCROW_DEPLOYMENT_ARGUMENTS_PATH: /deployment/deployment.args
+      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /out/deployment.json
       ESCROW_RELEASE_RPC_URL: http://escrow-release-verify-rpc-proxy:8080
     volumes:
       - ../../../js:/input/js:ro
       - *node_modules
-      - *deployment_artifact
-      - *deployment_arguments
+      - *verified_read
     networks:
       - escrow_release_verify_internal
     command:
@@ -158,39 +163,16 @@ services:
       FOUNDRY_CACHE_PATH: /tmp/foundry-cache
       FOUNDRY_CONFIG: /work/dapps/foundry.toml
       FOUNDRY_OUT: /tmp/foundry-out
+      ESCROW_VERIFIED_DEPLOYMENT_PATH: /out/deployment.json
       ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT: "${ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=512m
     volumes:
       - ../../../dapps:/work/dapps:ro
-      - *deployment_arguments
+      - *verified_read
     networks:
       - escrow_release_verify_internal
-    command:
-      - "bash"
-      - "-lc"
-      - |
-        set -euo pipefail
-        mapfile -t deployment < /deployment/deployment.args
-        if [[ "$${#deployment[@]}" -ne 18 || "$${deployment[0]}" != "escrow.deployment.v1" ]]; then
-          printf '%s\n' 'deployment.args must contain the exact eighteen-field deployment record' >&2
-          exit 2
-        fi
-        export ESCROW_DEPLOYMENT_SCHEMA="$${deployment[0]}"
-        export ESCROW_DEPLOYMENT_SOURCE_COMMIT="$${deployment[1]}"
-        export ESCROW_DEPLOYMENT_CHAIN_ID="$${deployment[2]}"
-        export ESCROW_DEPLOYMENT_CAM_URI="$${deployment[4]}"
-        export ESCROW_DEPLOYMENT_CAM_HASH="$${deployment[5]}"
-        export ESCROW_DEPLOYMENT_CAM_ROOT_OWNER="$${deployment[6]}"
-        export ESCROW_DEPLOYMENT_CAM_ROOT="$${deployment[9]}"
-        export ESCROW_DEPLOYMENT_CAM_ESCROW="$${deployment[10]}"
-        export ESCROW_DEPLOYMENT_CAM_ESCROW_UI="$${deployment[11]}"
-        export ESCROW_DEPLOYMENT_CAM_ROOT_CODE_HASH="$${deployment[12]}"
-        export ESCROW_DEPLOYMENT_CAM_ESCROW_CODE_HASH="$${deployment[13]}"
-        export ESCROW_DEPLOYMENT_CAM_ESCROW_UI_CODE_HASH="$${deployment[14]}"
-        forge script --offline escrow/script/VerifyEscrowRelease.s.sol \
-          --rpc-url http://escrow-release-verify-rpc-proxy:8080 \
-          -vvv
+    command: [forge, script, --offline, escrow/script/VerifyEscrowRelease.s.sol, --rpc-url, "http://escrow-release-verify-rpc-proxy:8080", -vvv]
 
 secrets:
   rpc_url:
@@ -200,3 +182,6 @@ networks:
   escrow_release_verify_internal:
     internal: true
   escrow_release_verify_egress: {}
+
+volumes:
+  escrow_release_verified: {}

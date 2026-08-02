@@ -26,7 +26,6 @@ import {
 import {
   DEPLOYMENT_SCHEMA,
   RELEASE_PLAN_SCHEMA,
-  deploymentArguments,
   parseDeploymentArtifact,
   releasePlanArguments,
   requiredNonzeroAddress,
@@ -104,34 +103,12 @@ test("release plan companion has one exact ordered field per line", () => {
   ].join("\n"))
 })
 
-test("deployment JSON and companion preserve the complete strict record", () => {
+test("deployment JSON preserves the complete strict record", () => {
   const artifact = deploymentArtifact()
   const parsed = parseDeploymentArtifact(
     new TextEncoder().encode(JSON.stringify(artifact)),
   )
   assert.deepEqual(parsed, artifact)
-  assert.equal(deploymentArguments(parsed), [
-    DEPLOYMENT_SCHEMA,
-    SOURCE_COMMIT,
-    "11155111",
-    DEPLOYER,
-    artifact.camURI,
-    CAM_HASH,
-    OWNER,
-    "true",
-    "false",
-    ROOT,
-    ESCROW,
-    UI,
-    ROOT_CODE_HASH,
-    ESCROW_CODE_HASH,
-    UI_CODE_HASH,
-    ROOT_TX,
-    ESCROW_TX,
-    UI_TX,
-    "",
-  ].join("\n"))
-
   assert.throws(
     () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
       ...artifact,

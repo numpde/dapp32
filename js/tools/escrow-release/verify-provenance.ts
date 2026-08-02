@@ -11,28 +11,16 @@ import {
 import type {
   DeploymentContracts,
 } from "./artifact-model.ts"
-import {
-  deploymentArguments,
-  parseDeploymentArtifact,
-  requiredEnv,
-} from "./shared.ts"
+import { parseDeploymentArtifact, requiredEnv } from "./shared.ts"
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024
 
 async function main(): Promise<void> {
   const artifactPath = requiredEnv(process.env, "ESCROW_DEPLOYMENT_ARTIFACT_PATH")
-  const argumentsPath = requiredEnv(process.env, "ESCROW_DEPLOYMENT_ARGUMENTS_PATH")
   const rpcURL = requiredEnv(process.env, "ESCROW_RELEASE_RPC_URL")
   const artifact = parseDeploymentArtifact(
     await readRegularFile(artifactPath, "deployment artifact", MAX_ARTIFACT_BYTES),
   )
-
-  const argumentsText = new TextDecoder().decode(
-    await readRegularFile(argumentsPath, "deployment arguments", MAX_ARTIFACT_BYTES),
-  )
-  if (argumentsText !== deploymentArguments(artifact)) {
-    throw new Error("deployment arguments do not exactly match deployment.json")
-  }
 
   const client = createPublicClient({ transport: http(rpcURL) })
   const chainId = await client.getChainId()

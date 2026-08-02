@@ -14,7 +14,6 @@ import {ICamEscrowView} from "../src/ICamEscrowView.sol";
 /// broadcast by the verification lane. They bind bytecode checks to this source
 /// tree, including CamEscrowUI's immutable escrow address.
 abstract contract EscrowReleaseVerifier {
-    string internal constant DEPLOYMENT_SCHEMA = "escrow.deployment.v1";
     string internal constant CAM_CONTRACT_ESCROW = "CamEscrow";
     string internal constant CAM_CONTRACT_ESCROW_UI = "CamEscrowUI";
 
@@ -32,7 +31,6 @@ abstract contract EscrowReleaseVerifier {
         bytes32 camEscrowUICodeHash;
     }
 
-    error InvalidArtifactSchema(string actual);
     error SourceCommitMismatch(string expected, string actual);
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error UnsupportedReleaseChainId(uint256 chainId);
@@ -58,12 +56,6 @@ abstract contract EscrowReleaseVerifier {
         _verifyArtifactCodeHashes(artifact);
         _verifySourceCodeHashes(artifact);
         _verifySolvency(artifact.camEscrow);
-    }
-
-    function requireDeploymentSchema(string memory actual) internal pure {
-        if (keccak256(bytes(actual)) != keccak256(bytes(DEPLOYMENT_SCHEMA))) {
-            revert InvalidArtifactSchema(actual);
-        }
     }
 
     function _verifyIdentity(Artifact memory artifact, string memory expectedSourceCommit) private view {

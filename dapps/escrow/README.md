@@ -309,18 +309,17 @@ release-plan.json
 release-plan.args
 broadcast/DeployEscrowRelease.s.sol/<chain-id>/run-latest.json
 deployment.json
-deployment.json.args
 ```
 
 `release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, final owner, and whether the ownership handoff has already been accepted.
 
-The `.args` files are strict, generated companions used to pass the same typed fields into Forge without granting filesystem cheatcode access. Treat each JSON file and its adjacent companion as one immutable release record. Do not edit either companion manually. Release files are staged and synced before no-clobber publication; a failed run preserves the output directory for forensic inspection.
+`release-plan.args` is the signer's generated transport for the release plan. `deployment.json` is the sole durable deployment artifact. Release files are staged and synced before no-clobber publication; a failed run preserves the output directory for forensic inspection.
 
 The deployed `CamEscrow` and `CamEscrowUI` are immutable and have no owner, pause, upgrade, fee, sweep, or recovery authority. `CamRoot` remains mutable under its owner because it controls the published CAM URI/hash and contract-address bindings. If the intended root owner differs from the deployer, deployment starts an `Ownable2Step` transfer. The intended owner must review the addresses and artifact, then call `acceptOwnership()` independently. Do not treat the release as accepted while `pendingOwner()` is nonzero.
 
 ## Release verification
 
-Run verification from the same exact clean source commit recorded in `deployment.json`, with `deployment.json.args` still adjacent to it:
+Run verification from the same exact clean source commit recorded in `deployment.json`:
 
 ```bash
 RPC_URL_FILE=/secure/escrow-rpc-url \
@@ -328,7 +327,7 @@ ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-<chain>-<version>/deploy
 make escrow-release-verify
 ```
 
-Verification begins offline. It strictly parses `deployment.json`, proves the companion file is its exact canonical projection, checks the current Git commit, validates the complete checked-in escrow CAM bundle, and recomputes the root hash. Only then does the live read-only verifier contact RPC.
+Verification begins offline. It strictly parses `deployment.json`, checks the current Git commit, validates the complete checked-in escrow CAM bundle, recomputes the root hash, and publishes one canonical container-volume snapshot. The receipt and Solidity checks then consume that same snapshot read-only. Only those later phases contact RPC.
 
 The live verifier receives no signing key, has no transaction-submission RPC method, and does not use `--broadcast`. It checks:
 

@@ -208,7 +208,6 @@ services:
       ESCROW_RELEASE_PLAN_PATH: /release-output/release-plan.json
       ESCROW_RELEASE_BROADCAST_DIR: /release-output/broadcast
       ESCROW_DEPLOYMENT_ARTIFACT_PATH: /release-output/deployment.json
-      ESCROW_DEPLOYMENT_ARGUMENTS_PATH: /release-output/deployment.json.args
       ESCROW_RELEASE_RPC_URL: http://escrow-release-artifact-rpc-proxy:8080
     volumes:
       - ../../../js:/input/js:ro

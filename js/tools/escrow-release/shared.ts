@@ -260,29 +260,6 @@ export function releasePlanArguments(plan: ReleasePlan): string {
   ])
 }
 
-export function deploymentArguments(artifact: DeploymentArtifact): string {
-  return lines([
-    artifact.schema,
-    artifact.sourceCommit,
-    String(artifact.chainId),
-    artifact.deployer,
-    artifact.camURI,
-    artifact.camHash,
-    artifact.intendedCamRootOwner,
-    String(artifact.ownershipTransferRequired),
-    String(artifact.ownershipAccepted),
-    artifact.camRoot,
-    artifact.camEscrow,
-    artifact.camEscrowUI,
-    artifact.camRootCodeHash,
-    artifact.camEscrowCodeHash,
-    artifact.camEscrowUICodeHash,
-    artifact.camRootCreationTransaction,
-    artifact.camEscrowCreationTransaction,
-    artifact.camEscrowUICreationTransaction,
-  ])
-}
-
 function requiredSafeInteger(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value)) {
     throw new Error(`${label} must be a safe integer`)
