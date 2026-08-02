@@ -1,5 +1,5 @@
 import { assertPublishedCamRootURI } from "../../packages/cam-protocol/dist/index.js"
-import { inspectReleaseBundle } from "./bundle.ts"
+import { inspectReleaseCamBundle } from "../release-cam-bundle.ts"
 import { RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { ReleasePlan } from "./shared.ts"
 import { writeNewJson } from "../release-files.ts"
@@ -10,9 +10,9 @@ async function main(): Promise<void> {
   const camURI = requiredEnv(env, "BIKE_NFT_RELEASE_CAM_URI")
   assertPublishedCamRootURI(camURI, "BIKE_NFT_RELEASE_CAM_URI")
   const planPath = requiredEnv(env, "BIKE_NFT_RELEASE_PLAN_PATH")
-  const bundle = await inspectReleaseBundle({
+  const bundle = await inspectReleaseCamBundle({
     dappsRootPath: requiredEnv(env, "BIKE_NFT_RELEASE_DAPPS_ROOT"), rootPath: requiredEnv(env, "BIKE_NFT_RELEASE_CAM_ROOT_PATH"),
-    camURI,
+    camURI, label: "Bike NFT",
   })
   const plan: ReleasePlan = {
     schema: RELEASE_PLAN_SCHEMA,

@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
-import { inspectReleaseBundle } from "./bundle.ts"
+import { inspectReleaseCamBundle } from "../release-cam-bundle.ts"
 import { deploymentArtifact, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
 import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, parseReleasePlan, RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact, ReleasePlan } from "./shared.ts"
@@ -27,10 +27,11 @@ test("Bike release inputs reject fixture-shaped authority", () => {
 })
 
 test("checked-in Bike CAM bytes reproduce the accepted release hash", async () => {
-  const bundle = await inspectReleaseBundle({
+  const bundle = await inspectReleaseCamBundle({
     dappsRootPath: DAPPS,
     rootPath: join(DAPPS, "bike-nft/cam/main.json"),
     camURI: "https://example.test/bike/v1/main.json",
+    label: "Bike NFT",
   })
   assert.equal(bundle.camHash, CHECKED_IN_CAM_HASH)
 })

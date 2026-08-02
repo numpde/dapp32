@@ -23,8 +23,8 @@ import {
   ownershipState,
 } from "./artifact-model.ts"
 import {
-  inspectReleaseBundle,
-} from "./bundle.ts"
+  inspectReleaseCamBundle,
+} from "../release-cam-bundle.ts"
 import {
   DEPLOYMENT_SCHEMA,
   parseDeploymentArtifact,
@@ -97,10 +97,11 @@ test("escrow release parsing preserves shared identity rules and nonempty text",
 })
 
 test("checked-in escrow bundle reproduces the accepted release hash", async () => {
-  const bundle = await inspectReleaseBundle({
+  const bundle = await inspectReleaseCamBundle({
     dappsRootPath: DAPPS_ROOT,
     rootPath: join(DAPPS_ROOT, "escrow/cam/main.json"),
     camURI: "https://example.test/escrow/cam/main.json",
+    label: "escrow",
   })
   assert.equal(bundle.camHash, CHECKED_IN_CAM_HASH)
 })

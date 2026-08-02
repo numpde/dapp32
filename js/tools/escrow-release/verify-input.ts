@@ -2,7 +2,7 @@ import {
   assertPublishedCamRootURI,
 } from "../../packages/cam-protocol/dist/index.js"
 
-import { inspectReleaseBundle } from "./bundle.ts"
+import { inspectReleaseCamBundle } from "../release-cam-bundle.ts"
 import { parseDeploymentArtifact } from "./shared.ts"
 import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
 import { requiredEnv, requiredSourceCommit, runReleaseTool } from "../release-values.ts"
@@ -24,10 +24,11 @@ async function main(): Promise<void> {
   }
 
   assertPublishedCamRootURI(artifact.camURI, "deployment camURI")
-  const bundle = await inspectReleaseBundle({
+  const bundle = await inspectReleaseCamBundle({
     dappsRootPath: requiredEnv(process.env, "ESCROW_RELEASE_DAPPS_ROOT"),
     rootPath: requiredEnv(process.env, "ESCROW_RELEASE_CAM_ROOT_PATH"),
     camURI: artifact.camURI,
+    label: "escrow",
   })
   if (bundle.camHash.toLowerCase() !== artifact.camHash.toLowerCase()) {
     throw new Error(

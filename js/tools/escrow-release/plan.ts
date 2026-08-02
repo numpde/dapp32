@@ -3,8 +3,8 @@ import {
 } from "../../packages/cam-protocol/dist/index.js"
 
 import {
-  inspectReleaseBundle,
-} from "./bundle.ts"
+  inspectReleaseCamBundle,
+} from "../release-cam-bundle.ts"
 import {
   RELEASE_PLAN_SCHEMA,
 } from "./shared.ts"
@@ -48,7 +48,12 @@ function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
 
 async function main(): Promise<void> {
   const options = optionsFromEnv(process.env)
-  const bundle = await inspectReleaseBundle(options)
+  const bundle = await inspectReleaseCamBundle({
+    dappsRootPath: options.dappsRootPath,
+    rootPath: options.rootPath,
+    camURI: options.camURI,
+    label: "escrow",
+  })
   const plan: ReleasePlan = {
     schema: RELEASE_PLAN_SCHEMA,
     sourceCommit: options.sourceCommit,

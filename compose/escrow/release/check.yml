@@ -17,4 +17,4 @@ services:
       - |
         npm run build:workspace
         ./node_modules/.bin/tsc -p tools/escrow-release/tsconfig.json
-        node --test --experimental-strip-types tools/escrow-release/*.test.ts
+        node --test --experimental-strip-types tools/release-cam-bundle.test.ts tools/escrow-release/*.test.ts

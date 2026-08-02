@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.tool.json",
   "include": [
-    "**/*.ts"
+    "**/*.ts",
+    "../release-cam-bundle.test.ts"
   ]
 }
