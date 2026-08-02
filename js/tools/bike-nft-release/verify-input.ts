@@ -1,7 +1,8 @@
 import { assertPublishedCamRootURI } from "../../packages/cam-protocol/dist/index.js"
 import { inspectReleaseBundle } from "./bundle.ts"
-import { parseDeploymentArtifact, requiredEnv, requiredSourceCommit, writeNewJson } from "./shared.ts"
-import { readBoundedRegularFile } from "../release-files.ts"
+import { parseDeploymentArtifact } from "./shared.ts"
+import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
+import { requiredEnv, requiredSourceCommit, runReleaseTool } from "../release-values.ts"
 
 const MAX_BYTES = 1024 * 1024
 async function main(): Promise<void> {
@@ -18,10 +19,4 @@ async function main(): Promise<void> {
   await writeNewJson(requiredEnv(env, "BIKE_NFT_VERIFIED_ARTIFACT_PATH"), artifact, "verified deployment artifact")
   process.stdout.write(`${JSON.stringify({ event: "bike_nft_release_input_verified", sourceCommit: artifact.sourceCommit, chainId: artifact.chainId })}\n`)
 }
-main().catch((error: unknown) => {
-  const message = error instanceof Error && error.stack !== undefined
-    ? error.stack
-    : error instanceof Error ? error.message : String(error)
-  process.stderr.write(`${message}\n`)
-  process.exitCode = 1
-})
+runReleaseTool(main)

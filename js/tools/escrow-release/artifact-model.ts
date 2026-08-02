@@ -1,12 +1,7 @@
 import type { Address } from "viem"
 
-import {
-  ZERO_ADDRESS,
-  requiredRecord,
-} from "./shared.ts"
+import { requiredJsonRecord, ZERO_ADDRESS } from "../release-values.ts"
 import { createdContract } from "../release-provenance.ts"
-export { creationReceiptDeployer } from "../release-provenance.ts"
-export type { CreatedContract, CreationReceiptEvidence } from "../release-provenance.ts"
 import type { CreatedContract } from "../release-provenance.ts"
 
 export type DeploymentContracts = {
@@ -21,7 +16,7 @@ export type OwnershipState = {
 }
 
 export function deploymentContractsFromBroadcast(broadcast: unknown): DeploymentContracts {
-  const root = requiredRecord(broadcast, "Forge broadcast")
+  const root = requiredJsonRecord(broadcast, "Forge broadcast")
   if (!Array.isArray(root.transactions)) {
     throw new Error("Forge broadcast must contain a transactions array")
   }

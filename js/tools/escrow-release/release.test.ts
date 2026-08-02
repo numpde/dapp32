@@ -19,7 +19,6 @@ import { promisify } from "node:util"
 import type { Address, Hex } from "viem"
 
 import {
-  creationReceiptDeployer,
   deploymentContractsFromBroadcast,
   ownershipState,
 } from "./artifact-model.ts"
@@ -29,13 +28,13 @@ import {
 import {
   DEPLOYMENT_SCHEMA,
   parseDeploymentArtifact,
-  requiredNonzeroAddress,
-  requiredReleaseChainId,
-  requiredSourceCommit,
-  writeNewText,
+  parseReleasePlan,
+  RELEASE_PLAN_SCHEMA,
 } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
-import { readBoundedRegularFile } from "../release-files.ts"
+import { readBoundedRegularFile, writeNewText } from "../release-files.ts"
+import { creationReceiptDeployer } from "../release-provenance.ts"
+import { requiredNonzeroAddress, requiredReleaseChainId, requiredSourceCommit } from "../release-values.ts"
 
 const SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
 const DEPLOYER = "0x0000000000000000000000000000000000000011" as Address
@@ -70,6 +69,33 @@ test("release identity fields reject silent or malformed authority", () => {
   assert.throws(() => requiredNonzeroAddress(ZERO, "owner"), /must not be the zero address/)
 })
 
+test("escrow release parsing preserves shared identity rules and nonempty text", () => {
+  const plan = {
+    schema: RELEASE_PLAN_SCHEMA,
+    sourceCommit: SOURCE_COMMIT,
+    expectedChainId: 11155111,
+    camURI: "https://example.test/escrow/cam/main.json\nmirror",
+    camHash: CAM_HASH,
+    intendedCamRootOwner: OWNER,
+  }
+  assert.equal(
+    parseReleasePlan(new TextEncoder().encode(JSON.stringify(plan))).camURI,
+    plan.camURI,
+  )
+  assert.throws(
+    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, sourceCommit: "HEAD" }))),
+    /40 lowercase hexadecimal/,
+  )
+  assert.throws(
+    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, expectedChainId: 31337 }))),
+    /rejects local fixture chain ID/,
+  )
+  assert.throws(
+    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, intendedCamRootOwner: ZERO }))),
+    /must not be the zero address/,
+  )
+})
+
 test("checked-in escrow bundle reproduces the accepted release hash", async () => {
   const bundle = await inspectReleaseBundle({
     dappsRootPath: DAPPS_ROOT,
@@ -99,6 +125,14 @@ test("deployment JSON preserves the complete strict record", () => {
     }))),
     /unexpected=\[extra\]/,
   )
+  const { ownershipAccepted: _ownershipAccepted, ...missingOwnershipAccepted } = artifact
+  assert.throws(
+    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
+      ...missingOwnershipAccepted,
+      extra: true,
+    }))),
+    /escrow deployment artifact fields disagree: missing=\[ownershipAccepted\] unexpected=\[extra\]/,
+  )
   assert.throws(
     () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
       ...artifact,
@@ -112,6 +146,13 @@ test("deployment JSON preserves the complete strict record", () => {
       camEscrowCreationTransaction: ROOT_TX,
     }))),
     /creation transaction hashes must be distinct/,
+  )
+  assert.throws(
+    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
+      ...artifact,
+      camRootCreationTransaction: `0x${"00".repeat(32)}`,
+    }))),
+    /camRootCreationTransaction must not be zero/,
   )
 })
 

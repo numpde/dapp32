@@ -3,20 +3,18 @@ import { resolve } from "node:path"
 import { createPublicClient, getAddress, http, keccak256, parseAbi } from "viem"
 import type { Abi, Address, Hex } from "viem"
 
-import { readBoundedRegularFile } from "../release-files.ts"
+import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
+import { parseJsonRecord, requiredEnv, runReleaseTool } from "../release-values.ts"
 import {
-  creationReceiptDeployer,
   deploymentArtifact,
   deploymentContractsFromBroadcast,
   requireHandoff,
 } from "./artifact-model.ts"
 import type { DeploymentContracts } from "./artifact-model.ts"
+import { creationReceiptDeployer } from "../release-provenance.ts"
 import {
-  parseJsonRecord,
   parseReleasePlan,
   rejectDeployerAuthorities,
-  requiredEnv,
-  writeNewJson,
 } from "./shared.ts"
 import type { ReleasePlan } from "./shared.ts"
 
@@ -496,10 +494,4 @@ function assertEqual(actual: string, expected: string, label: string): void {
   if (actual !== expected) throw new Error(`${label} mismatch: expected ${expected}, got ${actual}`)
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error && error.stack !== undefined
-    ? error.stack
-    : error instanceof Error ? error.message : String(error)
-  process.stderr.write(`${message}\n`)
-  process.exitCode = 1
-})
+runReleaseTool(main)

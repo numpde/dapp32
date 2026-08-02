@@ -7,13 +7,16 @@ import {
 } from "./bundle.ts"
 import {
   RELEASE_PLAN_SCHEMA,
+} from "./shared.ts"
+import type { ReleasePlan } from "./shared.ts"
+import { writeNewJson } from "../release-files.ts"
+import {
   requiredEnv,
   requiredNonzeroAddress,
   requiredReleaseChainId,
   requiredSourceCommit,
-  writeNewJson,
-} from "./shared.ts"
-import type { ReleasePlan } from "./shared.ts"
+  runReleaseTool,
+} from "../release-values.ts"
 
 type Options = {
   readonly dappsRootPath: string
@@ -66,15 +69,4 @@ async function main(): Promise<void> {
   })}\n`)
 }
 
-main().catch((error: unknown) => {
-  let message: string
-  if (error instanceof Error && error.stack !== undefined) {
-    message = error.stack
-  } else if (error instanceof Error) {
-    message = error.message
-  } else {
-    message = String(error)
-  }
-  process.stderr.write(`${message}\n`)
-  process.exitCode = 1
-})
+runReleaseTool(main)

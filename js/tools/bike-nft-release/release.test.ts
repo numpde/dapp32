@@ -7,9 +7,10 @@ import test from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
 import { inspectReleaseBundle } from "./bundle.ts"
-import { creationReceiptDeployer, deploymentArtifact, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
+import { deploymentArtifact, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
 import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, parseReleasePlan, RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact, ReleasePlan } from "./shared.ts"
+import { creationReceiptDeployer } from "../release-provenance.ts"
 
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
 const hash = (byte: string) => `0x${byte.repeat(64)}` as Hex
@@ -22,7 +23,7 @@ test("Bike release inputs reject fixture-shaped authority", () => {
   assert.equal(requiredDelay("86400", "delay"), 86400)
   assert.throws(() => requiredDelay("0", "delay"), /positive uint48/)
   assert.deepEqual(requiredAddresses(`${address("5")},${address("6")}`, "registrars"), [address("5"), address("6")])
-  assert.throws(() => requiredAddresses(`${address("5")},${address("5")}`, "registrars"), /duplicate/)
+  assert.throws(() => requiredAddresses(`${address("5")},${address("5")}`, "registrars"), /must be distinct/)
 })
 
 test("checked-in Bike CAM bytes reproduce the accepted release hash", async () => {
@@ -38,8 +39,30 @@ test("deployment artifact parsing rejects unknown fields and inconsistent author
   const artifact = deployment()
   assert.deepEqual(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact))), artifact)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, extra: true }))), /unexpected=\[extra\]/)
+  const { registrars: _registrars, ...missingRegistrars } = artifact
+  assert.throws(
+    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...missingRegistrars, extra: true }))),
+    /Bike deployment artifact fields disagree: missing=\[registrars\] unexpected=\[extra\]/,
+  )
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, managerCreationTransaction: artifact.uiCreationTransaction }))), /must be distinct/)
+  assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, camRootCreationTransaction: hash("0") }))), /must not be zero/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, componentsPauser: DEPLOYER }))), /must not retain/)
+})
+
+test("Bike release parsing uses shared identity rules", () => {
+  const plan = { ...common(), schema: RELEASE_PLAN_SCHEMA, camHash: hash("a") }
+  assert.throws(
+    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, sourceCommit: "HEAD" }))),
+    /40 lowercase hexadecimal/,
+  )
+  assert.throws(
+    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, expectedChainId: 31337 }))),
+    /rejects local fixture chain ID/,
+  )
+  assert.throws(
+    () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, intendedCamRootOwner: address("0") }))),
+    /must not be the zero address/,
+  )
 })
 
 test("release plans and deployment artifacts share the single-line text domain", () => {
@@ -73,6 +96,7 @@ test("the Bike planner rejects multiline release text before publishing a plan",
       })
       assert.notEqual(result.status, 0, `${field} unexpectedly produced a release plan`)
       assert.match(result.stderr, new RegExp(`${field} must be a non-empty single-line string`))
+      assert.match(result.stderr, /\n\s+at /)
       assert.equal(existsSync(planPath), false)
     }
   } finally {

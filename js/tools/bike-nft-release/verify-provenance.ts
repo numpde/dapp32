@@ -1,7 +1,8 @@
 import { createPublicClient, http } from "viem"
-import { creationReceiptDeployer } from "./artifact-model.ts"
-import { parseDeploymentArtifact, requiredEnv } from "./shared.ts"
+import { parseDeploymentArtifact } from "./shared.ts"
 import { readBoundedRegularFile } from "../release-files.ts"
+import { creationReceiptDeployer } from "../release-provenance.ts"
+import { requiredEnv, runReleaseTool } from "../release-values.ts"
 
 const MAX_BYTES = 1024 * 1024
 async function main(): Promise<void> {
@@ -21,10 +22,4 @@ async function main(): Promise<void> {
   if (new Set(deployers).size !== 1 || deployers[0] !== artifact.deployer.toLowerCase()) throw new Error(`release creation transaction deployer mismatch: expected ${artifact.deployer}`)
   process.stdout.write(`${JSON.stringify({ event: "bike_nft_release_provenance_verified", chainId, deployer: artifact.deployer })}\n`)
 }
-main().catch((error: unknown) => {
-  const message = error instanceof Error && error.stack !== undefined
-    ? error.stack
-    : error instanceof Error ? error.message : String(error)
-  process.stderr.write(`${message}\n`)
-  process.exitCode = 1
-})
+runReleaseTool(main)

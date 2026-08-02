@@ -3,14 +3,13 @@ import {
   http,
 } from "viem"
 
-import {
-  creationReceiptDeployer,
-} from "./artifact-model.ts"
 import type {
   DeploymentContracts,
 } from "./artifact-model.ts"
-import { parseDeploymentArtifact, requiredEnv } from "./shared.ts"
+import { creationReceiptDeployer } from "../release-provenance.ts"
+import { parseDeploymentArtifact } from "./shared.ts"
 import { readBoundedRegularFile } from "../release-files.ts"
+import { requiredEnv, runReleaseTool } from "../release-values.ts"
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024
 
@@ -65,15 +64,4 @@ async function main(): Promise<void> {
   })}\n`)
 }
 
-main().catch((error: unknown) => {
-  let message: string
-  if (error instanceof Error && error.stack !== undefined) {
-    message = error.stack
-  } else if (error instanceof Error) {
-    message = error.message
-  } else {
-    message = String(error)
-  }
-  process.stderr.write(`${message}\n`)
-  process.exitCode = 1
-})
+runReleaseTool(main)

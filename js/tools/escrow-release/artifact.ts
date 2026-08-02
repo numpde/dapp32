@@ -13,21 +13,19 @@ import type {
 } from "viem"
 
 import {
-  creationReceiptDeployer,
   deploymentContractsFromBroadcast,
   ownershipState,
 } from "./artifact-model.ts"
+import { creationReceiptDeployer } from "../release-provenance.ts"
 import {
   DEPLOYMENT_SCHEMA,
-  parseJsonRecord,
   parseReleasePlan,
-  requiredEnv,
-  writeNewJson,
 } from "./shared.ts"
 import type {
   DeploymentArtifact,
 } from "./shared.ts"
-import { readBoundedRegularFile } from "../release-files.ts"
+import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
+import { parseJsonRecord, requiredEnv, runReleaseTool } from "../release-values.ts"
 
 const MAX_BROADCAST_BYTES = 16 * 1024 * 1024
 const CAM_ROOT_ABI = parseAbi([
@@ -213,15 +211,4 @@ function assertEqual(actual: string, expected: string, label: string): void {
   }
 }
 
-main().catch((error: unknown) => {
-  let message: string
-  if (error instanceof Error && error.stack !== undefined) {
-    message = error.stack
-  } else if (error instanceof Error) {
-    message = error.message
-  } else {
-    message = String(error)
-  }
-  process.stderr.write(`${message}\n`)
-  process.exitCode = 1
-})
+runReleaseTool(main)

@@ -3,8 +3,9 @@ import {
 } from "../../packages/cam-protocol/dist/index.js"
 
 import { inspectReleaseBundle } from "./bundle.ts"
-import { parseDeploymentArtifact, requiredEnv, requiredSourceCommit, writeNewJson } from "./shared.ts"
-import { readBoundedRegularFile } from "../release-files.ts"
+import { parseDeploymentArtifact } from "./shared.ts"
+import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
+import { requiredEnv, requiredSourceCommit, runReleaseTool } from "../release-values.ts"
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024
 
@@ -49,15 +50,4 @@ async function main(): Promise<void> {
   })}\n`)
 }
 
-main().catch((error: unknown) => {
-  let message: string
-  if (error instanceof Error && error.stack !== undefined) {
-    message = error.stack
-  } else if (error instanceof Error) {
-    message = error.message
-  } else {
-    message = String(error)
-  }
-  process.stderr.write(`${message}\n`)
-  process.exitCode = 1
-})
+runReleaseTool(main)
