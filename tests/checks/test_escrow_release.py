@@ -68,6 +68,35 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertIn("ESCROW_DEPLOYMENT_ARTIFACT_FILE", verify)
         self.assertIn("env -u PRIVATE_KEY -u RPC_URL", verify)
 
+    def test_release_make_targets_run_from_disposable_commit_snapshots(self) -> None:
+        source = read_text(repo_path("Makefile"))
+        deploy_start = source.index("escrow-release-deploy:")
+        verify_start = source.index("escrow-release-verify:")
+        bike_start = source.index("bike-nft-release-deploy:")
+        deploy = source[deploy_start:verify_start]
+        verify = source[verify_start:bike_start]
+        cleanup = source[source.index("define release_snapshot_cleanup"):source.index("endef", source.index("define release_snapshot_cleanup"))]
+
+        self.assertIn('GIT_NO_REPLACE_OBJECTS=1 git archive', source)
+        self.assertIn('"$$release_run_started" == "1" ]] && ! compose_release down', cleanup)
+        self.assertIn('"$$release_check_started" == "1" ]] && ! compose_release_check down', cleanup)
+        self.assertIn('"$$release_dependencies_started" == "1" ]] && ! compose_release_dependencies down', cleanup)
+        self.assertIn('"$$cleanup_failed" == "0" ]] && ! rm -rf', cleanup)
+        self.assertIn('if [[ "$$status" == "0" ]]; then status=1; fi', cleanup)
+        for phase in ("run", "check", "deps"):
+            self.assertIn(f'COMPOSE_PROJECT_NAME="$$ceremony_project-{phase}"', source)
+
+        for target in (deploy, verify):
+            self.assertLess(target.index("trap cleanup EXIT"), target.index("$(release_snapshot_allocate)"))
+            self.assertLess(target.index("$(release_snapshot_allocate)"), target.index("$(release_snapshot_populate)"))
+            self.assertLess(target.index("$(release_snapshot_populate)"), target.index("compose_release_dependencies run --build --rm soldeer-verify"))
+            self.assertLess(target.index("compose_release_dependencies run --build --rm soldeer-verify"), target.index("up --build --abort"))
+            self.assertIn('-f "$$ceremony_source/$$release_compose_file"', target)
+
+        self.assertLess(deploy.index("compose_release_dependencies run"), deploy.index("compose_release_check run"))
+        self.assertLess(deploy.index("compose_release_check run"), deploy.index('mkdir --mode=0700 -- "$$output_dir"'))
+        self.assertLess(deploy.index('mkdir --mode=0700 -- "$$output_dir"'), deploy.index("up --build --abort"))
+
     def test_deployment_signer_is_secret_file_backed_and_proxy_scoped(self) -> None:
         config = rendered_compose_config(DEPLOY, env=RELEASE_ENV)
         plan = compose_service(config, "escrow-release-plan")

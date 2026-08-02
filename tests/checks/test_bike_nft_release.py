@@ -95,7 +95,7 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         self.assertNotIn("deployment.args", rendered)
         self.assertNotIn("DEPLOYMENT_ARGUMENTS", rendered)
 
-    def test_make_entrypoints_require_clean_source_and_protected_files(self) -> None:
+    def test_make_entrypoints_require_clean_snapshotted_source_and_protected_files(self) -> None:
         source = read_text(repo_path("Makefile"))
         deploy = source[source.index("bike-nft-release-deploy:"):source.index("bike-nft-release-verify:")]
         verify = source[source.index("bike-nft-release-verify:"):]
@@ -105,6 +105,16 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         self.assertIn("must not be group- or world-accessible", deploy)
         self.assertIn("git status --porcelain --untracked-files=all", verify)
         self.assertIn("RPC_URL_FILE must not be group- or world-accessible", verify)
+        for target in (deploy, verify):
+            self.assertLess(target.index("trap cleanup EXIT"), target.index("$(release_snapshot_allocate)"))
+            self.assertLess(target.index("$(release_snapshot_allocate)"), target.index("$(release_snapshot_populate)"))
+            self.assertLess(target.index("$(release_snapshot_populate)"), target.index("compose_release_dependencies run --build --rm soldeer-verify"))
+            self.assertLess(target.index("compose_release_dependencies run --build --rm soldeer-verify"), target.index("up --build --abort"))
+            self.assertIn('-f "$$ceremony_source/$$release_compose_file"', target)
+
+        self.assertLess(deploy.index("compose_release_dependencies run"), deploy.index("compose_release_check run"))
+        self.assertLess(deploy.index("compose_release_check run"), deploy.index('mkdir --mode=0700 -- "$$output_dir"'))
+        self.assertLess(deploy.index('mkdir --mode=0700 -- "$$output_dir"'), deploy.index("up --build --abort"))
 
 
 if __name__ == "__main__":
