@@ -1,5 +1,12 @@
 import assert from "node:assert/strict"
-import { execFile, execFileSync } from "node:child_process"
+import { execFile, execFileSync, spawnSync } from "node:child_process"
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import {
   mkdtemp,
   readFile,
@@ -104,6 +111,54 @@ test("checked-in escrow bundle reproduces the accepted release hash", async () =
     label: "escrow",
   })
   assert.equal(bundle.camHash, CHECKED_IN_CAM_HASH)
+})
+
+test("escrow verification rejects source and CAM drift before snapshot publication", () => {
+  const directory = mkdtempSync(join(tmpdir(), "escrow-verify-input-"))
+  try {
+    for (const [name, artifact, message] of [
+      ["source", { ...verifiedDeploymentArtifact(), sourceCommit: "f".repeat(40) }, /source commit mismatch/],
+      ["cam", { ...verifiedDeploymentArtifact(), camHash: CAM_HASH }, /CAM hash does not match/],
+    ] as const) {
+      const { result, snapshotPath } = runEscrowVerifyInput(directory, name, artifact)
+      assert.notEqual(result.status, 0)
+      assert.match(result.stderr, message)
+      assert.equal(existsSync(snapshotPath), false)
+    }
+  } finally {
+    rmSync(directory, { recursive: true })
+  }
+})
+
+test("escrow verification applies the app parser before snapshot publication", () => {
+  const directory = mkdtempSync(join(tmpdir(), "escrow-verify-parser-"))
+  try {
+    const { ownershipAccepted: _ownershipAccepted, ...malformed } = verifiedDeploymentArtifact()
+    const { result, snapshotPath } = runEscrowVerifyInput(directory, "malformed", malformed)
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /missing=\[ownershipAccepted\]/)
+    assert.equal(existsSync(snapshotPath), false)
+  } finally {
+    rmSync(directory, { recursive: true })
+  }
+})
+
+test("escrow verification publishes one canonical no-clobber snapshot", () => {
+  const directory = mkdtempSync(join(tmpdir(), "escrow-verify-success-"))
+  try {
+    const artifact = verifiedDeploymentArtifact()
+    const parsed = parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact)))
+    const first = runEscrowVerifyInput(directory, "success", artifact)
+    assert.equal(first.result.status, 0, first.result.stderr)
+    assert.equal(readFileSync(first.snapshotPath, "utf8"), `${JSON.stringify(parsed, null, 2)}\n`)
+    assert.match(first.result.stdout, /"event":"escrow_release_input_verified"/)
+
+    const second = runEscrowVerifyInput(directory, "success", artifact)
+    assert.notEqual(second.result.status, 0)
+    assert.equal(readFileSync(second.snapshotPath, "utf8"), `${JSON.stringify(parsed, null, 2)}\n`)
+  } finally {
+    rmSync(directory, { recursive: true })
+  }
 })
 
 test("deployment JSON preserves the complete strict record", () => {
@@ -329,6 +384,32 @@ function deploymentArtifact(): DeploymentArtifact {
     camEscrowCreationTransaction: ESCROW_TX,
     camEscrowUICreationTransaction: UI_TX,
   }
+}
+
+function verifiedDeploymentArtifact(): DeploymentArtifact {
+  return { ...deploymentArtifact(), camHash: CHECKED_IN_CAM_HASH }
+}
+
+function runEscrowVerifyInput(directory: string, name: string, artifact: unknown) {
+  const artifactPath = join(directory, `${name}-deployment.json`)
+  const snapshotPath = join(directory, `${name}-verified.json`)
+  writeFileSync(artifactPath, JSON.stringify(artifact))
+  const result = spawnSync(
+    process.execPath,
+    ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "verify-input.ts")],
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        ESCROW_DEPLOYMENT_ARTIFACT_PATH: artifactPath,
+        ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT: SOURCE_COMMIT,
+        ESCROW_RELEASE_DAPPS_ROOT: DAPPS_ROOT,
+        ESCROW_RELEASE_CAM_ROOT_PATH: join(DAPPS_ROOT, "escrow/cam/main.json"),
+        ESCROW_VERIFIED_ARTIFACT_PATH: snapshotPath,
+      },
+    },
+  )
+  return { result, snapshotPath }
 }
 
 function create(contractName: string, contractAddress: string, hash: string): unknown {
