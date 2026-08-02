@@ -4,9 +4,9 @@ import test from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
 import { inspectReleaseBundle } from "./bundle.ts"
-import { creationReceiptDeployer, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
-import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, requiredAddresses, requiredDelay } from "./shared.ts"
-import type { DeploymentArtifact } from "./shared.ts"
+import { creationReceiptDeployer, deploymentArtifact, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
+import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
+import type { DeploymentArtifact, ReleasePlan } from "./shared.ts"
 
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
 const hash = (byte: string) => `0x${byte.repeat(64)}` as Hex
@@ -37,6 +37,32 @@ test("deployment artifact parsing rejects unknown fields and inconsistent author
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, extra: true }))), /unexpected=\[extra\]/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, managerCreationTransaction: artifact.uiCreationTransaction }))), /must be distinct/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, componentsPauser: DEPLOYER }))), /must not retain/)
+})
+
+test("deployment artifact projection preserves named contract evidence", () => {
+  const contracts = deploymentContractsFromBroadcast({ transactions: [
+    create("CamRoot", address("10"), hash("1")),
+    create("BicycleComponents", address("11"), hash("2")),
+    create("BicycleComponentManager", address("12"), hash("3")),
+    create("BicycleComponentManagerUI", address("13"), hash("4")),
+  ] })
+  const plan: ReleasePlan = {
+    ...common(),
+    schema: RELEASE_PLAN_SCHEMA,
+    camHash: hash("a"),
+  }
+
+  assert.deepEqual(deploymentArtifact(plan, {
+    chainId: plan.expectedChainId,
+    deployer: DEPLOYER,
+    contracts,
+    codeHashes: {
+      camRoot: hash("b"),
+      components: hash("c"),
+      manager: hash("d"),
+      ui: hash("e"),
+    },
+  }), deployment())
 })
 
 test("broadcast and receipts bind four exact creations", () => {
