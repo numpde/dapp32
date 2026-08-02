@@ -127,6 +127,82 @@ VIEWER_TERMINAL_MOCK_GUARD := if [[ ! "$${VIEWER_TERMINAL_MOCK:?missing_VIEWER_T
 # best-effort cleanup paths where the original status is preserved separately.
 COMPOSE_DOWN_CLEANUP := down --volumes --remove-orphans >/dev/null 2>&1 || true
 
+define release_require_clean_source
+if [[ -n "$$(git status --porcelain --untracked-files=all)" ]]; then \
+  printf '%s requires a clean Git working tree.\n' "$(1)" >&2; \
+  exit 2; \
+fi; \
+source_commit="$$(GIT_NO_REPLACE_OBJECTS=1 git rev-parse --verify HEAD)"; \
+if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then \
+  printf '%s\n' 'Could not resolve one exact lowercase 40-character source commit.' >&2; \
+  exit 2; \
+fi
+endef
+
+define release_host_guard_functions
+reject_release_path_symlinks() { \
+  local path="$$1" label="$$2" current="/" part; \
+  local -a parts; \
+  IFS=/ read -r -a parts <<< "$$path"; \
+  for part in "$${parts[@]}"; do \
+    if [[ -z "$$part" ]]; then continue; fi; \
+    if [[ "$$current" == "/" ]]; then current="/$$part"; else current="$$current/$$part"; fi; \
+    if [[ -L "$$current" ]]; then \
+      printf '%s must not pass through a symlink.\n' "$$label" >&2; \
+      exit 2; \
+    fi; \
+  done; \
+}; \
+require_release_file() { \
+  local path="$$1" label="$$2"; \
+  if [[ "$$path" != /* ]]; then printf '%s must be an absolute path.\n' "$$label" >&2; exit 2; fi; \
+  reject_release_path_symlinks "$$path" "$$label"; \
+  if [[ ! -f "$$path" || ! -r "$$path" ]]; then \
+    printf '%s must be a readable regular file.\n' "$$label" >&2; \
+    exit 2; \
+  fi; \
+}; \
+require_protected_release_file() { \
+  local path="$$1" label="$$2" permission_label="$$3"; \
+  require_release_file "$$path" "$$label"; \
+  if [[ -n "$$(find "$$path" -maxdepth 0 -perm /077 -print -quit)" ]]; then \
+    printf '%s must not be group- or world-accessible.\n' "$$permission_label" >&2; \
+    exit 2; \
+  fi; \
+}; \
+validate_new_release_output() { \
+  local path="$$1" label="$$2" parent repository_root; \
+  if [[ "$$path" != /* || "$$(realpath -m -- "$$path")" != "$$path" ]]; then \
+    printf '%s must be a normalized absolute path.\n' "$$label" >&2; \
+    exit 2; \
+  fi; \
+  if [[ -e "$$path" || -L "$$path" ]]; then \
+    printf '%s must not already exist.\n' "$$label" >&2; \
+    exit 2; \
+  fi; \
+  parent="$$(dirname -- "$$path")"; \
+  reject_release_path_symlinks "$$parent" "$$label parent"; \
+  if [[ ! -d "$$parent" ]]; then \
+    printf '%s parent must be an existing directory.\n' "$$label" >&2; \
+    exit 2; \
+  fi; \
+  repository_root="$$(pwd -P)"; \
+  case "$$path" in "$$repository_root"|"$$repository_root"/*) \
+    printf '%s must be outside the repository.\n' "$$label" >&2; \
+    exit 2 ;; \
+  esac; \
+}; \
+recheck_new_release_output() { \
+  local path="$$1" label="$$2" parent; \
+  parent="$$(dirname -- "$$path")"; \
+  reject_release_path_symlinks "$$parent" "$$label parent"; \
+  if [[ ! -d "$$parent" || -e "$$path" || -L "$$path" ]]; then \
+    printf '%s changed while the release snapshot was being checked.\n' "$$label" >&2; \
+    exit 2; \
+  fi; \
+}
+endef
+
 define release_snapshot_allocate
 ceremony_root="$$(mktemp -d "/tmp/cam-release-$${LOCAL_UID:?missing_LOCAL_UID}-XXXXXXXX")"; \
 chmod 0700 "$$ceremony_root"; \
@@ -931,15 +1007,7 @@ escrow-release-deploy:
 	  printf '%s\n' 'Set CONFIRM_ESCROW_RELEASE_DEPLOY=YES only after reviewing the chain, CAM publication, final owner, and funded deployer.' >&2; \
 	  exit 2; \
 	fi; \
-	if [[ -n "$$(git status --porcelain --untracked-files=all)" ]]; then \
-	  printf '%s\n' 'Escrow release deployment requires a clean Git working tree.' >&2; \
-	  exit 2; \
-	fi; \
-	source_commit="$$(git rev-parse --verify HEAD)"; \
-	if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then \
-	  printf '%s\n' 'Could not resolve one exact lowercase 40-character source commit.' >&2; \
-	  exit 2; \
-	fi; \
+	$(call release_require_clean_source,Escrow release deployment); \
 	for name in ESCROW_RELEASE_EXPECTED_CHAIN_ID ESCROW_RELEASE_CAM_URI ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE ESCROW_RELEASE_OUTPUT_DIR; do \
 	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
 	    printf 'Missing required release input: %s\n' "$$name" >&2; \
@@ -961,51 +1029,11 @@ escrow-release-deploy:
 	  printf '%s\n' 'ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
 	  exit 2; \
 	fi; \
-	reject_path_symlinks() { \
-	  local path="$$1" label="$$2" current part; \
-	  current="/"; \
-	  IFS=/ read -r -a parts <<< "$$path"; \
-	  for part in "$${parts[@]}"; do \
-	    if [[ -z "$$part" ]]; then continue; fi; \
-	    if [[ "$$current" == "/" ]]; then current="/$$part"; else current="$$current/$$part"; fi; \
-	    if [[ -L "$$current" ]]; then \
-	      printf '%s must not pass through a symlink.\n' "$$label" >&2; \
-	      exit 2; \
-	    fi; \
-	  done; \
-	}; \
-	require_file() { \
-	  local path="$$1" label="$$2"; \
-	  if [[ "$$path" != /* ]]; then printf '%s must be an absolute path.\n' "$$label" >&2; exit 2; fi; \
-	  reject_path_symlinks "$$path" "$$label"; \
-	  if [[ ! -f "$$path" || ! -r "$$path" ]]; then printf '%s must be a readable regular file.\n' "$$label" >&2; exit 2; fi; \
-	}; \
-	require_file "$$RPC_URL_FILE" "RPC_URL_FILE"; \
-	require_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE"; \
-	for secret_file in "$$RPC_URL_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; do \
-	  if [[ -n "$$(find "$$secret_file" -maxdepth 0 -perm /077 -print -quit)" ]]; then \
-	    printf '%s must not be group- or world-accessible.\n' "$$secret_file" >&2; exit 2; \
-	  fi; \
-	done; \
+	$(release_host_guard_functions); \
+	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "$$RPC_URL_FILE"; \
+	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
 	output_dir="$$ESCROW_RELEASE_OUTPUT_DIR"; \
-	if [[ "$$output_dir" != /* || "$$(realpath -m -- "$$output_dir")" != "$$output_dir" ]]; then \
-	  printf '%s\n' 'ESCROW_RELEASE_OUTPUT_DIR must be a normalized absolute path.' >&2; \
-	  exit 2; \
-	fi; \
-	if [[ -e "$$output_dir" || -L "$$output_dir" ]]; then \
-	  printf '%s\n' 'ESCROW_RELEASE_OUTPUT_DIR must not already exist.' >&2; \
-	  exit 2; \
-	fi; \
-	output_parent="$$(dirname -- "$$output_dir")"; \
-	reject_path_symlinks "$$output_parent" "ESCROW_RELEASE_OUTPUT_DIR parent"; \
-	if [[ ! -d "$$output_parent" ]]; then \
-	  printf '%s\n' 'ESCROW_RELEASE_OUTPUT_DIR parent must be an existing directory.' >&2; \
-	  exit 2; \
-	fi; \
-	case "$$output_dir" in "$$(pwd -P)"|"$$(pwd -P)"/*) \
-	  printf '%s\n' 'ESCROW_RELEASE_OUTPUT_DIR must be outside the repository.' >&2; \
-	  exit 2 ;; \
-	esac; \
+	validate_new_release_output "$$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"; \
 	release_compose_file="compose/escrow/release/deploy.yml"; \
 	release_check_compose_file="compose/escrow/release/check.yml"; \
 	compose_release() { \
@@ -1033,10 +1061,7 @@ escrow-release-deploy:
 	compose_release_dependencies run --build --rm soldeer-verify; \
 	release_check_started=1; \
 	compose_release_check run --build --rm escrow-release-check; \
-	reject_path_symlinks "$$output_parent" "ESCROW_RELEASE_OUTPUT_DIR parent"; \
-	if [[ ! -d "$$output_parent" || -e "$$output_dir" || -L "$$output_dir" ]]; then \
-	  printf '%s\n' 'ESCROW_RELEASE_OUTPUT_DIR changed while the release snapshot was being checked.' >&2; exit 2; \
-	fi; \
+	recheck_new_release_output "$$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"; \
 	mkdir --mode=0700 -- "$$output_dir"; \
 	mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
 	release_run_started=1; \
@@ -1048,42 +1073,16 @@ escrow-release-verify:
 	@$(LANE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	if [[ -n "$$(git status --porcelain --untracked-files=all)" ]]; then \
-	  printf '%s\n' 'Escrow release verification requires a clean Git working tree.' >&2; \
-	  exit 2; \
-	fi; \
-	source_commit="$$(git rev-parse --verify HEAD)"; \
-	if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then \
-	  printf '%s\n' 'Could not resolve one exact lowercase 40-character source commit.' >&2; \
-	  exit 2; \
-	fi; \
+	$(call release_require_clean_source,Escrow release verification); \
 	for name in RPC_URL_FILE ESCROW_DEPLOYMENT_ARTIFACT_FILE; do \
 	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
 	    printf 'Missing required verification input: %s\n' "$$name" >&2; \
 	    exit 2; \
 	  fi; \
 	done; \
-	reject_path_symlinks() { \
-	  local path="$$1" label="$$2" current part; \
-	  current="/"; \
-	  IFS=/ read -r -a parts <<< "$$path"; \
-	  for part in "$${parts[@]}"; do \
-	    if [[ -z "$$part" ]]; then continue; fi; \
-	    if [[ "$$current" == "/" ]]; then current="/$$part"; else current="$$current/$$part"; fi; \
-	    if [[ -L "$$current" ]]; then printf '%s must not pass through a symlink.\n' "$$label" >&2; exit 2; fi; \
-	  done; \
-	}; \
-	require_file() { \
-	  local path="$$1" label="$$2"; \
-	  if [[ "$$path" != /* ]]; then printf '%s must be an absolute path.\n' "$$label" >&2; exit 2; fi; \
-	  reject_path_symlinks "$$path" "$$label"; \
-	  if [[ ! -f "$$path" || ! -r "$$path" ]]; then printf '%s must be a readable regular file.\n' "$$label" >&2; exit 2; fi; \
-	}; \
-	require_file "$$RPC_URL_FILE" "RPC_URL_FILE"; \
-	require_file "$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"; \
-	if [[ -n "$$(find "$$RPC_URL_FILE" -maxdepth 0 -perm /077 -print -quit)" ]]; then \
-	  printf '%s\n' 'RPC_URL_FILE must not be group- or world-accessible.' >&2; exit 2; \
-	fi; \
+	$(release_host_guard_functions); \
+	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"; \
+	require_release_file "$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"; \
 	release_compose_file="compose/escrow/release/verify.yml"; \
 	compose_release() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
@@ -1111,25 +1110,18 @@ bike-nft-release-deploy:
 	if [[ ! -v CONFIRM_BIKE_NFT_RELEASE_DEPLOY || "$$CONFIRM_BIKE_NFT_RELEASE_DEPLOY" != "YES" ]]; then \
 	  printf '%s\n' 'Set CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES only after reviewing every authority, delay, URI, chain, and registrar.' >&2; exit 2; \
 	fi; \
-	if [[ -n "$$(git status --porcelain --untracked-files=all)" ]]; then printf '%s\n' 'Bike NFT release deployment requires a clean Git working tree.' >&2; exit 2; fi; \
-	source_commit="$$(git rev-parse --verify HEAD)"; \
-	if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then printf '%s\n' 'Could not resolve one exact lowercase 40-character source commit.' >&2; exit 2; fi; \
+	$(call release_require_clean_source,Bike NFT release deployment); \
 	required=(BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID BIKE_NFT_RELEASE_CAM_URI BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER BIKE_NFT_RELEASE_TOKEN_NAME BIKE_NFT_RELEASE_TOKEN_SYMBOL BIKE_NFT_RELEASE_BASE_TOKEN_URI BIKE_NFT_RELEASE_COLLECTION_URI BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY BIKE_NFT_RELEASE_COMPONENTS_PAUSER BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY BIKE_NFT_RELEASE_MANAGER_PAUSER BIKE_NFT_RELEASE_MANAGER_CONFIGURER BIKE_NFT_RELEASE_REGISTRARS RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE BIKE_NFT_RELEASE_OUTPUT_DIR); \
 	for name in "$${required[@]}"; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required Bike NFT release input: %s\n' "$$name" >&2; exit 2; fi; done; \
 	chain_id="$$BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID"; \
 	if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == 1337 || "$$chain_id" == 31337 ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; exit 2; fi; \
 	cam_uri="$$BIKE_NFT_RELEASE_CAM_URI"; \
 	if [[ ! "$$cam_uri" =~ ^(https|ipfs):// || "$$cam_uri" == *'$$'* || "$$cam_uri" == *'`'* || "$$cam_uri" == *\\* || "$$cam_uri" == *\"* || "$$cam_uri" == *\'* || "$$cam_uri" == *\;* ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI without shell syntax.' >&2; exit 2; fi; \
-	reject_path_symlinks() { local path="$$1" label="$$2" current="/" part; IFS=/ read -r -a parts <<< "$$path"; for part in "$${parts[@]}"; do [[ -z "$$part" ]] && continue; if [[ "$$current" == / ]]; then current="/$$part"; else current="$$current/$$part"; fi; if [[ -L "$$current" ]]; then printf '%s must not pass through a symlink.\n' "$$label" >&2; exit 2; fi; done; }; \
-	require_file() { local path="$$1" label="$$2"; if [[ "$$path" != /* ]]; then printf '%s must be an absolute path.\n' "$$label" >&2; exit 2; fi; reject_path_symlinks "$$path" "$$label"; if [[ ! -f "$$path" || ! -r "$$path" ]]; then printf '%s must be a readable regular file.\n' "$$label" >&2; exit 2; fi; }; \
-	require_file "$$RPC_URL_FILE" RPC_URL_FILE; require_file "$$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE; \
-	for secret_file in "$$RPC_URL_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; do if [[ -n "$$(find "$$secret_file" -maxdepth 0 -perm /077 -print -quit)" ]]; then printf '%s must not be group- or world-accessible.\n' "$$secret_file" >&2; exit 2; fi; done; \
+	$(release_host_guard_functions); \
+	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "$$RPC_URL_FILE"; \
+	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
 	output_dir="$$BIKE_NFT_RELEASE_OUTPUT_DIR"; \
-	if [[ "$$output_dir" != /* || "$$(realpath -m -- "$$output_dir")" != "$$output_dir" ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_OUTPUT_DIR must be a normalized absolute path.' >&2; exit 2; fi; \
-	if [[ -e "$$output_dir" || -L "$$output_dir" ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_OUTPUT_DIR must not already exist.' >&2; exit 2; fi; \
-	output_parent="$$(dirname -- "$$output_dir")"; reject_path_symlinks "$$output_parent" 'BIKE_NFT_RELEASE_OUTPUT_DIR parent'; \
-	if [[ ! -d "$$output_parent" ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_OUTPUT_DIR parent must be an existing directory.' >&2; exit 2; fi; \
-	case "$$output_dir" in "$$(pwd -P)"|"$$(pwd -P)"/*) printf '%s\n' 'BIKE_NFT_RELEASE_OUTPUT_DIR must be outside the repository.' >&2; exit 2 ;; esac; \
+	validate_new_release_output "$$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"; \
 	release_compose_file="compose/bike-nft/release/deploy.yml"; release_check_compose_file="compose/bike-nft/release/check.yml"; \
 	compose_release() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" BIKE_NFT_RELEASE_OUTPUT_DIR="$$output_dir" BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
@@ -1150,8 +1142,7 @@ bike-nft-release-deploy:
 	compose_release_dependencies run --build --rm soldeer-verify; \
 	release_check_started=1; \
 	compose_release_check run --build --rm bike-nft-release-check; \
-	reject_path_symlinks "$$output_parent" 'BIKE_NFT_RELEASE_OUTPUT_DIR parent'; \
-	if [[ ! -d "$$output_parent" || -e "$$output_dir" || -L "$$output_dir" ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_OUTPUT_DIR changed while the release snapshot was being checked.' >&2; exit 2; fi; \
+	recheck_new_release_output "$$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"; \
 	mkdir --mode=0700 -- "$$output_dir"; mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
 	release_run_started=1; \
 	compose_release up --build --abort-on-container-exit --exit-code-from bike-nft-release-artifact bike-nft-release-artifact; \
@@ -1161,14 +1152,11 @@ bike-nft-release-verify:
 	@$(LANE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	if [[ -n "$$(git status --porcelain --untracked-files=all)" ]]; then printf '%s\n' 'Bike NFT release verification requires a clean Git working tree.' >&2; exit 2; fi; \
-	source_commit="$$(git rev-parse --verify HEAD)"; \
-	if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then printf '%s\n' 'Could not resolve one exact lowercase 40-character source commit.' >&2; exit 2; fi; \
+	$(call release_require_clean_source,Bike NFT release verification); \
 	for name in RPC_URL_FILE BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required verification input: %s\n' "$$name" >&2; exit 2; fi; done; \
-	reject_path_symlinks() { local path="$$1" label="$$2" current="/" part; IFS=/ read -r -a parts <<< "$$path"; for part in "$${parts[@]}"; do [[ -z "$$part" ]] && continue; if [[ "$$current" == / ]]; then current="/$$part"; else current="$$current/$$part"; fi; if [[ -L "$$current" ]]; then printf '%s must not pass through a symlink.\n' "$$label" >&2; exit 2; fi; done; }; \
-	require_file() { local path="$$1" label="$$2"; if [[ "$$path" != /* ]]; then printf '%s must be an absolute path.\n' "$$label" >&2; exit 2; fi; reject_path_symlinks "$$path" "$$label"; if [[ ! -f "$$path" || ! -r "$$path" ]]; then printf '%s must be a readable regular file.\n' "$$label" >&2; exit 2; fi; }; \
-	require_file "$$RPC_URL_FILE" RPC_URL_FILE; require_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE; \
-	if [[ -n "$$(find "$$RPC_URL_FILE" -maxdepth 0 -perm /077 -print -quit)" ]]; then printf '%s\n' 'RPC_URL_FILE must not be group- or world-accessible.' >&2; exit 2; fi; \
+	$(release_host_guard_functions); \
+	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"; \
+	require_release_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"; \
 	release_compose_file="compose/bike-nft/release/verify.yml"; \
 	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/$$release_compose_file" "$$@"; }; \
 	$(release_snapshot_dependency_compose); \

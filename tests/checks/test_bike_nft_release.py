@@ -100,11 +100,23 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         deploy = source[source.index("bike-nft-release-deploy:"):source.index("bike-nft-release-verify:")]
         verify = source[source.index("bike-nft-release-verify:"):]
         self.assertIn("CONFIRM_BIKE_NFT_RELEASE_DEPLOY", deploy)
-        self.assertIn("git status --porcelain --untracked-files=all", deploy)
-        self.assertIn("must be outside the repository", deploy)
-        self.assertIn("must not be group- or world-accessible", deploy)
-        self.assertIn("git status --porcelain --untracked-files=all", verify)
-        self.assertIn("RPC_URL_FILE must not be group- or world-accessible", verify)
+        self.assertIn(
+            'require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "$$RPC_URL_FILE"',
+            deploy,
+        )
+        self.assertIn(
+            'require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"',
+            deploy,
+        )
+        self.assertIn('validate_new_release_output "$$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"', deploy)
+        self.assertIn(
+            'require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"',
+            verify,
+        )
+        self.assertIn(
+            'require_release_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"',
+            verify,
+        )
         for target in (deploy, verify):
             self.assertLess(target.index("trap cleanup EXIT"), target.index("$(release_snapshot_allocate)"))
             self.assertLess(target.index("$(release_snapshot_allocate)"), target.index("$(release_snapshot_populate)"))

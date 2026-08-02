@@ -51,21 +51,34 @@ class EscrowReleasePostureTest(unittest.TestCase):
         source = read_text(repo_path("Makefile"))
         deploy_start = source.index("escrow-release-deploy:")
         verify_start = source.index("escrow-release-verify:")
+        bike_start = source.index("bike-nft-release-deploy:")
         deploy = source[deploy_start:verify_start]
-        verify = source[verify_start:]
+        verify = source[verify_start:bike_start]
 
         self.assertIn("CONFIRM_ESCROW_RELEASE_DEPLOY", deploy)
-        self.assertIn("git status --porcelain --untracked-files=all", deploy)
-        self.assertIn("git rev-parse --verify HEAD", deploy)
         self.assertIn("DEPLOYER_PRIVATE_KEY_FILE", deploy)
         self.assertIn("RPC_URL_FILE", deploy)
-        self.assertIn("must be outside the repository", deploy)
+        self.assertIn(
+            'require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "$$RPC_URL_FILE"',
+            deploy,
+        )
+        self.assertIn(
+            'require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"',
+            deploy,
+        )
+        self.assertIn('validate_new_release_output "$$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"', deploy)
         self.assertIn("env -u PRIVATE_KEY -u RPC_URL", deploy)
         self.assertNotIn('rm -rf "$$output_dir"', deploy)
 
-        self.assertIn("git status --porcelain --untracked-files=all", verify)
-        self.assertIn("git rev-parse --verify HEAD", verify)
         self.assertIn("ESCROW_DEPLOYMENT_ARTIFACT_FILE", verify)
+        self.assertIn(
+            'require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"',
+            verify,
+        )
+        self.assertIn(
+            'require_release_file "$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"',
+            verify,
+        )
         self.assertIn("env -u PRIVATE_KEY -u RPC_URL", verify)
 
     def test_release_make_targets_run_from_disposable_commit_snapshots(self) -> None:
