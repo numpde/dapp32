@@ -1,6 +1,6 @@
 import { assertPublishedCamRootURI } from "../../packages/cam-protocol/dist/index.js"
 import { inspectReleaseBundle } from "./bundle.ts"
-import { RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay, requiredEnv, requiredNonzeroAddress, requiredReleaseChainId, requiredSourceCommit, writeNewJson } from "./shared.ts"
+import { RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay, requiredEnv, requiredNonzeroAddress, requiredReleaseChainId, requiredSourceCommit, requiredString, writeNewJson } from "./shared.ts"
 import type { ReleasePlan } from "./shared.ts"
 
 async function main(): Promise<void> {
@@ -17,8 +17,10 @@ async function main(): Promise<void> {
     sourceCommit: requiredSourceCommit(requiredEnv(env, "BIKE_NFT_RELEASE_SOURCE_COMMIT")), expectedChainId: requiredReleaseChainId(requiredEnv(env, "BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID")), camURI,
     camHash: bundle.camHash,
     intendedCamRootOwner: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER"), "intended CAM root owner"),
-    tokenName: requiredEnv(env, "BIKE_NFT_RELEASE_TOKEN_NAME"), tokenSymbol: requiredEnv(env, "BIKE_NFT_RELEASE_TOKEN_SYMBOL"),
-    baseTokenURI: requiredEnv(env, "BIKE_NFT_RELEASE_BASE_TOKEN_URI"), collectionURI: requiredEnv(env, "BIKE_NFT_RELEASE_COLLECTION_URI"),
+    tokenName: requiredString(requiredEnv(env, "BIKE_NFT_RELEASE_TOKEN_NAME"), "tokenName"),
+    tokenSymbol: requiredString(requiredEnv(env, "BIKE_NFT_RELEASE_TOKEN_SYMBOL"), "tokenSymbol"),
+    baseTokenURI: requiredString(requiredEnv(env, "BIKE_NFT_RELEASE_BASE_TOKEN_URI"), "baseTokenURI"),
+    collectionURI: requiredString(requiredEnv(env, "BIKE_NFT_RELEASE_COLLECTION_URI"), "collectionURI"),
     intendedComponentsAdmin: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN"), "intended components admin"), componentsAdminDelay: requiredDelay(requiredEnv(env, "BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY"), "components admin delay"),
     componentsPauser: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_COMPONENTS_PAUSER"), "components pauser"), componentsConfigurer: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER"), "components configurer"),
     intendedManagerAdmin: requiredNonzeroAddress(requiredEnv(env, "BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN"), "intended manager admin"), managerAdminDelay: requiredDelay(requiredEnv(env, "BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY"), "manager admin delay"),

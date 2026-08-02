@@ -1,11 +1,14 @@
 import assert from "node:assert/strict"
+import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
+import { spawnSync } from "node:child_process"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
 import { inspectReleaseBundle } from "./bundle.ts"
 import { creationReceiptDeployer, deploymentArtifact, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
-import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
+import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, parseReleasePlan, RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact, ReleasePlan } from "./shared.ts"
 
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
@@ -37,6 +40,44 @@ test("deployment artifact parsing rejects unknown fields and inconsistent author
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, extra: true }))), /unexpected=\[extra\]/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, managerCreationTransaction: artifact.uiCreationTransaction }))), /must be distinct/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, componentsPauser: DEPLOYER }))), /must not retain/)
+})
+
+test("release plans and deployment artifacts share the single-line text domain", () => {
+  const plan = { ...common(), schema: RELEASE_PLAN_SCHEMA, camHash: hash("a") }
+  const artifact = deployment()
+  for (const field of ["tokenName", "tokenSymbol", "baseTokenURI", "collectionURI"] as const) {
+    assert.throws(
+      () => parseReleasePlan(new TextEncoder().encode(JSON.stringify({ ...plan, [field]: "line one\nline two" }))),
+      new RegExp(`${field} must be a non-empty single-line string`),
+    )
+    assert.throws(
+      () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, [field]: "line one\rline two" }))),
+      new RegExp(`${field} must be a non-empty single-line string`),
+    )
+  }
+})
+
+test("the Bike planner rejects multiline release text before publishing a plan", () => {
+  const directory = mkdtempSync(join(tmpdir(), "bike-release-plan-"))
+  try {
+    for (const [field, variable] of [
+      ["tokenName", "BIKE_NFT_RELEASE_TOKEN_NAME"],
+      ["tokenSymbol", "BIKE_NFT_RELEASE_TOKEN_SYMBOL"],
+      ["baseTokenURI", "BIKE_NFT_RELEASE_BASE_TOKEN_URI"],
+      ["collectionURI", "BIKE_NFT_RELEASE_COLLECTION_URI"],
+    ] as const) {
+      const planPath = join(directory, `${field}.json`)
+      const result = spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")], {
+        encoding: "utf8",
+        env: { ...process.env, ...plannerEnv(planPath), [variable]: "line one\nline two" },
+      })
+      assert.notEqual(result.status, 0, `${field} unexpectedly produced a release plan`)
+      assert.match(result.stderr, new RegExp(`${field} must be a non-empty single-line string`))
+      assert.equal(existsSync(planPath), false)
+    }
+  } finally {
+    rmSync(directory, { recursive: true })
+  }
 })
 
 test("deployment artifact projection preserves named contract evidence", () => {
@@ -80,5 +121,20 @@ test("handoff accepts only intended pending or completed state", () => {
 })
 
 function common() { return { sourceCommit: SOURCE, expectedChainId: 11155111, camURI: "https://example.test/bike/v1/main.json", intendedCamRootOwner: OWNER, tokenName: "Bicycle Components", tokenSymbol: "BIKE", baseTokenURI: "https://example.test/bike/tokens/", collectionURI: "https://example.test/bike/collection.json", intendedComponentsAdmin: COMPONENTS_ADMIN, componentsAdminDelay: 86400, componentsPauser: address("5"), componentsConfigurer: address("6"), intendedManagerAdmin: MANAGER_ADMIN, managerAdminDelay: 86400, managerPauser: address("7"), managerConfigurer: address("8"), registrars: [address("9")] } as const }
+function plannerEnv(planPath: string): NodeJS.ProcessEnv {
+  const values = common()
+  return {
+    BIKE_NFT_RELEASE_SOURCE_COMMIT: values.sourceCommit, BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID: String(values.expectedChainId),
+    BIKE_NFT_RELEASE_CAM_URI: values.camURI, BIKE_NFT_RELEASE_CAM_ROOT_PATH: join(DAPPS, "bike-nft/cam/main.json"), BIKE_NFT_RELEASE_DAPPS_ROOT: DAPPS,
+    BIKE_NFT_RELEASE_PLAN_PATH: planPath, BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER: values.intendedCamRootOwner,
+    BIKE_NFT_RELEASE_TOKEN_NAME: values.tokenName, BIKE_NFT_RELEASE_TOKEN_SYMBOL: values.tokenSymbol,
+    BIKE_NFT_RELEASE_BASE_TOKEN_URI: values.baseTokenURI, BIKE_NFT_RELEASE_COLLECTION_URI: values.collectionURI,
+    BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN: values.intendedComponentsAdmin, BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY: String(values.componentsAdminDelay),
+    BIKE_NFT_RELEASE_COMPONENTS_PAUSER: values.componentsPauser, BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER: values.componentsConfigurer,
+    BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN: values.intendedManagerAdmin, BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY: String(values.managerAdminDelay),
+    BIKE_NFT_RELEASE_MANAGER_PAUSER: values.managerPauser, BIKE_NFT_RELEASE_MANAGER_CONFIGURER: values.managerConfigurer,
+    BIKE_NFT_RELEASE_REGISTRARS: values.registrars.join(","),
+  }
+}
 function deployment(): DeploymentArtifact { const { expectedChainId, ...fields } = common(); return { ...fields, schema: DEPLOYMENT_SCHEMA, chainId: expectedChainId, deployer: DEPLOYER, camHash: hash("a"), camRoot: address("10"), components: address("11"), manager: address("12"), ui: address("13"), camRootCodeHash: hash("b"), componentsCodeHash: hash("c"), managerCodeHash: hash("d"), uiCodeHash: hash("e"), camRootCreationTransaction: hash("1"), componentsCreationTransaction: hash("2"), managerCreationTransaction: hash("3"), uiCreationTransaction: hash("4") } }
 function create(contractName: string, contractAddress: string, transactionHash: string): unknown { return { transactionType: "CREATE", contractName, contractAddress, hash: transactionHash } }

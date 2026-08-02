@@ -149,6 +149,25 @@ contract DeployBikeNftReleaseTest is Test {
         harness.validatePlan(plan, CAM_ROOT_OWNER);
     }
 
+    function testRejectsMultilineReleaseText() external {
+        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
+
+        plan.camURI = "https://example.test/\nbike/v1/main.json";
+        _expectLineBreak(plan, "camURI");
+        plan = harness.parsePlan(PLAN_JSON);
+        plan.tokenName = "Bicycle\nComponents";
+        _expectLineBreak(plan, "tokenName");
+        plan = harness.parsePlan(PLAN_JSON);
+        plan.tokenSymbol = "BIKE\rNFT";
+        _expectLineBreak(plan, "tokenSymbol");
+        plan = harness.parsePlan(PLAN_JSON);
+        plan.baseTokenURI = "https://example.test/\ntokens/";
+        _expectLineBreak(plan, "baseTokenURI");
+        plan = harness.parsePlan(PLAN_JSON);
+        plan.collectionURI = "https://example.test/\rcollection.json";
+        _expectLineBreak(plan, "collectionURI");
+    }
+
     function _operatorInputs(DeployBikeNftRelease.ReleasePlan memory plan)
         private
         pure
@@ -183,5 +202,10 @@ contract DeployBikeNftReleaseTest is Test {
     ) private {
         vm.expectRevert(abi.encodeWithSelector(DeployBikeNftRelease.OperatorInputMismatch.selector, field));
         harness.requireOperatorInputs(plan, inputs);
+    }
+
+    function _expectLineBreak(DeployBikeNftRelease.ReleasePlan memory plan, string memory field) private {
+        vm.expectRevert(abi.encodeWithSelector(DeployBikeNftRelease.LineBreakInValue.selector, field));
+        harness.validatePlan(plan, address(0x99));
     }
 }

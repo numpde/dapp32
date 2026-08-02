@@ -72,6 +72,7 @@ contract DeployBikeNftRelease is Script {
     error CamHashSourceMismatch(bytes32 planned, bytes32 source);
     error ZeroCamHash();
     error EmptyValue(string field);
+    error LineBreakInValue(string field);
     error ZeroAddress(string field);
     error ZeroAdminDelay(string field);
     error AdminDelayOutOfRange(string field, uint256 value);
@@ -266,7 +267,11 @@ contract DeployBikeNftRelease is Script {
     }
 
     function _requireText(string memory value, string memory field) private pure {
-        if (bytes(value).length == 0) revert EmptyValue(field);
+        bytes memory characters = bytes(value);
+        if (characters.length == 0) revert EmptyValue(field);
+        for (uint256 i = 0; i < characters.length; i++) {
+            if (characters[i] == 0x0a || characters[i] == 0x0d) revert LineBreakInValue(field);
+        }
     }
 
     function _requireAddress(address value, string memory field) private pure {
