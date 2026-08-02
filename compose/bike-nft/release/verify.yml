@@ -1,0 +1,139 @@
+x-artifact: &artifact
+  type: bind
+  source: "${BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE:?missing_BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE}"
+  target: /deployment/deployment.json
+  read_only: true
+  bind: {create_host_path: false}
+x-arguments: &arguments
+  type: bind
+  source: "${BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE:?missing_BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE}.args"
+  target: /deployment/deployment.args
+  read_only: true
+  bind: {create_host_path: false}
+x-node-modules: &node_modules
+  type: bind
+  source: ../../../js/node_modules
+  target: /work/js/node_modules
+  read_only: true
+  bind: {create_host_path: false}
+
+services:
+  bike-nft-release-verify-input:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    network_mode: none
+    environment:
+      BIKE_NFT_RELEASE_DAPPS_ROOT: /work/dapps
+      BIKE_NFT_RELEASE_CAM_ROOT_PATH: /work/dapps/bike-nft/cam/main.json
+      BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
+      BIKE_NFT_DEPLOYMENT_ARGUMENTS_PATH: /deployment/deployment.args
+      BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT: "${BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT}"
+    volumes:
+      - ../../../dapps:/work/dapps:ro
+      - ../../../js:/input/js:ro
+      - *node_modules
+      - *artifact
+      - *arguments
+    command: [run-js-workspace, sh, -eu, -c, "npm run build:workspace && ./node_modules/.bin/tsc -p tools/bike-nft-release/tsconfig.json && node --experimental-strip-types tools/bike-nft-release/verify-input.ts"]
+
+  bike-nft-release-verify-rpc-proxy:
+    build:
+      context: ../../../containers/rpc-proxy
+      dockerfile: Dockerfile
+    init: true
+    user: "65532:65532"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 64
+    mem_limit: 128m
+    environment:
+      RPC_PROXY_HOST: 0.0.0.0
+      RPC_PROXY_PORT: "8080"
+      RPC_UPSTREAM_FILE: /run/secrets/rpc_url
+      RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
+      RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
+      RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
+      RPC_ALLOWED_METHODS: >-
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance
+        eth_getTransactionCount eth_getStorageAt eth_call eth_getCode
+        eth_getTransactionReceipt
+    secrets: [{source: rpc_url, target: rpc_url}]
+    tmpfs: [/tmp:rw,nosuid,nodev,noexec,size=16m]
+    networks:
+      bike_nft_release_verify_internal: {aliases: [bike-nft-release-verify-rpc-proxy]}
+      bike_nft_release_verify_egress: {}
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).close()"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  bike-nft-release-verify-provenance:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    depends_on:
+      bike-nft-release-verify-input: {condition: service_completed_successfully}
+      bike-nft-release-verify-rpc-proxy: {condition: service_healthy}
+    environment:
+      BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
+      BIKE_NFT_DEPLOYMENT_ARGUMENTS_PATH: /deployment/deployment.args
+      BIKE_NFT_RELEASE_RPC_URL: http://bike-nft-release-verify-rpc-proxy:8080
+    volumes:
+      - ../../../js:/input/js:ro
+      - *node_modules
+      - *artifact
+      - *arguments
+    networks: [bike_nft_release_verify_internal]
+    command: [run-js-workspace, sh, -eu, -c, "npm run build:workspace && ./node_modules/.bin/tsc -p tools/bike-nft-release/tsconfig.json && node --experimental-strip-types tools/bike-nft-release/verify-provenance.ts"]
+
+  verify-bike-nft-release:
+    build:
+      context: ../../../containers/foundry
+      dockerfile: Dockerfile
+    working_dir: /work/dapps
+    depends_on:
+      bike-nft-release-verify-provenance: {condition: service_completed_successfully}
+      bike-nft-release-verify-rpc-proxy: {condition: service_healthy}
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 256
+    mem_limit: 1g
+    environment:
+      HOME: /tmp/home
+      XDG_DATA_HOME: /usr/local/share
+      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
+      FOUNDRY_CONFIG: /work/dapps/foundry.toml
+      FOUNDRY_OUT: /tmp/foundry-out
+      BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT: "${BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT}"
+    tmpfs: [/tmp:rw,nosuid,nodev,noexec,size=512m]
+    volumes:
+      - ../../../dapps:/work/dapps:ro
+      - *arguments
+    networks: [bike_nft_release_verify_internal]
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        mapfile -t deployment < /deployment/deployment.args
+        if [[ "$${#deployment[@]}" -ne 32 || "$${deployment[0]}" != "bike-nft.deployment.v1" ]]; then
+          printf '%s\n' 'deployment.args must contain the exact thirty-two-field Bike NFT record' >&2
+          exit 2
+        fi
+        names=(SCHEMA SOURCE_COMMIT CHAIN_ID DEPLOYER CAM_URI CAM_HASH CAM_ROOT_OWNER TOKEN_NAME TOKEN_SYMBOL BASE_TOKEN_URI COLLECTION_URI COMPONENTS_ADMIN COMPONENTS_ADMIN_DELAY COMPONENTS_PAUSER COMPONENTS_CONFIGURER MANAGER_ADMIN MANAGER_ADMIN_DELAY MANAGER_PAUSER MANAGER_CONFIGURER REGISTRARS CAM_ROOT COMPONENTS MANAGER UI CAM_ROOT_CODE_HASH COMPONENTS_CODE_HASH MANAGER_CODE_HASH UI_CODE_HASH)
+        for i in "$${!names[@]}"; do export "BIKE_NFT_DEPLOYMENT_$${names[$$i]}=$${deployment[$$i]}"; done
+        forge script --offline bike-nft/script/VerifyBikeNftRelease.s.sol --rpc-url http://bike-nft-release-verify-rpc-proxy:8080 -vvv
+
+secrets:
+  rpc_url: {file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"}
+networks:
+  bike_nft_release_verify_internal: {internal: true}
+  bike_nft_release_verify_egress: {}

@@ -1,16 +1,3 @@
-import { randomUUID } from "node:crypto"
-import {
-  link,
-  lstat,
-  open,
-  rm,
-} from "node:fs/promises"
-import {
-  basename,
-  dirname,
-  join,
-} from "node:path"
-
 import {
   requireEvmAddress,
 } from "../../packages/cam-evm-viem/dist/index.js"
@@ -21,6 +8,8 @@ import {
   isRecordObject,
   parseJsonBytes,
 } from "../../packages/cam-protocol/dist/index.js"
+
+export { writeNewJson, writeNewText } from "../release-files.ts"
 
 export const RELEASE_PLAN_SCHEMA = "escrow.release-plan.v1"
 export const DEPLOYMENT_SCHEMA = "escrow.deployment.v1"
@@ -294,33 +283,6 @@ export function deploymentArguments(artifact: DeploymentArtifact): string {
   ])
 }
 
-export async function writeNewJson(path: string, value: unknown, label: string): Promise<void> {
-  await writeNewText(path, `${JSON.stringify(value, null, 2)}\n`, label)
-}
-
-export async function writeNewText(path: string, value: string, label: string): Promise<void> {
-  const parent = dirname(path)
-  const parentStat = await lstat(parent)
-  if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) {
-    throw new Error(`${label} parent must be a real directory: ${parent}`)
-  }
-
-  const stagePath = join(parent, `.${basename(path)}.${process.pid}.${randomUUID()}.tmp`)
-  try {
-    const handle = await open(stagePath, "wx", 0o600)
-    try {
-      await handle.writeFile(value, { encoding: "utf-8" })
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
-    await link(stagePath, path)
-  } finally {
-    await rm(stagePath, { force: true })
-  }
-  await syncDirectory(parent)
-}
-
 function requiredSafeInteger(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value)) {
     throw new Error(`${label} must be a safe integer`)
@@ -351,13 +313,4 @@ function lines(values: readonly string[]): string {
     }
   }
   return `${values.join("\n")}\n`
-}
-
-async function syncDirectory(path: string): Promise<void> {
-  const handle = await open(path, "r")
-  try {
-    await handle.sync()
-  } finally {
-    await handle.close()
-  }
 }

@@ -120,8 +120,8 @@ class EscrowReleasePostureTest(unittest.TestCase):
             read_text(repo_path("dapps/escrow/script/DeployEscrowRelease.s.sol")),
         )
         foundry_config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
-        self.assertEqual(
-            [{"access": "read", "path": "./escrow/cam/main.json"}],
+        self.assertIn(
+            {"access": "read", "path": "./escrow/cam/main.json"},
             foundry_config["profile"]["default"]["fs_permissions"],
         )
         self.assertIn("PRIVATE_KEY=", deploy_command)

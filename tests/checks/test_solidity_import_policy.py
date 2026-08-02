@@ -18,6 +18,9 @@ FORGE_STD_ALLOWED_SCRIPT_IMPORTS = {"Script.sol"}
 DEPENDENCY_PACKAGES = (OZ_PACKAGE, FORGE_STD_PACKAGE)
 DAPPS_ROOT_ALLOWED_IMPORTS = {
     "dapps/bike-nft/script/BikeNftLocalFixture.sol": {"cam/src/CamRoot.sol"},
+    "dapps/bike-nft/script/DeployBikeNftRelease.s.sol": {"cam/src/CamRoot.sol"},
+    "dapps/bike-nft/script/BikeNftReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
+    "dapps/bike-nft/test/unit/script/BikeNftReleaseVerifier.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/escrow/script/EscrowDeployment.sol": {"cam/src/CamRoot.sol"},
     "dapps/escrow/script/EscrowReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
     "dapps/escrow/test/unit/EscrowReleaseVerifier.t.sol": {"cam/src/CamRoot.sol"},

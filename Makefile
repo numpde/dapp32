@@ -28,6 +28,9 @@ LIVE_CHECK_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-check-live
 BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-local
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-viewer-terminal
 BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-viewer-gui
+BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-release-check
+BIKE_NFT_RELEASE_DEPLOY_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-release-deploy
+BIKE_NFT_RELEASE_VERIFY_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-bike-nft-release-verify
 ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-escrow-local-scenario
 ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-escrow-viewer-terminal
 ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-escrow-viewer-gui
@@ -66,7 +69,7 @@ export CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS
 export LOCAL_UID LOCAL_GID ALLOW_UPDATE
 export CAM_URI BIKE_NFT_CAM_HASH
 export VIEWER_TERMINAL_MOCK
-COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_RELEASE_DEPLOY_COMPOSE_PROJECT_NAME ESCROW_RELEASE_VERIFY_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME
+COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_DEPLOY_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_VERIFY_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_RELEASE_DEPLOY_COMPOSE_PROJECT_NAME ESCROW_RELEASE_VERIFY_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME
 export $(COMPOSE_PROJECT_NAME_VARS)
 
 COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(COMPOSE_PROJECT_NAME)
@@ -81,6 +84,9 @@ BIKE_NFT_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) CAM_HASH=$
 BIKE_NFT_LOCAL_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME) CAM_URI=$(CAM_URI)
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_CAM_HTTP_ORIGIN)
 BIKE_NFT_VIEWER_GUI_COMPOSE_ENV := $(BIKE_NFT_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI=$(BIKE_NFT_GUI_ORIGIN)/cam/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(BIKE_NFT_GUI_ORIGIN) BIKE_NFT_GUI_PORT=$(BIKE_NFT_GUI_PORT) BIKE_NFT_GUI_BIND_HOST=$(BIKE_NFT_GUI_BIND_HOST) BIKE_NFT_GUI_ORIGIN=$(BIKE_NFT_GUI_ORIGIN)
+BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME)
+BIKE_NFT_RELEASE_DEPLOY_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_PROJECT_NAME)
+BIKE_NFT_RELEASE_VERIFY_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) COMPOSE_PROJECT_NAME=$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_PROJECT_NAME)
 ESCROW_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) CAM_HASH=$(ESCROW_CAM_HASH) ESCROW_BROADCAST_DIR=$(ESCROW_BROADCAST_DIR) ESCROW_BROADCAST_PATH=$(ESCROW_BROADCAST_PATH)
 ESCROW_LOCAL_SCENARIO_COMPOSE_ENV := $(ESCROW_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME) CAM_URI=$(ESCROW_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(ESCROW_CAM_HTTP_ORIGIN)
 ESCROW_VIEWER_TERMINAL_COMPOSE_ENV := $(ESCROW_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME) CAM_URI=$(ESCROW_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(ESCROW_CAM_HTTP_ORIGIN)
@@ -102,6 +108,9 @@ FORGE_ABI_COMPOSE_FILES := -f $(COMPOSE_DIR)/forge-abi.yml
 BIKE_NFT_LOCAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml
 BIKE_NFT_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-gui.yml
+BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/release/check.yml
+BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml
+BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/release/verify.yml
 ESCROW_LOCAL_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/scenario.yml
 ESCROW_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-terminal.yml
 ESCROW_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-gui.yml
@@ -144,7 +153,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check cam-integration-fuzz-check escrow-release-check escrow-release-deploy escrow-release-verify checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose format fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down escrow-local-scenario escrow-viewer-terminal escrow-viewer-terminal-down escrow-viewer-gui escrow-viewer-gui-down
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check cam-integration-fuzz-check bike-nft-release-check bike-nft-release-deploy bike-nft-release-verify escrow-release-check escrow-release-deploy escrow-release-verify checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose format fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down escrow-local-scenario escrow-viewer-terminal escrow-viewer-terminal-down escrow-viewer-gui escrow-viewer-gui-down
 
 help:
 	@printf '%s\n' \
@@ -164,6 +173,9 @@ help:
 	  '  make cam-publication-preflight-check  Smoke-check publication preflight offline' \
 	  '  make viewer-terminal-check  Smoke-check the CAM viewer terminal offline' \
 	  '  make cam-integration-fuzz-check  Typecheck the CAM integration fuzz runner offline' \
+	  '  make bike-nft-release-check  Typecheck and test Bike NFT release tooling offline' \
+	  '  make bike-nft-release-deploy ...  Deploy one explicitly confirmed pinned Bike NFT release' \
+	  '  make bike-nft-release-verify RPC_URL_FILE=... BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE=...  Verify one Bike NFT release read-only' \
 	  '  make escrow-release-check  Typecheck and test escrow release tooling offline' \
 	  '  make escrow-release-deploy ...  Deploy one explicitly confirmed pinned escrow release' \
 	  '  make escrow-release-verify RPC_URL_FILE=... ESCROW_DEPLOYMENT_ARTIFACT_FILE=...  Verify one deployed release read-only' \
@@ -370,7 +382,7 @@ package-build-check:
 package-test:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-package-ci: package-test viewer-terminal-check cam-publication-preflight-check cam-integration-fuzz-check escrow-release-check
+package-ci: package-test viewer-terminal-check cam-publication-preflight-check cam-integration-fuzz-check bike-nft-release-check escrow-release-check
 
 cam-conformance-check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
@@ -429,6 +441,11 @@ escrow-release-check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(ESCROW_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(ESCROW_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T escrow-release-check
+
+bike-nft-release-check:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	$(BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T bike-nft-release-check
 
 viewer-terminal:
 	@$(LANE_GUARD); \
@@ -922,10 +939,11 @@ escrow-release-deploy: deps-verify escrow-release-check
 	}; \
 	require_file "$$RPC_URL_FILE" "RPC_URL_FILE"; \
 	require_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE"; \
-	if [[ -n "$$(find "$$DEPLOYER_PRIVATE_KEY_FILE" -maxdepth 0 -perm /077 -print -quit)" ]]; then \
-	  printf '%s\n' 'DEPLOYER_PRIVATE_KEY_FILE must not be group- or world-accessible.' >&2; \
-	  exit 2; \
-	fi; \
+	for secret_file in "$$RPC_URL_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; do \
+	  if [[ -n "$$(find "$$secret_file" -maxdepth 0 -perm /077 -print -quit)" ]]; then \
+	    printf '%s must not be group- or world-accessible.\n' "$$secret_file" >&2; exit 2; \
+	  fi; \
+	done; \
 	output_dir="$$ESCROW_RELEASE_OUTPUT_DIR"; \
 	if [[ "$$output_dir" != /* || "$$(realpath -m -- "$$output_dir")" != "$$output_dir" ]]; then \
 	  printf '%s\n' 'ESCROW_RELEASE_OUTPUT_DIR must be a normalized absolute path.' >&2; \
@@ -1007,6 +1025,9 @@ escrow-release-verify: deps-verify
 	}; \
 	require_file "$$RPC_URL_FILE" "RPC_URL_FILE"; \
 	require_file "$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"; \
+	if [[ -n "$$(find "$$RPC_URL_FILE" -maxdepth 0 -perm /077 -print -quit)" ]]; then \
+	  printf '%s\n' 'RPC_URL_FILE must not be group- or world-accessible.' >&2; exit 2; \
+	fi; \
 	cleanup() { \
 	  status="$$?"; \
 	  $(ESCROW_RELEASE_VERIFY_COMPOSE_ENV) \
@@ -1023,3 +1044,55 @@ escrow-release-verify: deps-verify
 	  ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
 	  env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(ESCROW_RELEASE_VERIFY_COMPOSE_FILES) \
 	  up --build --abort-on-container-exit --exit-code-from verify-escrow-release verify-escrow-release
+
+bike-nft-release-deploy: deps-verify bike-nft-release-check
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	if [[ ! -v CONFIRM_BIKE_NFT_RELEASE_DEPLOY || "$$CONFIRM_BIKE_NFT_RELEASE_DEPLOY" != "YES" ]]; then \
+	  printf '%s\n' 'Set CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES only after reviewing every authority, delay, URI, chain, and registrar.' >&2; exit 2; \
+	fi; \
+	if [[ -n "$$(git status --porcelain --untracked-files=all)" ]]; then printf '%s\n' 'Bike NFT release deployment requires a clean Git working tree.' >&2; exit 2; fi; \
+	source_commit="$$(git rev-parse --verify HEAD)"; \
+	if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then printf '%s\n' 'Could not resolve one exact lowercase 40-character source commit.' >&2; exit 2; fi; \
+	required=(BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID BIKE_NFT_RELEASE_CAM_URI BIKE_NFT_RELEASE_CAM_ROOT_OWNER BIKE_NFT_RELEASE_TOKEN_NAME BIKE_NFT_RELEASE_TOKEN_SYMBOL BIKE_NFT_RELEASE_BASE_TOKEN_URI BIKE_NFT_RELEASE_COLLECTION_URI BIKE_NFT_RELEASE_COMPONENTS_ADMIN BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY BIKE_NFT_RELEASE_COMPONENTS_PAUSER BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER BIKE_NFT_RELEASE_MANAGER_ADMIN BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY BIKE_NFT_RELEASE_MANAGER_PAUSER BIKE_NFT_RELEASE_MANAGER_CONFIGURER BIKE_NFT_RELEASE_REGISTRARS RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE BIKE_NFT_RELEASE_OUTPUT_DIR); \
+	for name in "$${required[@]}"; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required Bike NFT release input: %s\n' "$$name" >&2; exit 2; fi; done; \
+	chain_id="$$BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID"; \
+	if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == 1337 || "$$chain_id" == 31337 ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; exit 2; fi; \
+	cam_uri="$$BIKE_NFT_RELEASE_CAM_URI"; \
+	if [[ ! "$$cam_uri" =~ ^(https|ipfs):// || "$$cam_uri" == *'$$'* || "$$cam_uri" == *'`'* || "$$cam_uri" == *\\* || "$$cam_uri" == *\"* || "$$cam_uri" == *\'* || "$$cam_uri" == *\;* ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI without shell syntax.' >&2; exit 2; fi; \
+	reject_path_symlinks() { local path="$$1" label="$$2" current="/" part; IFS=/ read -r -a parts <<< "$$path"; for part in "$${parts[@]}"; do [[ -z "$$part" ]] && continue; if [[ "$$current" == / ]]; then current="/$$part"; else current="$$current/$$part"; fi; if [[ -L "$$current" ]]; then printf '%s must not pass through a symlink.\n' "$$label" >&2; exit 2; fi; done; }; \
+	require_file() { local path="$$1" label="$$2"; if [[ "$$path" != /* ]]; then printf '%s must be an absolute path.\n' "$$label" >&2; exit 2; fi; reject_path_symlinks "$$path" "$$label"; if [[ ! -f "$$path" || ! -r "$$path" ]]; then printf '%s must be a readable regular file.\n' "$$label" >&2; exit 2; fi; }; \
+	require_file "$$RPC_URL_FILE" RPC_URL_FILE; require_file "$$DEPLOYER_PRIVATE_KEY_FILE" DEPLOYER_PRIVATE_KEY_FILE; \
+	for secret_file in "$$RPC_URL_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; do if [[ -n "$$(find "$$secret_file" -maxdepth 0 -perm /077 -print -quit)" ]]; then printf '%s must not be group- or world-accessible.\n' "$$secret_file" >&2; exit 2; fi; done; \
+	output_dir="$$BIKE_NFT_RELEASE_OUTPUT_DIR"; \
+	if [[ "$$output_dir" != /* || "$$(realpath -m -- "$$output_dir")" != "$$output_dir" ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_OUTPUT_DIR must be a normalized absolute path.' >&2; exit 2; fi; \
+	if [[ -e "$$output_dir" || -L "$$output_dir" ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_OUTPUT_DIR must not already exist.' >&2; exit 2; fi; \
+	output_parent="$$(dirname -- "$$output_dir")"; reject_path_symlinks "$$output_parent" 'BIKE_NFT_RELEASE_OUTPUT_DIR parent'; \
+	if [[ ! -d "$$output_parent" ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_OUTPUT_DIR parent must be an existing directory.' >&2; exit 2; fi; \
+	case "$$output_dir" in "$$(pwd -P)"|"$$(pwd -P)"/*) printf '%s\n' 'BIKE_NFT_RELEASE_OUTPUT_DIR must be outside the repository.' >&2; exit 2 ;; esac; \
+	mkdir --mode=0700 -- "$$output_dir"; mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
+	compose_release() { \
+	  $(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_ENV) BIKE_NFT_RELEASE_OUTPUT_DIR="$$output_dir" BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
+	  BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" BIKE_NFT_RELEASE_CAM_URI="$$cam_uri" \
+	  BIKE_NFT_RELEASE_CAM_ROOT_OWNER="$$BIKE_NFT_RELEASE_CAM_ROOT_OWNER" BIKE_NFT_RELEASE_TOKEN_NAME="$$BIKE_NFT_RELEASE_TOKEN_NAME" BIKE_NFT_RELEASE_TOKEN_SYMBOL="$$BIKE_NFT_RELEASE_TOKEN_SYMBOL" \
+	  BIKE_NFT_RELEASE_BASE_TOKEN_URI="$$BIKE_NFT_RELEASE_BASE_TOKEN_URI" BIKE_NFT_RELEASE_COLLECTION_URI="$$BIKE_NFT_RELEASE_COLLECTION_URI" \
+	  BIKE_NFT_RELEASE_COMPONENTS_ADMIN="$$BIKE_NFT_RELEASE_COMPONENTS_ADMIN" BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY="$$BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY" BIKE_NFT_RELEASE_COMPONENTS_PAUSER="$$BIKE_NFT_RELEASE_COMPONENTS_PAUSER" BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER="$$BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER" \
+	  BIKE_NFT_RELEASE_MANAGER_ADMIN="$$BIKE_NFT_RELEASE_MANAGER_ADMIN" BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY="$$BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY" BIKE_NFT_RELEASE_MANAGER_PAUSER="$$BIKE_NFT_RELEASE_MANAGER_PAUSER" BIKE_NFT_RELEASE_MANAGER_CONFIGURER="$$BIKE_NFT_RELEASE_MANAGER_CONFIGURER" BIKE_NFT_RELEASE_REGISTRARS="$$BIKE_NFT_RELEASE_REGISTRARS" \
+	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES) "$$@"; \
+	}; \
+	cleanup() { status="$$?"; compose_release $(COMPOSE_DOWN_CLEANUP); exit "$$status"; }; trap cleanup EXIT; \
+	compose_release up --build --abort-on-container-exit --exit-code-from bike-nft-release-artifact bike-nft-release-artifact; \
+	printf 'Bike NFT release artifact: %s/artifact/deployment.json\n' "$$output_dir"
+
+bike-nft-release-verify: deps-verify
+	@$(LANE_GUARD); \
+	if [[ -n "$$(git status --porcelain --untracked-files=all)" ]]; then printf '%s\n' 'Bike NFT release verification requires a clean Git working tree.' >&2; exit 2; fi; \
+	source_commit="$$(git rev-parse --verify HEAD)"; \
+	for name in RPC_URL_FILE BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required verification input: %s\n' "$$name" >&2; exit 2; fi; done; \
+	reject_path_symlinks() { local path="$$1" label="$$2" current="/" part; IFS=/ read -r -a parts <<< "$$path"; for part in "$${parts[@]}"; do [[ -z "$$part" ]] && continue; if [[ "$$current" == / ]]; then current="/$$part"; else current="$$current/$$part"; fi; if [[ -L "$$current" ]]; then printf '%s must not pass through a symlink.\n' "$$label" >&2; exit 2; fi; done; }; \
+	require_file() { local path="$$1" label="$$2"; if [[ "$$path" != /* ]]; then printf '%s must be an absolute path.\n' "$$label" >&2; exit 2; fi; reject_path_symlinks "$$path" "$$label"; if [[ ! -f "$$path" || ! -r "$$path" ]]; then printf '%s must be a readable regular file.\n' "$$label" >&2; exit 2; fi; }; \
+	require_file "$$RPC_URL_FILE" RPC_URL_FILE; require_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE; require_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE.args" 'deployment companion'; \
+	if [[ -n "$$(find "$$RPC_URL_FILE" -maxdepth 0 -perm /077 -print -quit)" ]]; then printf '%s\n' 'RPC_URL_FILE must not be group- or world-accessible.' >&2; exit 2; fi; \
+	compose_verify() { $(BIKE_NFT_RELEASE_VERIFY_COMPOSE_ENV) RPC_URL_FILE="$$RPC_URL_FILE" BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES) "$$@"; }; \
+	cleanup() { status="$$?"; compose_verify $(COMPOSE_DOWN_CLEANUP); exit "$$status"; }; trap cleanup EXIT; \
+	compose_verify up --build --abort-on-container-exit --exit-code-from verify-bike-nft-release verify-bike-nft-release

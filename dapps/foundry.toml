@@ -9,7 +9,10 @@ libs = ["dependencies"]
 optimizer = true
 optimizer_runs = 200
 via_ir = false
-fs_permissions = [{ access = "read", path = "./escrow/cam/main.json" }]
+fs_permissions = [
+  { access = "read", path = "./bike-nft/cam/main.json" },
+  { access = "read", path = "./escrow/cam/main.json" },
+]
 
 [profile.ci]
 verbosity = 3

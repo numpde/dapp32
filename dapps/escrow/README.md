@@ -275,9 +275,11 @@ make escrow-viewer-gui
 
 A release deployment is deliberately separate from the local fixture. It has no default chain, accepts no local fixture chain ID, obtains no private key from the process environment, and refuses a dirty source tree. The offline planning step validates the complete checked-in CAM bundle and computes the exact `keccak256` root hash stored in `CamRoot`.
 
+For the first public rehearsal, prepare Ethereum Sepolia (`11155111`) but do not conflate it with the local Anvil workflow. Anvil is a disposable process on the operator's machine; Sepolia is a persistent public test network with externally funded accounts, provider RPC, public CAM hosting, wallet interaction, explorer records, and an explicit finality decision.
+
 Publish the exact checked-in CAM bytes at the chosen URI before deployment. The release planner binds the URI and checked-in root hash; it does not fetch the remote publication. Viewers will reject the publication if the bytes served there do not match the hash stored in `CamRoot`.
 
-Prepare two absolute, non-symlink secret files. The deployer key file must not be group- or world-readable:
+Prepare two absolute, non-symlink secret files. Both files may contain credentials and must not be group- or world-readable:
 
 ```bash
 umask 077

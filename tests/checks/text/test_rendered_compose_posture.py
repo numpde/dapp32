@@ -226,6 +226,26 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "ANVIL_HOST_PORT": "8545",
                 "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
                 "BIKE_NFT_GUI_PORT": "5173",
+                "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE": "/tmp/bike-nft-release-output/deployment.json",
+                "BIKE_NFT_RELEASE_BASE_TOKEN_URI": "https://example.test/bike-nft/tokens/",
+                "BIKE_NFT_RELEASE_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
+                "BIKE_NFT_RELEASE_CAM_URI": "https://example.test/bike-nft/cam/main.json",
+                "BIKE_NFT_RELEASE_COLLECTION_URI": "https://example.test/bike-nft/collection.json",
+                "BIKE_NFT_RELEASE_COMPONENTS_ADMIN": "0x0000000000000000000000000000000000000012",
+                "BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY": "86400",
+                "BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER": "0x0000000000000000000000000000000000000014",
+                "BIKE_NFT_RELEASE_COMPONENTS_PAUSER": "0x0000000000000000000000000000000000000013",
+                "BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID": "11155111",
+                "BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
+                "BIKE_NFT_RELEASE_MANAGER_ADMIN": "0x0000000000000000000000000000000000000015",
+                "BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY": "86400",
+                "BIKE_NFT_RELEASE_MANAGER_CONFIGURER": "0x0000000000000000000000000000000000000017",
+                "BIKE_NFT_RELEASE_MANAGER_PAUSER": "0x0000000000000000000000000000000000000016",
+                "BIKE_NFT_RELEASE_OUTPUT_DIR": "/tmp/bike-nft-release-output",
+                "BIKE_NFT_RELEASE_REGISTRARS": "0x0000000000000000000000000000000000000018",
+                "BIKE_NFT_RELEASE_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
+                "BIKE_NFT_RELEASE_TOKEN_NAME": "Bicycle Components",
+                "BIKE_NFT_RELEASE_TOKEN_SYMBOL": "BIKE",
                 "CAM_HASH": "0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66",
                 "CAM_PREFLIGHT_ARGS": "",
                 "CAM_PREFLIGHT_ROOT_PATH": "/work/dapps/bike-nft/cam/main.json",
@@ -313,6 +333,19 @@ class RenderedComposePostureTest(unittest.TestCase):
         }
         expected_secrets = {
             ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
+            ("compose/bike-nft/release/deploy.yml", "bike-nft-release-rpc-proxy", "rpc_url", "rpc_url"),
+            (
+                "compose/bike-nft/release/deploy.yml",
+                "deploy-bike-nft-release",
+                "deployer_private_key",
+                "deployer_private_key",
+            ),
+            (
+                "compose/bike-nft/release/verify.yml",
+                "bike-nft-release-verify-rpc-proxy",
+                "rpc_url",
+                "rpc_url",
+            ),
             ("compose/escrow/release/deploy.yml", "escrow-release-rpc-proxy", "rpc_url", "rpc_url"),
             (
                 "compose/escrow/release/deploy.yml",
@@ -619,6 +652,24 @@ class RenderedComposePostureTest(unittest.TestCase):
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
             ("compose/forge-abi.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
+            (
+                "compose/bike-nft/release/deploy.yml",
+                "bike-nft-release-plan",
+                "/tmp/bike-nft-release-output/plan",
+                "/release-plan",
+            ),
+            (
+                "compose/bike-nft/release/deploy.yml",
+                "deploy-bike-nft-release",
+                "/tmp/bike-nft-release-output/broadcast",
+                "/release-broadcast",
+            ),
+            (
+                "compose/bike-nft/release/deploy.yml",
+                "bike-nft-release-artifact",
+                "/tmp/bike-nft-release-output/artifact",
+                "/release-artifact",
+            ),
             ("compose/package-deps.yml", "package-apply-locked", str(repo_path("js/node_modules")), "/work/node_modules"),
             ("compose/package-deps.yml", "package-apply-update", str(repo_path("js/node_modules")), "/work/node_modules"),
             (

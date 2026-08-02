@@ -1,0 +1,19 @@
+services:
+  bike-nft-release-check:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: offline-node-workspace
+    working_dir: /work
+    volumes:
+      - ../../../dapps:/work/dapps:ro
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/bike-nft-release/tsconfig.json
+        node --test --experimental-strip-types tools/bike-nft-release/*.test.ts

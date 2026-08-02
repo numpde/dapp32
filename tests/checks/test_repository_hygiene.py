@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 import unittest
 
 from .common import is_skipped, iter_repo_text_files, read_text, repo_path
@@ -37,12 +38,23 @@ PACKAGE_CI_PREREQS = (
     "viewer-terminal-check",
     "cam-publication-preflight-check",
     "cam-integration-fuzz-check",
+    "bike-nft-release-check",
     "escrow-release-check",
 )
 FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
 
 
 class RepositoryHygieneTest(unittest.TestCase):
+    def test_foundry_file_permissions_are_exact_release_inputs(self) -> None:
+        config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
+        self.assertEqual(
+            [
+                {"access": "read", "path": "./bike-nft/cam/main.json"},
+                {"access": "read", "path": "./escrow/cam/main.json"},
+            ],
+            config["profile"]["default"]["fs_permissions"],
+        )
+
     def test_forbidden_text_patterns_are_absent(self) -> None:
         self.assert_no_matches(FORBIDDEN_NAME_PATTERNS, "forbidden project name", ALLOWED_FORBIDDEN_NAME_LITERALS)
         markers = [re.compile(re.escape(marker)) for marker in LICENSE_MARKERS]
