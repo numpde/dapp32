@@ -1038,10 +1038,11 @@ escrow-release-deploy:
 	  printf '%s\n' 'ESCROW_RELEASE_OUTPUT_DIR changed while the release snapshot was being checked.' >&2; exit 2; \
 	fi; \
 	mkdir --mode=0700 -- "$$output_dir"; \
+	mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
 	release_run_started=1; \
 	compose_release \
 	  up --build --abort-on-container-exit --exit-code-from escrow-release-artifact escrow-release-artifact; \
-	printf 'Escrow release artifact: %s/deployment.json\n' "$$output_dir"
+	printf 'Escrow release artifact: %s/artifact/deployment.json\n' "$$output_dir"
 
 escrow-release-verify:
 	@$(LANE_GUARD); \

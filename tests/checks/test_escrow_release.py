@@ -19,7 +19,7 @@ CHECK = "compose/escrow/release/check.yml"
 DEPLOY = "compose/escrow/release/deploy.yml"
 VERIFY = "compose/escrow/release/verify.yml"
 OUTPUT_DIR = "/tmp/escrow-release-output"
-ARTIFACT_FILE = "/tmp/escrow-release-output/deployment.json"
+ARTIFACT_FILE = "/tmp/escrow-release-output/artifact/deployment.json"
 RPC_URL_FILE = "/tmp/escrow-release-rpc-url"
 PRIVATE_KEY_FILE = "/tmp/escrow-release-private-key"
 SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
@@ -96,6 +96,8 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertLess(deploy.index("compose_release_dependencies run"), deploy.index("compose_release_check run"))
         self.assertLess(deploy.index("compose_release_check run"), deploy.index('mkdir --mode=0700 -- "$$output_dir"'))
         self.assertLess(deploy.index('mkdir --mode=0700 -- "$$output_dir"'), deploy.index("up --build --abort"))
+        self.assertIn('"$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"', deploy)
+        self.assertIn("%s/artifact/deployment.json", deploy)
 
     def test_deployment_signer_is_secret_file_backed_and_proxy_scoped(self) -> None:
         config = rendered_compose_config(DEPLOY, env=RELEASE_ENV)
@@ -137,7 +139,9 @@ class EscrowReleasePostureTest(unittest.TestCase):
         artifact_rpc_url = compose_volume(artifact_proxy, "/run/inputs/rpc_url")
         self.assertEqual(RPC_URL_FILE, artifact_rpc_url["source"])
         self.assertIs(artifact_rpc_url["read_only"], True)
-        self.assertEqual(1, read_text(repo_path(DEPLOY)).count("create_host_path: false"))
+        # Compose omits an explicit false create_host_path value when it renders
+        # JSON, so the checked-in source must retain this fail-closed boundary.
+        self.assertEqual(4, read_text(repo_path(DEPLOY)).count("create_host_path: false"))
 
         deploy_command = compose_command_text(deploy)
         self.assertNotIn("release-plan.args", deploy_command)
@@ -152,10 +156,26 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertNotIn("export PRIVATE_KEY", deploy_command)
         self.assertIn("umask 077", deploy_command)
 
-        for service in (plan, deploy, artifact):
-            output = compose_volume(service, "/release-output")
-            self.assertEqual(OUTPUT_DIR, output["source"])
-            self.assertIsNot(output.get("read_only"), True)
+        plan_write = compose_volume(plan, "/release-plan")
+        deploy_plan = compose_volume(deploy, "/release-plan")
+        deploy_broadcast = compose_volume(deploy, "/release-broadcast")
+        artifact_plan = compose_volume(artifact, "/release-plan")
+        artifact_broadcast = compose_volume(artifact, "/release-broadcast")
+        artifact_write = compose_volume(artifact, "/release-artifact")
+
+        self.assertEqual(f"{OUTPUT_DIR}/plan", plan_write["source"])
+        self.assertIsNot(plan_write.get("read_only"), True)
+        for volume in (deploy_plan, artifact_plan):
+            self.assertEqual(plan_write["source"], volume["source"])
+            self.assertIs(volume["read_only"], True)
+        self.assertEqual(f"{OUTPUT_DIR}/broadcast", deploy_broadcast["source"])
+        self.assertIsNot(deploy_broadcast.get("read_only"), True)
+        self.assertEqual(deploy_broadcast["source"], artifact_broadcast["source"])
+        self.assertIs(artifact_broadcast["read_only"], True)
+        self.assertEqual(f"{OUTPUT_DIR}/artifact", artifact_write["source"])
+        self.assertIsNot(artifact_write.get("read_only"), True)
+        for volume in (plan_write, deploy_plan, deploy_broadcast, artifact_plan, artifact_broadcast, artifact_write):
+            self.assertIn(volume["bind"], ({}, {"create_host_path": False}))
 
     def test_verifier_has_offline_source_and_receipt_gates_without_send_authority(self) -> None:
         config = rendered_compose_config(VERIFY, env=RELEASE_ENV)

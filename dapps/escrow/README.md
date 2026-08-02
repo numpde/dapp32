@@ -307,14 +307,14 @@ The clean-tree check rejects visible uncommitted work that the selected commit a
 The target writes:
 
 ```text
-release-plan.json
+plan/release-plan.json
 broadcast/DeployEscrowRelease.s.sol/<chain-id>/run-latest.json
-deployment.json
+artifact/deployment.json
 ```
 
-`release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, final owner, and whether the ownership handoff has already been accepted.
+`plan/release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `artifact/deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, final owner, and whether the ownership handoff has already been accepted.
 
-`release-plan.json` is read directly by the signer, which independently compares its operator-owned fields to the authorized inputs and recomputes the CAM hash from the exact mounted bytes. `deployment.json` is the sole durable deployment artifact. Release files are staged and synced before no-clobber publication; a failed run preserves the output directory for forensic inspection.
+The planner can write only `plan/`; the signer reads the plan, independently compares its operator-owned fields, recomputes the CAM hash from the exact mounted bytes, and writes only `broadcast/`; the materializer reads both and writes only `artifact/`. `artifact/deployment.json` is the sole durable deployment artifact. Release files are staged and synced before no-clobber publication; a failed run preserves the output directory for forensic inspection.
 
 The commit snapshot includes the installed npm tree after checking it against the archived lockfile and package graph. The repository does not yet prove every installed npm file byte against an independent checksum set; this lane therefore does not claim reproducible dependency-byte provenance.
 
@@ -326,7 +326,7 @@ Run verification from the same exact clean source commit recorded in `deployment
 
 ```bash
 RPC_URL_FILE=/secure/escrow-rpc-url \
-ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-<chain>-<version>/deployment.json \
+ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-<chain>-<version>/artifact/deployment.json \
 make escrow-release-verify
 ```
 
@@ -345,7 +345,7 @@ The live verifier receives no signing key, has no transaction-submission RPC met
 - ERC-165 interfaces;
 - `totalLiabilities() <= address(CamEscrow).balance`.
 
-A deployment whose two-step ownership transfer is still pending intentionally fails verification. The original `deployment.json` and companion remain immutable records of the post-deployment observation; they are not rewritten after ownership acceptance.
+A deployment whose two-step ownership transfer is still pending intentionally fails verification. The original `deployment.json` remains an immutable record of the post-deployment observation; it is not rewritten after ownership acceptance.
 
 ## Operational monitoring
 

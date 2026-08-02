@@ -255,7 +255,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
                 "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
                 "ESCROW_BROADCAST_PATH": "/foundry-broadcast/DeployEscrowLocal.s.sol/31337/run-latest.json",
-                "ESCROW_DEPLOYMENT_ARTIFACT_FILE": "/tmp/escrow-release-output/deployment.json",
+                "ESCROW_DEPLOYMENT_ARTIFACT_FILE": "/tmp/escrow-release-output/artifact/deployment.json",
                 "ESCROW_GUI_BIND_HOST": "127.0.0.1",
                 "ESCROW_GUI_ORIGIN": "http://127.0.0.1:5174",
                 "ESCROW_GUI_PORT": "5174",
@@ -681,20 +681,20 @@ class RenderedComposePostureTest(unittest.TestCase):
             (
                 "compose/escrow/release/deploy.yml",
                 "escrow-release-plan",
-                "/tmp/escrow-release-output",
-                "/release-output",
+                "/tmp/escrow-release-output/plan",
+                "/release-plan",
             ),
             (
                 "compose/escrow/release/deploy.yml",
                 "deploy-escrow-release",
-                "/tmp/escrow-release-output",
-                "/release-output",
+                "/tmp/escrow-release-output/broadcast",
+                "/release-broadcast",
             ),
             (
                 "compose/escrow/release/deploy.yml",
                 "escrow-release-artifact",
-                "/tmp/escrow-release-output",
-                "/release-output",
+                "/tmp/escrow-release-output/artifact",
+                "/release-artifact",
             ),
         }
 

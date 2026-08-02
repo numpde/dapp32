@@ -55,7 +55,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
     "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
     "ESCROW_BROADCAST_PATH": "/foundry-broadcast/DeployEscrowLocal.s.sol/31337/run-latest.json",
-    "ESCROW_DEPLOYMENT_ARTIFACT_FILE": "/tmp/escrow-release-output/deployment.json",
+    "ESCROW_DEPLOYMENT_ARTIFACT_FILE": "/tmp/escrow-release-output/artifact/deployment.json",
     "ESCROW_GUI_BIND_HOST": "127.0.0.1",
     "ESCROW_GUI_ORIGIN": "http://127.0.0.1:5174",
     "ESCROW_GUI_PORT": "5174",

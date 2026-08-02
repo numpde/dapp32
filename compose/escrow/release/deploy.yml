@@ -5,7 +5,30 @@
 # reach only the send-capable deployment RPC proxy. Artifact materialization has
 # a separate read-only proxy and no route to transaction submission.
 
-x-release-output: &release_output "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_RELEASE_OUTPUT_DIR}:/release-output:rw"
+x-plan-write: &plan_write
+  type: bind
+  source: "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_RELEASE_OUTPUT_DIR}/plan"
+  target: /release-plan
+  bind:
+    create_host_path: false
+x-plan-read: &plan_read
+  <<: *plan_write
+  read_only: true
+x-broadcast-write: &broadcast_write
+  type: bind
+  source: "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_RELEASE_OUTPUT_DIR}/broadcast"
+  target: /release-broadcast
+  bind:
+    create_host_path: false
+x-broadcast-read: &broadcast_read
+  <<: *broadcast_write
+  read_only: true
+x-artifact-write: &artifact_write
+  type: bind
+  source: "${ESCROW_RELEASE_OUTPUT_DIR:?missing_ESCROW_RELEASE_OUTPUT_DIR}/artifact"
+  target: /release-artifact
+  bind:
+    create_host_path: false
 
 x-rpc-url-bind: &rpc_url_bind
   type: bind
@@ -58,7 +81,7 @@ services:
     environment:
       ESCROW_RELEASE_DAPPS_ROOT: /work/dapps
       ESCROW_RELEASE_CAM_ROOT_PATH: /work/dapps/escrow/cam/main.json
-      ESCROW_RELEASE_PLAN_PATH: /release-output/release-plan.json
+      ESCROW_RELEASE_PLAN_PATH: /release-plan/release-plan.json
       ESCROW_RELEASE_CAM_URI: "${ESCROW_RELEASE_CAM_URI:?missing_ESCROW_RELEASE_CAM_URI}"
       ESCROW_RELEASE_EXPECTED_CHAIN_ID: "${ESCROW_RELEASE_EXPECTED_CHAIN_ID:?missing_ESCROW_RELEASE_EXPECTED_CHAIN_ID}"
       ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER: "${ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER:?missing_ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER}"
@@ -67,7 +90,7 @@ services:
       - ../../../dapps:/work/dapps:ro
       - ../../../js:/input/js:ro
       - ../../../js/node_modules:/work/js/node_modules:ro
-      - *release_output
+      - *plan_write
     command:
       - "run-js-workspace"
       - "sh"
@@ -127,12 +150,12 @@ services:
       FOUNDRY_CACHE_PATH: /tmp/foundry-cache
       FOUNDRY_CONFIG: /work/dapps/foundry.toml
       FOUNDRY_OUT: /tmp/foundry-out
-      FOUNDRY_BROADCAST: /release-output/broadcast
+      FOUNDRY_BROADCAST: /release-broadcast
       ESCROW_RELEASE_SOURCE_COMMIT: "${ESCROW_RELEASE_SOURCE_COMMIT:?missing_ESCROW_RELEASE_SOURCE_COMMIT}"
       ESCROW_RELEASE_EXPECTED_CHAIN_ID: "${ESCROW_RELEASE_EXPECTED_CHAIN_ID:?missing_ESCROW_RELEASE_EXPECTED_CHAIN_ID}"
       ESCROW_RELEASE_CAM_URI: "${ESCROW_RELEASE_CAM_URI:?missing_ESCROW_RELEASE_CAM_URI}"
       ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER: "${ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER:?missing_ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER}"
-      ESCROW_RELEASE_PLAN_PATH: /release-output/release-plan.json
+      ESCROW_RELEASE_PLAN_PATH: /release-plan/release-plan.json
     secrets:
       - source: deployer_private_key
         target: deployer_private_key
@@ -140,7 +163,8 @@ services:
       - /tmp:rw,nosuid,nodev,noexec,size=512m
     volumes:
       - ../../../dapps:/work/dapps:ro
-      - *release_output
+      - *plan_read
+      - *broadcast_write
     networks:
       - escrow_release_deploy_internal
     command:
@@ -191,14 +215,16 @@ services:
       escrow-release-artifact-rpc-proxy:
         condition: service_healthy
     environment:
-      ESCROW_RELEASE_PLAN_PATH: /release-output/release-plan.json
-      ESCROW_RELEASE_BROADCAST_DIR: /release-output/broadcast
-      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /release-output/deployment.json
+      ESCROW_RELEASE_PLAN_PATH: /release-plan/release-plan.json
+      ESCROW_RELEASE_BROADCAST_DIR: /release-broadcast
+      ESCROW_DEPLOYMENT_ARTIFACT_PATH: /release-artifact/deployment.json
       ESCROW_RELEASE_RPC_URL: http://escrow-release-artifact-rpc-proxy:8080
     volumes:
       - ../../../js:/input/js:ro
       - ../../../js/node_modules:/work/js/node_modules:ro
-      - *release_output
+      - *plan_read
+      - *broadcast_read
+      - *artifact_write
     networks:
       - escrow_release_artifact_internal
     command:
