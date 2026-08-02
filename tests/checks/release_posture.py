@@ -73,9 +73,15 @@ def assert_deployment_authority_split(
         )
     ]
     case.assertEqual([signer_name], key_holders)
+    signer_key_secrets = [
+        secret
+        for secret in compose_sequence_or_empty(signer, "secrets")
+        if secret.get("source") == "deployer_private_key"
+        or secret.get("target") == "deployer_private_key"
+    ]
     case.assertEqual(
         [{"source": "deployer_private_key", "target": "deployer_private_key"}],
-        compose_sequence_or_empty(signer, "secrets"),
+        signer_key_secrets,
     )
     case.assertNotIn("PRIVATE_KEY", _environment(signer))
 

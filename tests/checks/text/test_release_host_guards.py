@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from .common import read_text, repo_path
+from ..common import read_text, repo_path
 
 
 class ReleaseHostGuardTest(unittest.TestCase):
