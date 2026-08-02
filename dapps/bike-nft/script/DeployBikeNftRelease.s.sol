@@ -88,6 +88,19 @@ contract DeployBikeNftRelease is Script {
         _validatePlan(plan, deployer);
 
         vm.startBroadcast(deployerKey);
+        deployment = _deployRelease(plan, deployer);
+        vm.stopBroadcast();
+
+        console2.log("SourceCommit", plan.sourceCommit);
+        console2.log("ChainId", block.chainid);
+        console2.log("Deployer", deployer);
+        console2.log("CamRoot", address(deployment.camRoot));
+        console2.log("BicycleComponents", address(deployment.components));
+        console2.log("BicycleComponentManager", address(deployment.manager));
+        console2.log("BicycleComponentManagerUI", address(deployment.ui));
+    }
+
+    function _deployRelease(ReleasePlan memory plan, address deployer) internal returns (Deployment memory deployment) {
         deployment.camRoot = new CamRoot(deployer, plan.camURI, plan.camHash);
         deployment.components = new BicycleComponents(
             plan.tokenName, plan.tokenSymbol, deployer, plan.componentsAdminDelay, plan.baseTokenURI, plan.collectionURI
@@ -116,15 +129,6 @@ contract DeployBikeNftRelease is Script {
         deployment.camRoot.transferOwnership(plan.intendedCamRootOwner);
         deployment.components.beginDefaultAdminTransfer(plan.intendedComponentsAdmin);
         deployment.manager.beginDefaultAdminTransfer(plan.intendedManagerAdmin);
-        vm.stopBroadcast();
-
-        console2.log("SourceCommit", plan.sourceCommit);
-        console2.log("ChainId", block.chainid);
-        console2.log("Deployer", deployer);
-        console2.log("CamRoot", address(deployment.camRoot));
-        console2.log("BicycleComponents", address(deployment.components));
-        console2.log("BicycleComponentManager", address(deployment.manager));
-        console2.log("BicycleComponentManagerUI", address(deployment.ui));
     }
 
     function _readPlan(string memory path) internal view returns (ReleasePlan memory plan) {

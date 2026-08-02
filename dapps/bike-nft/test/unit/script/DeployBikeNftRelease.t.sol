@@ -1,8 +1,9 @@
 pragma solidity 0.8.35;
 
-import {Test} from "forge-std-1.12.0/src/Test.sol";
+import {Test, Vm} from "forge-std-1.12.0/src/Test.sol";
 
 import {DeployBikeNftRelease} from "../../../script/DeployBikeNftRelease.s.sol";
+import {BicycleComponentManager} from "../../../src/BicycleComponentManager.sol";
 
 contract DeployBikeNftReleaseHarness is DeployBikeNftRelease {
     function parsePlan(string memory json) external view returns (ReleasePlan memory) {
@@ -19,6 +20,10 @@ contract DeployBikeNftReleaseHarness is DeployBikeNftRelease {
 
     function readDelay(string memory json, string memory field) external view returns (uint48) {
         return _readDelay(json, field);
+    }
+
+    function deployRelease(ReleasePlan memory plan) external returns (Deployment memory) {
+        return _deployRelease(plan, address(this));
     }
 }
 
@@ -58,6 +63,19 @@ contract DeployBikeNftReleaseTest is Test {
         assertEq(plan.registrars[1], REGISTRAR_TWO);
         harness.requireOperatorInputs(plan, _operatorInputs(plan));
         harness.validatePlan(plan, address(0x99));
+    }
+
+    function testReleaseWiringDoesNotSeedComponents() external {
+        vm.recordLogs();
+        DeployBikeNftRelease.Deployment memory deployment = harness.deployRelease(harness.parsePlan(PLAN_JSON));
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 registered = BicycleComponentManager.ComponentRegistered.selector;
+
+        for (uint256 i = 0; i < logs.length; i++) {
+            bool isRegistration = logs[i].emitter == address(deployment.manager) && logs[i].topics.length != 0
+                && logs[i].topics[0] == registered;
+            assertFalse(isRegistration, "release deployment seeded a component");
+        }
     }
 
     function testRejectsEveryOperatorFieldMismatch() external {

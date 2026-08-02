@@ -4,6 +4,7 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 
 import {CamRoot} from "cam/src/CamRoot.sol";
 import {BikeNftReleaseVerifier} from "../../../script/BikeNftReleaseVerifier.sol";
+import {DeployBikeNftRelease} from "../../../script/DeployBikeNftRelease.s.sol";
 import {BicycleComponentManager} from "../../../src/BicycleComponentManager.sol";
 import {BicycleComponentManagerUI} from "../../../src/BicycleComponentManagerUI.sol";
 import {BicycleComponents} from "../../../src/BicycleComponents.sol";
@@ -14,13 +15,18 @@ contract BikeNftReleaseVerifierHarness is BikeNftReleaseVerifier {
     }
 }
 
+contract BikeNftReleaseDeploymentHarness is DeployBikeNftRelease {
+    function deployRelease(ReleasePlan memory plan) external returns (Deployment memory) {
+        return _deployRelease(plan, address(this));
+    }
+}
+
 contract BikeNftReleaseVerifierTest is Test {
     string private constant SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567";
     string private constant CAM_URI = "https://example.test/bike-nft/v1/main.json";
     bytes32 private constant CAM_HASH = keccak256("bike CAM");
     uint48 private constant ADMIN_DELAY = 1 days;
 
-    address private constant DEPLOYER = address(0xD001);
     address private constant ROOT_OWNER = address(0xA001);
     address private constant COMPONENTS_ADMIN = address(0xA002);
     address private constant COMPONENTS_PAUSER = address(0xA003);
@@ -31,6 +37,7 @@ contract BikeNftReleaseVerifierTest is Test {
     address private constant REGISTRAR = address(0xA008);
 
     BikeNftReleaseVerifierHarness private verifier;
+    address private deployer;
     CamRoot private root;
     BicycleComponents private components;
     BicycleComponentManager private manager;
@@ -39,35 +46,13 @@ contract BikeNftReleaseVerifierTest is Test {
     function setUp() public {
         vm.chainId(11155111);
         verifier = new BikeNftReleaseVerifierHarness();
-        vm.startPrank(DEPLOYER);
-        root = new CamRoot(DEPLOYER, CAM_URI, CAM_HASH);
-        components = new BicycleComponents(
-            "Bicycle Components",
-            "BIKE",
-            DEPLOYER,
-            ADMIN_DELAY,
-            "https://example.test/tokens/",
-            "https://example.test/collection.json"
-        );
-        manager = new BicycleComponentManager(DEPLOYER, ADMIN_DELAY, address(components));
-        ui = new BicycleComponentManagerUI(address(manager));
-        components.grantRole(components.MINTER_ROLE(), address(manager));
-        components.grantRole(components.TOKEN_URI_SETTER_ROLE(), address(manager));
-        components.grantRole(components.PAUSER_ROLE(), COMPONENTS_PAUSER);
-        components.grantRole(components.CONFIGURER_ROLE(), COMPONENTS_CONFIGURER);
-        manager.grantRole(manager.PAUSER_ROLE(), MANAGER_PAUSER);
-        manager.grantRole(manager.CONFIGURER_ROLE(), MANAGER_CONFIGURER);
-        manager.grantRole(manager.REGISTRAR_ROLE(), REGISTRAR);
-        components.revokeRole(components.PAUSER_ROLE(), DEPLOYER);
-        components.revokeRole(components.CONFIGURER_ROLE(), DEPLOYER);
-        manager.revokeRole(manager.PAUSER_ROLE(), DEPLOYER);
-        manager.revokeRole(manager.CONFIGURER_ROLE(), DEPLOYER);
-        root.setContractAddress("BicycleComponentManager", address(manager));
-        root.setContractAddress("BicycleComponentManagerUI", address(ui));
-        root.transferOwnership(ROOT_OWNER);
-        components.beginDefaultAdminTransfer(COMPONENTS_ADMIN);
-        manager.beginDefaultAdminTransfer(MANAGER_ADMIN);
-        vm.stopPrank();
+        BikeNftReleaseDeploymentHarness deploymentHarness = new BikeNftReleaseDeploymentHarness();
+        DeployBikeNftRelease.Deployment memory deployment = deploymentHarness.deployRelease(_releasePlan());
+        deployer = address(deploymentHarness);
+        root = deployment.camRoot;
+        components = deployment.components;
+        manager = deployment.manager;
+        ui = deployment.ui;
     }
 
     function testVerifierAcceptsCompletedRelease() public {
@@ -81,7 +66,7 @@ contract BikeNftReleaseVerifierTest is Test {
                 bytes4(keccak256("AddressMismatch(string,address,address)")),
                 "intendedCamRootOwner",
                 ROOT_OWNER,
-                DEPLOYER
+                deployer
             )
         );
         verifier.verify(_artifact(), SOURCE_COMMIT);
@@ -107,13 +92,13 @@ contract BikeNftReleaseVerifierTest is Test {
         _acceptHandoffs();
         bytes32 minterRole = components.MINTER_ROLE();
         vm.prank(COMPONENTS_ADMIN);
-        components.grantRole(minterRole, DEPLOYER);
+        components.grantRole(minterRole, deployer);
         vm.expectRevert(
             abi.encodeWithSelector(
                 bytes4(keccak256("RoleMismatch(string,bytes32,address,bool)")),
                 "deployer components minter",
                 minterRole,
-                DEPLOYER,
+                deployer,
                 false
             )
         );
@@ -152,12 +137,44 @@ contract BikeNftReleaseVerifierTest is Test {
     }
 
     function _artifact() private view returns (BikeNftReleaseVerifier.Artifact memory artifact) {
+        DeployBikeNftRelease.ReleasePlan memory plan = _releasePlan();
+        artifact = BikeNftReleaseVerifier.Artifact({
+            sourceCommit: plan.sourceCommit,
+            chainId: plan.expectedChainId,
+            deployer: deployer,
+            camURI: plan.camURI,
+            camHash: plan.camHash,
+            intendedCamRootOwner: plan.intendedCamRootOwner,
+            tokenName: plan.tokenName,
+            tokenSymbol: plan.tokenSymbol,
+            baseTokenURI: plan.baseTokenURI,
+            collectionURI: plan.collectionURI,
+            intendedComponentsAdmin: plan.intendedComponentsAdmin,
+            componentsAdminDelay: plan.componentsAdminDelay,
+            componentsPauser: plan.componentsPauser,
+            componentsConfigurer: plan.componentsConfigurer,
+            intendedManagerAdmin: plan.intendedManagerAdmin,
+            managerAdminDelay: plan.managerAdminDelay,
+            managerPauser: plan.managerPauser,
+            managerConfigurer: plan.managerConfigurer,
+            registrars: plan.registrars,
+            camRoot: address(root),
+            components: address(components),
+            manager: address(manager),
+            ui: address(ui),
+            camRootCodeHash: address(root).codehash,
+            componentsCodeHash: address(components).codehash,
+            managerCodeHash: address(manager).codehash,
+            uiCodeHash: address(ui).codehash
+        });
+    }
+
+    function _releasePlan() private pure returns (DeployBikeNftRelease.ReleasePlan memory plan) {
         address[] memory registrars = new address[](1);
         registrars[0] = REGISTRAR;
-        artifact = BikeNftReleaseVerifier.Artifact({
+        plan = DeployBikeNftRelease.ReleasePlan({
             sourceCommit: SOURCE_COMMIT,
-            chainId: block.chainid,
-            deployer: DEPLOYER,
+            expectedChainId: 11_155_111,
             camURI: CAM_URI,
             camHash: CAM_HASH,
             intendedCamRootOwner: ROOT_OWNER,
@@ -173,15 +190,7 @@ contract BikeNftReleaseVerifierTest is Test {
             managerAdminDelay: ADMIN_DELAY,
             managerPauser: MANAGER_PAUSER,
             managerConfigurer: MANAGER_CONFIGURER,
-            registrars: registrars,
-            camRoot: address(root),
-            components: address(components),
-            manager: address(manager),
-            ui: address(ui),
-            camRootCodeHash: address(root).codehash,
-            componentsCodeHash: address(components).codehash,
-            managerCodeHash: address(manager).codehash,
-            uiCodeHash: address(ui).codehash
+            registrars: registrars
         });
     }
 }
