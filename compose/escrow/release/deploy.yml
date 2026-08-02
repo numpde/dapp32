@@ -59,7 +59,6 @@ services:
       ESCROW_RELEASE_DAPPS_ROOT: /work/dapps
       ESCROW_RELEASE_CAM_ROOT_PATH: /work/dapps/escrow/cam/main.json
       ESCROW_RELEASE_PLAN_PATH: /release-output/release-plan.json
-      ESCROW_RELEASE_PLAN_ARGUMENTS_PATH: /release-output/release-plan.args
       ESCROW_RELEASE_CAM_URI: "${ESCROW_RELEASE_CAM_URI:?missing_ESCROW_RELEASE_CAM_URI}"
       ESCROW_RELEASE_EXPECTED_CHAIN_ID: "${ESCROW_RELEASE_EXPECTED_CHAIN_ID:?missing_ESCROW_RELEASE_EXPECTED_CHAIN_ID}"
       ESCROW_RELEASE_CAM_ROOT_OWNER: "${ESCROW_RELEASE_CAM_ROOT_OWNER:?missing_ESCROW_RELEASE_CAM_ROOT_OWNER}"
@@ -133,6 +132,7 @@ services:
       ESCROW_RELEASE_EXPECTED_CHAIN_ID: "${ESCROW_RELEASE_EXPECTED_CHAIN_ID:?missing_ESCROW_RELEASE_EXPECTED_CHAIN_ID}"
       ESCROW_RELEASE_CAM_URI: "${ESCROW_RELEASE_CAM_URI:?missing_ESCROW_RELEASE_CAM_URI}"
       ESCROW_RELEASE_CAM_ROOT_OWNER: "${ESCROW_RELEASE_CAM_ROOT_OWNER:?missing_ESCROW_RELEASE_CAM_ROOT_OWNER}"
+      ESCROW_RELEASE_PLAN_PATH: /release-output/release-plan.json
     secrets:
       - source: deployer_private_key
         target: deployer_private_key
@@ -149,25 +149,11 @@ services:
       - |
         set -euo pipefail
         umask 077
-        mapfile -t release_plan < /release-output/release-plan.args
-        if [[ "$${#release_plan[@]}" -ne 6 || "$${release_plan[0]}" != "escrow.release-plan.v1" ]]; then
-          printf '%s\n' 'release-plan.args must contain the exact six-field release plan' >&2
-          exit 2
-        fi
-        if [[ "$${release_plan[1]}" != "$${ESCROW_RELEASE_SOURCE_COMMIT}" \
-          || "$${release_plan[2]}" != "$${ESCROW_RELEASE_EXPECTED_CHAIN_ID}" \
-          || "$${release_plan[3]}" != "$${ESCROW_RELEASE_CAM_URI}" \
-          || "$${release_plan[5]}" != "$${ESCROW_RELEASE_CAM_ROOT_OWNER}" ]]; then
-          printf '%s\n' 'release-plan.args disagrees with the operator-authorized release inputs' >&2
-          exit 2
-        fi
         private_key="$$(< /run/secrets/deployer_private_key)"
         if [[ ! "$${private_key}" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then
           printf '%s\n' 'deployer private-key secret must contain exactly one 32-byte hex key' >&2
           exit 2
         fi
-        export ESCROW_RELEASE_PLAN_SCHEMA="$${release_plan[0]}"
-        export ESCROW_RELEASE_CAM_HASH="$${release_plan[4]}"
         PRIVATE_KEY="$${private_key}" forge script --offline escrow/script/DeployEscrowRelease.s.sol \
           --rpc-url http://escrow-release-rpc-proxy:8080 \
           --broadcast \

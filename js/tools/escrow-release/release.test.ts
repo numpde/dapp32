@@ -25,18 +25,13 @@ import {
 } from "./bundle.ts"
 import {
   DEPLOYMENT_SCHEMA,
-  RELEASE_PLAN_SCHEMA,
   parseDeploymentArtifact,
-  releasePlanArguments,
   requiredNonzeroAddress,
   requiredReleaseChainId,
   requiredSourceCommit,
   writeNewText,
 } from "./shared.ts"
-import type {
-  DeploymentArtifact,
-  ReleasePlan,
-} from "./shared.ts"
+import type { DeploymentArtifact } from "./shared.ts"
 
 const SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
 const DEPLOYER = "0x0000000000000000000000000000000000000011" as Address
@@ -80,27 +75,6 @@ test("checked-in escrow bundle reproduces the accepted release hash", async () =
     intendedCamRootOwner: OWNER,
   })
   assert.equal(plan.camHash, CHECKED_IN_CAM_HASH)
-})
-
-test("release plan companion has one exact ordered field per line", () => {
-  const plan: ReleasePlan = {
-    schema: RELEASE_PLAN_SCHEMA,
-    sourceCommit: SOURCE_COMMIT,
-    expectedChainId: 11155111,
-    camURI: "https://example.test/escrow/cam/main.json",
-    camHash: CAM_HASH,
-    intendedCamRootOwner: OWNER,
-  }
-
-  assert.equal(releasePlanArguments(plan), [
-    RELEASE_PLAN_SCHEMA,
-    SOURCE_COMMIT,
-    "11155111",
-    plan.camURI,
-    CAM_HASH,
-    OWNER,
-    "",
-  ].join("\n"))
 })
 
 test("deployment JSON preserves the complete strict record", () => {

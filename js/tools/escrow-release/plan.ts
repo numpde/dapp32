@@ -9,18 +9,15 @@ import type {
   ReleaseBundleInput,
 } from "./bundle.ts"
 import {
-  releasePlanArguments,
   requiredEnv,
   requiredNonzeroAddress,
   requiredReleaseChainId,
   requiredSourceCommit,
   writeNewJson,
-  writeNewText,
 } from "./shared.ts"
 
 type Options = ReleaseBundleInput & {
   readonly planPath: string
-  readonly planArgumentsPath: string
 }
 
 function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
@@ -31,7 +28,6 @@ function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
     dappsRootPath: requiredEnv(env, "ESCROW_RELEASE_DAPPS_ROOT"),
     rootPath: requiredEnv(env, "ESCROW_RELEASE_CAM_ROOT_PATH"),
     planPath: requiredEnv(env, "ESCROW_RELEASE_PLAN_PATH"),
-    planArgumentsPath: requiredEnv(env, "ESCROW_RELEASE_PLAN_ARGUMENTS_PATH"),
     camURI,
     sourceCommit: requiredSourceCommit(requiredEnv(env, "ESCROW_RELEASE_SOURCE_COMMIT")),
     expectedChainId: requiredReleaseChainId(requiredEnv(env, "ESCROW_RELEASE_EXPECTED_CHAIN_ID")),
@@ -45,11 +41,6 @@ function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
 async function main(): Promise<void> {
   const options = optionsFromEnv(process.env)
   const plan = await buildReleasePlan(options)
-  await writeNewText(
-    options.planArgumentsPath,
-    releasePlanArguments(plan),
-    "release plan arguments",
-  )
   await writeNewJson(options.planPath, plan, "release plan")
   process.stdout.write(`${JSON.stringify({
     event: "escrow_release_plan",
@@ -59,7 +50,6 @@ async function main(): Promise<void> {
     camHash: plan.camHash,
     intendedCamRootOwner: plan.intendedCamRootOwner,
     planPath: options.planPath,
-    planArgumentsPath: options.planArgumentsPath,
   })}\n`)
 }
 

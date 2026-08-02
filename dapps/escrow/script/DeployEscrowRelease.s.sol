@@ -23,6 +23,7 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
     }
 
     error InvalidReleasePlanSchema(string actual);
+    error OperatorInputMismatch(string field);
     error InvalidSourceCommit(string sourceCommit);
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error UnsupportedReleaseChainId(uint256 chainId);
@@ -32,7 +33,7 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
     error ZeroCamRootOwner();
 
     function run() external returns (Deployment memory deployment) {
-        ReleasePlan memory plan = _readEnvironment();
+        ReleasePlan memory plan = _readPlan(vm.envString("ESCROW_RELEASE_PLAN_PATH"));
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
 
@@ -56,17 +57,37 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
         console2.log("CamRootPendingOwner", deployment.camRoot.pendingOwner());
     }
 
-    function _readEnvironment() private view returns (ReleasePlan memory plan) {
-        string memory schema = vm.envString("ESCROW_RELEASE_PLAN_SCHEMA");
+    function _readPlan(string memory path) internal view returns (ReleasePlan memory plan) {
+        return _parsePlan(vm.readFile(path));
+    }
+
+    function _parsePlan(string memory json) internal view returns (ReleasePlan memory plan) {
+        string memory schema = vm.parseJsonString(json, ".schema");
         if (keccak256(bytes(schema)) != keccak256(bytes(RELEASE_PLAN_SCHEMA))) {
             revert InvalidReleasePlanSchema(schema);
         }
+        plan.sourceCommit = vm.parseJsonString(json, ".sourceCommit");
+        plan.expectedChainId = vm.parseJsonUint(json, ".expectedChainId");
+        plan.camURI = vm.parseJsonString(json, ".camURI");
+        plan.camHash = vm.parseJsonBytes32(json, ".camHash");
+        plan.intendedCamRootOwner = vm.parseJsonAddress(json, ".intendedCamRootOwner");
 
-        plan.sourceCommit = vm.envString("ESCROW_RELEASE_SOURCE_COMMIT");
-        plan.expectedChainId = vm.envUint("ESCROW_RELEASE_EXPECTED_CHAIN_ID");
-        plan.camURI = vm.envString("ESCROW_RELEASE_CAM_URI");
-        plan.camHash = vm.envBytes32("ESCROW_RELEASE_CAM_HASH");
-        plan.intendedCamRootOwner = vm.envAddress("ESCROW_RELEASE_CAM_ROOT_OWNER");
+        _requireOperatorInputs(plan);
+    }
+
+    function _requireOperatorInputs(ReleasePlan memory plan) internal view {
+        _requireOperatorString("sourceCommit", plan.sourceCommit, vm.envString("ESCROW_RELEASE_SOURCE_COMMIT"));
+        if (plan.expectedChainId != vm.envUint("ESCROW_RELEASE_EXPECTED_CHAIN_ID")) {
+            revert OperatorInputMismatch("expectedChainId");
+        }
+        _requireOperatorString("camURI", plan.camURI, vm.envString("ESCROW_RELEASE_CAM_URI"));
+        if (plan.intendedCamRootOwner != vm.envAddress("ESCROW_RELEASE_CAM_ROOT_OWNER")) {
+            revert OperatorInputMismatch("intendedCamRootOwner");
+        }
+    }
+
+    function _requireOperatorString(string memory field, string memory actual, string memory expected) private pure {
+        if (keccak256(bytes(actual)) != keccak256(bytes(expected))) revert OperatorInputMismatch(field);
     }
 
     function _validatePlan(ReleasePlan memory plan) internal view {

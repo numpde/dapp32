@@ -111,8 +111,10 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertEqual(1, read_text(repo_path(DEPLOY)).count("create_host_path: false"))
 
         deploy_command = compose_command_text(deploy)
-        self.assertIn("release-plan.args", deploy_command)
-        self.assertIn("operator-authorized release inputs", deploy_command)
+        self.assertNotIn("release-plan.args", deploy_command)
+        self.assertIn("ESCROW_RELEASE_PLAN_PATH", compose_mapping(deploy, "environment"))
+        self.assertIn("vm.readFile(path)", read_text(repo_path("dapps/escrow/script/DeployEscrowRelease.s.sol")))
+        self.assertIn("OperatorInputMismatch", read_text(repo_path("dapps/escrow/script/DeployEscrowRelease.s.sol")))
         self.assertNotIn("ESCROW_RELEASE_CAM_ROOT_TEXT", deploy_command)
         self.assertIn(
             "vm.readFileBinary(CAM_ROOT_PATH)",

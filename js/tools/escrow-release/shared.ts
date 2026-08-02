@@ -249,17 +249,6 @@ export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
   return artifact
 }
 
-export function releasePlanArguments(plan: ReleasePlan): string {
-  return lines([
-    plan.schema,
-    plan.sourceCommit,
-    String(plan.expectedChainId),
-    plan.camURI,
-    plan.camHash,
-    plan.intendedCamRootOwner,
-  ])
-}
-
 function requiredSafeInteger(value: unknown, label: string): number {
   if (typeof value !== "number" || !Number.isSafeInteger(value)) {
     throw new Error(`${label} must be a safe integer`)
@@ -281,13 +270,4 @@ function requireExactKeys(
       `${label} fields disagree: missing=[${missing.join(",")}] unexpected=[${unexpected.join(",")}]`,
     )
   }
-}
-
-function lines(values: readonly string[]): string {
-  for (const value of values) {
-    if (value.includes("\n") || value.includes("\r")) {
-      throw new Error("release companion arguments must not contain line breaks")
-    }
-  }
-  return `${values.join("\n")}\n`
 }
