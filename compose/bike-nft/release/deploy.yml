@@ -194,7 +194,6 @@ services:
       BIKE_NFT_RELEASE_PLAN_ARGUMENTS_PATH: /release-plan/release-plan.args
       BIKE_NFT_RELEASE_BROADCAST_DIR: /release-broadcast
       BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: /release-artifact/deployment.json
-      BIKE_NFT_DEPLOYMENT_ARGUMENTS_PATH: /release-artifact/deployment.json.args
       BIKE_NFT_RELEASE_RPC_URL: http://bike-nft-release-artifact-rpc-proxy:8080
     volumes:
       - ../../../js:/input/js:ro

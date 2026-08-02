@@ -17,7 +17,6 @@ import {IBicycleComponents} from "../src/IBicycleComponents.sol";
 /// @notice Read-only acceptance checks for one Bike NFT release.
 /// @dev Reference contracts are created only inside Forge simulation. The verification lane never broadcasts.
 abstract contract BikeNftReleaseVerifier {
-    string internal constant DEPLOYMENT_SCHEMA = "bike-nft.deployment.v1";
     string private constant CAM_CONTRACT_MANAGER = "BicycleComponentManager";
     string private constant CAM_CONTRACT_MANAGER_UI = "BicycleComponentManagerUI";
 
@@ -51,7 +50,6 @@ abstract contract BikeNftReleaseVerifier {
         bytes32 uiCodeHash;
     }
 
-    error InvalidArtifactSchema(string actual);
     error SourceCommitMismatch(string expected, string actual);
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error UnsupportedReleaseChainId(uint256 chainId);
@@ -66,12 +64,6 @@ abstract contract BikeNftReleaseVerifier {
     error RoleMismatch(string field, bytes32 role, address account, bool expected);
     error UnsupportedInterface(string field, bytes4 interfaceId);
     error PendingAdminDelay(string field, uint48 delay, uint48 schedule);
-
-    function requireDeploymentSchema(string memory actual) internal pure {
-        if (keccak256(bytes(actual)) != keccak256(bytes(DEPLOYMENT_SCHEMA))) {
-            revert InvalidArtifactSchema(actual);
-        }
-    }
 
     function verifyArtifact(Artifact memory artifact, string memory expectedSourceCommit) internal {
         _verifyIdentity(artifact, expectedSourceCommit);

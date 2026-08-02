@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 import type { Address, Hex } from "viem"
 import { buildReleasePlan } from "./bundle.ts"
 import { creationReceiptDeployer, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
-import { DEPLOYMENT_SCHEMA, deploymentArguments, parseDeploymentArtifact, releasePlanArguments, requiredAddresses, requiredDelay } from "./shared.ts"
+import { DEPLOYMENT_SCHEMA, parseDeploymentArtifact, releasePlanArguments, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
 
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
@@ -28,10 +28,9 @@ test("checked-in Bike CAM bytes produce a nonzero release hash", async () => {
   assert.equal(releasePlanArguments(plan).split("\n").length, 20)
 })
 
-test("deployment artifact is strict and companion covers all 32 fields", () => {
+test("deployment artifact parsing rejects unknown fields and inconsistent authority", () => {
   const artifact = deployment()
   assert.deepEqual(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify(artifact))), artifact)
-  assert.equal(deploymentArguments(artifact).split("\n").length, 33)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, extra: true }))), /unexpected=\[extra\]/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, managerCreationTransaction: artifact.uiCreationTransaction }))), /must be distinct/)
   assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({ ...artifact, componentsPauser: DEPLOYER }))), /must not retain/)

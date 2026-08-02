@@ -51,6 +51,7 @@ class RepositoryHygieneTest(unittest.TestCase):
             [
                 {"access": "read", "path": "./bike-nft/cam/main.json"},
                 {"access": "read", "path": "./escrow/cam/main.json"},
+                {"access": "read", "path": "/out/deployment.json"},
             ],
             config["profile"]["default"]["fs_permissions"],
         )

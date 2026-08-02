@@ -74,6 +74,29 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         for service in (input_check, provenance, verifier):
             self.assertEqual([], [secret for secret in compose_sequence_or_empty(service, "secrets") if secret.get("target") == "deployer_private_key"])
 
+        external_artifact = compose_volume(input_check, "/deployment/deployment.json")
+        self.assertEqual("bind", external_artifact["type"])
+        self.assertIn(external_artifact["bind"], ({}, {"create_host_path": False}))
+        for service in (provenance, verifier):
+            self.assertEqual([], [volume for volume in compose_sequence_or_empty(service, "volumes") if volume.get("type") == "bind" and volume.get("target") == "/deployment/deployment.json"])
+
+        verified_input = compose_volume(input_check, "/out")
+        verified_provenance = compose_volume(provenance, "/out")
+        verified_verifier = compose_volume(verifier, "/out")
+        self.assertEqual("bike_nft_release_verified", verified_input["source"])
+        self.assertIsNot(verified_input.get("read_only"), True)
+        self.assertEqual({}, verified_input["volume"])
+        for volume in (verified_provenance, verified_verifier):
+            self.assertEqual(verified_input["source"], volume["source"])
+            self.assertIs(volume["read_only"], True)
+            self.assertEqual({"nocopy": True}, volume["volume"])
+
+        rendered = str(config)
+        self.assertNotIn("deployment.args", rendered)
+        self.assertNotIn("DEPLOYMENT_ARGUMENTS", rendered)
+        self.assertNotIn("deployment.json.args", read_text(repo_path("compose/bike-nft/release/deploy.yml")))
+        self.assertNotIn("deploymentArguments", read_text(repo_path("js/tools/bike-nft-release/artifact.ts")))
+
     def test_make_entrypoints_require_clean_source_and_protected_files(self) -> None:
         source = read_text(repo_path("Makefile"))
         deploy = source[source.index("bike-nft-release-deploy:"):source.index("bike-nft-release-verify:")]

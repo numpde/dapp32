@@ -1,14 +1,12 @@
 import { lstat, readFile } from "node:fs/promises"
 import { createPublicClient, http } from "viem"
 import { creationReceiptDeployer } from "./artifact-model.ts"
-import { deploymentArguments, parseDeploymentArtifact, requiredEnv } from "./shared.ts"
+import { parseDeploymentArtifact, requiredEnv } from "./shared.ts"
 
 const MAX_BYTES = 1024 * 1024
 async function main(): Promise<void> {
   const env = process.env
   const artifact = parseDeploymentArtifact(await readRegularFile(requiredEnv(env, "BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH"), "deployment artifact"))
-  const argumentsText = new TextDecoder().decode(await readRegularFile(requiredEnv(env, "BIKE_NFT_DEPLOYMENT_ARGUMENTS_PATH"), "deployment arguments"))
-  if (argumentsText !== deploymentArguments(artifact)) throw new Error("deployment arguments do not exactly match deployment.json")
   const client = createPublicClient({ transport: http(requiredEnv(env, "BIKE_NFT_RELEASE_RPC_URL")) })
   const chainId = await client.getChainId()
   if (chainId !== artifact.chainId) throw new Error(`release RPC chain mismatch: expected ${artifact.chainId}, got ${chainId}`)

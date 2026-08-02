@@ -12,6 +12,7 @@ via_ir = false
 fs_permissions = [
   { access = "read", path = "./bike-nft/cam/main.json" },
   { access = "read", path = "./escrow/cam/main.json" },
+  { access = "read", path = "/out/deployment.json" },
 ]
 
 [profile.ci]

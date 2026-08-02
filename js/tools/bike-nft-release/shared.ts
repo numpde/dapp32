@@ -192,8 +192,6 @@ function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "s
 }
 
 export function releasePlanArguments(plan: ReleasePlan): string { return lines(PLAN_KEYS.map((key) => scalar(plan[key]))) }
-export function deploymentArguments(artifact: DeploymentArtifact): string { return lines(DEPLOYMENT_KEYS.map((key) => scalar(artifact[key]))) }
-
 export function rejectDeployerAuthorities(value: Pick<DeploymentArtifact, "deployer"> & ReleaseAuthorities): void {
   const deployer = value.deployer.toLowerCase()
   const authorities = [value.camRootOwner, value.componentsAdmin, value.componentsPauser, value.componentsConfigurer, value.managerAdmin, value.managerPauser, value.managerConfigurer, ...value.registrars]

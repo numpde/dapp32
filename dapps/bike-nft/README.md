@@ -95,10 +95,9 @@ plan/release-plan.json
 plan/release-plan.args
 broadcast/DeployBikeNftRelease.s.sol/<chain-id>/run-latest.json
 artifact/deployment.json
-artifact/deployment.json.args
 ```
 
-The planner can write only `plan/`; the signer reads `plan/` and writes only `broadcast/`; the materializer reads both and writes only `artifact/`. Only the signer has the deployment key and a route to an RPC proxy admitting `eth_sendRawTransaction`. The artifact proxy has neither.
+The planner can write only `plan/`; the signer reads `plan/` and writes only `broadcast/`; the materializer reads both and writes only `artifact/`. Only the signer has the deployment key and a route to an RPC proxy admitting `eth_sendRawTransaction`. The artifact proxy has neither. Verification accepts `deployment.json` as its sole external artifact and stages one canonical snapshot for its receipt and Solidity checks.
 
 After independently accepting all three handoffs, verify from the same exact clean commit:
 

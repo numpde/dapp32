@@ -6,9 +6,10 @@ import {BikeNftReleaseVerifier} from "./BikeNftReleaseVerifier.sol";
 
 /// @notice Verifies a Bike NFT artifact through a read-only RPC without accepting a key or broadcast flag.
 contract VerifyBikeNftRelease is Script, BikeNftReleaseVerifier {
+    error AdminDelayOutOfRange(string field, uint256 value);
+
     function run() external {
-        requireDeploymentSchema(vm.envString("BIKE_NFT_DEPLOYMENT_SCHEMA"));
-        Artifact memory artifact = _readEnvironment();
+        Artifact memory artifact = _readArtifact(vm.envString("BIKE_NFT_VERIFIED_DEPLOYMENT_PATH"));
         verifyArtifact(artifact, vm.envString("BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT"));
         console2.log("BikeNftReleaseVerified", true);
         console2.log("CamRoot", artifact.camRoot);
@@ -17,33 +18,40 @@ contract VerifyBikeNftRelease is Script, BikeNftReleaseVerifier {
         console2.log("BicycleComponentManagerUI", artifact.ui);
     }
 
-    function _readEnvironment() private view returns (Artifact memory artifact) {
-        artifact.sourceCommit = vm.envString("BIKE_NFT_DEPLOYMENT_SOURCE_COMMIT");
-        artifact.chainId = vm.envUint("BIKE_NFT_DEPLOYMENT_CHAIN_ID");
-        artifact.deployer = vm.envAddress("BIKE_NFT_DEPLOYMENT_DEPLOYER");
-        artifact.camURI = vm.envString("BIKE_NFT_DEPLOYMENT_CAM_URI");
-        artifact.camHash = vm.envBytes32("BIKE_NFT_DEPLOYMENT_CAM_HASH");
-        artifact.camRootOwner = vm.envAddress("BIKE_NFT_DEPLOYMENT_CAM_ROOT_OWNER");
-        artifact.tokenName = vm.envString("BIKE_NFT_DEPLOYMENT_TOKEN_NAME");
-        artifact.tokenSymbol = vm.envString("BIKE_NFT_DEPLOYMENT_TOKEN_SYMBOL");
-        artifact.baseTokenURI = vm.envString("BIKE_NFT_DEPLOYMENT_BASE_TOKEN_URI");
-        artifact.collectionURI = vm.envString("BIKE_NFT_DEPLOYMENT_COLLECTION_URI");
-        artifact.componentsAdmin = vm.envAddress("BIKE_NFT_DEPLOYMENT_COMPONENTS_ADMIN");
-        artifact.componentsAdminDelay = uint48(vm.envUint("BIKE_NFT_DEPLOYMENT_COMPONENTS_ADMIN_DELAY"));
-        artifact.componentsPauser = vm.envAddress("BIKE_NFT_DEPLOYMENT_COMPONENTS_PAUSER");
-        artifact.componentsConfigurer = vm.envAddress("BIKE_NFT_DEPLOYMENT_COMPONENTS_CONFIGURER");
-        artifact.managerAdmin = vm.envAddress("BIKE_NFT_DEPLOYMENT_MANAGER_ADMIN");
-        artifact.managerAdminDelay = uint48(vm.envUint("BIKE_NFT_DEPLOYMENT_MANAGER_ADMIN_DELAY"));
-        artifact.managerPauser = vm.envAddress("BIKE_NFT_DEPLOYMENT_MANAGER_PAUSER");
-        artifact.managerConfigurer = vm.envAddress("BIKE_NFT_DEPLOYMENT_MANAGER_CONFIGURER");
-        artifact.registrars = vm.envAddress("BIKE_NFT_DEPLOYMENT_REGISTRARS", ",");
-        artifact.camRoot = vm.envAddress("BIKE_NFT_DEPLOYMENT_CAM_ROOT");
-        artifact.components = vm.envAddress("BIKE_NFT_DEPLOYMENT_COMPONENTS");
-        artifact.manager = vm.envAddress("BIKE_NFT_DEPLOYMENT_MANAGER");
-        artifact.ui = vm.envAddress("BIKE_NFT_DEPLOYMENT_UI");
-        artifact.camRootCodeHash = vm.envBytes32("BIKE_NFT_DEPLOYMENT_CAM_ROOT_CODE_HASH");
-        artifact.componentsCodeHash = vm.envBytes32("BIKE_NFT_DEPLOYMENT_COMPONENTS_CODE_HASH");
-        artifact.managerCodeHash = vm.envBytes32("BIKE_NFT_DEPLOYMENT_MANAGER_CODE_HASH");
-        artifact.uiCodeHash = vm.envBytes32("BIKE_NFT_DEPLOYMENT_UI_CODE_HASH");
+    function _readArtifact(string memory path) internal view returns (Artifact memory artifact) {
+        string memory json = vm.readFile(path);
+        artifact.sourceCommit = vm.parseJsonString(json, ".sourceCommit");
+        artifact.chainId = vm.parseJsonUint(json, ".chainId");
+        artifact.deployer = vm.parseJsonAddress(json, ".deployer");
+        artifact.camURI = vm.parseJsonString(json, ".camURI");
+        artifact.camHash = vm.parseJsonBytes32(json, ".camHash");
+        artifact.camRootOwner = vm.parseJsonAddress(json, ".camRootOwner");
+        artifact.tokenName = vm.parseJsonString(json, ".tokenName");
+        artifact.tokenSymbol = vm.parseJsonString(json, ".tokenSymbol");
+        artifact.baseTokenURI = vm.parseJsonString(json, ".baseTokenURI");
+        artifact.collectionURI = vm.parseJsonString(json, ".collectionURI");
+        artifact.componentsAdmin = vm.parseJsonAddress(json, ".componentsAdmin");
+        artifact.componentsAdminDelay = _readDelay(json, ".componentsAdminDelay");
+        artifact.componentsPauser = vm.parseJsonAddress(json, ".componentsPauser");
+        artifact.componentsConfigurer = vm.parseJsonAddress(json, ".componentsConfigurer");
+        artifact.managerAdmin = vm.parseJsonAddress(json, ".managerAdmin");
+        artifact.managerAdminDelay = _readDelay(json, ".managerAdminDelay");
+        artifact.managerPauser = vm.parseJsonAddress(json, ".managerPauser");
+        artifact.managerConfigurer = vm.parseJsonAddress(json, ".managerConfigurer");
+        artifact.registrars = vm.parseJsonAddressArray(json, ".registrars");
+        artifact.camRoot = vm.parseJsonAddress(json, ".camRoot");
+        artifact.components = vm.parseJsonAddress(json, ".components");
+        artifact.manager = vm.parseJsonAddress(json, ".manager");
+        artifact.ui = vm.parseJsonAddress(json, ".ui");
+        artifact.camRootCodeHash = vm.parseJsonBytes32(json, ".camRootCodeHash");
+        artifact.componentsCodeHash = vm.parseJsonBytes32(json, ".componentsCodeHash");
+        artifact.managerCodeHash = vm.parseJsonBytes32(json, ".managerCodeHash");
+        artifact.uiCodeHash = vm.parseJsonBytes32(json, ".uiCodeHash");
+    }
+
+    function _readDelay(string memory json, string memory field) private view returns (uint48) {
+        uint256 value = vm.parseJsonUint(json, field);
+        if (value > type(uint48).max) revert AdminDelayOutOfRange(field, value);
+        return uint48(value);
     }
 }

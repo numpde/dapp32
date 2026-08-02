@@ -4,12 +4,17 @@ x-artifact: &artifact
   target: /deployment/deployment.json
   read_only: true
   bind: {create_host_path: false}
-x-arguments: &arguments
-  type: bind
-  source: "${BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE:?missing_BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE}.args"
-  target: /deployment/deployment.args
+x-verified-write: &verified_write
+  type: volume
+  source: bike_nft_release_verified
+  target: /out
+  volume: {nocopy: false}
+x-verified-read: &verified_read
+  type: volume
+  source: bike_nft_release_verified
+  target: /out
   read_only: true
-  bind: {create_host_path: false}
+  volume: {nocopy: true}
 x-node-modules: &node_modules
   type: bind
   source: ../../../js/node_modules
@@ -28,14 +33,14 @@ services:
       BIKE_NFT_RELEASE_DAPPS_ROOT: /work/dapps
       BIKE_NFT_RELEASE_CAM_ROOT_PATH: /work/dapps/bike-nft/cam/main.json
       BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
-      BIKE_NFT_DEPLOYMENT_ARGUMENTS_PATH: /deployment/deployment.args
+      BIKE_NFT_VERIFIED_ARTIFACT_PATH: /out/deployment.json
       BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT: "${BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT}"
     volumes:
       - ../../../dapps:/work/dapps:ro
       - ../../../js:/input/js:ro
       - *node_modules
       - *artifact
-      - *arguments
+      - *verified_write
     command: [run-js-workspace, sh, -eu, -c, "npm run build:workspace && ./node_modules/.bin/tsc -p tools/bike-nft-release/tsconfig.json && node --experimental-strip-types tools/bike-nft-release/verify-input.ts"]
 
   bike-nft-release-verify-rpc-proxy:
@@ -81,14 +86,12 @@ services:
       bike-nft-release-verify-input: {condition: service_completed_successfully}
       bike-nft-release-verify-rpc-proxy: {condition: service_healthy}
     environment:
-      BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
-      BIKE_NFT_DEPLOYMENT_ARGUMENTS_PATH: /deployment/deployment.args
+      BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH: /out/deployment.json
       BIKE_NFT_RELEASE_RPC_URL: http://bike-nft-release-verify-rpc-proxy:8080
     volumes:
       - ../../../js:/input/js:ro
       - *node_modules
-      - *artifact
-      - *arguments
+      - *verified_read
     networks: [bike_nft_release_verify_internal]
     command: [run-js-workspace, sh, -eu, -c, "npm run build:workspace && ./node_modules/.bin/tsc -p tools/bike-nft-release/tsconfig.json && node --experimental-strip-types tools/bike-nft-release/verify-provenance.ts"]
 
@@ -112,28 +115,19 @@ services:
       FOUNDRY_CACHE_PATH: /tmp/foundry-cache
       FOUNDRY_CONFIG: /work/dapps/foundry.toml
       FOUNDRY_OUT: /tmp/foundry-out
+      BIKE_NFT_VERIFIED_DEPLOYMENT_PATH: /out/deployment.json
       BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT: "${BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT}"
     tmpfs: [/tmp:rw,nosuid,nodev,noexec,size=512m]
     volumes:
       - ../../../dapps:/work/dapps:ro
-      - *arguments
+      - *verified_read
     networks: [bike_nft_release_verify_internal]
-    command:
-      - bash
-      - -lc
-      - |
-        set -euo pipefail
-        mapfile -t deployment < /deployment/deployment.args
-        if [[ "$${#deployment[@]}" -ne 32 || "$${deployment[0]}" != "bike-nft.deployment.v1" ]]; then
-          printf '%s\n' 'deployment.args must contain the exact thirty-two-field Bike NFT record' >&2
-          exit 2
-        fi
-        names=(SCHEMA SOURCE_COMMIT CHAIN_ID DEPLOYER CAM_URI CAM_HASH CAM_ROOT_OWNER TOKEN_NAME TOKEN_SYMBOL BASE_TOKEN_URI COLLECTION_URI COMPONENTS_ADMIN COMPONENTS_ADMIN_DELAY COMPONENTS_PAUSER COMPONENTS_CONFIGURER MANAGER_ADMIN MANAGER_ADMIN_DELAY MANAGER_PAUSER MANAGER_CONFIGURER REGISTRARS CAM_ROOT COMPONENTS MANAGER UI CAM_ROOT_CODE_HASH COMPONENTS_CODE_HASH MANAGER_CODE_HASH UI_CODE_HASH)
-        for i in "$${!names[@]}"; do export "BIKE_NFT_DEPLOYMENT_$${names[$$i]}=$${deployment[$$i]}"; done
-        forge script --offline bike-nft/script/VerifyBikeNftRelease.s.sol --rpc-url http://bike-nft-release-verify-rpc-proxy:8080 -vvv
+    command: [forge, script, --offline, bike-nft/script/VerifyBikeNftRelease.s.sol, --rpc-url, "http://bike-nft-release-verify-rpc-proxy:8080", -vvv]
 
 secrets:
   rpc_url: {file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"}
 networks:
   bike_nft_release_verify_internal: {internal: true}
   bike_nft_release_verify_egress: {}
+volumes:
+  bike_nft_release_verified: {}

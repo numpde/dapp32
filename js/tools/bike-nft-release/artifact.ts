@@ -4,7 +4,7 @@ import { createPublicClient, getAddress, http, keccak256, parseAbi } from "viem"
 import type { Address, Hex } from "viem"
 import type { Abi } from "viem"
 import { creationReceiptDeployer, deploymentContractsFromBroadcast, requireHandoff } from "./artifact-model.ts"
-import { DEPLOYMENT_SCHEMA, deploymentArguments, parseJsonRecord, parseReleasePlan, rejectDeployerAuthorities, releasePlanArguments, requiredEnv, writeNewJson, writeNewText } from "./shared.ts"
+import { DEPLOYMENT_SCHEMA, parseJsonRecord, parseReleasePlan, rejectDeployerAuthorities, releasePlanArguments, requiredEnv, writeNewJson } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
 
 const MAX_BYTES = 16 * 1024 * 1024
@@ -81,8 +81,8 @@ async function main(): Promise<void> {
   await Promise.all(roleChecks.map(async ([address, abi, role, account, expected, label]) => { const actual = await read<boolean>(address, abi, "hasRole", [role, account]); if (actual !== expected) throw new Error(`${label} role mismatch`) }))
   const { schema: _planSchema, expectedChainId: _expectedChainId, ...planFields } = plan
   const deployment: DeploymentArtifact = { ...planFields, schema: DEPLOYMENT_SCHEMA, chainId, deployer, camRoot: contracts.camRoot.address, components: contracts.components.address, manager: contracts.manager.address, ui: contracts.ui.address, camRootCodeHash: keccak256(code[0]!), componentsCodeHash: keccak256(code[1]!), managerCodeHash: keccak256(code[2]!), uiCodeHash: keccak256(code[3]!), camRootCreationTransaction: contracts.camRoot.transactionHash, componentsCreationTransaction: contracts.components.transactionHash, managerCreationTransaction: contracts.manager.transactionHash, uiCreationTransaction: contracts.ui.transactionHash }
-  const artifactPath = requiredEnv(env, "BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH"); const argsPath = requiredEnv(env, "BIKE_NFT_DEPLOYMENT_ARGUMENTS_PATH")
-  await writeNewText(argsPath, deploymentArguments(deployment), "deployment arguments"); await writeNewJson(artifactPath, deployment, "deployment artifact")
+  const artifactPath = requiredEnv(env, "BIKE_NFT_DEPLOYMENT_ARTIFACT_PATH")
+  await writeNewJson(artifactPath, deployment, "deployment artifact")
   process.stdout.write(`${JSON.stringify({ event: "bike_nft_deployment_artifact", blockNumber: blockNumber.toString(), artifactPath })}\n`)
 }
 
