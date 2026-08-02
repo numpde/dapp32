@@ -37,7 +37,7 @@ contract DeployBikeNftReleaseTest is Test {
     address private constant REGISTRAR_ONE = address(0x18);
     address private constant REGISTRAR_TWO = address(0x19);
     string private constant PLAN_JSON =
-        '{"schema":"bike-nft.release-plan.v1","sourceCommit":"0123456789abcdef0123456789abcdef01234567","expectedChainId":11155111,"camURI":"https://example.test/bike/v1/main.json","camHash":"0x57fa120882de1530d9b48f00e8d3e780edd42c2159378b69ce86996bfb279961","camRootOwner":"0x0000000000000000000000000000000000000011","tokenName":"Bicycle Components","tokenSymbol":"BIKE","baseTokenURI":"https://example.test/bike/tokens/","collectionURI":"https://example.test/bike/collection.json","componentsAdmin":"0x0000000000000000000000000000000000000012","componentsAdminDelay":86400,"componentsPauser":"0x0000000000000000000000000000000000000013","componentsConfigurer":"0x0000000000000000000000000000000000000014","managerAdmin":"0x0000000000000000000000000000000000000015","managerAdminDelay":86400,"managerPauser":"0x0000000000000000000000000000000000000016","managerConfigurer":"0x0000000000000000000000000000000000000017","registrars":["0x0000000000000000000000000000000000000018","0x0000000000000000000000000000000000000019"]}';
+        '{"schema":"bike-nft.release-plan.v1","sourceCommit":"0123456789abcdef0123456789abcdef01234567","expectedChainId":11155111,"camURI":"https://example.test/bike/v1/main.json","camHash":"0x57fa120882de1530d9b48f00e8d3e780edd42c2159378b69ce86996bfb279961","intendedCamRootOwner":"0x0000000000000000000000000000000000000011","tokenName":"Bicycle Components","tokenSymbol":"BIKE","baseTokenURI":"https://example.test/bike/tokens/","collectionURI":"https://example.test/bike/collection.json","intendedComponentsAdmin":"0x0000000000000000000000000000000000000012","componentsAdminDelay":86400,"componentsPauser":"0x0000000000000000000000000000000000000013","componentsConfigurer":"0x0000000000000000000000000000000000000014","intendedManagerAdmin":"0x0000000000000000000000000000000000000015","managerAdminDelay":86400,"managerPauser":"0x0000000000000000000000000000000000000016","managerConfigurer":"0x0000000000000000000000000000000000000017","registrars":["0x0000000000000000000000000000000000000018","0x0000000000000000000000000000000000000019"]}';
 
     DeployBikeNftReleaseHarness private harness;
 
@@ -73,9 +73,9 @@ contract DeployBikeNftReleaseTest is Test {
         inputs.camURI = "other";
         _expectOperatorMismatch(plan, inputs, "camURI");
         inputs.camURI = plan.camURI;
-        inputs.camRootOwner = address(0xAA);
-        _expectOperatorMismatch(plan, inputs, "camRootOwner");
-        inputs.camRootOwner = plan.camRootOwner;
+        inputs.intendedCamRootOwner = address(0xAA);
+        _expectOperatorMismatch(plan, inputs, "intendedCamRootOwner");
+        inputs.intendedCamRootOwner = plan.intendedCamRootOwner;
         inputs.tokenName = "other";
         _expectOperatorMismatch(plan, inputs, "tokenName");
         inputs.tokenName = plan.tokenName;
@@ -88,9 +88,9 @@ contract DeployBikeNftReleaseTest is Test {
         inputs.collectionURI = "other";
         _expectOperatorMismatch(plan, inputs, "collectionURI");
         inputs.collectionURI = plan.collectionURI;
-        inputs.componentsAdmin = address(0xAA);
-        _expectOperatorMismatch(plan, inputs, "componentsAdmin");
-        inputs.componentsAdmin = plan.componentsAdmin;
+        inputs.intendedComponentsAdmin = address(0xAA);
+        _expectOperatorMismatch(plan, inputs, "intendedComponentsAdmin");
+        inputs.intendedComponentsAdmin = plan.intendedComponentsAdmin;
         inputs.componentsAdminDelay++;
         _expectOperatorMismatch(plan, inputs, "componentsAdminDelay");
         inputs.componentsAdminDelay = plan.componentsAdminDelay;
@@ -100,9 +100,9 @@ contract DeployBikeNftReleaseTest is Test {
         inputs.componentsConfigurer = address(0xAA);
         _expectOperatorMismatch(plan, inputs, "componentsConfigurer");
         inputs.componentsConfigurer = plan.componentsConfigurer;
-        inputs.managerAdmin = address(0xAA);
-        _expectOperatorMismatch(plan, inputs, "managerAdmin");
-        inputs.managerAdmin = plan.managerAdmin;
+        inputs.intendedManagerAdmin = address(0xAA);
+        _expectOperatorMismatch(plan, inputs, "intendedManagerAdmin");
+        inputs.intendedManagerAdmin = plan.intendedManagerAdmin;
         inputs.managerAdminDelay++;
         _expectOperatorMismatch(plan, inputs, "managerAdminDelay");
         inputs.managerAdminDelay = plan.managerAdminDelay;
@@ -143,7 +143,9 @@ contract DeployBikeNftReleaseTest is Test {
 
     function testRejectsDeployerAsFinalAuthority() external {
         DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
-        vm.expectRevert(abi.encodeWithSelector(DeployBikeNftRelease.DeployerRetainsAuthority.selector, "camRootOwner"));
+        vm.expectRevert(
+            abi.encodeWithSelector(DeployBikeNftRelease.DeployerRetainsAuthority.selector, "intendedCamRootOwner")
+        );
         harness.validatePlan(plan, CAM_ROOT_OWNER);
     }
 
@@ -155,16 +157,16 @@ contract DeployBikeNftReleaseTest is Test {
         inputs.sourceCommit = plan.sourceCommit;
         inputs.expectedChainId = plan.expectedChainId;
         inputs.camURI = plan.camURI;
-        inputs.camRootOwner = plan.camRootOwner;
+        inputs.intendedCamRootOwner = plan.intendedCamRootOwner;
         inputs.tokenName = plan.tokenName;
         inputs.tokenSymbol = plan.tokenSymbol;
         inputs.baseTokenURI = plan.baseTokenURI;
         inputs.collectionURI = plan.collectionURI;
-        inputs.componentsAdmin = plan.componentsAdmin;
+        inputs.intendedComponentsAdmin = plan.intendedComponentsAdmin;
         inputs.componentsAdminDelay = plan.componentsAdminDelay;
         inputs.componentsPauser = plan.componentsPauser;
         inputs.componentsConfigurer = plan.componentsConfigurer;
-        inputs.managerAdmin = plan.managerAdmin;
+        inputs.intendedManagerAdmin = plan.intendedManagerAdmin;
         inputs.managerAdminDelay = plan.managerAdminDelay;
         inputs.managerPauser = plan.managerPauser;
         inputs.managerConfigurer = plan.managerConfigurer;

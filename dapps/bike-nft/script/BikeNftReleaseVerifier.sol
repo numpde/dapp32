@@ -26,16 +26,16 @@ abstract contract BikeNftReleaseVerifier {
         address deployer;
         string camURI;
         bytes32 camHash;
-        address camRootOwner;
+        address intendedCamRootOwner;
         string tokenName;
         string tokenSymbol;
         string baseTokenURI;
         string collectionURI;
-        address componentsAdmin;
+        address intendedComponentsAdmin;
         uint48 componentsAdminDelay;
         address componentsPauser;
         address componentsConfigurer;
-        address managerAdmin;
+        address intendedManagerAdmin;
         uint48 managerAdminDelay;
         address managerPauser;
         address managerConfigurer;
@@ -105,9 +105,9 @@ abstract contract BikeNftReleaseVerifier {
         CamRoot root = CamRoot(artifact.camRoot);
         _requireString("camURI", artifact.camURI, root.camURI());
         if (root.camHash() != artifact.camHash) revert ValueMismatch("camHash");
-        _requireAddress("camRootOwner", artifact.camRootOwner, root.owner());
+        _requireAddress("intendedCamRootOwner", artifact.intendedCamRootOwner, root.owner());
         address pendingOwner = root.pendingOwner();
-        if (pendingOwner != address(0)) revert PendingAuthority("camRootOwner", pendingOwner);
+        if (pendingOwner != address(0)) revert PendingAuthority("intendedCamRootOwner", pendingOwner);
         _requireAddress("BicycleComponentManager binding", artifact.manager, root.contractAddress(CAM_CONTRACT_MANAGER));
         _requireAddress("BicycleComponentManagerUI binding", artifact.ui, root.contractAddress(CAM_CONTRACT_MANAGER_UI));
         _requireAddress(
@@ -122,9 +122,11 @@ abstract contract BikeNftReleaseVerifier {
         _requireString("baseTokenURI", artifact.baseTokenURI, components.baseURI());
         _requireString("collectionURI", artifact.collectionURI, components.contractURI());
         if (components.paused()) revert ValueMismatch("components paused");
-        _requireAddress("componentsAdmin", artifact.componentsAdmin, components.defaultAdmin());
+        _requireAddress("intendedComponentsAdmin", artifact.intendedComponentsAdmin, components.defaultAdmin());
         (address pendingAdmin,) = components.pendingDefaultAdmin();
-        if (pendingAdmin != address(0)) revert PendingAuthority("componentsAdmin", pendingAdmin);
+        if (pendingAdmin != address(0)) {
+            revert PendingAuthority("intendedComponentsAdmin", pendingAdmin);
+        }
         uint48 delay = components.defaultAdminDelay();
         if (delay != artifact.componentsAdminDelay) {
             revert DelayMismatch("componentsAdminDelay", artifact.componentsAdminDelay, delay);
@@ -156,9 +158,9 @@ abstract contract BikeNftReleaseVerifier {
         BicycleComponentManager manager = BicycleComponentManager(payable(artifact.manager));
         _requireAddress("manager components", artifact.components, manager.componentsAddress());
         if (manager.paused()) revert ValueMismatch("manager paused");
-        _requireAddress("managerAdmin", artifact.managerAdmin, manager.defaultAdmin());
+        _requireAddress("intendedManagerAdmin", artifact.intendedManagerAdmin, manager.defaultAdmin());
         (address pendingAdmin,) = manager.pendingDefaultAdmin();
-        if (pendingAdmin != address(0)) revert PendingAuthority("managerAdmin", pendingAdmin);
+        if (pendingAdmin != address(0)) revert PendingAuthority("intendedManagerAdmin", pendingAdmin);
         uint48 delay = manager.defaultAdminDelay();
         if (delay != artifact.managerAdminDelay) {
             revert DelayMismatch("managerAdminDelay", artifact.managerAdminDelay, delay);
@@ -194,19 +196,19 @@ abstract contract BikeNftReleaseVerifier {
     }
 
     function _verifySourceCode(Artifact memory artifact) private {
-        CamRoot root = new CamRoot(artifact.camRootOwner, artifact.camURI, artifact.camHash);
+        CamRoot root = new CamRoot(artifact.intendedCamRootOwner, artifact.camURI, artifact.camHash);
         _requireHash("source CamRoot", address(root).codehash, artifact.camRoot.codehash);
         BicycleComponents components = new BicycleComponents(
             artifact.tokenName,
             artifact.tokenSymbol,
-            artifact.componentsAdmin,
+            artifact.intendedComponentsAdmin,
             artifact.componentsAdminDelay,
             artifact.baseTokenURI,
             artifact.collectionURI
         );
         _requireHash("source BicycleComponents", address(components).codehash, artifact.components.codehash);
         BicycleComponentManager manager =
-            new BicycleComponentManager(artifact.managerAdmin, artifact.managerAdminDelay, address(components));
+            new BicycleComponentManager(artifact.intendedManagerAdmin, artifact.managerAdminDelay, address(components));
         _requireHash("source BicycleComponentManager", address(manager).codehash, artifact.manager.codehash);
         BicycleComponentManagerUI ui = new BicycleComponentManagerUI(artifact.manager);
         _requireHash("source BicycleComponentManagerUI", address(ui).codehash, artifact.ui.codehash);

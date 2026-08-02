@@ -78,7 +78,10 @@ contract BikeNftReleaseVerifierTest is Test {
     function testVerifierRejectsPendingRootOwnership() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                bytes4(keccak256("AddressMismatch(string,address,address)")), "camRootOwner", ROOT_OWNER, DEPLOYER
+                bytes4(keccak256("AddressMismatch(string,address,address)")),
+                "intendedCamRootOwner",
+                ROOT_OWNER,
+                DEPLOYER
             )
         );
         verifier.verify(_artifact(), SOURCE_COMMIT);
@@ -157,16 +160,16 @@ contract BikeNftReleaseVerifierTest is Test {
             deployer: DEPLOYER,
             camURI: CAM_URI,
             camHash: CAM_HASH,
-            camRootOwner: ROOT_OWNER,
+            intendedCamRootOwner: ROOT_OWNER,
             tokenName: "Bicycle Components",
             tokenSymbol: "BIKE",
             baseTokenURI: "https://example.test/tokens/",
             collectionURI: "https://example.test/collection.json",
-            componentsAdmin: COMPONENTS_ADMIN,
+            intendedComponentsAdmin: COMPONENTS_ADMIN,
             componentsAdminDelay: ADMIN_DELAY,
             componentsPauser: COMPONENTS_PAUSER,
             componentsConfigurer: COMPONENTS_CONFIGURER,
-            managerAdmin: MANAGER_ADMIN,
+            intendedManagerAdmin: MANAGER_ADMIN,
             managerAdminDelay: ADMIN_DELAY,
             managerPauser: MANAGER_PAUSER,
             managerConfigurer: MANAGER_CONFIGURER,

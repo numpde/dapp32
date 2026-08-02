@@ -44,15 +44,15 @@ async function main(): Promise<void> {
   ])
   assertEqual(camURI, plan.camURI, "CamRoot CAM URI"); assertEqual(camHash.toLowerCase(), plan.camHash.toLowerCase(), "CamRoot CAM hash")
   assertAddress(managerBinding, contracts.manager.address, "manager binding"); assertAddress(uiBinding, contracts.ui.address, "UI binding"); assertAddress(uiManager, contracts.manager.address, "UI manager")
-  requireHandoff("CamRoot ownership", deployer, plan.camRootOwner, getAddress(rootOwner), getAddress(rootPending))
+  requireHandoff("CamRoot ownership", deployer, plan.intendedCamRootOwner, getAddress(rootOwner), getAddress(rootPending))
 
   const [componentsAdmin, componentsPending, componentsDelay, componentsPendingDelay, managerAdmin, managerPending, managerDelay, managerPendingDelay] = await Promise.all([
     read<Address>(contracts.components.address, ADMIN_ABI, "defaultAdmin"), read<readonly [Address, bigint]>(contracts.components.address, ADMIN_ABI, "pendingDefaultAdmin"), read<bigint>(contracts.components.address, ADMIN_ABI, "defaultAdminDelay"),
     read<readonly [bigint, bigint]>(contracts.components.address, ADMIN_ABI, "pendingDefaultAdminDelay"),
     read<Address>(contracts.manager.address, ADMIN_ABI, "defaultAdmin"), read<readonly [Address, bigint]>(contracts.manager.address, ADMIN_ABI, "pendingDefaultAdmin"), read<bigint>(contracts.manager.address, ADMIN_ABI, "defaultAdminDelay"), read<readonly [bigint, bigint]>(contracts.manager.address, ADMIN_ABI, "pendingDefaultAdminDelay"),
   ])
-  requireHandoff("components admin", deployer, plan.componentsAdmin, getAddress(componentsAdmin), getAddress(componentsPending[0]))
-  requireHandoff("manager admin", deployer, plan.managerAdmin, getAddress(managerAdmin), getAddress(managerPending[0]))
+  requireHandoff("components admin", deployer, plan.intendedComponentsAdmin, getAddress(componentsAdmin), getAddress(componentsPending[0]))
+  requireHandoff("manager admin", deployer, plan.intendedManagerAdmin, getAddress(managerAdmin), getAddress(managerPending[0]))
   assertEqual(String(componentsDelay), String(plan.componentsAdminDelay), "components admin delay"); assertEqual(String(managerDelay), String(plan.managerAdminDelay), "manager admin delay")
   if (componentsPendingDelay[0] !== 0n || componentsPendingDelay[1] !== 0n) throw new Error("components admin delay change must not be pending")
   if (managerPendingDelay[0] !== 0n || managerPendingDelay[1] !== 0n) throw new Error("manager admin delay change must not be pending")

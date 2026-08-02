@@ -9,16 +9,16 @@ export const DEPLOYMENT_SCHEMA = "bike-nft.deployment.v1"
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 const PLAN_KEYS = [
-  "schema", "sourceCommit", "expectedChainId", "camURI", "camHash", "camRootOwner",
-  "tokenName", "tokenSymbol", "baseTokenURI", "collectionURI", "componentsAdmin",
-  "componentsAdminDelay", "componentsPauser", "componentsConfigurer", "managerAdmin",
+  "schema", "sourceCommit", "expectedChainId", "camURI", "camHash", "intendedCamRootOwner",
+  "tokenName", "tokenSymbol", "baseTokenURI", "collectionURI", "intendedComponentsAdmin",
+  "componentsAdminDelay", "componentsPauser", "componentsConfigurer", "intendedManagerAdmin",
   "managerAdminDelay", "managerPauser", "managerConfigurer", "registrars",
 ] as const
 
 const DEPLOYMENT_KEYS = [
-  "schema", "sourceCommit", "chainId", "deployer", "camURI", "camHash", "camRootOwner",
-  "tokenName", "tokenSymbol", "baseTokenURI", "collectionURI", "componentsAdmin",
-  "componentsAdminDelay", "componentsPauser", "componentsConfigurer", "managerAdmin",
+  "schema", "sourceCommit", "chainId", "deployer", "camURI", "camHash", "intendedCamRootOwner",
+  "tokenName", "tokenSymbol", "baseTokenURI", "collectionURI", "intendedComponentsAdmin",
+  "componentsAdminDelay", "componentsPauser", "componentsConfigurer", "intendedManagerAdmin",
   "managerAdminDelay", "managerPauser", "managerConfigurer", "registrars", "camRoot",
   "components", "manager", "ui", "camRootCodeHash", "componentsCodeHash", "managerCodeHash",
   "uiCodeHash", "camRootCreationTransaction", "componentsCreationTransaction",
@@ -26,12 +26,12 @@ const DEPLOYMENT_KEYS = [
 ] as const
 
 export type ReleaseAuthorities = {
-  readonly camRootOwner: CamHost["address"]
-  readonly componentsAdmin: CamHost["address"]
+  readonly intendedCamRootOwner: CamHost["address"]
+  readonly intendedComponentsAdmin: CamHost["address"]
   readonly componentsAdminDelay: number
   readonly componentsPauser: CamHost["address"]
   readonly componentsConfigurer: CamHost["address"]
-  readonly managerAdmin: CamHost["address"]
+  readonly intendedManagerAdmin: CamHost["address"]
   readonly managerAdminDelay: number
   readonly managerPauser: CamHost["address"]
   readonly managerConfigurer: CamHost["address"]
@@ -180,12 +180,12 @@ function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "s
     sourceCommit: requiredSourceCommit(requiredString(value.sourceCommit, "sourceCommit")),
     camURI: requiredString(value.camURI, "camURI"),
     camHash: requiredNonzeroBytes32(value.camHash, "camHash"),
-    camRootOwner: addressField(value, "camRootOwner"),
+    intendedCamRootOwner: addressField(value, "intendedCamRootOwner"),
     tokenName: requiredString(value.tokenName, "tokenName"), tokenSymbol: requiredString(value.tokenSymbol, "tokenSymbol"),
     baseTokenURI: requiredString(value.baseTokenURI, "baseTokenURI"), collectionURI: requiredString(value.collectionURI, "collectionURI"),
-    componentsAdmin: addressField(value, "componentsAdmin"), componentsAdminDelay: requiredDelay(value.componentsAdminDelay, "componentsAdminDelay"),
+    intendedComponentsAdmin: addressField(value, "intendedComponentsAdmin"), componentsAdminDelay: requiredDelay(value.componentsAdminDelay, "componentsAdminDelay"),
     componentsPauser: addressField(value, "componentsPauser"), componentsConfigurer: addressField(value, "componentsConfigurer"),
-    managerAdmin: addressField(value, "managerAdmin"), managerAdminDelay: requiredDelay(value.managerAdminDelay, "managerAdminDelay"),
+    intendedManagerAdmin: addressField(value, "intendedManagerAdmin"), managerAdminDelay: requiredDelay(value.managerAdminDelay, "managerAdminDelay"),
     managerPauser: addressField(value, "managerPauser"), managerConfigurer: addressField(value, "managerConfigurer"),
     registrars: requiredAddresses(value.registrars, "registrars"),
   }
@@ -193,7 +193,7 @@ function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "s
 
 export function rejectDeployerAuthorities(value: Pick<DeploymentArtifact, "deployer"> & ReleaseAuthorities): void {
   const deployer = value.deployer.toLowerCase()
-  const authorities = [value.camRootOwner, value.componentsAdmin, value.componentsPauser, value.componentsConfigurer, value.managerAdmin, value.managerPauser, value.managerConfigurer, ...value.registrars]
+  const authorities = [value.intendedCamRootOwner, value.intendedComponentsAdmin, value.componentsPauser, value.componentsConfigurer, value.intendedManagerAdmin, value.managerPauser, value.managerConfigurer, ...value.registrars]
   if (authorities.some((address) => address.toLowerCase() === deployer)) throw new Error("deployment deployer must not retain a final or operational authority")
 }
 
