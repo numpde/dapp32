@@ -21,7 +21,7 @@ from .common import (
 
 
 ESCROW_ENV = {
-    "CAM_HASH": "0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66",
+    "CAM_HASH": "0xe06f268057be3d32e11ab8e897683376760dfa7550c95943032434e0a4f44430",
     "CAM_URI": "http://escrow-cam-http:8080/main.json",
     "CAM_VIEWER_RESOURCE_ORIGIN": "http://escrow-cam-http:8080",
     "ESCROW_BROADCAST_DIR": "/foundry-broadcast",

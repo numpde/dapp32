@@ -15,6 +15,7 @@ import {
   resolvedUiButtons,
   resolvedUiInputNames,
   resolveInitialUiNode,
+  resolveUiNode,
 } from "../src/index.ts"
 import type {
   ResolvedButtonNode,
@@ -53,6 +54,7 @@ test("escrow creation screen resolves nested payable calldata from one form", as
 
   assert.deepEqual(resolvedUiInputNames(resolvedUi), [
     "acceptanceDuration",
+    "agreementId",
     "agreementRef",
     "amount",
     "arbitrationDuration",
@@ -65,6 +67,7 @@ test("escrow creation screen resolves nested payable calldata from one form", as
     "workDuration",
   ])
   assert.deepEqual(buttonFunctions(resolvedUi), [
+    "agreement",
     "createAgreement",
     "lookupAgreement",
     "accountCredit",
@@ -92,6 +95,21 @@ test("escrow creation screen resolves nested payable calldata from one form", as
   assert.equal(state.arbitrationTimeoutBeneficiary, "1")
 })
 
+test("known agreement ID opens the agreement route without create-form inputs", async () => {
+  const ui = await escrowUi()
+  const { state } = resolveInitialUiNode(ui, "app", args(createView()), CONTEXT)
+  const resolvedUi = resolveUiNode(
+    ui,
+    "app",
+    args(createView()),
+    { ...CONTEXT, state: { ...state, agreementId: AGREEMENT_ID } },
+  )
+
+  const open = requiredButton(resolvedUi, "agreement")
+  assert.equal(open.call.namespace, "routes")
+  assert.deepEqual(plain(open.call.args), { agreementId: AGREEMENT_ID })
+})
+
 test("escrow active screen renders only projected transitions", async () => {
   const { resolvedUi } = resolveInitialUiNode(
     await escrowUi(),
@@ -105,12 +123,14 @@ test("escrow active screen renders only projected transitions", async () => {
   )
 
   assert.deepEqual(buttonFunctions(resolvedUi), [
+    "agreement",
     "approveAgreement",
     "disputeAgreement",
     "accountCredit",
     "createAgreementForm",
   ])
   assert.deepEqual(resolvedUiInputNames(resolvedUi), [
+    "agreementId",
     "disputeDigest",
     "disputeUri",
     "submissionDigest",
@@ -142,10 +162,11 @@ test("escrow terminal screen resolves with no machine transition", async () => {
   )
 
   assert.deepEqual(buttonFunctions(resolvedUi), [
+    "agreement",
     "accountCredit",
     "createAgreementForm",
   ])
-  assert.deepEqual(resolvedUiInputNames(resolvedUi), [])
+  assert.deepEqual(resolvedUiInputNames(resolvedUi), ["agreementId"])
 })
 
 test("escrow available-credit screen binds withdrawal recipient to the account", async () => {
@@ -162,10 +183,11 @@ test("escrow available-credit screen binds withdrawal recipient to the account",
   )
 
   assert.deepEqual(buttonFunctions(resolvedUi), [
+    "agreement",
     "withdrawTo",
     "createAgreementForm",
   ])
-  assert.deepEqual(resolvedUiInputNames(resolvedUi), ["recipient"])
+  assert.deepEqual(resolvedUiInputNames(resolvedUi), ["agreementId", "recipient"])
   assert.equal(state.recipient, ACCOUNT)
   assert.deepEqual(plain(requiredButton(resolvedUi, "withdrawTo").call.args), {
     recipient: ACCOUNT,
