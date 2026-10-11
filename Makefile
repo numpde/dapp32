@@ -105,6 +105,7 @@ ESCROW_LOCAL_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml
 ESCROW_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-terminal.yml
 ESCROW_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-gui.yml
 ESCROW_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/release/check.yml
+ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/browser-check.yml
 TEST_INTEGRATION_FUZZ_COMPOSE_FILES := -f $(COMPOSE_DIR)/test/integration-fuzz.yml
 TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/test-integration-fuzz.yml
 # Docker resolves host bind sources before container policy applies. Guard the
@@ -271,7 +272,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check cam-integration-fuzz-check bike-nft-release-check bike-nft-release-deploy bike-nft-release-verify escrow-release-check escrow-release-deploy escrow-release-verify checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose format fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down escrow-local-scenario escrow-viewer-terminal escrow-viewer-terminal-down escrow-viewer-gui escrow-viewer-gui-down
+.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check cam-integration-fuzz-check bike-nft-release-check bike-nft-release-deploy bike-nft-release-verify escrow-release-check escrow-release-deploy escrow-release-verify checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose format fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down escrow-local-scenario escrow-viewer-terminal escrow-viewer-terminal-down escrow-viewer-gui escrow-viewer-gui-down escrow-viewer-browser-check
 
 help:
 	@printf '%s\n' \
@@ -334,6 +335,7 @@ help:
 	  '  make escrow-local-scenario      Run all nine escrow terminal paths through the real-RPC CAM viewer' \
 	  '  make escrow-viewer-terminal     Deploy escrow locally and open the real-RPC viewer terminal' \
 	  '  make escrow-viewer-gui          Deploy escrow locally and run the browser GUI on $${ESCROW_GUI_ORIGIN}' \
+	  '  make escrow-viewer-browser-check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check the running GUI in a fresh CDP tab' \
 	  '  ESCROW_GUI_BIND_HOST=0.0.0.0 ESCROW_GUI_ORIGIN=http://host:5174 make escrow-viewer-gui  Expose the local GUI to another browser host' \
 	  '' \
 	  'Supported lanes are Docker/Compose-backed. Default check lanes are offline, read-only,' \
@@ -998,6 +1000,16 @@ escrow-viewer-gui-down:
 	$(ESCROW_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(ESCROW_VIEWER_GUI_COMPOSE_FILES) \
 	  $(COMPOSE_DOWN_CLEANUP)
+
+# Explicit live browser check: host networking reaches the operator's loopback
+# CDP, GUI, and RPC endpoints and grants ordinary host-network egress. The
+# runner validates its direct URLs; the external browser fetches public CAM.
+# This lane never starts or stops the GUI or browser.
+escrow-viewer-browser-check:
+	@$(LANE_GUARD); \
+	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
+	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
+	$(DOCKER_COMPOSE) $(ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES) run --rm --no-deps -T escrow-viewer-browser-check
 
 escrow-release-deploy:
 	@$(LANE_GUARD); \

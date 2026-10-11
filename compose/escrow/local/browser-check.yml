@@ -1,0 +1,29 @@
+# Opt-in check against an already running local viewer and operator-owned CDP browser.
+services:
+  escrow-viewer-browser-check:
+    image: docker.io/library/node:24.15.0-bookworm-slim@sha256:4e6b70dd6cbfc88c8157ba19aa3d9f9cce6ba4703576d55459e45efcbc9c5f5d
+    user: "10001:10001"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 1
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    network_mode: host
+    environment:
+      CDP_ORIGIN: "${CDP_ORIGIN:?Set CDP_ORIGIN to a loopback HTTP CDP endpoint}"
+      VIEWER_URL: "${VIEWER_URL:?Set VIEWER_URL to the printed local viewer URL}"
+      EXPECTED_CAM_URI: "${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI to the full pinned CAM URI}"
+      EXPECTED_CAM_HASH: "${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH to the nonzero pinned CAM hash}"
+    volumes:
+      - type: bind
+        source: ../../../js/apps/cam-web/test/escrow-browser-check.mjs
+        target: /check.mjs
+        read_only: true
+        bind:
+          create_host_path: false
+    command: ["node", "/check.mjs"]

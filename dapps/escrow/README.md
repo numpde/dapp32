@@ -257,7 +257,19 @@ make escrow-viewer-gui
 
 The browser query starts with the client as the viewer identity. Actual writes remain controlled by the injected browser wallet. Import only the explicit local fixture accounts and switch wallet accounts to exercise contractor and arbitrator actions.
 
-The target cleans up when the viewer exits. To clean up a separately interrupted project, run:
+With the GUI running and a separate browser profile exposing CDP on loopback, run the optional live browser check in another terminal. CDP grants control of that browser profile. Replace the placeholders with the full URL printed by the GUI and the expected onchain CAM URI and nonzero hash:
+
+```bash
+CDP_ORIGIN=http://127.0.0.1:9222 \
+VIEWER_URL='paste full printed GUI URL' \
+EXPECTED_CAM_URI='paste expected CAM URI' \
+EXPECTED_CAM_HASH='paste expected 0x-prefixed CAM hash' \
+make escrow-viewer-browser-check
+```
+
+The check opens and closes its own tab. It verifies onchain resource identity, CAM integrity, read navigation, and failure messages and overflow at desktop and narrow widths. It performs no wallet-signed writes and is outside offline CI.
+
+`make escrow-viewer-gui` cleans up its fixture when its foreground command exits. Closing the browser check's tab does not stop the GUI. To clean up a separately interrupted project, run:
 
 ```bash
 make escrow-viewer-gui-down

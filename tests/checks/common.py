@@ -51,6 +51,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "CAM_PREFLIGHT_ARGS": "",
     "CAM_URI": "https://example.test/bike-nft/cam/main.json",
     "CAM_VIEWER_RESOURCE_ORIGIN": "http://escrow-cam-http:8080",
+    "CDP_ORIGIN": "http://127.0.0.1:9222",
     "COMPOSE_PROJECT_NAME": "dapps-check",
     "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
     "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
@@ -59,6 +60,8 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "ESCROW_GUI_BIND_HOST": "127.0.0.1",
     "ESCROW_GUI_ORIGIN": "http://127.0.0.1:5174",
     "ESCROW_GUI_PORT": "5174",
+    "EXPECTED_CAM_HASH": "0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66",
+    "EXPECTED_CAM_URI": "https://example.test/escrow/cam/main.json",
     "ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
     "ESCROW_RELEASE_CAM_URI": "https://example.test/escrow/cam/main.json",
     "ESCROW_RELEASE_EXPECTED_CHAIN_ID": "11155111",
@@ -68,6 +71,7 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "LOCAL_GID": "1000",
     "LOCAL_UID": "1000",
     "RPC_URL_FILE": "/tmp/escrow-release-rpc-url",
+    "VIEWER_URL": "http://127.0.0.1:5174/?chainId=eip155%3A31337&host=0x0000000000000000000000000000000000000001&account=0x0000000000000000000000000000000000000002&rpcUrl=http%3A%2F%2F127.0.0.1%3A5174%2Frpc",
 }
 
 SKIP_DIRS = {
