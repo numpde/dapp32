@@ -18,7 +18,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xa4a509eb363ee95cb01c122231ab09d07cad8c73054169d23f8ea695520c1317"
+      "integrity": "sha256:0x54af86f053de185abc6436c981f065fc3a6aac7975d29fefc3ddbb0001ed088e"
     }
   },
   "routes": {
@@ -86,14 +86,12 @@
     },
     "accountCredit": {
       "kind": "read",
-      "inputs": [
-        "account"
-      ],
+      "inputs": [],
       "call": {
         "namespace": "contracts.CamEscrowUI",
         "function": "viewAccountCredit",
         "args": {
-          "account": "$inputs.account"
+          "account": "$account.address"
         }
       },
       "then": {
@@ -365,9 +363,7 @@
       "then": {
         "namespace": "routes",
         "function": "accountCredit",
-        "args": {
-          "account": "$account.address"
-        }
+        "args": {}
       }
     }
   }

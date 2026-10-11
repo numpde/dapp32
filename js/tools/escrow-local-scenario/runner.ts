@@ -418,7 +418,7 @@ async function withdrawCredit(
 ): Promise<void> {
   const account = fixture.accounts[beneficiary].address
   await setRole(fixture, beneficiary)
-  await fixture.session.navigate("accountCredit", inertRecord({ account }))
+  await fixture.session.navigate("accountCredit", inertRecord({}))
   const available = projectedView(loadedSnapshot(fixture.session))
   assert.equal(available.viewId, "escrow.credit.available")
   assert.equal(requiredUintText(available.amount, "withdrawable amount"), AGREEMENT_AMOUNT)

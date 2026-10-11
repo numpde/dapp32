@@ -112,6 +112,66 @@ test("known agreement ID opens the agreement route without create-form inputs", 
   assert.deepEqual(plain(open.call.args), { agreementId: AGREEMENT_ID })
 })
 
+for (const viewId of [
+  "escrow.agreement.active",
+  "escrow.agreement.terminal",
+  "escrow.agreement.absent",
+]) {
+  test(`${viewId} starts lookup from the selected agreement without retargeting transitions`, async () => {
+    const ui = await escrowUi()
+    const view = agreementView({ viewId, stateId: "submitted", transitionIds: [] })
+    const initial = resolveInitialUiNode(ui, "app", args(view), CONTEXT)
+    assert.equal(initial.state.agreementId, AGREEMENT_ID)
+    assert.equal(requiredButton(initial.resolvedUi, "agreement").call.args.agreementId, AGREEMENT_ID)
+
+    const otherId = `0x${"cd".repeat(32)}`
+    const edited = resolveUiNode(ui, "app", args(view), {
+      ...CONTEXT, state: { ...initial.state, agreementId: otherId },
+    })
+    assert.equal(requiredButton(edited, "agreement").call.args.agreementId, otherId)
+    for (const button of resolvedUiButtons(edited)) {
+      if (AGREEMENT_ACTIONS.some((action) => action === button.call.function)) {
+        assert.equal(button.call.args.agreementId, AGREEMENT_ID, `${button.call.function} retains the selected target`)
+      }
+    }
+  })
+}
+
+test("each selected agreement initializes its own lookup; restored drafts remain independent", async () => {
+  const ui = await escrowUi()
+  const firstView = agreementView({
+    viewId: "escrow.agreement.active", stateId: "submitted", transitionIds: [],
+  })
+  const first = resolveInitialUiNode(ui, "app", args(firstView), CONTEXT)
+  const draftId = `0x${"cd".repeat(32)}`
+  const draft = { ...first.state, agreementId: draftId }
+  const secondId = `0x${"ef".repeat(32)}`
+  const secondView = {
+    ...firstView,
+    machine: { ...firstView.machine, instanceId: secondId },
+    agreement: { ...firstView.agreement, agreementId: secondId },
+  }
+  const second = resolveInitialUiNode(ui, "app", args(secondView), CONTEXT)
+  assert.equal(first.state.agreementId, AGREEMENT_ID)
+  assert.equal(second.state.agreementId, secondId)
+  const restored = resolveUiNode(ui, "app", args(firstView), { ...CONTEXT, state: draft })
+  assert.equal(requiredButton(restored, "agreement").call.args.agreementId, draftId)
+  assert.equal(draft.agreementId, draftId)
+  assert.equal(second.state.agreementId, secondId)
+})
+
+for (const view of [
+  createView(),
+  { viewId: "escrow.credit.empty", account: ACCOUNT, amount: "0", actions: [] },
+  { viewId: "escrow.credit.available", account: ACCOUNT, amount: "1", actions: ["withdrawTo"] },
+]) {
+  test(`${view.viewId} starts with no selected agreement ID`, async () => {
+    const { state, resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(view), CONTEXT)
+    assert.equal(state.agreementId, "")
+    assert.equal(requiredButton(resolvedUi, "agreement").call.args.agreementId, "")
+  })
+}
+
 test("escrow active screen enables only projected transitions", async () => {
   const { resolvedUi } = resolveInitialUiNode(
     await escrowUi(),
