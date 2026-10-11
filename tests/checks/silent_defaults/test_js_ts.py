@@ -30,12 +30,17 @@ JS_DESTRUCTURING_DEFAULT_RE = re.compile(
     r"(?:[\"'`{\[]|\d|true|false|null|undefined)"
 )
 JS_PARAMETER_DESTRUCTURING_VALUE_RE = re.compile(
-    r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:[\"'`{\[]|\d|true|false|null|undefined|[A-Z_][A-Za-z0-9_]*)"
+    r"(?:^|[,{])\s*(?P<assignment>[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:[\"'`{\[]|\d|true|false|null|undefined|[A-Z_][A-Za-z0-9_]*))"
 )
 JS_PARAMETER_OBJECT_START_RE = re.compile(
-    r"(?:\bfunction\b[^{\n]*\(\s*\{"
-    r"|(?:const|let|var)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:async\s*)?\(?\s*\{"
-    r"|^\s*[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\{)"
+    r"(?:\bfunction\b[^({]*\(\s*\{"
+    r"|(?:const|let|var)\s+[A-Za-z_][A-Za-z0-9_]*\s*=\s*(?:async\s*)?\(\s*\{"
+    r"|^[ \t]*[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\{)",
+    re.MULTILINE,
+)
+JS_PARAMETER_TOKEN_RE = re.compile(
+    r"\"(?:\\.|[^\"\\])*\"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`"
+    r"|//[^\n]*|/\*[\s\S]*?\*/|[{}();]"
 )
 JS_OPTION_OBJECT_DEFAULT_RE = re.compile(
     r"(?:function\s+[A-Za-z0-9_]+\s*\([^)\n]*\{[^)\n]*\}\s*:\s*[A-Za-z0-9_<>, ]+\s*=\s*\{\}"
@@ -76,6 +81,57 @@ def js_ts_files() -> list[Path]:
 
 class JsTsSilentDefaultsTest(unittest.TestCase):
     maxDiff = None
+
+    def test_parameter_defaults_do_not_include_object_initializers_or_function_bodies(self) -> None:
+        sources = (
+            "const options = {\n  update() {\n    enabled = true;\n  },\n};",
+            "const options = ({\n  update() {\n    enabled = true;\n  },\n});",
+            "run({\n  update() {\n    enabled = true;\n  },\n});",
+            "function render({ account }: Options) {\n  return <View\n    account={account}\n  />;\n}",
+            "const render = ({ account }: Options) => {\n  return <View\n    account={account}\n  />;\n};",
+            "run({ account }: Options) {\n  if (account) {\n    currentView = { account };\n  }\n}",
+            "function run({\n  account,\n}: Options) {\n  currentView = { account };\n}",
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertEqual([], js_parameter_destructuring_default_findings_for_source(source, "fixture"))
+
+    def test_parameter_defaults_include_inline_multiline_and_nested_destructuring(self) -> None:
+        sources = (
+            "function run({ port = DEFAULT_PORT }: Options) {}",
+            "const run = ({ port = DEFAULT_PORT }: Options) => {};",
+            "run({ port = DEFAULT_PORT }: Options) {}",
+            "function run({\n  port = DEFAULT_PORT,\n}: Options) {}",
+            "const run = ({\n  port = DEFAULT_PORT,\n}: Options) => {};",
+            "run({\n  port = DEFAULT_PORT,\n}: Options) {}",
+            "function run({ nested: { port = DEFAULT_PORT } }: Options) {}",
+            "function run({ label = '}', port = DEFAULT_PORT }: Options) {}",
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertTrue(js_source_has_parameter_destructuring_default(source))
+
+    def test_first_destructured_parameter_defaults_survive_following_parameters(self) -> None:
+        sources = (
+            "const run = ({\n  port = DEFAULT_PORT,\n}, other) => {};",
+            "run({\n  port = DEFAULT_PORT,\n}, other) {}",
+            "const run = ({\n  port = DEFAULT_PORT,\n}: Options, other: boolean = false) => {};",
+            "run({\n  port = DEFAULT_PORT,\n}: Options, other: boolean = false) {}",
+            "const run = ({ port = DEFAULT_PORT }, callback = () => {}) => {};",
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertTrue(js_source_has_parameter_destructuring_default(source))
+
+    def test_call_objects_with_following_arguments_are_not_parameter_objects(self) -> None:
+        sources = (
+            "run({\n  update() {\n    enabled = true;\n  },\n}, other);",
+            "const result = run({\n  update() {\n    enabled = true;\n  },\n}, other);",
+            "const options = ({\n  update() {\n    enabled = true;\n  },\n}, () => {});",
+        )
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertEqual([], js_parameter_destructuring_default_findings_for_source(source, "fixture"))
 
     def test_matchers_flag_representative_js_ts_defaults(self) -> None:
         self.assertRegex("x ?? fallback", JS_NULLISH_FALLBACK_RE)
@@ -147,16 +203,52 @@ def js_parameter_destructuring_default_findings(paths: list[Path]) -> list[str]:
 
 def js_parameter_destructuring_default_findings_for_source(source: str, label: str) -> list[str]:
     findings: list[str] = []
-    in_parameter_object = False
-    for line_number, line in enumerate(source.splitlines(), start=1):
-        if not in_parameter_object and JS_PARAMETER_OBJECT_START_RE.search(line):
-            in_parameter_object = True
+    lines = source.splitlines()
+    for start in JS_PARAMETER_OBJECT_START_RE.finditer(source):
+        object_start = start.end() - 1
+        depth = 0
+        ignored_spans: list[tuple[int, int]] = []
+        for token in JS_PARAMETER_TOKEN_RE.finditer(source, object_start):
+            if token.group() == "{":
+                depth += 1
+            elif token.group() == "}":
+                depth -= 1
+                if depth == 0:
+                    object_end = token.end()
+                    break
+            else:
+                ignored_spans.append((token.start(), token.end()))
+        else:
+            continue
 
-        if in_parameter_object and JS_PARAMETER_DESTRUCTURING_VALUE_RE.search(line):
-            findings.append(f"{label}:{line_number}: JS/TS parameter destructuring default: {line.strip()}")
+        # Following parameters can contain callbacks; only the outer ')' ends the header.
+        if not re.search(r"\bfunction\b", start.group()):
+            parentheses = 1
+            braces = 0
+            for token in JS_PARAMETER_TOKEN_RE.finditer(source, object_end):
+                if token.group() == "(":
+                    parentheses += 1
+                elif token.group() == ")":
+                    parentheses -= 1
+                    if parentheses == 0:
+                        break
+                elif token.group() == "{":
+                    braces += 1
+                elif token.group() == "}":
+                    braces -= 1
+                elif token.group() == ";" and parentheses == 1 and braces == 0:
+                    break
+            if parentheses != 0:
+                continue
+            suffix = r"=>" if re.match(r"(?:const|let|var)\b", start.group()) else r"\{"
+            if not re.match(r"\s*(?::[^=;]+)?" + suffix, source[token.end():]):
+                continue
 
-        if in_parameter_object and re.search(r"^\s*\}\s*[:)]", line):
-            in_parameter_object = False
+        for default in JS_PARAMETER_DESTRUCTURING_VALUE_RE.finditer(source, object_start, object_end):
+            if any(begin <= default.start() < end for begin, end in ignored_spans):
+                continue
+            line_number = source.count("\n", 0, default.start("assignment")) + 1
+            findings.append(f"{label}:{line_number}: JS/TS parameter destructuring default: {lines[line_number - 1].strip()}")
 
     return findings
 
