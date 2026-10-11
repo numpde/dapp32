@@ -20,6 +20,7 @@ export function actionSummary(action: ResolvedButtonNode): JsonObject {
   return {
     element: action.element,
     props: action.props,
+    disabled: action.disabled === true,
     call: action.call,
   }
 }

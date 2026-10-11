@@ -160,6 +160,7 @@ function UiNodeView({
             // the DOM so tests, autofill, and agents do not need a parallel
             // mapping from rendered inputs back to protocol state.
             name={name}
+            disabled={node.disabled === true}
             value={stateString(state, name)}
             onChange={(event) => onInput(name, event.currentTarget.value)}
           />
@@ -182,6 +183,7 @@ function UiNodeView({
         <button
           className="action-button"
           type="button"
+          disabled={node.disabled === true}
           onClick={() => {
             void onAction(node)
           }}

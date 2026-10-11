@@ -21,6 +21,7 @@ import type {
   ResolvedUiNode,
   UiCall,
   UiDocument,
+  UiMembership,
   UiNode,
   UiRuntimeContext,
 } from "./types.ts"
@@ -152,6 +153,7 @@ function resolveNode(
     case "TextField":
       return [{
         element: node.element,
+        ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`),
         props: resolveProps(node.element, node.props, context, `${path}.props`),
         state: resolveStateBinding(node.state, context, `${path}.state`, false),
         children: [] as const,
@@ -416,9 +418,25 @@ function checkedSelectedNodeNames(names: readonly string[], path: string): reado
 function resolveAction(node: ButtonNode, context: UiRuntimeContext, path: string): ResolvedButtonNode {
   return {
     element: "Button",
+    ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`),
     props: resolveProps(node.element, node.props, context, `${path}.props`),
     call: resolveCall(node.call, context, `${path}.call`),
   }
+}
+
+function resolveAvailability(
+  membership: UiMembership | undefined,
+  context: UiRuntimeContext,
+  path: string,
+): { readonly disabled?: boolean } {
+  if (membership === undefined) return {}
+  const members = typeof membership.in === "string"
+    ? resolveValueAtPath(membership.in, context, `${path}.in`)
+    : membership.in
+  if (!Array.isArray(members) || !members.every((member) => typeof member === "string" && member.length > 0)) {
+    throw new UiError("UI_INVALID_FIELD", "enabledWhen.in must resolve to an array of non-empty strings", `${path}.in`)
+  }
+  return { disabled: !members.includes(membership.member) }
 }
 
 function resolveProps(

@@ -32,7 +32,8 @@
   what they are doing, which agreement and account it concerns, what they can do
   now, and what pressing a button will do. Start with meaning and state; extend
   presentation vocabulary only for demonstrated missing capabilities. This is
-  a researched proposal, not an implemented change.</p>
+  a researched proposal with the bounded availability implementation described
+  below; other workshop issues remain open.</p>
 
   <h2>Observed experience</h2>
   <p>The local Chromium walkthrough found a creation page approximately 1,817 pixels
@@ -132,6 +133,11 @@
   <a href="https://a2ui.org/">A2UI</a></p>
 
   <h2>Recommended task model</h2>
+  <p><strong>Subsequent decision:</strong> keep agreement action buttons and their
+  fields visible. Disable a button and its associated fields when the existing
+  contract projection does not list that action; preserve their drafts. The UI
+  only makes this explicit mapping. It does not infer permission from roles,
+  phases, labels or method names, and it does not invent a reason for absence.</p>
   <p>Creation should group <strong>People, Payment, Timing, Terms</strong>, with a separate
   existing-agreement entry. Keep one editable form initially rather than adding
   a wizard. Hints explain units, accepted formats, and the timeout beneficiary.
@@ -167,7 +173,7 @@
     <table>
       <thead><tr><th scope="col">Approach</th><th scope="col">Benefit</th><th scope="col">Cost / decision</th></tr></thead>
       <tbody>
-        <tr><th scope="row">Manifest recomposition</th><td>Uses current Include, Fragment, Text and Status; preserves projected actions</td><td>Recommend first; cannot supply semantic grouping or associated hints</td></tr>
+        <tr><th scope="row">Manifest recomposition</th><td>Uses current Include, Fragment, Text and Status; preserves projected actions</td><td>Useful for task composition; visible disabled controls also need an explicit availability binding</td></tr>
         <tr><th scope="row">Explicit presentation primitives</th><td>Generic sections, hints, disclosure or choices where tasks require them</td><td>Add separately, with protocol/parser/resolver/conformance/renderer agreement</td></tr>
         <tr><th scope="row">Escrow-specific React UI</th><td>Full domain freedom</td><td>Duplicates manifest meaning; reject for this generated-UI experiment</td></tr>
       </tbody>
@@ -182,16 +188,19 @@
       <tbody>
         <tr><th scope="row">1. Task, identity and capability clarity</th><td>Escrow manifest for task copy; viewer shell for account, signer and provenance</td><td>Users can distinguish draft, selected agreement and general policy; viewing as an address never implies signer control; supported reads remain available without a wallet</td></tr>
         <tr><th scope="row">2. Scoped input and lookup states</th><td>Generic input/error presentation and viewer lifecycle</td><td>Empty and malformed values receive associated corrections; absence and transport failure remain distinct; failures preserve coherent context and entered values</td></tr>
-        <tr><th scope="row">3. Relevant forms and usable composition</th><td>Escrow manifest, then shared renderer where needed</td><td>Across projected transition subsets, only applicable action inputs exist and retain the agreement ID; semantic grouping, body insets and identifiable controls work at narrow/zoomed widths</td></tr>
+        <tr><th scope="row">3. Relevant controls and usable composition</th><td>Escrow manifest and generic control availability</td><td>Across projected transition subsets, controls stay visible and only listed actions and their fields are enabled; drafts and the viewed agreement ID remain intact; usable grouping and insets still need work</td></tr>
         <tr><th scope="row">4. Associated guidance and enum choices</th><td>Explicit UI vocabulary</td><td>Hints belong to their inputs; choice labels map to exact values; integer precision survives editing and preparation</td></tr>
         <tr><th scope="row">5. Human and exact transaction review</th><td>Prepared-call presentation; semantic metadata only after ownership decision</td><td>Essential facts and complete bounded arguments belong to the prepared call; publisher claims and later edits cannot replace them; discard preserves recovery</td></tr>
       </tbody>
     </table>
   </div>
-  <p>The first bounded composition fix remains grouping each submission/dispute
-  input pair with its corresponding action, using existing Fragment and Include
-  primitives. The new priorities describe the release
-  requirements, not a reason to build a new form engine before that fix.</p>
+  <p>The first bounded implementation follows that decision: a control's
+  <code>enabledWhen</code> declaration names one literal action and an existing
+  projected string list. Exact membership determines its disabled state.
+  Missing or wrongly typed lists fail explicitly. Agreement screens share a
+  visible action panel; both active and terminal views retain disabled controls.
+  The new priorities describe the release requirements, not a reason to build a
+  new form engine. New declarations require the updated strict viewer parser.</p>
   <p>Additional state tests should cover a ready first render with an empty ID,
   empty/malformed submission, pending and repeated lookup, absent agreement,
   transport/projection failure, and older responses arriving after newer

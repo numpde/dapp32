@@ -1,5 +1,7 @@
 import {
   createStringMap,
+  isExpressionReferenceString,
+  parseExpressionReference,
   UI_CALL_NAMESPACE_BY_ELEMENT,
   UI_DOCUMENT_TOP_LEVEL_KEYS,
   UI_NODE_ARGUMENT_KEYS,
@@ -15,18 +17,19 @@ import {
   rejectUnknownFields,
 } from "./guards.ts"
 import type { InertRecord, InertValue } from "@cam/protocol"
-import type { UiCall, UiDocument, UiNode } from "./types.ts"
+import type { UiCall, UiDocument, UiMembership, UiNode } from "./types.ts"
 
-const NAMED_NODE_KEYS = new Set(["requires", "element", "props", "state", "children", "call"])
-const INLINE_NODE_KEYS = new Set(["element", "props", "state", "children", "call"])
+const NAMED_NODE_KEYS = new Set(["requires", "element", "props", "state", "children", "call", "enabledWhen"])
+const INLINE_NODE_KEYS = new Set(["element", "props", "state", "children", "call", "enabledWhen"])
+const MEMBERSHIP_KEYS = new Set(["member", "in"])
 const CALL_KEYS = new Set(["namespace", "function", "args"])
 const STATE_KEYS = new Set(["key", "defaultValue"])
 const SCREEN_NODE_KEYS = new Set(["element", "props", "children"])
 const FRAGMENT_KEYS = new Set(["element", "children"])
 const PROPS_ONLY_KEYS = new Set(["element", "props"])
-const TEXT_FIELD_KEYS = new Set(["element", "props", "state"])
+const TEXT_FIELD_KEYS = new Set(["element", "props", "state", "enabledWhen"])
 const INCLUDE_KEYS = new Set(["element", "call"])
-const BUTTON_KEYS = new Set(["element", "props", "call"])
+const BUTTON_KEYS = new Set(["element", "props", "call", "enabledWhen"])
 
 export function parseUi(input: unknown): UiDocument {
   const source = requiredRecord(input, "")
@@ -107,6 +110,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         element,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.TextField),
         state: parseStateBinding(source.state, `${path}.state`),
+        ...parseOptionalMembership(source, path),
       }
     case "Address":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
@@ -138,10 +142,37 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         element,
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Button),
         call: parseCall(source.call, `${path}.call`, UI_CALL_NAMESPACE_BY_ELEMENT.Button),
+        ...parseOptionalMembership(source, path),
       }
     default:
       throw new UiError("UI_INVALID_FIELD", `unknown UI node element: ${element}`, `${path}.element`)
   }
+}
+
+function parseOptionalMembership(source: Record<string, unknown>, path: string): { readonly enabledWhen?: UiMembership } {
+  if (!Object.hasOwn(source, "enabledWhen")) return {}
+  const membershipPath = `${path}.enabledWhen`
+  const value = requiredRecord(source.enabledWhen, membershipPath)
+  rejectUnknownUiFields(value, MEMBERSHIP_KEYS, membershipPath)
+  const member = requiredLiteralMember(value.member, `${membershipPath}.member`)
+  if (typeof value.in === "string") {
+    parseExpressionPayload(value.in, `${membershipPath}.in`)
+    if (parseExpressionReference(value.in, { numericSegments: true }) === undefined) {
+      throw new UiError("UI_INVALID_FIELD", "enabledWhen.in must be a reference or literal string array", `${membershipPath}.in`)
+    }
+    return { enabledWhen: { member, in: value.in } }
+  }
+  const members = requiredArray(value.in, `${membershipPath}.in`)
+    .map((item, index) => requiredLiteralMember(item, `${membershipPath}.in.${index}`))
+  return { enabledWhen: { member, in: members } }
+}
+
+function requiredLiteralMember(value: unknown, path: string): string {
+  const member = requiredNonEmptyString(value, path)
+  if (isExpressionReferenceString(member)) {
+    throw new UiError("UI_INVALID_FIELD", "enabledWhen members must be literal strings, not references", path)
+  }
+  return member
 }
 
 function rejectUnexpectedNodeShape(

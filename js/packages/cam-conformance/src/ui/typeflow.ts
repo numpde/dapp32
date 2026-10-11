@@ -76,7 +76,7 @@ type RouteInputCollector = {
   readonly names: Set<string>
   hasUnknown: boolean
 }
-type ValueExpectation = "address" | "integer-or-string" | "string" | "string-or-string-array"
+type ValueExpectation = "address" | "integer-or-string" | "string" | "string-array" | "string-or-string-array"
 type ValueResolver = (value: unknown) => unknown | undefined
 type IncludeSelection = {
   readonly names: readonly string[]
@@ -182,6 +182,7 @@ function walkNode(
   if (typeof element !== "string") return
 
   validateProps(scope, element, node, path, context)
+  validateAvailability(scope, element, node, path, context)
   validateStateBinding(scope, element, node, path, context)
   validateCall(scope, element, node, path, context, routeInputs, stack, allowRecurse)
 
@@ -191,6 +192,18 @@ function walkNode(
       walkNode(scope, child, `${path}.children.${index}`, context, routeInputs, stack, allowRecurse)
     }
   })
+}
+
+function validateAvailability(
+  scope: Scope,
+  element: string,
+  node: Record<string, unknown>,
+  path: string,
+  context: AbiContext,
+): void {
+  if (element !== "TextField" && element !== "Button") return
+  if (!isRecordObject(node.enabledWhen)) return
+  validateBoundValue(scope, `${path}.enabledWhen.in`, "UI enabledWhen.in", node.enabledWhen.in, "string-array", context)
 }
 
 function validateProps(
@@ -1028,6 +1041,8 @@ function abiValueMatches(value: unknown, expectation: ValueExpectation): boolean
       return type === "integer" || type === "string" || type === "literal-string"
     case "string":
       return type === "string" || type === "literal-string"
+    case "string-array":
+      return type === "string-array" || type === "literal-string-array"
     case "string-or-string-array":
       return type === "string" || type === "string-array" || type === "literal-string" || type === "literal-string-array"
   }

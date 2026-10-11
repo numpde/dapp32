@@ -4,7 +4,7 @@ import type {
   CamRoute,
 } from "../../packages/cam-core/dist/index.js"
 import {
-  resolvedUiInputNames,
+  forEachResolvedUiNode,
 } from "../../packages/cam-screen/dist/index.js"
 import type {
   CamViewerSnapshot,
@@ -62,7 +62,11 @@ export function generatedStatePatch({
   }
 
   const patch: Record<string, InertValue> = {}
-  for (const name of resolvedUiInputNames(resolved)) {
+  const names = new Set<string>()
+  forEachResolvedUiNode(resolved, (node) => {
+    if (node.element === "TextField" && node.disabled !== true) names.add(node.state.key)
+  })
+  for (const name of [...names].sort()) {
     patch[name] = generatedNamedValue(name, account, prng, mode)
   }
 

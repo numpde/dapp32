@@ -119,6 +119,43 @@ test("assertStatePatchTargets accepts rendered TextField state keys", () => {
   }))
 })
 
+test("action dispatch follows current availability rather than the caller's disabled flag", () => {
+  for (const action of [readAction, writeAction]) {
+    const current = { ...action, disabled: true }
+    const forgedEnabled = { ...action, disabled: false }
+    assert.throws(
+      () => assertActionIsRendered(current, forgedEnabled),
+      (error) => error instanceof CamViewerError
+        && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED"
+        && /disabled/.test(error.message),
+    )
+    assert.doesNotThrow(() => assertActionIsRendered(forgedEnabled, current))
+  }
+})
+
+test("state patches target only currently enabled fields, including nested fields", () => {
+  const field = {
+    element: "TextField" as const,
+    props: { label: "Draft" },
+    state: { key: "draft", defaultValue: "retained value" },
+    children: [] as const,
+    disabled: true,
+  }
+  const ui: ResolvedUiNode = {
+    element: "Screen",
+    props: {},
+    children: [{ element: "Fragment", props: {}, children: [field] }],
+  }
+  assert.throws(
+    () => assertStatePatchTargets(ui, { draft: "replacement" }),
+    (error) => error instanceof CamViewerError
+      && error.code === "CAM_VIEWER_INVALID_INERT_VALUE"
+      && /disabled/.test(error.message),
+  )
+  const enabled = { ...field, disabled: false }
+  assert.doesNotThrow(() => assertStatePatchTargets(enabled, { draft: "replacement" }))
+})
+
 test("assertStatePatchTargets rejects unrendered state keys", () => {
   assert.throws(
     () => assertStatePatchTargets(resolvedUi(), {

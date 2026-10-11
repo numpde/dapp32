@@ -269,6 +269,65 @@ test("Back drops edits whose inputs are absent from the refreshed view", async (
   assert.equal(Object.hasOwn(restored.state, "tokenURI"), false)
 })
 
+test("Back preserves visible drafts while refreshed contract availability disables and re-enables their controls", async () => {
+  const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
+  const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
+  const nodes = mutableRecord(ui.nodes)
+  const entryChildren = mutableRecord(nodes.entry).children as Record<string, unknown>[]
+  const serialField = entryChildren.find((child) => child.element === "TextField"
+    && mutableRecord(child.state).key === "serialNumber")
+  assert.ok(serialField)
+  const membership = { member: "lookupComponent", in: "$view.actions" }
+  serialField.enabledWhen = membership
+  mutableRecord(nodes.lookupComponent).enabledWhen = membership
+  const appChildren = mutableRecord(nodes.app).children as Record<string, unknown>[]
+  const actionInclude = appChildren.find((child) => child.element === "Include"
+    && mutableRecord(child.call).function === "$view.actions")
+  assert.ok(actionInclude)
+  mutableRecord(actionInclude.call).function = "lookupComponent"
+  const uiBytes = encodeJson(ui)
+  const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+  mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  const session = createSession(sessionFixtureOptions({
+    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+    loadResource: createResourceLoader(bikeResourceBytes({
+      [camURI]: encodeJson(cam),
+      [BIKE_UI_URI]: uiBytes,
+    })),
+  }))
+  await session.load()
+  session.updateState({ serialNumber: "unfinished draft" })
+
+  for (const available of [false, true]) {
+    await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+    routeResults[BIKE_VIEW_ENTRY] = {
+      ...bikeEntryRouteResult(userAddress),
+      actions: available ? ["lookupComponent"] : [],
+    }
+    const restored = await session.back()
+    assert.equal(restored.state.serialNumber, "unfinished draft")
+    let matchingControls = 0
+    forEachResolvedUiNode(restored.resolvedUi, (node) => {
+      if (node.element === "TextField" && node.state.key === "serialNumber") {
+        matchingControls++
+        assert.equal(node.disabled, !available)
+      }
+      if (node.element === "Button" && node.call.function === BIKE_ROUTE_COMPONENT) {
+        matchingControls++
+        assert.equal(node.disabled, !available)
+        assert.equal(node.call.args.serialNumber, "unfinished draft")
+      }
+    })
+    assert.equal(matchingControls, 2)
+    if (!available) {
+      assert.throws(() => session.updateState({ serialNumber: "unavailable edit" }), /disabled/)
+      assert.equal(session.snapshot().state?.serialNumber, "unfinished draft")
+    }
+  }
+  assert.equal(session.updateState({ serialNumber: "continued draft" }).state.serialNumber, "continued draft")
+})
+
 test("successful account changes and loads clear history", async () => {
   const session = createSession(sessionFixtureOptions({}))
   await session.load()

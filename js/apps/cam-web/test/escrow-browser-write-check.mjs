@@ -210,6 +210,35 @@ async function prepare(label) {
   await click(label)
   await waitFor(state => state.prepared && state.notices.some(text => text.includes('Simulation passed')), 'prepared call')
 }
+async function assertEvidenceAvailability(expected) {
+  const state = await evaluate(snapshotExpression)
+  for (const [label, fields] of [
+    ['Submit work evidence', ['submissionUri', 'submissionDigest']],
+    ['Dispute submission', ['disputeUri', 'disputeDigest']],
+  ]) {
+    const enabled = expected.includes(label)
+    const button = state.buttons.find(control => control.name === label)
+    assert(button, `${label} must remain visible`)
+    assert.equal(button.disabled, !enabled, `${label} availability`)
+    for (const name of fields) {
+      const input = state.inputs.find(control => control.name === name)
+      assert(input, `${name} must remain visible`)
+      assert.equal(input.disabled, !enabled, `${name} editability`)
+    }
+    if (!enabled) {
+      assert(await evaluate(`(() => {
+        const disabled=[...document.querySelectorAll('.action-button')].find(x=>x.textContent.trim()===${JSON.stringify(label)});
+        const enabled=document.querySelector('.action-button:not(:disabled)');
+        const appearance=node=>{const style=getComputedStyle(node);return [style.color,style.backgroundColor,style.opacity].join('|')};
+        return !!enabled && appearance(disabled)!==appearance(enabled);
+      })()`), 'disabled actions must look distinct from enabled actions')
+      await evaluate(`(() => {const button=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===${JSON.stringify(label)});button.click();return true})()`)
+      const after = await evaluate(snapshotExpression)
+      assert.equal(after.prepared, state.prepared, 'disabled action must not start preparation')
+      assert.deepEqual(after.inputs, state.inputs, 'disabled activation must preserve drafts')
+    }
+  }
+}
 async function setupDraft(ref) {
   await click('Connect wallet')
   await waitFor(state => state.text.includes('Wallet connected.'), 'wallet connection')
@@ -386,21 +415,27 @@ try {
     await setupDraft(ref)
     await click('Send with wallet')
     await waitFor(state => state.transaction?.includes('Transaction confirmed in block') && state.text.includes(ref) && !state.buttons.some(button => button.name === 'Prepare funded agreement'), 'created agreement')
+    await assertEvidenceAvailability([])
     await actor('contractor', 'Accept agreement')
+    await assertEvidenceAvailability([])
     await send('Accept agreement')
-    await waitFor(state => state.buttons.some(button => button.name === 'Submit work evidence'), 'accepted agreement')
+    await waitFor(state => state.buttons.some(button => button.name === 'Submit work evidence' && !button.disabled), 'accepted agreement')
+    await assertEvidenceAvailability(['Submit work evidence'])
     await fill('submissionUri', 'https://example.test/submission')
     await fill('submissionDigest', `0x${'22'.repeat(32)}`)
     await send('Submit work evidence')
     await waitFor(state => /submitted/i.test(state.text), 'submitted agreement')
     await actor('client', 'Dispute submission')
+    await assertEvidenceAvailability(['Dispute submission'])
     await fill('disputeUri', 'https://example.test/dispute')
     await fill('disputeDigest', `0x${'33'.repeat(32)}`)
     await send('Dispute submission')
     await waitFor(state => /disputed/i.test(state.text), 'disputed agreement')
     await actor('arbitrator', 'Resolve dispute for contractor')
+    await assertEvidenceAvailability([])
     await send('Resolve dispute for contractor')
-    await waitFor(state => !state.buttons.some(button => button.name === 'Resolve dispute for contractor'), 'resolved agreement')
+    await waitFor(state => state.text.includes('This agreement is terminal') && state.buttons.some(button => button.name === 'View account credit' && !button.disabled), 'resolved agreement')
+    await assertEvidenceAvailability([])
     await evaluate("window.__fixtureSetRole('contractor');true")
     await click('Switch wallet')
     await waitFor(state => showingActor(state, 'contractor'), 'contractor wallet')

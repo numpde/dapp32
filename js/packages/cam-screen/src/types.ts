@@ -38,6 +38,7 @@ export type TextNode = UiNodeBase & {
 
 export type TextFieldNode = UiNodeBase & {
   readonly element: "TextField"
+  readonly enabledWhen?: UiMembership
   readonly props: InertRecord
   readonly state: UiStateBinding
 }
@@ -64,8 +65,14 @@ export type IncludeNode = UiNodeBase & {
 
 export type ButtonNode = UiNodeBase & {
   readonly element: "Button"
+  readonly enabledWhen?: UiMembership
   readonly props: InertRecord
   readonly call: UiCall
+}
+
+export type UiMembership = {
+  readonly member: string
+  readonly in: string | readonly string[]
 }
 
 export type UiCall = {
@@ -107,6 +114,7 @@ export type ResolvedLeafElementNode = {
 
 export type ResolvedTextFieldNode = {
   readonly element: "TextField"
+  readonly disabled?: boolean
   readonly props: InertRecord
   readonly state: ResolvedUiStateBinding
   readonly children: readonly []
@@ -119,6 +127,7 @@ export type ResolvedUiStateBinding = {
 
 export type ResolvedButtonNode = {
   readonly element: "Button"
+  readonly disabled?: boolean
   readonly props: InertRecord
   readonly call: ResolvedUiCall
 }

@@ -12,6 +12,7 @@ import type {
 
 import {
   parseUi,
+  forEachResolvedUiNode,
   resolvedUiButtons,
   resolvedUiInputNames,
   resolveInitialUiNode,
@@ -19,6 +20,7 @@ import {
 } from "../src/index.ts"
 import type {
   ResolvedButtonNode,
+  ResolvedUiNode,
   UiRuntimeContext,
 } from "../src/index.ts"
 
@@ -110,7 +112,7 @@ test("known agreement ID opens the agreement route without create-form inputs", 
   assert.deepEqual(plain(open.call.args), { agreementId: AGREEMENT_ID })
 })
 
-test("escrow active screen renders only projected transitions", async () => {
+test("escrow active screen enables only projected transitions", async () => {
   const { resolvedUi } = resolveInitialUiNode(
     await escrowUi(),
     "app",
@@ -122,7 +124,7 @@ test("escrow active screen renders only projected transitions", async () => {
     CONTEXT,
   )
 
-  assert.deepEqual(buttonFunctions(resolvedUi), [
+  assert.deepEqual(availableButtonFunctions(resolvedUi), [
     "agreement",
     "approveAgreement",
     "disputeAgreement",
@@ -161,12 +163,123 @@ test("escrow terminal screen resolves with no machine transition", async () => {
     CONTEXT,
   )
 
-  assert.deepEqual(buttonFunctions(resolvedUi), [
+  assert.deepEqual(availableButtonFunctions(resolvedUi), [
     "agreement",
     "accountCredit",
     "createAgreementForm",
   ])
-  assert.deepEqual(resolvedUiInputNames(resolvedUi), ["agreementId"])
+  assert.deepEqual(resolvedUiInputNames(resolvedUi), [
+    "agreementId", "disputeDigest", "disputeUri", "submissionDigest", "submissionUri",
+  ])
+  for (const action of AGREEMENT_ACTIONS) {
+    assert.equal(isDisabled(requiredButton(resolvedUi, action)), true, `${action} remains visible but unavailable`)
+  }
+  for (const [name] of EVIDENCE_FIELDS) {
+    assert.equal(isDisabled(requiredField(resolvedUi, name)), true, `${name} remains visible but unavailable`)
+  }
+})
+
+const AGREEMENT_ACTIONS = [
+  "cancelAgreement",
+  "acceptAgreement",
+  "submitAgreement",
+  "approveAgreement",
+  "disputeAgreement",
+  "finalizeAcceptanceTimeout",
+  "finalizeWorkTimeout",
+  "finalizeReviewTimeout",
+  "resolveForClient",
+  "resolveForContractor",
+  "finalizeArbitrationTimeout",
+] as const
+
+const EVIDENCE_FIELDS = [
+  ["submissionUri", "submitAgreement"],
+  ["submissionDigest", "submitAgreement"],
+  ["disputeUri", "disputeAgreement"],
+  ["disputeDigest", "disputeAgreement"],
+] as const
+
+for (const projected of [
+  [],
+  ["finalizeAcceptanceTimeout"],
+  ["submitAgreement"],
+  ["disputeAgreement"],
+  // This combined projection exercises composition, not contract reachability.
+  ["submitAgreement", "disputeAgreement"],
+] as readonly (readonly string[])[]) {
+  test(`escrow active controls remain visible and follow projected availability: ${projected.join(",") || "none"}`, async () => {
+    const { resolvedUi } = resolveInitialUiNode(
+      await escrowUi(),
+      "app",
+      args(agreementView({
+        viewId: "escrow.agreement.active",
+        stateId: "submitted",
+        transitionIds: projected,
+      })),
+      CONTEXT,
+    )
+
+    assert.deepEqual(resolvedUiInputNames(resolvedUi), [
+      "agreementId", "disputeDigest", "disputeUri", "submissionDigest", "submissionUri",
+    ])
+    const buttons = resolvedUiButtons(resolvedUi)
+    assert.deepEqual(
+      buttons.filter((button) => AGREEMENT_ACTIONS.some((action) => action === button.call.function))
+        .map((button) => button.call.function).sort(),
+      [...AGREEMENT_ACTIONS].sort(),
+    )
+    for (const action of AGREEMENT_ACTIONS) {
+      const button = requiredButton(resolvedUi, action)
+      assert.equal(isDisabled(button), !projected.includes(action), `${action} availability`)
+      assert.equal(button.call.args.agreementId, AGREEMENT_ID, `${action} agreement target`)
+    }
+    for (const [name, action] of EVIDENCE_FIELDS) {
+      assert.equal(isDisabled(requiredField(resolvedUi, name)), !projected.includes(action), `${name} editability`)
+    }
+    assert.equal(isDisabled(requiredField(resolvedUi, "agreementId")), false)
+    for (const navigation of ["agreement", "accountCredit", "createAgreementForm"]) {
+      assert.equal(isDisabled(requiredButton(resolvedUi, navigation)), false, `${navigation} navigation`)
+    }
+  })
+}
+
+test("escrow availability changes preserve evidence drafts and the viewed agreement target", async () => {
+  const ui = await escrowUi()
+  const initial = resolveInitialUiNode(ui, "app", args(agreementView({
+    viewId: "escrow.agreement.active",
+    stateId: "submitted",
+    transitionIds: ["submitAgreement", "disputeAgreement"],
+  })), CONTEXT)
+  const draft = {
+    ...initial.state,
+    agreementId: `0x${"cd".repeat(32)}`,
+    submissionUri: "ipfs://draft-submission",
+    submissionDigest: `0x${"12".repeat(32)}`,
+    disputeUri: "ipfs://draft-dispute",
+    disputeDigest: `0x${"34".repeat(32)}`,
+  }
+  const before = plain(draft)
+  for (const projected of [[], ["submitAgreement", "disputeAgreement"]]) {
+    const resolvedUi = resolveUiNode(ui, "app", args(agreementView({
+      viewId: "escrow.agreement.active",
+      stateId: "submitted",
+      transitionIds: projected,
+    })), { ...CONTEXT, state: draft })
+    for (const [name, action] of EVIDENCE_FIELDS) {
+      assert.equal(isDisabled(requiredField(resolvedUi, name)), !projected.includes(action))
+    }
+    assert.deepEqual(plain(requiredButton(resolvedUi, "submitAgreement").call.args), {
+      agreementId: AGREEMENT_ID,
+      submission: { uri: draft.submissionUri, sha256Digest: draft.submissionDigest },
+    })
+    assert.deepEqual(plain(requiredButton(resolvedUi, "disputeAgreement").call.args), {
+      agreementId: AGREEMENT_ID,
+      dispute: { uri: draft.disputeUri, sha256Digest: draft.disputeDigest },
+    })
+    assert.equal(requiredButton(resolvedUi, "agreement").call.args.agreementId, draft.agreementId)
+    assert.deepEqual(plain(draft), before)
+  }
 })
 
 test("escrow available-credit screen binds withdrawal recipient to the account", async () => {
@@ -270,6 +383,23 @@ function args(view: unknown): InertRecord {
 
 function buttonFunctions(resolvedUi: Parameters<typeof resolvedUiButtons>[0]): readonly string[] {
   return resolvedUiButtons(resolvedUi).map((button) => button.call.function)
+}
+
+function availableButtonFunctions(resolvedUi: ResolvedUiNode): readonly string[] {
+  return resolvedUiButtons(resolvedUi).filter((button) => !isDisabled(button)).map((button) => button.call.function)
+}
+
+function isDisabled(node: ResolvedUiNode): boolean {
+  return "disabled" in node && node.disabled === true
+}
+
+function requiredField(resolvedUi: ResolvedUiNode, name: string): ResolvedUiNode {
+  let field: ResolvedUiNode | undefined
+  forEachResolvedUiNode(resolvedUi, (node) => {
+    if (node.element === "TextField" && node.state.key === name) field = node
+  })
+  assert.notEqual(field, undefined, `missing resolved field: ${name}`)
+  return field as ResolvedUiNode
 }
 
 function requiredButton(

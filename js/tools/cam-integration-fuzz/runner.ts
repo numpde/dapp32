@@ -317,7 +317,7 @@ async function walkSession({
       : session.updateState(statePatch)
     assertResolvedSnapshot(current)
 
-    const actions = resolvedUiButtons(current.resolvedUi)
+    const actions = resolvedUiButtons(current.resolvedUi).filter((action) => action.disabled !== true)
     if (actions.length === 0) {
       emit({
         event: "step",

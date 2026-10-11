@@ -169,6 +169,9 @@ async function handlePress(session: CamViewerSession, args: readonly string[]): 
   if (button === undefined) {
     throw new Error(`button does not exist: ${index}`)
   }
+  if (button.disabled === true) {
+    throw new Error(`button is disabled in the current view: ${index}`)
+  }
 
   const result = await session.dispatchAction(button)
   if (result.type === "navigated") {
@@ -231,7 +234,7 @@ function renderNode(
       output.write(`\n${formatValue(node.props.text)}\n`)
       return
     case "TextField":
-      output.write(`${formatValue(node.props.label)}: ${formatValue(textFieldValue(node, state))}\n`)
+      output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}: ${formatValue(textFieldValue(node, state))}\n`)
       return
     case "Address":
       output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.address)}\n`)
@@ -266,7 +269,8 @@ function buttonsOf(snapshot: CamViewerSnapshot): readonly ResolvedButtonNode[] {
 
 function labelForAction(action: ResolvedButtonNode): string {
   const label = action.props.label
-  return typeof label === "string" ? label : formatValue(action.props)
+  const text = typeof label === "string" ? label : formatValue(action.props)
+  return `${text}${action.disabled === true ? " (disabled)" : ""}`
 }
 
 function printState(snapshot: CamViewerSnapshot): void {
@@ -308,6 +312,7 @@ function printActions(snapshot: CamViewerSnapshot): void {
   output.write(`${JSON.stringify(buttonsOf(snapshot).map((button, index) => ({
     index: index + 1,
     label: labelForAction(button),
+    disabled: button.disabled === true,
     call: button.call,
   })), jsonReplacer, 2)}\n`)
 }

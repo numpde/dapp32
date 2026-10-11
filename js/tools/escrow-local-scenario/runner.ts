@@ -479,7 +479,7 @@ function assertRenderedAction(
 ): ResolvedButtonNode {
   const snapshot = loadedSnapshot(session)
   const matches = resolvedUiButtons(snapshot.resolvedUi)
-    .filter((button) => button.call.function === route)
+    .filter((button) => button.call.function === route && button.disabled !== true)
   if (matches.length !== 1) {
     throw new Error(`expected exactly one rendered action: ${route}; found ${matches.length}`)
   }

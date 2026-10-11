@@ -7,7 +7,7 @@ import type { CamDocument } from "@cam/core"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import {
   resolvedUiButtons,
-  resolvedUiInputNames,
+  forEachResolvedUiNode,
 } from "@cam/screen"
 import type {
   ResolvedButtonNode,
@@ -60,16 +60,29 @@ export function assertActionIsRendered(resolvedUi: ResolvedUiNode, action: Resol
   // membership here prevents stale or fabricated buttons from bypassing the
   // current resolved UI and jumping directly to manifest routes.
   const rendered = resolvedUiButtons(resolvedUi)
-  if (!rendered.some((button) => sameActionCall(button, action))) {
+  const matching = rendered.filter((button) => sameActionCall(button, action))
+  if (matching.length === 0) {
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "CAM action is not rendered in the current view")
+  }
+  if (!matching.some((button) => button.disabled !== true)) {
+    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "CAM action is disabled in the current view")
   }
 }
 
 export function assertStatePatchTargets(resolvedUi: ResolvedUiNode, patch: InertRecord): void {
-  const renderedInputs = new Set(resolvedUiInputNames(resolvedUi))
+  const renderedInputs = new Set<string>()
+  const enabledInputs = new Set<string>()
+  forEachResolvedUiNode(resolvedUi, (node) => {
+    if (node.element !== "TextField") return
+    renderedInputs.add(node.state.key)
+    if (node.disabled !== true) enabledInputs.add(node.state.key)
+  })
   for (const name of Object.keys(patch)) {
     if (!renderedInputs.has(name)) {
       throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `CAM viewer state field has no rendered input: ${name}`)
+    }
+    if (!enabledInputs.has(name)) {
+      throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `CAM viewer state field is disabled in the current view: ${name}`)
     }
   }
 }
