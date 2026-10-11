@@ -38,8 +38,8 @@ export function findUniqueAbiFunction({
   return matches[0]
 }
 
-export function singleFunctionAbi(fn: AbiFunction): Abi {
-  return [fn] as Abi
+export function functionAbiWithErrors(abi: Abi, fn: AbiFunction): Abi {
+  return [fn, ...abi.filter((item) => item.type === "error")] as Abi
 }
 
 function matchingFunctions(abi: Abi, functionName: string): readonly AbiFunction[] {

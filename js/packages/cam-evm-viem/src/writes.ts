@@ -7,7 +7,7 @@ import {
 import type {
   EvmTransactionValue,
 } from "./abi-values.ts"
-import { findUniqueAbiFunction, singleFunctionAbi } from "./abi-functions.ts"
+import { findUniqueAbiFunction, functionAbiWithErrors } from "./abi-functions.ts"
 import { requireEvmAddress } from "./chain.ts"
 import { CamEvmError } from "./errors.ts"
 import type { CamContractCall, SendCamContractCallOptions, SimulateCamContractCallOptions } from "./types.ts"
@@ -66,7 +66,7 @@ function writeRequest(call: CamContractCall): WriteRequest {
   const value = writeValue(call, fn.stateMutability)
   return {
     address: requireEvmAddress(call.address, "contract.address"),
-    abi: singleFunctionAbi(fn),
+    abi: functionAbiWithErrors(call.abi, fn),
     functionName: fn.name,
     args: normalizeAbiArgs({
       inputs: abiFunctionInputs(fn, "CAM_WRITE_INVALID_ARGUMENT"),

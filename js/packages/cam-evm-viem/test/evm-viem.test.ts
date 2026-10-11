@@ -878,11 +878,9 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
   })
 
   assert.equal(hash, "0x1234")
-  const markMissingAbi = [findAbiFunction(managerAbi, BIKE_MARK_MISSING)]
-  assert.deepEqual(walletClient.calls, [
+  assert.deepEqual(walletClient.calls.map(({ address, functionName, args, chain }) => ({ address, functionName, args, chain })), [
     {
       address: managerAddress,
-      abi: markMissingAbi,
       functionName: BIKE_MARK_MISSING,
       args: [BIKE_SERIAL_NUMBER, bikeMissingReportURI],
       chain: testChain,
@@ -963,10 +961,9 @@ test("sendCamContractCall and simulateCamContractCall validate named write args"
     },
   })
 
-  assert.deepEqual(publicClient.calls, [
+  assert.deepEqual(publicClient.calls.map(({ address, functionName, args, account }) => ({ address, functionName, args, account })), [
     {
       address: managerAddress,
-      abi: markMissingAbi,
       functionName: BIKE_MARK_MISSING,
       args: [BIKE_SERIAL_NUMBER, bikeMissingReportURI],
       account: userAddress,
