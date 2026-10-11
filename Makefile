@@ -336,6 +336,7 @@ help:
 	  '  make escrow-viewer-terminal     Deploy escrow locally and open the real-RPC viewer terminal' \
 	  '  make escrow-viewer-gui          Deploy escrow locally and run the browser GUI on $${ESCROW_GUI_ORIGIN}' \
 	  '  make escrow-viewer-browser-check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check the running GUI in a fresh CDP tab' \
+	  '  make escrow-viewer-browser-write-check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Sign local fixture transactions and check wallet fault recovery' \
 	  '  ESCROW_GUI_BIND_HOST=0.0.0.0 ESCROW_GUI_ORIGIN=http://host:5174 make escrow-viewer-gui  Expose the local GUI to another browser host' \
 	  '' \
 	  'Supported lanes are Docker/Compose-backed. Default check lanes are offline, read-only,' \
@@ -1010,6 +1011,16 @@ escrow-viewer-browser-check:
 	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
 	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
 	$(DOCKER_COMPOSE) $(ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES) run --rm --no-deps -T escrow-viewer-browser-check
+
+# Distinct opt-in fixture-write grant. Existing readonly browser check remains
+# dependency-free; this runner consumes locked viem through the workspace gate.
+.PHONY: escrow-viewer-browser-write-check
+escrow-viewer-browser-write-check:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
+	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES) run --build --rm --no-deps -T escrow-viewer-browser-write-check
 
 escrow-release-deploy:
 	@$(LANE_GUARD); \

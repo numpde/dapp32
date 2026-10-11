@@ -338,6 +338,34 @@ class RenderedComposePostureTest(unittest.TestCase):
         # prevents an absent script bind from creating a host directory.
         self.assertIn("create_host_path: false", read_text(repo_path("compose/escrow/local/browser-check.yml")))
 
+    def test_escrow_browser_write_check_has_verified_workspace_and_fixture_only_mounts(self) -> None:
+        config = rendered_compose_config("compose/escrow/local/browser-check.yml", env=compose_render_env())
+        service = compose_service(config, "escrow-viewer-browser-write-check")
+        self.assert_hardened(service)
+        self.assertEqual("host", service["network_mode"])
+        self.assertEqual(1.0, service["cpus"])
+        self.assertNotIn("ports", service)
+        self.assertEqual(
+            ["run-js-workspace", "sh", "-eu", "-c", "npm run build -w @cam/protocol\nexec node /work/js/apps/cam-web/test/escrow-browser-write-check.mjs\n"],
+            service["command"],
+        )
+        self.assertEqual(
+            [
+                {"type": "bind", "source": str(repo_path(source)), "target": target,
+                 "read_only": True, "bind": {} }
+                for source, target in [
+                    ("js", "/input/js"),
+                    ("js/node_modules", "/work/js/node_modules"),
+                    ("compose/escrow/local/deploy.yml", "/fixture/deploy.yml"),
+                ]
+            ],
+            service["volumes"],
+        )
+        self.assertEqual(
+            ["/tmp:rw,nosuid,nodev,noexec,size=512m", PACKAGE_WORKSPACE_TMPFS],
+            service["tmpfs"],
+        )
+
     def test_all_rendered_ports_secrets_and_fixture_keys_are_explicitly_inventoried(self) -> None:
         expected_ports = {
             (

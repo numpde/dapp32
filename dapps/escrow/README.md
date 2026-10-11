@@ -269,6 +269,10 @@ make escrow-viewer-browser-check
 
 The check opens and closes its own tab. It verifies onchain resource identity, CAM integrity, read navigation, and failure messages and overflow at desktop and narrow widths. It performs no wallet-signed writes and is outside offline CI.
 
+To exercise signed transactions on the disposable fixture chain, use the same four environment variables with `make escrow-viewer-browser-write-check`. This separate opt-in lane requires the locked workspace dependencies installed by `make package-deps`. It verifies their installed dependency graph and builds `@cam/protocol` in container-local tmpfs to consume its public HTTP validators and bounded reader. It checks the actual RPC chain ID `31337`, the contract-anchored CAM bytes and ABI integrity, and the Escrow target before signing with the obvious fixture keys declared in `compose/escrow/local/deploy.yml`. It signs and sends real local transactions, including a complete dispute and credit withdrawal workflow; do not use it with a chain containing valuable state.
+
+The write check injects a test provider into fresh tabs that it owns and closes. It checks recovery from wallet rejection, a held submission or receipt, a lost reply after broadcast, and a confirmed transaction whose following view refresh fails. Actions use DOM activation; this lane does not prove physical pointer input or wallet-extension approval behavior. Both browser lanes grant ordinary host-network egress to reach the operator's loopback endpoints and leave existing browser tabs and services running.
+
 `make escrow-viewer-gui` cleans up its fixture when its foreground command exits. Closing the browser check's tab does not stop the GUI. To clean up a separately interrupted project, run:
 
 ```bash

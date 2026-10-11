@@ -27,3 +27,44 @@ services:
         bind:
           create_host_path: false
     command: ["node", "/check.mjs"]
+
+  # Separate opt-in authority: signs fixture transactions on an existing local
+  # chain. The workspace runner verifies the installed dependency graph first.
+  escrow-viewer-browser-write-check:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    network_mode: host
+    cpus: 1
+    environment:
+      CDP_ORIGIN: "${CDP_ORIGIN:?Set CDP_ORIGIN to a loopback HTTP CDP endpoint}"
+      VIEWER_URL: "${VIEWER_URL:?Set VIEWER_URL to the printed local viewer URL}"
+      EXPECTED_CAM_URI: "${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI to the pinned CAM URI}"
+      EXPECTED_CAM_HASH: "${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH to the nonzero pinned CAM hash}"
+    volumes:
+      - type: bind
+        source: ../../../js
+        target: /input/js
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../../../js/node_modules
+        target: /work/js/node_modules
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./deploy.yml
+        target: /fixture/deploy.yml
+        read_only: true
+        bind:
+          create_host_path: false
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build -w @cam/protocol
+        exec node /work/js/apps/cam-web/test/escrow-browser-write-check.mjs
