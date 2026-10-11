@@ -35,9 +35,6 @@ export type HttpURL = {
 
 export type HttpResponse = {
   readonly body?: unknown
-  readonly headers: {
-    readonly get: (name: string) => string | null
-  }
 }
 
 export type HttpByteStreamReader = {
@@ -139,24 +136,6 @@ export function createSameOriginHttpResourceLoader(options: {
 
     return readBoundedResponseBytes(response, resourceURL.href)
   }
-}
-
-export function responseContentLength(response: HttpResponse, uri: string): number | undefined {
-  const value = response.headers.get("content-length")
-  if (value === null) return undefined
-
-  if (!/^[0-9]+$/.test(value)) {
-    throw new Error(`CAM resource has invalid Content-Length: ${uri}`)
-  }
-
-  const length = Number(value)
-  // Content-Length is untrusted resource metadata. Reject values JavaScript
-  // cannot represent exactly before applying byte-limit policy.
-  if (!Number.isSafeInteger(length)) {
-    throw new Error(`CAM resource has invalid Content-Length: ${uri}`)
-  }
-
-  return length
 }
 
 export function assertCamSecondaryResourceURI(uri: string, label: string): void {
@@ -540,12 +519,6 @@ export async function readBoundedResponseBytes(
   uri: string,
   maxBytes = CAM_RESOURCE_MAX_BYTES,
 ): Promise<Uint8Array> {
-  assertRawContentEncoding(response, uri)
-  const contentLength = responseContentLength(response, uri)
-  if (contentLength !== undefined && contentLength > maxBytes) {
-    throw new Error(`CAM resource is too large: ${uri}`)
-  }
-
   if (!isStreamBody(response.body)) {
     throw new Error(`CAM resource response body is not streamable: ${uri}`)
   }
@@ -570,15 +543,9 @@ export async function readBoundedResponseBytes(
         throw new Error(`CAM resource stream returned an empty chunk: ${uri}`)
       }
 
+      // Fetch delivers decoded body bytes; transfer headers may describe
+      // compressed bytes and Content-Encoding may be hidden by CORS.
       byteLength += value.byteLength
-      if (contentLength !== undefined && byteLength > contentLength) {
-        try {
-          await reader.cancel?.()
-        } catch {
-          // Preserve the framing-policy failure; cancellation is cleanup.
-        }
-        throw new Error(`CAM resource exceeded Content-Length bytes: ${uri}`)
-      }
       if (byteLength > maxBytes) {
         try {
           await reader.cancel?.()
@@ -597,10 +564,6 @@ export async function readBoundedResponseBytes(
       // Lock release is best-effort cleanup for structural stream readers.
     }
   }
-  if (contentLength !== undefined && byteLength !== contentLength) {
-    throw new Error(`CAM resource ended before Content-Length bytes were read: ${uri}`)
-  }
-
   const bytes = new Uint8Array(byteLength)
   let offset = 0
   for (const chunk of chunks) {
@@ -609,15 +572,6 @@ export async function readBoundedResponseBytes(
   }
 
   return bytes
-}
-
-function assertRawContentEncoding(response: HttpResponse, uri: string): void {
-  const value = response.headers.get("content-encoding")
-  if (value !== null && value.trim().toLowerCase() !== "identity") {
-    // CAM resources are byte-addressed: integrity, JSON decoding, and size
-    // policy must operate on exactly the bytes the publisher committed.
-    throw new Error(`CAM resource must not use HTTP content encoding: ${uri}`)
-  }
 }
 
 function isStreamBody(value: unknown): value is { readonly getReader: () => HttpByteStreamReader } {

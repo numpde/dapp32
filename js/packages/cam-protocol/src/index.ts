@@ -121,7 +121,6 @@ export {
   requireHttpURL,
   requireSameHttpOrigin,
   resolveCamResourceURI,
-  responseContentLength,
   verifySha256ResourceIntegrity,
 } from "./resources.ts"
 export type {

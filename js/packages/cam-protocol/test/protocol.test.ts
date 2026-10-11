@@ -63,7 +63,6 @@ import {
   requireHttpOrigin,
   requireHttpURL,
   requireSameHttpOrigin,
-  responseContentLength,
   resolveCamResourceURI,
   toInertValue,
   UI_CALL_NAMESPACE_BY_ELEMENT,
@@ -980,12 +979,6 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
   assert.throws(() => requireHttpURL("https://example.test/a\nb", "uri"), /unsafe raw characters/)
   assert.throws(() => requireHttpOrigin("https://example.test/path", "origin"), /origin/)
   assert.throws(() => requireSameHttpOrigin("https://other.test/x", "https://example.test", "uri"), /outside/)
-  assert.equal(responseContentLength(new Response("", { headers: { "content-length": "3" } }), "uri"), 3)
-  assert.throws(
-    () => responseContentLength(new Response("", { headers: { "content-length": "9007199254740993" } }), "uri"),
-    /invalid Content-Length/,
-  )
-
   const small = await readBoundedResponseBytes(new Response("abc", {
     headers: {
       "content-length": "3",
@@ -1053,11 +1046,6 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
         }
       },
     },
-    headers: {
-      get() {
-        return null
-      },
-    },
   }, "https://example.test/x", 3)
   assert.equal(new TextDecoder().decode(releasedBytes), "ok")
   assert.equal(released, true)
@@ -1076,66 +1064,28 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
     /too large/,
   )
 
-  await assert.rejects(
-    () => readBoundedResponseBytes(new Response("abc", {
-      headers: {
-        "content-encoding": "gzip",
-      },
-    }), "https://example.test/x", 3),
-    /must not use HTTP content encoding/,
+  const decoded = "decoded bytes"
+  const compressedHeaders = { "content-encoding": "gzip", "content-length": "4" }
+  assert.equal(
+    new TextDecoder().decode(await readBoundedResponseBytes(
+      new Response(decoded, { headers: compressedHeaders }), "https://example.test/x", decoded.length,
+    )),
+    decoded,
+  )
+  // A cross-origin response can expose Content-Length while hiding Content-Encoding.
+  assert.equal(
+    new TextDecoder().decode(await readBoundedResponseBytes(
+      new Response(decoded, { headers: { "content-length": "4" } }), "https://example.test/x", decoded.length,
+    )),
+    decoded,
   )
 
   await assert.rejects(
-    () => readBoundedResponseBytes({
-      body: {
-        getReader() {
-          let read = false
-          return {
-            async read() {
-              if (read) return { done: true }
-              read = true
-              return { done: false, value: new TextEncoder().encode("ok") }
-            },
-          }
-        },
-      },
-      headers: {
-        get(name) {
-          return name.toLowerCase() === "content-length" ? "3" : null
-        },
-      },
-    }, "https://example.test/x", 3),
-    /ended before Content-Length/,
+    () => readBoundedResponseBytes(new Response(decoded, { headers: compressedHeaders }), "https://example.test/x", decoded.length - 1),
+    /too large/,
   )
 
-  let cancelledAfterContentLength = false
-  await assert.rejects(
-    () => readBoundedResponseBytes({
-      body: {
-        getReader() {
-          let read = false
-          return {
-            async read() {
-              if (read) return { done: true }
-              read = true
-              return { done: false, value: new TextEncoder().encode("toolong") }
-            },
-            async cancel() {
-              cancelledAfterContentLength = true
-            },
-          }
-        },
-      },
-      headers: {
-        get(name) {
-          return name.toLowerCase() === "content-length" ? "3" : null
-        },
-      },
-    }, "https://example.test/x", 10),
-    /exceeded Content-Length/,
-  )
-  assert.equal(cancelledAfterContentLength, true)
-
+  let cancellationsAfterDecodedLimit = 0
   await assert.rejects(
     () => readBoundedResponseBytes({
       body: {
@@ -1145,19 +1095,16 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
               return { done: false, value: new Uint8Array(4) }
             },
             async cancel() {
+              cancellationsAfterDecodedLimit += 1
               throw new Error("cancel failed")
             },
           }
         },
       },
-      headers: {
-        get() {
-          return null
-        },
-      },
     }, "https://example.test/x", 3),
     /too large/,
   )
+  assert.equal(cancellationsAfterDecodedLimit, 1)
 
   await assert.rejects(
     () => readBoundedResponseBytes({
@@ -1168,11 +1115,6 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
               return { done: false }
             },
           }
-        },
-      },
-      headers: {
-        get() {
-          return null
         },
       },
     }, "https://example.test/x"),
@@ -1190,11 +1132,6 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
           }
         },
       },
-      headers: {
-        get() {
-          return null
-        },
-      },
     }, "https://example.test/x"),
     /non-byte chunk/,
   )
@@ -1208,11 +1145,6 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
               return { done: false, value: new Uint8Array() }
             },
           }
-        },
-      },
-      headers: {
-        get() {
-          return null
         },
       },
     }, "https://example.test/x"),
