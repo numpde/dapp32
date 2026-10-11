@@ -84,6 +84,7 @@ const exceptions = []
 const consoleErrors = []
 const transactionRequests = []
 let intercept
+const heldRequests = []
 let alteredCamBody
 ws.addEventListener('message', async event => {
   const message = JSON.parse(event.data)
@@ -111,7 +112,9 @@ ws.addEventListener('message', async event => {
   if (method === 'Runtime.consoleAPICalled' && params.type === 'error') consoleErrors.push(params.args.map(arg => String(arg.value === undefined ? arg.description : arg.value)).join(' '))
   if (method === 'Fetch.requestPaused') {
     try {
-      if (intercept === 'tamper') {
+      if (intercept === 'hold') {
+        heldRequests.push(params.requestId)
+      } else if (intercept === 'tamper') {
         await call('Fetch.fulfillRequest', {
           requestId: params.requestId, responseCode: 200,
           responseHeaders: [
@@ -221,10 +224,13 @@ async function browserCase(name, run) {
 }
 async function freshForm() {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId)
+  await openViewer(viewer.href)
+  await waitFor(async state => state.heading === 'Native-asset escrow' && (await field('agreementRef')) !== undefined, 'fresh create form', true)
+}
+async function openViewer(location) {
   await call('Page.navigate', { url: 'about:blank' }, sessionId)
   await waitFor(async () => (await evaluate('location.href')) === 'about:blank', 'blank reset')
-  await call('Page.navigate', { url: viewer.href }, sessionId)
-  await waitFor(async state => state.heading === 'Native-asset escrow' && (await field('agreementRef')) !== undefined, 'fresh create form', true)
+  await call('Page.navigate', { url: location }, sessionId)
 }
 let targetId
 try {
@@ -259,6 +265,119 @@ try {
     await clickButton('Open agreement')
     await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'known ID lookup')
     assert((await evaluate('document.body.innerText')).includes(knownId), 'lookup did not show the requested agreement ID')
+  })
+
+  await browserCase('initial read fragment, refresh, and exact lookup default', async () => {
+    const id = `0x${'ac'.repeat(32)}`
+    const linked = new URL(viewer)
+    linked.hash = new URLSearchParams({ route: 'agreement', inputs: JSON.stringify({ agreementId: id }) }).toString()
+    await openViewer(linked.href)
+    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'initial linked agreement', true)
+    assert.equal(await field('agreementId'), id, 'selected ID was not supplied to the lookup draft')
+    assert.equal(await field('agreementRef'), undefined, 'initial read link rendered a creation draft')
+    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Back')?.disabled"), true, 'initial direct link created phantom history')
+    const committed = await evaluate('location.href')
+    const loader = (await call('Page.getFrameTree', {}, sessionId)).frameTree.frame.loaderId
+    await call('Page.reload', {}, sessionId)
+    await waitFor(async () => (await call('Page.getFrameTree', {}, sessionId)).frameTree.frame.loaderId !== loader, 'linked refresh document')
+    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'linked agreement refresh', true)
+    assert.equal(await field('agreementId'), id)
+    assert.equal(await evaluate('location.href'), committed)
+    assert.equal(transactionRequests.length, 0, 'opening a read link requested a transaction')
+  })
+
+  await browserCase('URL follows successful reads, not edited or rejected lookup drafts', async () => {
+    await freshForm()
+    const first = `0x${'ad'.repeat(32)}`
+    await enter('agreementId', first)
+    await clickButton('Open agreement')
+    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'lookup URL synchronization')
+    const committed = new URL(await evaluate('location.href'))
+    const fragment = new URLSearchParams(committed.hash.slice(1))
+    assert.equal(fragment.get('route'), 'agreement')
+    assert.deepEqual(JSON.parse(fragment.get('inputs')), { agreementId: first })
+    const second = `0x${'ae'.repeat(32)}`
+    await enter('agreementId', second)
+    assert.equal(await evaluate('location.href'), committed.href, 'editing changed the selected agreement URL')
+    await enter('agreementId', 'not-an-identifier')
+    await clickButton('Open agreement')
+    await waitFor(async () => (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".elements")?.disabled'), 'rejected lookup')
+    assert.equal(await evaluate('location.href'), committed.href, 'failed lookup changed the committed URL')
+    assert.equal(await field('agreementId'), 'not-an-identifier', 'failed lookup discarded correction input')
+    assert((await evaluate('document.body.innerText')).includes(first), 'failed lookup changed the loaded agreement')
+  })
+
+  await browserCase('fragment navigation and clearing use ordinary reads and viewer Back', async () => {
+    await freshForm()
+    await enter('agreementRef', 'hash-back-draft')
+    await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
+    await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'live fragment credit navigation')
+    await clickButton('Back')
+    await waitFor(async () => (await field('agreementRef')) === 'hash-back-draft', 'fragment navigation Back draft')
+    const returned = new URLSearchParams(new URL(await evaluate('location.href')).hash.slice(1))
+    assert.equal(returned.get('route'), 'createAgreementForm')
+    await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
+    await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'credit before clearing fragment')
+    await evaluate("location.hash = ''")
+    await waitFor(async () => (await field('agreementRef')) !== undefined, 'clear fragment manifest entry')
+    const entry = new URLSearchParams(new URL(await evaluate('location.href')).hash.slice(1))
+    assert.equal(entry.get('route'), 'createAgreementForm')
+    assert.equal(transactionRequests.length, 0, 'fragment navigation requested a transaction')
+  })
+
+  await browserCase('a busy fragment request preserves the original pending read', async () => {
+    await freshForm()
+    await enter('agreementRef', 'pending-link-draft')
+    const committed = await evaluate('location.href')
+    intercept = 'hold'
+    await call('Fetch.enable', { patterns: [{ urlPattern: rpc.href, requestStage: 'Request' }] }, sessionId)
+    try {
+      await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
+      await waitFor(() => heldRequests.length > 0, 'paused credit read')
+      await evaluate(`location.hash = new URLSearchParams({ route: 'agreement', inputs: '{}' }).toString()`)
+      await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.text.includes('Finish the current operation'), 'busy link rollback')
+      assert.equal(await field('agreementRef'), 'pending-link-draft')
+      for (const requestId of heldRequests.splice(0)) await call('Fetch.continueRequest', { requestId }, sessionId)
+      await call('Fetch.disable', {}, sessionId)
+      intercept = undefined
+      await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'original credit read commits')
+      assert.equal(new URLSearchParams(new URL(await evaluate('location.href')).hash.slice(1)).get('route'), 'accountCredit')
+      await clickButton('Back')
+      await waitFor(async () => (await field('agreementRef')) === 'pending-link-draft', 'pending read Back draft')
+      assert.equal(transactionRequests.length, 0, 'busy fragment requested a transaction')
+    } finally {
+      for (const requestId of heldRequests.splice(0)) await call('Fetch.continueRequest', { requestId }, sessionId)
+      await call('Fetch.disable', {}, sessionId)
+      intercept = undefined
+    }
+  })
+
+  await browserCase('failed fragment requests restore the committed URL and preserve draft', async () => {
+    await freshForm()
+    await enter('agreementRef', 'malformed-link-draft')
+    const committed = await evaluate('location.href')
+    for (const request of [
+      { route: 'missing-route', inputs: '{}' },
+      { route: 'createAgreement', inputs: '{}' },
+      { route: 'agreement', inputs: '{}' },
+      { route: 'agreement', inputs: '{"agreementId":1}' },
+      { route: 'agreement', inputs: 'null' },
+    ]) {
+      await evaluate(`location.hash = new URLSearchParams(${JSON.stringify(request)}).toString()`)
+      await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".elements")?.disabled'), 'rejected fragment restored URL')
+      assert.equal(await field('agreementRef'), 'malformed-link-draft', 'failed link changed the current draft')
+    }
+    assert.equal(transactionRequests.length, 0, 'failed fragment requested a transaction')
+  })
+
+  await browserCase('initial write fragments fail without preparing a transaction', async () => {
+    const linked = new URL(viewer)
+    linked.hash = new URLSearchParams({ route: 'createAgreement', inputs: '{}' }).toString()
+    await openViewer(linked.href)
+    await waitFor(state => state.text.includes('Cannot load viewer'), 'initial write rejection')
+    assert((await evaluate('document.body.innerText')).includes('must be declared as read'))
+    assert.equal(await evaluate('document.querySelectorAll(".prepared-call").length'), 0)
+    assert.equal(transactionRequests.length, 0, 'initial write fragment requested a transaction')
   })
 
   const draft = {

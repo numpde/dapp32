@@ -225,14 +225,58 @@
   checks do not prove comprehension. Ask an independent reader to explain who can
   act, what funds move, and what remains pending.</p>
 
+  <h2>Agreement identity and read-only view links</h2>
+  <p>The selected agreement and the editable lookup draft are separate facts.
+  Agreement views now initialize the lookup field from the projected instance ID,
+  including absent agreements. Creation and credit views initialize it empty.
+  Editing the lookup does not retarget business actions; Back restores the draft.</p>
+  <p>Operational withdrawal credit belongs to the current viewing account.
+  The route no longer accepts an independent account argument. Changing accounts
+  refreshes the projected amount, recipient default and availability together;
+  a failed refresh preserves the previous coherent view. Empty credit retains
+  visible, disabled withdrawal controls, using the contract's action list.</p>
+  <p>Connection settings remain in the URL query. The fragment contains
+  <code>#route=agreement&amp;inputs=…</code>, with an encoded JSON object such as
+  <code>{"agreementId":"0x…"}</code>. This is generic read-route navigation;
+  the viewer does not recognize escrow field names. Opening a link never prepares
+  or sends a transaction. Unknown and write routes fail through the ordinary
+  session read boundary.</p>
+  <p>Only committed route inputs reach the URL, through history replacement.
+  Typing does not change the selected view link. Failed or busy fragment requests
+  restore the previous URL and preserve the current view. Refresh loads the
+  linked route directly; clearing the fragment returns to the manifest entry.
+  The viewer's Back button remains the owner of draft restoration.</p>
+  <p>Links reject ambiguous parameters, duplicate JSON keys, non-object inputs,
+  JSON numeric values and route text that URL encoding would change. Numeric
+  values use exact decimal strings. Web-link limits are 16,384 fragment characters,
+  4,096 decoded UTF-8 input bytes and 32 nested containers. These bounds constrain
+  URL parsing, rather than redefining contract or CAM limits.</p>
+  <p>A fragment is excluded from the HTTP request target, but this is not a
+  privacy guarantee: the existing connection query can contain an RPC credential,
+  and scripts can read the fragment. No automatic share control is introduced.
+  <a href="https://www.rfc-editor.org/rfc/rfc9110.html#section-7.1">RFC 9110, request targets</a>
+  also distinguishes the request target from the full browser URL.
+  History replacement does not fire a hashchange event, so committed URL updates
+  do not trigger another read.
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/hashchange_event">MDN hashchange</a></p>
+  <p>Verification: regression tests failed before their owning fixes; package/tool
+  checks and 153 repository checks passed afterward. The existing Chromium tab
+  passed 17 read-only cases, including a held-RPC navigation race, and the full
+  six-step transaction workflow. Its temporary fixture wallet was removed.
+  Browser interaction used DOM activation; native keyboard testing remains open.</p>
+  <p>One initial local scenario run reverted at dispute submission after successful
+  simulation. Both subsequent diagnostic runs passed all nine scenarios, including
+  one with a controlled next-block timestamp. The original failure's cause remains
+  unestablished; no speculative gas buffer or contract change was introduced.</p>
+
   <h2>Generation pitfalls to gate</h2>
   <p>Avoid attractive cards around the same flat inventory; frontend role/state
   permission mirrors; floating-point financial formatting; hidden essential facts;
   unattributed manifest claims; new wizard state loss; and tests coupled to exact
   labels instead of task laws. Keep the contract authoritative and the frontend
   untrusted. Preserve the architecture stop signs: no viewer/session or ABI
-  decomposition, new UI framework, Solidity change, or CAM hash change is required
-  by this workshop.</p>
+  decomposition, new UI framework or Solidity change is required by this
+  workshop. Manifest edits refresh derived integrity through the existing lane.</p>
 </main>
 </body>
 </html>

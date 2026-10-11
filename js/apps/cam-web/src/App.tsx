@@ -41,6 +41,8 @@ import {
   createPinnedOriginResourceLoader,
   displayRpcEndpoint,
   parseStartupOptions,
+  parseViewFragment,
+  urlForView,
   readStartupPolicy,
 } from "./startup.ts"
 import type { StartupOptions } from "./startup.ts"
@@ -101,6 +103,8 @@ export function App(): ReactElement {
   const interactionRevision = useRef(0)
   const sendRevision = useRef(0)
   const sendingRef = useRef(false)
+  const changingViewRef = useRef(false)
+  const committedUrlRef = useRef(window.location.href)
   const noticeRef = useRef<HTMLParagraphElement>(null)
   const transactionNoticeRef = useRef<HTMLParagraphElement>(null)
   const preparedRef = useRef<HTMLElement>(null)
@@ -135,22 +139,24 @@ export function App(): ReactElement {
           account: {
             address: startup.account,
           },
-          inputs: {},
+          inputs: startup.inputs,
+          ...(startup.route === undefined ? {} : { route: startup.route }),
           allowUnsignedCamHash: startup.allowUnsignedCamHash,
           loadResource: createPinnedOriginResourceLoader(startup.resourceOrigin),
         })
         const snapshot = await session.load()
 
         if (!cancelled) {
-          setLoadState({
-            status: "ready",
+          const ready = {
+            status: "ready" as const,
             runtime: {
               startup,
               publicClient,
               session,
             },
             snapshot,
-          })
+          }
+          commitSnapshot(ready, snapshot)
         }
       } catch (error) {
         if (!cancelled) {
@@ -169,19 +175,56 @@ export function App(): ReactElement {
     }
   }, [])
 
+  useEffect(() => {
+    async function navigateFromFragment(): Promise<void> {
+      if (loadState.status !== "ready") {
+        // Startup owns the URL until the first view loads. A changed startup
+        // request is handled by the same tab, rather than overwriting it later.
+        window.location.reload()
+        return
+      }
+      if (sendingRef.current || changingViewRef.current) {
+        window.history.replaceState(window.history.state, "", committedUrlRef.current)
+        showStatus("Finish the current operation before opening another view.", false)
+        return
+      }
+      const ready = loadState
+      const revision = nextInteractionRevision()
+      setPreparedCall(undefined)
+      setNotice(undefined)
+      setViewChanging(true)
+      try {
+        const requested = parseViewFragment(window.location.hash)
+        const snapshot = await ready.runtime.session.navigate(requested.route, requested.inputs)
+        if (!isCurrentInteraction(revision)) return
+        commitSnapshot(ready, snapshot)
+        arriveAtFeedback("view")
+      } catch (error) {
+        if (!isCurrentInteraction(revision)) return
+        window.history.replaceState(window.history.state, "", committedUrlRef.current)
+        showError(`Cannot open the requested view: ${errorMessage(error)}`, true)
+      } finally {
+        setViewChanging(false)
+      }
+    }
+    const onHashChange = () => { void navigateFromFragment() }
+    window.addEventListener("hashchange", onHashChange)
+    return () => window.removeEventListener("hashchange", onHashChange)
+  }, [loadState])
+
   async function dispatch(action: ResolvedButtonNode): Promise<void> {
-    if (sendingRef.current) return
+    if (sendingRef.current || changingViewRef.current) return
     const ready = requireReadyState(loadState)
     const revision = nextInteractionRevision()
     setNotice(undefined)
     setPreparedCall(undefined)
 
     try {
-      setChangingView(true)
-      const result = await ready.runtime.session.dispatchAction(action).finally(() => setChangingView(false))
+      setViewChanging(true)
+      const result = await ready.runtime.session.dispatchAction(action).finally(() => setViewChanging(false))
       if (!isCurrentInteraction(revision)) return
       if (result.type === "navigated") {
-        setLoadState({ ...ready, snapshot: result.snapshot })
+        commitSnapshot(ready, result.snapshot)
         return
       }
 
@@ -208,52 +251,53 @@ export function App(): ReactElement {
   }
 
   async function connectWallet(): Promise<void> {
-    if (sendingRef.current) return
+    if (sendingRef.current || changingViewRef.current) return
     try {
       const ready = requireReadyState(loadState)
       invalidatePreparedInteraction()
-      setChangingView(true)
+      setViewChanging(true)
       const startup = ready.runtime.startup
       const address = await connectInjectedWallet(startup)
       const snapshot = await ready.runtime.session.setAccount({ address })
 
       setWallet({ status: "connected", address })
-      setLoadState({ ...ready, snapshot })
       showStatus(address.toLowerCase() === startup.account.toLowerCase()
         ? "Wallet connected."
         : "Wallet connected. It differs from the initial account URL parameter.", true)
+      commitSnapshot(ready, snapshot)
     } catch (error) {
       showError(errorMessage(error), true)
     } finally {
-      setChangingView(false)
+      setViewChanging(false)
     }
   }
 
   async function goBack(): Promise<void> {
-    if (sendingRef.current) return
+    if (sendingRef.current || changingViewRef.current) return
     const ready = requireReadyState(loadState)
     const revision = nextInteractionRevision()
     setPreparedCall(undefined)
     setNotice(undefined)
-    setChangingView(true)
+    setViewChanging(true)
     try {
       const snapshot = await ready.runtime.session.back()
-      if (isCurrentInteraction(revision)) setLoadState({ ...ready, snapshot })
+      if (isCurrentInteraction(revision)) commitSnapshot(ready, snapshot)
     } catch (error) {
       if (isCurrentInteraction(revision)) showError(errorMessage(error), true)
     } finally {
-      setChangingView(false)
+      setViewChanging(false)
     }
   }
 
   function discardPreparedCall(): void {
-    if (sendingRef.current || changingView) return
+    if (sendingRef.current || changingViewRef.current) return
     invalidatePreparedInteraction()
     setNotice(undefined)
     arriveAtFeedback("view")
   }
 
   async function sendPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
+    if (changingViewRef.current) return
     if (sendingRef.current) {
       showStatus("A wallet submission is already in progress.", false)
       return
@@ -315,11 +359,11 @@ export function App(): ReactElement {
 
       if (call.then.namespace === "routes" && ownsInteraction()) {
         try {
-          setChangingView(true)
+          setViewChanging(true)
           const snapshot = await ready.runtime.session.navigate(call.then.function, call.then.args)
-            .finally(() => setChangingView(false))
+            .finally(() => setViewChanging(false))
           if (!ownsInteraction() || !ownsSend()) return
-          setLoadState({ ...ready, snapshot })
+          commitSnapshot(ready, snapshot)
         } catch (error) {
           if (!ownsInteraction() || !ownsSend()) return
           showError(`The transaction is confirmed, but the view could not be refreshed: ${errorMessage(error)}`, true)
@@ -348,7 +392,7 @@ export function App(): ReactElement {
   }
 
   function updateInput(name: string, value: string): void {
-    if (sendingRef.current) return
+    if (sendingRef.current || changingViewRef.current) return
     const ready = requireReadyState(loadState)
     try {
       invalidatePreparedInteraction()
@@ -358,6 +402,33 @@ export function App(): ReactElement {
       })
     } catch (error) {
       showError(errorMessage(error), true)
+    }
+  }
+
+  function setViewChanging(value: boolean): void {
+    changingViewRef.current = value
+    setChangingView(value)
+  }
+
+  function commitSnapshot(
+    ready: Extract<LoadState, { readonly status: "ready" }>,
+    snapshot: CamViewerLoadedSnapshot,
+  ): void {
+    setLoadState({ ...ready, snapshot })
+    const currentUrl = new URL(window.location.href)
+    if (snapshot.account !== undefined) currentUrl.searchParams.set("account", snapshot.account.address)
+    try {
+      const nextUrl = urlForView(currentUrl, snapshot)
+      window.history.replaceState(window.history.state, "", nextUrl.href)
+      committedUrlRef.current = nextUrl.href
+    } catch (error) {
+      // The read succeeded. Do not misreport it as a lookup failure merely
+      // because its inputs cannot be represented by the URL boundary.
+      const previousUrl = new URL(committedUrlRef.current)
+      if (snapshot.account !== undefined) previousUrl.searchParams.set("account", snapshot.account.address)
+      window.history.replaceState(window.history.state, "", previousUrl.href)
+      committedUrlRef.current = previousUrl.href
+      showStatus(`View opened, but its URL could not be updated. Refresh will open the previous view. ${errorMessage(error)}`, false)
     }
   }
 

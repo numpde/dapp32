@@ -1028,3 +1028,44 @@ function mutableRecord(value: unknown): Record<string, unknown> {
 function sha256Integrity(bytes: Uint8Array): string {
   return `sha256:0x${createHash("sha256").update(bytes).digest("hex")}`
 }
+
+test("an explicit initial read route bypasses entry and starts with no Back history", async () => {
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const options = {
+    ...sessionFixtureOptions({ publicClient }), host, account: { address: userAddress as Address },
+    allowUnsignedCamHash: true, route: BIKE_ROUTE_COMPONENT,
+    inputs: { serialNumber: BIKE_SERIAL_NUMBER },
+  }
+  const session = createCamViewerSession(options)
+  const snapshot = await session.load()
+  assert.equal(snapshot.route, BIKE_ROUTE_COMPONENT)
+  assert.deepEqual(snapshot.inputs, toInertValue(options.inputs))
+  assert.equal(snapshot.canGoBack, false)
+  assert.equal(publicClient.calls.some((call) => call.functionName === BIKE_VIEW_ENTRY), false)
+  assert.equal(publicClient.calls.at(-1)?.functionName, BIKE_VIEW_COMPONENT)
+  assert.deepEqual(publicClient.calls.at(-1)?.args, [BIKE_SERIAL_NUMBER, userAddress])
+})
+
+test("unknown and write initial routes fail before any projection call", async () => {
+  for (const route of ["unknown", "registerComponent"]) {
+    const publicClient = createPublicClient(publicClientFixtureOptions({}))
+    const options = {
+      ...sessionFixtureOptions({ publicClient }), host, account: { address: userAddress as Address },
+      allowUnsignedCamHash: true, route, inputs: {},
+    }
+    const session = createCamViewerSession(options)
+    await assert.rejects(() => session.load(), /must be declared as read/)
+    assert.equal(publicClient.calls.some((call) => [BIKE_VIEW_ENTRY, BIKE_VIEW_COMPONENT].includes(call.functionName)), false)
+    assert.equal(session.snapshot().route, undefined)
+  }
+})
+test("undefined navigation returns to the manifest entry through the ordinary read path", async () => {
+  const session = createSession(sessionFixtureOptions({}))
+  await session.load()
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  const snapshot = await session.navigate(undefined, {})
+  assert.equal(snapshot.route, BIKE_ROUTE_ENTRY)
+  assert.deepEqual(snapshot.inputs, toInertValue({}))
+  assert.equal(snapshot.canGoBack, true)
+  assert.equal((await session.back()).route, BIKE_ROUTE_COMPONENT)
+})

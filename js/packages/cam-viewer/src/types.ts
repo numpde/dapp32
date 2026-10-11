@@ -22,6 +22,8 @@ export type CreateCamViewerSessionOptions = {
   readonly allowUnsignedCamHash: boolean
   readonly account?: CamViewerAccount
   readonly inputs: InertRecord
+  /** Omit to load the contract-anchored manifest entry. */
+  readonly route?: string
 }
 
 export type CamViewerSnapshot = {
@@ -50,7 +52,8 @@ export type CamViewerSession = {
   readonly load: () => Promise<CamViewerLoadedSnapshot>
   readonly back: () => Promise<CamViewerLoadedSnapshot>
   readonly navigate: (
-    route: string,
+    /** Undefined selects the loaded manifest entry. */
+    route: string | undefined,
     inputs: InertRecord,
   ) => Promise<CamViewerLoadedSnapshot>
   readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerLoadedSnapshot>

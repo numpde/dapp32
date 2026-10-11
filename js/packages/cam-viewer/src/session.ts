@@ -65,6 +65,7 @@ export function createCamViewerSession({
   allowUnsignedCamHash,
   account: initialAccount,
   inputs: initialInputs,
+  route: initialRoute,
 }: CreateCamViewerSessionOptions): CamViewerSession {
   const sessionHost = cloneHost(host)
   const initialRouteInputs = cloneViewerData<InertRecord>(initialInputs, "inputs")
@@ -128,7 +129,8 @@ export function createCamViewerSession({
       uiURI: uiResource.uri,
       ui,
     }
-    const nextView = await resolveLoadedView(nextLoadedState, loadedCam.cam.entry, initialRouteInputs, account)
+    const route = initialRoute === undefined ? loadedCam.cam.entry : initialRoute
+    const nextView = await resolveLoadedView(nextLoadedState, route, initialRouteInputs, account)
 
     loadedState = nextLoadedState
     currentView = nextView
@@ -137,9 +139,10 @@ export function createCamViewerSession({
     return loadedSnapshot(currentView)
   }
 
-  async function navigate(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
-    assertLoaded()
-    return await navigateLoaded(nextRoute, nextInputs)
+  async function navigate(nextRoute: string | undefined, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
+    const current = assertLoaded()
+    const route = nextRoute === undefined ? current.cam.entry : nextRoute
+    return await navigateLoaded(route, nextInputs)
   }
 
   async function back(): Promise<CamViewerLoadedSnapshot> {
