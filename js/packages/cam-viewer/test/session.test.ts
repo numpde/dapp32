@@ -231,6 +231,159 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
   ])
 })
 
+test("Back restores edited inputs across visits while refreshing read results; new navigation starts fresh", async () => {
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  const publicClient = createPublicClient(publicClientFixtureOptions({ routeResults }))
+  const session = createSession(sessionFixtureOptions({ publicClient }))
+  assert.equal((await session.load()).canGoBack, false)
+  const draft = session.updateState({ serialNumber: "unfinished serial", accountInfo: "unfinished info" })
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  await session.navigate(BIKE_ROUTE_ENTRY, {})
+  await session.back()
+  routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), accountInfo: "fresh chain info" }
+  mutableRecord(draft.state).serialNumber = "external mutation"
+  const restored = await session.back()
+  assert.equal(restored.state.serialNumber, "unfinished serial")
+  assert.equal(restored.state.accountInfo, "unfinished info")
+  assert.equal(mutableRecord(restored.values[0]).accountInfo, "fresh chain info")
+  assert.equal(restored.canGoBack, false)
+  assert.equal(publicClient.calls.at(-1)?.functionName, BIKE_VIEW_ENTRY)
+  const fresh = await session.navigate(BIKE_ROUTE_ENTRY, {})
+  assert.equal(fresh.state.serialNumber, "")
+  assert.equal(fresh.state.accountInfo, "fresh chain info")
+})
+
+test("Back drops edits whose inputs are absent from the refreshed view", async () => {
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  routeResults[BIKE_VIEW_REGISTER] = bikeRegisterRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress)
+  const session = createSession(sessionFixtureOptions({
+    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+  }))
+  await session.load()
+  await session.navigate("register", { serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER })
+  session.updateState({ owner: registeredOwnerAddress, tokenURI: BIKE_REGISTRATION_TOKEN_URI })
+  await session.navigate(BIKE_ROUTE_ENTRY, {})
+  routeResults[BIKE_VIEW_REGISTER] = bikeRegisterRouteResult(BIKE_SERIAL_NUMBER, userAddress)
+  const restored = await session.back()
+  assert.equal(Object.hasOwn(restored.state, "owner"), false)
+  assert.equal(Object.hasOwn(restored.state, "tokenURI"), false)
+})
+
+test("successful account changes and loads clear history", async () => {
+  const session = createSession(sessionFixtureOptions({}))
+  await session.load()
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  assert.equal((await session.setAccount({ address: otherUserAddress })).canGoBack, false)
+  await assert.rejects(() => session.back(), /no previous view/)
+  await session.navigate(BIKE_ROUTE_ENTRY, {})
+  assert.equal((await session.load()).canGoBack, false)
+})
+
+test("failed navigation, Back, account changes and reloads preserve the view and history", async () => {
+  let failReads = false
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const session = createSession(sessionFixtureOptions({ publicClient: {
+    ...publicClient,
+    async readContract(request) {
+      if (failReads) throw new Error("read unavailable")
+      return await publicClient.readContract(request)
+    },
+  } }))
+  await session.load()
+  session.updateState({ serialNumber: "unfinished" })
+  const before = await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  failReads = true
+  for (const operation of [
+    () => session.navigate(BIKE_ROUTE_ENTRY, {}),
+    () => session.back(),
+    () => session.setAccount({ address: otherUserAddress }),
+    () => session.load(),
+  ]) {
+    await assert.rejects(operation)
+    assert.deepEqual(session.snapshot(), before)
+  }
+  failReads = false
+  assert.equal((await session.back()).state.serialNumber, "unfinished")
+})
+
+test("history retains at most twenty previous visits", async () => {
+  const session = createSession(sessionFixtureOptions({}))
+  await session.load()
+  for (let visit = 0; visit < 22; visit += 1) {
+    session.updateState({ serialNumber: String(visit) })
+    await session.navigate(BIKE_ROUTE_ENTRY, {})
+  }
+  for (let visit = 21; visit >= 2; visit -= 1) {
+    assert.equal((await session.back()).state.serialNumber, String(visit))
+  }
+  assert.equal(session.snapshot().canGoBack, false)
+  await assert.rejects(() => session.back(), /no previous view/)
+})
+
+test("a pending Back rejects competing mutations and preserves its account scope", async () => {
+  let releaseRead: (() => void) | undefined
+  let blockEntry = false
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const session = createSession(sessionFixtureOptions({ publicClient: {
+    ...publicClient,
+    async readContract(request) {
+      if (blockEntry && request.functionName === BIKE_VIEW_ENTRY) {
+        await new Promise<void>((resolve) => { releaseRead = resolve })
+      }
+      return await publicClient.readContract(request)
+    },
+  } }))
+  await session.load()
+  session.updateState({ serialNumber: "unfinished" })
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  blockEntry = true
+  const returning = session.back()
+  await assert.rejects(() => session.navigate(BIKE_ROUTE_ENTRY, {}), /navigation is in progress/)
+  await assert.rejects(() => session.setAccount({ address: otherUserAddress }), /navigation is in progress/)
+  await assert.rejects(() => session.back(), /navigation is in progress/)
+  assert.throws(() => session.updateState({ serialNumber: "competing edit" }), /navigation is in progress/)
+  assert.ok(releaseRead)
+  releaseRead()
+  const restored = await returning
+  assert.equal(restored.state.serialNumber, "unfinished")
+  assert.equal(restored.account?.address, userAddress)
+  assert.equal(restored.canGoBack, false)
+})
+
+test("snapshots retain the previous account and view until an account read succeeds", async () => {
+  let releaseRead: (() => void) | undefined
+  let startedRead: (() => void) | undefined
+  const readStarted = new Promise<void>((resolve) => { startedRead = resolve })
+  let changingAccount = false
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const session = createSession(sessionFixtureOptions({ publicClient: {
+    ...publicClient,
+    async readContract(request) {
+      if (changingAccount && request.functionName === BIKE_VIEW_ENTRY) {
+        const pendingRead = new Promise<void>((resolve) => { releaseRead = resolve })
+        startedRead?.()
+        await pendingRead
+        assert.deepEqual(request.args, [otherUserAddress])
+        return bikeEntryRouteResult(otherUserAddress)
+      }
+      return await publicClient.readContract(request)
+    },
+  } }))
+  await session.load()
+  await session.navigate(BIKE_ROUTE_ENTRY, {})
+  const before = session.updateState({ serialNumber: "unfinished" })
+  changingAccount = true
+  const changing = session.setAccount({ address: otherUserAddress })
+  await readStarted
+  assert.deepEqual(session.snapshot(), before)
+  assert.ok(releaseRead)
+  releaseRead()
+  const after = await changing
+  assert.equal(after.account?.address, otherUserAddress)
+  assert.equal(mutableRecord(after.values[0]).account, otherUserAddress)
+  assert.equal(after.canGoBack, false)
+})
+
 test("session creation validates host and account boundary values", () => {
   const options = sessionFixtureOptions({})
 
@@ -546,6 +699,7 @@ test("updateState resolves route actions, while write routes are surfaced withou
 
   const accountResult = await session.dispatchAction(accountButton)
   assert.equal(accountResult.type, "contractCall")
+  assert.equal(session.snapshot().canGoBack, false)
   if (accountResult.type !== "contractCall") {
     assert.fail("expected account-info contract call action result")
   }

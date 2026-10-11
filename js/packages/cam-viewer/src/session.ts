@@ -16,6 +16,7 @@ import type { CamDocument } from "@cam/core"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import {
   parseUi,
+  resolvedUiInputNames,
 } from "@cam/screen"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type {
@@ -54,6 +55,8 @@ type CamViewerLoadedState = {
 }
 
 type CurrentView = ViewerResolvedReadView
+type PreviousView = Pick<CurrentView, "route" | "inputs" | "state">
+const HISTORY_LIMIT = 20
 
 export function createCamViewerSession({
   publicClient,
@@ -68,6 +71,8 @@ export function createCamViewerSession({
   let account = initialAccount === undefined ? undefined : cloneAccount(initialAccount)
   let loadedState: CamViewerLoadedState | undefined
   let currentView: CurrentView | undefined
+  const history: PreviousView[] = []
+  let changingView = false
 
   function snapshot(): CamViewerSnapshot {
     if (currentView === undefined) {
@@ -79,6 +84,7 @@ export function createCamViewerSession({
 
   function sessionSnapshot(inputs: InertRecord): CamViewerSnapshot {
     return {
+      canGoBack: history.length > 0,
       inputs: cloneViewerData<InertRecord>(inputs, "inputs"),
       ...(account === undefined ? {} : { account: cloneAccount(account) }),
     }
@@ -122,10 +128,11 @@ export function createCamViewerSession({
       uiURI: uiResource.uri,
       ui,
     }
-    const nextView = await resolveLoadedView(nextLoadedState, loadedCam.cam.entry, initialRouteInputs)
+    const nextView = await resolveLoadedView(nextLoadedState, loadedCam.cam.entry, initialRouteInputs, account)
 
     loadedState = nextLoadedState
     currentView = nextView
+    history.length = 0
 
     return loadedSnapshot(currentView)
   }
@@ -135,23 +142,39 @@ export function createCamViewerSession({
     return await navigateLoaded(nextRoute, nextInputs)
   }
 
+  async function back(): Promise<CamViewerLoadedSnapshot> {
+    const current = assertLoaded()
+    const previous = history.at(-1)
+    if (previous === undefined) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "Cannot go back: there is no previous view")
+    }
+    const refreshed = await resolveLoadedView(current, previous.route, previous.inputs, account)
+    const state = { ...refreshed.state }
+    for (const name of resolvedUiInputNames(refreshed.resolvedUi)) {
+      if (Object.hasOwn(previous.state, name)) state[name] = previous.state[name]
+    }
+    const resolvedUi = resolveCurrentUi(refreshed.route, refreshed.inputs, refreshed.values, state)
+    currentView = { ...refreshed, state, resolvedUi }
+    history.pop()
+    return loadedSnapshot(currentView)
+  }
+
   async function setAccount(nextAccount?: CamViewerAccount): Promise<CamViewerLoadedSnapshot> {
     const view = currentView
     if (view === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded view")
     }
 
-    const previousAccount = account
-    account = nextAccount === undefined ? undefined : cloneAccount(nextAccount)
-    try {
-      return await navigateLoaded(view.route, view.inputs)
-    } catch (cause) {
-      account = previousAccount
-      throw cause
-    }
+    const candidateAccount = nextAccount === undefined ? undefined : cloneAccount(nextAccount)
+    const nextView = await resolveLoadedView(assertLoaded(), view.route, view.inputs, candidateAccount)
+    account = candidateAccount
+    currentView = nextView
+    history.length = 0
+    return loadedSnapshot(nextView)
   }
 
   function updateState(patch: InertRecord): CamViewerLoadedSnapshot {
+    assertViewAvailable()
     if (currentView === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded state")
     }
@@ -178,6 +201,7 @@ export function createCamViewerSession({
   }
 
   async function dispatchAction(action: ResolvedButtonNode): Promise<CamViewerActionResult> {
+    assertViewAvailable()
     const current = assertLoaded()
     const view = assertCurrentView()
     assertActionIsRendered(view.resolvedUi, action)
@@ -186,7 +210,7 @@ export function createCamViewerSession({
     if (interpretation.type === "navigate") {
       return {
         type: "navigated",
-        snapshot: await navigateLoaded(interpretation.route, interpretation.inputs),
+        snapshot: await changeView(() => navigateLoaded(interpretation.route, interpretation.inputs)),
       }
     }
 
@@ -205,8 +229,11 @@ export function createCamViewerSession({
 
   async function navigateLoaded(nextRoute: string, nextInputs: InertRecord): Promise<CamViewerLoadedSnapshot> {
     const current = assertLoaded()
-    const nextView = await resolveLoadedView(current, nextRoute, nextInputs)
+    const nextView = await resolveLoadedView(current, nextRoute, nextInputs, account)
 
+    const previous = assertCurrentView()
+    history.push({ route: previous.route, inputs: previous.inputs, state: previous.state })
+    if (history.length > HISTORY_LIMIT) history.shift()
     currentView = nextView
 
     return loadedSnapshot(currentView)
@@ -216,6 +243,7 @@ export function createCamViewerSession({
     current: CamViewerLoadedState,
     nextRoute: string,
     nextInputs: InertRecord,
+    viewAccount: CamViewerAccount | undefined,
   ): Promise<CurrentView> {
     const routeInputs = cloneViewerData<InertRecord>(nextInputs, "inputs")
     return await resolveViewerReadRoute({
@@ -224,7 +252,7 @@ export function createCamViewerSession({
       contracts: current.contracts,
       ui: current.ui,
       host: sessionHost,
-      ...(account === undefined ? {} : { account }),
+      ...(viewAccount === undefined ? {} : { account: viewAccount }),
       route: nextRoute,
       inputs: routeInputs,
     })
@@ -278,6 +306,22 @@ export function createCamViewerSession({
     return loadedState
   }
 
+  function assertViewAvailable(): void {
+    if (changingView) {
+      throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "Cannot change the view while another navigation is in progress; wait for it to finish")
+    }
+  }
+
+  async function changeView(operation: () => Promise<CamViewerLoadedSnapshot>): Promise<CamViewerLoadedSnapshot> {
+    assertViewAvailable()
+    changingView = true
+    try {
+      return await operation()
+    } finally {
+      changingView = false
+    }
+  }
+
   function assertCurrentView(): CurrentView {
     if (currentView === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded view")
@@ -288,9 +332,10 @@ export function createCamViewerSession({
 
   return {
     snapshot,
-    load,
-    navigate,
-    setAccount,
+    load: () => changeView(load),
+    back: () => changeView(back),
+    navigate: (route, inputs) => changeView(() => navigate(route, inputs)),
+    setAccount: (nextAccount) => changeView(() => setAccount(nextAccount)),
     updateState,
     dispatchAction,
   }

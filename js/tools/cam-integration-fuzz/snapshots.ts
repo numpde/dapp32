@@ -26,6 +26,7 @@ export function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoa
   }
 
   return {
+    canGoBack: snapshot.canGoBack,
     ...(snapshot.account === undefined ? {} : { account: snapshot.account }),
     route: snapshot.route,
     inputs: snapshot.inputs,

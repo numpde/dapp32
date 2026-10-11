@@ -25,6 +25,7 @@ export type CreateCamViewerSessionOptions = {
 }
 
 export type CamViewerSnapshot = {
+  readonly canGoBack: boolean
   readonly route?: string
   readonly inputs: InertRecord
   readonly state?: InertRecord
@@ -47,6 +48,7 @@ export type CamViewerLoadedSnapshot =
 export type CamViewerSession = {
   readonly snapshot: () => CamViewerSnapshot
   readonly load: () => Promise<CamViewerLoadedSnapshot>
+  readonly back: () => Promise<CamViewerLoadedSnapshot>
   readonly navigate: (
     route: string,
     inputs: InertRecord,
