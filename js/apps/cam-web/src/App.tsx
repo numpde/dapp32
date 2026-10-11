@@ -393,8 +393,11 @@ async function waitForReceipt(
 }
 
 function headerTitle(loadState: LoadState): string {
-  if (loadState.status !== "ready") {
+  if (loadState.status === "loading") {
     return "Loading"
+  }
+  if (loadState.status === "failed") {
+    return "CAM Viewer"
   }
 
   const title = loadState.snapshot.resolvedUi.props.title

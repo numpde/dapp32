@@ -26,6 +26,32 @@ test("errorMessage still includes useful nested revert details", () => {
   )
 })
 
+test("errorMessage includes known browser fetch causes without exposing arbitrary cause text", () => {
+  const url = "https://example.test/cam/main.json"
+  const failure = Object.assign(new Error(`failed to load CAM resource ${url}`, {
+    cause: new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation"),
+  }), { code: "CAM_RESOURCE_LOAD_FAILED" })
+
+  assert.equal(errorMessage(failure), `failed to load CAM resource ${url}: Failed to execute 'fetch' on 'Window': Illegal invocation`)
+  assert.equal(
+    errorMessage(Object.assign(new Error(`failed to load CAM resource ${url}`, {
+      cause: new TypeError("Failed to fetch"),
+    }), { code: "CAM_RESOURCE_LOAD_FAILED" })),
+    `failed to load CAM resource ${url}: Failed to fetch`,
+  )
+  const privateCause = Object.assign(new TypeError("fetch failed for https://private.example/?token=secret"), {
+    reason: "https://private.example/?token=secret",
+    details: "https://private.example/?token=secret",
+    shortMessage: "https://private.example/?token=secret",
+  })
+  assert.equal(
+    errorMessage(Object.assign(new Error(`failed to load CAM resource ${url}`, {
+      cause: privateCause,
+    }), { code: "CAM_RESOURCE_LOAD_FAILED" })),
+    `failed to load CAM resource ${url}`,
+  )
+})
+
 test("errorMessage ignores provider objects with hostile property access", () => {
   const error = new Error("transaction failed", {
     cause: new Proxy({}, {

@@ -22,6 +22,13 @@ function errorSummary(error: unknown): string {
 }
 
 function errorDetail(chain: readonly unknown[]): string | undefined {
+  if (errorProperty(chain[0], "code") === "CAM_RESOURCE_LOAD_FAILED") {
+    const cause = chain[1]
+    if (!(cause instanceof TypeError)) return undefined
+    const message = readableErrorString(cause, "message")
+    return message !== undefined && BROWSER_FETCH_ERRORS.has(message) ? message : undefined
+  }
+
   for (const item of chain) {
     const customError = errorCustomRevert(item)
     if (customError !== undefined) return customError
@@ -34,6 +41,11 @@ function errorDetail(chain: readonly unknown[]): string | undefined {
 
   return undefined
 }
+
+const BROWSER_FETCH_ERRORS = new Set([
+  "Failed to fetch",
+  "Failed to execute 'fetch' on 'Window': Illegal invocation",
+])
 
 function errorChain(error: unknown): readonly unknown[] {
   const chain: unknown[] = []
