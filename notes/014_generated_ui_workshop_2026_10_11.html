@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Generated Escrow UI workshop</title>
+  <style>
+    :root { color-scheme: light; --ink: #17212f; --muted: #607086; --line: #d8e0ea; --accent: #176b5f; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: #f5f7fa; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.6; }
+    main { width: min(880px, calc(100% - 32px)); margin: 32px auto; padding: 32px; background: #fff; }
+    h1 { margin: 0 0 12px; font-size: 2rem; line-height: 1.2; }
+    h2 { margin: 32px 0 12px; font-size: 1.35rem; line-height: 1.3; }
+    p, ul { margin: 0 0 16px; }
+    li { margin-bottom: 6px; }
+    .meta { color: var(--muted); }
+    a { color: var(--accent); text-underline-offset: 0.15em; }
+    code { padding: 2px 4px; background: #edf2f6; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.92em; overflow-wrap: anywhere; }
+    .table-scroll { overflow-x: auto; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.94rem; }
+    th, td { min-width: 150px; padding: 10px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { background: #edf2f6; }
+    @media (max-width: 600px) { main { padding: 20px 16px; margin: 16px auto; } h1 { font-size: 1.65rem; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Generated Escrow UI workshop</h1>
+  <p class="meta">Date: 2026-10-11. Baseline: <code>9387315</code>.</p>
+  <p>Explain the current decision and its contract facts. Start with manifest
+  composition; extend presentation vocabulary only for demonstrated missing
+  capabilities. This is a researched proposal, not an implemented change.</p>
+
+  <h2>Observed experience</h2>
+  <p>The local Chromium walkthrough found a creation page approximately 1,817 pixels
+  tall on desktop and 2,181 on mobile. Opening an existing agreement and creating
+  a new one share the same undifferentiated surface. A funded agreement offering
+  only an acceptance-timeout action still shows all four submission/dispute
+  inputs; its action appears around 2,000 pixels down the page. Prepared review
+  presents nested arguments as a JSON wall on mobile. Captured screenshots and
+  reports provide temporary local evidence.</p>
+  <p>Source inspection explains these findings:</p>
+  <ul>
+    <li><code>dapps/escrow/cam/ui.json</code> puts technical limits before creation inputs and
+    renders both evidence forms independently of available transitions.</li>
+    <li><code>Screen</code> and <code>Fragment</code> flatten their children. There are no section,
+    disclosure, associated hint, or closed-choice primitives.</li>
+    <li><code>prepared-call.ts</code> displays execution fields without a human decision summary.</li>
+    <li>The inline fieldset padding of zero overrides <code>.elements</code> padding of 16px.</li>
+  </ul>
+  <p>Persistent labels, exact integer strings, Back, Discard, focus arrival and
+  tested overflow handling already work. Preserve them. The walkthrough does not
+  establish screen-reader usability or real wallet-extension approval behavior.</p>
+
+  <h2>Research and its limits</h2>
+  <p>Form guidance should explain formats and requirements beside their fields,
+  with programmatic associations such as <code>aria-describedby</code>; placeholder text
+  cannot replace a persistent label.
+  <a href="https://www.w3.org/WAI/tutorials/forms/instructions/">W3C form instructions</a></p>
+  <p>Financial interfaces need a way to check and correct consequential submissions.
+  The standard permits alternative safeguards; it does not prescribe a modal for
+  every action.
+  <a href="https://www.w3.org/WAI/WCAG22/Understanding/error-prevention-legal-financial-data.html">W3C financial error prevention</a>
+  Review should organize information for checking, while disclosure should hide
+  secondary material rather than essential decision facts.
+  <a href="https://design-system.service.gov.uk/patterns/check-answers/">GOV.UK check answers</a>,
+  <a href="https://design-system.service.gov.uk/components/details/">GOV.UK details</a></p>
+  <p>OpenAI recommends intentional design fitted to the product and describes
+  generic results from underspecified prompts. This guides generation; it does
+  not establish usability.
+  <a href="https://developers.openai.com/api/docs/guides/frontend-prompt">OpenAI frontend prompting</a>,
+  <a href="https://developers.openai.com/blog/designing-delightful-frontends-with-gpt-5-4">OpenAI frontend design article</a></p>
+  <p>An empirical study of GPT-4o and Qwen reports accessibility problems in generated
+  web interfaces, including ARIA and semantic interaction problems. Evaluation
+  feedback improved accessibility checks; this is not a study of hidden
+  notifications or current Codex failure rates.
+  <a href="https://arxiv.org/abs/2503.15885">Generated-interface accessibility study</a></p>
+  <p>A2UI uses a bounded declarative component catalog across trust boundaries.
+  This aligns with CAM's inert manifests; it neither proves semantic security
+  nor warrants another framework.
+  <a href="https://a2ui.org/">A2UI</a></p>
+
+  <h2>Recommended task model</h2>
+  <p>Creation should group <strong>People, Payment, Timing, Terms</strong>, with a separate
+  existing-agreement entry. Keep one editable form initially rather than adding
+  a wizard. Hints explain units, accepted formats, and the timeout beneficiary.
+  Do not make zero addresses and zero durations look like suggested valid values.</p>
+  <p>An agreement should lead with its identity, current state, viewer role, amount,
+  deadline and available actions. Contractor submission owns submission inputs;
+  client dispute owns dispute inputs. Arbitration presents both evidence sets
+  and the beneficiary decision. <code>CamEscrow</code> owns business permissions;
+  <code>CamEscrowUI</code> maps its available actions into transition IDs. The manifest uses
+  that projection; writes remain enforced by <code>CamEscrow</code> against the actual sender.</p>
+  <p>Terminal states explain credit allocation, not viewer withdrawal eligibility.
+  Account-credit navigation is a read; withdrawal appears only when projected
+  for the viewed account. Approval creates beneficiary credit, not immediate
+  wallet payment. Withdrawal transfers complete accumulated account credit,
+  potentially from several agreements.</p>
+  <p>Review keeps prepared chain, sender, destination, attached native value, action
+  and exact arguments visible and bound to the prepared call, never later draft
+  values or publisher prose. Zero attached value does not imply no internal
+  transfer or credit. Publisher prose is untrusted explanation. Do not hardcode
+  Escrow or token-function semantics in the generic renderer. Human amount,
+  duration, date or enum formatting needs declared metadata and exact strings.
+  Document URIs stay inert unless validated against allowed HTTP(S) schemes.
+  Neither URI nor digest proves safe navigation or fetched, verified contents.
+  Simulation does not guarantee later execution.</p>
+
+  <h2 id="choices-heading">Implementation choices</h2>
+  <div class="table-scroll" role="region" aria-labelledby="choices-heading" tabindex="0">
+    <table>
+      <thead><tr><th scope="col">Approach</th><th scope="col">Benefit</th><th scope="col">Cost / decision</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">Manifest recomposition</th><td>Uses current Include, Fragment, Text and Status; preserves projected actions</td><td>Recommend first; cannot supply semantic grouping or associated hints</td></tr>
+        <tr><th scope="row">Explicit presentation primitives</th><td>Generic sections, hints, disclosure or choices where tasks require them</td><td>Add separately, with protocol/parser/resolver/conformance/renderer agreement</td></tr>
+        <tr><th scope="row">Escrow-specific React UI</th><td>Full domain freedom</td><td>Duplicates manifest meaning; reject for this generated-UI experiment</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="slices-heading">Candidate slices and tests</h2>
+  <p>First make the relevant general law fail; then fix and rerun its owning lane.</p>
+  <div class="table-scroll" role="region" aria-labelledby="slices-heading" tabindex="0">
+    <table>
+      <thead><tr><th scope="col">Priority / slice</th><th scope="col">Owner</th><th scope="col">General red-first law</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">1. Action-specific evidence forms</th><td>Escrow manifest and screen tests</td><td>Across projected transition subsets, only applicable action inputs exist; every action keeps the current agreement ID</td></tr>
+        <tr><th scope="row">2. Task hierarchy and spacing</th><td>Manifest, then shared renderer if needed</td><td>Current decision and applicable actions are identifiable across roles, long content and narrow/zoomed layouts; grouping has semantic names</td></tr>
+        <tr><th scope="row">3. Associated guidance and enum choices</th><td>Explicit UI vocabulary</td><td>Hints belong to their inputs; choice labels map to exact values; integer precision survives editing and preparation</td></tr>
+        <tr><th scope="row">4. Human and exact transaction review</th><td>Prepared-call presentation; semantic metadata only after ownership decision</td><td>Essential facts and complete bounded arguments belong to the prepared call; publisher claims and later edits cannot replace them; discard preserves recovery</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Document presentation tests must reject unsafe navigation schemes and claims
+  that an unverified document has been verified.</p>
+  <p>Browser proof should include pointer and keyboard use, repeated actions, pending
+  states and nearby interactions that must not trigger effects. Static ordering
+  checks do not prove comprehension. Ask an independent reader to explain who can
+  act, what funds move, and what remains pending.</p>
+
+  <h2>Generation pitfalls to gate</h2>
+  <p>Avoid attractive cards around the same flat inventory; frontend role/state
+  permission mirrors; floating-point financial formatting; hidden essential facts;
+  unattributed manifest claims; new wizard state loss; and tests coupled to exact
+  labels instead of task laws. Keep the contract authoritative and the frontend
+  untrusted. Preserve the architecture stop signs: no viewer/session or ABI
+  decomposition, new UI framework, Solidity change, or CAM hash change is required
+  by this workshop.</p>
+</main>
+</body>
+</html>
