@@ -12,8 +12,9 @@ FORBIDDEN_NAME_PATTERNS = [
 ]
 
 ALLOWED_FORBIDDEN_NAME_LITERALS = (
-    # The site path is an externally visible address, not prose branding.
+    # External repository addresses are required as publication URLs, not prose branding.
     "https://numpde.github.io/dapp" + "32/",
+    "https://raw.githubusercontent.com/numpde/dapp" + "32/",
 )
 
 LICENSE_MARKERS = [
