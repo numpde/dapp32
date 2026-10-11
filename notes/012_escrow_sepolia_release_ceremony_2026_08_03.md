@@ -14,16 +14,30 @@ README remain authoritative.
 Repository state selected for the ceremony:
 
 ```text
-commit:     5a5a9449bb4aa4807508802c2ebadfa315424bfc
+commit:     915c631dbc9d611f4805c2ac8ee7255df442bb53
 network:    Ethereum Sepolia
 chain ID:   11155111
 ```
 
-On the selected source contents, the local dependency graph check, 146 repository
-checks, 345 package tests, package CI, and all nine local Escrow fixture paths
-passed, including withdrawal and zero-balance checks. This is local acceptance
-evidence, not a Sepolia deployment or an actual browser session. Every ceremony
-checklist below remains pending until performed against the pinned checkout.
+The selected source passed 153 repository checks and package CI. Browser
+acceptance ran in Chromium against a disposable local Anvil chain (31337), using
+a test-only wallet provider. The previously failing regression cases now pass:
+agreement-ID lookup, draft recovery through Back, discarding an unsigned
+preparation, and visible, keyboard-accessible preparation results. Tests also
+confirmed that wallet rejection submits nothing; controls remain frozen while
+submission or confirmation is pending; and a lost submission reply leaves an
+uncertain outcome after exactly one committed transaction, without automatic
+resubmission. A confirmed transaction remains confirmed when view refresh fails.
+The client, contractor, and arbitrator completed creation, acceptance, work
+submission, dispute, resolution, and withdrawal, ending with zero contractor
+credit. Eight fixture tests prove that a closed submission owner cannot begin
+later effects, rejected key checks expose no key bytes, and the wallet SDK does
+not submit again through another method after a transport failure.
+
+This evidence does not establish Sepolia deployment or actual wallet-extension
+approval behavior. Every ceremony checklist below remains pending until
+performed against the pinned checkout. GitHub Pages remains a landing page;
+this ceremony does not publish a hosted viewer.
 
 The release boundary is considered implementation-complete before this note:
 
@@ -64,6 +78,8 @@ Do not begin live work until all of these exist:
 
 - the full-commit-pinned public HTTPS CAM URL shown in Phase 2, with every
   declared local resource available beneath the same pinned path;
+- the intended viewer origin (scheme, hostname, and port), chosen and recorded
+  before broadcast, with browser loading verified from that origin;
 - a Sepolia HTTPS RPC endpoint;
 - a disposable, Sepolia-only funded deployer account;
 - a distinct intended `CamRoot` owner controlled independently;
@@ -75,16 +91,27 @@ Do not begin live work until all of these exist:
 Use a dedicated testnet deployer. Do not reuse a mainnet key or the intended
 owner's key.
 
-Example protected files:
+Example protected files, entered through silent Bash prompts. Use a private
+directory you control and new file paths; do not paste credentials into the
+commands themselves. The local origin `http://127.0.0.1:5185` used for acceptance
+does not select the ceremony's viewer origin.
 
 ```bash
+set +x
 umask 077
+set -o noclobber
 
-printf '%s\n' 'https://<sepolia-rpc-endpoint>' \
+read -r -s -p 'Sepolia HTTPS RPC URL: ' escrow_rpc_url_input
+printf '\n'
+builtin printf '%s\n' "$escrow_rpc_url_input" \
   > /secure/escrow-sepolia-rpc
+unset escrow_rpc_url_input
 
-printf '%s\n' '0x<disposable-sepolia-deployer-private-key>' \
+read -r -s -p 'Disposable Sepolia deployer private key: ' escrow_deployer_key_input
+printf '\n'
+builtin printf '%s\n' "$escrow_deployer_key_input" \
   > /secure/escrow-sepolia-deployer
+unset escrow_deployer_key_input
 ```
 
 Do not copy secrets into the repository, release output, shell history,
@@ -98,6 +125,7 @@ Checklist:
 - [ ] Deployer has enough test ETH for one deployment and no valuable assets.
 - [ ] Maximum acceptable test-ETH expenditure is declared before broadcast.
 - [ ] Confirmation/finality threshold is declared before broadcast.
+- [ ] Intended viewer origin is recorded and browser loading from it is verified.
 
 ## Phase 1 — Freeze Release Identity
 
@@ -113,10 +141,10 @@ set -e
 test -z "$(git status --porcelain --untracked-files=all)"
 
 git fetch origin
-git switch --detach 5a5a9449bb4aa4807508802c2ebadfa315424bfc
+git switch --detach 915c631dbc9d611f4805c2ac8ee7255df442bb53
 
 test "$(git rev-parse HEAD)" = \
-  "5a5a9449bb4aa4807508802c2ebadfa315424bfc"
+  "915c631dbc9d611f4805c2ac8ee7255df442bb53"
 
 test -z "$(git status --porcelain --untracked-files=all)"
 ```
@@ -127,6 +155,7 @@ Record without exposing secrets:
 source commit
 Sepolia chain ID
 CAM root URI
+intended viewer origin
 intended CamRoot owner
 public deployer address
 chosen output directory
@@ -152,12 +181,14 @@ The selected public path for the checked-in Escrow CAM directory is at the
 GitHub commit. The CAM root URL is:
 
 ```text
-https://raw.githubusercontent.com/numpde/dapp32/5a5a9449bb4aa4807508802c2ebadfa315424bfc/dapps/escrow/cam/main.json
+https://raw.githubusercontent.com/numpde/dapp32/915c631dbc9d611f4805c2ac8ee7255df442bb53/dapps/escrow/cam/main.json
+CAM_HASH=0xe06f268057be3d32e11ab8e897683376760dfa7550c95943032434e0a4f44430
 ```
 
-The full commit hash pins the resource path. The resource origin is
-`https://raw.githubusercontent.com`; the viewer origin is chosen by the operator
-and still needs browser CORS proof. The bundle must contain at least:
+`CAM_HASH` is Keccak-256 of the exact root file bytes. The full commit hash pins
+the resource path. The resource origin is
+`https://raw.githubusercontent.com`; the operator must verify browser loading
+from the intended viewer origin. The bundle must contain at least:
 
 ```text
 main.json
@@ -166,16 +197,24 @@ abi/CamEscrow.json
 abi/CamEscrowUI.json
 ```
 
-Publication observation (2026-10-11): two bounded HTTPS fetches of the root,
-UI, and both ABI files returned 200 without redirects and matched the selected
-Git bytes exactly. Responses advertised `Access-Control-Allow-Origin: *`,
-`Cross-Origin-Resource-Policy: cross-origin`, `text/plain; charset=utf-8`, and
-gzip content encoding. Local `cam-publication-preflight-json` reported no issues
-and `CAM_HASH=0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66`.
-The CAM loader reads response bytes and parses JSON explicitly, so this
-`text/plain` response is acceptable to that loader.
-This does not establish an actual browser session; repeat the checks against the
-pinned checkout before signing.
+Candidate publication observation (2026-10-11): two independent HTTPS fetches
+of all four resources returned 200 without redirects and matched the selected
+checkout byte-for-byte. Responses used `text/plain; charset=utf-8` and
+`Access-Control-Allow-Origin: *`. Local publication preflight reported no issues
+and the root hash above. A fresh Chromium tab at `http://127.0.0.1:5185` fetched
+all four pinned URLs through browser CORS, without redirects, and matched their
+lengths and SHA-256 hashes. The CAM loader parses JSON from response bytes, so
+the observed `text/plain` content type is usable. This proves resource access
+from that local origin; it does not prove a deployed viewer anchored to this raw
+bundle. Repeat these checks from the intended viewer origin before signing.
+
+Historical publication evidence (2026-10-11) belongs to the superseded source
+`5a5a9449bb4aa4807508802c2ebadfa315424bfc` and root hash
+`0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66`.
+Two HTTPS fetches of its four resources matched that commit's bytes without
+redirects; CORS headers permitted cross-origin loading and local preflight found
+no issues. That immutable bundle remains historical evidence, not the candidate
+selected for this ceremony.
 
 Do not reserialize, reindent, normalize newlines, or regenerate resources at the
 hosting layer.
@@ -184,7 +223,7 @@ Run the repository-owned preflight for local CAM validation and `CAM_HASH`.
 It does not fetch the public URL or prove browser CORS:
 
 ```bash
-CAM_URI=https://raw.githubusercontent.com/numpde/dapp32/5a5a9449bb4aa4807508802c2ebadfa315424bfc/dapps/escrow/cam/main.json \
+CAM_URI=https://raw.githubusercontent.com/numpde/dapp32/915c631dbc9d611f4805c2ac8ee7255df442bb53/dapps/escrow/cam/main.json \
 make cam-publication-preflight DAPP=escrow
 ```
 
@@ -266,7 +305,7 @@ Run exactly once:
 ```bash
 CONFIRM_ESCROW_RELEASE_DEPLOY=YES \
 ESCROW_RELEASE_EXPECTED_CHAIN_ID=11155111 \
-ESCROW_RELEASE_CAM_URI=https://raw.githubusercontent.com/numpde/dapp32/5a5a9449bb4aa4807508802c2ebadfa315424bfc/dapps/escrow/cam/main.json \
+ESCROW_RELEASE_CAM_URI=https://raw.githubusercontent.com/numpde/dapp32/915c631dbc9d611f4805c2ac8ee7255df442bb53/dapps/escrow/cam/main.json \
 ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER=0x<intended-owner> \
 RPC_URL_FILE=/secure/escrow-sepolia-rpc \
 DEPLOYER_PRIVATE_KEY_FILE=/secure/escrow-sepolia-deployer \
