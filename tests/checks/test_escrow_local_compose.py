@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
+import tempfile
 import unittest
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from .common import (
     compose_mapping,
+    compose_sequence,
     compose_sequence_or_empty,
     compose_service,
     read_text,
@@ -38,6 +45,71 @@ FIXTURE_KEYS = {
 
 
 class EscrowLocalComposeTest(unittest.TestCase):
+    def test_gui_urls_select_only_cam_root_deployment(self) -> None:
+        escrow = rendered_compose_config((DEPLOY, HTTP, GUI), env=ESCROW_ENV)
+        bike = rendered_compose_config(
+            (
+                "compose/bike-nft/local/deploy.yml",
+                "compose/bike-nft/local/http.yml",
+                "compose/bike-nft/local/viewer-gui.yml",
+            ),
+            env={
+                "CAM_URI": "http://127.0.0.1:5173/cam/main.json",
+                "CAM_VIEWER_RESOURCE_ORIGIN": "http://127.0.0.1:5173",
+                "BIKE_NFT_BROADCAST_DIR": "/foundry-broadcast",
+                "BIKE_NFT_BROADCAST_PATH": "/foundry-broadcast/DeployBikeNftLocal.s.sol/31337/run-latest.json",
+                "BIKE_NFT_GUI_ORIGIN": "http://127.0.0.1:5173",
+                "BIKE_NFT_GUI_BIND_HOST": "127.0.0.1",
+                "BIKE_NFT_GUI_PORT": "5173",
+            },
+        )
+        host = "0x" + "11" * 20
+        account = "0x" + "22" * 20
+        other_account = "0x" + "33" * 20
+
+        with tempfile.TemporaryDirectory() as directory:
+            broadcast_path = Path(directory) / "run-latest.json"
+
+            def run_with_creation_count(count: int, command: list[str], environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
+                creations = [
+                    {"transactionType": "CREATE", "contractName": "CamRoot", "contractAddress": host, "hash": f"0x{index + 1:064x}"}
+                    for index in range(count)
+                ]
+                calls = [
+                    {"transactionType": "CALL", "contractName": "CamRoot", "contractAddress": "0x" + "44" * 20, "hash": f"0x{index + 10:064x}"}
+                    for index in range(2)
+                ]
+                other_creation = {"transactionType": "CREATE", "contractName": "Other", "contractAddress": "0x" + "55" * 20, "hash": "0x" + "66" * 32}
+                broadcast_path.write_text(json.dumps({
+                    "transactions": creations + [other_creation] + calls,
+                    "receipts": [
+                        {"transactionHash": tx["hash"], "from": account if tx in creations else other_account}
+                        for tx in creations + [other_creation] + calls
+                    ],
+                }), encoding="utf-8")
+                return subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
+
+            for name, config, service_name in (
+                ("escrow", escrow, "escrow-viewer-url"),
+                ("bike-nft", bike, "bike-nft-viewer-url"),
+            ):
+                service = compose_service(config, service_name)
+                command = compose_sequence(service, "command")
+                environment = {**os.environ, **compose_mapping(service, "environment"), "BROADCAST_PATH": str(broadcast_path)}
+                with self.subTest(viewer=name):
+                    result = run_with_creation_count(1, command, environment)
+                    self.assertEqual(0, result.returncode, result.stderr)
+                    query = parse_qs(urlparse(result.stdout.strip()).query)
+                    self.assertEqual([host], query["host"])
+                    expected_account = account if name == "escrow" else environment["ACCOUNT"]
+                    self.assertEqual([expected_account], query["account"])
+
+                    for count in (0, 2):
+                        with self.subTest(creations=count):
+                            result = run_with_creation_count(count, command, environment)
+                            self.assertNotEqual(0, result.returncode)
+                            self.assertIn("exactly one CamRoot transaction", result.stderr)
+
     def test_vertical_scenario_has_no_host_exposure(self) -> None:
         config = rendered_compose_config((DEPLOY, HTTP, SCENARIO), env=ESCROW_ENV)
 

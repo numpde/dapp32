@@ -169,7 +169,10 @@ services:
         if not isinstance(transactions, list) or not isinstance(receipts, list):
             raise SystemExit("Forge broadcast output must contain transactions and receipts arrays")
 
-        roots = [tx for tx in transactions if isinstance(tx, dict) and tx.get("contractName") == "CamRoot"]
+        roots = [
+            tx for tx in transactions
+            if isinstance(tx, dict) and tx.get("transactionType") == "CREATE" and tx.get("contractName") == "CamRoot"
+        ]
         if len(roots) != 1:
             raise SystemExit("Forge broadcast output must contain exactly one CamRoot transaction")
         root = roots[0]

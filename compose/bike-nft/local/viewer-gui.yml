@@ -196,7 +196,7 @@ services:
         for tx in broadcast["transactions"]:
             if not isinstance(tx, dict):
                 raise SystemExit("Forge broadcast transaction entry is not an object")
-            if tx.get("contractName") == "CamRoot":
+            if tx.get("transactionType") == "CREATE" and tx.get("contractName") == "CamRoot":
                 hosts.append(tx.get("contractAddress"))
 
         if len(hosts) != 1:

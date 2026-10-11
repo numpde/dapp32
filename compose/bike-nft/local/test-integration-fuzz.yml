@@ -65,6 +65,7 @@ x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
 
       const camRootTransactions = broadcast.transactions.filter((item) => (
         isRecordObject(item)
+        && item.transactionType === "CREATE"
         && item.contractName === "CamRoot"
       ))
       if (camRootTransactions.length !== 1) {
