@@ -52,6 +52,13 @@ export type PreparedCallSubmitterPorts<TWalletClient, TChain> = {
   }) => Promise<`0x${string}`>
 }
 
+export class SubmissionOutcomeUnknownError extends Error {
+  constructor(cause: unknown) {
+    super("The wallet request failed without a transaction hash. The transaction may have been sent. Check wallet activity before preparing or sending another transaction.", { cause })
+    this.name = "SubmissionOutcomeUnknownError"
+  }
+}
+
 export async function submitPreparedContractCall<TWalletClient, TChain>({
   ports,
   publicClient,
@@ -86,11 +93,29 @@ export async function submitPreparedContractCall<TWalletClient, TChain>({
   if (!shouldContinue()) return undefined
 
   const walletClient = ports.createWalletClient(walletAddress)
-  return await ports.send({
-    walletClient,
-    chain: ports.chain(startup),
-    call,
-  })
+  const chain = ports.chain(startup)
+  try {
+    return await ports.send({ walletClient, chain, call })
+  } catch (cause) {
+    throw classifySubmissionFailure(cause)
+  }
+}
+
+function classifySubmissionFailure(error: unknown): unknown {
+  const seen = new Set<object>()
+  let current = error
+  try {
+    while (typeof current === "object" && current !== null && !seen.has(current)) {
+      seen.add(current)
+      const failure = current as { readonly code?: unknown; readonly cause?: unknown }
+      if (failure.code === 4001) return error
+      current = failure.cause
+    }
+  } catch {
+    // Unreadable provider fields cannot prove rejection. Preserve the original
+    // failure as the cause of an uncertain submission, not the accessor error.
+  }
+  return new SubmissionOutcomeUnknownError(error)
 }
 
 export async function waitForSubmittedTransactionReceipt<TReceipt>({

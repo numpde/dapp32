@@ -7,6 +7,7 @@ import type {
 import type {
   Address,
 } from "viem"
+import { UserRejectedRequestError } from "viem"
 
 import type {
   StartupOptions,
@@ -217,6 +218,87 @@ test("prepared call submission aborts before sending when final account check ma
     "ensureAccount",
     "continue:4",
   ])
+})
+
+test("a send failure reports possible submission and preserves the original cause", async () => {
+  for (const cause of [new Error("response lost"), { code: -32603, message: "transport failed" }, "connection closed"]) {
+    const ports = recordingPorts([])
+    await assert.rejects(
+      () => submitPreparedContractCall({
+        ports: { ...ports, async send() { throw cause } },
+        publicClient: testPublicClient(),
+        walletAddress,
+        startup: testStartup(),
+        call: testCall(),
+        shouldContinue: () => true,
+      }),
+      (error) => error instanceof Error
+        && /may have been sent/i.test(error.message)
+        && error.cause === cause,
+    )
+  }
+})
+
+test("proven wallet rejection remains distinct from uncertain submission through wrapped causes", async () => {
+  const rejection = new UserRejectedRequestError(new Error("User rejected the request"))
+  const wrappedRejection = new Error("CAM write failed", { cause: new Error("Wallet request failed", { cause: rejection }) })
+  const providerRejection = new Error("CAM write failed", { cause: { code: 4001, message: "User rejected the request" } })
+  for (const cause of [rejection, wrappedRejection, providerRejection]) {
+    await assert.rejects(
+      () => submitPreparedContractCall({
+        ports: { ...recordingPorts([]), async send() { throw cause } },
+        publicClient: testPublicClient(),
+        walletAddress,
+        startup: testStartup(),
+        call: testCall(),
+        shouldContinue: () => true,
+      }),
+      (error) => error === cause,
+    )
+  }
+})
+
+test("unreadable or cyclic provider failures remain uncertain without losing the original cause", async () => {
+  const cyclic: { cause?: unknown } = {}
+  cyclic.cause = cyclic
+  const hostileCode = { get code(): never { throw new Error("code getter failed") } }
+  const hostileCause = { get cause(): never { throw new Error("cause getter failed") } }
+  for (const cause of [cyclic, hostileCode, hostileCause]) {
+    await assert.rejects(
+      () => submitPreparedContractCall({
+        ports: { ...recordingPorts([]), async send() { throw cause } },
+        publicClient: testPublicClient(),
+        walletAddress,
+        startup: testStartup(),
+        call: testCall(),
+        shouldContinue: () => true,
+      }),
+      (error) => error instanceof Error
+        && /may have been sent/i.test(error.message)
+        && error.cause === cause,
+    )
+  }
+})
+
+test("failures before wallet submission retain their original outcome and do not send", async () => {
+  for (const stage of ["ensureAccount", "simulate", "ensureChain", "createWalletClient", "chain"] as const) {
+    const cause = new Error(`${stage} failed`)
+    const events: string[] = []
+    const ports = recordingPorts(events)
+    const failingPorts = { ...ports, [stage]: () => { throw cause } }
+    await assert.rejects(
+      () => submitPreparedContractCall({
+        ports: failingPorts,
+        publicClient: testPublicClient(),
+        walletAddress,
+        startup: testStartup(),
+        call: testCall(),
+        shouldContinue: () => true,
+      }),
+      (error) => error === cause,
+    )
+    assert.equal(events.includes("send"), false)
+  }
 })
 
 test("submitted transaction diagnosis reports nonce gaps", async () => {
