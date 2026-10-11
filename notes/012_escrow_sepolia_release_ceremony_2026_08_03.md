@@ -14,8 +14,6 @@ README remain authoritative.
 Repository state selected for the ceremony:
 
 ```text
-repository: numpde/dapp32
-branch:     agent/cam-escrow-core
 commit:     a278599c19c81b1f66d2455638dbd2c4e0ba2dc7
 network:    Ethereum Sepolia
 chain ID:   11155111
@@ -36,7 +34,7 @@ The release boundary is considered implementation-complete before this note:
 
 Checklist:
 
-- [ ] Confirm the branch still resolves to the selected commit.
+- [ ] Confirm `HEAD` resolves to the selected commit.
 - [ ] Confirm the worktree is clean.
 - [ ] Treat any source change as a new ceremony requiring new authorization.
 - [ ] Do not combine this package with Bike NFT deployment.
@@ -97,12 +95,18 @@ Checklist:
 
 ## Phase 1 — Freeze Release Identity
 
-Run:
+The selected source commit predates this note. Check out that exact commit in
+detached HEAD; later documentation commits do not change the release selection.
+Keep these instructions available outside the checkout before switching.
+
+Run from a clean checkout:
 
 ```bash
+set -e
+test -z "$(git status --porcelain --untracked-files=all)"
+
 git fetch origin
-git switch agent/cam-escrow-core
-git pull --ff-only
+git switch --detach a278599c19c81b1f66d2455638dbd2c4e0ba2dc7
 
 test "$(git rev-parse HEAD)" = \
   "a278599c19c81b1f66d2455638dbd2c4e0ba2dc7"
