@@ -3,6 +3,7 @@ export type {
   ResolvedContainerNode,
   ResolvedElementNode,
   ResolvedLeafElementNode,
+  ResolvedStatusNode,
   ResolvedTextFieldNode,
   ResolvedUiCall,
   ResolvedUiNode,

@@ -80,7 +80,7 @@ export function UiView({
         <span>{snapshot.route}</span>
         <span>{snapshot.uiURI}</span>
       </div>
-      <fieldset className="elements" disabled={changingView || sending} aria-label="Current view" style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+      <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
         <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} onAction={onAction} onInput={onInput} />
       </fieldset>
     </section>
@@ -170,7 +170,7 @@ function UiNodeView({
     case "Address":
       return <KeyValue label={stringProp(node.props, "label")} value={stringProp(node.props, "address")} mono={true} />
     case "Status":
-      return <KeyValue label={stringProp(node.props, "label")} value={formatInertValue(node.props.value)} mono={false} />
+      return <KeyValue label={stringProp(node.props, "label")} value={node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue} mono={false} />
     case "Nft":
       return (
         <div className="nft-row">

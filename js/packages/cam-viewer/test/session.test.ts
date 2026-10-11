@@ -3,7 +3,7 @@ import { createHash } from "node:crypto"
 import test from "node:test"
 
 import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, toInertValue, UI_VERSION } from "@cam/protocol"
-import { forEachResolvedUiNode, type ResolvedUiNode } from "@cam/screen"
+import { forEachResolvedUiNode, UiError, type ResolvedUiNode } from "@cam/screen"
 
 import {
   createCamViewerSession,
@@ -363,6 +363,38 @@ test("failed navigation, Back, account changes and reloads preserve the view and
   }
   failReads = false
   assert.equal((await session.back()).state.serialNumber, "unfinished")
+})
+
+test("invalid projected presentation preserves the current view, drafts and navigation history", async () => {
+  const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
+  const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
+  const children = mutableRecord(mutableRecord(ui.nodes)["component.active"]).children as unknown[]
+  children.push({ element: "Status", props: { label: "Declared size", value: "$view.statusId", format: "bytes" } })
+  const uiBytes = encodeJson(ui)
+  const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+  mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  const session = createSession(sessionFixtureOptions({
+    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+    loadResource: createResourceLoader(bikeResourceBytes({
+      [camURI]: encodeJson(cam),
+      [BIKE_UI_URI]: uiBytes,
+    })),
+  }))
+  await session.load()
+  const before = session.updateState({ serialNumber: "unfinished draft" })
+  await assert.rejects(() => session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER }),
+    (error) => error instanceof UiError && error.code === "UI_INVALID_FIELD" && /non-negative.*integer/.test(error.message))
+  assert.deepEqual(session.snapshot(), before)
+  routeResults[BIKE_VIEW_COMPONENT] = { ...bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "active"), statusId: "64" }
+  const opened = await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  let displayed: string | undefined
+  forEachResolvedUiNode(opened.resolvedUi, (node) => {
+    if (node.element === "Status" && node.props.label === "Declared size") displayed = node.formattedValue
+  })
+  assert.equal(displayed, "64 bytes")
+  assert.equal((await session.back()).state.serialNumber, "unfinished draft")
+  assert.equal(session.snapshot().canGoBack, false)
 })
 
 test("history retains at most twenty previous visits", async () => {

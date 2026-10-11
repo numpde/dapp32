@@ -5,6 +5,7 @@
   --ink: #182230;
   --muted: #5e6c80;
   --line: #d8e0ea;
+  --control-border: #7b8796;
   --accent: #176b5f;
   --danger: #9a342e;
 }
@@ -75,7 +76,7 @@ h1 {
 .connection div,
 .key-value {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: 140px minmax(0, 1fr);
   gap: 12px;
   align-items: baseline;
 }
@@ -124,7 +125,10 @@ dd,
 
 .elements {
   display: grid;
-  gap: 12px;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
   padding: 16px;
 }
 
@@ -205,9 +209,15 @@ input {
   width: 100%;
   padding: 10px 11px;
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: 6px;
   background: #fbfcfe;
+}
+
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .text-row {
@@ -215,7 +225,8 @@ input {
 }
 
 .key-value {
-  padding: 10px 0;
+  grid-template-columns: minmax(150px, 240px) minmax(0, 1fr);
+  padding: 6px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -258,6 +269,11 @@ input {
 
   .topbar {
     display: grid;
+  }
+
+  .connection div,
+  .key-value {
+    gap: 4px;
   }
 
   h1 {

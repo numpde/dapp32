@@ -1,5 +1,6 @@
 import { UiError } from "./errors.ts"
 import { resolveValueAtPath } from "./expressions.ts"
+import { formatStatusValue } from "./status-format.ts"
 import {
   createStringMap,
   hasOwn,
@@ -143,13 +144,21 @@ function resolveNode(
       return [resolveElementNode(ui, node, context, path, stack)]
     case "Text":
     case "Address":
-    case "Status":
     case "Nft":
       return [{
         element: node.element,
         props: resolveProps(node.element, node.props, context, `${path}.props`),
         children: [] as const,
       }]
+    case "Status": {
+      const props = resolveProps(node.element, node.props, context, `${path}.props`)
+      return [{
+        element: node.element,
+        props,
+        ...(props.format === undefined ? {} : { formattedValue: formatStatusValue(props.value, props.format, `${path}.props`) }),
+        children: [] as const,
+      }]
+    }
     case "TextField":
       return [{
         element: node.element,

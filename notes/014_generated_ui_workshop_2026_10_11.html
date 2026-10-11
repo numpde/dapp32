@@ -32,10 +32,10 @@
   what they are doing, which agreement and account it concerns, what they can do
   now, and what pressing a button will do. Start with meaning and state; extend
   presentation vocabulary only for demonstrated missing capabilities. This is
-  a researched proposal with the bounded availability implementation described
-  below; other workshop issues remain open.</p>
+  a researched proposal with bounded availability, navigation and presentation
+  implementations described below; other workshop issues remain open.</p>
 
-  <h2>Observed experience</h2>
+  <h2>Initial observed experience</h2>
   <p>The local Chromium walkthrough found a creation page approximately 1,817 pixels
   tall on desktop and 2,181 on mobile. Opening an existing agreement and creating
   a new one share the same undifferentiated surface. A funded agreement offering
@@ -43,7 +43,7 @@
   inputs; its action appears around 2,000 pixels down the page. Prepared review
   presents nested arguments as a JSON wall on mobile. Captured screenshots and
   reports provide temporary local evidence.</p>
-  <p>Source inspection explains these findings:</p>
+  <p>The initial source inspection explained these findings:</p>
   <ul>
     <li><code>dapps/escrow/cam/ui.json</code> puts technical limits before creation inputs and
     renders both evidence forms independently of available transitions.</li>
@@ -95,8 +95,8 @@
   not character counts. An exact duration may show “365 days” alongside
   “31,536,000 seconds”, without implying a calendar year.
   <a href="https://docs.soliditylang.org/en/latest/abi-spec.html">Solidity string encoding</a></p>
-  <p>The weak input boundary deserves a targeted contrast check. The current CSS
-  uses a <code>#d8e0ea</code> border and <code>#fbfcfe</code> fill; the reviewer's
+  <p>At baseline, the weak input boundary needed a targeted contrast check. The CSS
+  used a <code>#d8e0ea</code> border and <code>#fbfcfe</code> fill; the reviewer's
   approximately 1.33:1 border-to-white ratio agrees with the declared colors.
   Verify computed active, focus and invalid styles and adjacent backgrounds.
   Where a boundary is needed to
@@ -273,6 +273,58 @@
   simulation. Both subsequent diagnostic runs passed all nine scenarios, including
   one with a controlled next-block timestamp. The original failure's cause remains
   unestablished; no speculative gas buffer or contract change was introduced.</p>
+
+  <h2>Bounded layout and value presentation implementation</h2>
+  <p>CSS now owns the current-view fieldset reset and all four 16px insets; the
+  inline zero-padding override is removed. Active inputs use a separate
+  <code>#7b8796</code> control-border token, while decorative dividers and disabled
+  controls retain their own treatments. Explicit focus-visible outlines preserve
+  a distinct focus state. Shared property rows use wider desktop label columns,
+  smaller row spacing and stacked, wrapping content on narrow screens.</p>
+  <p>The publisher labels the creation limits with existing Text and Status nodes.
+  Their values read “128 bytes”, “512 bytes”, “365 days (31,536,000 seconds)” and
+  “client, contractor”. Byte counts remain byte counts, rather than character
+  counts; days are exact 86,400-second periods, rather than calendar years.
+  The four-row limits band, including gaps, fell from 258 to 154 pixels at 1280px
+  width and from 308 to 232 pixels at 320px and 375px widths.</p>
+  <p>Optional, literal <code>Status.format</code> declarations support
+  <code>bytes</code>, <code>durationSeconds</code> and <code>stringList</code>.
+  The screen resolver validates operands and computes presentation before a
+  session can commit the view. Invalid declarations fail during parsing, and
+  invalid operands fail during resolution;
+  failed navigation preserves the previous view, draft and history. Private exact
+  integer arithmetic produces strings; raw projected values, form state and
+  action arguments remain unchanged. Unformatted arrays still retain their JSON
+  presentation. No label, field name, currency, asset decimals or timestamp is
+  inferred. Monetary values remain exact wei values.</p>
+  <p>Both the browser and terminal consume the resolved Status presentation.
+  The terminal passes formatted values and Screen titles through its existing
+  text boundary, visibly escaping C0/DEL before enforcing its display cap.
+  Authored CLI line separators remain separate. This is a scoped C0/DEL guarantee,
+  rather than a claim about every terminal-control convention.</p>
+  <p>Tests failed before the owning fixes, then passed. Coverage includes exact
+  values beyond 2<sup>53</sup>, a 3,001-digit integer, zero and remainder durations,
+  malformed operands, inert JSON round trips, atomic session recovery, and public
+  terminal output with hostile controls. Full package CI passed for the shared
+  UI changes; the subsequent terminal check passed 20 tests and its CLI smoke.
+  Repository hygiene passed all 153 checks.</p>
+  <p>The final rebuilt local fixture passed nine read-only browser cases across
+  terminal agreement, creation and empty credit at 1280px, 320px and 375px.
+  Computed evidence shows 16px insets, at least 3:1 contrast on every active input
+  edge against both its fill and surrounding panel, and no page overflow.
+  Forced CSS focus-visible checks show a contrasting, unclipped ring; native
+  keyboard behavior remains unverified. The completed agreement retained all
+  11 disabled action buttons and four disabled evidence fields, full addresses,
+  exact digests, the selected ID and four durations displayed as “10 minutes
+  (600 seconds)”. The six-step local transaction workflow also passed; its fixture
+  wallet was removed. Final read-only checks made no wallet or send requests.</p>
+  <p>Temporary evidence includes
+  <code>layout-shared-report-final-source.json</code>
+  and the matching desktop/narrow screenshots, in the artifact directory recorded
+  in the session logs. The existing Chromium window
+  was used throughout. Task hierarchy, account/signer explanation, field-level
+  guidance and errors, transaction summaries, arbitration wording, screen-reader
+  behavior and real wallet-extension validation remain open.</p>
 
   <h2>Generation pitfalls to gate</h2>
   <p>Avoid attractive cards around the same flat inventory; frontend role/state

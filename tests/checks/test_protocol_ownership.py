@@ -84,12 +84,15 @@ class ProtocolOwnershipTest(unittest.TestCase):
         if failures:
             self.fail("\n".join(failures))
 
-    def test_runtime_integer_representations_do_not_leak_past_evm_adapter(self) -> None:
+    def test_runtime_integer_conversion_stays_with_explicit_value_owners(self) -> None:
         allowed = {
             repo_path("js/packages/cam-evm-viem/src/abi-values.ts"),
             repo_path("js/packages/cam-evm-viem/src/arguments.ts"),
             repo_path("js/packages/cam-evm-viem/src/chain.ts"),
             repo_path("js/packages/cam-evm-viem/src/routes.ts"),
+            # Status uses private exact arithmetic and publishes only inert raw
+            # values plus formatted strings, never runtime integers in snapshots.
+            repo_path("js/packages/cam-screen/src/status-format.ts"),
         }
         failures: list[str] = []
 
@@ -100,8 +103,8 @@ class ProtocolOwnershipTest(unittest.TestCase):
             for line_number, line in enumerate(text.splitlines(), start=1):
                 if re.search(r"\bbigint\b|BigInt\s*\(", line):
                     failures.append(
-                        f"{path}:{line_number}: bigint is an EVM adapter runtime representation; "
-                        "protocol packages must expose inert values instead"
+                        f"{path}:{line_number}: runtime integer arithmetic belongs in explicit "
+                        "value-conversion owners; other protocol package code must use inert values"
                     )
 
         if failures:

@@ -194,7 +194,7 @@ function render(snapshot: CamViewerSnapshot): void {
 
   const title = snapshot.resolvedUi?.props.title
   if (typeof title === "string") {
-    output.write(`\n${title}\n`)
+    output.write(`\n${formatValue(title)}\n`)
   }
 
   if (snapshot.resolvedUi === undefined) {
@@ -240,7 +240,7 @@ function renderNode(
       output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.address)}\n`)
       return
     case "Status":
-      output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.value)}\n`)
+      output.write(`${formatValue(node.props.label)}: ${formatValue(node.formattedValue === undefined ? node.props.value : node.formattedValue)}\n`)
       return
     case "Nft":
       output.write(`NFT: ${formatValue(node.props.contractAddress)} #${formatValue(node.props.tokenId)}\n`)

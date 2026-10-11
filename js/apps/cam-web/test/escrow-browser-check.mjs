@@ -210,12 +210,83 @@ async function waitFor(predicate, label, failOnViewerError) {
   const details = await evaluate(`({notices:[...document.querySelectorAll('.notice')].map(node=>node.innerText), agreementId:document.querySelector('input[name=agreementId]')?.value, agreementRef:document.querySelector('input[name=agreementRef]')?.value, buttons:[...document.querySelectorAll('button')].map(node=>[node.textContent.trim(),node.disabled])})`)
   throw new Error(`timed out waiting for ${label}; ${JSON.stringify(details)}; last view: ${JSON.stringify(lastState?.text?.slice(-400))}`)
 }
-async function assertNarrowUi(label) {
-  await call('Emulation.setDeviceMetricsOverride', { width: 375, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId)
+async function assertNarrowUi(label, width) {
+  await call('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: width < 500 }, sessionId)
   const layout = await evaluate(`(() => { const ui = document.querySelector('.ui'); const meta = ui?.querySelector('.ui-meta'); const uri = meta?.lastElementChild; return { page: document.documentElement.scrollWidth, viewport: innerWidth, meta: meta?.scrollWidth, metaClient: meta?.clientWidth, uri: uri?.scrollWidth, uriClient: uri?.clientWidth, uriText: uri?.textContent, uriRight: uri?.getBoundingClientRect().right, uiRight: ui?.getBoundingClientRect().right } })()`)
   assert.equal(layout.uriText, new URL('./ui.json', cam).href, `${label}: UI URI is missing`)
-  assert(layout.page <= layout.viewport, `${label}: document overflows at 375px`)
-  assert(layout.meta <= layout.metaClient && layout.uri <= layout.uriClient && layout.uriRight <= layout.uiRight, `${label}: UI URI is clipped at 375px`)
+  assert(layout.page <= layout.viewport, `${label}: document overflows at ${width}px`)
+  assert(layout.meta <= layout.metaClient && layout.uri <= layout.uriClient && layout.uriRight <= layout.uiRight, `${label}: UI URI is clipped at ${width}px`)
+}
+function colorContrast(foreground, background) {
+  function rgb(color) {
+    assert(/^rgba?\(/.test(color), `cannot measure computed color: ${color}`)
+    const channels = color.match(/[\d.]+/g).map(Number)
+    assert(channels.length === 3 || channels[3] === 1, `contrast requires an opaque surface: ${color}`)
+    return channels.slice(0, 3)
+  }
+  function luminance(color) {
+    const channels = rgb(color).map(value => value / 255).map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4)
+    return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722
+  }
+  const first = luminance(foreground), second = luminance(background)
+  return (Math.max(first, second) + .05) / (Math.min(first, second) + .05)
+}
+async function assertWorkingSurface(label) {
+  const visual = await evaluate(`(() => {
+    const region = document.querySelector('fieldset[aria-label="Current view"]');
+    const style = getComputedStyle(region);
+    function surroundingColor(input) {
+      for (let parent = input.parentElement; parent; parent = parent.parentElement) {
+        const color = getComputedStyle(parent).backgroundColor;
+        if (color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') return color;
+      }
+      throw Error('Cannot measure input boundary without an opaque surrounding surface');
+    }
+    return {padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft].map(parseFloat),
+      inputs: [...region.querySelectorAll('input:not(:disabled)')].map(input => {
+        const css = getComputedStyle(input);
+        return {name: input.name, edges: ['Top','Right','Bottom','Left'].map(edge => ({edge,style:css['border'+edge+'Style'],color:css['border'+edge+'Color'],width:parseFloat(css['border'+edge+'Width'])})), fill: css.backgroundColor, surround: surroundingColor(input)};
+      })};
+  })()`)
+  assert(visual.padding.every(value => value >= 12), `${label}: working content has insufficient inset from the view boundary`)
+  for (const input of visual.inputs) {
+    for (const edge of input.edges) {
+      assert(edge.width > 0 && edge.style !== 'none' && edge.style !== 'hidden', `${label}: ${input.name} has no visible ${edge.edge} input boundary`)
+      assert(colorContrast(edge.color, input.fill) >= 3 && colorContrast(edge.color, input.surround) >= 3, `${label}: ${input.name} ${edge.edge} input boundary contrast is below 3:1`)
+    }
+  }
+}
+async function assertVisibleInputFocus() {
+  // Forced CSS state checks the authored indicator; native keyboard traversal
+  // remains a separate interaction check.
+  await call('DOM.enable', {}, sessionId)
+  await call('CSS.enable', {}, sessionId)
+  const root = (await call('DOM.getDocument', {}, sessionId)).root.nodeId
+  const nodeId = (await call('DOM.querySelector', {nodeId: root, selector: 'input:not(:disabled)'}, sessionId)).nodeId
+  assert(nodeId, 'view has no editable input for focus styling')
+  const normal = await evaluate(`(() => { const input = document.querySelector('input:not(:disabled)'); input.blur(); const css = getComputedStyle(input); return {style:css.outlineStyle,width:parseFloat(css.outlineWidth),color:css.outlineColor}; })()`)
+  await call('CSS.forcePseudoState', {nodeId, forcedPseudoClasses: ['focus-visible']}, sessionId)
+  try {
+    const focus = await evaluate(`(() => {
+      const input=document.querySelector('input:not(:disabled)'),css=getComputedStyle(input),rect=input.getBoundingClientRect();
+      const expansion=parseFloat(css.outlineWidth)+parseFloat(css.outlineOffset);
+      let clip;
+      for(let parent=input.parentElement;parent;parent=parent.parentElement){
+        const style=getComputedStyle(parent),x=style.overflowX!=='visible',y=style.overflowY!=='visible';
+        if(x||y){const r=parent.getBoundingClientRect();clip={x,y,left:r.left+parent.clientLeft,top:r.top+parent.clientTop,right:r.left+parent.clientLeft+parent.clientWidth,bottom:r.top+parent.clientTop+parent.clientHeight};break;}
+      }
+      return {style:css.outlineStyle,width:parseFloat(css.outlineWidth),color:css.outlineColor,surface:getComputedStyle(document.querySelector('.ui')).backgroundColor,ring:{left:rect.left-expansion,top:rect.top-expansion,right:rect.right+expansion,bottom:rect.bottom+expansion},clip};
+    })()`)
+    assert(focus.style !== 'none' && focus.width > 0, 'editable input has no visible focus outline')
+    assert(colorContrast(focus.color, focus.surface) >= 3, 'focus outline contrast is below 3:1')
+    assert(normal.style !== focus.style || normal.width !== focus.width || normal.color !== focus.color, 'focus indicator does not distinguish focus from the ordinary input')
+    if (focus.clip) {
+      assert(!focus.clip.x || (focus.ring.left >= focus.clip.left && focus.ring.right <= focus.clip.right), 'focus outline is clipped horizontally')
+      assert(!focus.clip.y || (focus.ring.top >= focus.clip.top && focus.ring.bottom <= focus.clip.bottom), 'focus outline is clipped vertically')
+    }
+  } finally {
+    await call('CSS.forcePseudoState', {nodeId, forcedPseudoClasses: []}, sessionId)
+  }
 }
 const regressions = []
 async function browserCase(name, run) {
@@ -253,10 +324,38 @@ try {
   assert.deepEqual(failures.filter(failure => failure.reason !== 'net::ERR_ABORTED' || !loaded.has(failure.url)), [], 'unexpected network failures')
   assert.deepEqual(exceptions, [], 'browser exceptions')
   assert.deepEqual(consoleErrors, [], 'browser console errors')
-  await assertNarrowUi('Escrow root')
+  await browserCase('working surface padding, input contrast and reflow at supported widths', async () => {
+    for (const width of [1280, 320, 375]) {
+      await assertNarrowUi('Escrow root', width)
+      await assertWorkingSurface(`Escrow root at ${width}px`)
+    }
+    await assertVisibleInputFocus()
+  })
+  await browserCase('contract limits show exact units and readable choices compactly', async () => {
+    for (const width of [1280, 320, 375]) {
+      await assertNarrowUi('Contract limits', width)
+      const limits = await evaluate(`(() => {
+        const names=['Reference limit','Document URI limit','Maximum phase duration','Arbitration timeout recipients'];
+        const rows=names.map(name=>[...document.querySelectorAll('.key-value')].find(row=>row.querySelector('.key-label')?.textContent===name));
+        if(rows.some(row=>!row)) return null;
+        const first=rows[0].getBoundingClientRect(),last=rows.at(-1).getBoundingClientRect();
+        return {values:rows.map(row=>row.lastElementChild.textContent),height:last.bottom-first.top,fontSize:parseFloat(getComputedStyle(rows[0]).fontSize)};
+      })()`)
+      assert(limits, 'creation limits are missing')
+      assert.deepEqual(limits.values, ['128 bytes', '512 bytes', '365 days (31,536,000 seconds)', 'client, contractor'])
+      assert(limits.height <= limits.fontSize * 16, `contract limits consume excessive vertical space at ${width}px`)
+    }
+  })
   await evaluate(`document.querySelectorAll('button') && [...document.querySelectorAll('button')].find(button => button.textContent.includes('View account credit'))?.click()`)
   await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'account credit view', false)
-  await assertNarrowUi('account credit')
+  await browserCase('empty-credit controls share input boundaries and narrow reflow', async () => {
+    for (const width of [1280, 320, 375]) {
+      await assertNarrowUi('account credit', width)
+      await assertWorkingSurface(`account credit at ${width}px`)
+    }
+    assert.equal(await evaluate("document.querySelector('input[name=recipient]')?.matches(':disabled')"), true, 'empty credit recipient must remain visible and disabled')
+    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Withdraw complete credit')?.disabled"), true, 'empty credit withdrawal must remain visible and disabled')
+  })
 
   await browserCase('known agreement ID without create inputs', async () => {
     await freshForm()
@@ -265,6 +364,11 @@ try {
     await clickButton('Open agreement')
     await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'known ID lookup')
     assert((await evaluate('document.body.innerText')).includes(knownId), 'lookup did not show the requested agreement ID')
+    for (const width of [1280, 320, 375]) {
+      await assertNarrowUi('agreement lookup', width)
+      await assertWorkingSurface(`agreement lookup at ${width}px`)
+      assert.equal(await field('agreementId'), knownId, 'narrow layout changed the selected agreement ID')
+    }
   })
 
   await browserCase('initial read fragment, refresh, and exact lookup default', async () => {

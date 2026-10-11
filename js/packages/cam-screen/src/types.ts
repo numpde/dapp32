@@ -99,6 +99,7 @@ export type ResolvedElementNode =
   | ResolvedContainerNode
   | ResolvedLeafElementNode
   | ResolvedTextFieldNode
+  | ResolvedStatusNode
 
 export type ResolvedContainerNode = {
   readonly element: Extract<UiNode["element"], "Screen" | "Fragment">
@@ -107,8 +108,15 @@ export type ResolvedContainerNode = {
 }
 
 export type ResolvedLeafElementNode = {
-  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField">
+  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "Status">
   readonly props: InertRecord
+  readonly children: readonly []
+}
+
+export type ResolvedStatusNode = {
+  readonly element: "Status"
+  readonly props: InertRecord
+  readonly formattedValue?: string
   readonly children: readonly []
 }
 

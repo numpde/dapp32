@@ -6,6 +6,7 @@ import {
   UI_DOCUMENT_TOP_LEVEL_KEYS,
   UI_NODE_ARGUMENT_KEYS,
   UI_PROP_SCHEMAS,
+  UI_STATUS_FORMATS,
   UI_VERSION,
 } from "@cam/protocol"
 import { UiError } from "./errors.ts"
@@ -122,7 +123,7 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {
         element,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Status),
+        props: parseStatusProps(source.props, `${path}.props`),
       }
     case "Nft":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
@@ -212,10 +213,12 @@ function parseChildren(value: unknown, path: string): readonly UiNode[] {
 
 function parseProps(value: unknown, path: string, schema: {
   readonly required: readonly string[]
+  readonly optional?: readonly string[]
   readonly string: readonly string[]
 }): InertRecord {
   const source = requiredRecord(value, path)
-  rejectUnknownUiFields(source, new Set(schema.required), path)
+  const allowedProps = schema.optional === undefined ? schema.required : [...schema.required, ...schema.optional]
+  rejectUnknownUiFields(source, new Set(allowedProps), path)
 
   for (const key of schema.required) {
     if (!Object.hasOwn(source, key)) {
@@ -229,6 +232,14 @@ function parseProps(value: unknown, path: string, schema: {
   }
 
   return parseInertRecord(source, path)
+}
+
+function parseStatusProps(value: unknown, path: string): InertRecord {
+  const props = parseProps(value, path, UI_PROP_SCHEMAS.Status)
+  if (Object.hasOwn(props, "format") && !(UI_STATUS_FORMATS as readonly unknown[]).includes(props.format)) {
+    throw new UiError("UI_INVALID_FIELD", "Cannot display Status: format must be bytes, durationSeconds, or stringList.", `${path}.format`)
+  }
+  return props
 }
 
 function parseStateBinding(value: unknown, path: string): {

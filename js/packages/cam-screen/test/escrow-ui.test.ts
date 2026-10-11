@@ -46,6 +46,40 @@ const CONTEXT: UiRuntimeContext = {
   state: EMPTY_RECORD,
 }
 
+test("escrow limits declare exact readable units without changing contract values", async () => {
+  const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
+  const displayed = new Map<string, string>()
+  const texts: string[] = []
+  forEachResolvedUiNode(resolvedUi, (node) => {
+    if (node.element === "Text") texts.push(String(node.props.text))
+    if (node.element === "Status" && "formattedValue" in node) {
+      displayed.set(String(node.props.label), String(node.formattedValue))
+    }
+  })
+  assert.ok(texts.includes("Contract limits"))
+  assert.equal(displayed.get("Reference limit"), "128 bytes")
+  assert.equal(displayed.get("Document URI limit"), "512 bytes")
+  assert.equal(displayed.get("Maximum phase duration"), "365 days (31,536,000 seconds)")
+  assert.equal(displayed.get("Arbitration timeout recipients"), "client, contractor")
+})
+
+test("agreement durations use declared units while monetary values remain exact wei", async () => {
+  const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(agreementView({
+    viewId: "escrow.agreement.active", stateId: "submitted", transitionIds: [],
+  })), CONTEXT)
+  const displayed = new Map<string, string>()
+  forEachResolvedUiNode(resolvedUi, (node) => {
+    if (node.element === "Status") {
+      displayed.set(String(node.props.label), "formattedValue" in node ? String(node.formattedValue) : String(node.props.value))
+    }
+  })
+  assert.equal(displayed.get("Acceptance duration"), "1 hour (3,600 seconds)")
+  assert.equal(displayed.get("Work duration"), "2 hours (7,200 seconds)")
+  assert.equal(displayed.get("Review duration"), "1 hour (3,600 seconds)")
+  assert.equal(displayed.get("Arbitration duration"), "1 day (86,400 seconds)")
+  assert.equal(displayed.get("Amount in wei"), "1000000000000000000")
+})
+
 test("escrow creation screen resolves nested payable calldata from one form", async () => {
   const { state, resolvedUi } = resolveInitialUiNode(
     await escrowUi(),
