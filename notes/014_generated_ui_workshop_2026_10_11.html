@@ -236,8 +236,13 @@
   a failed refresh preserves the previous coherent view. Empty credit retains
   visible, disabled withdrawal controls, using the contract's action list.</p>
   <p>Connection settings remain in the URL query. The fragment contains
-  <code>#route=agreement&amp;inputs=…</code>, with an encoded JSON object such as
-  <code>{"agreementId":"0x…"}</code>. This is generic read-route navigation;
+  <code>#route=agreement&amp;agreementId=0x…</code> for ordinary string inputs.
+  Structured values, inputs named <code>route</code> or <code>inputs</code>, and
+  text that URL parameter encoding would change use the existing encoded JSON
+  envelope, <code>#route=…&amp;inputs=…</code>, preserving their exact values.
+  Flat parameters preserve empty strings and do not interpret booleans or numbers.
+  Both forms reject duplicate parameters; JSON and flat inputs cannot be mixed.
+  This is generic read-route navigation;
   the viewer does not recognize escrow field names. Opening a link never prepares
   or sends a transaction. Unknown and write routes fail through the ordinary
   session read boundary.</p>

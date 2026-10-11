@@ -168,8 +168,17 @@ export function parseViewFragment(hash: string): { readonly route?: string; read
     throw new Error("Cannot open view: the URL fragment has invalid percent encoding.")
   }
   const params = new URLSearchParams(fragment)
-  rejectUnknownParams(params, VIEW_PARAM_NAMES)
   const route = requiredParam(params, "route")
+  if (!params.has("inputs")) {
+    const entries = [...params.entries()].filter(([name]) => name !== "route")
+    for (const [name] of entries) {
+      if (params.getAll(name).length > 1) throw new Error(`duplicate URL parameter: ${name}`)
+    }
+    const inputs = Object.fromEntries(entries)
+    assertViewInputBounds(JSON.stringify(inputs))
+    return { route, inputs }
+  }
+  rejectUnknownParams(params, VIEW_PARAM_NAMES)
   const text = requiredParam(params, "inputs")
   assertViewInputBounds(text)
   let inputs: unknown
@@ -187,10 +196,24 @@ export function urlForView(url: URL, view: Pick<CamViewerLoadedSnapshot, "route"
   assertViewInputNumbers(view.inputs)
   const inputs = JSON.stringify(view.inputs)
   assertViewInputBounds(inputs)
-  const fragment = new URLSearchParams({ route: view.route, inputs })
+  const fragment = new URLSearchParams({ route: view.route })
   if (fragment.get("route") !== view.route) {
     throw new Error("View URL route must contain valid Unicode so it can be represented exactly.")
   }
+  const entries = Object.entries(view.inputs)
+  // Flat parameters preserve string inputs without a JSON wrapper. Other values,
+  // reserved names and text that URLSearchParams would alter retain the envelope.
+  const flat = new URLSearchParams()
+  const useFlat = entries.every(([name, value]) => {
+    if (VIEW_PARAM_NAMES.has(name) || typeof value !== "string") return false
+    const entry = new URLSearchParams([[name, value]]).entries().next().value
+    if (entry?.[0] !== name || entry[1] !== value) return false
+    flat.append(name, value)
+    return true
+  })
+  if (useFlat) {
+    for (const [name, value] of flat) fragment.append(name, value)
+  } else fragment.set("inputs", inputs)
   const next = new URL(url.href)
   next.hash = fragment.toString()
   if (next.hash.length > VIEW_FRAGMENT_MAX_LENGTH) throw new Error("View URL fragment is too large (limit: 16,384 characters).")

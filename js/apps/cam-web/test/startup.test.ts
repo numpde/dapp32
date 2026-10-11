@@ -71,11 +71,14 @@ test("an empty fragment keeps the manifest entry and empty inputs", () => {
   const parsed = parseStartupOptions(validStartupUrl(), POLICY)
   assert.equal("route" in parsed ? parsed.route : undefined, undefined)
   assert.deepEqual("inputs" in parsed ? parsed.inputs : undefined, {})
+  const url = validStartupUrl()
+  url.hash = "route=item"
+  assert.deepEqual(parseStartupOptions(url, POLICY).inputs, {})
 })
 
 test("route fragments reject ambiguous, incomplete, or non-object requests", () => {
   for (const fragment of [
-    "route=item", "inputs=%7B%7D", "route=&inputs=%7B%7D", "route=item&inputs=",
+    "inputs=%7B%7D", "route=&inputs=%7B%7D", "route=item&inputs=",
     "route=item&route=other&inputs=%7B%7D", "route=item&inputs=%7B%7D&inputs=%7B%7D",
     "route=item&inputs=%7B%7D&extra=x", "section", "route=item&inputs=null",
     "route=item&inputs=[]", "route=item&inputs=true", "route=item&inputs=%7B",
@@ -86,6 +89,54 @@ test("route fragments reject ambiguous, incomplete, or non-object requests", () 
     url.hash = fragment
     assert.throws(() => parseStartupOptions(url, POLICY), undefined, fragment)
   }
+})
+
+test("simple string inputs have readable route parameters and preserve their exact meaning", () => {
+  const inputs = { agreementId: "0x" + "ab".repeat(32), amount: "9007199254740993", flag: "true", empty: "", literal: "null" }
+  const linked = urlForView(validStartupUrl(), { route: "item", inputs })
+  assert.equal(linked.hash, "#route=item&agreementId=" + inputs.agreementId + "&amount=9007199254740993&flag=true&empty=&literal=null")
+  assert.deepEqual(parseStartupOptions(linked, POLICY).inputs, inputs)
+  const empty = urlForView(validStartupUrl(), { route: "item", inputs: {} })
+  assert.equal(empty.hash, "#route=item")
+})
+
+test("flat URL inputs decode punctuation, Unicode and prototype-named fields without coercion", () => {
+  const inputs = { ["__proto__"]: "ordinary", constructor: "value", label: "a & + # 😃", escaped: "%7B", zero: "0" }
+  const linked = urlForView(validStartupUrl(), { route: "item", inputs })
+  assert.equal(new URLSearchParams(linked.hash.slice(1)).has("inputs"), false)
+  assert.deepEqual(parseStartupOptions(linked, POLICY).inputs, inputs)
+})
+
+test("flat URL inputs reject duplicate decoded names and mixed representation", () => {
+  for (const hash of [
+    "route=item&id=first&id=second", "route=item&id=first&%69d=second",
+    "route=item&__proto__=first&__proto__=second",
+    "route=item&inputs=%7B%7D&id=other",
+  ]) {
+    const url = validStartupUrl()
+    url.hash = hash
+    assert.throws(() => parseStartupOptions(url, POLICY), undefined, hash)
+  }
+})
+
+test("structured and reserved-name inputs use one JSON envelope without changing their types", () => {
+  for (const inputs of [
+    { nested: [true, null, { text: "value" }] },
+    { route: "input route", other: "value" },
+    { inputs: "literal input", other: "value" },
+    { text: "lone\uD800" },
+    { ["lone\uDC00"]: "value" },
+  ]) {
+    const linked = urlForView(validStartupUrl(), { route: "item", inputs })
+    assert.deepEqual([...new URLSearchParams(linked.hash.slice(1)).keys()], ["route", "inputs"])
+    assert.deepEqual(parseStartupOptions(linked, POLICY).inputs, inputs)
+  }
+})
+
+test("flat inputs use the same decoded input byte limit as structured inputs", () => {
+  const url = validStartupUrl()
+  url.hash = new URLSearchParams({ route: "item", text: "😃".repeat(1024) }).toString()
+  assert.throws(() => parseStartupOptions(url, POLICY), /too large/)
 })
 
 test("URL numeric leaves must use exact decimal strings at every nesting level", () => {

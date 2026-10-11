@@ -295,7 +295,8 @@ try {
     const committed = new URL(await evaluate('location.href'))
     const fragment = new URLSearchParams(committed.hash.slice(1))
     assert.equal(fragment.get('route'), 'agreement')
-    assert.deepEqual(JSON.parse(fragment.get('inputs')), { agreementId: first })
+    assert.equal(fragment.get('agreementId'), first)
+    assert.equal(fragment.has('inputs'), false, 'string inputs retained a JSON envelope')
     const second = `0x${'ae'.repeat(32)}`
     await enter('agreementId', second)
     assert.equal(await evaluate('location.href'), committed.href, 'editing changed the selected agreement URL')
