@@ -27,9 +27,12 @@
 <main>
   <h1>Generated Escrow UI workshop</h1>
   <p class="meta">Date: 2026-10-11. Baseline: <code>9387315</code>.</p>
-  <p>Explain the current decision and its contract facts. Start with manifest
-  composition; extend presentation vocabulary only for demonstrated missing
-  capabilities. This is a researched proposal, not an implemented change.</p>
+  <p>The central problem is unclear separation of the user's task, contract facts,
+  wallet capabilities and renderer diagnostics. Users should immediately know
+  what they are doing, which agreement and account it concerns, what they can do
+  now, and what pressing a button will do. Start with meaning and state; extend
+  presentation vocabulary only for demonstrated missing capabilities. This is
+  a researched proposal, not an implemented change.</p>
 
   <h2>Observed experience</h2>
   <p>The local Chromium walkthrough found a creation page approximately 1,817 pixels
@@ -51,6 +54,54 @@
   <p>Persistent labels, exact integer strings, Back, Discard, focus arrival and
   tested overflow handling already work. Preserve them. The walkthrough does not
   establish screen-reader usability or real wallet-extension approval behavior.</p>
+
+  <h2>Urgent findings from the additional review</h2>
+  <p>An independent screenshot-only reviewer identified the four-way separation
+  above. Source inspection supports the task and identity concerns: the shell
+  displays the internal route, the shared screen says “Contract-projected escrow
+  workflow”, and “Open agreement” precedes creation content. Give the current
+  task a human title and make “View existing agreement” a distinct secondary
+  task. Put route IDs, resource provenance and raw exceptions in labelled
+  technical details, while keeping operational failures visible.</p>
+  <p>Distinguish the <strong>address being viewed as</strong>, an agreement's assigned
+  parties, and the <strong>wallet account available to sign</strong>. Creation's
+  “Client” is the address supplied to the projection, not proof that a wallet
+  controls it. Explain which reads and draft preparation remain possible without
+  a wallet, and which submissions require one. “Unavailable” currently means no
+  injected provider was detected; avoid duplicate unexplained warnings or a
+  connection control that cannot work. Here the host is <code>CamRoot</code>, the
+  CAM publisher and address resolver, distinct from the escrow contract. Use
+  verified configuration for network and native-asset names; the current wallet
+  metadata's hardcoded ETH/18 decimals is not proof of an arbitrary chain's asset.</p>
+  <p>Agreement-ID correction belongs beside “Agreement ID”, not solely in an ABI
+  diagnostic above the whole view. Propose “Enter an agreement ID” for empty
+  submission, and “Enter an agreement ID beginning with 0x, followed by 64
+  hexadecimal characters” for malformed input. Provide persistent format help,
+  associated corrective text and an invalid state; preserve the exact entered
+  value without padding or truncating it. A valid ID with no stored agreement
+  and a failed network request are different outcomes. The screenshot does not
+  establish that the exception occurred on initial render.
+  <a href="https://docs.soliditylang.org/en/latest/abi-spec.html">Solidity fixed-size bytes</a>,
+  <a href="https://www.w3.org/WAI/WCAG22/Understanding/error-identification.html">W3C error identification</a>,
+  <a href="https://www.w3.org/WAI/WCAG22/Understanding/error-suggestion.html">W3C corrective suggestions</a></p>
+  <p>Group general contract limits separately from agreement-specific facts, and
+  distinguish permitted beneficiary options from the selected beneficiary. Put
+  creation limits beside the relevant inputs; put consequential rules ahead of
+  incidental limits. Explain the contract-scoped agreement ID versus the
+  client-supplied, client-scoped agreement reference: the ID is derived from the
+  client address and reference, not interchangeable with that text. Offer the
+  existing client/reference lookup as an alternative entry path. Keep byte limits as UTF-8 byte limits,
+  not character counts. An exact duration may show “365 days” alongside
+  “31,536,000 seconds”, without implying a calendar year.
+  <a href="https://docs.soliditylang.org/en/latest/abi-spec.html">Solidity string encoding</a></p>
+  <p>The weak input boundary deserves a targeted contrast check. The current CSS
+  uses a <code>#d8e0ea</code> border and <code>#fbfcfe</code> fill; the reviewer's
+  approximately 1.33:1 border-to-white ratio agrees with the declared colors.
+  Verify computed active, focus and invalid styles and adjacent backgrounds.
+  Where a boundary is needed to
+  identify an active control, its visual cue needs at least 3:1 contrast; this
+  is not a declaration of whole-page WCAG failure or conformity.
+  <a href="https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html">W3C non-text contrast</a></p>
 
   <h2>Research and its limits</h2>
   <p>Form guidance should explain formats and requirements beside their fields,
@@ -85,6 +136,11 @@
   existing-agreement entry. Keep one editable form initially rather than adding
   a wizard. Hints explain units, accepted formats, and the timeout beneficiary.
   Do not make zero addresses and zero durations look like suggested valid values.</p>
+  <p>Explain arbitration precisely: V1 has no on-chain arbitrator acknowledgement
+  or acceptance step at any phase. Contractor acceptance therefore does not
+  establish that the arbitrator has agreed to act. The existing “before the
+  contractor accepts” wording can incorrectly suggest a later acknowledgement
+  step. This belongs near the arbitrator choice as a consequential rule.</p>
   <p>An agreement should lead with its identity, current state, viewer role, amount,
   deadline and available actions. Contractor submission owns submission inputs;
   client dispute owns dispute inputs. Arbitration presents both evidence sets
@@ -124,13 +180,35 @@
     <table>
       <thead><tr><th scope="col">Priority / slice</th><th scope="col">Owner</th><th scope="col">General red-first law</th></tr></thead>
       <tbody>
-        <tr><th scope="row">1. Action-specific evidence forms</th><td>Escrow manifest and screen tests</td><td>Across projected transition subsets, only applicable action inputs exist; every action keeps the current agreement ID</td></tr>
-        <tr><th scope="row">2. Task hierarchy and spacing</th><td>Manifest, then shared renderer if needed</td><td>Current decision and applicable actions are identifiable across roles, long content and narrow/zoomed layouts; grouping has semantic names</td></tr>
-        <tr><th scope="row">3. Associated guidance and enum choices</th><td>Explicit UI vocabulary</td><td>Hints belong to their inputs; choice labels map to exact values; integer precision survives editing and preparation</td></tr>
-        <tr><th scope="row">4. Human and exact transaction review</th><td>Prepared-call presentation; semantic metadata only after ownership decision</td><td>Essential facts and complete bounded arguments belong to the prepared call; publisher claims and later edits cannot replace them; discard preserves recovery</td></tr>
+        <tr><th scope="row">1. Task, identity and capability clarity</th><td>Escrow manifest for task copy; viewer shell for account, signer and provenance</td><td>Users can distinguish draft, selected agreement and general policy; viewing as an address never implies signer control; supported reads remain available without a wallet</td></tr>
+        <tr><th scope="row">2. Scoped input and lookup states</th><td>Generic input/error presentation and viewer lifecycle</td><td>Empty and malformed values receive associated corrections; absence and transport failure remain distinct; failures preserve coherent context and entered values</td></tr>
+        <tr><th scope="row">3. Relevant forms and usable composition</th><td>Escrow manifest, then shared renderer where needed</td><td>Across projected transition subsets, only applicable action inputs exist and retain the agreement ID; semantic grouping, body insets and identifiable controls work at narrow/zoomed widths</td></tr>
+        <tr><th scope="row">4. Associated guidance and enum choices</th><td>Explicit UI vocabulary</td><td>Hints belong to their inputs; choice labels map to exact values; integer precision survives editing and preparation</td></tr>
+        <tr><th scope="row">5. Human and exact transaction review</th><td>Prepared-call presentation; semantic metadata only after ownership decision</td><td>Essential facts and complete bounded arguments belong to the prepared call; publisher claims and later edits cannot replace them; discard preserves recovery</td></tr>
       </tbody>
     </table>
   </div>
+  <p>The first bounded composition fix remains grouping each submission/dispute
+  input pair with its corresponding action, using existing Fragment and Include
+  primitives. The new priorities describe the release
+  requirements, not a reason to build a new form engine before that fix.</p>
+  <p>Additional state tests should cover a ready first render with an empty ID,
+  empty/malformed submission, pending and repeated lookup, absent agreement,
+  transport/projection failure, and older responses arriving after newer
+  requests. Require title, selected context and body to remain coherent after
+  failed navigation; preserve Back recovery when reconciling wallet/network
+  changes. These are proof obligations, not claims that every case fails today.</p>
+  <p>Current tests already cover a valid absent-ID result, Back draft recovery,
+  failed-navigation consistency and atomic account changes. Preserve those
+  guarantees. Focus arrival and alert/status roles also exist; field association
+  and scoped presentation need improvement, rather than a second feedback system.</p>
+  <p>Check keyboard activation and focus recovery, label/hint/error associations,
+  scoped pending announcements, full-value address/ID access and copy feedback,
+  and ordinary form reflow at an effective width of 320 CSS pixels. Existing
+  focus and overflow tests are partial proof; new status feedback should not
+  repeatedly interrupt typing.
+  <a href="https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html">W3C status messages</a>,
+  <a href="https://www.w3.org/WAI/WCAG22/Understanding/reflow.html">W3C reflow</a></p>
   <p>Document presentation tests must reject unsafe navigation schemes and claims
   that an unverified document has been verified.</p>
   <p>Browser proof should include pointer and keyboard use, repeated actions, pending
