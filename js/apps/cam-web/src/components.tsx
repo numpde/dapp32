@@ -1,4 +1,4 @@
-import type { ReactElement } from "react"
+import type { ReactElement, Ref } from "react"
 
 import type { InertValue } from "@cam/protocol"
 import type {
@@ -56,40 +56,57 @@ export function ConnectionSummary({
 
 export function UiView({
   snapshot,
+  viewRef,
+  changingView,
+  sending,
+  onBack,
   onAction,
   onInput,
 }: {
   readonly snapshot: CamViewerLoadedSnapshot
+  readonly viewRef: Ref<HTMLElement>
+  readonly changingView: boolean
+  readonly sending: boolean
+  readonly onBack: () => Promise<void>
   readonly onAction: (action: ResolvedButtonNode) => Promise<void>
   readonly onInput: (name: string, value: string) => void
 }): ReactElement {
   return (
-    <section className="ui">
+    <section className="ui" ref={viewRef} tabIndex={-1} aria-label="Current view">
       <div className="ui-meta">
+        <button type="button" disabled={changingView || sending || !snapshot.canGoBack} onClick={() => { void onBack() }}>
+          Back
+        </button>
         <span>{snapshot.route}</span>
         <span>{snapshot.uiURI}</span>
       </div>
-      <div className="elements">
+      <fieldset className="elements" disabled={changingView || sending} aria-label="Current view" style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
         <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} onAction={onAction} onInput={onInput} />
-      </div>
+      </fieldset>
     </section>
   )
 }
 
 export function PreparedCallView({
   call,
+  reviewRef,
   canSend,
+  canDiscard,
   sending,
   onSend,
+  onDiscard,
 }: {
   readonly call: CamViewerPreparedContractCall
+  readonly reviewRef: Ref<HTMLElement>
   readonly canSend: boolean
+  readonly canDiscard: boolean
   readonly sending: boolean
   readonly onSend: (call: CamViewerPreparedContractCall) => Promise<void>
+  readonly onDiscard: () => void
 }): ReactElement {
   return (
-    <section className="panel prepared-call">
-      <h2>Prepared contract call</h2>
+    <section className="panel prepared-call" ref={reviewRef} tabIndex={-1} aria-labelledby="prepared-call-title">
+      <h2 id="prepared-call-title">Prepared contract call</h2>
       {preparedCallFields(call).map((field) => (
         <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} />
       ))}
@@ -102,6 +119,9 @@ export function PreparedCallView({
         }}
       >
         {sending ? "Sending..." : "Send with wallet"}
+      </button>
+      <button type="button" disabled={!canDiscard} onClick={onDiscard}>
+        Discard prepared call
       </button>
     </section>
   )

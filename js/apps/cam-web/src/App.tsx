@@ -51,6 +51,7 @@ import {
 } from "./components.tsx"
 import {
   type PreparedCallSubmitterPorts,
+  SubmissionOutcomeUnknownError,
   submittedTransactionDiagnosis,
   submitPreparedContractCall,
   waitForSubmittedTransactionReceipt,
@@ -67,6 +68,12 @@ type AppRuntime = {
   readonly startup: StartupOptions
   readonly publicClient: AppPublicClient
   readonly session: CamViewerSession
+}
+
+type Notice = { readonly message: string; readonly kind: "error" | "status" }
+type FeedbackArrival = {
+  readonly target: "notice" | "prepared" | "view" | "transaction"
+  readonly interaction: number
 }
 
 const RECEIPT_WAIT_TIMEOUT_MS = 20_000
@@ -86,12 +93,27 @@ const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
 export function App(): ReactElement {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
   const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
-  const [notice, setNotice] = useState<string | undefined>(undefined)
+  const [notice, setNotice] = useState<Notice | undefined>(undefined)
+  const [transactionNotice, setTransactionNotice] = useState<Notice | undefined>(undefined)
   const [preparedCall, setPreparedCall] = useState<CamViewerPreparedContractCall | undefined>(undefined)
   const [sending, setSending] = useState(false)
+  const [changingView, setChangingView] = useState(false)
   const interactionRevision = useRef(0)
   const sendRevision = useRef(0)
   const sendingRef = useRef(false)
+  const noticeRef = useRef<HTMLParagraphElement>(null)
+  const transactionNoticeRef = useRef<HTMLParagraphElement>(null)
+  const preparedRef = useRef<HTMLElement>(null)
+  const viewRef = useRef<HTMLElement>(null)
+  const [feedbackArrival, setFeedbackArrival] = useState<FeedbackArrival | undefined>(undefined)
+
+  useEffect(() => {
+    if (feedbackArrival === undefined || feedbackArrival.interaction !== interactionRevision.current) return
+    const target = feedbackArrival.target === "notice" ? noticeRef.current
+      : feedbackArrival.target === "prepared" ? preparedRef.current
+      : feedbackArrival.target === "transaction" ? transactionNoticeRef.current : viewRef.current
+    target?.focus()
+  }, [feedbackArrival])
 
   useEffect(() => {
     let cancelled = false
@@ -148,13 +170,15 @@ export function App(): ReactElement {
   }, [])
 
   async function dispatch(action: ResolvedButtonNode): Promise<void> {
+    if (sendingRef.current) return
     const ready = requireReadyState(loadState)
     const revision = nextInteractionRevision()
     setNotice(undefined)
     setPreparedCall(undefined)
 
     try {
-      const result = await ready.runtime.session.dispatchAction(action)
+      setChangingView(true)
+      const result = await ready.runtime.session.dispatchAction(action).finally(() => setChangingView(false))
       if (!isCurrentInteraction(revision)) return
       if (result.type === "navigated") {
         setLoadState({ ...ready, snapshot: result.snapshot })
@@ -164,12 +188,13 @@ export function App(): ReactElement {
       await preflightPreparedCall(result.call)
       if (!isCurrentInteraction(revision)) return
       setPreparedCall(result.call)
-      setNotice(wallet.status === "connected"
+      showStatus(wallet.status === "connected"
         ? "Prepared contract call. Simulation passed; review it before sending."
-        : "Prepared contract call. Simulation passed; connect a wallet to send it.")
+        : "Prepared contract call. Simulation passed; connect a wallet to send it.", false)
+      arriveAtFeedback("prepared")
     } catch (error) {
       if (!isCurrentInteraction(revision)) return
-      setNotice(errorMessage(error))
+      showError(errorMessage(error), true)
     }
   }
 
@@ -183,30 +208,58 @@ export function App(): ReactElement {
   }
 
   async function connectWallet(): Promise<void> {
+    if (sendingRef.current) return
     try {
       const ready = requireReadyState(loadState)
       invalidatePreparedInteraction()
+      setChangingView(true)
       const startup = ready.runtime.startup
       const address = await connectInjectedWallet(startup)
       const snapshot = await ready.runtime.session.setAccount({ address })
 
       setWallet({ status: "connected", address })
       setLoadState({ ...ready, snapshot })
-      setNotice(address.toLowerCase() === startup.account.toLowerCase()
+      showStatus(address.toLowerCase() === startup.account.toLowerCase()
         ? "Wallet connected."
-        : "Wallet connected. It differs from the initial account URL parameter.")
+        : "Wallet connected. It differs from the initial account URL parameter.", true)
     } catch (error) {
-      setNotice(errorMessage(error))
+      showError(errorMessage(error), true)
+    } finally {
+      setChangingView(false)
     }
+  }
+
+  async function goBack(): Promise<void> {
+    if (sendingRef.current) return
+    const ready = requireReadyState(loadState)
+    const revision = nextInteractionRevision()
+    setPreparedCall(undefined)
+    setNotice(undefined)
+    setChangingView(true)
+    try {
+      const snapshot = await ready.runtime.session.back()
+      if (isCurrentInteraction(revision)) setLoadState({ ...ready, snapshot })
+    } catch (error) {
+      if (isCurrentInteraction(revision)) showError(errorMessage(error), true)
+    } finally {
+      setChangingView(false)
+    }
+  }
+
+  function discardPreparedCall(): void {
+    if (sendingRef.current || changingView) return
+    invalidatePreparedInteraction()
+    setNotice(undefined)
+    arriveAtFeedback("view")
   }
 
   async function sendPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
     if (sendingRef.current) {
-      setNotice("A wallet submission is already in progress.")
+      showStatus("A wallet submission is already in progress.", false)
       return
     }
     if (wallet.status !== "connected") {
-      setNotice("Connect a wallet before sending.")
+      showError("Connect a wallet before sending.", true)
       return
     }
 
@@ -237,7 +290,7 @@ export function App(): ReactElement {
       if (txHash === undefined) return
       submittedTxHash = txHash
       if (!ownsSend()) return
-      setNotice(`Transaction sent: ${txHash}`)
+      reportTransaction(`Transaction sent: ${txHash}`, "status", false)
 
       const nonceGap = await submittedTransactionDiagnosis({
         client: ready.runtime.publicClient,
@@ -255,26 +308,36 @@ export function App(): ReactElement {
       if (receipt.status !== "success") {
         throw new Error(`Transaction reverted: ${txHash}`)
       }
-      setNotice(`Transaction confirmed in block ${receipt.blockNumber.toString()}.`)
+      reportTransaction(`Transaction confirmed in block ${receipt.blockNumber.toString()}. Transaction hash: ${txHash}.`, "status", ownsInteraction())
       if (ownsInteraction()) {
         setPreparedCall(undefined)
       }
 
       if (call.then.namespace === "routes" && ownsInteraction()) {
-        const snapshot = await ready.runtime.session.navigate(call.then.function, call.then.args)
-        if (!ownsInteraction() || !ownsSend()) return
-        setLoadState({ ...ready, snapshot })
+        try {
+          setChangingView(true)
+          const snapshot = await ready.runtime.session.navigate(call.then.function, call.then.args)
+            .finally(() => setChangingView(false))
+          if (!ownsInteraction() || !ownsSend()) return
+          setLoadState({ ...ready, snapshot })
+        } catch (error) {
+          if (!ownsInteraction() || !ownsSend()) return
+          showError(`The transaction is confirmed, but the view could not be refreshed: ${errorMessage(error)}`, true)
+        }
       }
     } catch (error) {
-      if (!ownsSend() || (submittedTxHash === undefined && !ownsInteraction())) return
+      if (!ownsSend() || (submittedTxHash === undefined && !(error instanceof SubmissionOutcomeUnknownError) && !ownsInteraction())) return
       if (submittedTxHash !== undefined) {
         const message = errorMessage(error)
         if (ownsInteraction()) {
           setPreparedCall(undefined)
         }
-        setNotice(message.includes(submittedTxHash) ? message : `${message} Transaction hash: ${submittedTxHash}.`)
+        reportTransaction(message.includes(submittedTxHash) ? message : `${message} Transaction hash: ${submittedTxHash}.`, "error", ownsInteraction())
+      } else if (error instanceof SubmissionOutcomeUnknownError) {
+        if (ownsInteraction()) setPreparedCall(undefined)
+        reportTransaction(errorMessage(error), "error", ownsInteraction())
       } else {
-        setNotice(errorMessage(error))
+        showError(errorMessage(error), true)
       }
     } finally {
       sendingRef.current = false
@@ -285,6 +348,7 @@ export function App(): ReactElement {
   }
 
   function updateInput(name: string, value: string): void {
+    if (sendingRef.current) return
     const ready = requireReadyState(loadState)
     try {
       invalidatePreparedInteraction()
@@ -293,8 +357,27 @@ export function App(): ReactElement {
         snapshot: ready.runtime.session.updateState({ [name]: value }),
       })
     } catch (error) {
-      setNotice(errorMessage(error))
+      showError(errorMessage(error), true)
     }
+  }
+
+  function arriveAtFeedback(target: FeedbackArrival["target"]): void {
+    setFeedbackArrival({ target, interaction: interactionRevision.current })
+  }
+
+  function showError(message: string, focus: boolean): void {
+    setNotice({ message, kind: "error" })
+    if (focus) arriveAtFeedback("notice")
+  }
+
+  function showStatus(message: string, focus: boolean): void {
+    setNotice({ message, kind: "status" })
+    if (focus) arriveAtFeedback("notice")
+  }
+
+  function reportTransaction(message: string, kind: Notice["kind"], focus: boolean): void {
+    setTransactionNotice({ message, kind })
+    if (focus) arriveAtFeedback("transaction")
   }
 
   function nextInteractionRevision(): number {
@@ -342,18 +425,32 @@ export function App(): ReactElement {
       {wallet.status === "unavailable" ? (
         <p className="notice">No injected wallet was detected.</p>
       ) : (
-        <button className="wallet-button" type="button" onClick={() => { void connectWallet() }}>
+        <button className="wallet-button" type="button" disabled={changingView || sending} onClick={() => { void connectWallet() }}>
           {wallet.status === "connected" ? "Switch wallet" : "Connect wallet"}
         </button>
       )}
 
-      {notice === undefined ? null : <p className="notice">{notice}</p>}
+      {notice === undefined ? null : (
+        <p className="notice" ref={noticeRef} tabIndex={-1} role={notice.kind === "error" ? "alert" : "status"}>
+          {notice.message}
+        </p>
+      )}
+      {transactionNotice === undefined ? null : (
+        <section className="transaction-feedback" aria-label="Transaction outcome">
+          <p className="notice" ref={transactionNoticeRef} tabIndex={-1} role={transactionNotice.kind === "error" ? "alert" : "status"}>
+            {transactionNotice.message}
+          </p>
+        </section>
+      )}
       {preparedCall === undefined ? null : (
         <PreparedCallView
           call={preparedCall}
-          canSend={wallet.status === "connected"}
+          reviewRef={preparedRef}
+          canSend={wallet.status === "connected" && !changingView}
+          canDiscard={!sending && !changingView}
           sending={sending}
           onSend={sendPreparedCall}
+          onDiscard={discardPreparedCall}
         />
       )}
 
@@ -371,6 +468,10 @@ export function App(): ReactElement {
       {loadState.status === "ready" ? (
         <UiView
           snapshot={loadState.snapshot}
+          viewRef={viewRef}
+          changingView={changingView}
+          sending={sending}
+          onBack={goBack}
           onAction={dispatch}
           onInput={updateInput}
         />

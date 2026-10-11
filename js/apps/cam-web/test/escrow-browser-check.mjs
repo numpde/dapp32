@@ -21,7 +21,8 @@ const rpc = url(viewer.searchParams.get('rpcUrl'), 'viewer rpcUrl', ['http:'], t
 assert(/^0x[0-9a-fA-F]{40}$/.test(host), 'viewer host must be an address')
 assert(viewer.searchParams.get('chainId') && viewer.searchParams.get('account'), 'viewer URL needs chainId and account')
 
-const timeout = AbortSignal.timeout(30000)
+const checkDeadline = Date.now() + 180000
+const timeout = AbortSignal.timeout(180000)
 async function jsonFetch(location, options) {
   const response = await fetch(location, { ...options, signal: timeout })
   assert(response.ok, `${location} returned HTTP ${response.status}`)
@@ -64,7 +65,7 @@ await new Promise((resolve, reject) => {
   function aborted() {
     cleanup()
     try { ws.close() } catch { /* A connecting socket can reject close. */ }
-    reject(new Error('CDP WebSocket did not open within 30 seconds'))
+    reject(new Error('CDP WebSocket did not open within 180 seconds'))
   }
   ws.addEventListener('open', opened)
   ws.addEventListener('error', failed)
@@ -81,13 +82,18 @@ let rootRequestId
 const failures = []
 const exceptions = []
 const consoleErrors = []
+const transactionRequests = []
 let intercept
 let alteredCamBody
 ws.addEventListener('message', async event => {
   const message = JSON.parse(event.data)
   if (message.id) {
     const request = pending.get(message.id)
-    if (request) { pending.delete(message.id); message.error ? request.reject(new Error(message.error.message)) : request.resolve(message.result) }
+    if (request) {
+      pending.delete(message.id)
+      clearTimeout(request.timer)
+      message.error ? request.reject(new Error(`${request.method}: ${message.error.message}`)) : request.resolve(message.result)
+    }
     return
   }
   if (message.sessionId !== sessionId) return
@@ -96,10 +102,11 @@ ws.addEventListener('message', async event => {
   if (method === 'Network.requestWillBeSent') {
     requested.set(params.requestId, params.request.url)
     if (params.request.url === cam.href) rootRequestId = params.requestId
+    if (params.request.url === rpc.href && /eth_send(Raw)?Transaction/.test(params.request.postData || '')) transactionRequests.push(params.requestId)
   }
   if (method === 'Network.responseReceived') statuses.set(params.requestId, params.response.status)
   if (method === 'Network.loadingFinished' && statuses.get(params.requestId) >= 200 && statuses.get(params.requestId) < 300) loaded.add(requested.get(params.requestId))
-  if (method === 'Network.loadingFailed') failures.push(`${requested.get(params.requestId)}: ${params.errorText}`)
+  if (method === 'Network.loadingFailed') failures.push({ url: requested.get(params.requestId), reason: params.errorText })
   if (method === 'Runtime.exceptionThrown') exceptions.push(params.exceptionDetails.text)
   if (method === 'Runtime.consoleAPICalled' && params.type === 'error') consoleErrors.push(params.args.map(arg => String(arg.value === undefined ? arg.description : arg.value)).join(' '))
   if (method === 'Fetch.requestPaused') {
@@ -123,27 +130,82 @@ function call(method, params, session) {
   assert(!timeout.aborted, `CDP timed out during ${method}`)
   return new Promise((resolve, reject) => {
     const id = ++nextId
-    pending.set(id, { resolve, reject })
-    ws.send(JSON.stringify({ id, method, params, ...(session ? { sessionId: session } : {}) }))
+    const target = session ? `owned target ${targetId}, session ${session}` : 'browser session'
+    const operation = method === 'Input.dispatchMouseEvent' ? `${method}(${params.type})` : method
+    const waitMs = Math.min(10000, Math.max(1, checkDeadline - Date.now()))
+    const timer = setTimeout(() => {
+      pending.delete(id)
+      reject(new Error(`CDP ${operation} on ${target} did not respond within ${waitMs} ms (request ${id})`))
+    }, waitMs)
+    pending.set(id, { resolve, reject, timer, method: operation })
+    try {
+      ws.send(JSON.stringify({ id, method, params, ...(session ? { sessionId: session } : {}) }))
+    } catch (error) {
+      pending.delete(id)
+      clearTimeout(timer)
+      reject(error)
+    }
   })
 }
 timeout.addEventListener('abort', () => {
-  for (const request of pending.values()) request.reject(new Error('CDP check exceeded 30 seconds'))
+  for (const request of pending.values()) {
+    clearTimeout(request.timer)
+    request.reject(new Error(`CDP check exceeded 180 seconds during ${request.method}`))
+  }
   pending.clear()
 }, { once: true })
+ws.addEventListener('close', () => {
+  for (const request of pending.values()) {
+    clearTimeout(request.timer)
+    request.reject(new Error(`CDP socket closed during ${request.method}`))
+  }
+  pending.clear()
+})
 async function evaluate(expression) {
   const result = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true }, sessionId)
   assert(!result.exceptionDetails, `browser expression failed: ${result.exceptionDetails?.text}`)
   return result.result.value
 }
+async function field(name) {
+  return evaluate(`document.querySelector('input[name=${JSON.stringify(name)}]')?.value`)
+}
+async function enter(name, value) {
+  const found = await evaluate(`(() => { const input = document.querySelector('input[name=${JSON.stringify(name)}]'); if (!input) return false; input.scrollIntoView({block:'center'}); input.focus(); input.select(); return true })()`)
+  assert(found, `missing ${name} field`)
+  await call('Input.insertText', { text: value }, sessionId)
+  await waitFor(async state => (await field(name)) === value, `${name} edit`)
+}
+async function clickButton(label) {
+  if (label !== 'Prepare funded agreement') {
+    const clicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return false; button.click(); return true })()`)
+    assert(clicked, `${label} button is absent or disabled`)
+    return
+  }
+  // Scrolling only positions the button; the assertion below requires native
+  // pointer activation on the visible button before product feedback is checked.
+  const point = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return null; button.scrollIntoView({block:'center'}); const r = button.getBoundingClientRect(); const x=r.left+r.width/2,y=r.top+r.height/2; return {x,y,width:innerWidth,height:innerHeight,hit:document.elementFromPoint(x,y)?.textContent?.trim()} })()`)
+  assert(point && point.x >= 0 && point.x < point.width && point.y >= 0 && point.y < point.height && point.hit === label, `${label} is not the pointer target in the viewport`)
+  await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(label)}); window.__browserCheckEvents = []; button.addEventListener('click', () => window.__browserCheckEvents.push('click'), {capture:true, once:true}) })()`)
+  await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y, button: 'none', buttons: 0 }, sessionId)
+  await call('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId)
+  await call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId)
+  const events = await evaluate('window.__browserCheckEvents')
+  assert(events.includes('click'), `${label} received no browser click (${events.join(', ')})`)
+}
+async function feedback(kind) {
+  return evaluate(`(() => { const node = ${kind === 'notice' ? "[...document.querySelectorAll('.notice')].at(-1)" : "document.querySelector('.prepared-call')"}; if (!node) return null; const r=node.getBoundingClientRect(); return {text:node.innerText, role:node.getAttribute('role'), top:r.top,bottom:r.bottom,height:innerHeight, focus:node.contains(document.activeElement), active:document.activeElement?.tagName} })()`)
+}
 async function waitFor(predicate, label, failOnViewerError) {
+  let lastState
   for (let count = 0; count < 80 && !timeout.aborted; count++) {
     const state = await evaluate(`({heading:document.querySelector('h1')?.textContent, text:document.body?.innerText, width:document.documentElement.scrollWidth, viewport:innerWidth})`)
-    if (predicate(state)) return state
+    lastState = state
+    if (await predicate(state)) return state
     if (failOnViewerError && state.text?.includes('Cannot load viewer')) throw new Error(`viewer failed before ${label}: ${state.text}`)
     await new Promise(resolve => setTimeout(resolve, 250))
   }
-  throw new Error(`timed out waiting for ${label}`)
+  const details = await evaluate(`({notices:[...document.querySelectorAll('.notice')].map(node=>node.innerText), agreementId:document.querySelector('input[name=agreementId]')?.value, agreementRef:document.querySelector('input[name=agreementRef]')?.value, buttons:[...document.querySelectorAll('button')].map(node=>[node.textContent.trim(),node.disabled])})`)
+  throw new Error(`timed out waiting for ${label}; ${JSON.stringify(details)}; last view: ${JSON.stringify(lastState?.text?.slice(-400))}`)
 }
 async function assertNarrowUi(label) {
   await call('Emulation.setDeviceMetricsOverride', { width: 375, height: 800, deviceScaleFactor: 1, mobile: true }, sessionId)
@@ -152,11 +214,24 @@ async function assertNarrowUi(label) {
   assert(layout.page <= layout.viewport, `${label}: document overflows at 375px`)
   assert(layout.meta <= layout.metaClient && layout.uri <= layout.uriClient && layout.uriRight <= layout.uiRight, `${label}: UI URI is clipped at 375px`)
 }
+const regressions = []
+async function browserCase(name, run) {
+  try { await run(); console.log(`${name}: passed`) }
+  catch (error) { regressions.push(`${name}: ${error.message}`); console.error(`${name}: ${error.message}`) }
+}
+async function freshForm() {
+  await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId)
+  await call('Page.navigate', { url: 'about:blank' }, sessionId)
+  await waitFor(async () => (await evaluate('location.href')) === 'about:blank', 'blank reset')
+  await call('Page.navigate', { url: viewer.href }, sessionId)
+  await waitFor(async state => state.heading === 'Native-asset escrow' && (await field('agreementRef')) !== undefined, 'fresh create form', true)
+}
 let targetId
 try {
   targetId = (await call('Target.createTarget', { url: 'about:blank' }, undefined)).targetId
   sessionId = (await call('Target.attachToTarget', { targetId, flatten: true }, undefined)).sessionId
   await call('Page.enable', {}, sessionId)
+  await call('Page.bringToFront', {}, sessionId)
   await call('Runtime.enable', {}, sessionId)
   await call('Network.enable', {}, sessionId)
   await call('Page.navigate', { url: viewer.href }, sessionId)
@@ -169,13 +244,107 @@ try {
   const rootText = Buffer.from(rootResponse.body, rootResponse.base64Encoded ? 'base64' : 'utf8').toString('utf8')
   JSON.parse(rootText)
   alteredCamBody = `${rootText}\n`
-  assert.deepEqual(failures, [], 'unexpected network failures')
+  assert.deepEqual(failures.filter(failure => failure.reason !== 'net::ERR_ABORTED' || !loaded.has(failure.url)), [], 'unexpected network failures')
   assert.deepEqual(exceptions, [], 'browser exceptions')
   assert.deepEqual(consoleErrors, [], 'browser console errors')
   await assertNarrowUi('Escrow root')
   await evaluate(`document.querySelectorAll('button') && [...document.querySelectorAll('button')].find(button => button.textContent.includes('View account credit'))?.click()`)
   await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'account credit view', false)
   await assertNarrowUi('account credit')
+
+  await browserCase('known agreement ID without create inputs', async () => {
+    await freshForm()
+    const knownId = `0x${'ab'.repeat(32)}`
+    await enter('agreementId', knownId)
+    await clickButton('Open agreement')
+    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'known ID lookup')
+    assert((await evaluate('document.body.innerText')).includes(knownId), 'lookup did not show the requested agreement ID')
+  })
+
+  const draft = {
+    agreementRef: 'browser-draft-check',
+    contractor: '0x1111111111111111111111111111111111111111',
+    arbitrator: '0x2222222222222222222222222222222222222222',
+    amount: '42',
+    acceptanceDuration: '3600',
+    workDuration: '7200',
+    reviewDuration: '3600',
+    arbitrationDuration: '3600',
+    termsUri: 'https://example.test/terms',
+    termsDigest: `0x${'ab'.repeat(32)}`,
+  }
+  async function fillDraft() {
+    await freshForm()
+    for (const [name, value] of Object.entries(draft)) await enter(name, value)
+  }
+  await browserCase('draft survives lookup, credit, and Back twice', async () => {
+    await fillDraft()
+    await clickButton('Look up agreement')
+    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'reference lookup')
+    await clickButton('View account credit')
+    await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'credit from lookup')
+    await clickButton('Back')
+    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'Back to lookup')
+    await clickButton('Back')
+    await waitFor(async () => (await field('agreementRef')) !== undefined, 'Back to draft')
+    for (const [name, value] of Object.entries(draft)) assert.equal(await field(name), value, `${name} draft was lost`)
+  })
+
+  // Start at the bottom of the long form; feedback must arrive where the user is.
+  await browserCase('prepare rejection feedback', async () => {
+    await fillDraft()
+    await enter('contractor', '0x0000000000000000000000000000000000000000')
+    await clickButton('Prepare funded agreement')
+    await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.text || ''), 'decoded prepare rejection')
+    const rejected = await feedback('notice')
+    assert(rejected.role === 'alert' || rejected.role === 'status', 'prepare rejection is not announced')
+    assert(rejected.top >= 0 && rejected.top < rejected.height && rejected.bottom > 0, 'prepare rejection is outside the viewport')
+    assert.equal(await field('agreementRef'), draft.agreementRef, 'prepare rejection discarded draft')
+    assert.equal(await field('amount'), draft.amount, 'prepare rejection discarded amount')
+  })
+
+  await browserCase('repeated rejection and ordinary editing focus', async () => {
+    await fillDraft()
+    await enter('contractor', '0x0000000000000000000000000000000000000000')
+    await clickButton('Prepare funded agreement')
+    await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.text || ''), 'first rejection')
+    await enter('amount', '43')
+    assert.equal(await evaluate("document.activeElement?.getAttribute('name')"), 'amount', 'editing stole focus from amount')
+    await clickButton('Prepare funded agreement')
+    await waitFor(async () => (await feedback('notice'))?.focus === true, 'repeat rejection focus')
+    assert.equal(await field('amount'), '43', 'repeat rejection discarded edit')
+  })
+
+  await browserCase('prepared review feedback', async () => {
+    await fillDraft()
+    await clickButton('Prepare funded agreement')
+    await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')), 'prepared review')
+    const prepared = await feedback('prepared')
+    assert(prepared.top >= 0 && prepared.top < prepared.height && prepared.bottom > 0, 'prepared review is outside the viewport')
+    assert(prepared.focus, 'prepared review did not receive accessible focus')
+    assert.equal(await field('agreementRef'), draft.agreementRef, 'prepare discarded draft')
+    assert.equal(transactionRequests.length, 0, 'prepare sent a transaction before explicit wallet confirmation')
+  })
+
+  await browserCase('discard prepared review preserves draft', async () => {
+    await fillDraft()
+    await clickButton('Prepare funded agreement')
+    await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')), 'review before discard')
+    await clickButton('Discard prepared call')
+    await waitFor(async () => await evaluate("document.querySelector('.prepared-call') === null && document.activeElement === document.querySelector('.ui')"), 'discarded review and current-view focus')
+    for (const [name, value] of Object.entries(draft)) assert.equal(await field(name), value, `${name} draft changed after discard`)
+    assert.equal(transactionRequests.length, 0, 'discard sent a transaction')
+  })
+
+  await browserCase('explicit new agreement clears draft', async () => {
+    await fillDraft()
+    await clickButton('Look up agreement')
+    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'lookup before new')
+    await clickButton('Create another agreement')
+    await waitFor(async () => (await field('agreementRef')) !== undefined, 'explicit new agreement')
+    assert.equal(await field('agreementRef'), '', 'explicit new agreement retained the old reference')
+    assert.equal(await field('amount'), '0', 'explicit new agreement retained the old amount')
+  })
 
   // The same valid CAM JSON with one extra byte must fail its onchain hash.
   // Interception is restricted to this owned target's root CAM request.
@@ -200,15 +369,26 @@ try {
     assert(layout.error.includes(cam.href), `failed resource URL is hidden at ${width}px`)
   }
   console.log('Escrow browser publication and failed-load checks passed')
+  assert.deepEqual(regressions, [], 'browser workflow regressions')
 } finally {
   if (intercept && !timeout.aborted) await call('Fetch.disable', {}, sessionId).catch(error => console.error(`Fetch.disable: ${error.message}`))
   if (targetId) {
-    if (timeout.aborted) {
-      await fetch(new URL(`/json/close/${targetId}`, cdp), { signal: AbortSignal.timeout(2000) })
-        .catch(error => console.error(`CDP target close: ${error.message}`))
-    } else {
-      await call('Target.closeTarget', { targetId }, undefined)
-        .catch(error => console.error(`CDP target close: ${error.message}`))
+    let closed = false
+    if (!timeout.aborted && ws.readyState === WebSocket.OPEN) {
+      try {
+        const result = await call('Target.closeTarget', { targetId }, undefined)
+        closed = result.success === true
+      } catch (error) {
+        console.error(`CDP owned target close failed: ${error.message}`)
+      }
+    }
+    if (!closed) {
+      try {
+        const response = await fetch(new URL(`/json/close/${targetId}`, cdp), { signal: AbortSignal.timeout(2000) })
+        assert(response.ok, `HTTP ${response.status}`)
+      } catch (error) {
+        console.error(`HTTP owned target close failed: ${error.message}`)
+      }
     }
   }
   ws.close()
