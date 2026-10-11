@@ -996,7 +996,8 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
     originLabel: "origin",
     loadFailurePrefix: "load failed",
     cache: "no-store",
-    async fetchResource(href, init) {
+    async fetchResource(this: void, href, init) {
+      assert.equal(this, undefined)
       fetched.push(init.cache === undefined
         ? { href, redirect: init.redirect }
         : { href, redirect: init.redirect, cache: init.cache })

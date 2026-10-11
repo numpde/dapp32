@@ -121,6 +121,7 @@ export function createSameOriginHttpResourceLoader(options: {
   readonly cache?: HttpResourceCacheMode
 }): (uri: string) => Promise<Uint8Array> {
   const origin = requireHttpOrigin(options.originInput, options.originLabel)
+  const fetchResource = options.fetchResource
 
   return async (uri: string): Promise<Uint8Array> => {
     const resourceURL = requireSameHttpOrigin(uri, origin, "CAM resource URI")
@@ -129,7 +130,7 @@ export function createSameOriginHttpResourceLoader(options: {
     const init = options.cache === undefined
       ? { redirect: "error" as const }
       : { cache: options.cache, redirect: "error" as const }
-    const response = await options.fetchResource(resourceURL.href, init)
+    const response = await fetchResource(resourceURL.href, init)
     if (response.ok !== true) {
       throw new Error(`${options.loadFailurePrefix} ${resourceURL.href}: HTTP ${response.status}`)
     }
