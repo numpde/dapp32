@@ -51,6 +51,7 @@
 <section id="try">
 <h2>Try locally with Docker</h2>
 <p class="narrow">From the repository's <code>main</code> branch, use the Docker-backed Make targets. Dependency installation is the explicit networked step. The GUI starts a disposable Anvil chain, deploys escrow and its read projection, serves the checked-in CAM bundle, and prints the browser URL. The default listener is <code>127.0.0.1:5174</code>. This guide is documentation; it does not provide a hosted escrow app or attest to a public deployment.</p>
+<p class="narrow">The escrow fixture requires the root manifest to match the hash published by its host contract. The viewer also checks the ABI and UI resource hashes.</p>
 <pre class="code-block">
 <code>git clone https://github.com/numpde/dapp32.git
 cd dapp32

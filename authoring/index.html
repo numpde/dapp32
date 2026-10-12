@@ -35,7 +35,7 @@
 <header>
 <div class="shell">
 <h1>Author a contract-defined workflow</h1>
-<p class="lede">Use a host contract to publish a manifest, explicit routes to describe reads and writes, and a small UI catalog to collect inputs and display contract state. Start from the checked-in Bike NFT or escrow bundle.</p>
+<p class="lede">Describe your app's screens and contract calls in a CAM manifest, a JSON workflow document. A host contract publishes its location and hash; a generic viewer loads the document and renders its UI. Start from the checked-in Bike NFT or escrow bundle.</p>
 </div>
 </header>
 <main id="main" class="shell">
@@ -57,7 +57,7 @@
 <code>cam/ui.json</code>
 </strong> declares named UI nodes; current UI version is <code>1.0.0</code>. Its bytes are also pinned in the manifest.</li>
 <li>
-<strong>An optional read projection</strong> returns semantic views and permitted action IDs. It aggregates business state without forwarding writes or becoming an authorization subject.</li>
+<strong>An optional read projection</strong> is a read-only contract that gathers business state into screen values and available action names. It does not execute writes or authorize transactions; the business contract enforces permissions.</li>
 </ol>
 <p>The host's manifest hash is <strong>Keccak-256 of the exact root manifest bytes</strong>. ABI/UI resource integrity uses SHA-256. Escrow document digests also use SHA-256, but are application commitments with a different purpose. Do not interchange these hashes.</p>
 </section>
@@ -84,7 +84,7 @@
 </section>
 <section>
 <h2>Keep calldata and payment together</h2>
-<p class="narrow">CAM 1.1 permits native transaction value. Escrow's creation route uses the same nested amount for calldata and value. After a confirmed write, the declared continuation looks up the new agreement by client and reference.</p>
+<p class="narrow">CAM 1.1 permits native transaction value: the payment sent with a contract call. Escrow's creation route uses the same nested amount in the call arguments (calldata) and the payment (value). After successful transaction confirmation, the browser viewer runs the follow-up route named in <code>then</code>, looking up the new agreement by client and reference.</p>
 <pre class="code-block" data-source-route="escrow:createAgreement">
 <code>{
   "kind": "write",

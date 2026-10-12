@@ -54,6 +54,7 @@
         </p>
         <div class="actions">
           <a class="button primary" href="https://github.com/numpde/dapp32/tree/main/dapps/bike-nft">Source</a>
+          <a class="button" href="#try">Try locally</a>
           <a class="button" href="#cam">CAM routes</a>
           <a class="button" href="../">dapp32 overview</a>
         </div>
@@ -112,7 +113,7 @@
       <div class="flow">
         <article class="flow-step">
           <strong>1. Look up</strong>
-          <p>Enter the serial number stamped on a component and read the current registry projection.</p>
+          <p>Enter the component's serial number to see its registered owner, status, and available actions.</p>
         </article>
         <article class="flow-step">
           <strong>2. Register</strong>
@@ -127,6 +128,21 @@
           <p>The owner or a delegate with retirement capability can retire an active component. Resolve an open missing report first; retirement remains final even if the NFT later transfers.</p>
         </article>
       </div>
+    </section>
+
+    <section id="try" class="narrow">
+      <h2>Try locally with Docker</h2>
+      <p>From the repository's <code>main</code> branch, run the commands below. The GUI target starts a disposable Anvil test chain, deploys the contracts and demo records, and prints the browser URL. This page documents the workflow; it does not host a registry app.</p>
+      <pre class="code-block"><code>git clone https://github.com/numpde/dapp32.git
+cd dapp32
+make deps
+make package-deps
+make cam-conformance-check
+make bike-nft-viewer-gui</code></pre>
+      <p>You can browse the seeded <code>DEMO-FRAME-001</code> record without a wallet. The address in the printed URL selects whose actions you see; it cannot sign transactions. Preparing a write does not change the registry.</p>
+      <p>To send a transaction, use a separate browser wallet profile. Add chain ID <code>31337</code> with RPC URL <code>http://127.0.0.1:5173/rpc</code>, or the printed GUI origin followed by <code>/rpc</code> if you changed the port. Import the public local-only <code>PRIVATE_KEY</code> from <a href="https://github.com/numpde/dapp32/blob/main/compose/bike-nft/local/deploy.yml">compose/bike-nft/local/deploy.yml</a> and connect it to the viewer. That funded fixture account is both the registrar and the owner of the demo components. Connecting a wallet selects its address for the view. This fixture key is unsafe on any other chain; keep real funds and valuable keys out of this disposable chain.</p>
+      <p>To register, enter an unused serial number, the intended owner's address, and a token metadata URI. Prepare the call, review it, and send it with the registrar wallet. Wait for successful confirmation before treating the record as created; the viewer then reads the component view. The GUI target cleans up when its foreground command exits. After an interrupted run, use <code>make bike-nft-viewer-gui-down</code>.</p>
+      <p>This fixture allows a zero manifest hash for local development. It still checks the manifest's ABI and UI resource hashes; it does not demonstrate a hash-pinned root publication.</p>
     </section>
 
     <section id="contracts">
@@ -202,8 +218,9 @@
           <h3>Scoped delegates</h3>
           <p>
             Delegates receive explicit capabilities with an expiry. Delegations
-            only work while the grantor remains the token owner, so an ordinary
-            ERC-721 sale invalidates old repair-shop permissions. Grant and
+            only work while the grantor is the current token owner and the grant
+            has not expired. A transfer to another owner disables those permissions;
+            they can become effective again if ownership returns before expiry. Grant and
             revoke calls remain contract-level operations because capability and
             expiry inputs need a lower-error UI than V1 provides.
           </p>
@@ -222,9 +239,10 @@
     <section id="cam">
       <h2>CAM routes</h2>
       <p class="narrow">
-        The manifest exposes a small route graph. Read routes return semantic
-        app views; write routes prepare wallet calls to the manager and then
-        continue to the declared follow-up read route.
+        The manifest defines named contract calls, called routes. Read routes
+        return values for the app's screens. Write routes prepare wallet calls
+        to the manager. In the browser viewer, the follow-up read runs after the
+        wallet sends the transaction and the viewer receives a successful receipt.
       </p>
       <div class="route-table">
         <table data-check="bike-routes">
