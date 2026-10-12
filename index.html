@@ -5,422 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>dapp32 - Contract-defined workflows</title>
   <meta name="description" content="dapp32 lets contracts point to a pinned UI/workflow manifest that generic viewers and agents can interpret, so dapp developers do not need to build a full custom frontend.">
-  <style>
-    :root {
-      color-scheme: light dark;
-      --ink: #1b2430;
-      --muted: #647386;
-      --soft: #f5f7fa;
-      --panel: #ffffff;
-      --chrome: #fbfcfe;
-      --line: #d8e0ea;
-      --green: #116b5f;
-      --blue: #244f86;
-      --rust: #a44631;
-      --code: #edf2f7;
-      --callout: #fffaf7;
-      --callout-ink: #55342d;
-      --code-block: #16202c;
-      --code-block-ink: #e9f0f7;
-      --shadow: 0 16px 34px rgba(23, 32, 43, 0.08);
-    }
-
-    :root[data-theme="light"] {
-      color-scheme: light;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        color-scheme: dark;
-        --ink: #e8eef6;
-        --muted: #a7b4c5;
-        --soft: #0f141b;
-        --panel: #151c25;
-        --chrome: #111820;
-        --line: #2a3442;
-        --green: #5cc1aa;
-        --blue: #8bb7f0;
-        --rust: #e18a72;
-        --code: #202a36;
-        --callout: #281b18;
-        --callout-ink: #f0c1b4;
-        --code-block: #070b10;
-        --code-block-ink: #e5edf6;
-        --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
-      }
-    }
-
-    :root[data-theme="dark"] {
-      color-scheme: dark;
-      --ink: #e8eef6;
-      --muted: #a7b4c5;
-      --soft: #0f141b;
-      --panel: #151c25;
-      --chrome: #111820;
-      --line: #2a3442;
-      --green: #5cc1aa;
-      --blue: #8bb7f0;
-      --rust: #e18a72;
-      --code: #202a36;
-      --callout: #281b18;
-      --callout-ink: #f0c1b4;
-      --code-block: #070b10;
-      --code-block-ink: #e5edf6;
-      --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      margin: 0;
-      color: var(--ink);
-      background: var(--soft);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.55;
-    }
-
-    a {
-      color: var(--green);
-      text-decoration-thickness: 1px;
-      text-underline-offset: 3px;
-    }
-
-    code {
-      padding: 2px 5px;
-      border-radius: 4px;
-      background: var(--code);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.92em;
-    }
-
-    .shell {
-      width: min(1120px, calc(100% - 32px));
-      margin: 0 auto;
-    }
-
-    .topbar {
-      border-bottom: 1px solid var(--line);
-      background: var(--chrome);
-    }
-
-    .topbar .shell {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-      min-height: 66px;
-    }
-
-    .brand {
-      color: var(--ink);
-      font-weight: 800;
-      text-decoration: none;
-    }
-
-    nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 14px;
-      font-size: 0.94rem;
-    }
-
-    .topbar-actions {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
-
-    nav a {
-      color: var(--muted);
-      text-decoration: none;
-    }
-
-    .theme-toggle {
-      position: relative;
-      display: inline-grid;
-      grid-template-columns: 1fr 1fr;
-      place-items: center;
-      width: 66px;
-      height: 34px;
-      padding: 0 7px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--panel);
-      color: var(--ink);
-      font: inherit;
-      font-size: 0.92rem;
-      cursor: pointer;
-      box-shadow: inset 0 1px 2px rgba(23, 32, 43, 0.08);
-    }
-
-    .theme-toggle:hover {
-      border-color: var(--green);
-    }
-
-    .theme-toggle:focus-visible {
-      outline: 3px solid color-mix(in srgb, var(--green), transparent 68%);
-      outline-offset: 2px;
-    }
-
-    .theme-toggle::before {
-      content: "";
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 28px;
-      height: 28px;
-      border-radius: 999px;
-      background: var(--green);
-      box-shadow: 0 4px 10px rgba(17, 107, 95, 0.25);
-      transition: transform 160ms ease;
-    }
-
-    .theme-toggle[data-theme-state="dark"]::before {
-      transform: translateX(32px);
-    }
-
-    .theme-toggle span {
-      position: relative;
-      z-index: 1;
-      line-height: 1;
-      color: var(--muted);
-    }
-
-    .theme-toggle[data-theme-state="light"] .theme-sun,
-    .theme-toggle[data-theme-state="dark"] .theme-moon {
-      color: #ffffff;
-    }
-
-    header {
-      padding: 56px 0 44px;
-      background: var(--chrome);
-      border-bottom: 1px solid var(--line);
-    }
-
-    .hero {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.75fr);
-      gap: 34px;
-      align-items: center;
-    }
-
-    h1 {
-      margin: 0;
-      max-width: 800px;
-      font-size: clamp(2.5rem, 7vw, 5.4rem);
-      line-height: 0.98;
-      letter-spacing: 0;
-    }
-
-    .lede {
-      max-width: 760px;
-      margin: 22px 0 0;
-      color: var(--muted);
-      font-size: clamp(1.06rem, 2vw, 1.28rem);
-    }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 28px;
-    }
-
-    .button {
-      display: inline-flex;
-      align-items: center;
-      min-height: 42px;
-      padding: 9px 14px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--panel);
-      color: var(--ink);
-      font-weight: 700;
-      text-decoration: none;
-    }
-
-    .button.primary {
-      border-color: var(--green);
-      background: var(--green);
-      color: #ffffff;
-    }
-
-    .protocol-panel {
-      padding: 18px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-      box-shadow: var(--shadow);
-    }
-
-    .protocol-panel h2 {
-      margin: 0 0 14px;
-      font-size: 1rem;
-    }
-
-    .rail {
-      display: grid;
-      gap: 10px;
-    }
-
-    .rail-row {
-      display: grid;
-      grid-template-columns: 28px 1fr;
-      gap: 10px;
-      align-items: start;
-    }
-
-    .rail-row span {
-      display: grid;
-      place-items: center;
-      width: 28px;
-      height: 28px;
-      border-radius: 999px;
-      background: var(--code);
-      color: var(--blue);
-      font-size: 0.8rem;
-      font-weight: 800;
-    }
-
-    .rail-row strong {
-      display: block;
-      margin-bottom: 2px;
-      font-size: 0.95rem;
-    }
-
-    .rail-row p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
-
-    main {
-      padding: 34px 0 60px;
-    }
-
-    section {
-      margin-top: 40px;
-    }
-
-    h2 {
-      margin: 0 0 14px;
-      font-size: 1.55rem;
-      letter-spacing: 0;
-    }
-
-    h3 {
-      margin: 0 0 8px;
-      font-size: 1rem;
-    }
-
-    p {
-      margin: 0 0 14px;
-    }
-
-    .narrow {
-      max-width: 820px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      margin-top: 18px;
-    }
-
-    .two {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .card {
-      padding: 18px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-    }
-
-    .card p,
-    li {
-      color: var(--muted);
-    }
-
-    .status-list {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-      margin-top: 18px;
-      padding: 0;
-      list-style: none;
-    }
-
-    .status-list li {
-      padding: 12px 14px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-    }
-
-    .callout {
-      padding: 16px 18px;
-      border-left: 4px solid var(--rust);
-      background: var(--callout);
-      color: var(--callout-ink);
-    }
-
-    .callout p {
-      margin-bottom: 0;
-      color: inherit;
-    }
-
-    .code-block {
-      overflow-x: auto;
-      margin: 18px 0 0;
-      padding: 16px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--code-block);
-      color: var(--code-block-ink);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.92rem;
-      line-height: 1.55;
-    }
-
-    .split {
-      display: grid;
-      grid-template-columns: minmax(0, 0.9fr) minmax(320px, 1fr);
-      gap: 22px;
-      align-items: start;
-    }
-
-    @media (max-width: 860px) {
-      .hero,
-      .split,
-      .grid,
-      .two,
-      .status-list {
-        grid-template-columns: 1fr;
-      }
-
-      .topbar .shell {
-        align-items: flex-start;
-        flex-direction: column;
-        justify-content: center;
-        padding: 14px 0;
-      }
-
-      .topbar-actions {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 12px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="site.css">
   <script>
     (function () {
       try {
@@ -435,6 +20,7 @@
   </script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <div class="topbar">
     <div class="shell">
       <a class="brand" href="#">dapp32</a>
@@ -444,7 +30,8 @@
           <a href="#status">Evidence</a>
           <a href="#try">Local demo</a>
           <a href="bike-nft/">Bike NFT</a>
-          <a href="#roadmap">Roadmap</a>
+          <a href="escrow/">Escrow</a>
+          <a href="authoring/">Authoring</a>
           <a href="#related">Related</a>
           <a href="#archive">Archive</a>
         </nav>
@@ -464,7 +51,7 @@
           dapp32 lets an Ethereum contract point to a pinned offchain CAM
           manifest that defines the dapp's screens, reads, inputs, and wallet
           actions. That interface can be rendered as a graphical UI or exposed
-          as a minimal API for agents. Developers can run the open dapp32 viewer,
+          through the headless TypeScript viewer session API for agents. Developers can run the open dapp32 viewer,
           embed it, or use a hosted viewer they trust instead of building a
           whole custom frontend.
         </p>
@@ -511,7 +98,7 @@
     </div>
   </header>
 
-  <main class="shell">
+  <main id="main" class="shell">
     <section id="problem" class="narrow">
       <h2>Why this matters</h2>
       <p>
@@ -524,8 +111,7 @@
       <p>
         dapp32 moves that workflow description into declarative manifest data
         published by the contract. A generic viewer validates the manifest, then
-        renders a human UI or exposes the same flow as a barebones agent API
-        before preparing wallet actions.
+        renders a human UI or exposes the same flow through the headless TypeScript <code>CamViewerSession</code> library API before preparing wallet actions. This library interface does not provide an HTTP service.
       </p>
     </section>
 
@@ -563,7 +149,7 @@
     <section id="status">
       <h2>Current evidence</h2>
       <ul class="status-list">
-        <li>The local bike NFT scenario deploys a real contract fixture, serves CAM resources, and runs in a graphical viewer.</li>
+        <li>Bike NFT and native-asset escrow both have local real-RPC fixtures, CAM bundles, and generic viewer workflows.</li>
         <li>Runtime packages load CAM hosts, verify resources, resolve contract namespaces, read routes, and prepare writes.</li>
         <li><code>@cam/viewer</code> provides a headless state machine that a terminal, web app, wallet, or agent can drive.</li>
         <li><code>@cam/conformance</code> catches authoring errors across manifests, ABI usage, resources, routes, UI, and typeflow.</li>
@@ -577,8 +163,8 @@
         <h2>Local demo</h2>
         <p>
           The current path is Docker-backed through the Makefile. Dependency
-          installation is explicit and may take time. The GUI target starts a
-          local Anvil chain, deploys the bike NFT fixture, serves CAM resources,
+          installation is explicit and may take time. Choose Bike NFT below or follow the <a href="escrow/">escrow guide</a>. Each GUI target starts a
+          local Anvil chain, deploys its app fixture, serves CAM resources,
           and launches the React viewer through a local gateway. The target
           prints the URL to open in your browser.
         </p>
@@ -613,182 +199,36 @@ make bike-nft-viewer-gui
           </p>
         </article>
         <article class="card">
-          <h3>Demo dapp</h3>
+          <h3>Example dapps</h3>
           <p>
             <a href="bike-nft/"><code>dapps/bike-nft</code></a> exercises
             registration, lookup, metadata updates, a missing report lifecycle,
-            retirement, local deployment, and CAM UI projection.
+            retirement, local deployment, and CAM UI projection. <a href="escrow/">Escrow</a> adds funding, timed work review, arbitration, and separate credit withdrawal.
           </p>
         </article>
       </div>
     </section>
 
-    <section id="roadmap">
-      <h2>Next milestones</h2>
-      <div class="grid two">
-        <article class="card">
-          <h3>Stabilize CAM v0.1</h3>
-          <p>
-            Freeze a small manifest/UI surface, document the authoring model,
-            and keep the trust boundary narrow enough for independent review.
-          </p>
-        </article>
-        <article class="card">
-          <h3>Make validation useful to builders</h3>
-          <p>
-            Turn conformance and integration fuzzing into a clear publication
-            workflow with precise diagnostics before a contract points users at
-            a CAM bundle.
-          </p>
-        </article>
-        <article class="card">
-          <h3>Prove the model outside one demo</h3>
-          <p>
-            Add a second serious dapp so CAM is tested against another contract
-            shape, permission model, and user workflow.
-          </p>
-        </article>
-        <article class="card">
-          <h3>Harden wallet and agent handoff</h3>
-          <p>
-            Refine prepared writes, simulation diagnostics, and the interface a
-            generic client uses before handing work to a wallet or agent.
-          </p>
-        </article>
-      </div>
-    </section>
+    <section id="roadmap" class="narrow"><h2>Build on the current model</h2><p>Escrow uses CAM 1.1.0; Bike NFT uses CAM 1.0.0. Both use UI 1.0.0. Read the <a href="authoring/">authoring guide</a> to connect a host, manifest, ABI resources, routes, and a declarative UI. These are working project interfaces, not a claim of a frozen standard or an independently audited deployment.</p><p>Start with the existing examples and validation lanes. A manifest describes the workflow; the onchain contracts enforce permissions, amounts, and deadlines.</p></section>
 
-    <section id="related">
-      <h2>Adjacent ideas</h2>
-      <p class="narrow">
-        These projects are useful reference points, but most solve a neighboring
-        layer: naming, resource transport, signatures, transaction submission,
-        or distribution. dapp32 is about the UI/workflow layer a contract can
-        publish for a shared viewer or agent-facing interface.
-      </p>
-      <div class="grid two">
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-5169">TokenScript / ERC-5169</a>
-            lets token contracts expose client-side resources, commonly for
-            token-aware wallet experiences. It is useful precedent for
-            contract-discovered UI material, but dapp32 needs a small
-            declarative UI/workflow manifest a generic viewer can validate
-            before rendering.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-4804">ERC-4804 <code>web3://</code></a>
-            is a URL scheme for reading resources through Ethereum contract
-            calls. It tells a client how to fetch something, not what UI to
-            render, which reads to run, which inputs to collect, or which wallet
-            action to prepare.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-3668">CCIP Read / ERC-3668</a>
-            is a contract-authorized offchain lookup pattern using
-            <code>OffchainLookup</code> and callback verification. It helps a
-            contract obtain or verify offchain data, but it does not define the
-            app's screens, navigation, form inputs, or action grammar.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-1577">ENS contenthash</a>
-            points a name at content-addressed resources such as IPFS or Swarm
-            content. It locates bytes, but it does not say whether those bytes
-            are a safe UI manifest, how to validate them, or how they map to
-            contract reads and wallet actions.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-4337">ERC-4337 account abstraction</a>
-            is an account-abstraction system built around smart accounts,
-            UserOperations, bundlers, and paymasters. It changes how
-            transactions are authorized, paid for, and submitted; it starts
-            after the UI/workflow has already produced an action.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-5792">EIP-5792 wallet call batches</a>
-            is a wallet API for sending and tracking one or more calls, with
-            wallet capability discovery. It is a good handoff target after a
-            viewer prepares calls, but it does not define how the dapp publishes
-            the UI flow that leads to those calls.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-712">EIP-712 typed data</a>
-            is a standard for typed, human-readable structured data that wallets
-            can present before signing. It describes a signing payload, not the
-            app UI, route graph, or contract-backed flow that produces that
-            payload.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-681">ERC-681 transaction requests</a>
-            is a URI format for payment and transaction requests. It is useful
-            for one action or one QR code; it is not a multi-screen dapp workflow
-            with reads, inputs, validation, and follow-up actions.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-1193">EIP-1193</a> and
-            <a href="https://eips.ethereum.org/EIPS/eip-6963">EIP-6963</a> are
-            browser/provider standards for talking to wallets and discovering
-            multiple injected wallets. They are wallet plumbing; they do not
-            define the app's screens, contract reads, input model, or prepared
-            action semantics.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://solana.com/docs/advanced/actions">Solana Actions / Blinks</a>
-            are API-driven action descriptors that clients can render as
-            buttons, links, and transaction flows in the Solana ecosystem. They
-            prove the action-surface need, but the authority is an API endpoint;
-            dapp32 anchors the UI/workflow pointer and validation boundary in an
-            Ethereum contract.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://miniapps.farcaster.xyz/">Farcaster Mini Apps</a>
-            are web apps packaged for Farcaster clients, with social context,
-            distribution, and client integration. They are a useful container for
-            apps, but still assume an app runtime; dapp32 targets the smaller
-            contract-defined UI/workflow layer underneath.
-          </p>
-        </article>
-        <article class="card">
-          <p>
-            <a href="https://eips.ethereum.org/EIPS/eip-7572">ERC-7572 contract metadata</a>
-            is a contract-level metadata URI pattern for describing a contract or
-            collection. Metadata describes what a contract is; it does not define
-            an interactive UI flow a shared viewer can execute step by step.
-          </p>
-        </article>
-      </div>
-    </section>
+    <section id="related" class="narrow"><h2>Related specifications and projects</h2><p>Primary references for readers comparing resource discovery, wallet interfaces, signatures, and app distribution:</p><ul><li><a href="https://eips.ethereum.org/EIPS/eip-5169">TokenScript / ERC-5169</a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-4804">ERC-4804 <code>web3://</code></a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-3668">CCIP Read / ERC-3668</a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-1577">ENS contenthash</a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-4337">ERC-4337 account abstraction</a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-5792">EIP-5792 wallet call batches</a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-712">EIP-712 typed data</a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-681">ERC-681 transaction requests</a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-1193">EIP-1193</a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-6963">EIP-6963</a></li>
+<li><a href="https://solana.com/docs/advanced/actions">Solana Actions / Blinks</a></li>
+<li><a href="https://miniapps.farcaster.xyz/">Farcaster Mini Apps</a></li>
+<li><a href="https://eips.ethereum.org/EIPS/eip-7572">ERC-7572 contract metadata</a></li></ul></section>
 
     <section id="archive">
       <h2>Historical PoC</h2>
       <div class="callout">
-        <p>
-          The original 2023 proof of concept ran on Polygon Mumbai. Mumbai was
-          sunset in April 2024, so the old live URL is no longer a working
-          deployment. The <a href="https://github.com/numpde/dapp32/tree/poc">archived branch</a>
-          remains available as historical context, while active development
-          happens on <a href="https://github.com/numpde/dapp32/tree/main"><code>main</code></a>.
-        </p>
+        <p>The <a href="https://github.com/numpde/dapp32/tree/poc">poc branch</a> preserves the historical proof of concept. Use <a href="https://github.com/numpde/dapp32/tree/main">main</a> and the local workflows documented here for the current implementation.</p>
       </div>
     </section>
   </main>

@@ -5,436 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bike NFT - dapp32</title>
   <meta name="description" content="Bike NFT is a dapp32 contract-defined bicycle component registry with ERC-721 component tokens, manager-owned permissions, and CAM routes a generic viewer can render.">
-  <style>
-    :root {
-      color-scheme: light dark;
-      --ink: #1b2430;
-      --muted: #647386;
-      --soft: #f5f7fa;
-      --panel: #ffffff;
-      --chrome: #fbfcfe;
-      --line: #d8e0ea;
-      --green: #116b5f;
-      --blue: #244f86;
-      --rust: #a44631;
-      --code: #edf2f7;
-      --shadow: 0 16px 34px rgba(23, 32, 43, 0.08);
-    }
-
-    :root[data-theme="light"] {
-      color-scheme: light;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root:not([data-theme="light"]) {
-        color-scheme: dark;
-        --ink: #e8eef6;
-        --muted: #a7b4c5;
-        --soft: #0f141b;
-        --panel: #151c25;
-        --chrome: #111820;
-        --line: #2a3442;
-        --green: #5cc1aa;
-        --blue: #8bb7f0;
-        --rust: #e18a72;
-        --code: #202a36;
-        --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
-      }
-    }
-
-    :root[data-theme="dark"] {
-      color-scheme: dark;
-      --ink: #e8eef6;
-      --muted: #a7b4c5;
-      --soft: #0f141b;
-      --panel: #151c25;
-      --chrome: #111820;
-      --line: #2a3442;
-      --green: #5cc1aa;
-      --blue: #8bb7f0;
-      --rust: #e18a72;
-      --code: #202a36;
-      --shadow: 0 16px 34px rgba(0, 0, 0, 0.35);
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    html {
-      scroll-behavior: smooth;
-    }
-
-    body {
-      margin: 0;
-      color: var(--ink);
-      background: var(--soft);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.55;
-    }
-
-    a {
-      color: var(--green);
-      text-decoration-thickness: 1px;
-      text-underline-offset: 3px;
-    }
-
-    code {
-      padding: 2px 5px;
-      border-radius: 4px;
-      background: var(--code);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.92em;
-    }
-
-    .shell {
-      width: min(1120px, calc(100% - 32px));
-      margin: 0 auto;
-    }
-
-    .topbar {
-      border-bottom: 1px solid var(--line);
-      background: var(--chrome);
-    }
-
-    .topbar .shell {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-      min-height: 66px;
-    }
-
-    .brand {
-      color: var(--ink);
-      font-weight: 800;
-      text-decoration: none;
-    }
-
-    nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 14px;
-      font-size: 0.94rem;
-    }
-
-    .topbar-actions {
-      display: flex;
-      align-items: center;
-      gap: 18px;
-    }
-
-    nav a {
-      color: var(--muted);
-      text-decoration: none;
-    }
-
-    .theme-toggle {
-      position: relative;
-      display: inline-grid;
-      grid-template-columns: 1fr 1fr;
-      place-items: center;
-      width: 66px;
-      height: 34px;
-      padding: 0 7px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--panel);
-      color: var(--ink);
-      font: inherit;
-      font-size: 0.92rem;
-      cursor: pointer;
-      box-shadow: inset 0 1px 2px rgba(23, 32, 43, 0.08);
-    }
-
-    .theme-toggle:hover {
-      border-color: var(--green);
-    }
-
-    .theme-toggle:focus-visible {
-      outline: 3px solid color-mix(in srgb, var(--green), transparent 68%);
-      outline-offset: 2px;
-    }
-
-    .theme-toggle::before {
-      content: "";
-      position: absolute;
-      top: 3px;
-      left: 3px;
-      width: 28px;
-      height: 28px;
-      border-radius: 999px;
-      background: var(--green);
-      box-shadow: 0 4px 10px rgba(17, 107, 95, 0.25);
-      transition: transform 160ms ease;
-    }
-
-    .theme-toggle[data-theme-state="dark"]::before {
-      transform: translateX(32px);
-    }
-
-    .theme-toggle span {
-      position: relative;
-      z-index: 1;
-      line-height: 1;
-      color: var(--muted);
-    }
-
-    .theme-toggle[data-theme-state="light"] .theme-sun,
-    .theme-toggle[data-theme-state="dark"] .theme-moon {
-      color: #ffffff;
-    }
-
-    header {
-      padding: 54px 0 42px;
-      background: var(--chrome);
-      border-bottom: 1px solid var(--line);
-    }
-
-    .hero {
-      display: grid;
-      grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.8fr);
-      gap: 34px;
-      align-items: center;
-    }
-
-    h1 {
-      margin: 0;
-      max-width: 820px;
-      font-size: clamp(2.4rem, 7vw, 5.1rem);
-      line-height: 0.98;
-      letter-spacing: 0;
-    }
-
-    .lede {
-      max-width: 760px;
-      margin: 20px 0 0;
-      color: var(--muted);
-      font-size: clamp(1.05rem, 2vw, 1.24rem);
-    }
-
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 28px;
-    }
-
-    .button {
-      display: inline-flex;
-      align-items: center;
-      min-height: 42px;
-      padding: 9px 14px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: var(--panel);
-      color: var(--ink);
-      font-weight: 700;
-      text-decoration: none;
-    }
-
-    .button.primary {
-      border-color: var(--green);
-      background: var(--green);
-      color: #ffffff;
-    }
-
-    .registry-panel {
-      padding: 18px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-      box-shadow: var(--shadow);
-    }
-
-    .registry-panel h2 {
-      margin: 0 0 14px;
-      font-size: 1rem;
-    }
-
-    .component-card {
-      padding: 14px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--soft);
-    }
-
-    .serial {
-      margin: 0 0 10px;
-      color: var(--green);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-weight: 800;
-      overflow-wrap: anywhere;
-    }
-
-    .status-row {
-      display: grid;
-      grid-template-columns: 118px 1fr;
-      gap: 10px;
-      padding: 8px 0;
-      border-top: 1px solid var(--line);
-    }
-
-    .status-row span {
-      color: var(--muted);
-      font-size: 0.88rem;
-    }
-
-    .status-row strong {
-      font-size: 0.94rem;
-    }
-
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
-    }
-
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      min-height: 30px;
-      padding: 5px 9px;
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      background: var(--panel);
-      color: var(--muted);
-      font-size: 0.84rem;
-      font-weight: 700;
-    }
-
-    main {
-      padding: 34px 0 60px;
-    }
-
-    section {
-      margin-top: 42px;
-    }
-
-    h2 {
-      margin: 0 0 14px;
-      font-size: 1.55rem;
-      letter-spacing: 0;
-    }
-
-    h3 {
-      margin: 0 0 8px;
-      font-size: 1rem;
-    }
-
-    p {
-      margin: 0 0 14px;
-    }
-
-    .narrow {
-      max-width: 820px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      margin-top: 18px;
-    }
-
-    .two {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .card {
-      padding: 18px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-    }
-
-    .card p,
-    li {
-      color: var(--muted);
-    }
-
-    .flow {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 18px;
-    }
-
-    .flow-step {
-      position: relative;
-      padding: 18px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-    }
-
-    .flow-step strong {
-      display: block;
-      margin-bottom: 6px;
-      color: var(--green);
-    }
-
-    .flow-step p {
-      margin: 0;
-      color: var(--muted);
-    }
-
-    .route-table {
-      overflow-x: auto;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-    }
-
-    table {
-      width: 100%;
-      min-width: 760px;
-      border-collapse: collapse;
-    }
-
-    th,
-    td {
-      padding: 11px 12px;
-      border-bottom: 1px solid var(--line);
-      text-align: left;
-      vertical-align: top;
-    }
-
-    th {
-      color: var(--muted);
-      font-size: 0.78rem;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      white-space: nowrap;
-    }
-
-    tr:last-child td {
-      border-bottom: 0;
-    }
-
-    @media (max-width: 900px) {
-      .hero,
-      .grid,
-      .two,
-      .flow {
-        grid-template-columns: 1fr;
-      }
-
-      .topbar .shell {
-        align-items: flex-start;
-        flex-direction: column;
-        justify-content: center;
-        padding: 14px 0;
-      }
-
-      .topbar-actions {
-        align-items: flex-start;
-        flex-direction: column;
-        gap: 12px;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="../site.css">
   <script>
     (function () {
       try {
@@ -449,12 +20,15 @@
   </script>
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to content</a>
   <div class="topbar">
     <div class="shell">
       <a class="brand" href="../">dapp32</a>
       <div class="topbar-actions">
         <nav aria-label="Primary">
           <a href="../">Overview</a>
+          <a href="../escrow/">Escrow</a>
+          <a href="../authoring/">Authoring</a>
           <a href="#workflow">Workflow</a>
           <a href="#authority">Authority</a>
           <a href="#cam">CAM routes</a>
@@ -513,17 +87,18 @@
     </div>
   </header>
 
-  <main class="shell">
+  <main id="main" class="shell">
     <section id="what" class="narrow">
       <h2>What the app does</h2>
       <p>
-        The app models a bicycle component registry. A trusted registrar creates
-        a verified record for a physical component serial number and mints a
+        The app models a bicycle component registry. A role-authorized registrar creates
+        a registry record for a physical component serial number and mints a
         normal ERC-721 token to the owner. The manager contract stores the
         serial lookup, status, registrar, timestamps, token contract, and token
         id. The NFT contract remains a regular token contract, so wallets and
         indexers can treat component ownership normally.
       </p>
+      <p>“Verified” here identifies a registrar-created record; the contract does not inspect the physical component or prove its authenticity.</p>
       <p>
         The visible app is defined by CAM resources. A host contract publishes
         the manifest URI/hash and contract address bindings; the generic viewer
@@ -549,7 +124,7 @@
         </article>
         <article class="flow-step">
           <strong>4. Finalize</strong>
-          <p>The owner can retire the component; retirement remains registry-final even if the NFT later transfers.</p>
+          <p>The owner or a delegate with retirement capability can retire an active component. Resolve an open missing report first; retirement remains final even if the NFT later transfers.</p>
         </article>
       </div>
     </section>
@@ -617,8 +192,7 @@
         <article class="card">
           <h3>Owner authority</h3>
           <p>
-            Current ERC-721 owners can update component metadata, open missing
-            reports, resolve missing reports, and retire components. The
+            Current ERC-721 owners can update metadata while active or missing, open a report while active, resolve it while missing, and retire only an active component. The
             manager contract also supports scoped delegation. V1 CAM uses active
             delegations to expose delegate-authorized actions, but does not
             expose a grant/revoke workflow.
@@ -725,7 +299,7 @@
               <td>write</td>
               <td><code>retireComponent(serialNumber)</code></td>
               <td><code>routes.component(serialNumber=$inputs.serialNumber)</code></td>
-              <td>Owner or delegate moves the registry record to final retired state.</td>
+              <td>Owner or retirement delegate retires an active record. Resolve a missing report first.</td>
             </tr>
           </tbody>
         </table>

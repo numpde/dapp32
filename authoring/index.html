@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Author a CAM workflow · dapp32</title>
+<meta name="description" content="Connect a host contract, CAM manifest, ABI resources, routes and a declarative UI using the working dapp32 examples.">
+<link rel="stylesheet" href="../site.css">
+<script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem("dapp32-theme")
+        if (storedTheme === "light" || storedTheme === "dark") {
+          document.documentElement.dataset.theme = storedTheme
+        }
+      } catch (error) {
+        document.documentElement.removeAttribute("data-theme")
+      }
+    })()
+  </script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar">
+<div class="shell">
+<a class="brand" href="../">dapp32</a>
+<nav aria-label="Primary">
+<a href="../">Overview</a>
+<a href="../bike-nft/">Bike NFT</a>
+<a href="../escrow/">Escrow</a>
+<a href="#examples">Examples</a>
+</nav>
+</div>
+</div>
+<header>
+<div class="shell">
+<h1>Author a contract-defined workflow</h1>
+<p class="lede">Use a host contract to publish a manifest, explicit routes to describe reads and writes, and a small UI catalog to collect inputs and display contract state. Start from the checked-in Bike NFT or escrow bundle.</p>
+</div>
+</header>
+<main id="main" class="shell">
+<section class="narrow">
+<h2>Give each part one responsibility</h2>
+<ol>
+<li>
+<strong>The business contract</strong> enforces permissions, amounts, lifecycle transitions, and deadlines. It must remain safe when callers bypass the UI.</li>
+<li>
+<strong>The host</strong>, currently <code>CamRoot</code>, publishes <code>camURI</code> and <code>camHash</code> and resolves contract namespace names to chain-specific addresses. Its owner controls that publication and those bindings.</li>
+<li>
+<strong>
+<code>cam/main.json</code>
+</strong> declares the CAM version, entry route, namespaces, resources, and routes. Escrow uses <code>"cam": "1.1.0"</code>; Bike NFT uses <code>"cam": "1.0.0"</code>. The current reader supports both.</li>
+<li>
+<strong>ABI resources</strong> describe contract calls. Contract namespaces point directly to <code>./abi/ContractName.json</code>; the manifest pins those bytes with SHA-256 integrity.</li>
+<li>
+<strong>
+<code>cam/ui.json</code>
+</strong> declares named UI nodes; current UI version is <code>1.0.0</code>. Its bytes are also pinned in the manifest.</li>
+<li>
+<strong>An optional read projection</strong> returns semantic views and permitted action IDs. It aggregates business state without forwarding writes or becoming an authorization subject.</li>
+</ol>
+<p>The host's manifest hash is <strong>Keccak-256 of the exact root manifest bytes</strong>. ABI/UI resource integrity uses SHA-256. Escrow document digests also use SHA-256, but are application commitments with a different purpose. Do not interchange these hashes.</p>
+</section>
+<section id="examples">
+<h2>Follow the actual escrow read route</h2>
+<p class="narrow">This complete route excerpt comes from <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/cam/main.json">escrow's manifest</a>. It reads the projection for the currently viewed account and hands the first output to the UI's <code>app</code> node. It belongs inside <code>routes</code>, not in a standalone manifest.</p>
+<pre class="code-block" data-source-route="escrow:createAgreementForm">
+<code>{
+  "kind": "read",
+  "inputs": [],
+  "call": {
+    "namespace": "contracts.CamEscrowUI",
+    "function": "viewCreateAgreement",
+    "args": { "client": "$account.address" }
+  },
+  "then": {
+    "namespace": "ui",
+    "function": "app",
+    "args": { "view": "$outputs.0" }
+  }
+}</code>
+</pre>
+<p class="narrow">The contract namespace declares its ABI URI and integrity in <code>namespaces</code>; the host supplies its deployed address. Route argument names must match the ABI. <code>$inputs</code> refers to declared route inputs, <code>$account.address</code> to the account being viewed, and <code>$outputs.0</code> to the first call output. These are protocol expressions, not JavaScript.</p>
+</section>
+<section>
+<h2>Keep calldata and payment together</h2>
+<p class="narrow">CAM 1.1 permits native transaction value. Escrow's creation route uses the same nested amount for calldata and value. After a confirmed write, the declared continuation looks up the new agreement by client and reference.</p>
+<pre class="code-block" data-source-route="escrow:createAgreement">
+<code>{
+  "kind": "write",
+  "inputs": ["params"],
+  "value": "$inputs.params.amount",
+  "call": {
+    "namespace": "contracts.CamEscrow",
+    "function": "createAgreement",
+    "args": { "params": "$inputs.params" }
+  },
+  "then": {
+    "namespace": "routes",
+    "function": "lookupAgreement",
+    "args": {
+      "client": "$account.address",
+      "agreementRef": "$inputs.params.agreementRef"
+    }
+  }
+}</code>
+</pre>
+<p class="narrow">Read routes continue to UI nodes. Write routes continue to another route. A prepared write is calldata and value for simulation and wallet review; it is not authorization or proof of execution. The business contract must reject invalid calls even if a UI advertises them.</p>
+</section>
+<section>
+<h2>Compose a declarative UI</h2>
+<p class="narrow">Named nodes declare <code>requires: ["view"]</code> when they receive a view argument. <code>Include</code> calls UI nodes, <code>Button</code> calls routes, and fields bind local <code>state.key</code> values that expressions can read through <code>$state</code>. Escrow's <code>app</code> node selects a named screen using <code>$view.viewId</code>.</p>
+<div class="route-table">
+<table>
+<caption>Current UI elements and their purpose</caption>
+<thead>
+<tr>
+<th>Elements</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Screen, Fragment</td>
+<td>A titled screen or a group of children.</td>
+</tr>
+<tr>
+<td>Text, Address, Status, Nft</td>
+<td>Display text, addresses, values, and NFT references. Address displays an address; it is not an input field.</td>
+</tr>
+<tr>
+<td>TextField</td>
+<td>Collect text, including manually entered document URIs and digests.</td>
+</tr>
+<tr>
+<td>AmountField</td>
+<td>Collect an exact base-unit amount with native/display-unit conversion, using a declared unit.</td>
+</tr>
+<tr>
+<td>NonNegativeIntegerField</td>
+<td>Collect whole nonnegative decimal integers with optional min/max bounds; escrow sets a minimum of 1 for durations.</td>
+</tr>
+<tr>
+<td>Include, Button</td>
+<td>Compose named UI nodes or dispatch declared routes.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="narrow">This complete anonymous field excerpt is from <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/cam/ui.json">escrow's UI</a>; place it among a node's children:</p>
+<pre class="code-block" data-source-ui="escrow:AmountField">
+<code>{
+  "element": "AmountField",
+  "props": {
+    "label": "Escrow amount",
+    "unit": {
+      "assetId": "native", "baseLabel": "wei",
+      "displayLabel": "Native asset", "decimals": 18
+    }
+  },
+  "state": { "key": "amount", "defaultValue": "" }
+}</code>
+</pre>
+<p class="narrow">Use <code>enabledWhen</code> against contract-provided action IDs to disable unavailable actions. This improves the rendered workflow but does not replace onchain enforcement. There is no supported automatic document-upload or document-hashing component; escrow uses TextField and external SHA-256 calculation.</p>
+</section>
+<section class="narrow">
+<h2>Validate the bundle before publishing</h2>
+<p>Keep Solidity under <code>dapps/&lt;name&gt;/src/</code> and tests under <code>test/</code>. Deliberately create <code>cam/abi/</code> before ABI export. This guide explains the existing bundles; it is not a one-command scaffold for a new dapp. A new dapp also needs explicit ABI outputs admitted in <a href="https://github.com/numpde/dapp32/blob/main/compose/forge-abi.yml">compose/forge-abi.yml</a> and a manifest output admitted in <a href="https://github.com/numpde/dapp32/blob/main/compose/cam.yml">compose/cam.yml</a>. Follow their existing mount patterns and the rendered-config checks under <a href="https://github.com/numpde/dapp32/tree/main/tests/checks">tests/checks</a>; do not grant writes over the repository root.</p>
+<pre class="code-block">
+<code>make deps
+make package-deps
+make abi
+make cam-conformance-check
+make checks</code>
+</pre>
+<p>
+<code>make abi</code> exports manifest-declared ABIs and refreshes local integrity pins. For UI-only resource edits, <code>make cam-integrity</code> refreshes pins without ABI export. Inspect generated changes and run the relevant contract, package, and local workflow checks. Conformance validates deterministic publication joins and resource integrity; it does not prove live authorization, RPC reliability, wallet behavior, or security.</p>
+<p>For the existing escrow app, <code>make escrow-release-deploy</code> plans and deploys a release only with its required explicit confirmation, chain, publication, owner, secret-file, and output settings; <code>make escrow-release-verify</code> verifies that recorded release. Use the complete commands and prerequisite publication steps in <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/README.md#release-deployment">escrow's release guide</a> and the shared <a href="https://github.com/numpde/dapp32/blob/main/docs/release-ceremony.md">release ceremony</a>. They own root-hash calculation and address binding; replace no required settings with guesses. New dapps need their own deliberate deployment wiring. Viewers validate contract-returned manifests, resources, URLs, and actions as untrusted input. A matching hash proves byte identity, not an audit or an honest publisher.</p>
+</section>
+<section class="narrow">
+<h2>Open and inspect a workflow</h2>
+<p>The browser startup query accepts <code>chainId</code>, <code>host</code>, <code>account</code>, and <code>rpcUrl</code>, all required. The local Make target prints the complete URL. Read-route navigation uses the fragment, for example <code>#route=agreement&amp;agreementId=0x…</code>. Structured inputs can use a JSON <code>inputs</code> fragment; numeric ABI inputs must be decimal strings rather than JSON numbers.</p>
+<p>The account query selects read context; a connected wallet supplies actual signing identity and must match the selected chain. Resource-origin and unsigned-manifest policy are viewer configuration, not extra URL parameters. URLs and fragments are visible: do not put secrets in them.</p>
+<p>Compare <a href="https://github.com/numpde/dapp32/tree/main/dapps/bike-nft/cam">Bike NFT's bundle</a> with <a href="https://github.com/numpde/dapp32/tree/main/dapps/escrow/cam">escrow's bundle</a>, then follow each package README for its local fixture and release workflow.</p>
+</section>
+</main>
+</body>
+</html>

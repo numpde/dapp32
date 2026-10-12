@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Escrow user guide · dapp32</title>
+<meta name="description" content="Use the local CAM escrow workflow: funding, deadlines, work evidence, arbitration and withdrawal.">
+<link rel="stylesheet" href="../site.css">
+<script>
+    (function () {
+      try {
+        var storedTheme = localStorage.getItem("dapp32-theme")
+        if (storedTheme === "light" || storedTheme === "dark") {
+          document.documentElement.dataset.theme = storedTheme
+        }
+      } catch (error) {
+        document.documentElement.removeAttribute("data-theme")
+      }
+    })()
+  </script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+<div class="topbar">
+<div class="shell">
+<a class="brand" href="../">dapp32</a>
+<nav aria-label="Primary">
+<a href="../">Overview</a>
+<a href="../bike-nft/">Bike NFT</a>
+<a href="../authoring/">Authoring</a>
+<a href="#try">Try locally</a>
+</nav>
+</div>
+</div>
+<header>
+<div class="shell">
+<h1>Escrow: fund, review, settle</h1>
+<p class="lede">A client locks a native-asset payment for one contractor milestone. The contractor accepts and submits work; the client approves or disputes it. An arbitrator can decide a dispute. Deadlines provide a fallback when a party does not act.</p>
+<div class="actions">
+<a class="button primary" href="#try">Try the local workflow</a>
+<a class="button" href="https://github.com/numpde/dapp32/tree/main/dapps/escrow">Source and release guide</a>
+</div>
+</div>
+</header>
+<main id="main" class="shell">
+<section class="narrow">
+<h2>Choose the three parties</h2>
+<p>The account that sends the successful creation transaction becomes the <strong>client</strong> and funds the agreement. The <strong>contractor</strong> accepts and submits work. The <strong>arbitrator</strong>, selected by the client, may award the entire disputed payment to either party.</p>
+<p>The three addresses must differ. Contractor and arbitrator must be nonzero and cannot be the escrow contract. Naming an arbitrator does not confirm their consent: there is no onchain acknowledgement step, fee, or guarantee of independence or availability. Agree on participation and terms before funding.</p>
+</section>
+<section id="try">
+<h2>Try locally with Docker</h2>
+<p class="narrow">From the repository's <code>main</code> branch, use the Docker-backed Make targets. Dependency installation is the explicit networked step. The GUI starts a disposable Anvil chain, deploys escrow and its read projection, serves the checked-in CAM bundle, and prints the browser URL. The default listener is <code>127.0.0.1:5174</code>. This guide is documentation; it does not provide a hosted escrow app or attest to a public deployment.</p>
+<pre class="code-block">
+<code>git clone https://github.com/numpde/dapp32.git
+cd dapp32
+make deps
+make package-deps
+make cam-conformance-check
+make escrow-viewer-gui</code>
+</pre>
+<div class="grid">
+<article class="card">
+<h3>Browse without a wallet</h3>
+<p>The printed URL starts with the local client as the address being viewed. That identity selects role-specific views; it cannot sign transactions. Read navigation works without a wallet. Preparing and simulating a write does not fund or change an agreement.</p>
+</article>
+<article class="card">
+<h3>Use a fixture wallet</h3>
+<p>Sending requires an injected browser wallet connected to the fixture chain and account. Connecting replaces the viewed identity with the wallet address. Switch accounts for contractor or arbitrator actions. In a separate browser wallet profile, add chain ID <code>31337</code> with RPC URL <code>http://127.0.0.1:5174/rpc</code> (or the printed GUI origin followed by <code>/rpc</code> if you changed the port). Import the local fixture keys from <a href="https://github.com/numpde/dapp32/blob/main/compose/escrow/local/deploy.yml">compose/escrow/local/deploy.yml</a>: <code>PRIVATE_KEY</code> is client/root owner; the named contractor, arbitrator, and finalizer keys select the other three roles. Deployment funds all four accounts for local transactions. These repeated-pattern keys are public and unsafe on any other chain; keep real funds and valuable keys out of this disposable chain.</p>
+</article>
+<article class="card">
+<h3>Other local modes</h3>
+<p>
+<code>make escrow-viewer-terminal</code> reads real local RPC state and prepares writes, but does not sign or submit them. <code>make escrow-local-scenario</code> automatically exercises all nine terminal settlement paths and complete withdrawal through the viewer stack.</p>
+</article>
+</div>
+<p class="narrow">The GUI target cleans up when its foreground command exits. After an interrupted run, use <code>make escrow-viewer-gui-down</code>. A fakechain preview, where used in development, is an in-memory fixture; it does not prove real RPC, wallet approval, transaction confirmation, or deployment behavior.</p>
+</section>
+<section class="narrow">
+<h2>Create and fund</h2>
+<ol>
+<li>Choose a reference unique to the client in this escrow contract. It cannot be reused after closure. Lookup uses the exact text, including case and spaces; the limit is 128 UTF-8 bytes.</li>
+<li>Enter contractor and arbitrator addresses, a positive amount, and four durations. AmountField accepts native-asset or wei input: 1 native asset equals 10<sup>18</sup> wei. Creation sends exactly the specified amount; gas fees are separate.</li>
+<li>Enter whole-second durations from 1 through 31,536,000 (365 days). Choose the immutable arbitration-timeout recipient: <code>1</code> for client or <code>2</code> for contractor.</li>
+<li>Supply the agreed terms URI and exact-file SHA-256 digest as described below.</li>
+<li>Prepare the transaction, inspect amount and destination, then submit with the wallet. Wait for confirmation and the refreshed agreement view before treating it as funded.</li>
+</ol>
+<p>Save the agreement ID shown after creation, together with the network and escrow contract address. The ID is derived from the client and exact reference; it does not commit to all agreement terms. Reopen by ID or by client/reference on that same contract and network.</p>
+</section>
+<section id="phases">
+<h2>Act before the deadline, finalize after it</h2>
+<p class="narrow">Each phase starts at the successful transaction's block time. Ordinary actions require a block time strictly before its deadline. At or after the deadline, anyone can send the corresponding timeout transaction. Timeouts never execute automatically. The contract's enabled actions are authoritative; a displayed action can become unavailable before execution.</p>
+<div class="route-table">
+<table>
+<caption>Active phases and whole-payment outcomes</caption>
+<thead>
+<tr>
+<th>State and clock start</th>
+<th>Before deadline</th>
+<th>At or after deadline</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Funded · creation</td>
+<td>Contractor accepts; client may cancel for client credit.</td>
+<td>Acceptance timeout credits client.</td>
+</tr>
+<tr>
+<td>Accepted · acceptance</td>
+<td>Contractor submits committed work evidence.</td>
+<td>Work timeout credits client.</td>
+</tr>
+<tr>
+<td>Submitted · submission</td>
+<td>Client approves for contractor credit, or disputes with evidence.</td>
+<td>Review timeout credits contractor.</td>
+</tr>
+<tr>
+<td>Disputed · dispute</td>
+<td>Arbitrator awards the entire amount to client or contractor.</td>
+<td>Arbitration timeout credits the recipient fixed at creation.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="narrow">V1 has no partial awards, multiple milestones, deadline extensions, appeals, amendments, or resubmission. A terminal state cannot reopen.</p>
+</section>
+<section id="documents" class="narrow">
+<h2>Documents: publish and hash the exact bytes</h2>
+<p>Terms, work submission, and dispute evidence each require a URI and a nonzero SHA-256 digest. Publish the agreed file where the parties can retrieve it. Compute SHA-256 outside the form over the exact saved file bytes, then paste <code>0x</code> plus the 64 hexadecimal characters into the digest field. On Linux, for example:</p>
+<pre class="code-block">
+<code>sha256sum "terms.txt"
+# Paste 0x followed by the hash, without the filename.</code>
+</pre>
+<p>The current form does not upload files or compute their hashes. Hash the file, not its URI text; changing even whitespace changes the digest. Each URI is limited to 512 UTF-8 bytes. The contract stores the URI and digest without retrieving or checking the file or matching the digest. The URI is a public retrieval hint, not a promise of availability. Verify retrieved bytes independently against the stored digest.</p>
+<p>Onchain references are public. Encrypt sensitive material before publication and hash the exact published bytes. Agree separately on how authorized parties obtain decryption keys; do not put secrets in URLs or agreement fields.</p>
+</section>
+<section class="narrow">
+<h2>Settlement is followed by withdrawal</h2>
+<p>Cancellation, approval, arbitration, or timeout closes the agreement and adds its entire amount to one party's withdrawable credit. It does not send funds to that party's wallet. Open the account-credit view with the credited account and prepare <code>withdrawTo</code>.</p>
+<p>The credit owner sends a separate transaction that withdraws their <strong>complete aggregated credit</strong>, potentially from several agreements, to the entered recipient. The recipient may differ from the credit owner, must be able to receive the native asset, and cannot be zero or the escrow contract. Check that address before signing. A failed transfer reverts the withdrawal.</p>
+<p>If a wallet rejects a request or a view refresh fails, inspect the transaction status and reopen the agreement or credit view before retrying. Preparation, submission, confirmation, settlement credit, and withdrawal are separate steps.</p>
+</section>
+<section class="narrow">
+<h2>Trust and publication boundaries</h2>
+<p>
+<code>CamEscrow</code> is immutable and has no owner, pause, fee, sweep, upgrade, or recovery path. Its read-only <code>CamEscrowUI</code> maps core-provided actions into stable route names. <code>CamRoot</code> has an owner who can change the CAM pointer and address bindings; integrity pins protect byte identity, not the quality or trustworthiness of a publication.</p>
+<p>For public-network planning and verification, use the source <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/README.md">release guide</a> and <a href="https://github.com/numpde/dapp32/blob/main/docs/release-ceremony.md">release ceremony</a>. Local workflow checks do not constitute a security audit or prove a public deployment.</p>
+</section>
+</main>
+</body>
+</html>

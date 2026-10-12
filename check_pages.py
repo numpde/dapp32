@@ -7,7 +7,14 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 
+SOURCE_ARCHIVE_ROOT: Path | None = None
+
 BIKE_CAM_MANIFEST_RELATIVE = Path("dapps/bike-nft/cam/main.json")
+CHECKED_SOURCE_PATHS = (
+    BIKE_CAM_MANIFEST_RELATIVE,
+    Path("dapps/escrow/cam/main.json"),
+    Path("dapps/escrow/cam/ui.json"),
+)
 
 REMOVED_COPY = (
     "Reference CAM dapp",
@@ -131,6 +138,11 @@ def find_bike_cam_manifest() -> Path:
 
 
 def verify_clean_manifest(repo_root: Path) -> None:
+    if SOURCE_ARCHIVE_ROOT is not None:
+        if repo_root != SOURCE_ARCHIVE_ROOT:
+            raise RuntimeError("source archive root changed during validation")
+        return
+
     worktree = subprocess.run(
         ["git", "-C", str(repo_root), "rev-parse", "--is-inside-work-tree"],
         check=False,
@@ -147,7 +159,7 @@ def verify_clean_manifest(repo_root: Path) -> None:
         )
 
     status = subprocess.run(
-        ["git", "-C", str(repo_root), "status", "--porcelain", "--", str(BIKE_CAM_MANIFEST_RELATIVE)],
+        ["git", "-C", str(repo_root), "status", "--porcelain", "--", *(str(path) for path in CHECKED_SOURCE_PATHS)],
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -156,13 +168,13 @@ def verify_clean_manifest(repo_root: Path) -> None:
     if status.returncode != 0:
         detail = status.stderr.strip() or status.stdout.strip()
         raise RuntimeError(
-            f"could not inspect manifest path {BIKE_CAM_MANIFEST_RELATIVE} in "
+            f"could not inspect documentation source paths in "
             f"DAPP32_REPO_ROOT={repo_root}."
             + (f"\nGit said: {detail}" if detail else "")
         )
     if status.stdout.strip():
         raise RuntimeError(
-            f"manifest path {BIKE_CAM_MANIFEST_RELATIVE} is dirty in "
+            f"documentation source paths are dirty in "
             f"DAPP32_REPO_ROOT={repo_root}:\n{status.stdout.rstrip()}"
         )
 
@@ -185,5 +197,106 @@ def main() -> None:
             raise AssertionError(f"removed copy remains in published pages: {phrase}")
 
 
+class PageParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.ids: set[str] = set()
+        self.links: list[str] = []
+        self.examples: list[tuple[str, str]] = []
+        self.example_owner: str | None = None
+        self.example_text: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attributes = dict(attrs)
+        if attributes.get("id"):
+            identifier = attributes["id"]
+            if identifier in self.ids:
+                raise AssertionError(f"duplicate page ID: {identifier}")
+            self.ids.add(identifier)
+        if tag == "a" and attributes.get("href"):
+            self.links.append(attributes["href"])
+        if tag == "link" and attributes.get("href"):
+            self.links.append(attributes["href"])
+        if tag == "pre":
+            owner = attributes.get("data-source-route") or attributes.get("data-source-ui")
+            if owner:
+                self.example_owner = owner
+                self.example_text = []
+
+    def handle_data(self, text: str) -> None:
+        if self.example_owner:
+            self.example_text.append(text)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "pre" and self.example_owner:
+            self.examples.append((self.example_owner, "".join(self.example_text)))
+            self.example_owner = None
+
+
+def check_local_links_and_examples(root: Path, repo_root: Path) -> None:
+    from urllib.parse import unquote, urlsplit
+
+    pages: dict[Path, PageParser] = {}
+    for page in root.rglob("*.html"):
+        parser = PageParser()
+        parser.feed(page.read_text(encoding="utf-8"))
+        if "main" not in parser.ids:
+            raise AssertionError(f"missing skip-link destination: {page}")
+        pages[page.resolve()] = parser
+
+    for page, parser in pages.items():
+        for href in parser.links:
+            target = urlsplit(href)
+            if target.scheme:
+                if target.scheme != "https":
+                    raise AssertionError(f"unsupported published link: {page}: {href}")
+                continue
+            if target.netloc:
+                raise AssertionError(f"scheme-relative link: {page}: {href}")
+            destination = (page.parent / unquote(target.path)).resolve() if target.path else page
+            if destination.is_dir():
+                destination /= "index.html"
+            if not destination.is_relative_to(root.resolve()) or not destination.is_file():
+                raise AssertionError(f"missing or out-of-site local link: {page}: {href}")
+            if target.fragment and target.fragment not in pages[destination].ids:
+                raise AssertionError(f"missing fragment target: {page}: {href}")
+
+        for owner, text in parser.examples:
+            dapp, name = owner.split(":", 1)
+            bundle = repo_root / "dapps" / dapp / "cam"
+            example = json.loads(text)
+            if "kind" in example:
+                expected = json.loads((bundle / "main.json").read_text())["routes"][name]
+                if example != expected:
+                    raise AssertionError(f"route example differs from source: {owner}")
+            else:
+                def contains(value: object) -> bool:
+                    if value == example:
+                        return True
+                    if isinstance(value, dict):
+                        return any(contains(child) for child in value.values())
+                    if isinstance(value, list):
+                        return any(contains(child) for child in value)
+                    return False
+
+                ui = json.loads((bundle / "ui.json").read_text())
+                if example.get("element") != name or not contains(ui):
+                    raise AssertionError(f"UI example differs from source: {owner}")
+
+
 if __name__ == "__main__":
+    import argparse
+
+    argument_parser = argparse.ArgumentParser(description="Check published docs against a clean source checkout or explicit git archive export.")
+    argument_parser.add_argument("--source-archive", type=Path, help="source directory produced by git archive of the reviewed commit; default checks DAPP32_REPO_ROOT git cleanliness")
+    arguments = argument_parser.parse_args()
+    if arguments.source_archive:
+        if (arguments.source_archive / ".git").exists():
+            raise RuntimeError("--source-archive requires a git archive export, not a worktree")
+        os.environ["DAPP32_REPO_ROOT"] = str(arguments.source_archive)
+        # Archive exports contain committed bytes only; no worktree exists to inspect.
+        SOURCE_ARCHIVE_ROOT = arguments.source_archive
+
     main()
+    check_local_links_and_examples(Path(__file__).resolve().parent, Path(os.environ["DAPP32_REPO_ROOT"]))
+    print("Pages checks passed: bike routes, local links, fragments, and source-backed JSON examples.")
