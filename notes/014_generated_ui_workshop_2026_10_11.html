@@ -326,6 +326,31 @@
   guidance and errors, transaction summaries, arbitration wording, screen-reader
   behavior and real wallet-extension validation remain open.</p>
 
+  <h2>Escrow task copy and composition — 12 October 2026</h2>
+  <p>The app JSON now gives creation, agreement, closed agreement, missing
+  agreement and withdrawal their own Screen titles through the existing Include
+  dispatch. The primary task precedes ID navigation. Client/reference lookup is
+  named separately, viewed identities are labelled precisely, and transaction
+  preparation is distinguished from wallet submission and confirmed funding.
+  Agreement views use the audited arbitrator non-consent disclosure instead of
+  two redundant acknowledgement rows. Closed status does not imply unwithdrawn
+  credit; settlement and withdrawal remain separate. Calls, availability, form
+  defaults and contract behavior are unchanged.</p>
+  <p>Blind teach-back exposed the original task, lookup and preparation ambiguity.
+  Fresh readers understood the final distinctions, aggregate account credit and
+  arbitrator non-consent after source review. Wallet connection and identity
+  enforcement questions remain with the viewer shell. Three public screen tests
+  failed before the change; all 489 workspace tests, 19 escrow release checks,
+  153 hygiene checks and canonical publication preflight passed afterward. The
+  maintained read-only browser suite passed on the existing Chromium tab with
+  the new contract-anchored root, including creation, missing agreement and empty
+  credit at narrow widths. Active and closed agreement composition was verified
+  through public screen resolution, not fresh live agreements. The temporary
+  existing-tab runner used DOM input/click delivery; this does not add native
+  pointer or wallet-extension proof. Local fixture deployment transactions
+  refreshed the publication; browser validation sent no application transactions.
+  No renderer, schema, wallet shell or Solidity changes were needed.</p>
+
   <h2>Generation pitfalls to gate</h2>
   <p>Avoid attractive cards around the same flat inventory; frontend role/state
   permission mirrors; floating-point financial formatting; hidden essential facts;

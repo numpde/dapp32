@@ -185,7 +185,7 @@ async function enter(name, value) {
   await waitFor(async state => (await field(name)) === value, `${name} edit`)
 }
 async function clickButton(label) {
-  if (label !== 'Prepare funded agreement') {
+  if (label !== 'Prepare creation transaction') {
     const clicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return false; button.click(); return true })()`)
     assert(clicked, `${label} button is absent or disabled`)
     return
@@ -304,7 +304,7 @@ async function browserCase(name, run) {
 async function freshForm() {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId)
   await openViewer(viewer.href)
-  await waitFor(async state => state.heading === 'Native-asset escrow' && (await field('agreementRef')) !== undefined, 'fresh create form', true)
+  await waitFor(async state => state.heading === 'Create and fund an escrow agreement' && (await field('agreementRef')) !== undefined, 'fresh create form', true)
 }
 async function openViewer(location) {
   await call('Page.navigate', { url: 'about:blank' }, sessionId)
@@ -320,9 +320,11 @@ try {
   await call('Runtime.enable', {}, sessionId)
   await call('Network.enable', {}, sessionId)
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const ready = await waitFor(state => state.heading === 'Native-asset escrow', 'Escrow root view', true)
+  const ready = await waitFor(state => state.heading === 'Create and fund an escrow agreement', 'Escrow root view', true)
   assert(ready.text.includes('Agreement reference'), 'Escrow form did not render')
+  assert(ready.text.indexOf('Agreement reference') < ready.text.indexOf('Already have an agreement ID?'), 'creation task precedes ID navigation')
   const resources = [cam.href, new URL('./ui.json', cam).href, new URL('./abi/CamEscrow.json', cam).href, new URL('./abi/CamEscrowUI.json', cam).href]
+  await waitFor(() => resources.every(resource => loaded.has(resource)), 'CAM resource completion events')
   for (const resource of resources) assert(loaded.has(resource), `required CAM resource did not finish: ${resource}`)
   assert(rootRequestId, 'root CAM request was not observed')
   const rootResponse = await call('Network.getResponseBody', { requestId: rootRequestId }, sessionId)
@@ -355,21 +357,23 @@ try {
     }
   })
   await evaluate(`document.querySelectorAll('button') && [...document.querySelectorAll('button')].find(button => button.textContent.includes('View account credit'))?.click()`)
-  await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'account credit view', false)
+  const creditView = await waitFor(state => state.text.includes('Total withdrawable credit in wei'), 'account credit view', false)
+  assert.equal(creditView.heading, 'Withdraw account credit')
+  assert(creditView.text.indexOf('Withdrawal recipient') < creditView.text.indexOf('Already have an agreement ID?'), 'withdrawal task precedes ID navigation')
   await browserCase('empty-credit controls share input boundaries and narrow reflow', async () => {
     for (const width of [1280, 320, 375]) {
       await assertNarrowUi('account credit', width)
       await assertWorkingSurface(`account credit at ${width}px`)
     }
     assert.equal(await evaluate("document.querySelector('input[name=recipient]')?.matches(':disabled')"), true, 'empty credit recipient must remain visible and disabled')
-    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Withdraw complete credit')?.disabled"), true, 'empty credit withdrawal must remain visible and disabled')
+    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Prepare withdrawal transaction')?.disabled"), true, 'empty credit withdrawal must remain visible and disabled')
   })
 
   await browserCase('known agreement ID without create inputs', async () => {
     await freshForm()
     const knownId = `0x${'ab'.repeat(32)}`
     await enter('agreementId', knownId)
-    await clickButton('Open agreement')
+    await clickButton('Open agreement by ID')
     await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'known ID lookup')
     assert((await evaluate('document.body.innerText')).includes(knownId), 'lookup did not show the requested agreement ID')
     for (const width of [1280, 320, 375]) {
@@ -402,7 +406,7 @@ try {
     await freshForm()
     const first = `0x${'ad'.repeat(32)}`
     await enter('agreementId', first)
-    await clickButton('Open agreement')
+    await clickButton('Open agreement by ID')
     await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'lookup URL synchronization')
     const committed = new URL(await evaluate('location.href'))
     const fragment = new URLSearchParams(committed.hash.slice(1))
@@ -413,7 +417,7 @@ try {
     await enter('agreementId', second)
     assert.equal(await evaluate('location.href'), committed.href, 'editing changed the selected agreement URL')
     await enter('agreementId', 'not-an-identifier')
-    await clickButton('Open agreement')
+    await clickButton('Open agreement by ID')
     await waitFor(async () => (await feedback('notice'))?.role === 'alert' && !await evaluate('document.querySelector(".elements")?.disabled'), 'rejected lookup')
     assert.equal(await evaluate('location.href'), committed.href, 'failed lookup changed the committed URL')
     assert.equal(await field('agreementId'), 'not-an-identifier', 'failed lookup discarded correction input')
@@ -424,13 +428,13 @@ try {
     await freshForm()
     await enter('agreementRef', 'hash-back-draft')
     await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
-    await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'live fragment credit navigation')
+    await waitFor(state => state.text.includes('Total withdrawable credit in wei'), 'live fragment credit navigation')
     await clickButton('Back')
     await waitFor(async () => (await field('agreementRef')) === 'hash-back-draft', 'fragment navigation Back draft')
     const returned = new URLSearchParams(new URL(await evaluate('location.href')).hash.slice(1))
     assert.equal(returned.get('route'), 'createAgreementForm')
     await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
-    await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'credit before clearing fragment')
+    await waitFor(state => state.text.includes('Total withdrawable credit in wei'), 'credit before clearing fragment')
     await evaluate("location.hash = ''")
     await waitFor(async () => (await field('agreementRef')) !== undefined, 'clear fragment manifest entry')
     const entry = new URLSearchParams(new URL(await evaluate('location.href')).hash.slice(1))
@@ -455,7 +459,7 @@ try {
       for (const requestId of heldRequests.splice(0)) await call('Fetch.continueRequest', { requestId }, sessionId)
       await call('Fetch.disable', {}, sessionId)
       intercept = undefined
-      await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'original credit read commits')
+      await waitFor(state => state.text.includes('Total withdrawable credit in wei'), 'original credit read commits')
       assert.equal(new URLSearchParams(new URL(await evaluate('location.href')).hash.slice(1)).get('route'), 'accountCredit')
       await clickButton('Back')
       await waitFor(async () => (await field('agreementRef')) === 'pending-link-draft', 'pending read Back draft')
@@ -547,7 +551,7 @@ try {
     await amountInput('display','0.0300')
     await evaluate(`document.querySelector('input[name="amount.display"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
     await waitFor(async () => (await field('amount')) === '', 'unfinished amount before navigation')
-    await clickButton('Look up agreement')
+    await clickButton('Find agreement by client and reference')
     await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'lookup during unfinished amount')
     await clickButton('Back')
     await waitFor(async () => (await field('amount.display')) === '0.0300', 'restored unfinished amount')
@@ -635,7 +639,7 @@ try {
     await fillDraft()
     await evaluate(`document.querySelector('input[name="acceptanceDuration"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
     await waitFor(async () => await evaluate(`document.getElementById(document.querySelector('input[name="acceptanceDuration"]').getAttribute('aria-describedby'))?.textContent.includes('Finish entering')`),'integer composition start')
-    await clickButton('Look up agreement')
+    await clickButton('Find agreement by client and reference')
     await waitFor(state=>state.text.includes('No agreement is stored for this identifier.'),'lookup with unfinished integer')
     await clickButton('Back')
     await waitFor(async ()=>(await field('acceptanceDuration'))==='3600','restored unfinished integer')
@@ -667,24 +671,24 @@ try {
   await browserCase('integer preparation uses canonical values while preserving active lexical spelling', async () => {
     await fillDraft()
     await enter('acceptanceDuration','0003600')
-    await clickButton('Prepare funded agreement')
+    await clickButton('Prepare creation transaction')
     await waitFor(async ()=>Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')),'integer prepared review')
     const review=await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
     assert.equal(JSON.parse(review.Args).params.acceptanceDuration,'3600')
     assert.equal(await field('acceptanceDuration'),'0003600')
     await enter('acceptanceDuration','1.5')
     assert(await evaluate(`document.querySelector('.prepared-call')===null`),'invalid integer retained an already prepared call')
-    await clickButton('Prepare funded agreement')
+    await clickButton('Prepare creation transaction')
     await waitFor(async ()=>Boolean((await feedback('notice'))?.text),'invalid integer preparation rejection')
     assert(await evaluate(`document.querySelector('.prepared-call')===null`),'invalid integer produced a new prepared call')
     assert.equal(transactionRequests.length,0,'integer preparation sent a transaction')
   })
   await browserCase('draft survives lookup, credit, and Back twice', async () => {
     await fillDraft()
-    await clickButton('Look up agreement')
+    await clickButton('Find agreement by client and reference')
     await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'reference lookup')
     await clickButton('View account credit')
-    await waitFor(state => state.text.includes('Withdrawable amount in wei'), 'credit from lookup')
+    await waitFor(state => state.text.includes('Total withdrawable credit in wei'), 'credit from lookup')
     await clickButton('Back')
     await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'Back to lookup')
     await clickButton('Back')
@@ -696,7 +700,7 @@ try {
   await browserCase('prepare rejection feedback', async () => {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')
-    await clickButton('Prepare funded agreement')
+    await clickButton('Prepare creation transaction')
     await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.text || ''), 'decoded prepare rejection')
     const rejected = await feedback('notice')
     assert(rejected.role === 'alert' || rejected.role === 'status', 'prepare rejection is not announced')
@@ -708,18 +712,18 @@ try {
   await browserCase('repeated rejection and ordinary editing focus', async () => {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')
-    await clickButton('Prepare funded agreement')
+    await clickButton('Prepare creation transaction')
     await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.text || ''), 'first rejection')
     await enter('amount', '43')
     assert.equal(await evaluate("document.activeElement?.getAttribute('name')"), 'amount', 'editing stole focus from amount')
-    await clickButton('Prepare funded agreement')
+    await clickButton('Prepare creation transaction')
     await waitFor(async () => (await feedback('notice'))?.focus === true, 'repeat rejection focus')
     assert.equal(await field('amount'), '43', 'repeat rejection discarded edit')
   })
 
   await browserCase('prepared review feedback', async () => {
     await fillDraft()
-    await clickButton('Prepare funded agreement')
+    await clickButton('Prepare creation transaction')
     await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')), 'prepared review')
     const prepared = await feedback('prepared')
     assert(prepared.top >= 0 && prepared.top < prepared.height && prepared.bottom > 0, 'prepared review is outside the viewport')
@@ -732,7 +736,7 @@ try {
       await fillDraft()
       await amountInput('display',display)
       await waitFor(async () => (await field('amount')) === base, 'canonical amount before preparation')
-      await clickButton('Prepare funded agreement')
+      await clickButton('Prepare creation transaction')
       await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')), 'exact amount prepared review')
       const review = await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
       assert.equal(JSON.parse(review.Args).params.amount, base, 'prepared tuple amount changed precision')
@@ -747,7 +751,7 @@ try {
     intercept = 'hold'
     await call('Fetch.enable', {patterns:[{urlPattern:rpc.href,requestStage:'Request'}]}, sessionId)
     try {
-      await clickButton('Prepare funded agreement')
+      await clickButton('Prepare creation transaction')
       await waitFor(() => heldRequests.length > 0, 'paused preparation simulation')
       const simulationRequests = heldRequests.map(requestId => {
         const networkId = heldNetworkRequests.get(requestId)
@@ -773,7 +777,7 @@ try {
 
   await browserCase('discard prepared review preserves draft', async () => {
     await fillDraft()
-    await clickButton('Prepare funded agreement')
+    await clickButton('Prepare creation transaction')
     await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')), 'review before discard')
     await clickButton('Discard prepared call')
     await waitFor(async () => await evaluate("document.querySelector('.prepared-call') === null && document.activeElement === document.querySelector('.ui')"), 'discarded review and current-view focus')
@@ -783,9 +787,9 @@ try {
 
   await browserCase('explicit new agreement clears draft', async () => {
     await fillDraft()
-    await clickButton('Look up agreement')
+    await clickButton('Find agreement by client and reference')
     await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'lookup before new')
-    await clickButton('Create another agreement')
+    await clickButton('Create an agreement')
     await waitFor(async () => (await field('agreementRef')) !== undefined, 'explicit new agreement')
     assert.equal(await field('agreementRef'), '', 'explicit new agreement retained the old reference')
     assert.equal(await field('amount'), '', 'explicit new agreement retained the old amount')
@@ -801,7 +805,7 @@ try {
   intercept = 'tamper'
   await call('Page.navigate', { url: viewer.href }, sessionId)
   const tampered = await waitFor(state => state.text.includes('Cannot load viewer') && /CAM hash mismatch/i.test(state.text), 'CAM hash rejection', true)
-  assert.notEqual(tampered.heading, 'Native-asset escrow', 'tampered CAM rendered as ready')
+  assert.notEqual(tampered.heading, 'Create and fund an escrow agreement', 'tampered CAM rendered as ready')
   assert(/CAM hash mismatch/i.test(tampered.text), 'tampered CAM did not report a hash mismatch')
 
   // A failed fetch must leave Loading and identify the URL and cause.

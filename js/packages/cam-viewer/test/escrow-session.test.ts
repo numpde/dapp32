@@ -140,8 +140,8 @@ async function assertCredit(
   let displayedAmount: unknown
   let recipientDisabled: boolean | undefined
   forEachResolvedUiNode(snapshot.resolvedUi, (node) => {
-    if (node.element === "Address" && node.props.label === "Account") displayedAccount = node.props.address
-    if (node.element === "Status" && node.props.label === "Withdrawable amount in wei") displayedAmount = node.props.value
+    if (node.element === "Address" && node.props.label === "Account being viewed") displayedAccount = node.props.address
+    if (node.element === "Status" && node.props.label === "Total withdrawable credit in wei") displayedAmount = node.props.value
     if (node.element === "TextField" && node.state.key === "recipient") recipientDisabled = node.disabled === true
   })
   assert.equal(displayedAccount, account)

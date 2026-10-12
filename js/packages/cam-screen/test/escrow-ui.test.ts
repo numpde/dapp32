@@ -46,6 +46,59 @@ const CONTEXT: UiRuntimeContext = {
   state: EMPTY_RECORD,
 }
 
+test("escrow tasks own their screen titles and place ID lookup after the task", async () => {
+  const ui = await escrowUi()
+  for (const [view, title, primaryField] of [
+    [createView(), "Create and fund an escrow agreement", "agreementRef"],
+    [agreementView({ viewId: "escrow.agreement.active", stateId: "submitted", transitionIds: [] }), "View and manage an escrow agreement", "submissionUri"],
+    [agreementView({ viewId: "escrow.agreement.terminal", stateId: "released.clientApproval", transitionIds: [] }), "View a closed escrow agreement", "submissionUri"],
+    [{ viewId: "escrow.credit.empty", account: ACCOUNT, amount: "0", actions: [] }, "Withdraw account credit", "recipient"],
+    [{ viewId: "escrow.credit.available", account: ACCOUNT, amount: "1", actions: ["withdrawTo"] }, "Withdraw account credit", "recipient"],
+  ] as const) {
+    const { resolvedUi } = resolveInitialUiNode(ui, "app", args(view), CONTEXT)
+    assert.equal(resolvedUi.element, "Screen")
+    assert.equal(resolvedUi.props.title, title)
+    const fields: string[] = []
+    forEachResolvedUiNode(resolvedUi, (node) => {
+      if ("state" in node) fields.push(node.state.key)
+    })
+    assert.ok(fields.indexOf(primaryField) < fields.indexOf("agreementId"), `${view.viewId} leads with its task`)
+  }
+})
+
+test("creation distinguishes client-reference lookup from independent ID lookup and preparing funding", async () => {
+  const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
+  const labels: string[] = []
+  const texts: string[] = []
+  forEachResolvedUiNode(resolvedUi, (node) => {
+    if (node.element === "Address") labels.push(String(node.props.label))
+    if (node.element === "Text") texts.push(String(node.props.text))
+  })
+  assert.ok(labels.includes("Proposed client (address being viewed)"))
+  assert.match(String(requiredButton(resolvedUi, "lookupAgreement").props.label), /client and reference/i)
+  assert.deepEqual(plain(requiredButton(resolvedUi, "lookupAgreement").call.args), { client: ACCOUNT, agreementRef: "" })
+  assert.match(String(requiredButton(resolvedUi, "agreement").props.label), /by ID/)
+  assert.match(String(requiredButton(resolvedUi, "createAgreement").props.label), /Prepare/)
+  assert.ok(texts.some((text) => text.includes("submit it separately") && text.includes("confirmed transaction")))
+})
+
+test("agreement copy describes the viewed role and arbitrator non-consent without contradictory acknowledgement rows", async () => {
+  const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(agreementView({
+    viewId: "escrow.agreement.terminal", stateId: "released.clientApproval", transitionIds: [],
+  })), CONTEXT)
+  const labels: string[] = []
+  const texts: string[] = []
+  forEachResolvedUiNode(resolvedUi, (node) => {
+    if (node.element === "Status") labels.push(String(node.props.label))
+    if (node.element === "Text") texts.push(String(node.props.text))
+  })
+  assert.ok(labels.includes("Role of the address being viewed"))
+  assert.ok(!labels.some((label) => /acknowledgement/i.test(label)))
+  assert.ok(texts.some((text) => text.includes("does not confirm they have agreed to arbitrate")))
+  assert.ok(texts.some((text) => text.startsWith("Agreement-changing actions") && text.includes("Submit it separately")))
+  assert.ok(texts.some((text) => text.includes("closed") && text.includes("no further agreement-changing actions")))
+})
+
 test("escrow limits declare exact readable units without changing contract values", async () => {
   const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
   const displayed = new Map<string, string>()
@@ -103,9 +156,9 @@ test("escrow creation screen resolves nested payable calldata from one form", as
     "workDuration",
   ])
   assert.deepEqual(buttonFunctions(resolvedUi), [
-    "agreement",
     "createAgreement",
     "lookupAgreement",
+    "agreement",
     "accountCredit",
   ])
 
@@ -236,11 +289,11 @@ test("escrow active screen enables only projected transitions", async () => {
   )
 
   assert.deepEqual(availableButtonFunctions(resolvedUi), [
-    "agreement",
     "approveAgreement",
     "disputeAgreement",
     "accountCredit",
     "createAgreementForm",
+    "agreement",
   ])
   assert.deepEqual(resolvedUiInputNames(resolvedUi), [
     "agreementId",
@@ -275,9 +328,9 @@ test("escrow terminal screen resolves with no machine transition", async () => {
   )
 
   assert.deepEqual(availableButtonFunctions(resolvedUi), [
-    "agreement",
     "accountCredit",
     "createAgreementForm",
+    "agreement",
   ])
   assert.deepEqual(resolvedUiInputNames(resolvedUi), [
     "agreementId", "disputeDigest", "disputeUri", "submissionDigest", "submissionUri",
@@ -407,9 +460,9 @@ test("escrow available-credit screen binds withdrawal recipient to the account",
   )
 
   assert.deepEqual(buttonFunctions(resolvedUi), [
-    "agreement",
     "withdrawTo",
     "createAgreementForm",
+    "agreement",
   ])
   assert.deepEqual(resolvedUiInputNames(resolvedUi), ["agreementId", "recipient"])
   assert.equal(state.recipient, ACCOUNT)
