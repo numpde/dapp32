@@ -434,7 +434,7 @@ try {
     await actor('arbitrator', 'Resolve dispute for contractor')
     await assertEvidenceAvailability([])
     await send('Resolve dispute for contractor')
-    await waitFor(state => state.text.includes('This agreement is terminal') && state.buttons.some(button => button.name === 'View account credit' && !button.disabled), 'resolved agreement')
+    await waitFor(state => /\bState\s+released\.arbitratorToContractor\b/.test(state.text) && state.buttons.some(button => button.name === 'View account credit' && !button.disabled), 'resolved agreement')
     await assertEvidenceAvailability([])
     await evaluate("window.__fixtureSetRole('contractor');true")
     await click('Switch wallet')

@@ -82,6 +82,90 @@ test("creation distinguishes client-reference lookup from independent ID lookup 
   assert.ok(texts.some((text) => text.includes("submit it separately") && text.includes("confirmed transaction")))
 })
 
+test("creation explains required party, reference and document inputs beside their fields", async () => {
+  const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
+  const reference = precedingHelp(resolvedUi, "agreementRef")
+  assert.match(reference, /required/i)
+  assert.match(reference, /unique for this client/i)
+  assert.match(reference, /case and spaces/)
+  assert.match(reference, /separate agreement ID/)
+  const parties = precedingHelp(resolvedUi, "contractor")
+  assert.match(parties, /40 hexadecimal/)
+  assert.match(parties, /all-zero placeholders/)
+  assert.match(parties, /must differ/)
+  assert.match(precedingHelp(resolvedUi, "amount"), /positive amount/)
+  assert.match(precedingHelp(resolvedUi, "amount"), /1,000,000,000,000,000,000 wei/)
+  const terms = precedingHelp(resolvedUi, "termsUri")
+  assert.match(terms, /both terms fields are required/i)
+  assert.match(terms, /exact file bytes, not the URI text/)
+  assert.match(terms, /Linux example:.*sha256sum/)
+  assert.match(terms, /0x followed by.*64 hexadecimal/)
+  assert.match(terms, /without fetching.*matching digest/)
+  assert.match(precedingHelp(resolvedUi, "agreementId"), /0x followed by 64 hexadecimal/)
+  assert.match(precedingHelp(resolvedUi, "agreementId"), /differs from the client’s reference/)
+})
+
+test("each creation duration explains its start and timeout beneficiary beside the field", async () => {
+  const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(createView()), CONTEXT)
+  assert.match(precedingHelp(resolvedUi, "acceptanceDuration"), /required whole seconds/)
+  assert.match(precedingHelp(resolvedUi, "acceptanceDuration"), /do not execute automatically/)
+  const nodes: ResolvedUiNode[] = []
+  forEachResolvedUiNode(resolvedUi, (node) => nodes.push(node))
+  for (const [field, start, recipient] of [
+    ["acceptanceDuration", "creation", "client"],
+    ["workDuration", "acceptance", "client"],
+    ["reviewDuration", "submission", "contractor"],
+    ["arbitrationDuration", "dispute", "chosen timeout recipient"],
+  ]) {
+    const index = nodes.findIndex((node) => "state" in node && node.state.key === field)
+    const help = nodes[index + 1]
+    assert.ok(help?.element === "Text", `${field} has adjacent phase help`)
+    const text = String(help.props.text)
+    assert.ok(text.includes(`Starts at ${start}.`))
+    assert.ok(text.includes(`At or after it, anyone can finalize full credit to the ${recipient}`))
+  }
+})
+
+test("agreement evidence fields explain external hashing and required pairs even when disabled", async () => {
+  const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(agreementView({
+    viewId: "escrow.agreement.terminal", stateId: "released.clientApproval", transitionIds: [],
+  })), CONTEXT)
+  for (const field of ["submissionUri", "disputeUri"]) {
+    const help = precedingHelp(resolvedUi, field)
+    assert.match(help, /both fields are required/)
+    assert.match(help, /512 UTF-8 bytes/)
+    assert.match(help, /exact file bytes, not the URI text/)
+    assert.match(help, /Linux example: sha256sum/)
+    assert.match(help, /0x plus 64 hexadecimal/)
+    assert.match(help, /does not upload or hash files/)
+  }
+  const texts: string[] = []
+  forEachResolvedUiNode(resolvedUi, (node) => {
+    if (node.element === "Text") texts.push(String(node.props.text))
+  })
+  assert.ok(texts.some((text) => /0 means closed, with no timeout/.test(text)))
+  assert.ok(texts.some((text) => /claimed SHA-256 fingerprint/.test(text) && /do not fetch or verify/.test(text)))
+  assert.ok(texts.some((text) => /empty evidence URI and all-zero digest/.test(text)))
+})
+
+test("credit distinguishes the credit owner, full amount and withdrawal destination", async () => {
+  for (const amount of ["0", "1000000000000000000"]) {
+    const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args({
+      viewId: amount === "0" ? "escrow.credit.empty" : "escrow.credit.available",
+      account: ACCOUNT, amount, actions: amount === "0" ? [] : ["withdrawTo"],
+    }), CONTEXT)
+    const help = precedingHelp(resolvedUi, "recipient")
+    assert.match(help, /may differ from the credit owner/)
+    assert.match(help, /40 hexadecimal/)
+    assert.match(help, /zero address and this escrow contract are not allowed/)
+    const texts: string[] = []
+    forEachResolvedUiNode(resolvedUi, (node) => {
+      if (node.element === "Text") texts.push(String(node.props.text))
+    })
+    assert.ok(texts.some((text) => /Only the credit owner can withdraw/.test(text) && /entire credit/.test(text)))
+  }
+})
+
 test("agreement copy describes the viewed role and arbitrator non-consent without contradictory acknowledgement rows", async () => {
   const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(agreementView({
     viewId: "escrow.agreement.terminal", stateId: "released.clientApproval", transitionIds: [],
@@ -94,7 +178,7 @@ test("agreement copy describes the viewed role and arbitrator non-consent withou
   })
   assert.ok(labels.includes("Role of the address being viewed"))
   assert.ok(!labels.some((label) => /acknowledgement/i.test(label)))
-  assert.ok(texts.some((text) => text.includes("does not confirm they have agreed to arbitrate")))
+  assert.ok(texts.some((text) => /arbitrator.*does not confirm.*consent/.test(text)))
   assert.ok(texts.some((text) => text.startsWith("Agreement-changing actions") && text.includes("Submit it separately")))
   assert.ok(texts.some((text) => text.includes("closed") && text.includes("no further agreement-changing actions")))
 })
@@ -130,7 +214,7 @@ test("agreement durations use declared units while monetary values remain exact 
   assert.equal(displayed.get("Work duration"), "2 hours (7,200 seconds)")
   assert.equal(displayed.get("Review duration"), "1 hour (3,600 seconds)")
   assert.equal(displayed.get("Arbitration duration"), "1 day (86,400 seconds)")
-  assert.equal(displayed.get("Amount in wei"), "1000000000000000000")
+  assert.equal(displayed.get("Original escrow amount in wei"), "1000000000000000000")
 })
 
 test("escrow creation screen resolves nested payable calldata from one form", async () => {
@@ -564,6 +648,16 @@ function requiredField(resolvedUi: ResolvedUiNode, name: string): ResolvedUiNode
   })
   assert.notEqual(field, undefined, `missing resolved field: ${name}`)
   return field as ResolvedUiNode
+}
+
+function precedingHelp(resolvedUi: ResolvedUiNode, name: string): string {
+  const nodes: ResolvedUiNode[] = []
+  forEachResolvedUiNode(resolvedUi, (node) => nodes.push(node))
+  const index = nodes.findIndex((node) => "state" in node && node.state.key === name)
+  assert.ok(index > 0, `missing field or preceding help: ${name}`)
+  const help = nodes[index - 1]
+  assert.ok(help?.element === "Text", `${name} has adjacent help`)
+  return String(help.props.text)
 }
 
 function requiredButton(

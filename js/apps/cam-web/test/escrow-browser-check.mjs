@@ -322,7 +322,7 @@ try {
   await call('Page.navigate', { url: viewer.href }, sessionId)
   const ready = await waitFor(state => state.heading === 'Create and fund an escrow agreement', 'Escrow root view', true)
   assert(ready.text.includes('Agreement reference'), 'Escrow form did not render')
-  assert(ready.text.indexOf('Agreement reference') < ready.text.indexOf('Already have an agreement ID?'), 'creation task precedes ID navigation')
+  assert(ready.text.indexOf('Agreement reference') < ready.text.indexOf('Paste an agreement ID copied from an agreement view:'), 'creation task precedes ID navigation')
   const resources = [cam.href, new URL('./ui.json', cam).href, new URL('./abi/CamEscrow.json', cam).href, new URL('./abi/CamEscrowUI.json', cam).href]
   await waitFor(() => resources.every(resource => loaded.has(resource)), 'CAM resource completion events')
   for (const resource of resources) assert(loaded.has(resource), `required CAM resource did not finish: ${resource}`)
@@ -359,7 +359,7 @@ try {
   await evaluate(`document.querySelectorAll('button') && [...document.querySelectorAll('button')].find(button => button.textContent.includes('View account credit'))?.click()`)
   const creditView = await waitFor(state => state.text.includes('Total withdrawable credit in wei'), 'account credit view', false)
   assert.equal(creditView.heading, 'Withdraw account credit')
-  assert(creditView.text.indexOf('Withdrawal recipient') < creditView.text.indexOf('Already have an agreement ID?'), 'withdrawal task precedes ID navigation')
+  assert(creditView.text.indexOf('Withdrawal recipient') < creditView.text.indexOf('Paste an agreement ID copied from an agreement view:'), 'withdrawal task precedes ID navigation')
   await browserCase('empty-credit controls share input boundaries and narrow reflow', async () => {
     for (const width of [1280, 320, 375]) {
       await assertNarrowUi('account credit', width)
@@ -374,7 +374,7 @@ try {
     const knownId = `0x${'ab'.repeat(32)}`
     await enter('agreementId', knownId)
     await clickButton('Open agreement by ID')
-    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'known ID lookup')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'known ID lookup')
     assert((await evaluate('document.body.innerText')).includes(knownId), 'lookup did not show the requested agreement ID')
     for (const width of [1280, 320, 375]) {
       await assertNarrowUi('agreement lookup', width)
@@ -388,7 +388,7 @@ try {
     const linked = new URL(viewer)
     linked.hash = new URLSearchParams({ route: 'agreement', inputs: JSON.stringify({ agreementId: id }) }).toString()
     await openViewer(linked.href)
-    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'initial linked agreement', true)
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'initial linked agreement', true)
     assert.equal(await field('agreementId'), id, 'selected ID was not supplied to the lookup draft')
     assert.equal(await field('agreementRef'), undefined, 'initial read link rendered a creation draft')
     assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Back')?.disabled"), true, 'initial direct link created phantom history')
@@ -396,7 +396,7 @@ try {
     const loader = (await call('Page.getFrameTree', {}, sessionId)).frameTree.frame.loaderId
     await call('Page.reload', {}, sessionId)
     await waitFor(async () => (await call('Page.getFrameTree', {}, sessionId)).frameTree.frame.loaderId !== loader, 'linked refresh document')
-    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'linked agreement refresh', true)
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'linked agreement refresh', true)
     assert.equal(await field('agreementId'), id)
     assert.equal(await evaluate('location.href'), committed)
     assert.equal(transactionRequests.length, 0, 'opening a read link requested a transaction')
@@ -407,7 +407,7 @@ try {
     const first = `0x${'ad'.repeat(32)}`
     await enter('agreementId', first)
     await clickButton('Open agreement by ID')
-    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'lookup URL synchronization')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup URL synchronization')
     const committed = new URL(await evaluate('location.href'))
     const fragment = new URLSearchParams(committed.hash.slice(1))
     assert.equal(fragment.get('route'), 'agreement')
@@ -552,7 +552,7 @@ try {
     await evaluate(`document.querySelector('input[name="amount.display"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
     await waitFor(async () => (await field('amount')) === '', 'unfinished amount before navigation')
     await clickButton('Find agreement by client and reference')
-    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'lookup during unfinished amount')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup during unfinished amount')
     await clickButton('Back')
     await waitFor(async () => (await field('amount.display')) === '0.0300', 'restored unfinished amount')
     assert.equal(await field('amount'), '', 'Back authorized an unfinished composition')
@@ -640,7 +640,7 @@ try {
     await evaluate(`document.querySelector('input[name="acceptanceDuration"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
     await waitFor(async () => await evaluate(`document.getElementById(document.querySelector('input[name="acceptanceDuration"]').getAttribute('aria-describedby'))?.textContent.includes('Finish entering')`),'integer composition start')
     await clickButton('Find agreement by client and reference')
-    await waitFor(state=>state.text.includes('No agreement is stored for this identifier.'),'lookup with unfinished integer')
+    await waitFor(state=>state.text.includes('No agreement is stored for this ID in this escrow contract.'),'lookup with unfinished integer')
     await clickButton('Back')
     await waitFor(async ()=>(await field('acceptanceDuration'))==='3600','restored unfinished integer')
     assert(await evaluate(`document.querySelector('input[name="acceptanceDuration"]').getAttribute('aria-describedby')!==null`),'Back authorized unfinished integer')
@@ -686,11 +686,11 @@ try {
   await browserCase('draft survives lookup, credit, and Back twice', async () => {
     await fillDraft()
     await clickButton('Find agreement by client and reference')
-    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'reference lookup')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'reference lookup')
     await clickButton('View account credit')
     await waitFor(state => state.text.includes('Total withdrawable credit in wei'), 'credit from lookup')
     await clickButton('Back')
-    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'Back to lookup')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'Back to lookup')
     await clickButton('Back')
     await waitFor(async () => (await field('agreementRef')) !== undefined, 'Back to draft')
     for (const [name, value] of Object.entries(draft)) assert.equal(await field(name), value, `${name} draft was lost`)
@@ -788,7 +788,7 @@ try {
   await browserCase('explicit new agreement clears draft', async () => {
     await fillDraft()
     await clickButton('Find agreement by client and reference')
-    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'lookup before new')
+    await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'lookup before new')
     await clickButton('Create an agreement')
     await waitFor(async () => (await field('agreementRef')) !== undefined, 'explicit new agreement')
     assert.equal(await field('agreementRef'), '', 'explicit new agreement retained the old reference')

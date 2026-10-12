@@ -351,6 +351,43 @@
   refreshed the publication; browser validation sent no application transactions.
   No renderer, schema, wallet shell or Solidity changes were needed.</p>
 
+  <h2>Escrow field guidance and multi-party walkthrough — 12 October 2026</h2>
+  <p>Creation, active and closed agreements, missing-agreement lookup and credit
+  withdrawal now explain their fields through existing Text elements. Guidance
+  distinguishes the client-scoped reference from the contract-derived ID,
+  required party addresses and document references from zero placeholders,
+  native-asset amounts from wei, and each phase's start and deadline consequence.
+  Document help explains externally computed SHA-256 over exact file bytes, with
+  a Linux command example, and separates a recorded fingerprint from verified
+  content. Agreement help explains state, role, original funded amount and zero
+  closed deadline. Withdrawal distinguishes the credit owner, destination and
+  full aggregate amount. The unused workflow-identifier row was removed; calls,
+  defaults, availability and contract behavior remain unchanged.</p>
+  <p>Source review and fresh, context-isolated teach-back checked the delivered
+  copy. Readers understood the field requirements and consequences; the final
+  review added a practical hashing command and clarified that closed agreements
+  need no timeout finalization. Four new public screen tests failed on the old
+  copy and passed after revision. Final validation passed 493 workspace tests,
+  19 escrow release checks, 153 repository checks and canonical publication
+  preflight. Maintained browser text anchors were updated; the complete browser
+  regression suite was not rerun for this copy revision.</p>
+  <p>A recorded local walkthrough used the existing Chromium tab and the same
+  Anvil chain with client, contractor and arbitrator fixture accounts. Six
+  successful application transactions in blocks 20–25 created and funded,
+  accepted, submitted work, disputed, awarded to the contractor and withdrew
+  agreement <code>0x9ab2089f3a09371f35e8305b6fe08949d87614e0d87e33599ea35c4ee3c5b757</code>.
+  The withdrawal transferred exactly <code>1,000,000,000,000,000 wei</code>, with
+  the recipient balance change checked including gas, and remaining credit was
+  zero. The harness paused after resolution because it waited for an obsolete
+  human sentence. Public DOM evidence showed that old predicate false and the
+  resolved state plus enabled credit action present. Its maintained wait now
+  checks <code>released.arbitratorToContractor</code>; recording continued with
+  only the withdrawal on the same agreement, without replaying earlier writes.
+  This proves the local fixture workflow, not a real wallet extension or live
+  network deployment. Temporary receipt, document and balance evidence is in
+  <code>/tmp/dapp32-multiparty-fields-20261012/movie-final-state.json</code>;
+  the wait comparison is in <code>terminal-anchor-proof.json</code> beside it.</p>
+
   <h2>Generation pitfalls to gate</h2>
   <p>Avoid attractive cards around the same flat inventory; frontend role/state
   permission mirrors; floating-point financial formatting; hidden essential facts;
