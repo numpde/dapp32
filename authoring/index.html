@@ -63,7 +63,7 @@
 </section>
 <section id="examples">
 <h2>Follow the actual escrow read route</h2>
-<p class="narrow">This complete route excerpt comes from <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/cam/main.json">escrow's manifest</a>. It reads the projection for the currently viewed account and hands the first output to the UI's <code>app</code> node. It belongs inside <code>routes</code>, not in a standalone manifest.</p>
+<p class="narrow">This complete route excerpt comes from <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/cam/main.json">escrow's manifest</a>. It reads the projection for the currently viewed account and hands the first output to the UI's <code>app</code> node. In <code>main.json</code>, place this object at <code>routes.createAgreementForm</code>; it is not a standalone manifest.</p>
 <pre class="code-block" data-source-route="escrow:createAgreementForm">
 <code>{
   "kind": "read",
@@ -84,7 +84,7 @@
 </section>
 <section>
 <h2>Keep calldata and payment together</h2>
-<p class="narrow">CAM 1.1 permits native transaction value: the payment sent with a contract call. Escrow's creation route uses the same nested amount in the call arguments (calldata) and the payment (value). After successful transaction confirmation, the browser viewer runs the follow-up route named in <code>then</code>, looking up the new agreement by client and reference.</p>
+<p class="narrow">CAM 1.1 permits native transaction value: the payment sent with a contract call. Escrow's creation route uses the same nested amount in the call arguments (calldata) and the payment (value). Place the object below at <code>routes.createAgreement</code> in <code>main.json</code>. After successful transaction confirmation, the browser viewer runs the follow-up route named in <code>then</code>, looking up the new agreement by client and reference.</p>
 <pre class="code-block" data-source-route="escrow:createAgreement">
 <code>{
   "kind": "write",
@@ -106,6 +106,7 @@
 }</code>
 </pre>
 <p class="narrow">Read routes continue to UI nodes. Write routes continue to another route. A prepared write is calldata and value for simulation and wallet review; it is not authorization or proof of execution. The business contract must reject invalid calls even if a UI advertises them.</p>
+<p class="narrow">In the browser viewer, connect the wallet before preparing creation. Connecting selects the wallet address as <code>$account.address</code> and discards earlier prepared calls. The successful creation transaction makes its sender the client, so this follow-up lookup uses that client's address and the entered reference. If the wallet extension changes accounts, reconnect and prepare again before sending. An app using the headless library must coordinate its viewed account with its signer and run the follow-up only after successful confirmation.</p>
 </section>
 <section>
 <h2>Compose a declarative UI</h2>
@@ -161,6 +162,46 @@
   "state": { "key": "amount", "defaultValue": "" }
 }</code>
 </pre>
+<p class="narrow">The amount field stores an exact base-unit decimal string in <code>$state.amount</code>. The creation button below copies that value into <code>params.amount</code>, along with the other fields required by the contract. The write route above then reads it as <code>$inputs.params.amount</code> for both calldata and payment. Place this complete named node at <code>nodes.createAgreement</code> in <code>ui.json</code>:</p>
+<pre class="code-block" data-source-ui="escrow:Button">
+<code>{
+  "requires": ["view"],
+  "element": "Button",
+  "props": { "label": "Prepare creation transaction" },
+  "call": {
+    "namespace": "routes",
+    "function": "createAgreement",
+    "args": {
+      "params": {
+        "agreementRef": "$state.agreementRef",
+        "contractor": "$state.contractor",
+        "arbitrator": "$state.arbitrator",
+        "arbitrationTimeoutBeneficiary": "$state.arbitrationTimeoutBeneficiary",
+        "amount": "$state.amount",
+        "acceptanceDuration": "$state.acceptanceDuration",
+        "workDuration": "$state.workDuration",
+        "reviewDuration": "$state.reviewDuration",
+        "arbitrationDuration": "$state.arbitrationDuration",
+        "terms": {
+          "uri": "$state.termsUri",
+          "sha256Digest": "$state.termsDigest"
+        }
+      }
+    }
+  }
+}</code>
+</pre>
+<p class="narrow">The checked-in creation screen includes the nodes named in <code>$view.actions</code> using the object below among <code>nodes["escrow.create"].children</code>. For a nonzero viewed client address, the creation view supplies <code>createAgreement</code> as one of those names. <code>requires: ["view"]</code> declares that the named button receives the read route's view argument; the Include passes it through. This does not create the form fields or authorize a transaction. Keep the other creation fields from the existing screen: the amount field and button alone do not supply a complete agreement.</p>
+<pre class="code-block" data-source-ui="escrow:Include">
+<code>{
+  "element": "Include",
+  "call": {
+    "namespace": "ui",
+    "function": "$view.actions",
+    "args": { "view": "$view" }
+  }
+}</code>
+</pre>
 <p class="narrow">Use <code>enabledWhen</code> against contract-provided action IDs to disable unavailable actions. This improves the rendered workflow but does not replace onchain enforcement. There is no supported automatic document-upload or document-hashing component; escrow uses TextField and external SHA-256 calculation.</p>
 </section>
 <section class="narrow">
@@ -174,13 +215,13 @@ make cam-conformance-check
 make checks</code>
 </pre>
 <p>
-<code>make abi</code> exports manifest-declared ABIs and refreshes local integrity pins. For UI-only resource edits, <code>make cam-integrity</code> refreshes pins without ABI export. Inspect generated changes and run the relevant contract, package, and local workflow checks. Conformance validates deterministic publication joins and resource integrity; it does not prove live authorization, RPC reliability, wallet behavior, or security.</p>
+<code>make abi</code> exports manifest-declared ABIs and refreshes local integrity pins. For UI-only resource edits, <code>make cam-integrity</code> refreshes pins without ABI export. Inspect generated changes. When starting from the escrow bundle, run <code>make test</code> for repository checks and Forge unit tests, <code>make package-test</code> for the TypeScript workspace, and <code>make escrow-local-scenario</code> for its nine local settlement paths and withdrawal. New dapps need checks for their own contract and workflow behavior. Conformance validates deterministic publication joins and resource integrity; it does not prove live authorization, RPC reliability, wallet behavior, or security.</p>
 <p>For the existing escrow app, <code>make escrow-release-deploy</code> plans and deploys a release only with its required explicit confirmation, chain, publication, owner, secret-file, and output settings; <code>make escrow-release-verify</code> verifies that recorded release. Use the complete commands and prerequisite publication steps in <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/README.md#release-deployment">escrow's release guide</a> and the shared <a href="https://github.com/numpde/dapp32/blob/main/docs/release-ceremony.md">release ceremony</a>. They own root-hash calculation and address binding; replace no required settings with guesses. New dapps need their own deliberate deployment wiring. Viewers validate contract-returned manifests, resources, URLs, and actions as untrusted input. A matching hash proves byte identity, not an audit or an honest publisher.</p>
 </section>
 <section class="narrow">
 <h2>Open and inspect a workflow</h2>
-<p>The browser startup query accepts <code>chainId</code>, <code>host</code>, <code>account</code>, and <code>rpcUrl</code>, all required. The local Make target prints the complete URL. Read-route navigation uses the fragment, for example <code>#route=agreement&amp;agreementId=0x…</code>. Structured inputs can use a JSON <code>inputs</code> fragment; numeric ABI inputs must be decimal strings rather than JSON numbers.</p>
-<p>The account query selects read context; a connected wallet supplies actual signing identity and must match the selected chain. Resource-origin and unsigned-manifest policy are viewer configuration, not extra URL parameters. URLs and fragments are visible: do not put secrets in them.</p>
+<p>The browser startup query accepts <code>chainId</code>, <code>host</code>, <code>account</code>, and <code>rpcUrl</code>, all required. Run <code>make escrow-viewer-gui</code> or <code>make bike-nft-viewer-gui</code> to start the corresponding local fixture and print its complete browser URL; the <a href="../escrow/#try">escrow</a> and <a href="../bike-nft/#try">Bike NFT</a> guides explain setup and wallet use. Read-route navigation uses the fragment, for example <code>#route=agreement&amp;agreementId=0x…</code>. Structured inputs can use a JSON <code>inputs</code> fragment; numeric ABI inputs must be decimal strings rather than JSON numbers.</p>
+<p>The <code>account</code> query selects the browser's initial read context. Connecting or switching a wallet replaces that context with the wallet address and clears any prepared call; prepare again under that account. The wallet must match the selected chain. Resource-origin and unsigned-manifest policy are viewer configuration, not extra URL parameters. URLs and fragments are visible: do not put secrets in them.</p>
 <p>Compare <a href="https://github.com/numpde/dapp32/tree/main/dapps/bike-nft/cam">Bike NFT's bundle</a> with <a href="https://github.com/numpde/dapp32/tree/main/dapps/escrow/cam">escrow's bundle</a>, then follow each package README for its local fixture and release workflow.</p>
 </section>
 </main>
