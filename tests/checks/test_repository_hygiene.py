@@ -15,6 +15,8 @@ ALLOWED_FORBIDDEN_NAME_LITERALS = (
     # External repository addresses are required as publication URLs, not prose branding.
     "https://numpde.github.io/dapp" + "32/",
     "https://raw.githubusercontent.com/numpde/dapp" + "32/",
+    # Preserve this captured evidence filename; it is not a product label.
+    "/tmp/dapp" + "32-multiparty-fields-20261012/movie-final-state.json",
 )
 
 LICENSE_MARKERS = [

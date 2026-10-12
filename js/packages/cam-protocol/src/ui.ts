@@ -55,6 +55,7 @@ export const UI_PROP_SCHEMAS = {
     string: ["label"],
     address: [],
   },
+  DocumentHashField: { required: ["label", "algorithm"], optional: ["sourceURI"], string: ["label"], address: [], literal: ["algorithm"] },
   AmountField: { required: ["label", "unit"], string: ["label"], address: [], literal: ["unit"] },
   NonNegativeIntegerField: { required: ["label"], optional: ["min", "max"], string: ["label"], address: [] },
   Address: {
@@ -86,4 +87,8 @@ export type UiPropElement = keyof typeof UI_PROP_SCHEMAS
 
 export function isUiPropElement(value: string): value is UiPropElement {
   return Object.hasOwn(UI_PROP_SCHEMAS, value)
+}
+
+export function isDocumentHashDigest(value: unknown): value is string {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value)
 }

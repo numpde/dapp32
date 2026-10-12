@@ -4913,3 +4913,14 @@ test("UI resource integrity mismatch returns one precise issue", () => {
   assert.notEqual(issue, undefined)
   assert.match(issue.message, /CAM resource integrity mismatch/)
 })
+
+test("DocumentHashField optional sourceURI rejects known non-string publication values", () => {
+  const uiBytes = jsonBytes({ ui: UI_VERSION, nodes: { app: { element: "Fragment", requires: ["view"], children: [
+    { element: "DocumentHashField", props: { label: "Digest", algorithm: "sha256", sourceURI: "$view.documentURI" }, state: { key: "digest", defaultValue: "" } },
+  ] } } })
+  const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => {
+    root.routes.entry = { ...root.routes.entry, then: { namespace: "ui", function: "app", args: { view: { documentURI: 123 } } } }
+    return replaceBundleResources(root, bundle, { uiBytes })
+  })
+  assert.deepEqual(issueLocations(issues), [["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.children.0.props.sourceURI"]])
+})

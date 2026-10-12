@@ -87,7 +87,7 @@ test("route fragments reject ambiguous, incomplete, or non-object requests", () 
   ]) {
     const url = validStartupUrl()
     url.hash = fragment
-    assert.throws(() => parseStartupOptions(url, POLICY), undefined, fragment)
+    assert.throws(() => parseStartupOptions(url, POLICY), fragment)
   }
 })
 
@@ -115,7 +115,7 @@ test("flat URL inputs reject duplicate decoded names and mixed representation", 
   ]) {
     const url = validStartupUrl()
     url.hash = hash
-    assert.throws(() => parseStartupOptions(url, POLICY), undefined, hash)
+    assert.throws(() => parseStartupOptions(url, POLICY), hash)
   }
 })
 

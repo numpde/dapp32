@@ -10,6 +10,7 @@ export type UiNode =
   | FragmentNode
   | TextNode
   | TextFieldNode
+  | DocumentHashFieldNode
   | AmountFieldNode
   | NonNegativeIntegerFieldNode
   | AddressNode
@@ -40,6 +41,13 @@ export type TextNode = UiNodeBase & {
 
 export type TextFieldNode = UiNodeBase & {
   readonly element: "TextField"
+  readonly enabledWhen?: UiMembership
+  readonly props: InertRecord
+  readonly state: UiStateBinding
+}
+
+export type DocumentHashFieldNode = UiNodeBase & {
+  readonly element: "DocumentHashField"
   readonly enabledWhen?: UiMembership
   readonly props: InertRecord
   readonly state: UiStateBinding
@@ -176,6 +184,7 @@ export type ResolvedElementNode =
   | ResolvedContainerNode
   | ResolvedLeafElementNode
   | ResolvedTextFieldNode
+  | ResolvedDocumentHashFieldNode
   | ResolvedStatusNode
   | ResolvedAmountFieldNode
   | ResolvedNonNegativeIntegerFieldNode
@@ -187,7 +196,7 @@ export type ResolvedContainerNode = {
 }
 
 export type ResolvedLeafElementNode = {
-  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "AmountField" | "NonNegativeIntegerField" | "Status">
+  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "Status">
   readonly props: InertRecord
   readonly children: readonly []
 }
@@ -203,6 +212,14 @@ export type ResolvedTextFieldNode = {
   readonly element: "TextField"
   readonly disabled?: boolean
   readonly props: InertRecord
+  readonly state: ResolvedUiStateBinding
+  readonly children: readonly []
+}
+
+export type ResolvedDocumentHashFieldNode = {
+  readonly element: "DocumentHashField"
+  readonly disabled?: boolean
+  readonly props: { readonly label: string; readonly algorithm: "sha256"; readonly sourceURI?: string }
   readonly state: ResolvedUiStateBinding
   readonly children: readonly []
 }

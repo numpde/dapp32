@@ -30,6 +30,7 @@ export type CamViewerSnapshot = {
   readonly canGoBack: boolean
   readonly route?: string
   readonly inputs: InertRecord
+  readonly documentHashes?: Readonly<Record<string, CamViewerDocumentHashStatus>>
   readonly state?: InertRecord
   readonly account?: CamViewerAccount
   readonly uiURI?: string
@@ -38,7 +39,8 @@ export type CamViewerSnapshot = {
 }
 
 export type CamViewerLoadedSnapshot =
-  Omit<CamViewerSnapshot, "state" | "inputs" | "resolvedUi" | "route" | "uiURI" | "values"> & {
+  Omit<CamViewerSnapshot, "state" | "inputs" | "resolvedUi" | "route" | "uiURI" | "values" | "documentHashes"> & {
+    readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
     readonly route: string
     readonly inputs: InertRecord
     readonly state: InertRecord
@@ -47,7 +49,24 @@ export type CamViewerLoadedSnapshot =
     readonly values: readonly InertValue[]
   }
 
+export type CamViewerDocumentHashStatus = {
+  readonly status: "pending" | "succeeded" | "failed"
+  readonly source: "url" | "file"
+  readonly sourceURI?: string
+  readonly message?: string
+}
+
+export type CamViewerDocumentHashOperation = {
+  readonly snapshot: CamViewerLoadedSnapshot
+  readonly signal: AbortSignal
+  readonly sourceURI?: string
+  readonly complete: (digest: string) => CamViewerLoadedSnapshot | undefined
+  readonly fail: (message: string) => CamViewerLoadedSnapshot | undefined
+}
+
 export type CamViewerSession = {
+  readonly beginDocumentHash: (name: string, source: "url" | "file") => CamViewerDocumentHashOperation
+  readonly cancelDocumentHash: (name: string) => CamViewerLoadedSnapshot
   readonly snapshot: () => CamViewerSnapshot
   readonly load: () => Promise<CamViewerLoadedSnapshot>
   readonly back: () => Promise<CamViewerLoadedSnapshot>

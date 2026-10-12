@@ -126,6 +126,20 @@ struct DocumentRef {
 
 The digest commits to exact bytes. The URI is only a public retrieval hint. The contract does not fetch, decrypt, canonicalize, or verify referenced content. Sensitive material must be encrypted before publication.
 
+### Calculate a document digest in the browser
+
+The terms, submission, and dispute forms use `DocumentHashField` for the existing scalar SHA-256 digest. Publish the document separately and enter its URI. Then choose one of three ways to supply the digest:
+
+- Enter `0x` followed by 64 hexadecimal characters manually. Invalid format is reported beside the field without changing your entry; escrow also requires a nonzero digest.
+- Select **Calculate from file** and choose the exact saved file. Calculation stays on the device and does not upload the file or check what the URI serves.
+- Select **Calculate from URL** to read the current HTTP(S) URI and hash the bytes returned after HTTP decoding. This starts only when requested; rendering the form or editing a URI does not download a document.
+
+Calculation is limited to 8 MiB and a 15-second deadline. URL access requires browser CORS permission, sends no credentials or referrer, and rejects redirects. If the URL is unreadable, choose a local file or enter a digest manually; the viewer does not switch methods automatically or use a server proxy. Larger documents can use a digest calculated externally.
+
+A successful calculation replaces the digest. Failure or cancellation keeps the current digest. Editing the URI also keeps the digest, but clears the previous calculation's association with that URI and cancels work tied to the old source. Check the URI and digest together before preparing the transaction.
+
+This field calculates a digest; it does not compare retrieved bytes with an existing expected digest. File calculation does not prove that the URI serves the file. URL calculation describes the response at that time, not what a mutable URL will serve later. Neither calculation proves authorship, safety, truth, or the agreement's meaning. Exact bytes are hashed without text conversion or JSON normalization; IPFS retrieval and canonical JSON hashing are not supported by this helper. Contract document checks and transaction authorization are unchanged.
+
 ## Projection boundary
 
 `CamEscrowUI` verifies that its immutable backing address has code and advertises `ICamEscrowView` through ERC-165. It has no owner, roles, write forwarding, or native-value path.

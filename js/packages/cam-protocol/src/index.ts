@@ -184,3 +184,5 @@ export type {
   UiCallNamespace,
   UiPropElement,
 } from "./ui.ts"
+
+export { isDocumentHashDigest } from "./ui.ts"

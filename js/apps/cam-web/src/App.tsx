@@ -35,6 +35,7 @@ import {
 } from "./wallet.ts"
 import type { WalletState } from "./wallet.ts"
 import { errorMessage } from "./errors.ts"
+import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./document-hash.ts"
 import {
   assertHostHasCode,
   assertRpcChain,
@@ -121,6 +122,7 @@ export function App(): ReactElement {
 
   useEffect(() => {
     let cancelled = false
+    let loadedSession: CamViewerSession | undefined
 
     async function load(): Promise<void> {
       try {
@@ -145,6 +147,7 @@ export function App(): ReactElement {
           loadResource: createPinnedOriginResourceLoader(startup.resourceOrigin),
         })
         const snapshot = await session.load()
+        loadedSession = session
 
         if (!cancelled) {
           const ready = {
@@ -172,6 +175,12 @@ export function App(): ReactElement {
 
     return () => {
       cancelled = true
+      if (loadedSession !== undefined) {
+        const documentHashes = loadedSession.snapshot().documentHashes
+        if (documentHashes !== undefined) {
+          for (const name of Object.keys(documentHashes)) loadedSession.cancelDocumentHash(name)
+        }
+      }
     }
   }, [])
 
@@ -319,6 +328,7 @@ export function App(): ReactElement {
     // enter this handler before that render. The ref is the synchronous
     // transaction-submission gate.
     sendingRef.current = true
+    cancelPendingDocumentHashes()
     setSending(true)
     setNotice(undefined)
     try {
@@ -428,8 +438,55 @@ export function App(): ReactElement {
   }
 
   function setViewChanging(value: boolean): void {
+    if (value) cancelPendingDocumentHashes()
     changingViewRef.current = value
     setChangingView(value)
+  }
+
+  function cancelPendingDocumentHashes(): void {
+    if (loadState.status !== "ready") return
+    const session = loadState.runtime.session
+    const documentHashes = session.snapshot().documentHashes
+    if (documentHashes === undefined) return
+    let snapshot = loadState.snapshot
+    for (const [name, status] of Object.entries(documentHashes)) {
+      if (status.status === "pending") snapshot = session.cancelDocumentHash(name)
+    }
+    if (snapshot !== loadState.snapshot) setLoadState({ ...loadState, snapshot })
+  }
+
+  async function calculateDocumentHash(name: string, source: "url" | "file", file?: File): Promise<void> {
+    if (sendingRef.current || changingViewRef.current) return
+    const ready = requireReadyState(loadState)
+    try {
+      const operation = ready.runtime.session.beginDocumentHash(name, source)
+      invalidatePreparedInteraction()
+      setLoadState({ ...ready, snapshot: operation.snapshot })
+      try {
+        let digest: string
+        if (source === "file") {
+          digest = await calculateDocumentHashFromFile(requireDocumentFile(file), operation.signal)
+        } else {
+          if (operation.sourceURI === undefined) throw new Error("Cannot calculate document hash from URL: the field has no source URI.")
+          digest = await calculateDocumentHashFromURL(operation.sourceURI, operation.signal)
+        }
+        const snapshot = operation.complete(digest)
+        if (snapshot !== undefined) {
+          invalidatePreparedInteraction()
+          setLoadState({ ...ready, snapshot })
+        }
+      } catch (error) {
+        const snapshot = operation.fail(error instanceof Error ? error.message : "Cannot calculate document digest. Choose a file or enter it manually.")
+        if (snapshot !== undefined) setLoadState({ ...ready, snapshot })
+      }
+    } catch (error) {
+      showError(errorMessage(error), true)
+    }
+  }
+
+  function cancelDocumentHash(name: string): void {
+    const ready = requireReadyState(loadState)
+    setLoadState({ ...ready, snapshot: ready.runtime.session.cancelDocumentHash(name) })
   }
 
   function commitSnapshot(
@@ -568,10 +625,17 @@ export function App(): ReactElement {
           onInput={updateInput}
           onAmount={updateAmount}
           onInteger={updateInteger}
+          onDocumentHash={calculateDocumentHash}
+          onCancelDocumentHash={cancelDocumentHash}
         />
       ) : null}
     </main>
   )
+}
+
+function requireDocumentFile(file: File | undefined): File {
+  if (file === undefined) throw new Error("Choose a file to calculate its SHA-256 digest.")
+  return file
 }
 
 async function waitForReceipt(

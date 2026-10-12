@@ -1,0 +1,129 @@
+Document hash field workshop — 12 October 2026
+
+Original status: design proposal. The implementation update below records the
+completed first slice; the proposal body is retained as design history. Start
+with the demonstrated escrow need; do not build a general-purpose cryptography
+or transformation framework.
+
+Purpose and applications
+
+The useful operation is hashing document bytes, not hashing the URI text.
+The URI describes where a document may be found; the digest commits to bytes.
+Neither a URI nor a digest establishes authorship, safety, or legal meaning.
+
+Current applications:
+- Escrow terms, submissions, and disputes pair a URI with an exact-byte SHA-256
+  digest. The contract validates the reference's shape; it does not retrieve
+  the document or check that the URI serves matching bytes.
+- Bike NFT metadata uses a URI without a corresponding digest. Adding a UI
+  helper would not create an on-chain integrity guarantee.
+- CAM publication uses Keccak-256 for the root manifest and SHA-256 for
+  secondary resources. These are distinct declared algorithms and purposes.
+
+Potential applications:
+- Private agreements and evidence: hash a local file without uploading it.
+- Release artifacts and scientific datasets: calculate a commitment or compare
+  retrieved bytes with an existing commitment.
+- JSON metadata: hash exact bytes unless the application separately defines
+  canonicalization. Reformatting can change the digest.
+- IPFS documents: a CID generally identifies a structured representation and
+  cannot simply be substituted for SHA-256 of the original file bytes.
+
+Recommended shape
+
+Enhance a digest field while retaining the existing scalar URI and digest
+bindings. The app JSON explicitly declares the algorithm and, optionally, the
+related URI field. Do not infer semantics from names or from bytes32. Do not
+offer an algorithm selector when the application requires one algorithm.
+
+Group the URI and digest visually. Support manual digest entry, Calculate from
+file, and an explicit Calculate from URL action. Selecting a local file does
+not upload it or prove that the URI serves it. Rendering and typing must not
+start downloads. A composite contract value or arbitrary expression-based
+transformation system is unnecessary for this proposal.
+
+Calculation produces a digest. Verification compares bytes with an existing
+expected digest and reports match or mismatch without replacing that expected
+value. Neither operation should be labelled as proof of authenticity.
+
+Preserve a manually entered or locally calculated digest when its URI changes:
+moving unchanged bytes is legitimate. Revoke any correspondence claim about
+the current URI and cancel or supersede work tied to the old source. Late
+results must not overwrite newer input. Navigation must also invalidate pending
+writes. Present these states without inventing new business authorization;
+the contract remains authoritative.
+
+Fetch and byte policy still to decide
+
+Define supported URI schemes, bounded response size and duration, redirect
+handling, credentials and referrer policy, and cancellation before implementing
+URL calculation. Arbitrary document retrieval is not automatically governed by
+the same policy as anchored CAM resource loading. Avoid adding a server proxy
+merely to bypass browser restrictions. CORS failures need clear feedback and
+file/manual alternatives; an opaque no-cors response does not expose its bytes.
+
+Hash binary bytes without text conversion, newline normalization, or JSON
+parsing. Specify HTTP content-decoding behavior precisely. Native Web Crypto
+digest consumes supplied bytes as a buffer, so bound memory use. Large-file
+streaming, canonical JSON, typed data, Merkle roots, and other algorithms are
+separate requirements, deferred until a caller needs them.
+
+Tests first
+
+Before implementation, establish red tests for these product laws:
+1. Exact binary bytes survive unchanged into the declared hash operation.
+2. Rendering and typing never initiate retrieval.
+3. Source changes, manual edits, and navigation prevent stale writes.
+4. Failure, cancellation, timeout, and size limits preserve user input.
+5. Local calculation never claims correspondence with the URI.
+6. Verification preserves the expected digest, including on mismatch.
+7. Routes retain existing scalar arguments and contract-owned authorization.
+
+Source pointers
+
+dapps/escrow/src/CamEscrow.sol — DocumentRef storage and _validateDocument.
+dapps/escrow/cam/ui.json — current document fields and explanatory text.
+dapps/bike-nft/src/ — current metadata URI usage.
+js/packages/cam-protocol/src/ui.ts — declarative UI schema.
+js/packages/cam-protocol/src/resources.ts — existing resource boundaries.
+js/packages/cam-screen/src/types.ts — resolved field types.
+js/apps/cam-web/src/components.tsx — rendered controls.
+
+Primary references
+
+https://fetch.spec.whatwg.org/#concept-filtered-response-opaque
+https://www.w3.org/TR/webcrypto/
+https://docs.ipfs.tech/concepts/content-addressing/#cids-are-not-file-hashes
+
+Implementation update — 12 October 2026
+
+The proposal above is retained as the design history. The implemented first
+slice is DocumentHashField for exact-byte SHA-256 calculation, used by escrow
+terms, submission, and dispute digest fields. Existing URI fields, scalar
+digest state keys, route arguments, and contract authorization remain intact.
+
+The declaration requires label and the literal algorithm "sha256", with an
+optional sourceURI expression. The browser offers manual digest entry,
+Calculate from file, and an explicit Calculate from URL action when a source
+URI is declared. File calculation stays local and does not upload or establish
+correspondence with a URI. Invalid manual format is reported without rewriting
+the entry. A successful calculation replaces the digest; failure or cancellation
+preserves it. URI edits preserve the digest, invalidate pending calculations,
+and remove the prior calculation's association with that URI.
+
+URL calculation accepts absolute HTTP(S) URLs and readable CORS responses,
+omits credentials and referrers, and rejects redirects. Both file and URL
+calculation have an 8 MiB byte limit and a 15-second deadline. URL hashes cover
+the HTTP-decoded response bytes. There is no automatic fallback, server proxy,
+IPFS transport, text or JSON normalization, or algorithm selector.
+
+Verification against an existing expected digest remains deferred; this slice
+only calculates. URL success describes bytes returned at that time, not future
+availability or immutability, and never establishes authorship or truth. Local
+file success does not prove that a separately published URI serves those bytes.
+The browser helper cannot turn a document reference into a contract-side check.
+
+The implementation and focused tests live in the protocol UI schema, screen
+resolver, viewer session, cam-web document-hash helper and controls, and escrow
+CAM bundle. Final publication remains subject to the feature's reviewed checks
+and rendered browser validation.

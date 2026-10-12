@@ -7,6 +7,7 @@ import {
 } from "@cam/evm-viem"
 import {
   assertCamResourceSize,
+  isDocumentHashDigest,
   CAM_UI_NAMESPACE,
   parseJsonBytes,
   resolveCamResourceURI,
@@ -28,6 +29,7 @@ import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type {
   NumericDraft,
   ResolvedButtonNode,
+  ResolvedDocumentHashFieldNode,
   ResolvedUiNode,
   UiDocument,
 } from "@cam/screen"
@@ -46,6 +48,8 @@ import type { ViewerResolvedReadView } from "./read-resolution.ts"
 import { prepareViewerContractCall } from "./write-preparation.ts"
 import type {
   CamViewerAccount,
+  CamViewerDocumentHashStatus,
+  CamViewerDocumentHashOperation,
   CamViewerActionResult,
   CamViewerLoadedSnapshot,
   CamViewerSession,
@@ -81,6 +85,8 @@ export function createCamViewerSession({
   let currentView: CurrentView | undefined
   const history: PreviousView[] = []
   let changingView = false
+  const documentHashes: Record<string, CamViewerDocumentHashStatus> = Object.create(null)
+  const documentHashOperations = new Map<string, AbortController>()
 
   function snapshot(): CamViewerSnapshot {
     if (currentView === undefined) {
@@ -102,6 +108,7 @@ export function createCamViewerSession({
     const current = assertLoaded()
     return {
       ...sessionSnapshot(view.inputs),
+      documentHashes: cloneViewerData(documentHashes, "documentHashes"),
       route: view.route,
       state: cloneViewerData<InertRecord>(view.state, "state"),
       uiURI: current.uiURI,
@@ -191,6 +198,61 @@ export function createCamViewerSession({
     return loadedSnapshot(nextView)
   }
 
+  function documentHashField(name: string, ui = assertCurrentView().resolvedUi): ResolvedDocumentHashFieldNode | undefined {
+    let field: ResolvedDocumentHashFieldNode | undefined
+    forEachResolvedUiNode(ui, (node) => {
+      if (node.element === "DocumentHashField" && node.state.key === name) field = node
+    })
+    return field
+  }
+
+  function invalidateDocumentHash(name: string): void {
+    documentHashOperations.get(name)?.abort()
+    documentHashOperations.delete(name)
+    delete documentHashes[name]
+  }
+
+  function cancelDocumentHash(name: string): CamViewerLoadedSnapshot {
+    invalidateDocumentHash(name)
+    return loadedSnapshot(assertCurrentView())
+  }
+
+  function beginDocumentHash(name: string, source: "url" | "file"): CamViewerDocumentHashOperation {
+    assertViewAvailable()
+    const field = documentHashField(name)
+    if (field === undefined || field.disabled === true) throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `Cannot calculate document hash: field is not enabled in the current view: ${name}`)
+    if (source !== "url" && source !== "file") throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "Cannot calculate document hash: source must be url or file")
+    const sourceURI = source === "url" ? field.props.sourceURI : undefined
+    if (source === "url" && (sourceURI === undefined || sourceURI.length === 0)) throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "Cannot calculate document hash from URL: the field has no source URI")
+    invalidateDocumentHash(name)
+    const controller = new AbortController()
+    documentHashOperations.set(name, controller)
+    const origin = { source, ...(sourceURI === undefined ? {} : { sourceURI }) }
+    documentHashes[name] = { status: "pending", ...origin }
+    function isCurrent(): boolean {
+      return documentHashOperations.get(name) === controller && !controller.signal.aborted
+    }
+    return {
+      snapshot: loadedSnapshot(assertCurrentView()),
+      signal: controller.signal,
+      ...(sourceURI === undefined ? {} : { sourceURI }),
+      complete(digest) {
+        if (!isCurrent()) return undefined
+        if (!isDocumentHashDigest(digest)) throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", "Cannot apply document hash: SHA-256 digest must be 0x followed by 64 hexadecimal digits")
+        editState({ [name]: digest })
+        documentHashes[name] = { status: "succeeded", ...origin }
+        return loadedSnapshot(assertCurrentView())
+      },
+      fail(message) {
+        if (!isCurrent()) return undefined
+        if (typeof message !== "string") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", "Cannot report document hash failure: message must be a string")
+        documentHashOperations.delete(name)
+        documentHashes[name] = { status: "failed", ...origin, message }
+        return loadedSnapshot(assertCurrentView())
+      },
+    }
+  }
+
   function updateState(patch: InertRecord): CamViewerLoadedSnapshot {
     return editState(patch)
   }
@@ -247,6 +309,11 @@ export function createCamViewerSession({
       numericDrafts,
     }
 
+    for (const name of Object.keys(documentHashes)) {
+      const before = documentHashField(name, currentView.resolvedUi)
+      const after = documentHashField(name, nextView.resolvedUi)
+      if (Object.hasOwn(statePatch, name) || after === undefined || after.disabled === true || before?.props.sourceURI !== after.props.sourceURI) invalidateDocumentHash(name)
+    }
     currentView = nextView
     return loadedSnapshot(currentView)
   }
@@ -384,6 +451,7 @@ export function createCamViewerSession({
 
   async function changeView(operation: () => Promise<CamViewerLoadedSnapshot>): Promise<CamViewerLoadedSnapshot> {
     assertViewAvailable()
+    for (const name of Object.keys(documentHashes)) invalidateDocumentHash(name)
     changingView = true
     try {
       return await operation()
@@ -406,6 +474,8 @@ export function createCamViewerSession({
     back: () => changeView(back),
     navigate: (route, inputs) => changeView(() => navigate(route, inputs)),
     setAccount: (nextAccount) => changeView(() => setAccount(nextAccount)),
+    beginDocumentHash,
+    cancelDocumentHash,
     updateState,
     editAmount,
     editInteger,

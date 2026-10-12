@@ -96,11 +96,11 @@ test("creation explains required party, reference and document inputs beside the
   assert.match(precedingHelp(resolvedUi, "amount"), /positive amount/)
   assert.match(precedingHelp(resolvedUi, "amount"), /1,000,000,000,000,000,000 wei/)
   const terms = precedingHelp(resolvedUi, "termsUri")
-  assert.match(terms, /both terms fields are required/i)
-  assert.match(terms, /exact file bytes, not the URI text/)
-  assert.match(terms, /Linux example:.*sha256sum/)
-  assert.match(terms, /0x followed by.*64 hexadecimal/)
-  assert.match(terms, /without fetching.*matching digest/)
+  assert.match(terms, /both fields are required/i)
+  assert.match(terms, /exact document bytes/)
+  assert.match(terms, /local file or a browser-readable URL/)
+  assert.match(terms, /enter it manually/)
+  assert.match(terms, /not uploaded or checked against the URI/)
   assert.match(precedingHelp(resolvedUi, "agreementId"), /0x followed by 64 hexadecimal/)
   assert.match(precedingHelp(resolvedUi, "agreementId"), /differs from the client’s reference/)
 })
@@ -126,18 +126,17 @@ test("each creation duration explains its start and timeout beneficiary beside t
   }
 })
 
-test("agreement evidence fields explain external hashing and required pairs even when disabled", async () => {
+test("agreement evidence fields explain explicit calculation and required pairs even when disabled", async () => {
   const { resolvedUi } = resolveInitialUiNode(await escrowUi(), "app", args(agreementView({
     viewId: "escrow.agreement.terminal", stateId: "released.clientApproval", transitionIds: [],
   })), CONTEXT)
   for (const field of ["submissionUri", "disputeUri"]) {
     const help = precedingHelp(resolvedUi, field)
-    assert.match(help, /both fields are required/)
+    assert.match(help, /both fields are required/i)
     assert.match(help, /512 UTF-8 bytes/)
-    assert.match(help, /exact file bytes, not the URI text/)
-    assert.match(help, /Linux example: sha256sum/)
-    assert.match(help, /0x plus 64 hexadecimal/)
-    assert.match(help, /does not upload or hash files/)
+    assert.match(help, /exact file bytes or a browser-readable URL/)
+    assert.match(help, /enter the digest manually/)
+    assert.match(help, /not uploaded or checked against the URI/)
   }
   const texts: string[] = []
   forEachResolvedUiNode(resolvedUi, (node) => {
@@ -644,7 +643,7 @@ function isDisabled(node: ResolvedUiNode): boolean {
 function requiredField(resolvedUi: ResolvedUiNode, name: string): ResolvedUiNode {
   let field: ResolvedUiNode | undefined
   forEachResolvedUiNode(resolvedUi, (node) => {
-    if ((node.element === "TextField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField") && node.state.key === name) field = node
+    if ((node.element === "TextField" || node.element === "DocumentHashField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField") && node.state.key === name) field = node
   })
   assert.notEqual(field, undefined, `missing resolved field: ${name}`)
   return field as ResolvedUiNode

@@ -201,7 +201,7 @@ function validateAvailability(
   path: string,
   context: AbiContext,
 ): void {
-  if (element !== "TextField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "Button") return
+  if (element !== "TextField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "Button") return
   if (!isRecordObject(node.enabledWhen)) return
   validateBoundValue(scope, `${path}.enabledWhen.in`, "UI enabledWhen.in", node.enabledWhen.in, "string-array", context)
 }
@@ -250,7 +250,7 @@ function validateStateBinding(
   path: string,
   context: AbiContext,
 ): void {
-  if ((element !== "TextField" && element !== "AmountField" && element !== "NonNegativeIntegerField") || !isRecordObject(node.state)) return
+  if ((element !== "TextField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField") || !isRecordObject(node.state)) return
 
   // TextField defaults have a renderer contract; this rejects only literal or
   // ABI-known non-string defaults.
@@ -960,7 +960,7 @@ function resolvedInputName(
   path: string,
   context: AbiContext,
 ): string | undefined {
-  if ((node.element !== "TextField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField") || !isRecordObject(node.state)) return undefined
+  if ((node.element !== "TextField" && node.element !== "DocumentHashField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField") || !isRecordObject(node.state)) return undefined
 
   const staticName = staticString(node.state.key)
   const name = staticName === undefined ? knownLiteralString(node.state.key, context) : staticName
@@ -1012,6 +1012,7 @@ function valueAtSegments(value: unknown, segments: readonly string[]): unknown |
 
 function propExpectation(element: UiPropElement, prop: string): ValueExpectation | undefined {
   if ((UI_PROP_SCHEMAS[element].address as readonly string[]).includes(prop)) return "address"
+  if (element === "DocumentHashField" && prop === "sourceURI") return "string"
   if (element === "Nft" && prop === "tokenId") return "integer-or-string"
   if ((UI_PROP_SCHEMAS[element].string as readonly string[]).includes(prop)) return "string"
   return undefined

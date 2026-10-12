@@ -11,6 +11,7 @@ export type {
   ResolvedLeafElementNode,
   ResolvedStatusNode,
   ResolvedTextFieldNode,
+  ResolvedDocumentHashFieldNode,
   ResolvedUiCall,
   ResolvedUiNode,
   ResolvedUiStateBinding,

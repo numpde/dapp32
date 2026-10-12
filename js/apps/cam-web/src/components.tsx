@@ -2,16 +2,19 @@ import { useId, useLayoutEffect, useRef } from "react"
 import type { ReactElement, Ref } from "react"
 
 import type { InertValue } from "@cam/protocol"
+import { isDocumentHashDigest } from "@cam/protocol"
 import { MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "@cam/screen"
 import type {
   ResolvedButtonNode,
   ResolvedAmountFieldNode,
   ResolvedNonNegativeIntegerFieldNode,
+  ResolvedDocumentHashFieldNode,
   ResolvedUiNode,
 } from "@cam/screen"
 import type {
   CamViewerLoadedSnapshot,
   CamViewerPreparedContractCall,
+  CamViewerDocumentHashStatus,
 } from "@cam/viewer"
 
 import {
@@ -68,6 +71,8 @@ export function UiView({
   onInput,
   onAmount,
   onInteger,
+  onDocumentHash,
+  onCancelDocumentHash,
 }: {
   readonly snapshot: CamViewerLoadedSnapshot
   readonly viewRef: Ref<HTMLElement>
@@ -78,6 +83,8 @@ export function UiView({
   readonly onInput: (name: string, value: string) => void
   readonly onAmount: AmountEdit
   readonly onInteger: IntegerEdit
+  readonly onDocumentHash: DocumentHashCalculate
+  readonly onCancelDocumentHash: (name: string) => void
 }): ReactElement {
   return (
     <section className="ui" ref={viewRef} tabIndex={-1} aria-label="Current view">
@@ -89,7 +96,7 @@ export function UiView({
         <span>{snapshot.uiURI}</span>
       </div>
       <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
-        <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} />
+        <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       </fieldset>
     </section>
   )
@@ -138,17 +145,23 @@ export function PreparedCallView({
 function UiNodeView({
   node,
   state,
+  documentHashes,
   onAction,
   onInput,
   onAmount,
   onInteger,
+  onDocumentHash,
+  onCancelDocumentHash,
 }: {
   readonly node: ResolvedUiNode
   readonly state: Record<string, InertValue>
+  readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
   readonly onAction: (action: ResolvedButtonNode) => Promise<void>
   readonly onInput: (name: string, value: string) => void
   readonly onAmount: AmountEdit
   readonly onInteger: IntegerEdit
+  readonly onDocumentHash: DocumentHashCalculate
+  readonly onCancelDocumentHash: (name: string) => void
 }): ReactElement {
   switch (node.element) {
     case "Screen":
@@ -156,7 +169,7 @@ function UiNodeView({
       return (
         <>
           {node.children.map((child, index) => (
-            <UiNodeView key={index} node={child} state={state} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} />
+            <UiNodeView key={index} node={child} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
           ))}
         </>
       )
@@ -185,6 +198,8 @@ function UiNodeView({
       return <AmountFieldView node={node} onAmount={onAmount} />
     case "NonNegativeIntegerField":
       return <IntegerFieldView node={node} onInteger={onInteger} />
+    case "DocumentHashField":
+      return <DocumentHashFieldView node={node} value={stateString(state, node.state.key)} status={documentHashes[node.state.key]} onInput={onInput} onCalculate={onDocumentHash} onCancel={onCancelDocumentHash} />
     case "Status":
       return <KeyValue label={stringProp(node.props, "label")} value={node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue} mono={false} />
     case "Nft":
@@ -214,6 +229,46 @@ function UiNodeView({
 
 type AmountEdit = (name: string, representation: "base" | "display", text: string, options?: { readonly composing?: boolean }) => void
 type IntegerEdit = (name: string, text: string, options?: { readonly composing?: boolean }) => void
+type DocumentHashCalculate = (name: string, source: "url" | "file", file?: File) => Promise<void>
+
+function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCancel }: {
+  readonly node: ResolvedDocumentHashFieldNode
+  readonly value: string
+  readonly status: CamViewerDocumentHashStatus | undefined
+  readonly onInput: (name: string, value: string) => void
+  readonly onCalculate: DocumentHashCalculate
+  readonly onCancel: (name: string) => void
+}): ReactElement {
+  const hintId = useId()
+  const issueId = useId()
+  const fileInput = useRef<HTMLInputElement>(null)
+  const pending = status?.status === "pending"
+  const invalid = value !== "" && !isDocumentHashDigest(value)
+  return <fieldset className="document-hash-field" disabled={node.disabled === true}>
+    <legend>{displayText(node.props.label)}</legend>
+    <label className="field">
+      <span>SHA-256 digest</span>
+      <input name={node.state.key} value={value} autoComplete="off" spellCheck={false} aria-invalid={invalid} aria-describedby={invalid ? `${hintId} ${issueId}` : hintId}
+        onChange={event => onInput(node.state.key, event.currentTarget.value)} />
+    </label>
+    <p id={hintId} className="field-hint">Enter 0x followed by 64 hexadecimal characters, or calculate from exact document bytes. Files stay on this device; selecting one does not upload it or check the URI. Limit: 8 MiB and 15 seconds.</p>
+    {invalid ? <p id={issueId} className="field-hint" role="status">The digest must be 0x followed by exactly 64 hexadecimal characters. Your entry is kept unchanged.</p> : null}
+    <button type="button" onClick={() => fileInput.current?.click()}>Calculate from file</button>
+    <input ref={fileInput} type="file" aria-label={`Choose file for ${displayText(node.props.label)}`} hidden onChange={event => {
+      const file = event.currentTarget.files?.[0]
+      event.currentTarget.value = ""
+      if (file !== undefined) void onCalculate(node.state.key, "file", file)
+    }} />
+    {node.props.sourceURI === undefined ? null : <button type="button" disabled={node.props.sourceURI === ""} onClick={() => { void onCalculate(node.state.key, "url") }}>Calculate from URL</button>}
+    {pending ? <button type="button" onClick={() => onCancel(node.state.key)}>Cancel calculation</button> : null}
+    {status === undefined ? null : <p className="field-hint" role={status.status === "failed" ? "alert" : "status"}>
+      {pending ? "Calculating SHA-256… Your current digest is kept until calculation succeeds."
+        : status.status === "failed" ? status.message
+        : status.source === "file" ? "SHA-256 calculated from local file bytes. The URI has not been checked."
+        : "SHA-256 calculated from the bytes returned by this URL after HTTP decoding. Matching bytes do not establish authorship or truth."}
+    </p>}
+  </fieldset>
+}
 
 function NumericInput({ value, composing: modelComposing, issue, onEdit, ...inputProps }: {
   readonly value: string

@@ -85,5 +85,6 @@ function startup(): StartupOptions {
     rpcUrl: "http://127.0.0.1:8545",
     resourceOrigin: "http://127.0.0.1:5173",
     allowUnsignedCamHash: false,
+    inputs: {},
   }
 }

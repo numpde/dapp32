@@ -163,6 +163,11 @@ function resolveNode(
         children: [] as const,
       }]
     }
+    case "DocumentHashField": {
+      const props = resolveProps(node.element, node.props, context, `${path}.props`)
+      if (props.sourceURI !== undefined && typeof props.sourceURI !== "string") throw new UiError("UI_INVALID_FIELD", "DocumentHashField sourceURI must resolve to a string", `${path}.props.sourceURI`)
+      return [{ element: node.element, ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`), props: { label: props.label as string, algorithm: "sha256", ...(props.sourceURI === undefined ? {} : { sourceURI: props.sourceURI }) }, state: resolveStateBinding(node.state, context, `${path}.state`, false, node.element), children: [] }]
+    }
     case "TextField":
       return [{
         element: node.element,
@@ -297,6 +302,7 @@ function collectInitialStateFromNode(
   stack: readonly string[],
 ): void {
   switch (node.element) {
+    case "DocumentHashField":
     case "TextField":
     case "AmountField": {
       const binding = resolveStateBinding(node.state, context, `${path}.state`, true, node.element)
@@ -386,6 +392,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
   if (node === undefined) return true
 
   switch (node.element) {
+    case "DocumentHashField":
     case "TextField":
     case "AmountField":
     case "NonNegativeIntegerField":
@@ -408,6 +415,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
 
 function nodeBodyCanExposeInitialState(node: UiNode, stack: readonly string[]): boolean {
   switch (node.element) {
+    case "DocumentHashField":
     case "TextField":
     case "AmountField":
     case "NonNegativeIntegerField":
@@ -434,7 +442,7 @@ function resolveStateBinding(
   context: UiRuntimeContext,
   path: string,
   includeDefault: boolean,
-  element: "TextField" | "AmountField" | "NonNegativeIntegerField",
+  element: "TextField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField",
 ): {
   readonly key: string
   readonly defaultValue?: string

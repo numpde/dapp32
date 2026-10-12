@@ -1895,3 +1895,76 @@ test("undefined navigation returns to the manifest entry through the ordinary re
   assert.equal(snapshot.canGoBack, true)
   assert.equal((await session.back()).route, BIKE_ROUTE_COMPONENT)
 })
+
+function documentHashSession() {
+  const resources = bikeResourceBytes({})
+  const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
+  const nodes = mutableRecord(ui.nodes)
+  nodes.app = { requires: ["view"], element: "Fragment", children: [
+    { element: "TextField", props: { label: "URI" }, state: { key: "uri", defaultValue: "https://example.test/terms" } },
+    { element: "DocumentHashField", props: { label: "Digest", algorithm: "sha256", sourceURI: "$state.uri" }, state: { key: "digest", defaultValue: "manual" } },
+  ] }
+  const bytes = encodeJson(ui)
+  const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+  mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(bytes)
+  return createSession(sessionFixtureOptions({ loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: bytes })) }))
+}
+const calculatedDigest = `0x${"ab".repeat(32)}`
+
+test("document hash calculation is explicit and preserves manual input on failure and cancellation", async () => {
+  const session = documentHashSession()
+  await session.load()
+  assert.equal(session.snapshot().state?.digest, "manual")
+  const failed = session.beginDocumentHash("digest", "url")
+  assert.equal(session.snapshot().documentHashes?.digest?.status, "pending")
+  failed.fail("Document could not be read")
+  assert.equal(session.snapshot().state?.digest, "manual")
+  assert.equal(session.snapshot().documentHashes?.digest?.message, "Document could not be read")
+  const canceled = session.beginDocumentHash("digest", "file")
+  session.cancelDocumentHash("digest")
+  assert.equal(canceled.signal.aborted, true)
+  assert.equal(canceled.complete(calculatedDigest), undefined)
+  assert.equal(canceled.fail("late failure"), undefined)
+  assert.equal(session.snapshot().state?.digest, "manual")
+})
+
+test("document hash URI and manual edits invalidate late completions and remote correspondence", async () => {
+  const session = documentHashSession()
+  await session.load()
+  const uriWork = session.beginDocumentHash("digest", "url")
+  session.updateState({ uri: "https://example.test/moved" })
+  assert.equal(uriWork.signal.aborted, true)
+  assert.equal(uriWork.complete(calculatedDigest), undefined)
+  assert.equal(session.snapshot().state?.digest, "manual")
+  const manualWork = session.beginDocumentHash("digest", "file")
+  session.updateState({ digest: "manual" })
+  assert.equal(manualWork.complete(calculatedDigest), undefined)
+  const remote = session.beginDocumentHash("digest", "url")
+  remote.complete(calculatedDigest)
+  assert.equal(session.snapshot().documentHashes?.digest?.sourceURI, "https://example.test/moved")
+  session.updateState({ uri: "https://example.test/other" })
+  assert.equal(session.snapshot().state?.digest, calculatedDigest)
+  assert.equal(session.snapshot().documentHashes?.digest, undefined)
+  const local = session.beginDocumentHash("digest", "file")
+  local.complete(calculatedDigest)
+  assert.equal(session.snapshot().documentHashes?.digest?.sourceURI, undefined)
+})
+
+test("document hash replacement and all view transition intents invalidate pending writes", async () => {
+  const session = documentHashSession()
+  await session.load()
+  const replaced = session.beginDocumentHash("digest", "url")
+  const replacement = session.beginDocumentHash("digest", "file")
+  assert.equal(replaced.signal.aborted, true)
+  assert.equal(replaced.complete(calculatedDigest), undefined)
+  assert.equal(replaced.fail("late failure"), undefined)
+  replacement.fail("Canceled read")
+  for (const transition of [() => session.navigate("unknown", {}), () => session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER }), () => session.back(), () => session.setAccount({ address: otherUserAddress }), () => session.load()]) {
+    const pending = session.beginDocumentHash("digest", "url")
+    const changing = transition()
+    assert.equal(pending.signal.aborted, true)
+    assert.equal(pending.complete(calculatedDigest), undefined)
+    assert.equal(pending.fail("late failure"), undefined)
+    await changing.catch(() => undefined)
+  }
+})

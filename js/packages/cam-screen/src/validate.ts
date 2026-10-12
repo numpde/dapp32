@@ -115,6 +115,13 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         state: parseStateBinding(source.state, `${path}.state`),
         ...parseOptionalMembership(source, path),
       }
+    case "DocumentHashField": {
+      rejectUnexpectedNodeShape(source, TEXT_FIELD_KEYS, path)
+      const props = parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.DocumentHashField)
+      if (props.algorithm !== "sha256") throw new UiError("UI_INVALID_FIELD", "DocumentHashField algorithm must be the literal sha256", `${path}.props.algorithm`)
+      if (Object.hasOwn(props, "sourceURI") && typeof props.sourceURI !== "string") throw new UiError("UI_INVALID_FIELD", "DocumentHashField sourceURI must be a string or expression", `${path}.props.sourceURI`)
+      return { element, props, state: parseStateBinding(source.state, `${path}.state`), ...parseOptionalMembership(source, path) }
+    }
     case "AmountField": {
       rejectUnexpectedNodeShape(source, TEXT_FIELD_KEYS, path)
       const props = requiredRecord(source.props, `${path}.props`)
