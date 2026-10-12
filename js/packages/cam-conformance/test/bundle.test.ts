@@ -129,6 +129,21 @@ test("valid minimal bundle returns no issues", () => {
   assert.doesNotThrow(() => assertCamBundle(minimalBundle()))
 })
 
+test("AmountField unit declarations are literal while ordinary label expressions retain their policy", () => {
+  for (const [label, expected] of [
+    ["Deposit", []],
+    ["$wallet.label", [["CAM_UI_EXPRESSION_ROOT_INVALID", "nodes.app.props.label"]]],
+  ] as const) {
+    const uiBytes = jsonBytes({ ui: UI_VERSION, nodes: { app: {
+      requires: ["view"], element: "AmountField", props: { label, unit: {
+        assetId: "$wallet.asset", baseLabel: "$", displayLabel: "$view.undeclared", decimals: 18,
+      } }, state: { key: "amount", defaultValue: "0" },
+    } } })
+    const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => replaceBundleResources(root, bundle, { uiBytes }))
+    assert.deepEqual(issueLocations(issues), expected)
+  }
+})
+
 test("missing declared UI resource returns one precise issue", () => {
   const bundle = minimalBundle()
   const resources = new Map(bundle.resources)

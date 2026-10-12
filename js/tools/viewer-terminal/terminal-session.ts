@@ -113,6 +113,13 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
         handleSet(context.session, args)
         render(context.session.snapshot())
         break
+      case "amount": {
+        const [name, representation, ...parts] = args
+        if (name === undefined || representation !== "base" && representation !== "display") throw new Error("usage: amount <name> <base|display> [value]; omit value to clear")
+        context.session.editAmount(name, representation, parts.join(" "))
+        render(context.session.snapshot())
+        break
+      }
       case "press":
         await handlePress(context.session, args)
         break
@@ -235,6 +242,13 @@ function renderNode(
       return
     case "TextField":
       output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}: ${formatValue(textFieldValue(node, state))}\n`)
+      return
+    case "AmountField":
+      output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}\n`)
+      output.write(`  ${formatValue(node.unit.baseLabel)}: ${formatValue(node.draft.baseText)}\n`)
+      output.write(`  ${formatValue(node.unit.displayLabel)}: ${formatValue(node.draft.displayText)}\n`)
+      output.write(`  Units declared by this application; edit with amount ${formatValue(node.state.key)} <base|display> [value].\n`)
+      if (node.draft.status !== "valid") output.write(`  Amount ${node.draft.status}${node.draft.issue === undefined ? "" : `: ${node.draft.issue}`}; no amount is available to prepare.\n`)
       return
     case "Address":
       output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.address)}\n`)
@@ -377,6 +391,7 @@ function printHelp(): void {
     "  account <address|none> Switch the viewer account and refresh the current route.",
     "  restart               Reset the backend session and reload the entry route.",
     "  set <name> <value>    Update local UI state and re-resolve actions.",
+    "  amount <name> <base|display> [value]  Edit either amount unit; omit value to clear.",
     "  press <n>             Dispatch a resolved button action.",
     "  help                  Print this help.",
     "  quit                  Exit.",

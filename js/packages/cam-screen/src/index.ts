@@ -1,4 +1,7 @@
 export type {
+  AmountUnit,
+  AmountDraft,
+  ResolvedAmountFieldNode,
   ResolvedButtonNode,
   ResolvedContainerNode,
   ResolvedElementNode,
@@ -13,6 +16,8 @@ export type {
   UiNode,
   UiRuntimeContext,
 } from "./types.ts"
+
+export { editAmountDraft, projectAmountDraft, sameAmountUnit, MAX_AMOUNT_TEXT_LENGTH, MAX_AMOUNT_DIGITS } from "./amount.ts"
 
 export { UiError } from "./errors.ts"
 export type { UiErrorCode } from "./errors.ts"

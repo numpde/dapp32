@@ -58,6 +58,7 @@ export type CamViewerSession = {
   ) => Promise<CamViewerLoadedSnapshot>
   readonly setAccount: (account?: CamViewerAccount) => Promise<CamViewerLoadedSnapshot>
   readonly updateState: (patch: InertRecord) => CamViewerLoadedSnapshot
+  readonly editAmount: (name: string, representation: "base" | "display", text: string, options?: { readonly composing?: boolean }) => CamViewerLoadedSnapshot
   readonly dispatchAction: (action: ResolvedButtonNode) => Promise<CamViewerActionResult>
 }
 

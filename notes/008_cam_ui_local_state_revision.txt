@@ -347,3 +347,95 @@ Definition of done
 - `make checks` passes.
 - `make test-integration-fuzz-bike-nft` passes.
 - The bike CAM README no longer documents the old `form` model.
+
+
+AmountField: exact paired entry
+------------------------------
+
+AmountField adds two editable representations of one unsigned amount. Its
+literal unit declaration belongs to the publisher; it is not a verified asset
+registry, wallet denomination, or inference from a field name, ABI type, or
+chain identifier. Asset identity is scoped to the current CAM host.
+
+{
+  "element": "AmountField",
+  "props": {
+    "label": "Escrow amount",
+    "unit": {
+      "assetId": "native",
+      "baseLabel": "wei",
+      "displayLabel": "Native asset",
+      "decimals": 18
+    }
+  },
+  "state": { "key": "amount", "defaultValue": "" }
+}
+
+The parser validates the unit as an own, flat declaration and snapshots each
+scalar once. Unit strings, including leading dollar signs, remain literal;
+other expression-bearing props retain ordinary CAM expression semantics.
+The default is a base-unit string. Empty defaults seed null; malformed defaults
+fail resolution before the new view is committed.
+
+CamViewerSession owns one bounded active lexical draft per amount field.
+The resolved AmountField exposes its unit, baseText, displayText, status, optional
+issue, and optional composing: true for an unfinished primary phase. The only
+canonical amount is snapshot.state[key]:
+a decimal integer string or null. Routes keep reading $state.amount here; the display
+text is never submitted as an amount.
+
+Use session.editAmount(name, "base" | "display", text). Existing
+updateState({ amount: text }) uses the same base-entry transition. Both paths
+reject edits to disabled or unrendered fields. Terminal users can enter
+`amount amount display 0.0100`, `amount amount base 10000000000000000`, or omit
+the value to clear the field. Ordinary `set amount ...` remains base entry.
+
+Conversion uses decimal strings without floating-point arithmetic or rounding.
+Base entry accepts ASCII digits. Display entry accepts unsigned digits and one
+period, including `.1` and `1.`. Leading zeros and trailing fractional zeros
+remain in the active text. Extra fractional zeros are representable; discarding
+any nonzero fractional digit is rejected. Signs, exponents, spaces, currency
+symbols, and numeric separators are unsupported. Zero is structurally valid;
+business minima and ABI ranges remain with their existing contract and adapter
+owners.
+
+Empty entry and an incomplete period have no canonical amount. Ordinary invalid
+text stays in the active control with the other representation blank. No previous
+valid amount remains available behind it. CR/LF entry is rejected as lineBreak
+and clears both texts because native single-line inputs sanitize those characters.
+Oversized input also clears both texts. These are explicit rejection states,
+not trimming, truncation, padding, or substitution with a previous value.
+
+Resource bounds are 2048 UTF-16 code units of active text, 1024 significant
+canonical base-unit digits, and a declared scale from 0 through 255. A bounded
+entry that exceeds the canonical digit limit retains its active text but is
+unavailable. The canonical and scale bounds leave room for both representations
+to round-trip within the text bound. They do not mirror uint256 limits.
+
+load, navigate, and setAccount seed fresh defaults. Back restores a draft only
+when its key and complete unit declaration still match; changed identity, labels,
+or scale use fresh defaults. Failed projections preserve the coherent prior view.
+An IME edit passed with { composing: true } preserves its active text and keeps
+the canonical value null until an explicit finishing edit. History retains that
+unfinished phase. Form drafts remain outside route URL inputs.
+
+The web application invalidates prepared reviews on either representation's edit.
+The session re-resolves actions against the new canonical state, and preparation
+validates the cloned routed call against its ABI before returning it. Renderers
+own native event transport and accessible feedback; they do not own a second
+amount conversion or retain a last valid canonical amount.
+
+The browser captures raw plain-text paste/drop and native beforeinput before
+single-line input sanitization. Rejected noncancelable insertion cannot be
+rehabilitated by the following sanitized input or composition completion.
+Ordinary valid editing keeps native selection and caret behavior. Rebinding
+the native listener preserves pending rejection transport; owner changes clean
+up the listener and obsolete refs.
+
+Only compositionstart on the actual input starts a native phase. Blur and
+authoritative phase reset retire it; late composing input/end restore the
+current projected text without editing the fresh draft. A true model projection
+does not start native IME, so Back-restored unfinished drafts can be finished by
+ordinary input. Maintained Chromium tests exercise these rendered event sequences,
+paste sanitation, exact routed amounts, caret behavior, and narrow layouts.
+They do not establish physical keyboard or operating-system IME behavior.

@@ -77,6 +77,7 @@ const pending = new Map()
 let sessionId
 const requested = new Map()
 const loaded = new Set()
+const completedNetworkRequests = new Set()
 const statuses = new Map()
 let rootRequestId
 const failures = []
@@ -85,6 +86,7 @@ const consoleErrors = []
 const transactionRequests = []
 let intercept
 const heldRequests = []
+const heldNetworkRequests = new Map()
 let alteredCamBody
 ws.addEventListener('message', async event => {
   const message = JSON.parse(event.data)
@@ -106,7 +108,10 @@ ws.addEventListener('message', async event => {
     if (params.request.url === rpc.href && /eth_send(Raw)?Transaction/.test(params.request.postData || '')) transactionRequests.push(params.requestId)
   }
   if (method === 'Network.responseReceived') statuses.set(params.requestId, params.response.status)
-  if (method === 'Network.loadingFinished' && statuses.get(params.requestId) >= 200 && statuses.get(params.requestId) < 300) loaded.add(requested.get(params.requestId))
+  if (method === 'Network.loadingFinished') {
+    completedNetworkRequests.add(params.requestId)
+    if (statuses.get(params.requestId) >= 200 && statuses.get(params.requestId) < 300) loaded.add(requested.get(params.requestId))
+  }
   if (method === 'Network.loadingFailed') failures.push({ url: requested.get(params.requestId), reason: params.errorText })
   if (method === 'Runtime.exceptionThrown') exceptions.push(params.exceptionDetails.text)
   if (method === 'Runtime.consoleAPICalled' && params.type === 'error') consoleErrors.push(params.args.map(arg => String(arg.value === undefined ? arg.description : arg.value)).join(' '))
@@ -114,6 +119,7 @@ ws.addEventListener('message', async event => {
     try {
       if (intercept === 'hold') {
         heldRequests.push(params.requestId)
+        heldNetworkRequests.set(params.requestId, params.networkId)
       } else if (intercept === 'tamper') {
         await call('Fetch.fulfillRequest', {
           requestId: params.requestId, responseCode: 200,
@@ -201,10 +207,12 @@ async function feedback(kind) {
 async function waitFor(predicate, label, failOnViewerError) {
   let lastState
   for (let count = 0; count < 80 && !timeout.aborted; count++) {
-    const state = await evaluate(`({heading:document.querySelector('h1')?.textContent, text:document.body?.innerText, width:document.documentElement.scrollWidth, viewport:innerWidth})`)
+    const state = await evaluate(`(()=>{const body=document.body;const root=document.documentElement;if(body===null||root===null)return null;return {heading:document.querySelector('h1')?.textContent,text:body.innerText,width:root.scrollWidth,viewport:innerWidth};})()`)
     lastState = state
-    if (await predicate(state)) return state
-    if (failOnViewerError && state.text?.includes('Cannot load viewer')) throw new Error(`viewer failed before ${label}: ${state.text}`)
+    if (state !== null) {
+      if (await predicate(state)) return state
+      if (failOnViewerError && state.text.includes('Cannot load viewer')) throw new Error(`viewer failed before ${label}: ${state.text}`)
+    }
     await new Promise(resolve => setTimeout(resolve, 250))
   }
   const details = await evaluate(`({notices:[...document.querySelectorAll('.notice')].map(node=>node.innerText), agreementId:document.querySelector('input[name=agreementId]')?.value, agreementRef:document.querySelector('input[name=agreementRef]')?.value, buttons:[...document.querySelectorAll('button')].map(node=>[node.textContent.trim(),node.disabled])})`)
@@ -439,6 +447,7 @@ try {
     try {
       await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
       await waitFor(() => heldRequests.length > 0, 'paused credit read')
+      assert(await evaluate(`(()=>{const fields=[...document.querySelectorAll('.amount-field input')];return fields.length===2&&fields.every(field=>field.matches(':disabled')&&field.getBoundingClientRect().width>0);})()`), 'pending read must keep both amount controls visible and disabled')
       await evaluate(`location.hash = new URLSearchParams({ route: 'agreement', inputs: '{}' }).toString()`)
       await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.text.includes('Finish the current operation'), 'busy link rollback')
       assert.equal(await field('agreementRef'), 'pending-link-draft')
@@ -497,6 +506,97 @@ try {
     termsUri: 'https://example.test/terms',
     termsDigest: `0x${'ab'.repeat(32)}`,
   }
+  async function amountInput(representation, text, caret) {
+    const name = representation === 'base' ? 'amount' : 'amount.display'
+    await evaluate(`(() => { const input=document.querySelector('input[name=${JSON.stringify(name)}]'); input.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(text)}); ${caret === undefined ? '' : `input.setSelectionRange(${caret},${caret});`} input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:${JSON.stringify(text)},isComposing:false})); })()`)
+  }
+  await browserCase('paired amounts preserve exact active text, caret, accessible feedback and narrow reflow', async () => {
+    await freshForm()
+    for (const [display, base] of [['0.0100','10000000000000000'],['0.000000000000000001','1'],['9007199254740993.000000000000000001','9007199254740993000000000000000001']]) {
+      await amountInput('display', display)
+      await waitFor(async () => (await field('amount')) === base, 'exact paired amount')
+      assert.equal(await field('amount.display'), display)
+    }
+    await amountInput('display','0.0100',3)
+    await waitFor(async () => (await field('amount')) === '10000000000000000', 'caret-preserving paired render')
+    const before = await evaluate(`(() => {const i=document.querySelector('input[name="amount.display"]');return {name:document.activeElement.name,start:i.selectionStart,end:i.selectionEnd};})()`)
+    assert.deepEqual(before, {name:'amount.display',start:3,end:3})
+    await amountInput('display','.')
+    await waitFor(async () => (await field('amount')) === '', 'incomplete paired amount')
+    await amountInput('display','0.0000000000000000001')
+    await waitFor(async () => (await field('amount')) === '', 'overprecision paired amount')
+    assert(await evaluate(`(()=>{const i=document.querySelector('input[name="amount.display"]');const hint=document.getElementById(i.getAttribute('aria-describedby'));return i.getAttribute('aria-invalid')==='true'&&hint?.getAttribute('role')==='status'&&/precision|decimal/i.test(hint.textContent)&&i.labels.length>0&&i.type==='text'&&i.inputMode==='decimal';})()`), 'invalid amount lacks associated accessible guidance')
+    for (const width of [320,375]) {
+      await call('Emulation.setDeviceMetricsOverride', {width,height:800,deviceScaleFactor:1,mobile:true}, sessionId)
+      assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`), 'paired amount overflows narrow viewport')
+    }
+  })
+  await browserCase('composition cancellation leaves no obsolete transport state after blur', async () => {
+    await freshForm()
+    await amountInput('display','0.0100')
+    await evaluate(`document.querySelector('input[name="amount.display"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
+    await waitFor(async () => (await field('amount')) === '', 'composition start invalidation')
+    await evaluate(`document.querySelector('input[name="amount.display"]').blur()`)
+    await amountInput('display','0.0200')
+    await waitFor(async () => (await field('amount')) === '20000000000000000', 'ordinary edit after cancelled composition')
+  })
+  await browserCase('Back restores unfinished composition without inventing a native composition phase', async () => {
+    await freshForm()
+    await enter('agreementRef','amount-composition-back')
+    await amountInput('display','0.0300')
+    await evaluate(`document.querySelector('input[name="amount.display"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
+    await waitFor(async () => (await field('amount')) === '', 'unfinished amount before navigation')
+    await clickButton('Look up agreement')
+    await waitFor(state => state.text.includes('No agreement is stored for this identifier.'), 'lookup during unfinished amount')
+    await clickButton('Back')
+    await waitFor(async () => (await field('amount.display')) === '0.0300', 'restored unfinished amount')
+    assert.equal(await field('amount'), '', 'Back authorized an unfinished composition')
+    await amountInput('display','0.0400')
+    await waitFor(async () => (await field('amount')) === '40000000000000000', 'ordinary edit finishes restored amount')
+  })
+  await browserCase('raw multiline insertions cannot become a different valid amount through native sanitization', async () => {
+    await freshForm()
+    for (const kind of ['paste','beforeinput','noncancelable-beforeinput','composing-beforeinput']) {
+      await amountInput('base','25')
+      const composing = kind === 'composing-beforeinput'
+      const cancelable = kind !== 'noncancelable-beforeinput' && !composing
+      const prevented = await evaluate(`(()=>{const i=document.querySelector('input[name="amount"]');const raw='1\\n2';if(${composing})i.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));let event;if(${JSON.stringify(kind)}==='paste'){const transfer=new DataTransfer();transfer.setData('text/plain',raw);event=new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:transfer});}else event=new InputEvent('beforeinput',{bubbles:true,cancelable:${cancelable},inputType:'insertText',data:raw,isComposing:${composing}});i.dispatchEvent(event);if(!event.defaultPrevented){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,raw);i.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:raw,isComposing:${composing}}));}if(${composing})i.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:raw}));return event.defaultPrevented;})()`)
+      if (cancelable) assert(prevented, `${kind} did not prevent the raw multiline insertion`)
+      await waitFor(async () => (await field('amount')) === '' && (await field('amount.display')) === '', `${kind} bounded rejection`)
+      assert(await evaluate(`(()=>{const i=document.querySelector('input[name="amount"]');const hint=document.getElementById(i.getAttribute('aria-describedby'));return i.getAttribute('aria-invalid')==='true'&&/one line|line breaks?/i.test(hint.textContent)&&/cleared/i.test(hint.textContent);})()`), `${kind} lacks associated rejection and recovery guidance`)
+      await amountInput('base','26')
+      await waitFor(async () => (await field('amount.display')) === '0.000000000000000026', `${kind} ordinary edit recovery`)
+    }
+  })
+  await browserCase('account refresh resets composition transport with the authoritative fresh draft', async () => {
+    const initialAccount = viewer.searchParams.get('account')
+    const changedAccount = '0xa55aa83c7090d87b7aa151346862455d6209d789'
+    assert.notEqual(initialAccount.toLowerCase(), changedAccount)
+    const chainId = `0x${BigInt(viewer.searchParams.get('chainId').slice('eip155:'.length)).toString(16)}`
+    const script = await call('Page.addScriptToEvaluateOnNewDocument', {source: `if(location.origin===${JSON.stringify(viewer.origin)}&&!window.ethereum){window.__amountFixtureAccount=${JSON.stringify(initialAccount)};window.ethereum={isAmountReadOnlyFixtureWallet:true,request:async({method,params})=>{if(method==='eth_chainId')return ${JSON.stringify(chainId)};if(method==='eth_accounts'||method==='eth_requestAccounts')return [window.__amountFixtureAccount];if(method==='wallet_switchEthereumChain'&&params?.[0]?.chainId===${JSON.stringify(chainId)})return null;throw Error('Read-only fixture provider cannot perform '+method)}};}`}, sessionId)
+    try {
+      await freshForm()
+      assert(await evaluate(`window.ethereum?.isAmountReadOnlyFixtureWallet===true`), 'read-only fixture must not replace an existing wallet')
+      await clickButton('Connect wallet')
+      await waitFor(state => state.text.includes('Switch wallet'), 'read-only fixture connection')
+      await amountInput('display','0.0100')
+      await evaluate(`document.querySelector('input[name="amount.display"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
+      await evaluate(`void(window.__retiredAmountInput=document.querySelector('input[name="amount.display"]'))`)
+      await waitFor(async () => (await field('amount')) === '', 'composition before account refresh')
+      await evaluate(`window.__amountFixtureAccount=${JSON.stringify(changedAccount)}`)
+      await clickButton('Switch wallet')
+      await waitFor(async () => (await evaluate('location.search')).includes(changedAccount) && (await field('amount.display')) === '', 'fresh account draft')
+      await evaluate(`(()=>{const input=window.__retiredAmountInput;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0.0100');input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertCompositionText',data:'0.0100',isComposing:true}));input.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'0.0100'}));})()`)
+      assert.equal(await field('amount'), '', 'retired composition restored an old canonical value after account refresh')
+      assert.equal(await field('amount.display'), '', 'retired composition overwrote the fresh account draft')
+      await amountInput('display','0.0200')
+      await waitFor(async () => (await field('amount')) === '20000000000000000', 'ordinary edit after account refresh')
+    } finally {
+      await call('Page.removeScriptToEvaluateOnNewDocument', {identifier:script.identifier}, sessionId)
+      await evaluate(`if(window.ethereum?.isAmountReadOnlyFixtureWallet)delete window.ethereum;delete window.__amountFixtureAccount;delete window.__retiredAmountInput`)
+      await freshForm()
+    }
+  })
   async function fillDraft() {
     await freshForm()
     for (const [name, value] of Object.entries(draft)) await enter(name, value)
@@ -549,6 +649,49 @@ try {
     assert.equal(await field('agreementRef'), draft.agreementRef, 'prepare discarded draft')
     assert.equal(transactionRequests.length, 0, 'prepare sent a transaction before explicit wallet confirmation')
   })
+  await browserCase('human edits prepare identical exact tuple amount and transaction value', async () => {
+    for (const [display,base] of [['0.0100','10000000000000000'],['0.009007199254740993','9007199254740993'],['0.000000000000000001','1']]) {
+      await fillDraft()
+      await amountInput('display',display)
+      await waitFor(async () => (await field('amount')) === base, 'canonical amount before preparation')
+      await clickButton('Prepare funded agreement')
+      await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')), 'exact amount prepared review')
+      const review = await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
+      assert.equal(JSON.parse(review.Args).params.amount, base, 'prepared tuple amount changed precision')
+      assert.equal(review['Value (wei)'], base, 'prepared transaction value differs from tuple amount')
+      assert.equal(await field('amount.display'), display, 'preparation normalized active human input')
+      assert.equal(transactionRequests.length, 0, 'preparation sent a transaction')
+    }
+  })
+
+  await browserCase('an amount edit during delayed simulation cannot restore a stale prepared call', async () => {
+    await fillDraft()
+    intercept = 'hold'
+    await call('Fetch.enable', {patterns:[{urlPattern:rpc.href,requestStage:'Request'}]}, sessionId)
+    try {
+      await clickButton('Prepare funded agreement')
+      await waitFor(() => heldRequests.length > 0, 'paused preparation simulation')
+      const simulationRequests = heldRequests.map(requestId => {
+        const networkId = heldNetworkRequests.get(requestId)
+        assert(typeof networkId === 'string' && requested.get(networkId) === rpc.href, 'paused simulation needs its exact RPC network identity')
+        return networkId
+      })
+      await amountInput('display','.')
+      assert.equal(await field('amount'), '', 'incomplete edit retained the amount being simulated')
+      for (const requestId of heldRequests.splice(0)) await call('Fetch.continueRequest', {requestId}, sessionId)
+      await call('Fetch.disable', {}, sessionId)
+      intercept = undefined
+      await waitFor(() => simulationRequests.every(networkId => completedNetworkRequests.has(networkId) && statuses.get(networkId) === 200), 'complete paused simulation response bodies')
+      await evaluate(`new Promise(resolve=>{const channel=new MessageChannel();let turns=2;channel.port1.onmessage=()=>{if(--turns===0){channel.port1.close();channel.port2.close();resolve();}else channel.port2.postMessage(null);};channel.port2.postMessage(null);})`)
+      assert(await evaluate(`document.querySelector('.prepared-call')===null`), 'completed simulation restored a prepared call for an obsolete amount')
+      assert.equal(await field('amount.display'), '.', 'late simulation rewrote the current amount draft')
+      assert.equal(transactionRequests.length, 0, 'delayed preparation sent a transaction')
+    } finally {
+      for (const requestId of heldRequests.splice(0)) await call('Fetch.continueRequest', {requestId}, sessionId)
+      await call('Fetch.disable', {}, sessionId)
+      intercept = undefined
+    }
+  })
 
   await browserCase('discard prepared review preserves draft', async () => {
     await fillDraft()
@@ -567,10 +710,14 @@ try {
     await clickButton('Create another agreement')
     await waitFor(async () => (await field('agreementRef')) !== undefined, 'explicit new agreement')
     assert.equal(await field('agreementRef'), '', 'explicit new agreement retained the old reference')
-    assert.equal(await field('amount'), '0', 'explicit new agreement retained the old amount')
+    assert.equal(await field('amount'), '', 'explicit new agreement retained the old amount')
+    assert.equal(await field('amount.display'), '', 'explicit new agreement retained the old display amount')
   })
 
   // The same valid CAM JSON with one extra byte must fail its onchain hash.
+  assert.deepEqual(exceptions, [], 'unhandled exceptions during ordinary workflows')
+  assert.deepEqual(consoleErrors, [], 'console errors during ordinary workflows')
+  assert.deepEqual(transactionRequests, [], 'ordinary workflows sent a transaction')
   // Interception is restricted to this owned target's root CAM request.
   await call('Fetch.enable', { patterns: [{ urlPattern: cam.href, requestStage: 'Request' }] }, sessionId)
   intercept = 'tamper'

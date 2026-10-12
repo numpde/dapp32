@@ -10,6 +10,7 @@ export type UiNode =
   | FragmentNode
   | TextNode
   | TextFieldNode
+  | AmountFieldNode
   | AddressNode
   | StatusNode
   | NftNode
@@ -46,6 +47,50 @@ export type TextFieldNode = UiNodeBase & {
 export type AddressNode = UiNodeBase & {
   readonly element: "Address"
   readonly props: InertRecord
+}
+
+export type AmountUnit = {
+  readonly assetId: string
+  readonly baseLabel: string
+  readonly displayLabel: string
+  readonly decimals: number
+}
+
+// One active lexical draft owns editing; both displayed strings and the
+// canonical state value are projections. Rejected edits retain no oversized text.
+export type AmountDraft = {
+  readonly unit: AmountUnit
+  readonly representation: "base" | "display"
+  readonly text: string
+  readonly rejection: "tooLong" | "lineBreak" | null
+  readonly composing: boolean
+}
+
+export type AmountPresentation = {
+  readonly representation: "base" | "display"
+  readonly baseText: string
+  readonly displayText: string
+  readonly status: "valid" | "empty" | "incomplete" | "invalid"
+  readonly composing?: true
+  readonly issue?: "syntax" | "precision" | "tooLong" | "lineBreak"
+}
+
+export type AmountFieldNode = UiNodeBase & {
+  readonly element: "AmountField"
+  readonly enabledWhen?: UiMembership
+  readonly props: InertRecord
+  readonly unit: AmountUnit
+  readonly state: UiStateBinding
+}
+
+export type ResolvedAmountFieldNode = {
+  readonly element: "AmountField"
+  readonly disabled?: boolean
+  readonly props: InertRecord
+  readonly state: ResolvedUiStateBinding
+  readonly unit: AmountUnit
+  readonly draft: AmountPresentation
+  readonly children: readonly []
 }
 
 export type StatusNode = UiNodeBase & {
@@ -88,6 +133,7 @@ export type UiStateBinding = {
 
 export type UiRuntimeContext = CamRuntimeContext & {
   readonly state: InertRecord
+  readonly amountDrafts?: Readonly<Record<string, AmountDraft>>
   readonly [key: string]: InertValue | undefined
 }
 
@@ -100,6 +146,7 @@ export type ResolvedElementNode =
   | ResolvedLeafElementNode
   | ResolvedTextFieldNode
   | ResolvedStatusNode
+  | ResolvedAmountFieldNode
 
 export type ResolvedContainerNode = {
   readonly element: Extract<UiNode["element"], "Screen" | "Fragment">
@@ -108,7 +155,7 @@ export type ResolvedContainerNode = {
 }
 
 export type ResolvedLeafElementNode = {
-  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "Status">
+  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "AmountField" | "Status">
   readonly props: InertRecord
   readonly children: readonly []
 }

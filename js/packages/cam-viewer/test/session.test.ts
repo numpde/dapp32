@@ -2,8 +2,9 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import test from "node:test"
 
-import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, toInertValue, UI_VERSION } from "@cam/protocol"
-import { forEachResolvedUiNode, UiError, type ResolvedUiNode } from "@cam/screen"
+import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, toInertValue, UI_VERSION, type InertRecord, type InertValue } from "@cam/protocol"
+import { CamEvmError } from "@cam/evm-viem"
+import { forEachResolvedUiNode, resolvedUiButtons, UiError, type ResolvedAmountFieldNode, type ResolvedUiNode } from "@cam/screen"
 
 import {
   createCamViewerSession,
@@ -12,12 +13,13 @@ import { CamViewerError } from "../src/errors.ts"
 import type {
   CamHost,
 } from "@cam/evm-viem"
-import type { CreateCamViewerSessionOptions } from "../src/index.ts"
+import type { CamViewerLoadedSnapshot, CreateCamViewerSessionOptions } from "../src/index.ts"
 import type { Address, Hex } from "viem"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camURI,
   BIKE_MARK_MISSING,
+  BIKE_MANAGER_ABI_URI,
   BIKE_MANAGER_ADDRESS as managerAddress,
   BIKE_MISSING_REPORT_URI,
   BIKE_ROUTE_COMPONENT,
@@ -396,6 +398,480 @@ test("invalid projected presentation preserves the current view, drafts and navi
   assert.equal((await session.back()).state.serialNumber, "unfinished draft")
   assert.equal(session.snapshot().canGoBack, false)
 })
+
+test("write preparation rejects invalid ABI arguments before returning an actionable call", async (t) => {
+  const cases: readonly { name: string; payment: InertRecord }[] = [
+    { name: "unset amount", payment: { amount: null, recipients: [registeredOwnerAddress] } },
+    { name: "fractional integer", payment: { amount: "1.25", recipients: [registeredOwnerAddress] } },
+    { name: "uint256 overflow", payment: { amount: (2n ** 256n).toString(), recipients: [registeredOwnerAddress] } },
+    { name: "negative unsigned integer", payment: { amount: "-1", recipients: [registeredOwnerAddress] } },
+    { name: "missing nested amount", payment: { recipients: [registeredOwnerAddress] } },
+    { name: "malformed nested array", payment: { amount: "1", recipients: registeredOwnerAddress } },
+    { name: "invalid nested address", payment: { amount: "1", recipients: ["not-an-address"] } },
+  ]
+  for (const { name, payment } of cases) {
+    await t.test(name, async () => {
+      const { session, publicClient } = paymentPreparationSession(payment)
+      const loaded = await session.load()
+      const before = session.updateState({ amount: "unfinished draft" })
+      const action = resolvedUiButtons(loaded.resolvedUi).find((button) => button.call.function === "payment")
+      assert.ok(action)
+      const readsBefore = publicClient.calls.length
+      await assert.rejects(() => session.dispatchAction(action),
+        (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+      assert.equal(publicClient.calls.length, readsBefore, "invalid preparation must not perform a contract read")
+      assert.deepEqual(session.snapshot(), before, "invalid preparation must preserve the current view and draft")
+    })
+  }
+})
+
+test("write preparation rejects unusable transaction value before returning an actionable call", async (t) => {
+  const payment = { amount: "1", recipients: [registeredOwnerAddress] }
+  for (const { name, value, stateMutability } of [
+    { name: "unset payable value", value: null, stateMutability: "payable" },
+    { name: "fractional payable value", value: "0.1", stateMutability: "payable" },
+    { name: "overflow payable value", value: (2n ** 256n).toString(), stateMutability: "payable" },
+    { name: "value on a nonpayable function", value: "0", stateMutability: "nonpayable" },
+  ] as const) {
+    await t.test(name, async () => {
+      const { session, publicClient } = paymentPreparationSession(payment, value, stateMutability)
+      const before = await session.load()
+      const action = resolvedUiButtons(before.resolvedUi).find((button) => button.call.function === "payment")
+      assert.ok(action)
+      const readsBefore = publicClient.calls.length
+      await assert.rejects(() => session.dispatchAction(action),
+        (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_VALUE")
+      assert.equal(publicClient.calls.length, readsBefore)
+      assert.deepEqual(session.snapshot(), before)
+    })
+  }
+})
+
+test("write preparation preserves exact valid integer arguments and payable values without effects", async () => {
+  for (const amount of ["0", "9007199254740993", (2n ** 256n - 1n).toString()]) {
+    const payment = { amount, recipients: [registeredOwnerAddress] }
+    const { session, publicClient } = paymentPreparationSession(payment, amount, "payable")
+    const before = await session.load()
+    const action = resolvedUiButtons(before.resolvedUi).find((button) => button.call.function === "payment")
+    assert.ok(action)
+    const readsBefore = publicClient.calls.length
+    const prepared = await session.dispatchAction(action)
+    assert.equal(prepared.type, "contractCall")
+    if (prepared.type !== "contractCall") assert.fail("expected a prepared write call")
+    assert.deepEqual(prepared.call.args, toInertValue({ payment }))
+    assert.equal(prepared.call.value, amount)
+    assert.equal(publicClient.calls.length, readsBefore)
+    assert.deepEqual(session.snapshot(), before)
+  }
+})
+
+function paymentPreparationSession(
+  payment: InertRecord,
+  value?: InertValue,
+  stateMutability?: "payable" | "nonpayable",
+  input?: Record<string, unknown>,
+) {
+  const mutability = stateMutability === undefined ? "nonpayable" : stateMutability
+  const field = input === undefined
+    ? { element: "TextField", props: { label: "Raw amount" }, state: { key: "amount", defaultValue: "0" } }
+    : input
+  const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
+  const abiBytes = encodeJson([...bikeManagerAbi, {
+    type: "function", name: "testPayment", stateMutability: mutability,
+    inputs: [{ name: "payment", type: "tuple", components: [
+      { name: "amount", type: "uint256" }, { name: "recipients", type: "address[]" },
+    ] }], outputs: [],
+  }])
+  const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
+  mutableRecord(ui.nodes).app = {
+    requires: ["view"], element: "Screen", props: { title: "Payment input" }, children: [
+      field,
+      { element: "Button", props: { label: "Prepare payment" }, call: { namespace: "routes", function: "payment", args: { payment } } },
+    ],
+  }
+  const uiBytes = encodeJson(ui)
+  const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+  cam.cam = CAM_VERSION
+  mutableRecord(cam.routes).payment = {
+    kind: "write", inputs: ["payment"], ...(value === undefined ? {} : { value }), call: {
+      namespace: "contracts.BicycleComponentManager", function: "testPayment", args: { payment: "$inputs.payment" },
+    }, then: { namespace: "routes", function: BIKE_ROUTE_ENTRY, args: {} },
+  }
+  const namespaces = mutableRecord(cam.namespaces)
+  mutableRecord(namespaces.ui).integrity = sha256Integrity(uiBytes)
+  mutableRecord(namespaces["contracts.BicycleComponentManager"]).integrity = sha256Integrity(abiBytes)
+  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  return { publicClient, session: createSession(sessionFixtureOptions({ publicClient,
+    loadResource: createResourceLoader(bikeResourceBytes({
+      [camURI]: encodeJson(cam), [BIKE_UI_URI]: uiBytes, [BIKE_MANAGER_ABI_URI]: abiBytes,
+    })),
+  })) }
+}
+
+test("paired amount canonical state supplies identical exact ABI tuple and payable value", async () => {
+  const { session } = paymentPreparationSession(
+    { amount: "$state.amount", recipients: [registeredOwnerAddress] },
+    "$inputs.payment.amount",
+    "payable",
+    { element: "AmountField", props: { label: "Deposit", unit: {
+      assetId: "declared-native", baseLabel: "base units", displayLabel: "Declared asset", decimals: 18,
+    } }, state: { key: "amount", defaultValue: "" } },
+  )
+  await session.load()
+  for (const [display, base] of [
+    ["0.0100", "10000000000000000"],
+    ["0.009007199254740993", "9007199254740993"],
+    ["0.000000000000000001", "1"],
+    ["0", "0"],
+  ]) {
+    const snapshot = editAmount(session, "display", display)
+    const action = resolvedUiButtons(snapshot.resolvedUi).find((button) => button.call.function === "payment")
+    assert.ok(action)
+    const prepared = await session.dispatchAction(action)
+    assert.equal(prepared.type, "contractCall")
+    assert.ok(prepared.type === "contractCall")
+    assert.equal(prepared.call.value, base)
+    assert.equal(mutableRecord(prepared.call.args.payment).amount, base)
+    assert.deepEqual(session.snapshot(), snapshot, "preparation must preserve the exact active draft")
+  }
+})
+
+test("amount edits synchronize exact paired representations without rewriting the active draft", async () => {
+  for (const { decimals, display, base } of [
+    { decimals: 0, display: "9007199254740993", base: "9007199254740993" },
+    { decimals: 6, display: "9007199254.740993", base: "9007199254740993" },
+    { decimals: 18, display: "0.009007199254740993", base: "9007199254740993" },
+  ]) {
+    const { session } = amountEditingSession(decimals)
+    await session.load()
+    const fromDisplay = editAmount(session, "display", display)
+    assert.equal(fromDisplay.state.amount, base)
+    assert.deepEqual(amountDraft(fromDisplay), toInertValue({ representation: "display", baseText: base, displayText: display, status: "valid" }))
+    const fromBase = editAmount(session, "base", base)
+    assert.equal(fromBase.state.amount, base)
+    assert.deepEqual(amountDraft(fromBase), toInertValue({ representation: "base", baseText: base, displayText: display, status: "valid" }))
+  }
+  const { session } = amountEditingSession(6)
+  await session.load()
+  for (const { text, base } of [
+    { text: "0.", base: "0" }, { text: "0.0100", base: "10000" }, { text: ".1", base: "100000" },
+    { text: "1.", base: "1000000" }, { text: "0.010000000", base: "10000" },
+  ]) {
+    const snapshot = editAmount(session, "display", text)
+    assert.equal(snapshot.state.amount, base)
+    assert.equal(amountDraft(snapshot).displayText, text)
+    assert.equal(amountDraft(snapshot).baseText, base)
+  }
+  const baseDraft = session.updateState({ amount: "000001" })
+  assert.equal(baseDraft.state.amount, "1")
+  assert.equal(amountDraft(baseDraft).baseText, "000001")
+  assert.equal(amountDraft(baseDraft).displayText, "0.000001")
+})
+
+test("incomplete and invalid amount edits remove the usable value and any misleading counterpart", async () => {
+  const { session } = amountEditingSession(6)
+  await session.load()
+  for (const { representation, text, status, issue } of [
+    { representation: "display", text: "", status: "empty" },
+    { representation: "display", text: ".", status: "incomplete" },
+    ...["nonsense", " 1", "1 ", "1\t", "1e3", "-1", "+1", "1,000", "1.2.3"].map((text) => ({ representation: "display", text, status: "invalid", issue: "syntax" })),
+    { representation: "display", text: "0.0000001", status: "invalid", issue: "precision" },
+    { representation: "base", text: "0.", status: "invalid", issue: "syntax" },
+    { representation: "base", text: "", status: "empty" },
+  ]) {
+    editAmount(session, "base", "25")
+    const snapshot = editAmount(session, representation as "base" | "display", text)
+    assert.equal(snapshot.state.amount, null, `${representation} ${JSON.stringify(text)} must not retain 25`)
+    const draft = amountDraft(snapshot)
+    assert.equal(draft.status, status)
+    assert.equal(draft.issue, issue)
+    assert.equal(draft.baseText, representation === "base" ? text : "")
+    assert.equal(draft.displayText, representation === "display" ? text : "")
+    const recovered = editAmount(session, "display", "0.01")
+    assert.equal(recovered.state.amount, "10000")
+    assert.equal(amountDraft(recovered).status, "valid")
+  }
+})
+
+test("amount line breaks reject both representations without retaining text that native inputs sanitize", async () => {
+  const { session, publicClient } = amountEditingSession(6)
+  await session.load()
+  for (const representation of ["base", "display"] as const) {
+    for (const text of ["1\n2", "1\r2", "1\r\n2"]) {
+      const valid = editAmount(session, "base", "10000")
+      const staleAction = resolvedUiButtons(valid.resolvedUi).find((button) => button.call.function === "payment")
+      assert.ok(staleAction)
+      const rejected = editAmount(session, representation, text)
+      assert.equal(rejected.state.amount, null)
+      assert.equal(amountDraft(rejected).status, "invalid")
+      assert.equal(amountDraft(rejected).issue, "lineBreak")
+      assert.equal(amountDraft(rejected).baseText, "")
+      assert.equal(amountDraft(rejected).displayText, "")
+      const readsBefore = publicClient.calls.length
+      await assert.rejects(() => session.dispatchAction(staleAction),
+        (error: unknown) => error instanceof CamViewerError && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED")
+      const currentAction = resolvedUiButtons(rejected.resolvedUi).find((button) => button.call.function === "payment")
+      assert.ok(currentAction)
+      await assert.rejects(() => session.dispatchAction(currentAction),
+        (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+      assert.equal(publicClient.calls.length, readsBefore)
+      assert.equal(editAmount(session, "display", "0.0100").state.amount, "10000")
+    }
+  }
+  const patched = session.updateState({ amount: "1\r\n2" })
+  assert.equal(patched.state.amount, null)
+  assert.equal(amountDraft(patched).issue, "lineBreak")
+  assert.equal(amountDraft(patched).baseText, "")
+  assert.equal(amountDraft(patched).displayText, "")
+})
+
+test("paired amount conversion preserves independent integer arithmetic laws across declared scales", async () => {
+  let seed = 0x5eedn
+  const samples = [0n, 1n, 9007199254740993n, 2n ** 256n - 1n]
+  for (let index = 0; index < 20; index++) {
+    seed = (seed * 6364136223846793005n + 1442695040888963407n) & (2n ** 256n - 1n)
+    samples.push(seed)
+  }
+  for (const decimals of [0, 6, 18, 255]) {
+    const { session } = amountEditingSession(decimals)
+    await session.load()
+    const scale = 10n ** BigInt(decimals)
+    for (const amount of samples) {
+      const fraction = decimals === 0 ? "" : (amount % scale).toString().padStart(decimals, "0").replace(/0+$/, "")
+      const expectedDisplay = `${amount / scale}${fraction === "" ? "" : `.${fraction}`}`
+      const fromBase = editAmount(session, "base", amount.toString())
+      assert.equal(amountDraft(fromBase).displayText, expectedDisplay)
+      const displayDraft = `${expectedDisplay}${expectedDisplay.includes(".") ? "" : "."}0000`
+      const fromDisplay = editAmount(session, "display", displayDraft)
+      assert.equal(fromDisplay.state.amount, amount.toString())
+      assert.equal(amountDraft(fromDisplay).baseText, amount.toString())
+      assert.equal(amountDraft(fromDisplay).displayText, displayDraft)
+      assert.equal(amountDraft(fromDisplay).status, "valid")
+    }
+  }
+})
+
+test("amount input bounds invalidate prior values rather than truncate or retain oversized drafts", async () => {
+  const { session } = amountEditingSession(0)
+  await session.load()
+  const exactLimit = editAmount(session, "base", `${"0".repeat(1024)}${"1".repeat(1024)}`)
+  assert.equal(amountDraft(exactLimit).baseText.length, 2048)
+  assert.equal(exactLimit.state.amount, "1".repeat(1024))
+  for (const text of ["0".repeat(2049), "\uD83D\uDE00".repeat(1025), "1".repeat(1025)]) {
+    editAmount(session, "base", "25")
+    const rejected = editAmount(session, "base", text)
+    assert.equal(rejected.state.amount, null)
+    assert.equal(amountDraft(rejected).status, "invalid")
+    assert.equal(amountDraft(rejected).issue, "tooLong")
+    assert.equal(amountDraft(rejected).baseText, text.length > 2048 ? "" : text)
+    assert.equal(amountDraft(rejected).displayText, "")
+    if (text.length > 2048) assert.equal(JSON.stringify(rejected).includes(text), false)
+  }
+})
+
+test("invalid amount edits cannot dispatch a stale valid button or prepare a new unset amount", async () => {
+  const { session, publicClient } = amountEditingSession(18)
+  await session.load()
+  const valid = editAmount(session, "base", "9007199254740993")
+  const validAction = resolvedUiButtons(valid.resolvedUi).find((button) => button.call.function === "payment")
+  assert.ok(validAction)
+  const prepared = await session.dispatchAction(validAction)
+  assert.equal(prepared.type, "contractCall")
+  const readsBefore = publicClient.calls.length
+  const invalid = editAmount(session, "display", ".")
+  await assert.rejects(() => session.dispatchAction(validAction),
+    (error: unknown) => error instanceof CamViewerError && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED")
+  const invalidAction = resolvedUiButtons(invalid.resolvedUi).find((button) => button.call.function === "payment")
+  assert.ok(invalidAction)
+  await assert.rejects(() => session.dispatchAction(invalidAction),
+    (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+  assert.equal(publicClient.calls.length, readsBefore)
+  assert.deepEqual(session.snapshot(), invalid)
+})
+
+test("amount composition invalidates the previous amount before input and remains unavailable through Back", async () => {
+  const { session, publicClient } = amountEditingSession(6)
+  await session.load()
+  const valid = editAmount(session, "display", "0.0100")
+  const staleAction = resolvedUiButtons(valid.resolvedUi).find((button) => button.call.function === "payment")
+  assert.ok(staleAction)
+  const readsBefore = publicClient.calls.length
+  const started = editAmount(session, "display", "0.0100", { composing: true })
+  assert.equal(amountDraft(started).composing, true)
+  assert.equal(started.state.amount, null)
+  assert.equal(amountDraft(started).status, "incomplete")
+  assert.equal(amountDraft(started).displayText, "0.0100")
+  assert.equal(amountDraft(started).baseText, "")
+  await assert.rejects(() => session.dispatchAction(staleAction),
+    (error: unknown) => error instanceof CamViewerError && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED")
+  const currentAction = resolvedUiButtons(started.resolvedUi).find((button) => button.call.function === "payment")
+  assert.ok(currentAction)
+  await assert.rejects(() => session.dispatchAction(currentAction),
+    (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+  const intermediate = editAmount(session, "display", "0.0200", { composing: true })
+  assert.equal(intermediate.state.amount, null)
+  assert.equal(amountDraft(intermediate).displayText, "0.0200")
+  assert.equal(amountDraft(intermediate).status, "incomplete")
+  assert.equal(publicClient.calls.length, readsBefore)
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  const restored = await session.back()
+  assert.equal(restored.state.amount, null)
+  assert.equal(amountDraft(restored).status, "incomplete")
+  assert.equal(amountDraft(restored).displayText, "0.0200")
+  assert.equal(amountDraft(restored).composing, true)
+  const finished = editAmount(session, "display", "0.0200")
+  assert.equal(finished.state.amount, "20000")
+  assert.equal(amountDraft(finished).displayText, "0.0200")
+  assert.equal(amountDraft(finished).baseText, "20000")
+  assert.equal(amountDraft(finished).status, "valid")
+  assert.equal(Object.hasOwn(amountDraft(finished), "composing"), false)
+  const ordinaryIncomplete = editAmount(session, "display", ".")
+  assert.equal(amountDraft(ordinaryIncomplete).status, "incomplete")
+  assert.equal(Object.hasOwn(amountDraft(ordinaryIncomplete), "composing"), false)
+})
+
+test("amount editing honors current disabled fields and keeps failed patches atomic", async () => {
+  const { session } = amountEditingSession(18, "0", true)
+  const before = await session.load()
+  for (const representation of ["base", "display"] as const) {
+    assert.throws(() => editAmount(session, representation, "1"), /disabled/)
+    assert.deepEqual(session.snapshot(), before)
+  }
+  assert.throws(() => session.updateState({ amount: "1" }), /disabled/)
+  assert.deepEqual(session.snapshot(), before)
+})
+
+test("amount editing rejects fabricated targets, representations and non-string base patches atomically", async () => {
+  const { session } = amountEditingSession(6)
+  await session.load()
+  const before = editAmount(session, "display", "0.0100")
+  for (const operation of [
+    () => session.editAmount("notRendered", "base", "1"),
+    () => session.editAmount("amount", "notARepresentation" as "base", "1"),
+    () => session.updateState({ amount: null }),
+    () => session.updateState({ amount: 1 }),
+    () => session.updateState({ amount: "1", notRendered: "2" }),
+  ]) {
+    assert.throws(operation, (error: unknown) => error instanceof Error)
+    assert.deepEqual(session.snapshot(), before)
+  }
+})
+
+test("amount drafts remain distinct from ordinary fields with prototype-like state names", async () => {
+  const { session } = paymentPreparationSession({ amount: "$state.amount", recipients: [registeredOwnerAddress] }, undefined, "nonpayable", {
+    element: "Fragment", children: [
+      { element: "AmountField", props: { label: "Deposit", unit: {
+        assetId: "eip155:31337/slip44:60", baseLabel: "wei", displayLabel: "ETH", decimals: 18,
+      } }, state: { key: "amount", defaultValue: "0" } },
+      ...["constructor", "toString"].map((key) => ({ element: "TextField", props: { label: key }, state: { key, defaultValue: "ordinary" } })),
+    ],
+  })
+  await session.load()
+  const mixed = session.updateState({ constructor: "ordinary constructor draft", toString: "ordinary toString draft", amount: "1" })
+  assert.equal(mixed.state.constructor, "ordinary constructor draft")
+  assert.equal(mixed.state.toString, "ordinary toString draft")
+  assert.equal(mixed.state.amount, "1")
+  assert.equal(amountDraft(mixed).baseText, "1")
+  assert.equal(Object.hasOwn(mixed.state, "constructor"), true)
+  assert.equal(Object.hasOwn(mixed.state, "toString"), true)
+  const edited = editAmount(session, "display", "0.01")
+  assert.equal(edited.state.constructor, mixed.state.constructor)
+  assert.equal(edited.state.toString, mixed.state.toString)
+  assert.equal(edited.state.amount, "10000000000000000")
+})
+
+test("amount lexical drafts are isolated snapshots, restored by Back and reset by fresh views or accounts", async () => {
+  const { session } = amountEditingSession(6)
+  await session.load()
+  const edited = editAmount(session, "display", "0.0100")
+  mutableRecord(amountDraft(edited)).displayText = "hostile snapshot mutation"
+  mutableRecord(edited.state).amount = "999"
+  const unchanged = session.snapshot() as CamViewerLoadedSnapshot
+  assert.equal(unchanged.state.amount, "10000")
+  assert.equal(amountDraft(unchanged).displayText, "0.0100")
+  const fresh = await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  assert.equal(fresh.state.amount, "0")
+  const restored = await session.back()
+  assert.equal(restored.state.amount, "10000")
+  assert.equal(amountDraft(restored).displayText, "0.0100")
+  assert.equal(amountDraft(restored).representation, "display")
+  const switched = await session.setAccount({ address: otherUserAddress })
+  assert.equal(switched.state.amount, "0")
+  assert.equal(amountDraft(switched).baseText, "0")
+  assert.equal(switched.canGoBack, false)
+  editAmount(session, "display", "0.02")
+  assert.equal((await session.load()).state.amount, "0")
+})
+
+test("failed account refresh retains the exact amount draft and previous account atomically", async () => {
+  const { session, publicClient } = amountEditingSession(6)
+  await session.load()
+  const before = editAmount(session, "display", "0.0100")
+  const readContract = publicClient.readContract
+  Object.assign(publicClient, { readContract: async () => { throw new Error("fixture read unavailable") } })
+  await assert.rejects(() => session.setAccount({ address: otherUserAddress }))
+  assert.deepEqual(session.snapshot(), before)
+  Object.assign(publicClient, { readContract })
+  assert.equal((await session.setAccount({ address: otherUserAddress })).state.amount, "0")
+})
+
+test("Back restores amount drafts only when the complete declared unit identity still matches", async () => {
+  const initialUnit = { assetId: "eip155:31337/slip44:60", baseLabel: "base units", displayLabel: "Declared asset", decimals: 6 }
+  for (const changedUnit of [
+    { ...initialUnit, decimals: 18 }, { ...initialUnit, assetId: "eip155:1/slip44:60" },
+    { ...initialUnit, baseLabel: "changed base label" }, { ...initialUnit, displayLabel: "changed asset label" },
+  ]) {
+    const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
+    const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
+    const field = (unit: typeof initialUnit, defaultValue: string) => ({ requires: ["view"], element: "AmountField",
+      props: { label: "Deposit", unit }, state: { key: "amount", defaultValue } })
+    const nodes = mutableRecord(ui.nodes)
+    nodes.app = { requires: ["view"], element: "Screen", props: { title: "Deposit" }, children: [
+      { element: "Include", call: { namespace: "ui", function: "$view.viewId", args: { view: "$view" } } },
+    ] }
+    nodes.entry = field(initialUnit, "0")
+    nodes["component.active"] = field(initialUnit, "0")
+    nodes["changed.unit"] = field(changedUnit, "2")
+    const uiBytes = encodeJson(ui)
+    const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+    mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
+    const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+    const session = createSession(sessionFixtureOptions({
+      publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+      loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: uiBytes })),
+    }))
+    await session.load()
+    editAmount(session, "display", "0.0100")
+    await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+    routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), viewId: "changed.unit" }
+    const refreshed = await session.back()
+    assert.equal(refreshed.state.amount, "2")
+    assert.equal(amountDraft(refreshed).baseText, "2")
+    assert.equal(amountDraft(refreshed).representation, "base")
+  }
+})
+
+function amountEditingSession(decimals: number, defaultValue?: string, disabled?: boolean) {
+  const initialAmount = defaultValue === undefined ? "0" : defaultValue
+  return paymentPreparationSession({ amount: "$state.amount", recipients: [registeredOwnerAddress] }, undefined, "nonpayable", {
+    element: "AmountField", props: { label: "Deposit", unit: {
+      assetId: "eip155:31337/slip44:60", baseLabel: "base units", displayLabel: "Declared asset", decimals,
+    } }, state: { key: "amount", defaultValue: initialAmount }, ...(disabled === true ? { enabledWhen: { member: "pay", in: [] } } : {}),
+  })
+}
+
+function editAmount(session: ReturnType<typeof createSession>, representation: "base" | "display", text: string, options?: { composing?: boolean }): CamViewerLoadedSnapshot {
+  return session.editAmount("amount", representation, text, options)
+}
+
+function amountDraft(snapshot: CamViewerLoadedSnapshot): ResolvedAmountFieldNode["draft"] {
+  let draft: ResolvedAmountFieldNode["draft"] | undefined
+  forEachResolvedUiNode(snapshot.resolvedUi, (node) => {
+    if (node.element === "AmountField") draft = node.draft
+  })
+  assert.ok(draft && typeof draft === "object", "resolved amount control must expose its paired draft")
+  return draft
+}
 
 test("history retains at most twenty previous visits", async () => {
   const session = createSession(sessionFixtureOptions({}))

@@ -15,6 +15,7 @@ import type { CamDocument } from "@cam/core"
 import type { CamHost } from "@cam/evm-viem"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
+  AmountDraft,
   ResolvedUiNode,
   UiDocument,
   UiRuntimeContext,
@@ -76,6 +77,7 @@ export function resolveViewerCurrentUi({
   inputs,
   values,
   state,
+  amountDrafts,
 }: {
   readonly cam: CamDocument
   readonly ui: UiDocument
@@ -85,6 +87,7 @@ export function resolveViewerCurrentUi({
   readonly inputs: InertRecord
   readonly values: readonly InertValue[]
   readonly state: InertRecord
+  readonly amountDrafts: Readonly<Record<string, AmountDraft>>
 }): ResolvedUiNode {
   const then = resolveUiContinuation({
     cam,
@@ -102,6 +105,7 @@ export function resolveViewerCurrentUi({
       inputs,
       values,
       state,
+      amountDrafts,
     }))
   } catch (cause) {
     throw accountAwareUiError(cause, account)
@@ -142,12 +146,14 @@ function uiContext({
   inputs,
   values,
   state,
+  amountDrafts,
 }: {
   readonly host: CamHost
   readonly account?: CamViewerAccount
   readonly inputs: InertRecord
   readonly values: readonly InertValue[]
   readonly state: InertRecord
+  readonly amountDrafts?: Readonly<Record<string, AmountDraft>>
 }): UiRuntimeContext {
   return {
     ...routeContext({
@@ -157,6 +163,7 @@ function uiContext({
       outputs: values,
     }),
     state,
+    ...(amountDrafts === undefined ? {} : { amountDrafts }),
   }
 }
 

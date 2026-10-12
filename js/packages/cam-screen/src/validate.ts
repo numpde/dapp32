@@ -10,6 +10,7 @@ import {
   UI_VERSION,
 } from "@cam/protocol"
 import { UiError } from "./errors.ts"
+import { parseAmountUnit } from "./amount.ts"
 import { parseExpressionPayload } from "./expressions.ts"
 import {
   requiredArray,
@@ -113,6 +114,24 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         state: parseStateBinding(source.state, `${path}.state`),
         ...parseOptionalMembership(source, path),
       }
+    case "AmountField": {
+      rejectUnexpectedNodeShape(source, TEXT_FIELD_KEYS, path)
+      const props = requiredRecord(source.props, `${path}.props`)
+      rejectUnknownUiFields(props, new Set(UI_PROP_SCHEMAS.AmountField.required), `${path}.props`)
+      for (const key of UI_PROP_SCHEMAS.AmountField.required) {
+        if (!Object.hasOwn(props, key)) {
+          throw new UiError("UI_INVALID_FIELD", `missing required UI prop: ${key}`, `${path}.props`)
+        }
+      }
+      const unit = parseAmountUnit(props.unit, `${path}.props.unit`)
+      return {
+        element,
+        props: parseProps({ label: props.label }, `${path}.props`, UI_PROP_SCHEMAS.TextField),
+        unit,
+        state: parseStateBinding(source.state, `${path}.state`),
+        ...parseOptionalMembership(source, path),
+      }
+    }
     case "Address":
       rejectUnexpectedNodeShape(source, PROPS_ONLY_KEYS, path)
       return {

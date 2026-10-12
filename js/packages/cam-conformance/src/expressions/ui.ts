@@ -1,7 +1,12 @@
 import {
   collectExpressionReferences,
   UI_CONTEXT_KEYS,
+  UI_PROP_SCHEMAS,
+  isUiPropElement,
+  isRecordObject,
 } from "@cam/protocol"
+import type { ExpressionReferenceOccurrence } from "@cam/protocol"
+import { forEachUiNode } from "../ui/document.ts"
 
 import {
   conformanceIssue,
@@ -26,7 +31,28 @@ export function validateUiExpressionRoots({
 }): void {
   if (uiDocument === undefined) return
 
-  for (const occurrence of collectExpressionReferences(uiDocument.document.value, { numericSegments: true })) {
+  const occurrences: ExpressionReferenceOccurrence[] = []
+  forEachUiNode(uiDocument.document.nodes, (node, path) => {
+    let literalProps: readonly string[] = []
+    if (typeof node.element === "string" && isUiPropElement(node.element)) {
+      const schema = UI_PROP_SCHEMAS[node.element]
+      if ("literal" in schema) literalProps = schema.literal
+    }
+    for (const [field, value] of Object.entries(node)) {
+      // The node walker owns children. Literal props are declared metadata,
+      // so omit them structurally rather than matching ambiguous dotted paths.
+      if (field === "children") continue
+      if (field === "props" && isRecordObject(value)) {
+        for (const [prop, propValue] of Object.entries(value)) {
+          if (literalProps.includes(prop)) continue
+          for (const occurrence of collectExpressionReferences(propValue, { numericSegments: true }, `${path}.props.${prop}`)) occurrences.push(occurrence)
+        }
+      } else {
+        for (const occurrence of collectExpressionReferences(value, { numericSegments: true }, `${path}.${field}`)) occurrences.push(occurrence)
+      }
+    }
+  })
+  for (const occurrence of occurrences) {
     if (occurrence.syntaxError !== undefined) {
       issues.push(conformanceIssue({
         rule: RULES.CAM_UI_EXPRESSION_ROOT_INVALID,

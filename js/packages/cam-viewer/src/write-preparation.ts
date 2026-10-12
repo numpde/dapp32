@@ -4,6 +4,9 @@ import {
   resolveRouteThen,
 } from "@cam/core"
 import {
+  validateCamContractCall,
+} from "@cam/evm-viem"
+import {
   isCamNamespaceNameForType,
   toInertValue,
 } from "@cam/protocol"
@@ -61,7 +64,7 @@ export function prepareViewerContractCall({
     throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM contract action references unresolved namespace: ${call.namespace}`)
   }
 
-  return {
+  const prepared: CamViewerPreparedContractCall = {
     route,
     address: contract.address,
     abi: cloneContractAbi(contract.abi),
@@ -72,6 +75,8 @@ export function prepareViewerContractCall({
       : { value: clonePreparedCallData(call.value, "call.value") }),
     then: clonePreparedCallData(resolveRouteThen(cam, route, context), "call.then"),
   }
+  validateCamContractCall(prepared)
+  return prepared
 }
 
 function cloneContractAbi(abi: ResolvedCamContract["abi"]): ResolvedCamContract["abi"] {

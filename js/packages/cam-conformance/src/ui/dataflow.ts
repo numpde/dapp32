@@ -107,7 +107,7 @@ function validateInputName(
   path: string,
   issues: CamConformanceIssue[],
 ): void {
-  if (value.element !== "TextField" || !isRecordObject(value.state)) return
+  if ((value.element !== "TextField" && value.element !== "AmountField") || !isRecordObject(value.state)) return
 
   const name = staticString(value.state.key)
   if (name === undefined) return

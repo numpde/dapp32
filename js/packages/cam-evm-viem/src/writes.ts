@@ -20,6 +20,10 @@ type WriteRequest = {
   readonly value?: EvmTransactionValue
 }
 
+export function validateCamContractCall(call: CamContractCall): void {
+  writeRequest(call)
+}
+
 export async function sendCamContractCall({
   walletClient,
   chain,

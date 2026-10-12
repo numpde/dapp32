@@ -405,6 +405,17 @@ export function App(): ReactElement {
     }
   }
 
+  function updateAmount(name: string, representation: "base" | "display", text: string, options?: { readonly composing?: boolean }): void {
+    if (sendingRef.current || changingViewRef.current) return
+    const ready = requireReadyState(loadState)
+    try {
+      invalidatePreparedInteraction()
+      setLoadState({ ...ready, snapshot: ready.runtime.session.editAmount(name, representation, text, options) })
+    } catch (error) {
+      showError(errorMessage(error), true)
+    }
+  }
+
   function setViewChanging(value: boolean): void {
     changingViewRef.current = value
     setChangingView(value)
@@ -545,6 +556,7 @@ export function App(): ReactElement {
           onBack={goBack}
           onAction={dispatch}
           onInput={updateInput}
+          onAmount={updateAmount}
         />
       ) : null}
     </main>

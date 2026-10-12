@@ -57,6 +57,43 @@ test("terminal Screen titles share the bounded untrusted text boundary", () => {
   assert.doesNotMatch(titleLine, /[\u0000-\u001f\u007f]/)
 })
 
+test("terminal amount controls retain paired exact units, unavailable drafts and disabled presence", () => {
+  const unit = { assetId: "eip155:31337/slip44:60", baseLabel: "wei", displayLabel: "ETH", decimals: 18 }
+  const output = statusTerminalOutput([
+    { element: "AmountField", props: { label: "Deposit" }, unit, state: { key: "amount" },
+      draft: { representation: "display", baseText: "10000000000000000", displayText: "0.0100", status: "valid" }, children: [] },
+    { element: "AmountField", props: { label: "Incomplete deposit" }, unit, state: { key: "incomplete" },
+      draft: { representation: "display", baseText: "", displayText: ".", status: "incomplete" }, children: [] },
+    { element: "AmountField", props: { label: "Disabled deposit" }, unit, state: { key: "disabled" }, disabled: true,
+      draft: { representation: "base", baseText: "0", displayText: "0", status: "valid" }, children: [] },
+  ])
+  assert.ok(output.includes("Deposit\n  wei: 10000000000000000\n  ETH: 0.0100\n"))
+  assert.ok(output.includes("Units declared by this application"))
+  assert.ok(output.includes("Incomplete deposit\n  wei: \n  ETH: .\n"))
+  assert.ok(output.includes("Amount incomplete; no amount is available to prepare."))
+  assert.ok(output.includes("Disabled deposit (disabled)\n  wei: 0\n  ETH: 0\n"))
+})
+
+test("terminal amount commands preserve lexical input and route editing through the session API", () => {
+  const output = statusTerminalOutput([], undefined,
+    "amount deposit display 0.0100\namount deposit base 9007199254740993\namount deposit display\nquit\n")
+  assert.ok(output.includes('AMOUNT_EDIT ["deposit","display","0.0100"]\n'))
+  assert.ok(output.includes('AMOUNT_EDIT ["deposit","base","9007199254740993"]\n'))
+  assert.ok(output.includes('AMOUNT_EDIT ["deposit","display",""]\n'))
+})
+
+test("terminal amount unit labels pass through the untrusted text boundary", () => {
+  const output = statusTerminalOutput([
+    { element: "AmountField", props: { label: "Deposit" }, state: { key: "amount" },
+      unit: { assetId: "$asset", baseLabel: "wei\u001b[2J", displayLabel: "$\nFORGED", decimals: 6 },
+      draft: { representation: "base", baseText: "1", displayText: "0.000001", status: "valid" }, children: [] },
+  ])
+  assert.ok(output.includes("wei\\u001b[2J: 1"))
+  assert.ok(output.includes("$\\u000aFORGED: 0.000001"))
+  assert.doesNotMatch(output, /[\u0000-\u0008\u000b-\u001f\u007f]/)
+  assert.doesNotMatch(output, /^FORGED/m)
+})
+
 test("formatValue survives unprintable terminal values", () => {
   const cyclic: Record<string, unknown> = {}
   cyclic.self = cyclic
@@ -94,7 +131,7 @@ test("formatError survives hostile thrown values", () => {
   assert.equal(formatError(hostile), "Error: [unprintable value]\n")
 })
 
-function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][], title?: string): string {
+function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][], title?: string, commands?: string): string {
   const snapshot: CamViewerLoadedSnapshot = {
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",
     resolvedUi: title === undefined
@@ -112,12 +149,13 @@ function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][],
         name: 'display-fixture', description: 'resolved Status display', hostLabel: 'fixture',
         createSession: () => ({ snapshot: () => snapshot, load: async () => snapshot,
           back: unsupported, navigate: unsupported, setAccount: unsupported,
-          updateState: unsupported, dispatchAction: unsupported })
+          updateState: unsupported, dispatchAction: unsupported,
+          editAmount: (name, representation, text) => { process.stdout.write('AMOUNT_EDIT '+JSON.stringify([name,representation,text])+'\\n'); return snapshot; } })
       })
     }});
     await import(${JSON.stringify(terminal.href)});
   `
   return execFileSync(process.execPath, [
     "--experimental-test-module-mocks", "--experimental-strip-types", "--input-type=module", "-e", script,
-  ], { input: "quit\n", encoding: "utf8", timeout: 10_000, maxBuffer: 512_000 })
+  ], { input: commands === undefined ? "quit\n" : commands, encoding: "utf8", timeout: 10_000, maxBuffer: 512_000 })
 }

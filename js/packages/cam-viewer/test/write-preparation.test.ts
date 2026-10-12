@@ -17,7 +17,7 @@ const host: CamHost = {
 const account = {
   address: "0x0000000000000000000000000000000000000aCc" as Address,
 }
-const contractAddress = "0x00000000000000000000000000000000000000A0" as Address
+const contractAddress = "0x00000000000000000000000000000000000000a0" as Address
 
 test("prepareViewerContractCall prepares a write route call", () => {
   const contracts = resolvedContracts()

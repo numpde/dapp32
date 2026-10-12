@@ -1,6 +1,7 @@
 import { UiError } from "./errors.ts"
 import { resolveValueAtPath } from "./expressions.ts"
 import { formatStatusValue } from "./status-format.ts"
+import { editAmountDraft, projectAmountDraft, sameAmountUnit } from "./amount.ts"
 import {
   createStringMap,
   hasOwn,
@@ -14,6 +15,7 @@ import {
 } from "@cam/protocol"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
+  AmountDraft,
   ButtonNode,
   IncludeNode,
   ResolvedButtonNode,
@@ -54,9 +56,10 @@ export function resolveInitialUiNode(
   const initialContext = {
     ...context,
     state: emptyState,
+    amountDrafts: createStringMap<AmountDraft>(),
   }
   const state = createInitialState(ui, nodeName, args, initialContext)
-  const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, state })
+  const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, state, amountDrafts: initialContext.amountDrafts })
 
   return {
     state,
@@ -164,9 +167,30 @@ function resolveNode(
         element: node.element,
         ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`),
         props: resolveProps(node.element, node.props, context, `${path}.props`),
-        state: resolveStateBinding(node.state, context, `${path}.state`, false),
+        state: resolveStateBinding(node.state, context, `${path}.state`, false, node.element),
         children: [] as const,
       }]
+    case "AmountField": {
+      const state = resolveStateBinding(node.state, context, `${path}.state`, false, node.element)
+      const source = context.amountDrafts !== undefined && hasOwn(context.amountDrafts, state.key) ? context.amountDrafts[state.key] : undefined
+      const raw = context.state[state.key]
+      if (source !== undefined && !sameAmountUnit(source.unit, node.unit)) {
+        throw new UiError("UI_INVALID_FIELD", "AmountField unit changed during editing", `${path}.props.unit`)
+      }
+      if (source === undefined && typeof raw !== "string" && raw !== null) {
+        throw new UiError("UI_INVALID_FIELD", "AmountField state must contain a base-unit string or null", `${path}.state`)
+      }
+      const projection = projectAmountDraft(source === undefined ? editAmountDraft(node.unit, "base", raw === null ? "" : raw as string) : source)
+      return [{
+        element: node.element,
+        ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`),
+        props: resolveProps("TextField", node.props, context, `${path}.props`),
+        state,
+        unit: node.unit,
+        draft: projection.draft,
+        children: [],
+      }]
+    }
   }
 
   return unreachableUiNode(node)
@@ -262,15 +286,25 @@ function collectInitialStateFromNode(
   stack: readonly string[],
 ): void {
   switch (node.element) {
-    case "TextField": {
-      const binding = resolveStateBinding(node.state, context, `${path}.state`, true)
+    case "TextField":
+    case "AmountField": {
+      const binding = resolveStateBinding(node.state, context, `${path}.state`, true, node.element)
       if (binding.defaultValue === undefined) {
-        throw new UiError("UI_INVALID_FIELD", "TextField state.defaultValue was not resolved")
+        throw new UiError("UI_INVALID_FIELD", `${node.element} state.defaultValue was not resolved`)
       }
       if (hasOwn(state, binding.key)) {
-        throw new UiError("UI_INVALID_FIELD", `duplicate TextField state key: ${binding.key}`)
+        throw new UiError("UI_INVALID_FIELD", `duplicate ${node.element} state key: ${binding.key}`)
       }
-      state[binding.key] = binding.defaultValue
+      if (node.element === "AmountField") {
+        const draft = editAmountDraft(node.unit, "base", binding.defaultValue)
+        const projection = projectAmountDraft(draft)
+        if (projection.draft.status !== "valid" && projection.draft.status !== "empty") {
+          throw new UiError("UI_INVALID_FIELD", "AmountField defaultValue must be an exact bounded base-unit amount or empty string", `${path}.state.defaultValue`)
+        }
+        state[binding.key] = projection.canonical
+        const drafts = context.amountDrafts as Record<string, AmountDraft>
+        drafts[binding.key] = draft
+      } else state[binding.key] = binding.defaultValue
       return
     }
     case "Screen":
@@ -329,6 +363,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
 
   switch (node.element) {
     case "TextField":
+    case "AmountField":
       return true
     case "Screen":
     case "Fragment":
@@ -349,6 +384,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
 function nodeBodyCanExposeInitialState(node: UiNode, stack: readonly string[]): boolean {
   switch (node.element) {
     case "TextField":
+    case "AmountField":
       return true
     case "Screen":
     case "Fragment":
@@ -372,16 +408,17 @@ function resolveStateBinding(
   context: UiRuntimeContext,
   path: string,
   includeDefault: boolean,
+  element: "TextField" | "AmountField",
 ): {
   readonly key: string
   readonly defaultValue?: string
 } {
   const key = resolveValueAtPath(state.key, context, `${path}.key`)
   if (typeof key !== "string" || key.length === 0) {
-    throw new UiError("UI_INVALID_FIELD", "TextField state.key must resolve to a non-empty string", `${path}.key`)
+    throw new UiError("UI_INVALID_FIELD", `${element} state.key must resolve to a non-empty string`, `${path}.key`)
   }
   if (!isExpressionIdentifier(key)) {
-    throw new UiError("UI_INVALID_FIELD", `TextField state.key must resolve to an expression identifier: ${key}`, `${path}.key`)
+    throw new UiError("UI_INVALID_FIELD", `${element} state.key must resolve to an expression identifier: ${key}`, `${path}.key`)
   }
 
   if (!includeDefault) {
@@ -390,7 +427,7 @@ function resolveStateBinding(
 
   const defaultValue = resolveValueAtPath(state.defaultValue, context, `${path}.defaultValue`)
   if (typeof defaultValue !== "string") {
-    throw new UiError("UI_INVALID_FIELD", `TextField state.defaultValue must resolve to a string: ${key}`, `${path}.defaultValue`)
+    throw new UiError("UI_INVALID_FIELD", `${element} state.defaultValue must resolve to a string: ${key}`, `${path}.defaultValue`)
   }
 
   return {

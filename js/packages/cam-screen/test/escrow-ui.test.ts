@@ -116,7 +116,7 @@ test("escrow creation screen resolves nested payable calldata from one form", as
       contractor: "0x0000000000000000000000000000000000000000",
       arbitrator: "0x0000000000000000000000000000000000000000",
       arbitrationTimeoutBeneficiary: "1",
-      amount: "0",
+      amount: null,
       acceptanceDuration: "0",
       workDuration: "0",
       reviewDuration: "0",
@@ -127,7 +127,16 @@ test("escrow creation screen resolves nested payable calldata from one form", as
       },
     },
   })
-  assert.equal(state.amount, "0")
+  assert.equal(state.amount, null)
+  const amounts: ResolvedUiNode[] = []
+  forEachResolvedUiNode(resolvedUi, (node) => {
+    if (node.element === "AmountField") amounts.push(node)
+  })
+  assert.equal(amounts.length, 1)
+  const amount = amounts[0]
+  assert.ok(amount?.element === "AmountField")
+  assert.deepEqual(amount.draft, { representation: "base", baseText: "", displayText: "", status: "empty" })
+  assert.deepEqual(amount.unit, { assetId: "native", baseLabel: "wei", displayLabel: "Native asset", decimals: 18 })
   assert.equal(state.arbitrationTimeoutBeneficiary, "1")
 })
 

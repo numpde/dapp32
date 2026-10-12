@@ -28,6 +28,160 @@ const context = {
   },
 }
 
+test("AmountField declares one exact base amount with explicit paired unit presentation", () => {
+  for (const { decimals, base, display } of [
+    { decimals: 0, base: "9007199254740993", display: "9007199254740993" },
+    { decimals: 6, base: "10001", display: "0.010001" },
+    { decimals: 18, base: "10000000000000000", display: "0.01" },
+    { decimals: 255, base: "1", display: `0.${"0".repeat(254)}1` },
+    { decimals: 18, base: "0", display: "0" },
+  ]) {
+    const unit = { assetId: "eip155:31337/slip44:60", baseLabel: "base units", displayLabel: "Declared asset", decimals }
+    const ui = parseUi({ ui: UI_VERSION, nodes: { amount: {
+      requires: [], element: "AmountField", props: { label: "Deposit", unit }, state: { key: "amount", defaultValue: base },
+    } } })
+    const { state, resolvedUi } = resolveInitialUiNode(ui, "amount", {}, { ...context, state: {} })
+    assert.equal(resolvedUi.element, "AmountField")
+    if (resolvedUi.element !== "AmountField") assert.fail("expected the amount control")
+    assert.deepEqual(toInertValue(resolvedUi.unit), toInertValue(unit))
+    assert.equal(state.amount, base)
+    assert.deepEqual(toInertValue(resolvedUi.draft), toInertValue({ representation: "base", baseText: base, displayText: display, status: "valid" }))
+    assert.deepEqual(toInertValue(JSON.parse(JSON.stringify(resolvedUi))), toInertValue(resolvedUi))
+    assert.deepEqual(resolvedUiInputNames(resolvedUi), ["amount"])
+  }
+})
+
+test("empty AmountField default is unset, while zero stays an exact usable amount", () => {
+  for (const value of ["", "0", "0000"]) {
+    const ui = amountFieldUi(value)
+    const { state, resolvedUi } = resolveInitialUiNode(ui, "amount", {}, { ...context, state: {} })
+    if (resolvedUi.element !== "AmountField") assert.fail("expected the amount control")
+    const draft = resolvedUi.draft
+    assert.equal(state.amount, value === "" ? null : "0")
+    assert.equal(draft.baseText, value)
+    assert.equal(draft.displayText, value === "" ? "" : "0")
+    assert.equal(draft.status, value === "" ? "empty" : "valid")
+  }
+})
+
+test("AmountField accepts only explicit literal bounded unit metadata", () => {
+  const valid = { assetId: "eip155:31337/slip44:60", baseLabel: "wei", displayLabel: "ETH", decimals: 18 }
+  for (const unit of [
+    { ...valid, decimals: -1 }, { ...valid, decimals: 256 }, { ...valid, decimals: 0.5 },
+    { ...valid, decimals: "18" }, { ...valid, decimals: "$view.decimals" },
+    { ...valid, assetId: "" }, { ...valid, baseLabel: "" }, { ...valid, displayLabel: "" },
+    { ...valid, unexpected: true },
+    { assetId: valid.assetId, baseLabel: valid.baseLabel, displayLabel: valid.displayLabel },
+    "$view.unit", null,
+  ]) {
+    assert.throws(() => parseUi({ ui: UI_VERSION, nodes: { amount: {
+      requires: [], element: "AmountField", props: { label: "Deposit", unit }, state: { key: "amount", defaultValue: "0" },
+    } } }), (error: unknown) => error instanceof UiError, `unsupported unit ${JSON.stringify(unit)}`)
+  }
+})
+
+test("AmountField rejects unknown properties and inherited required declarations", () => {
+  const unit = { assetId: "eip155:31337/slip44:60", baseLabel: "wei", displayLabel: "ETH", decimals: 18 }
+  for (const props of [
+    { label: "Deposit", unit, unexpected: "must not be dropped" },
+    Object.assign(Object.create({ label: "inherited label" }), { unit }),
+    { label: "Deposit", unit: Object.create(unit) },
+    { label: "Deposit", unit: Object.assign(Object.create({ decimals: 18 }), { assetId: unit.assetId, baseLabel: unit.baseLabel, displayLabel: unit.displayLabel }) },
+  ]) {
+    assert.throws(() => parseUi({ ui: UI_VERSION, nodes: { amount: {
+      requires: [], element: "AmountField", props, state: { key: "amount", defaultValue: "0" },
+    } } }), (error: unknown) => error instanceof UiError)
+  }
+})
+
+test("declared amount unit strings stay literal even when they resemble expression syntax", () => {
+  for (const unit of [
+    { assetId: "$asset", baseLabel: "$", displayLabel: "$", decimals: 6 },
+    { assetId: "$view.assetId", baseLabel: "$state.base", displayLabel: "$view.unit", decimals: 18 },
+  ]) {
+    const ui = parseUi({ ui: UI_VERSION, nodes: { amount: {
+      requires: [], element: "AmountField", props: { label: "Deposit", unit }, state: { key: "amount", defaultValue: "1" },
+    } } })
+    const { resolvedUi } = resolveInitialUiNode(ui, "amount", {}, { ...context, state: {} })
+    if (resolvedUi.element !== "AmountField") assert.fail("expected the amount control")
+    assert.deepEqual(toInertValue(resolvedUi.unit), toInertValue(unit))
+  }
+})
+
+for (const inheritedKey of ["label", "assetId", "decimals"] as const) {
+  test(`AmountField requires its own ${inheritedKey} declaration even with inherited prototype values`, () => {
+    const unit = { assetId: "eip155:31337/slip44:60", baseLabel: "wei", displayLabel: "ETH", decimals: 18 }
+    const previous = Object.getOwnPropertyDescriptor(Object.prototype, inheritedKey)
+    Object.defineProperty(Object.prototype, inheritedKey, { value: inheritedKey === "label" ? "inherited label" : unit[inheritedKey], configurable: true })
+    try {
+      const ownUnit = Object.fromEntries(Object.entries(unit).filter(([name]) => name !== inheritedKey))
+      const props = inheritedKey === "label" ? { unit } : { label: "Deposit", unit: ownUnit }
+      assert.throws(() => parseUi({ ui: UI_VERSION, nodes: { amount: {
+        requires: [], element: "AmountField", props, state: { key: "amount", defaultValue: "0" },
+      } } }), (error: unknown) => error instanceof UiError)
+    } finally {
+      if (previous === undefined) Reflect.deleteProperty(Object.prototype, inheritedKey)
+      else Object.defineProperty(Object.prototype, inheritedKey, previous)
+    }
+  })
+}
+
+test("AmountField validates and retains one snapshot of a declared scale getter", () => {
+  let reads = 0
+  const unit = { assetId: "eip155:31337/slip44:60", baseLabel: "wei", displayLabel: "ETH", decimals: 18 }
+  Object.defineProperty(unit, "decimals", { enumerable: true, get: () => {
+    reads++
+    return reads < 5 ? 18 : Number.MAX_SAFE_INTEGER
+  } })
+  const parsed = parseUi({ ui: UI_VERSION, nodes: { amount: {
+    requires: [], element: "AmountField", props: { label: "Deposit", unit }, state: { key: "amount", defaultValue: "0" },
+  } } })
+  const node = parsed.nodes.amount
+  assert.equal(node?.element, "AmountField")
+  if (node?.element !== "AmountField") assert.fail("expected the declared amount control")
+  assert.equal(node.unit.decimals, 18)
+  assert.equal(reads, 1)
+})
+
+test("AmountField rejects malformed or oversized defaults instead of loading a misleading amount", () => {
+  for (const value of [".", "0.", "-1", "1e3", " 1", "1 ", "1\n2", "1\r2", "1,000", null, 0, "1".repeat(1025), "0".repeat(2049)]) {
+    assert.throws(() => resolveInitialUiNode(amountFieldUi(value), "amount", {}, { ...context, state: {} }),
+      (error: unknown) => error instanceof UiError, `unsupported base default ${JSON.stringify(value)?.slice(0, 40)}`)
+  }
+})
+
+test("AmountField participates in ordinary field identity and availability without inventing amount permissions", () => {
+  const unit = { assetId: "eip155:31337/slip44:60", baseLabel: "wei", displayLabel: "ETH", decimals: 18 }
+  const field = { element: "AmountField", props: { label: "Deposit", unit }, state: { key: "amount", defaultValue: "0" } }
+  const ui = parseUi({ ui: UI_VERSION, nodes: { app: {
+    requires: [], element: "Screen", props: { title: "Deposit" }, children: [{ ...field, enabledWhen: { member: "fund", in: [] } }],
+  } } })
+  const { state, resolvedUi } = resolveInitialUiNode(ui, "app", {}, { ...context, state: {} })
+  let disabled: unknown
+  forEachResolvedUiNode(resolvedUi, (node) => {
+    if (node.element === "AmountField") disabled = node.disabled
+  })
+  assert.equal(disabled, true)
+  assert.equal(state.amount, "0", "zero does not imply an unavailable business action")
+  assert.deepEqual(resolvedUiInputNames(resolvedUi), ["amount"])
+  assert.throws(() => resolveInitialUiNode(parseUi({ ui: UI_VERSION, nodes: { app: {
+    requires: [], element: "Screen", props: { title: "Collision" }, children: [field,
+      { element: "TextField", props: { label: "Other amount" }, state: { key: "amount", defaultValue: "1" } },
+    ],
+  } } }), "app", {}, { ...context, state: {} }), (error: unknown) => error instanceof UiError)
+  assert.throws(() => resolveInitialUiNode(parseUi({ ui: UI_VERSION, nodes: { amount: {
+    ...field, requires: [], state: { key: "__proto__", defaultValue: "0" },
+  } } }), "amount", {}, { ...context, state: {} }), (error: unknown) => error instanceof UiError && /expression identifier/.test(error.message))
+})
+
+function amountFieldUi(defaultValue: unknown) {
+  return parseUi({ ui: UI_VERSION, nodes: { amount: {
+    requires: [], element: "AmountField", props: { label: "Deposit", unit: {
+      assetId: "eip155:31337/slip44:60", baseLabel: "wei", displayLabel: "ETH", decimals: 18,
+    } }, state: { key: "amount", defaultValue },
+  } } })
+}
+
 test("declared Status formats preserve raw values while resolving exact readable text", () => {
   const cases = [
     { format: "bytes", value: "128", text: "128 bytes" },

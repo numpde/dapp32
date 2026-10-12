@@ -55,6 +55,7 @@ export const UI_PROP_SCHEMAS = {
     string: ["label"],
     address: [],
   },
+  AmountField: { required: ["label", "unit"], string: ["label"], address: [], literal: ["unit"] },
   Address: {
     required: ["label", "address"],
     string: ["label", "address"],

@@ -27,9 +27,7 @@ export function resolvedUiButtons(root: ResolvedUiNode): readonly ResolvedButton
 export function resolvedUiInputNames(root: ResolvedUiNode): readonly string[] {
   const names = new Set<string>()
   forEachResolvedUiNode(root, (node) => {
-    // TextField state keys are the only mutable view state the resolved UI
-    // exposes to viewers and integration fuzzers.
-    if (node.element === "TextField") {
+    if (node.element === "TextField" || node.element === "AmountField") {
       names.add(node.state.key)
     }
   })
