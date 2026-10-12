@@ -28,6 +28,105 @@ const context = {
   },
 }
 
+test("NonNegativeIntegerField keeps one exact canonical integer while preserving declared lexical defaults", () => {
+  for (const value of ["", "0", "0000", "00042", "9007199254740993", "18446744073709551615", (2n ** 256n - 1n).toString()]) {
+    const ui = parseUi({ ui: UI_VERSION, nodes: { counter: {
+      requires: [], element: "NonNegativeIntegerField", props: { label: "Counter", min: "0" },
+      state: { key: "counter", defaultValue: value },
+    } } })
+    const { state, resolvedUi } = resolveInitialUiNode(ui, "counter", {}, { ...context, state: {} })
+    assert.equal(state.counter, value === "" ? null : BigInt(value).toString())
+    assert.equal(resolvedUi.element, "NonNegativeIntegerField")
+    assert.deepEqual(resolvedUiInputNames(resolvedUi), ["counter"])
+    assert.deepEqual(toInertValue(JSON.parse(JSON.stringify(resolvedUi))), toInertValue(resolvedUi))
+  }
+})
+
+test("NonNegativeIntegerField resolves exact inclusive bounds from declared view values", () => {
+  const maximum = (2n ** 256n - 1n).toString()
+  const ui = parseUi({ ui: UI_VERSION, nodes: { counter: {
+    requires: ["view"], element: "NonNegativeIntegerField",
+    props: { label: "Counter", min: "$view.minimum", max: "$view.maximum" },
+    state: { key: "counter", defaultValue: maximum },
+  } } })
+  const { state } = resolveInitialUiNode(ui, "counter", { view: { minimum: "9007199254740993", maximum } }, { ...context, state: {} })
+  assert.equal(state.counter, maximum)
+})
+
+test("dedicated integer parsing does not reinterpret numeric-looking text identifiers", () => {
+  const ui = parseUi({ ui: UI_VERSION, nodes: { app: { requires: [], element: "Screen", props: { title: "Identifiers" }, children: [
+    { element: "NonNegativeIntegerField", props: { label: "Counter" }, state: { key: "counter", defaultValue: "00042" } },
+    { element: "TextField", props: { label: "Identifier" }, state: { key: "identifier", defaultValue: "00042" } },
+  ] } } })
+  const { state } = resolveInitialUiNode(ui, "app", {}, { ...context, state: {} })
+  assert.equal(state.counter, "42")
+  assert.equal(state.identifier, "00042")
+})
+
+test("integer declarations reject malformed defaults and exact bounds before publishing a usable field", () => {
+  const declaration = (defaultValue: unknown, props: Record<string, unknown>) => ({ ui: UI_VERSION, nodes: { counter: {
+    requires: [], element: "NonNegativeIntegerField", props: { label: "Counter", ...props },
+    state: { key: "counter", defaultValue },
+  } } })
+  for (const value of [null, 1, "-1", "+1", "1.0", "1e3", "1,000", " 1", "1\n2", "١", "1".repeat(1025), "0".repeat(2049)]) {
+    assert.throws(() => resolveInitialUiNode(parseUi(declaration(value, {})), "counter", {}, { ...context, state: {} }), UiError)
+  }
+  for (const bound of [null, 1, "", "-1", "+1", "1.0", "1e3", " 1", "١", "1".repeat(1025), "0".repeat(2049)]) {
+    for (const name of ["min", "max"]) {
+      assert.throws(() => resolveInitialUiNode(parseUi(declaration("", { [name]: bound })), "counter", {}, { ...context, state: {} }), UiError)
+    }
+  }
+  assert.throws(() => resolveInitialUiNode(parseUi(declaration("", { min: "9007199254740994", max: "9007199254740993" })), "counter", {}, { ...context, state: {} }), UiError)
+  for (const value of ["0", "3"]) {
+    assert.throws(() => resolveInitialUiNode(parseUi(declaration(value, { min: "1", max: "2" })), "counter", {}, { ...context, state: {} }), UiError)
+  }
+})
+
+test("integer bounds are inclusive and compare values beyond machine number precision exactly", () => {
+  for (const value of ["9007199254740993", "9007199254740994"]) {
+    const ui = parseUi({ ui: UI_VERSION, nodes: { counter: {
+      requires: [], element: "NonNegativeIntegerField", props: { label: "Counter", min: "9007199254740993", max: "9007199254740994" },
+      state: { key: "counter", defaultValue: value },
+    } } })
+    assert.equal(resolveInitialUiNode(ui, "counter", {}, { ...context, state: {} }).state.counter, value)
+  }
+  const maximum = "1".repeat(1024)
+  const ui = parseUi({ ui: UI_VERSION, nodes: { counter: {
+    requires: [], element: "NonNegativeIntegerField", props: { label: "Counter", max: maximum },
+    state: { key: "counter", defaultValue: "" },
+  } } })
+  const { state, resolvedUi } = resolveInitialUiNode(ui, "counter", {}, { ...context, state: {} })
+  assert.ok(resolvedUi.element === "NonNegativeIntegerField")
+  assert.equal(resolvedUi.props.max, maximum)
+  assert.equal(state.counter, null)
+})
+
+test("integer bounds cannot depend on editable state directly or through Include arguments", () => {
+  const counter = { requires: [], element: "NonNegativeIntegerField", props: { label: "Counter", max: "$state.ceiling" }, state: { key: "counter", defaultValue: "" } }
+  const direct = parseUi({ ui: UI_VERSION, nodes: { counter } })
+  assert.throws(() => resolveInitialUiNode(direct, "counter", {}, { ...context, state: { ceiling: "42" } }), UiError)
+  const aliased = parseUi({ ui: UI_VERSION, nodes: {
+    app: { requires: [], element: "Screen", props: { title: "Counter" }, children: [
+      { element: "TextField", props: { label: "Ceiling" }, state: { key: "ceiling", defaultValue: "42" } },
+      { element: "Include", call: { namespace: "ui", function: "counter", args: { view: { ceiling: "$state.ceiling" } } } },
+    ] },
+    counter: { ...counter, requires: ["view"], props: { label: "Counter", max: "$view.ceiling" } },
+  } })
+  assert.throws(() => resolveInitialUiNode(aliased, "app", {}, { ...context, state: {} }), UiError)
+})
+
+test("integer bindings reject duplicate ownership even when lexical defaults happen to match", () => {
+  const integer = { element: "NonNegativeIntegerField", props: { label: "Counter" }, state: { key: "counter", defaultValue: "1" } }
+  for (const second of [
+    integer,
+    { element: "TextField", props: { label: "Identifier" }, state: { key: "counter", defaultValue: "1" } },
+    { element: "AmountField", props: { label: "Deposit", unit: { assetId: "declared", baseLabel: "base", displayLabel: "display", decimals: 0 } }, state: { key: "counter", defaultValue: "1" } },
+  ]) {
+    const ui = parseUi({ ui: UI_VERSION, nodes: { app: { requires: [], element: "Screen", props: { title: "Counter" }, children: [integer, second] } } })
+    assert.throws(() => resolveInitialUiNode(ui, "app", {}, { ...context, state: {} }), UiError)
+  }
+})
+
 test("AmountField declares one exact base amount with explicit paired unit presentation", () => {
   for (const { decimals, base, display } of [
     { decimals: 0, base: "9007199254740993", display: "9007199254740993" },
@@ -215,6 +314,7 @@ test("Status without a format keeps inert values raw and invents no presentation
       app: { requires: [], element: "Status", props: { label: "Unformatted", value } },
     } })
     const resolved = resolveUiNode(ui, "app", {}, context)
+    assert.ok(resolved.element === "Status")
     assert.equal(Object.hasOwn(resolved, "formattedValue"), false)
     assert.deepEqual(resolved.props.value, toInertValue(value))
   }

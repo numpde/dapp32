@@ -94,6 +94,37 @@ test("terminal amount unit labels pass through the untrusted text boundary", () 
   assert.doesNotMatch(output, /^FORGED/m)
 })
 
+test("terminal integer controls preserve lexical text, exact bounds, unavailable states and disabled presence", () => {
+  const output = statusTerminalOutput([
+    { element: "NonNegativeIntegerField", props: { label: "Counter", min: "1", max: "9007199254740993" },
+      state: { key: "counter" }, draft: { text: "00042", status: "valid" }, children: [] },
+    { element: "NonNegativeIntegerField", props: { label: "Incomplete counter" },
+      state: { key: "pending" }, draft: { text: "42", status: "incomplete", composing: true }, children: [] },
+    { element: "NonNegativeIntegerField", props: { label: "Disabled counter" }, disabled: true,
+      state: { key: "disabled" }, draft: { text: "42", status: "valid" }, children: [] },
+  ])
+  assert.ok(output.includes("Counter: 00042\n"))
+  assert.ok(output.includes("Minimum: 1\n"))
+  assert.ok(output.includes("Maximum: 9007199254740993\n"))
+  assert.ok(output.includes("Integer incomplete; no value is available to prepare."))
+  assert.ok(output.includes("Disabled counter (disabled): 42\n"))
+})
+
+test("terminal integer commands preserve raw text and forward explicit clearing through the session API", () => {
+  const output = statusTerminalOutput([], undefined, "integer counter 00042\ninteger counter 9007199254740993\ninteger counter 1.5\ninteger counter\nquit\n")
+  for (const value of ["00042", "9007199254740993", "1.5", ""]) assert.ok(output.includes("INTEGER_EDIT " + JSON.stringify(["counter", value]) + "\n"))
+})
+
+test("terminal integer labels and rejected lexical text cannot inject terminal controls", () => {
+  const output = statusTerminalOutput([
+    { element: "NonNegativeIntegerField", props: { label: "Counter\u001b[2J\nFORGED" }, state: { key: "counter" },
+      draft: { text: "1\u001b[2J", status: "invalid", issue: "syntax" }, children: [] },
+  ])
+  assert.ok(output.includes("Counter\\u001b[2J\\u000aFORGED: 1\\u001b[2J"))
+  assert.doesNotMatch(output, /[\u0000-\u0008\u000b-\u001f\u007f]/)
+  assert.doesNotMatch(output, /^FORGED/m)
+})
+
 test("formatValue survives unprintable terminal values", () => {
   const cyclic: Record<string, unknown> = {}
   cyclic.self = cyclic
@@ -150,7 +181,8 @@ function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][],
         createSession: () => ({ snapshot: () => snapshot, load: async () => snapshot,
           back: unsupported, navigate: unsupported, setAccount: unsupported,
           updateState: unsupported, dispatchAction: unsupported,
-          editAmount: (name, representation, text) => { process.stdout.write('AMOUNT_EDIT '+JSON.stringify([name,representation,text])+'\\n'); return snapshot; } })
+          editAmount: (name, representation, text) => { process.stdout.write('AMOUNT_EDIT '+JSON.stringify([name,representation,text])+'\\n'); return snapshot; },
+          editInteger: (name, text) => { process.stdout.write('INTEGER_EDIT '+JSON.stringify([name,text])+'\\n'); return snapshot; } })
       })
     }});
     await import(${JSON.stringify(terminal.href)});

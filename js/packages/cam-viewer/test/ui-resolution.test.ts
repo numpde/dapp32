@@ -68,7 +68,7 @@ test("resolveViewerInitialUi resolves route continuations and initial state", ()
 
 test("resolveViewerCurrentUi re-resolves with supplied state", () => {
   const resolved = resolveViewerCurrentUi({
-    amountDrafts: {},
+    numericDrafts: {},
     cam: camDocument(),
     ui: uiDocument(),
     host,
@@ -112,7 +112,7 @@ test("resolveViewerCurrentUi re-resolves with supplied state", () => {
 test("resolveViewerCurrentUi rejects read routes whose continuation is not ui", () => {
   assert.throws(
     () => resolveViewerCurrentUi({
-      amountDrafts: {},
+      numericDrafts: {},
       cam: camWithThenNamespace("routes"),
       ui: uiDocument(),
       host,
@@ -130,7 +130,7 @@ test("resolveViewerCurrentUi rejects read routes whose continuation is not ui", 
 test("resolveViewerCurrentUi maps anonymous account UI errors to viewer errors", () => {
   assert.throws(
     () => resolveViewerCurrentUi({
-      amountDrafts: {},
+      numericDrafts: {},
       cam: camDocument(),
       ui: uiDocument(),
       host,
@@ -149,7 +149,7 @@ test("resolveViewerCurrentUi maps anonymous account UI errors to viewer errors",
 test("resolveViewerCurrentUi does not map unrelated UI errors", () => {
   assert.throws(
     () => resolveViewerCurrentUi({
-      amountDrafts: {},
+      numericDrafts: {},
       cam: camDocument(),
       ui: uiDocument(),
       host,
@@ -165,7 +165,7 @@ test("resolveViewerCurrentUi does not map unrelated UI errors", () => {
 
 test("resolveViewerCurrentUi does not map account UI errors when account is present", () => {
   const resolved = resolveViewerCurrentUi({
-    amountDrafts: {},
+    numericDrafts: {},
     cam: camDocument(),
     ui: uiDocument(),
     host,
@@ -187,7 +187,7 @@ test("resolveViewerCurrentUi does not map account UI errors when account is pres
 
 test("resolveViewerCurrentUi passes inputs, outputs, and state into UI context", () => {
   const resolved = resolveViewerCurrentUi({
-    amountDrafts: {},
+    numericDrafts: {},
     cam: camDocument(),
     ui: uiDocument(),
     host,

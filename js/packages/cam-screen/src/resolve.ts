@@ -2,6 +2,7 @@ import { UiError } from "./errors.ts"
 import { resolveValueAtPath } from "./expressions.ts"
 import { formatStatusValue } from "./status-format.ts"
 import { editAmountDraft, projectAmountDraft, sameAmountUnit } from "./amount.ts"
+import { editIntegerDraft, projectIntegerDraft, integerBound, compareUnsignedDigits } from "./numeric.ts"
 import {
   createStringMap,
   hasOwn,
@@ -15,7 +16,7 @@ import {
 } from "@cam/protocol"
 import type { InertRecord, InertValue } from "@cam/protocol"
 import type {
-  AmountDraft,
+  NumericDraft,
   ButtonNode,
   IncludeNode,
   ResolvedButtonNode,
@@ -56,10 +57,10 @@ export function resolveInitialUiNode(
   const initialContext = {
     ...context,
     state: emptyState,
-    amountDrafts: createStringMap<AmountDraft>(),
+    numericDrafts: createStringMap<NumericDraft>(),
   }
   const state = createInitialState(ui, nodeName, args, initialContext)
-  const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, state, amountDrafts: initialContext.amountDrafts })
+  const resolvedUi = resolveUiNode(ui, nodeName, args, { ...context, state, numericDrafts: initialContext.numericDrafts })
 
   return {
     state,
@@ -172,9 +173,9 @@ function resolveNode(
       }]
     case "AmountField": {
       const state = resolveStateBinding(node.state, context, `${path}.state`, false, node.element)
-      const source = context.amountDrafts !== undefined && hasOwn(context.amountDrafts, state.key) ? context.amountDrafts[state.key] : undefined
+      const source = context.numericDrafts !== undefined && hasOwn(context.numericDrafts, state.key) ? context.numericDrafts[state.key] : undefined
       const raw = context.state[state.key]
-      if (source !== undefined && !sameAmountUnit(source.unit, node.unit)) {
+      if (source !== undefined && (source.kind !== "amount" || !sameAmountUnit(source.unit, node.unit))) {
         throw new UiError("UI_INVALID_FIELD", "AmountField unit changed during editing", `${path}.props.unit`)
       }
       if (source === undefined && typeof raw !== "string" && raw !== null) {
@@ -190,6 +191,16 @@ function resolveNode(
         draft: projection.draft,
         children: [],
       }]
+    }
+    case "NonNegativeIntegerField": {
+      const state = resolveStateBinding(node.state, context, `${path}.state`, false, node.element)
+      const props = resolveIntegerProps(node.props, context, `${path}.props`)
+      const source = context.numericDrafts !== undefined && hasOwn(context.numericDrafts, state.key) ? context.numericDrafts[state.key] : undefined
+      if (source !== undefined && source.kind !== "integer") throw new UiError("UI_INVALID_FIELD", "Integer field draft kind changed during editing", `${path}.state`)
+      const raw = context.state[state.key]
+      if (source === undefined && typeof raw !== "string" && raw !== null) throw new UiError("UI_INVALID_FIELD", "Integer field state must contain a decimal string or null", `${path}.state`)
+      const projection = projectIntegerDraft(source === undefined ? editIntegerDraft(raw === null ? "" : raw as string) : source, props)
+      return [{ element: node.element, ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`), props, state, draft: projection.draft, children: [] }]
     }
   }
 
@@ -302,9 +313,22 @@ function collectInitialStateFromNode(
           throw new UiError("UI_INVALID_FIELD", "AmountField defaultValue must be an exact bounded base-unit amount or empty string", `${path}.state.defaultValue`)
         }
         state[binding.key] = projection.canonical
-        const drafts = context.amountDrafts as Record<string, AmountDraft>
+        const drafts = context.numericDrafts as Record<string, NumericDraft>
         drafts[binding.key] = draft
       } else state[binding.key] = binding.defaultValue
+      return
+    }
+    case "NonNegativeIntegerField": {
+      const binding = resolveStateBinding(node.state, context, `${path}.state`, true, node.element)
+      if (binding.defaultValue === undefined) throw new UiError("UI_INVALID_FIELD", "Integer field defaultValue was not resolved", `${path}.state.defaultValue`)
+      if (hasOwn(state, binding.key)) throw new UiError("UI_INVALID_FIELD", `duplicate ${node.element} state key: ${binding.key}`, `${path}.state.key`)
+      const props = resolveIntegerProps(node.props, context, `${path}.props`)
+      const draft = editIntegerDraft(binding.defaultValue)
+      const projection = projectIntegerDraft(draft, props)
+      if (projection.draft.status !== "valid" && projection.draft.status !== "empty") throw new UiError("UI_INVALID_FIELD", "Integer field defaultValue must satisfy its bounds or be empty", `${path}.state.defaultValue`)
+      state[binding.key] = projection.canonical
+      const drafts = context.numericDrafts as Record<string, NumericDraft>
+      drafts[binding.key] = draft
       return
     }
     case "Screen":
@@ -364,6 +388,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
   switch (node.element) {
     case "TextField":
     case "AmountField":
+    case "NonNegativeIntegerField":
       return true
     case "Screen":
     case "Fragment":
@@ -385,6 +410,7 @@ function nodeBodyCanExposeInitialState(node: UiNode, stack: readonly string[]): 
   switch (node.element) {
     case "TextField":
     case "AmountField":
+    case "NonNegativeIntegerField":
       return true
     case "Screen":
     case "Fragment":
@@ -408,7 +434,7 @@ function resolveStateBinding(
   context: UiRuntimeContext,
   path: string,
   includeDefault: boolean,
-  element: "TextField" | "AmountField",
+  element: "TextField" | "AmountField" | "NonNegativeIntegerField",
 ): {
   readonly key: string
   readonly defaultValue?: string
@@ -500,6 +526,18 @@ function resolveProps(
   }
 
   return resolved
+}
+
+function resolveIntegerProps(props: InertRecord, context: UiRuntimeContext, path: string): { label: string; min?: string; max?: string } {
+  const label = resolveValueAtPath(props.label, context, `${path}.label`)
+  if (typeof label !== "string") throw new UiError("UI_INVALID_FIELD", "Integer field label must resolve to a string", `${path}.label`)
+  // Bounds are declaration metadata, not editable form state. This is the same
+  // read-only state context used when Include/default collection initializes a view.
+  const boundContext = { ...context, state: createStringMap<InertValue>() }
+  const min = hasOwn(props, "min") ? integerBound(resolveValueAtPath(props.min, boundContext, `${path}.min`), `${path}.min`) : undefined
+  const max = hasOwn(props, "max") ? integerBound(resolveValueAtPath(props.max, boundContext, `${path}.max`), `${path}.max`) : undefined
+  if (min !== undefined && max !== undefined && compareUnsignedDigits(min, max) > 0) throw new UiError("UI_INVALID_FIELD", "Integer field minimum must not exceed its maximum", path)
+  return { label, ...(min === undefined ? {} : { min }), ...(max === undefined ? {} : { max }) }
 }
 
 function requireStringProp(props: InertRecord, name: string, path: string): void {

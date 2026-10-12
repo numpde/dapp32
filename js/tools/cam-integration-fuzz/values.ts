@@ -64,7 +64,7 @@ export function generatedStatePatch({
   const patch: Record<string, InertValue> = {}
   const names = new Set<string>()
   forEachResolvedUiNode(resolved, (node) => {
-    if ((node.element === "TextField" || node.element === "AmountField") && node.disabled !== true) names.add(node.state.key)
+    if ((node.element === "TextField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField") && node.disabled !== true) names.add(node.state.key)
   })
   for (const name of [...names].sort()) {
     patch[name] = generatedNamedValue(name, account, prng, mode)

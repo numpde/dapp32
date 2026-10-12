@@ -144,6 +144,15 @@ test("AmountField unit declarations are literal while ordinary label expressions
   }
 })
 
+test("dedicated integer declarations with exact literal bounds remain valid CAM publications", () => {
+  const uiBytes = jsonBytes({ ui: UI_VERSION, nodes: { app: {
+    requires: ["view"], element: "NonNegativeIntegerField", props: { label: "Counter", min: "0", max: "18446744073709551615" },
+    state: { key: "counter", defaultValue: "" },
+  } } })
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => replaceBundleResources(root, bundle, { uiBytes }))
+  assert.deepEqual(issues, [])
+})
+
 test("missing declared UI resource returns one precise issue", () => {
   const bundle = minimalBundle()
   const resources = new Map(bundle.resources)

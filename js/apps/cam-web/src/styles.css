@@ -194,7 +194,7 @@ input:disabled {
 .amount-field { min-width: 0; margin: 0; padding: 0; border: 0; }
 .amount-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .amount-field legend { padding: 0; margin-bottom: 8px; }
-.field-hint { margin: 8px 0 0; color: var(--muted); font-size: 0.86rem; }
+.field-hint { margin: 8px 0 0; color: var(--muted); font-size: 0.86rem; overflow-wrap: anywhere; }
 @media (max-width: 480px) { .amount-pair { grid-template-columns: minmax(0, 1fr); } }
 
 .field span {

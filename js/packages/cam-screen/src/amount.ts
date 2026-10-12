@@ -2,12 +2,11 @@ import { UiError } from "./errors.ts"
 import { isRecordObject } from "@cam/protocol"
 import { requiredNonEmptyString } from "./guards.ts"
 import type { AmountUnit, AmountDraft, AmountPresentation } from "./types.ts"
+import { captureNumericText, canonicalUnsignedDigits, MAX_NUMERIC_DIGITS } from "./numeric.ts"
 
 // Active text is bounded in UTF-16 code units. Canonical significant digits plus
 // the maximum scale fit either editing direction within that text bound.
 // These are resource limits, independent of ABI ranges or business minima.
-export const MAX_AMOUNT_TEXT_LENGTH = 2048
-export const MAX_AMOUNT_DIGITS = 1024
 const MAX_AMOUNT_DECIMALS = 255
 
 export function parseAmountUnit(value: unknown, path: string): AmountUnit {
@@ -34,8 +33,7 @@ export function sameAmountUnit(left: AmountUnit, right: AmountUnit): boolean {
 }
 
 export function editAmountDraft(unit: AmountUnit, representation: "base" | "display", text: string, composing?: boolean): AmountDraft {
-  const rejection = text.length > MAX_AMOUNT_TEXT_LENGTH ? "tooLong" : /[\r\n]/u.test(text) ? "lineBreak" : null
-  return { unit, representation, text: rejection === null ? text : "", rejection, composing: composing === true }
+  return { kind: "amount", unit, representation, ...captureNumericText(text, composing) }
 }
 
 export function projectAmountDraft(source: AmountDraft): { canonical: string | null; draft: AmountPresentation } {
@@ -60,9 +58,11 @@ export function projectAmountDraft(source: AmountDraft): { canonical: string | n
     if (/[^0]/u.test(fraction.slice(unit.decimals))) return unavailable("invalid", "precision")
     digits = whole + fraction.slice(0, unit.decimals).padEnd(unit.decimals, "0")
   }
-  const significant = digits.replace(/^0+/u, "")
-  const canonical = significant === "" ? "0" : significant
-  if (canonical.length > MAX_AMOUNT_DIGITS) return unavailable("invalid", "tooLong")
+  // A validated display such as .000 at scale zero has an empty coefficient;
+  // its discarded fractional digits are all zero, so it represents zero exactly.
+  const canonical = canonicalUnsignedDigits(digits === "" ? "0" : digits)
+  if (canonical === null) return unavailable("invalid", "syntax")
+  if (canonical.length > MAX_NUMERIC_DIGITS) return unavailable("invalid", "tooLong")
   let display = canonical
   if (unit.decimals > 0) {
     const padded = canonical.padStart(unit.decimals + 1, "0")

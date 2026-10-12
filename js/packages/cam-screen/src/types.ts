@@ -11,6 +11,7 @@ export type UiNode =
   | TextNode
   | TextFieldNode
   | AmountFieldNode
+  | NonNegativeIntegerFieldNode
   | AddressNode
   | StatusNode
   | NftNode
@@ -58,12 +59,42 @@ export type AmountUnit = {
 
 // One active lexical draft owns editing; both displayed strings and the
 // canonical state value are projections. Rejected edits retain no oversized text.
-export type AmountDraft = {
-  readonly unit: AmountUnit
-  readonly representation: "base" | "display"
+export type NumericTextDraft = {
   readonly text: string
   readonly rejection: "tooLong" | "lineBreak" | null
   readonly composing: boolean
+}
+
+export type IntegerDraft = NumericTextDraft & { readonly kind: "integer" }
+export type NumericDraft = AmountDraft | IntegerDraft
+
+export type AmountDraft = NumericTextDraft & {
+  readonly kind: "amount"
+  readonly unit: AmountUnit
+  readonly representation: "base" | "display"
+}
+
+export type IntegerPresentation = {
+  readonly text: string
+  readonly status: "valid" | "empty" | "incomplete" | "invalid"
+  readonly composing?: true
+  readonly issue?: "syntax" | "belowMin" | "aboveMax" | "tooLong" | "lineBreak"
+}
+
+export type NonNegativeIntegerFieldNode = UiNodeBase & {
+  readonly element: "NonNegativeIntegerField"
+  readonly enabledWhen?: UiMembership
+  readonly props: InertRecord
+  readonly state: UiStateBinding
+}
+
+export type ResolvedNonNegativeIntegerFieldNode = {
+  readonly element: "NonNegativeIntegerField"
+  readonly disabled?: boolean
+  readonly props: { readonly label: string; readonly min?: string; readonly max?: string }
+  readonly state: ResolvedUiStateBinding
+  readonly draft: IntegerPresentation
+  readonly children: readonly []
 }
 
 export type AmountPresentation = {
@@ -133,7 +164,7 @@ export type UiStateBinding = {
 
 export type UiRuntimeContext = CamRuntimeContext & {
   readonly state: InertRecord
-  readonly amountDrafts?: Readonly<Record<string, AmountDraft>>
+  readonly numericDrafts?: Readonly<Record<string, NumericDraft>>
   readonly [key: string]: InertValue | undefined
 }
 
@@ -147,6 +178,7 @@ export type ResolvedElementNode =
   | ResolvedTextFieldNode
   | ResolvedStatusNode
   | ResolvedAmountFieldNode
+  | ResolvedNonNegativeIntegerFieldNode
 
 export type ResolvedContainerNode = {
   readonly element: Extract<UiNode["element"], "Screen" | "Fragment">
@@ -155,7 +187,7 @@ export type ResolvedContainerNode = {
 }
 
 export type ResolvedLeafElementNode = {
-  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "AmountField" | "Status">
+  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "AmountField" | "NonNegativeIntegerField" | "Status">
   readonly props: InertRecord
   readonly children: readonly []
 }

@@ -1,6 +1,9 @@
 export type {
   AmountUnit,
   AmountDraft,
+  NumericDraft,
+  IntegerDraft,
+  ResolvedNonNegativeIntegerFieldNode,
   ResolvedAmountFieldNode,
   ResolvedButtonNode,
   ResolvedContainerNode,
@@ -17,7 +20,8 @@ export type {
   UiRuntimeContext,
 } from "./types.ts"
 
-export { editAmountDraft, projectAmountDraft, sameAmountUnit, MAX_AMOUNT_TEXT_LENGTH, MAX_AMOUNT_DIGITS } from "./amount.ts"
+export { editAmountDraft, projectAmountDraft, sameAmountUnit } from "./amount.ts"
+export { editIntegerDraft, projectIntegerDraft, MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "./numeric.ts"
 
 export { UiError } from "./errors.ts"
 export type { UiErrorCode } from "./errors.ts"

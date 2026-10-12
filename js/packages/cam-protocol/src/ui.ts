@@ -56,6 +56,7 @@ export const UI_PROP_SCHEMAS = {
     address: [],
   },
   AmountField: { required: ["label", "unit"], string: ["label"], address: [], literal: ["unit"] },
+  NonNegativeIntegerField: { required: ["label"], optional: ["min", "max"], string: ["label"], address: [] },
   Address: {
     required: ["label", "address"],
     string: ["label", "address"],

@@ -4,7 +4,7 @@ import test from "node:test"
 
 import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, toInertValue, UI_VERSION, type InertRecord, type InertValue } from "@cam/protocol"
 import { CamEvmError } from "@cam/evm-viem"
-import { forEachResolvedUiNode, resolvedUiButtons, UiError, type ResolvedAmountFieldNode, type ResolvedUiNode } from "@cam/screen"
+import { forEachResolvedUiNode, resolvedUiButtons, UiError, type ResolvedAmountFieldNode, type ResolvedNonNegativeIntegerFieldNode, type ResolvedUiNode } from "@cam/screen"
 
 import {
   createCamViewerSession,
@@ -508,6 +508,311 @@ function paymentPreparationSession(
   })) }
 }
 
+test("integer direct patches normalize exact values and never retain the previous valid amount after malformed input", async () => {
+  const { session } = paymentPreparationSession(
+    { amount: "$state.amount", recipients: [registeredOwnerAddress] }, undefined, "nonpayable",
+    { element: "NonNegativeIntegerField", props: { label: "Counter", min: "0" },
+      state: { key: "amount", defaultValue: "" } },
+  )
+  const empty = await session.load()
+  assert.equal(empty.state.amount, null)
+  for (const [raw, canonical] of [["00042", "42"], ["9007199254740993", "9007199254740993"], ["18446744073709551615", "18446744073709551615"], [(2n ** 256n - 1n).toString(), (2n ** 256n - 1n).toString()]]) {
+    assert.equal(session.updateState({ amount: raw }).state.amount, canonical)
+  }
+  for (const text of ["", ".", "1.0", "-1", "+1", "1e3", "1,000", " 1", "١", "１２"]) {
+    session.updateState({ amount: "42" })
+    const invalid = session.updateState({ amount: text })
+    assert.equal(invalid.state.amount, null)
+    const action = resolvedUiButtons(invalid.resolvedUi).find((button) => button.call.function === "payment")
+    assert.ok(action)
+    await assert.rejects(() => session.dispatchAction(action),
+      (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+  }
+})
+
+test("integer lexical edits preserve exact text and expose only a canonical string or unavailable null", async () => {
+  const { session } = integerEditingSession()
+  await session.load()
+  for (const [text, canonical] of [["0", "0"], ["00042", "42"], ["9007199254740993", "9007199254740993"], ["18446744073709551615", "18446744073709551615"], [(2n ** 256n - 1n).toString(), (2n ** 256n - 1n).toString()]]) {
+    const edited = editInteger(session, text)
+    assert.equal(edited.state.amount, canonical)
+    assert.deepEqual(integerDraft(edited), toInertValue({ text, status: "valid" }))
+  }
+  for (const text of [".", "1.0", "-1", "+1", "1e3", "1,000", " 1", "1 ", "١", "１２", "1\u00a02"]) {
+    editInteger(session, "42")
+    const invalid = editInteger(session, text)
+    assert.equal(invalid.state.amount, null)
+    assert.deepEqual(integerDraft(invalid), toInertValue({ text, status: "invalid", issue: "syntax" }))
+  }
+  const empty = editInteger(session, "")
+  assert.equal(empty.state.amount, null)
+  assert.deepEqual(integerDraft(empty), toInertValue({ text: "", status: "empty" }))
+})
+
+test("integer editing applies exact inclusive bounds and never pads, rounds or retains an old valid value", async () => {
+  const { session } = integerEditingSession("", { min: "9007199254740993", max: "9007199254740994" })
+  await session.load()
+  for (const value of ["9007199254740993", "9007199254740994"]) assert.equal(editInteger(session, value).state.amount, value)
+  for (const [text, issue] of [["9007199254740992", "belowMin"], ["9007199254740995", "aboveMax"]]) {
+    const invalid = editInteger(session, text)
+    assert.equal(invalid.state.amount, null)
+    assert.deepEqual(integerDraft(invalid), toInertValue({ text, status: "invalid", issue }))
+  }
+})
+
+test("integer preparation preserves exact supported ABI values and lets the ABI owner reject overflow without effects", async () => {
+  const { session, publicClient } = integerEditingSession()
+  await session.load()
+  const readsBefore = publicClient.calls.length
+  for (const value of ["0", "9007199254740993", "18446744073709551615", (2n ** 256n - 1n).toString()]) {
+    const snapshot = editInteger(session, value)
+    const action = resolvedUiButtons(snapshot.resolvedUi)[0]
+    assert.ok(action)
+    const result = await session.dispatchAction(action)
+    assert.ok(result.type === "contractCall")
+    assert.equal(mutableRecord(result.call.args.payment).amount, value)
+    assert.deepEqual(session.snapshot(), snapshot)
+  }
+  const overflow = editInteger(session, (2n ** 256n).toString())
+  assert.equal(integerDraft(overflow).status, "valid", "generic integer editing must not guess an ABI width")
+  const action = resolvedUiButtons(overflow.resolvedUi)[0]
+  assert.ok(action)
+  await assert.rejects(() => session.dispatchAction(action),
+    (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+  assert.equal(publicClient.calls.length, readsBefore)
+  assert.deepEqual(session.snapshot(), overflow)
+})
+
+test("integer composition invalidates unchanged text before input and prevents stale action preparation", async () => {
+  const { session } = integerEditingSession("42")
+  const valid = await session.load()
+  const stale = resolvedUiButtons(valid.resolvedUi)[0]
+  assert.ok(stale)
+  const composing = editInteger(session, "42", { composing: true })
+  assert.equal(composing.state.amount, null)
+  assert.deepEqual(integerDraft(composing), toInertValue({ text: "42", status: "incomplete", composing: true }))
+  await assert.rejects(() => session.dispatchAction(stale),
+    (error: unknown) => error instanceof CamViewerError && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED")
+  const current = resolvedUiButtons(composing.resolvedUi)[0]
+  assert.ok(current)
+  await assert.rejects(() => session.dispatchAction(current),
+    (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+  assert.equal(editInteger(session, "43", { composing: true }).state.amount, null)
+  const finished = editInteger(session, "00043")
+  assert.equal(finished.state.amount, "43")
+  assert.deepEqual(integerDraft(finished), toInertValue({ text: "00043", status: "valid" }))
+})
+
+test("integer raw line breaks and excessive input are cleared without truncating into another valid quantity", async () => {
+  const { session } = integerEditingSession("42")
+  await session.load()
+  for (const text of ["1\n2", "1\r2", "1\r\n2"]) {
+    editInteger(session, "42")
+    const rejected = editInteger(session, text)
+    assert.equal(rejected.state.amount, null)
+    assert.deepEqual(integerDraft(rejected), toInertValue({ text: "", status: "invalid", issue: "lineBreak" }))
+  }
+  for (const text of ["0".repeat(2049), "😀".repeat(1025)]) {
+    editInteger(session, "42")
+    const rejected = editInteger(session, text)
+    assert.equal(rejected.state.amount, null)
+    assert.deepEqual(integerDraft(rejected), toInertValue({ text: "", status: "invalid", issue: "tooLong" }))
+  }
+  assert.equal(editInteger(session, "0".repeat(2048)).state.amount, "0")
+  assert.equal(editInteger(session, "1".repeat(1024)).state.amount, "1".repeat(1024))
+  const tooManyDigits = editInteger(session, "1".repeat(1025))
+  assert.equal(tooManyDigits.state.amount, null)
+  assert.deepEqual(integerDraft(tooManyDigits), toInertValue({ text: "1".repeat(1025), status: "invalid", issue: "tooLong" }))
+  assert.equal(session.updateState({ amount: "00043" }).state.amount, "43")
+})
+
+test("integer disabled controls and malformed API patches fail atomically", async () => {
+  const disabled = integerEditingSession("42", undefined, true).session
+  const before = await disabled.load()
+  assert.throws(() => disabled.editInteger("amount", "43"), /disabled/)
+  assert.throws(() => disabled.updateState({ amount: "43" }), /disabled/)
+  assert.deepEqual(disabled.snapshot(), before)
+  const session = integerEditingSession("42").session
+  const valid = await session.load()
+  assert.throws(() => session.editInteger("amount", 43 as unknown as string))
+  assert.throws(() => session.updateState({ amount: null }))
+  assert.throws(() => session.editAmount("amount", "base", "43"))
+  assert.throws(() => session.editInteger("missing", "43"))
+  assert.deepEqual(session.snapshot(), valid)
+})
+
+test("integer and plain text bindings coexist without numeric identifier heuristics", async () => {
+  const { session } = paymentPreparationSession({ amount: "$state.amount", recipients: [registeredOwnerAddress] }, undefined, "nonpayable", {
+    element: "Fragment", children: [
+      { element: "NonNegativeIntegerField", props: { label: "Counter" }, state: { key: "amount", defaultValue: "00042" } },
+      { element: "TextField", props: { label: "Identifier" }, state: { key: "identifier", defaultValue: "00042" } },
+      { element: "TextField", props: { label: "Prototype-like identifier" }, state: { key: "constructor", defaultValue: "00042" } },
+    ],
+  })
+  const initial = await session.load()
+  assert.equal(initial.state.amount, "42")
+  assert.equal(initial.state.identifier, "00042")
+  const changed = session.updateState({ amount: "00043", identifier: "1.5", constructor: "00044" })
+  assert.equal(changed.state.amount, "43")
+  assert.equal(changed.state.identifier, "1.5")
+  assert.equal(changed.state.constructor, "00044")
+  assert.throws(() => session.editInteger("identifier", "45"))
+  assert.deepEqual(session.snapshot(), changed)
+})
+
+test("integer lexical drafts are isolated, restored through Back and reset across accounts", async () => {
+  const { session, publicClient } = integerEditingSession("42")
+  await session.load()
+  const edited = editInteger(session, "00023")
+  mutableRecord(edited.state).amount = "999"
+  mutableRecord(integerDraft(edited)).text = "999"
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  const restored = await session.back()
+  assert.equal(restored.state.amount, "23")
+  assert.equal(integerDraft(restored).text, "00023")
+  editInteger(session, "00024", { composing: true })
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  const pending = await session.back()
+  assert.equal(pending.state.amount, null)
+  assert.equal(integerDraft(pending).composing, true)
+  assert.equal(integerDraft(pending).text, "00024")
+  const coherent = editInteger(session, "00025")
+  const readContract = publicClient.readContract
+  Object.assign(publicClient, { readContract: async () => { throw new Error("fixture read unavailable") } })
+  await assert.rejects(() => session.setAccount({ address: otherUserAddress }))
+  assert.deepEqual(session.snapshot(), coherent)
+  Object.assign(publicClient, { readContract })
+  const refreshed = await session.setAccount({ address: otherUserAddress })
+  assert.equal(refreshed.state.amount, "42")
+  assert.equal(integerDraft(refreshed).text, "42")
+  assert.equal(refreshed.canGoBack, false)
+})
+
+test("integer canonical invalidation reaches actions declared before the input control", async () => {
+  const { session } = paymentPreparationSession({ amount: "$state.amount", recipients: [registeredOwnerAddress] }, undefined, "nonpayable", {
+    element: "Fragment", children: [
+      { element: "Button", props: { label: "First action" }, call: { namespace: "routes", function: "payment", args: { payment: { amount: "$state.amount", recipients: [registeredOwnerAddress] } } } },
+      { element: "NonNegativeIntegerField", props: { label: "Counter", min: "1", max: "2" }, state: { key: "amount", defaultValue: "1" } },
+    ],
+  })
+  await session.load()
+  const invalid = editInteger(session, "3")
+  assert.equal(invalid.state.amount, null)
+  for (const action of resolvedUiButtons(invalid.resolvedUi)) {
+    assert.equal(mutableRecord(action.call.args.payment).amount, null)
+    await assert.rejects(() => session.dispatchAction(action),
+      (error: unknown) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_ARGUMENT")
+  }
+})
+
+test("Back revalidates the same integer lexical draft against refreshed readonly bounds before resolving actions", async () => {
+  const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
+  const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
+  const field = { requires: ["view"], element: "NonNegativeIntegerField",
+    props: { label: "Counter", min: "$view.tokenId", max: "$view.statusId" }, state: { key: "amount", defaultValue: "" } }
+  const nodes = mutableRecord(ui.nodes)
+  nodes.app = { requires: ["view"], element: "Screen", props: { title: "Counter" }, children: [
+    { element: "Button", props: { label: "Inspect current counter" }, call: { namespace: "routes", function: BIKE_ROUTE_COMPONENT, args: { serialNumber: "$state.amount" } } },
+    { element: "Include", call: { namespace: "ui", function: "$view.viewId", args: { view: "$view" } } },
+  ] }
+  nodes.entry = field
+  nodes["component.active"] = field
+  const uiBytes = encodeJson(ui)
+  const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+  mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), tokenId: 1n, statusId: "100" }
+  routeResults[BIKE_VIEW_COMPONENT] = { ...bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "active"), tokenId: 1n, statusId: "100" }
+  const session = createSession(sessionFixtureOptions({
+    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+    loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: uiBytes })),
+  }))
+  await session.load()
+  editInteger(session, "00100")
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), tokenId: 1n, statusId: "99" }
+  const invalid = await session.back()
+  assert.equal(invalid.state.amount, null)
+  assert.deepEqual(integerDraft(invalid), toInertValue({ text: "00100", status: "invalid", issue: "aboveMax" }))
+  assert.equal(resolvedUiButtons(invalid.resolvedUi)[0]?.call.args.serialNumber, null)
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  const coherent = session.snapshot()
+  for (const maximum of ["not-a-number", "0"]) {
+    routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), tokenId: 1n, statusId: maximum }
+    await assert.rejects(() => session.back())
+    assert.deepEqual(session.snapshot(), coherent)
+  }
+  routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), tokenId: 1n, statusId: "100" }
+  const restored = await session.back()
+  assert.equal(restored.state.amount, "100")
+  assert.equal(integerDraft(restored).text, "00100")
+  assert.equal(resolvedUiButtons(restored.resolvedUi)[0]?.call.args.serialNumber, "100")
+})
+
+test("Back never reinterprets an integer draft as an amount or an amount draft as an integer", async () => {
+  const integer = { requires: ["view"], element: "NonNegativeIntegerField", props: { label: "Counter" }, state: { key: "amount", defaultValue: "2" } }
+  const amount = { requires: ["view"], element: "AmountField", props: { label: "Deposit", unit: {
+    assetId: "declared", baseLabel: "base units", displayLabel: "Declared asset", decimals: 18,
+  } }, state: { key: "amount", defaultValue: "1" } }
+  for (const initiallyInteger of [true, false]) {
+    const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
+    const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
+    const nodes = mutableRecord(ui.nodes)
+    nodes.app = { requires: ["view"], element: "Screen", props: { title: "Numeric input" }, children: [
+      { element: "Include", call: { namespace: "ui", function: "$view.viewId", args: { view: "$view" } } },
+    ] }
+    nodes.entry = initiallyInteger ? integer : amount
+    nodes["component.active"] = nodes.entry
+    nodes["changed.kind"] = initiallyInteger ? amount : integer
+    const uiBytes = encodeJson(ui)
+    const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+    mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
+    const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+    const session = createSession(sessionFixtureOptions({
+      publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+      loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: uiBytes })),
+    }))
+    await session.load()
+    if (initiallyInteger) editInteger(session, "00023")
+    else editAmount(session, "display", "0.0100")
+    await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+    routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), viewId: "changed.kind" }
+    const restored = await session.back()
+    if (initiallyInteger) {
+      assert.equal(restored.state.amount, "1")
+      assert.equal(amountDraft(restored).baseText, "1")
+      assert.throws(() => session.editInteger("amount", "24"))
+    } else {
+      assert.equal(restored.state.amount, "2")
+      assert.equal(integerDraft(restored).text, "2")
+      assert.throws(() => session.editAmount("amount", "base", "24"))
+    }
+    assert.deepEqual(session.snapshot(), restored)
+  }
+})
+
+function integerEditingSession(defaultValue?: string, bounds?: Record<string, unknown>, disabled?: boolean) {
+  return paymentPreparationSession(
+    { amount: "$state.amount", recipients: [registeredOwnerAddress] }, undefined, "nonpayable",
+    { element: "NonNegativeIntegerField", props: { label: "Counter", ...(bounds === undefined ? {} : bounds) },
+      state: { key: "amount", defaultValue: defaultValue === undefined ? "" : defaultValue },
+      ...(disabled === true ? { enabledWhen: { member: "edit", in: [] } } : {}) },
+  )
+}
+
+function editInteger(session: ReturnType<typeof createSession>, text: string, options?: { composing?: boolean }): CamViewerLoadedSnapshot {
+  return session.editInteger("amount", text, options)
+}
+
+function integerDraft(snapshot: CamViewerLoadedSnapshot): ResolvedNonNegativeIntegerFieldNode["draft"] {
+  let draft: ResolvedNonNegativeIntegerFieldNode["draft"] | undefined
+  forEachResolvedUiNode(snapshot.resolvedUi, (node) => {
+    if (node.element === "NonNegativeIntegerField") draft = node.draft
+  })
+  assert.ok(draft, "resolved integer field draft is missing")
+  return draft
+}
+
 test("paired amount canonical state supplies identical exact ABI tuple and payable value", async () => {
   const { session } = paymentPreparationSession(
     { amount: "$state.amount", recipients: [registeredOwnerAddress] },
@@ -534,6 +839,19 @@ test("paired amount canonical state supplies identical exact ABI tuple and payab
     assert.equal(mutableRecord(prepared.call.args.payment).amount, base)
     assert.deepEqual(session.snapshot(), snapshot, "preparation must preserve the exact active draft")
   }
+})
+
+test("zero-decimal amounts accept exact fractional-zero spelling without treating empty integers as zero", async () => {
+  const { session } = amountEditingSession(0)
+  await session.load()
+  for (const text of [".0", ".000"]) {
+    const edited = editAmount(session, "display", text)
+    assert.equal(edited.state.amount, "0")
+    assert.deepEqual(amountDraft(edited), toInertValue({ representation: "display", baseText: "0", displayText: text, status: "valid" }))
+  }
+  const integer = integerEditingSession().session
+  assert.equal((await integer.load()).state.amount, null)
+  assert.equal(editInteger(integer, "").state.amount, null)
 })
 
 test("amount edits synchronize exact paired representations without rewriting the active draft", async () => {

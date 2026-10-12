@@ -117,10 +117,10 @@ test("escrow creation screen resolves nested payable calldata from one form", as
       arbitrator: "0x0000000000000000000000000000000000000000",
       arbitrationTimeoutBeneficiary: "1",
       amount: null,
-      acceptanceDuration: "0",
-      workDuration: "0",
-      reviewDuration: "0",
-      arbitrationDuration: "0",
+      acceptanceDuration: null,
+      workDuration: null,
+      reviewDuration: null,
+      arbitrationDuration: null,
       terms: {
         uri: "",
         sha256Digest: ZERO_DIGEST,
@@ -128,6 +128,14 @@ test("escrow creation screen resolves nested payable calldata from one form", as
     },
   })
   assert.equal(state.amount, null)
+  for (const name of ["acceptanceDuration", "workDuration", "reviewDuration", "arbitrationDuration"]) {
+    assert.equal(state[name], null)
+    const field = requiredField(resolvedUi, name)
+    assert.ok(field.element === "NonNegativeIntegerField")
+    assert.deepEqual(field.draft, { text: "", status: "empty" })
+    assert.equal(field.props.min, "1")
+    assert.equal(field.props.max, "31536000")
+  }
   const amounts: ResolvedUiNode[] = []
   forEachResolvedUiNode(resolvedUi, (node) => {
     if (node.element === "AmountField") amounts.push(node)
@@ -499,7 +507,7 @@ function isDisabled(node: ResolvedUiNode): boolean {
 function requiredField(resolvedUi: ResolvedUiNode, name: string): ResolvedUiNode {
   let field: ResolvedUiNode | undefined
   forEachResolvedUiNode(resolvedUi, (node) => {
-    if (node.element === "TextField" && node.state.key === name) field = node
+    if ((node.element === "TextField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField") && node.state.key === name) field = node
   })
   assert.notEqual(field, undefined, `missing resolved field: ${name}`)
   return field as ResolvedUiNode

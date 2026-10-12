@@ -21,10 +21,12 @@ import {
   editAmountDraft,
   projectAmountDraft,
   sameAmountUnit,
+  editIntegerDraft,
+  projectIntegerDraft,
 } from "@cam/screen"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type {
-  AmountDraft,
+  NumericDraft,
   ResolvedButtonNode,
   ResolvedUiNode,
   UiDocument,
@@ -59,8 +61,8 @@ type CamViewerLoadedState = {
   readonly ui: UiDocument
 }
 
-type CurrentView = ViewerResolvedReadView & { readonly amountDrafts: Record<string, AmountDraft> }
-type PreviousView = Pick<CurrentView, "route" | "inputs" | "state" | "amountDrafts">
+type CurrentView = ViewerResolvedReadView & { readonly numericDrafts: Record<string, NumericDraft> }
+type PreviousView = Pick<CurrentView, "route" | "inputs" | "state" | "numericDrafts">
 const HISTORY_LIMIT = 20
 
 export function createCamViewerSession({
@@ -158,19 +160,19 @@ export function createCamViewerSession({
     }
     const refreshed = await resolveLoadedView(current, previous.route, previous.inputs, account)
     const state = { ...refreshed.state }
-    const amountDrafts = { ...refreshed.amountDrafts }
+    const numericDrafts = { ...refreshed.numericDrafts }
     for (const name of resolvedUiInputNames(refreshed.resolvedUi)) {
-      const fresh = Object.hasOwn(amountDrafts, name) ? amountDrafts[name] : undefined
+      const fresh = Object.hasOwn(numericDrafts, name) ? numericDrafts[name] : undefined
       if (fresh !== undefined) {
-        const saved = Object.hasOwn(previous.amountDrafts, name) ? previous.amountDrafts[name] : undefined
-        if (saved !== undefined && sameAmountUnit(saved.unit, fresh.unit)) {
-          amountDrafts[name] = saved
-          state[name] = projectAmountDraft(saved).canonical
+        const saved = Object.hasOwn(previous.numericDrafts, name) ? previous.numericDrafts[name] : undefined
+        if (saved !== undefined && saved.kind === fresh.kind && (saved.kind === "integer" || fresh.kind === "amount" && sameAmountUnit(saved.unit, fresh.unit))) {
+          numericDrafts[name] = saved
+          state[name] = projectNumericField(saved, refreshed.resolvedUi, name)
         }
-      } else if (Object.hasOwn(previous.state, name) && !Object.hasOwn(previous.amountDrafts, name)) state[name] = previous.state[name]
+      } else if (Object.hasOwn(previous.state, name) && !Object.hasOwn(previous.numericDrafts, name)) state[name] = previous.state[name]
     }
-    const resolvedUi = resolveCurrentUi(refreshed.route, refreshed.inputs, refreshed.values, state, amountDrafts)
-    currentView = { ...refreshed, state, resolvedUi, amountDrafts }
+    const resolvedUi = resolveCurrentUi(refreshed.route, refreshed.inputs, refreshed.values, state, numericDrafts)
+    currentView = { ...refreshed, state, resolvedUi, numericDrafts }
     history.pop()
     return loadedSnapshot(currentView)
   }
@@ -198,11 +200,20 @@ export function createCamViewerSession({
       throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", "Amount edit requires a field name, base or display representation, text, and optional composing boolean")
     }
     const view = assertCurrentView()
-    if (!Object.hasOwn(view.amountDrafts, name)) throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Amount field is not rendered: ${name}`)
+    if (!Object.hasOwn(view.numericDrafts, name) || view.numericDrafts[name].kind !== "amount") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Amount field is not rendered: ${name}`)
     return editState({ [name]: text }, { name, representation, composing: options?.composing === true })
   }
 
-  function editState(patch: InertRecord, amountEdit?: { name: string; representation: "base" | "display"; composing: boolean }): CamViewerLoadedSnapshot {
+  function editInteger(name: string, text: string, options?: { readonly composing?: boolean }): CamViewerLoadedSnapshot {
+    if (typeof name !== "string" || typeof text !== "string" || options !== undefined && (typeof options !== "object" || options === null || Object.keys(options).some((key) => key !== "composing") || options.composing !== undefined && typeof options.composing !== "boolean")) {
+      throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", "Integer edit requires a field name, text, and optional composing boolean")
+    }
+    const view = assertCurrentView()
+    if (!Object.hasOwn(view.numericDrafts, name) || view.numericDrafts[name].kind !== "integer") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Integer field is not rendered: ${name}`)
+    return editState({ [name]: text }, { name, representation: "base", composing: options?.composing === true })
+  }
+
+  function editState(patch: InertRecord, numericEdit?: { name: string; representation: "base" | "display"; composing: boolean }): CamViewerLoadedSnapshot {
     assertViewAvailable()
     if (currentView === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded state")
@@ -217,26 +228,38 @@ export function createCamViewerSession({
       },
       "state",
     )
-    const amountDrafts = { ...currentView.amountDrafts }
+    const numericDrafts = { ...currentView.numericDrafts }
     for (const [name, text] of Object.entries(statePatch)) {
-      const previous = Object.hasOwn(amountDrafts, name) ? amountDrafts[name] : undefined
+      const previous = Object.hasOwn(numericDrafts, name) ? numericDrafts[name] : undefined
       if (previous === undefined) continue
-      if (typeof text !== "string") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Amount field edit must be a string: ${name}`)
-      const draft = editAmountDraft(previous.unit, amountEdit?.name === name ? amountEdit.representation : "base", text, amountEdit?.name === name && amountEdit.composing)
-      amountDrafts[name] = draft
-      state[name] = projectAmountDraft(draft).canonical
+      if (typeof text !== "string") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Numeric field edit must be a string: ${name}`)
+      const composing = numericEdit?.name === name && numericEdit.composing
+      const draft = previous.kind === "amount" ? editAmountDraft(previous.unit, numericEdit?.name === name ? numericEdit.representation : "base", text, composing) : editIntegerDraft(text, composing)
+      numericDrafts[name] = draft
+      state[name] = projectNumericField(draft, currentView.resolvedUi, name)
     }
 
-    const resolvedUi = resolveCurrentUi(currentView.route, currentView.inputs, currentView.values, state, amountDrafts)
+    const resolvedUi = resolveCurrentUi(currentView.route, currentView.inputs, currentView.values, state, numericDrafts)
     const nextView: CurrentView = {
       ...currentView,
       state,
       resolvedUi,
-      amountDrafts,
+      numericDrafts,
     }
 
     currentView = nextView
     return loadedSnapshot(currentView)
+  }
+
+  function projectNumericField(draft: NumericDraft, ui: ResolvedUiNode, name: string): string | null {
+    if (draft.kind === "amount") return projectAmountDraft(draft).canonical
+    let bounds: { min?: string; max?: string } | undefined
+    forEachResolvedUiNode(ui, (node) => {
+      if (node.element !== "NonNegativeIntegerField" || node.state.key !== name) return
+      bounds = node.props
+    })
+    if (bounds === undefined) throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Integer field is not rendered: ${name}`)
+    return projectIntegerDraft(draft, bounds).canonical
   }
 
   async function dispatchAction(action: ResolvedButtonNode): Promise<CamViewerActionResult> {
@@ -271,7 +294,7 @@ export function createCamViewerSession({
     const nextView = await resolveLoadedView(current, nextRoute, nextInputs, account)
 
     const previous = assertCurrentView()
-    history.push({ route: previous.route, inputs: previous.inputs, state: previous.state, amountDrafts: previous.amountDrafts })
+    history.push({ route: previous.route, inputs: previous.inputs, state: previous.state, numericDrafts: previous.numericDrafts })
     if (history.length > HISTORY_LIMIT) history.shift()
     currentView = nextView
 
@@ -295,12 +318,12 @@ export function createCamViewerSession({
       route: nextRoute,
       inputs: routeInputs,
     })
-    const amountDrafts = Object.create(null) as Record<string, AmountDraft>
+    const numericDrafts = Object.create(null) as Record<string, NumericDraft>
     forEachResolvedUiNode(view.resolvedUi, (node) => {
-      if (node.element !== "AmountField") return
-      amountDrafts[node.state.key] = editAmountDraft(node.unit, node.draft.representation, node.draft.representation === "base" ? node.draft.baseText : node.draft.displayText)
+      if (node.element === "AmountField") numericDrafts[node.state.key] = editAmountDraft(node.unit, node.draft.representation, node.draft.representation === "base" ? node.draft.baseText : node.draft.displayText)
+      if (node.element === "NonNegativeIntegerField") numericDrafts[node.state.key] = editIntegerDraft(node.draft.text)
     })
-    return { ...view, amountDrafts }
+    return { ...view, numericDrafts }
   }
 
   async function loadUi(uri: string, integrity: string): Promise<UiDocument> {
@@ -329,7 +352,7 @@ export function createCamViewerSession({
     inputs: InertRecord,
     values: readonly InertValue[],
     state: InertRecord,
-    amountDrafts: Record<string, AmountDraft>,
+    numericDrafts: Record<string, NumericDraft>,
   ): ResolvedUiNode {
     const current = assertLoaded()
     return resolveViewerCurrentUi({
@@ -341,7 +364,7 @@ export function createCamViewerSession({
       inputs,
       values,
       state,
-      amountDrafts,
+      numericDrafts,
     })
   }
 
@@ -385,6 +408,7 @@ export function createCamViewerSession({
     setAccount: (nextAccount) => changeView(() => setAccount(nextAccount)),
     updateState,
     editAmount,
+    editInteger,
     dispatchAction,
   }
 }

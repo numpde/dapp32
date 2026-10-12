@@ -416,6 +416,17 @@ export function App(): ReactElement {
     }
   }
 
+  function updateInteger(name: string, text: string, options?: { readonly composing?: boolean }): void {
+    if (sendingRef.current || changingViewRef.current) return
+    const ready = requireReadyState(loadState)
+    try {
+      invalidatePreparedInteraction()
+      setLoadState({ ...ready, snapshot: ready.runtime.session.editInteger(name, text, options) })
+    } catch (error) {
+      showError(errorMessage(error), true)
+    }
+  }
+
   function setViewChanging(value: boolean): void {
     changingViewRef.current = value
     setChangingView(value)
@@ -556,6 +567,7 @@ export function App(): ReactElement {
           onAction={dispatch}
           onInput={updateInput}
           onAmount={updateAmount}
+          onInteger={updateInteger}
         />
       ) : null}
     </main>
@@ -583,7 +595,8 @@ function headerTitle(loadState: LoadState): string {
     return "CAM Viewer"
   }
 
-  const title = loadState.snapshot.resolvedUi.props.title
+  const root = loadState.snapshot.resolvedUi
+  const title = root.element === "Screen" ? root.props.title : undefined
   if (typeof title !== "string") {
     throw new Error("resolved root UI title must be a string")
   }

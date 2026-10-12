@@ -107,10 +107,11 @@ function parseNodeBody(source: Record<string, unknown>, path: string): UiNode {
         props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.Text),
       }
     case "TextField":
+    case "NonNegativeIntegerField":
       rejectUnexpectedNodeShape(source, TEXT_FIELD_KEYS, path)
       return {
         element,
-        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS.TextField),
+        props: parseProps(source.props, `${path}.props`, UI_PROP_SCHEMAS[element]),
         state: parseStateBinding(source.state, `${path}.state`),
         ...parseOptionalMembership(source, path),
       }

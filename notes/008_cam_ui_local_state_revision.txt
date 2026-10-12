@@ -439,3 +439,66 @@ does not start native IME, so Back-restored unfinished drafts can be finished by
 ordinary input. Maintained Chromium tests exercise these rendered event sequences,
 paste sanitation, exact routed amounts, caret behavior, and narrow layouts.
 They do not establish physical keyboard or operating-system IME behavior.
+
+
+NonNegativeIntegerField: exact whole-number entry
+-------------------------------------------------
+
+NonNegativeIntegerField is a single editable control for ASCII decimal digits.
+It does not infer number semantics from labels, state keys, ABI types, or values
+that happen to contain digits. Ordinary TextField keeps its string-state model.
+
+{
+  "element": "NonNegativeIntegerField",
+  "props": {
+    "label": "Work duration in seconds",
+    "min": "1",
+    "max": "$view.maxPhaseDuration"
+  },
+  "state": { "key": "workDuration", "defaultValue": "" }
+}
+
+Minimum and maximum are optional, inclusive publisher declarations. Zero is
+valid without a declared positive minimum. Each bound resolves to an exact
+bounded decimal string. Bounds use the read-only initialization context, with
+empty $state; they cannot depend on editable form state, directly or through
+Include arguments. Malformed, unresolved, or reversed bounds fail projection
+before the new view is committed. Contract business rules and ABI widths remain
+authoritative; declaring a UI range does not authorize a contract operation.
+
+Integer and amount fields share one session-owned discriminated numeric draft
+map. Integer bounds stay in current resolved field metadata, outside drafts
+and history. The integer draft preserves its lexical text, including leading
+zeros. Its canonical state is the zero-normalized decimal string or null; the
+browser and terminal display the lexical draft rather than canonical state.
+The same 2048 UTF-16 active-text and 1024 significant-digit resource limits
+apply to both numeric controls.
+
+Use session.editInteger(name, text, { composing: true }) for an unfinished
+native composition phase, or omit the option for a finishing edit. Existing
+updateState uses the same finishing transition. Empty, composing, malformed,
+or out-of-range entry has no canonical value. CR/LF or oversized input clears
+the bounded draft explicitly; other invalid entry remains visible for repair.
+There is no rounding, separator removal, clamping, or previous-valid fallback.
+
+Back preserves same-kind integer text and revalidates it against freshly
+resolved bounds. Cross-kind fields use fresh defaults; amount fields still
+require matching complete units. Account changes seed fresh defaults, and
+failed reprojections leave the prior coherent session untouched. Numeric edits
+project canonical state before actions resolve, so a preceding button cannot
+capture an old valid value from an invalid current draft.
+
+The browser's NumericInput owns native event transport for both integer and
+amount controls. Conversion and validity remain in the screen/session owners.
+Terminal users can enter `integer workDuration 600`, omit the value to clear,
+or use ordinary `set` for a finishing edit. Empty and valid controls add no
+narrator hint; invalid or incomplete entry supplies associated correction.
+
+The retained Chromium suite exercises integer range and syntax feedback,
+leading-zero drafts, caret behavior, composition and history, exact prepared
+arguments, and invalidation of an older prepared call. Existing paired amount
+and workflow cases still pass through the shared transport. A temporary
+component-shaped hint checks that a supported 1024-digit bound remains visible
+at 320 CSS pixels; this is a geometry fixture, not a published-contract test.
+Rendered event sequences do not establish physical keyboard, operating-system
+IME, or operating-system clipboard behavior.

@@ -120,6 +120,13 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
         render(context.session.snapshot())
         break
       }
+      case "integer": {
+        const [name, ...parts] = args
+        if (name === undefined) throw new Error("usage: integer <name> [value]; omit value to clear")
+        context.session.editInteger(name, parts.join(" "))
+        render(context.session.snapshot())
+        break
+      }
       case "press":
         await handlePress(context.session, args)
         break
@@ -199,7 +206,8 @@ function render(snapshot: CamViewerSnapshot): void {
   output.write(`route: ${loadedText(snapshot.route)}\n`)
   output.write(`ui: ${presentText(snapshot.uiURI)}\n`)
 
-  const title = snapshot.resolvedUi?.props.title
+  const root = snapshot.resolvedUi
+  const title = root?.element === "Screen" ? root.props.title : undefined
   if (typeof title === "string") {
     output.write(`\n${formatValue(title)}\n`)
   }
@@ -249,6 +257,12 @@ function renderNode(
       output.write(`  ${formatValue(node.unit.displayLabel)}: ${formatValue(node.draft.displayText)}\n`)
       output.write(`  Edit with amount ${formatValue(node.state.key)} <base|display> [value].\n`)
       if (node.draft.status !== "valid") output.write(`  Amount ${node.draft.status}${node.draft.issue === undefined ? "" : `: ${node.draft.issue}`}; no amount is available to prepare.\n`)
+      return
+    case "NonNegativeIntegerField":
+      output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}: ${formatValue(node.draft.text)}\n`)
+      if (node.props.min !== undefined) output.write(`  Minimum: ${formatValue(node.props.min)}\n`)
+      if (node.props.max !== undefined) output.write(`  Maximum: ${formatValue(node.props.max)}\n`)
+      if (node.draft.status !== "valid" && node.draft.status !== "empty") output.write(`  Integer ${node.draft.status}${node.draft.issue === undefined ? "" : `: ${node.draft.issue}`}; no value is available to prepare.\n`)
       return
     case "Address":
       output.write(`${formatValue(node.props.label)}: ${formatValue(node.props.address)}\n`)
@@ -392,6 +406,7 @@ function printHelp(): void {
     "  restart               Reset the backend session and reload the entry route.",
     "  set <name> <value>    Update local UI state and re-resolve actions.",
     "  amount <name> <base|display> [value]  Edit either amount unit; omit value to clear.",
+    "  integer <name> [value]              Edit a whole number; omit value to clear.",
     "  press <n>             Dispatch a resolved button action.",
     "  help                  Print this help.",
     "  quit                  Exit.",
