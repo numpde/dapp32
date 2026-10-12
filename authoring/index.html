@@ -131,7 +131,11 @@
 </tr>
 <tr>
 <td>TextField</td>
-<td>Collect text, including manually entered document URIs and digests.</td>
+<td>Collect text, including document URIs.</td>
+</tr>
+<tr>
+<td>DocumentHashField</td>
+<td>Collect an exact-byte SHA-256 digest manually, from a local file, or by explicitly reading a declared HTTP(S) source URI.</td>
 </tr>
 <tr>
 <td>AmountField</td>
@@ -202,7 +206,25 @@
   }
 }</code>
 </pre>
-<p class="narrow">Use <code>enabledWhen</code> against contract-provided action IDs to disable unavailable actions. This improves the rendered workflow but does not replace onchain enforcement. There is no supported automatic document-upload or document-hashing component; escrow uses TextField and external SHA-256 calculation.</p>
+<p class="narrow">Escrow keeps document URIs in TextField and digest values in DocumentHashField. This complete terms field belongs among <code>nodes["escrow.create"].children</code> in <code>ui.json</code>:</p>
+<pre class="code-block" data-source-ui="escrow:DocumentHashField">
+<code>{
+  "element": "DocumentHashField",
+  "props": {
+    "label": "Terms SHA-256 digest",
+    "algorithm": "sha256",
+    "sourceURI": "$state.termsUri"
+  },
+  "state": {
+    "key": "termsDigest",
+    "defaultValue": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}</code>
+</pre>
+<p class="narrow"><code>label</code> and the literal <code>algorithm: "sha256"</code> are required. The optional <code>sourceURI</code> expression supplies the URL for an explicit Calculate from URL action; it does not change the URI field. The scalar <code>state.key</code> holds the digest, so the creation button above still passes <code>$state.termsDigest</code> into <code>params.terms.sha256Digest</code>. Replace the all-zero default before creating an agreement.</p>
+<p class="narrow">The browser offers manual entry and local file calculation without uploading. URL calculation accepts HTTP(S), requires readable browser CORS access, omits credentials and referrers, and rejects redirects. Calculation is limited to 8 MiB and a 15-second deadline. Failures and cancellation preserve the digest; changing the URI preserves it but removes the prior calculation's association and invalidates pending work. The viewer does not fetch while rendering or typing and does not automatically fall back to another method.</p>
+<p class="narrow">Calculation hashes exact bytes, not URI text or normalized JSON. It does not compare against an existing expected digest. A file hash does not prove that a URI serves the file, and a URL hash does not promise future contents or prove authenticity. IPFS retrieval and a server proxy are not provided by this helper. See the <a href="../escrow/#documents">document guide</a> for user steps and contract limits.</p>
+<p class="narrow">Use <code>enabledWhen</code> against contract-provided action IDs to disable unavailable actions. This improves the rendered workflow but does not replace onchain enforcement.</p>
 </section>
 <section class="narrow">
 <h2>Validate the bundle before publishing</h2>

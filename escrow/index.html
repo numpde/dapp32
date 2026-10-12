@@ -129,12 +129,19 @@ make escrow-viewer-gui</code>
 </section>
 <section id="documents" class="narrow">
 <h2>Documents: publish and hash the exact bytes</h2>
-<p>Terms, work submission, and dispute evidence each require a URI and a nonzero SHA-256 digest. Publish the agreed file where the parties can retrieve it. Compute SHA-256 outside the form over the exact saved file bytes, then paste <code>0x</code> plus the 64 hexadecimal characters into the digest field. On Linux, for example:</p>
+<p>Terms, work submission, and dispute evidence each require a URI and a nonzero SHA-256 digest. Publish the agreed file where the parties can retrieve it and enter its URI. The digest field offers three ways to supply SHA-256 of the exact document bytes:</p>
+<ul>
+<li><strong>Enter a digest manually:</strong> paste <code>0x</code> followed by 64 hexadecimal characters. Invalid format is shown beside the field without changing your entry.</li>
+<li><strong>Calculate from file:</strong> choose the exact saved file. It stays on your device; this does not upload it or prove that the URI serves it.</li>
+<li><strong>Calculate from URL:</strong> explicitly read the current HTTP(S) URI and hash the returned bytes after HTTP decoding. The form does not download documents while you type.</li>
+</ul>
+<p>Calculations allow up to 8 MiB and have a 15-second deadline. URL access requires browser CORS permission, sends no credentials or referrer, and rejects redirects. If it fails, choose a file or enter the digest manually; the viewer does not switch methods automatically. For external calculation on Linux, for example:</p>
 <pre class="code-block">
 <code>sha256sum "terms.txt"
 # Paste 0x followed by the hash, without the filename.</code>
 </pre>
-<p>The current form does not upload files or compute their hashes. Hash the file, not its URI text; changing even whitespace changes the digest. Each URI is limited to 512 UTF-8 bytes. The contract stores the URI and digest without retrieving or checking the file or matching the digest. The URI is a public retrieval hint, not a promise of availability. Verify retrieved bytes independently against the stored digest.</p>
+<p>A successful calculation replaces the digest. Failure or cancellation keeps the current digest. Editing the URI keeps the digest too, but clears the previous calculation's association with that URI and cancels work tied to the old source. Check both fields before preparing the transaction.</p>
+<p>Hash the file, not its URI text; changing even whitespace changes the digest. This field calculates a new digest, rather than verifying bytes against an existing expected digest. A file hash does not prove that the URI serves that file; a URL hash describes the response now, not what a mutable URL will serve later. Neither proves authorship, safety, or truth. Each URI is limited to 512 UTF-8 bytes. The contract stores the URI and digest without retrieving or checking the file or matching the digest. Verify retrieved bytes independently against the stored digest.</p>
 <p>Onchain references are public. Encrypt sensitive material before publication and hash the exact published bytes. Agree separately on how authorized parties obtain decryption keys; do not put secrets in URLs or agreement fields.</p>
 </section>
 <section class="narrow">
