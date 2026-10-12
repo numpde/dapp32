@@ -283,8 +283,7 @@ function AmountFieldView({ node, onAmount }: { readonly node: ResolvedAmountFiel
     : issue === "precision" ? `This amount cannot be represented exactly with ${node.unit.decimals} decimal places. Remove nonzero extra fractional digits.`
     : issue === "tooLong" ? activeText === "" ? `Input is too long (limit ${MAX_AMOUNT_TEXT_LENGTH}). The value was cleared; enter it again.` : `The amount exceeds the limit of ${MAX_AMOUNT_DIGITS} base-unit digits.`
     : node.draft.status === "incomplete" ? "Finish entering the amount before preparing an action."
-    : node.draft.status === "empty" ? "Enter an amount in either field. Units are declared by this application."
-    : "Either field updates the other exactly. Units are declared by this application."
+    : undefined
   return <fieldset ref={fieldset} className="amount-field" disabled={node.disabled === true}>
     <legend>{displayText(stringProp(node.props, "label"))}</legend>
     <div className="amount-pair">
@@ -292,7 +291,7 @@ function AmountFieldView({ node, onAmount }: { readonly node: ResolvedAmountFiel
         <span>{displayText(representation === "base" ? node.unit.baseLabel : node.unit.displayLabel)}</span>
         <input name={representation === "base" ? node.state.key : `${node.state.key}.display`} data-amount-representation={representation}
           type="text" inputMode={representation === "base" ? "numeric" : "decimal"} autoComplete="off" spellCheck={false}
-          value={representation === "base" ? node.draft.baseText : node.draft.displayText} aria-describedby={hintId} aria-invalid={node.draft.status === "invalid"}
+          value={representation === "base" ? node.draft.baseText : node.draft.displayText} aria-describedby={explanation === undefined ? undefined : hintId} aria-invalid={node.draft.status === "invalid"}
           onCompositionStart={(event) => { composing.current = event.currentTarget; onAmount(node.state.key, representation, event.currentTarget.value, { composing: true }) }}
           onCompositionEnd={(event) => {
             if (composing.current !== event.currentTarget) {
@@ -330,7 +329,7 @@ function AmountFieldView({ node, onAmount }: { readonly node: ResolvedAmountFiel
           }} />
       </label>)}
     </div>
-    <p id={hintId} className="field-hint" role="status">{explanation}</p>
+    {explanation === undefined ? null : <p id={hintId} className="field-hint" role="status">{explanation}</p>}
   </fieldset>
 }
 

@@ -48,7 +48,7 @@ const UI_CODE_HASH = `0x${"dd".repeat(32)}` as Hex
 const ROOT_TX = `0x${"11".repeat(32)}` as Hex
 const ESCROW_TX = `0x${"22".repeat(32)}` as Hex
 const UI_TX = `0x${"33".repeat(32)}` as Hex
-const CHECKED_IN_CAM_HASH = "0x6c21ce2182f7d631e57f0e3c1810ea0f202eb7c0f429ae2b234b93ba9890df4f"
+const CHECKED_IN_CAM_HASH = "0x99330d2fbc2034d3ee0c09323397d98f1655fafc794062f9f7a547bf34d21eaa"
 const DAPPS_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../dapps")
 
 test("release chain ID is explicit and rejects fixture chains", () => {

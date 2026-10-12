@@ -491,7 +491,6 @@ export function App(): ReactElement {
     <main className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">CAM viewer</p>
           <h1>{headerTitle(loadState)}</h1>
         </div>
         {loadState.status !== "ready" ? null : (

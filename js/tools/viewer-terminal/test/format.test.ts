@@ -68,7 +68,7 @@ test("terminal amount controls retain paired exact units, unavailable drafts and
       draft: { representation: "base", baseText: "0", displayText: "0", status: "valid" }, children: [] },
   ])
   assert.ok(output.includes("Deposit\n  wei: 10000000000000000\n  ETH: 0.0100\n"))
-  assert.ok(output.includes("Units declared by this application"))
+  assert.ok(output.includes("Edit with amount amount <base|display> [value]."))
   assert.ok(output.includes("Incomplete deposit\n  wei: \n  ETH: .\n"))
   assert.ok(output.includes("Amount incomplete; no amount is available to prepare."))
   assert.ok(output.includes("Disabled deposit (disabled)\n  wei: 0\n  ETH: 0\n"))

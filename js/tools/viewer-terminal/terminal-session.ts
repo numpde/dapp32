@@ -247,7 +247,7 @@ function renderNode(
       output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}\n`)
       output.write(`  ${formatValue(node.unit.baseLabel)}: ${formatValue(node.draft.baseText)}\n`)
       output.write(`  ${formatValue(node.unit.displayLabel)}: ${formatValue(node.draft.displayText)}\n`)
-      output.write(`  Units declared by this application; edit with amount ${formatValue(node.state.key)} <base|display> [value].\n`)
+      output.write(`  Edit with amount ${formatValue(node.state.key)} <base|display> [value].\n`)
       if (node.draft.status !== "valid") output.write(`  Amount ${node.draft.status}${node.draft.issue === undefined ? "" : `: ${node.draft.issue}`}; no amount is available to prepare.\n`)
       return
     case "Address":
