@@ -60,7 +60,7 @@ test("escrow limits declare exact readable units without changing contract value
   assert.equal(displayed.get("Reference limit"), "128 bytes")
   assert.equal(displayed.get("Document URI limit"), "512 bytes")
   assert.equal(displayed.get("Maximum phase duration"), "365 days (31,536,000 seconds)")
-  assert.equal(displayed.get("Arbitration timeout recipients"), "client, contractor")
+  assert.equal(displayed.get("Allowed arbitration timeout recipients"), "client, contractor")
 })
 
 test("agreement durations use declared units while monetary values remain exact wei", async () => {

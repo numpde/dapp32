@@ -343,7 +343,7 @@ try {
     for (const width of [1280, 320, 375]) {
       await assertNarrowUi('Contract limits', width)
       const limits = await evaluate(`(() => {
-        const names=['Reference limit','Document URI limit','Maximum phase duration','Arbitration timeout recipients'];
+        const names=['Reference limit','Document URI limit','Maximum phase duration','Allowed arbitration timeout recipients'];
         const rows=names.map(name=>[...document.querySelectorAll('.key-value')].find(row=>row.querySelector('.key-label')?.textContent===name));
         if(rows.some(row=>!row)) return null;
         const first=rows[0].getBoundingClientRect(),last=rows.at(-1).getBoundingClientRect();
