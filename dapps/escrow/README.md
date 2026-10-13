@@ -12,7 +12,7 @@ Each agreement stores three pairwise-distinct addresses:
 - `contractor`: may accept and submit;
 - `arbitrator`: may resolve a dispute before its arbitration deadline.
 
-The client selects the arbitrator. V1 does not prove neutrality, availability, compensation, or real-world independence.
+The client selects the arbitrator. Agree on their participation and terms before funding.
 
 ### No arbitrator acknowledgement
 
@@ -140,7 +140,7 @@ Calculation is limited to 8 MiB and a 15-second deadline. URL access requires br
 
 A successful calculation replaces the digest. Failure or cancellation keeps the current digest. Editing the URI also keeps the digest, but clears the previous calculation's association with that URI and cancels work tied to the old source. Check the URI and digest together before preparing the transaction.
 
-This field calculates a digest; it does not compare retrieved bytes with an existing expected digest. File calculation does not prove that the URI serves the file. URL calculation describes the response at that time, not what a mutable URL will serve later. Neither calculation proves authorship, safety, truth, or the agreement's meaning. Exact bytes are hashed without text conversion or JSON normalization; IPFS retrieval and canonical JSON hashing are not supported by this helper. Contract document checks and transaction authorization are unchanged.
+This field calculates a digest; it does not compare retrieved bytes with an existing expected digest. File calculation does not prove that the URI serves the file. URL calculation describes the response at that time, not what a mutable URL will serve later. Exact bytes are hashed without text conversion or JSON normalization; IPFS retrieval and canonical JSON hashing are not supported by this helper. Contract document checks and transaction authorization are unchanged.
 
 ## Projection boundary
 
@@ -390,7 +390,7 @@ Protect the final `CamRoot` owner as release authority; operationally, use an ap
 - active deadlines that require a public timeout transaction;
 - arbitrator availability for disputed agreements.
 
-No component automatically executes timeouts. The arbitrator is selected by each client and never acknowledges participation on-chain. A release process cannot turn those explicit V1 trust assumptions into neutrality or availability guarantees.
+No component automatically executes timeouts. The arbitrator is selected by each client and never acknowledges participation on-chain.
 
 ## Verification gates
 

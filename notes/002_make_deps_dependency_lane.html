@@ -513,9 +513,9 @@ git diff -- dapps/foundry.toml dapps/soldeer.lock dapps/remappings.txt dapps/dep
     </section>
 
     <section>
-      <h2>What this does not prove</h2>
+      <h2>What this lane checks</h2>
       <p class="note">
-        This lane proves that the fetched archive matches the committed lockfile checksum, that declared patches match their committed hashes, and that the final installed dependency tree matches <code>dapps/dependency-checksums.txt</code>. The live egress check proves the configured proxy can reach the current locked dependency hosts and denies one non-allowlisted host. It does not prove that an upstream package or local patch is correct, audited, or safe to use, and it does not prove that future hosts will remain reachable. Reviewing dependency changes is still a human responsibility.
+        This lane proves that the fetched archive matches the committed lockfile checksum, that declared patches match their committed hashes, and that the final installed dependency tree matches <code>dapps/dependency-checksums.txt</code>. The live egress check proves the configured proxy can reach the current locked dependency hosts and denies one non-allowlisted host. Host reachability can change after the live check.
       </p>
     </section>
   </main>

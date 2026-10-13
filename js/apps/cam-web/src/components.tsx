@@ -265,7 +265,7 @@ function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCa
       {pending ? "Calculating SHA-256… Your current digest is kept until calculation succeeds."
         : status.status === "failed" ? status.message
         : status.source === "file" ? "SHA-256 calculated from local file bytes. The URI has not been checked."
-        : "SHA-256 calculated from the bytes returned by this URL after HTTP decoding. Matching bytes do not establish authorship or truth."}
+        : "SHA-256 calculated from the bytes returned by this URL after HTTP decoding."}
     </p>}
   </fieldset>
 }
