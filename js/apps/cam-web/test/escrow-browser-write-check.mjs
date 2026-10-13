@@ -28,7 +28,7 @@ assert(/^0x[0-9a-fA-F]{40}$/.test(root), 'missing CAM root address')
 const deadline = Date.now() + 240000
 // Positional case names let validation replay each failing law independently.
 const selectedCases = new Set(process.argv.slice(2))
-for (const name of selectedCases) assert(['grant', 'held', 'rejected', 'lost', 'receipt', 'refresh', 'workflow'].includes(name), 'unknown browser write case')
+for (const name of selectedCases) assert(['grant', 'held', 'rejected', 'lost', 'receipt', 'refresh', 'workflow', 'wallet-events', 'chain-navigation', 'empty-navigation', 'chain-failed-navigation', 'empty-failed-navigation'].includes(name), 'unknown browser write case')
 async function boundedFetch(location, options) {
   const response = await fetch(location, { ...options, redirect: 'error', signal: AbortSignal.timeout(10000) })
   assert(response.ok, 'fixture resource HTTP request failed')
@@ -165,16 +165,20 @@ function providerSource() {
   const addresses = Object.fromEntries(Object.entries(accounts).map(([role, account]) => [role, account.address]))
   return `(() => {
     const addresses=${JSON.stringify(addresses)}, pending=new Map(), listeners=new Map();
-    let role='client', next=0;
-    window.__fixtureSubmissionMethods=[];
+    let role='client', next=0, chainId='0x7a69', connected=true;
+    const emit=(event,value)=>{const handlers=listeners.get(event);if(handlers===undefined)return;for(const fn of [...handlers])fn(value)};
+    window.__fixtureSubmissionMethods=[];window.__fixtureChainSwitches=0;
     window.__fixtureResolve=(id,ok,value)=>{const request=pending.get(id);if(!request)return;pending.delete(id);if(ok)request.resolve(value);else{const error=new Error(value.message);error.code=value.code;request.reject(error)}};
-    window.__fixtureSetRole=nextRole=>{if(!Object.hasOwn(addresses,nextRole))throw Error('unknown fixture actor');role=nextRole;const handlers=listeners.get('accountsChanged');if(handlers)for(const fn of handlers)fn([addresses[role]])};
+    window.__fixtureSetRole=nextRole=>{if(!Object.hasOwn(addresses,nextRole))throw Error('unknown fixture actor');role=nextRole;connected=true;emit('accountsChanged',[addresses[role]])};
+    window.__fixtureEmptyAccounts=()=>{connected=false;emit('accountsChanged',[])};
+    window.__fixtureSetChain=nextChain=>{if(chainId!==nextChain){chainId=nextChain;emit('chainChanged',chainId)}};
     window.ethereum={
       request:({method,params})=>{
         if(method==='eth_sendTransaction'||method==='wallet_sendTransaction')window.__fixtureSubmissionMethods.push(method);
-        if(method==='eth_accounts'||method==='eth_requestAccounts')return Promise.resolve([addresses[role]]);
-        if(method==='eth_chainId')return Promise.resolve('0x7a69');
-        if(method==='wallet_switchEthereumChain'&&params?.[0]?.chainId==='0x7a69')return Promise.resolve(null);
+        if(method==='eth_requestAccounts'){connected=true;return Promise.resolve([addresses[role]])}
+        if(method==='eth_accounts')return Promise.resolve(connected?[addresses[role]]:[]);
+        if(method==='eth_chainId')return Promise.resolve(chainId);
+        if(method==='wallet_switchEthereumChain'&&params?.[0]?.chainId==='0x7a69'){window.__fixtureChainSwitches++;window.__fixtureSetChain('0x7a69');return Promise.resolve(null)};
         if(method!=='eth_sendTransaction')return Promise.reject(Object.assign(new Error('Unsupported fixture wallet method'),{code:4200}));
         return new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.fixtureWalletBridge(JSON.stringify({id,role,method,params}))});
       },
@@ -183,7 +187,7 @@ function providerSource() {
     };
   })()`
 }
-const snapshotExpression = `({text:document.body.innerText, submissionMethods:window.__fixtureSubmissionMethods, account:[...document.querySelectorAll('.connection dt')].find(x=>x.textContent==='Viewer account')?.nextElementSibling?.textContent, receiptReached:window.__fixtureReceiptReached, notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText), transaction:document.querySelector('.transaction-feedback')?.innerText, prepared:!!document.querySelector('.prepared-call'), buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})), inputs:[...document.querySelectorAll('input')].map(x=>({name:x.name,value:x.value,disabled:x.matches(':disabled')}))})`
+const snapshotExpression = `({href:location.href,chainSwitches:window.__fixtureChainSwitches,readReached:window.__fixtureReadReached,text:document.body.innerText, submissionMethods:window.__fixtureSubmissionMethods, account:[...document.querySelectorAll('.connection dt')].find(x=>x.textContent==='Viewer account')?.nextElementSibling?.textContent, receiptReached:window.__fixtureReceiptReached, notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText), transaction:document.querySelector('.transaction-feedback')?.innerText, prepared:!!document.querySelector('.prepared-call'), buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})), inputs:[...document.querySelectorAll('input')].map(x=>({name:x.name,value:x.value,disabled:x.matches(':disabled')}))})`
 async function waitFor(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30000)
   let state
@@ -263,7 +267,7 @@ async function agreement(ref) {
 async function withCase(mode, test) {
   if (selectedCases.size > 0 && !selectedCases.has(mode)) return
   let release
-  const owner = { mode, sendLimit: mode === 'workflow' ? 6 : mode === 'grant' ? 0 : 1, sendRequests: 0, sendReached: false, sent: [], exceptions: 0, closed: false, held: new Promise(resolve => { release = resolve }) }
+  const owner = { mode, sendLimit: mode === 'workflow' ? 6 : ['grant', 'wallet-events', 'chain-navigation', 'empty-navigation', 'chain-failed-navigation', 'empty-failed-navigation'].includes(mode) ? 0 : 1, sendRequests: 0, sendReached: false, sent: [], exceptions: 0, closed: false, held: new Promise(resolve => { release = resolve }) }
   commands = createCdpCommands({ socket: ws, runDeadline: deadline, now: Date.now })
   activeCase = owner
   try {
@@ -282,7 +286,7 @@ async function withCase(mode, test) {
   } finally {
     owner.closed = true
     release()
-    if (sessionId) await call('Runtime.evaluate', { expression: 'window.__fixtureReleaseReceipt?.()' }, sessionId, 'cleanup').catch(() => {})
+    if (sessionId) await call('Runtime.evaluate', { expression: 'window.__fixtureReleaseReceipt?.();window.__fixtureReleaseRead?.()' }, sessionId, 'cleanup').catch(() => {})
     if (targetId) await call('Target.closeTarget', { targetId }, undefined, 'cleanup').catch(() => {})
     await Promise.allSettled([...bridges])
     commands.close()
@@ -327,6 +331,76 @@ try {
     assert.equal(owner.sent.length, 0)
     assert.equal(await nonce(), before, 'provider grant rejection must precede any nonce change')
   })
+  await withCase('wallet-events', async owner => {
+    await setupDraft(reference('wallet-events'))
+    const before = await nonce()
+    const prepared = await evaluate(snapshotExpression)
+    assert(await evaluate(`(() => {
+      const send=[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Send with wallet');
+      if(!send||send.disabled)return false;
+      window.__fixtureSetChain('0x1');send.click();return true;
+    })()`), 'capture enabled Send before same-tick chain change')
+    const wrongChain = await waitFor(state => !state.prepared && !state.buttons.some(button => button.name === 'Send with wallet' && !button.disabled), 'chain change revokes prepared send')
+    assert.equal(wrongChain.account, prepared.account, 'chain mismatch must retain readonly viewer account')
+    assert(wrongChain.buttons.some(button => button.name === 'Prepare creation transaction'), 'chain mismatch must retain readable view')
+    assert.equal(wrongChain.chainSwitches, prepared.chainSwitches, 'stale Send must not request a chain switch')
+    assert.deepEqual(wrongChain.submissionMethods, [], 'stale Send must not reach the provider')
+    await evaluate("window.__fixtureSetChain('0x7a69');true")
+    await prepare('Prepare creation transaction')
+    const retained = await evaluate(snapshotExpression)
+    await evaluate('window.__fixtureEmptyAccounts();true')
+    const empty = await waitFor(state => !state.prepared && state.buttons.some(button => button.name === 'Connect wallet' && !button.disabled), 'empty accounts revoke signer')
+    assert.equal(empty.account, retained.account, 'empty wallet accounts must retain readonly viewer account')
+    assert(empty.buttons.some(button => button.name === 'Prepare creation transaction'), 'empty wallet accounts must retain readable view')
+    assert.deepEqual(empty.submissionMethods, [])
+    assert.equal(owner.sendRequests, 0)
+    assert.equal(await nonce(), before, 'wallet events must not broadcast')
+  })
+  for (const mode of ['chain-navigation', 'empty-navigation', 'chain-failed-navigation', 'empty-failed-navigation']) {
+    await withCase(mode, async owner => {
+      await click('Connect wallet')
+      await waitFor(state => state.text.includes('Wallet connected.'), 'wallet connection')
+      const initial = await evaluate(snapshotExpression)
+      await evaluate(`(() => {
+        const original=window.fetch;let held=false, release;
+        const wait=new Promise(resolve=>{release=resolve});
+        window.__fixtureReadReached=false;window.__fixtureReleaseRead=release;
+        window.fetch=async (...args)=>{
+          let request;if(typeof args[1]?.body==='string')request=JSON.parse(args[1].body);
+          if(request?.method==='eth_call'){
+            if(!held){held=true;window.__fixtureReadReached=true;await wait}
+            if(${JSON.stringify(mode.endsWith('failed-navigation'))})throw new TypeError('Fixture navigation read failed');
+          }
+          return original(...args);
+        };return true;
+      })()`)
+      if (mode.endsWith('failed-navigation')) await evaluate("location.hash='route=accountCredit';true")
+      else await click('View account credit')
+      await waitFor(state => state.readReached, 'held navigation read')
+      await evaluate(mode.startsWith('chain-')
+        ? "window.__fixtureSetChain('0x1');window.__fixtureReleaseRead();true"
+        : 'window.__fixtureEmptyAccounts();window.__fixtureReleaseRead();true')
+      if (mode.endsWith('failed-navigation')) {
+        const restored = await waitFor(state => new URLSearchParams(new URL(state.href).hash.slice(1)).get('route') === 'createAgreementForm', 'failed hash navigation restores committed URL after wallet event')
+        assert(restored.buttons.some(button => button.name === 'Prepare creation transaction'), 'failed navigation must retain previous visible view')
+        assert.equal(restored.account, initial.account)
+        assert.deepEqual(restored.submissionMethods, [])
+        assert.equal(owner.sendRequests, 0)
+        return
+      }
+      const credit = await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'navigation commits despite wallet event')
+      assert.equal(credit.account, initial.account, 'wallet event must preserve readonly navigation account')
+      const creditURL = new URL(credit.href)
+      assert.equal(new URLSearchParams(creditURL.hash.slice(1)).get('route'), 'accountCredit', 'URL must publish successful session navigation')
+      assert.equal(creditURL.searchParams.get('account').toLowerCase(), accounts.client.address.toLowerCase())
+      assert(!credit.buttons.some(button => button.name === 'Send with wallet' && !button.disabled))
+      assert.deepEqual(credit.submissionMethods, [])
+      await click('Back')
+      const restored = await waitFor(state => state.buttons.some(button => button.name === 'Prepare creation transaction'), 'session history returns from committed credit view')
+      assert.equal(new URLSearchParams(new URL(restored.href).hash.slice(1)).get('route'), 'createAgreementForm', 'URL and session history must agree')
+      assert.equal(owner.sendRequests, 0)
+    })
+  }
   await withCase('held', async (owner, release) => {
     const ref = reference('held')
     await setupDraft(ref)
@@ -409,7 +483,6 @@ try {
     }
     async function actor(role, action) {
       await evaluate(`window.__fixtureSetRole(${JSON.stringify(role)});true`)
-      await click('Switch wallet')
       await waitFor(state => showingActor(state, role) && state.buttons.some(button => button.name === action && !button.disabled), `${role} role actions`)
     }
     await setupDraft(ref)
@@ -437,7 +510,6 @@ try {
     await waitFor(state => /\bState\s+released\.arbitratorToContractor\b/.test(state.text) && state.buttons.some(button => button.name === 'View account credit' && !button.disabled), 'resolved agreement')
     await assertEvidenceAvailability([])
     await evaluate("window.__fixtureSetRole('contractor');true")
-    await click('Switch wallet')
     await waitFor(state => showingActor(state, 'contractor'), 'contractor wallet')
     await click('View account credit')
     const credit = await waitFor(state => state.text.includes('Total withdrawable credit for this account (wei)'), 'contractor credit')

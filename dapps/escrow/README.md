@@ -273,7 +273,9 @@ make escrow-viewer-terminal-down
 make escrow-viewer-gui
 ```
 
-Open the full URL printed by the command. Its account parameter starts the viewer as the client; it grants no wallet access. You can read views without connecting a wallet. **Connect wallet** replaces the viewed account with the wallet account and refreshes the role-specific controls. After changing accounts in the wallet, use **Switch wallet** in the viewer to reconnect before preparing another action. Import only the explicit local fixture accounts to exercise contractor and arbitrator actions.
+Open the full URL printed by the command. Its account parameter starts the viewer as the client; it grants no wallet access. You can read views without connecting a wallet. **Connect wallet** replaces the viewed account with the wallet account and refreshes the role-specific controls. Import only the explicit local fixture accounts to exercise contractor and arbitrator actions.
+
+After connection, wallets that report account and network changes update the viewer automatically and clear unsent prepared calls. After an account change, wait for the refreshed view, check the account and chain, then prepare anew. A different wallet network does not change the viewer's configured chain or RPC; sending stays disabled until the wallet returns to that chain. Disconnecting retains the last successful read-only view. Wallet changes do not erase a submitted transaction hash or stop its receipt tracking. If your provider cannot report changes, use **Switch wallet** to reconnect after changing accounts or networks.
 
 An agreement-changing button prepares and simulates a call. Check the viewed account and network, review the call's target, calldata, and native value, then use **Send with wallet** to request wallet submission. Preparation is not a transaction. Confirmation closes or advances the agreement; settlement funds remain account credit until a separate withdrawal transaction succeeds.
 

@@ -6,6 +6,8 @@ interface ImportMetaEnv {
 }
 
 interface EthereumProvider {
+  on?(event: "accountsChanged" | "chainChanged" | "disconnect", listener: (value: unknown) => void): void
+  removeListener?(event: "accountsChanged" | "chainChanged" | "disconnect", listener: (value: unknown) => void): void
   request(args: {
     readonly method: string
     readonly params?: readonly unknown[] | object

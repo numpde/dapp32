@@ -8,6 +8,7 @@ import type {
   Address,
 } from "viem"
 import { UserRejectedRequestError } from "viem"
+import { createInjectedWalletBinding } from "../src/wallet-binding.ts"
 
 import type {
   StartupOptions,
@@ -503,3 +504,74 @@ test("submitted transaction read treats missing RPC results as read failures", a
     /could not read that transaction from localhost:8545/,
   )
 })
+
+for (const event of ["accountsChanged", "chainChanged", "disconnect"]) {
+  test(`${event} during simulation invalidates the unsent prepared call`, async () => {
+    const f = await boundWalletForSubmission()
+    const events: string[] = []
+    let release!: () => void
+    let entered!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    const simulating = new Promise<void>(resolve => { entered = resolve })
+    const pending = submitPreparedContractCall({
+      ports: { ...recordingPorts(events), simulate: async () => { events.push("simulate"); entered(); await held } },
+      publicClient: testPublicClient(), walletAddress, startup: testStartup(), call: testCall(),
+      shouldContinue: f.ownsInteraction,
+    })
+    await simulating
+    f.emit(event)
+    release()
+    assert.equal(await pending, undefined)
+    assert.deepEqual(events, ["ensureAccount", "simulate"])
+    f.binding.dispose()
+  })
+
+  test(`${event} after wallet submission preserves the transaction hash and receipt tracking`, async () => {
+    const f = await boundWalletForSubmission()
+    const events: string[] = []
+    const hash = await submitPreparedContractCall({
+      ports: recordingPorts(events), publicClient: testPublicClient(), walletAddress,
+      startup: testStartup(), call: testCall(), shouldContinue: f.ownsInteraction,
+    })
+    assert.equal(hash, sentHash)
+    let release!: () => void
+    const held = new Promise<void>(resolve => { release = resolve })
+    const receipt = waitForSubmittedTransactionReceipt({
+      client: { ...reader(), waitForTransactionReceipt: async ({ hash: requested }) => {
+        assert.equal(requested, sentHash)
+        await held
+        return { status: "success" as const }
+      } },
+      txHash: hash!, rpcEndpoint: "localhost:8545", pollingIntervalMs: 500, timeoutMs: 20_000,
+    })
+    f.emit(event)
+    assert.equal(f.ownsInteraction(), false)
+    release()
+    assert.deepEqual(await receipt, { status: "success" })
+    assert.equal(events.filter(value => value === "send").length, 1)
+    f.binding.dispose()
+  })
+}
+
+async function boundWalletForSubmission() {
+  const listeners = new Map<string, (value: unknown) => void>()
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { ethereum: {
+    request: async () => { throw new Error("unsolicited provider request") },
+    on: (event: string, listener: (value: unknown) => void) => listeners.set(event, listener),
+    removeListener: (event: string) => listeners.delete(event),
+  } } })
+  let currentInteraction = true
+  const binding = createInjectedWalletBinding({
+    chainId: "eip155:31337", connect: async () => walletAddress,
+    isViewBusy: () => false, setAccount: async address => address,
+    commitAccount: () => {}, invalidate: () => { currentInteraction = false },
+    onState: () => {}, onError: error => { throw error },
+  })
+  await binding.connect()
+  currentInteraction = true
+  return {
+    binding,
+    ownsInteraction: () => currentInteraction,
+    emit: (event: string) => listeners.get(event)?.(event === "accountsChanged" ? [] : event === "chainChanged" ? "0x1" : { code: 4900 }),
+  }
+}

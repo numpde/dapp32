@@ -25,6 +25,60 @@ export type WalletChainOptions = {
   readonly rpcUrl: string
 }
 
+export type InjectedWalletChange =
+  | { readonly type: "accountsChanged"; readonly accounts: readonly Address[] }
+  | { readonly type: "chainChanged"; readonly chainId: `0x${string}` }
+  | { readonly type: "disconnect" }
+
+export function subscribeInjectedWallet(
+  onChange: (change: InjectedWalletChange) => void,
+  onError: (error: unknown) => void,
+): () => void {
+  const provider = window.ethereum
+  if (provider?.on === undefined || provider.removeListener === undefined) return () => {}
+  const removeListener = provider.removeListener.bind(provider)
+  let active = true
+  const accountsChanged = (value: unknown) => {
+    if (!active) return
+    let accounts: readonly Address[]
+    try {
+      accounts = parseAddressArray(value, "accountsChanged")
+    } catch (error) {
+      onError(error)
+      return
+    }
+    onChange({ type: "accountsChanged", accounts })
+  }
+  const chainChanged = (value: unknown) => {
+    if (!active) return
+    if (typeof value !== "string" || !/^0x[0-9a-f]+$/i.test(value) || BigInt(value) <= 0n) {
+      onError(new Error("chainChanged: expected a positive hexadecimal chain ID"))
+      return
+    }
+    onChange({ type: "chainChanged", chainId: value as `0x${string}` })
+  }
+  const disconnected = () => { if (active) onChange({ type: "disconnect" }) }
+  provider.on("accountsChanged", accountsChanged)
+  let chainRegistered = false
+  try {
+    provider.on("chainChanged", chainChanged)
+    chainRegistered = true
+    provider.on("disconnect", disconnected)
+  } catch (error) {
+    active = false
+    removeListener("accountsChanged", accountsChanged)
+    if (chainRegistered) removeListener("chainChanged", chainChanged)
+    throw error
+  }
+  return () => {
+    if (!active) return
+    active = false
+    removeListener("accountsChanged", accountsChanged)
+    removeListener("chainChanged", chainChanged)
+    removeListener("disconnect", disconnected)
+  }
+}
+
 export function walletChain(options: WalletChainOptions) {
   const id = evmChainIdNumber(options.chainId)
   const rpcUrl = requireHttpURL(options.rpcUrl, "rpcUrl").href
@@ -149,20 +203,20 @@ async function assertInjectedWalletChain(provider: EthereumProvider, expectedCha
 }
 
 function requireAddressArray(value: unknown, label: string): readonly [Address, ...Address[]] {
-  if (!Array.isArray(value) || value.length === 0) {
+  const addresses = parseAddressArray(value, label)
+  const [first, ...rest] = addresses
+  if (first === undefined) {
     throw new Error(`${label}: expected at least one wallet account`)
   }
+  return [first, ...rest]
+}
 
-  const addresses = value.map((item, index) => {
+function parseAddressArray(value: unknown, label: string): Address[] {
+  if (!Array.isArray(value)) throw new Error(`${label}: expected a wallet account array`)
+  return Array.from(value, (item, index) => {
     if (typeof item !== "string") {
       throw new Error(`${label}.${index}: expected account address string`)
     }
     return requireEvmAddress(item, `${label}.${index}`)
   })
-  const [first, ...rest] = addresses
-  if (first === undefined) {
-    throw new Error(`${label}: expected at least one wallet account`)
-  }
-
-  return [first, ...rest]
 }

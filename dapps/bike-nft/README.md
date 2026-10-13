@@ -14,11 +14,19 @@ make bike-nft-viewer-gui
 Open the full URL printed by the command. The initial viewed account is the
 local fixture account, which grants no wallet access. Reads work without a
 wallet. **Connect wallet** changes the viewed account to the injected wallet
-account; after changing accounts in the wallet, use **Switch wallet** in the
-viewer to reconnect. Check the viewed account and network before preparing a
-call. A write button prepares and simulates a call; **Send with wallet** requests
+account. A write button prepares and simulates a call; **Send with wallet** requests
 its submission after review. On-chain roles and ownership determine
 whether the transaction can execute.
+
+After connection, wallets that report account and network changes update the
+viewer automatically and clear unsent prepared calls. After an account change,
+wait for the refreshed view, check the account and chain, then prepare anew.
+A different wallet network leaves the viewer's configured chain and RPC
+unchanged and disables sending until the wallet returns to that chain.
+Disconnecting retains the last successful read-only view. Submitted transaction
+hashes and receipt tracking survive wallet changes. If your provider cannot
+report changes, use **Switch wallet** to reconnect after changing accounts or
+networks.
 
 For a terminal that reads the real local RPC and prepares writes without signing
 or submitting them, run:

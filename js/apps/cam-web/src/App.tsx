@@ -34,6 +34,7 @@ import {
   walletLabel,
 } from "./wallet.ts"
 import type { WalletState } from "./wallet.ts"
+import { createInjectedWalletBinding } from "./wallet-binding.ts"
 import { errorMessage } from "./errors.ts"
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./document-hash.ts"
 import {
@@ -96,15 +97,22 @@ const PREPARED_CALL_SUBMITTER_PORTS: PreparedCallSubmitterPorts<
 export function App(): ReactElement {
   const [loadState, setLoadState] = useState<LoadState>({ status: "loading" })
   const [wallet, setWallet] = useState<WalletState>(() => initialWalletState())
+  const [walletChainMatches, setWalletChainMatches] = useState(true)
+  const [walletRefreshing, setWalletRefreshing] = useState(false)
+  const [walletAccountSynchronized, setWalletAccountSynchronized] = useState(true)
   const [notice, setNotice] = useState<Notice | undefined>(undefined)
   const [transactionNotice, setTransactionNotice] = useState<Notice | undefined>(undefined)
-  const [preparedCall, setPreparedCall] = useState<CamViewerPreparedContractCall | undefined>(undefined)
+  const [preparedCall, setPreparedCallState] = useState<CamViewerPreparedContractCall | undefined>(undefined)
+  const preparedCallRef = useRef<CamViewerPreparedContractCall | undefined>(undefined)
   const [sending, setSending] = useState(false)
   const [changingView, setChangingView] = useState(false)
   const interactionRevision = useRef(0)
   const sendRevision = useRef(0)
   const sendingRef = useRef(false)
   const changingViewRef = useRef(false)
+  const walletRefreshingRef = useRef(false)
+  const walletAccountSynchronizedRef = useRef(true)
+  const walletBindingRef = useRef<{ connect(): Promise<void>; resume(): Promise<void>; dispose(): void } | undefined>(undefined)
   const committedUrlRef = useRef(window.location.href)
   const noticeRef = useRef<HTMLParagraphElement>(null)
   const transactionNoticeRef = useRef<HTMLParagraphElement>(null)
@@ -184,6 +192,43 @@ export function App(): ReactElement {
     }
   }, [])
 
+  const loadedRuntime = loadState.status === "ready" ? loadState.runtime : undefined
+  useEffect(() => {
+    if (loadedRuntime === undefined) return
+    const ready = requireReadyState(loadState)
+    const binding = createInjectedWalletBinding({
+      chainId: loadedRuntime.startup.chainId,
+      connect: () => connectInjectedWallet(loadedRuntime.startup),
+      isViewBusy: () => changingViewRef.current,
+      setAccount: async address => {
+        setViewChanging(true)
+        try { return await loadedRuntime.session.setAccount({ address }) }
+        finally { setViewChanging(false) }
+      },
+      commitAccount: snapshot => commitSnapshot(ready, snapshot),
+      invalidate: invalidatePreparedInteraction,
+      onState: state => {
+        walletRefreshingRef.current = state.refreshing
+        walletAccountSynchronizedRef.current = state.accountSynchronized
+        setWallet(state.wallet)
+        setWalletRefreshing(state.refreshing)
+        setWalletAccountSynchronized(state.accountSynchronized)
+        setWalletChainMatches(state.chainMatches)
+        if (!state.chainMatches) {
+          showError(`Wallet network differs from viewer chain ${loadedRuntime.startup.chainId}. The viewer stays on its configured network. Connect the wallet to use that network.`, false)
+        } else if (!state.refreshing && state.accountSynchronized) {
+          showStatus(state.wallet.status === "connected" ? "Wallet connected. Viewed account updated." : "Wallet disconnected. The last viewed account is retained.", false)
+        }
+      },
+      onError: error => showError(`Cannot synchronize the wallet account: ${errorMessage(error)} The last viewed account is retained. Connect the wallet to retry.`, false),
+    })
+    walletBindingRef.current = binding
+    return () => {
+      binding.dispose()
+      if (walletBindingRef.current === binding) walletBindingRef.current = undefined
+    }
+  }, [loadedRuntime])
+
   useEffect(() => {
     async function navigateFromFragment(): Promise<void> {
       if (loadState.status !== "ready") {
@@ -192,7 +237,7 @@ export function App(): ReactElement {
         window.location.reload()
         return
       }
-      if (sendingRef.current || changingViewRef.current) {
+      if (sendingRef.current || viewInteractionBlocked()) {
         window.history.replaceState(window.history.state, "", committedUrlRef.current)
         showStatus("Finish the current operation before opening another view.", false)
         return
@@ -205,12 +250,12 @@ export function App(): ReactElement {
       try {
         const requested = parseViewFragment(window.location.hash)
         const snapshot = await ready.runtime.session.navigate(requested.route, requested.inputs)
-        if (!isCurrentInteraction(revision)) return
         commitSnapshot(ready, snapshot)
+        if (!isCurrentInteraction(revision)) return
         arriveAtFeedback("view")
       } catch (error) {
-        if (!isCurrentInteraction(revision)) return
         window.history.replaceState(window.history.state, "", committedUrlRef.current)
+        if (!isCurrentInteraction(revision)) return
         showError(`Cannot open the requested view: ${errorMessage(error)}`, true)
       } finally {
         setViewChanging(false)
@@ -222,7 +267,7 @@ export function App(): ReactElement {
   }, [loadState])
 
   async function dispatch(action: ResolvedButtonNode): Promise<void> {
-    if (sendingRef.current || changingViewRef.current) return
+    if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
     const revision = nextInteractionRevision()
     setNotice(undefined)
@@ -230,19 +275,24 @@ export function App(): ReactElement {
 
     try {
       setViewChanging(true)
-      const result = await ready.runtime.session.dispatchAction(action).finally(() => setViewChanging(false))
-      if (!isCurrentInteraction(revision)) return
-      if (result.type === "navigated") {
-        commitSnapshot(ready, result.snapshot)
-        return
+      let result
+      try {
+        result = await ready.runtime.session.dispatchAction(action)
+        if (result.type === "navigated") commitSnapshot(ready, result.snapshot)
+      } finally {
+        setViewChanging(false)
       }
+      if (result.type === "navigated") return
+      if (!isCurrentInteraction(revision)) return
 
       await preflightPreparedCall(result.call)
       if (!isCurrentInteraction(revision)) return
       setPreparedCall(result.call)
-      showStatus(wallet.status === "connected"
-        ? "Prepared contract call. Simulation passed; review it before sending."
-        : "Prepared contract call. Simulation passed; connect a wallet to send it.", false)
+      showStatus(!walletChainMatches
+        ? `Simulation passed on viewer chain ${ready.runtime.startup.chainId}, but the wallet is on another network. Connect the wallet to the configured network, then prepare the call again.`
+        : wallet.status === "connected"
+          ? "Prepared contract call. Simulation passed; review it before sending."
+          : "Prepared contract call. Simulation passed; connect a wallet to send it.", false)
       arriveAtFeedback("prepared")
     } catch (error) {
       if (!isCurrentInteraction(revision)) return
@@ -260,29 +310,12 @@ export function App(): ReactElement {
   }
 
   async function connectWallet(): Promise<void> {
-    if (sendingRef.current || changingViewRef.current) return
-    try {
-      const ready = requireReadyState(loadState)
-      invalidatePreparedInteraction()
-      setViewChanging(true)
-      const startup = ready.runtime.startup
-      const address = await connectInjectedWallet(startup)
-      const snapshot = await ready.runtime.session.setAccount({ address })
-
-      setWallet({ status: "connected", address })
-      showStatus(address.toLowerCase() === startup.account.toLowerCase()
-        ? "Wallet connected."
-        : "Wallet connected. It differs from the initial account URL parameter.", true)
-      commitSnapshot(ready, snapshot)
-    } catch (error) {
-      showError(errorMessage(error), true)
-    } finally {
-      setViewChanging(false)
-    }
+    if (sendingRef.current || changingViewRef.current || walletRefreshingRef.current) return
+    await walletBindingRef.current?.connect()
   }
 
   async function goBack(): Promise<void> {
-    if (sendingRef.current || changingViewRef.current) return
+    if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
     const revision = nextInteractionRevision()
     setPreparedCall(undefined)
@@ -290,7 +323,7 @@ export function App(): ReactElement {
     setViewChanging(true)
     try {
       const snapshot = await ready.runtime.session.back()
-      if (isCurrentInteraction(revision)) commitSnapshot(ready, snapshot)
+      commitSnapshot(ready, snapshot)
     } catch (error) {
       if (isCurrentInteraction(revision)) showError(errorMessage(error), true)
     } finally {
@@ -299,14 +332,15 @@ export function App(): ReactElement {
   }
 
   function discardPreparedCall(): void {
-    if (sendingRef.current || changingViewRef.current) return
+    if (sendingRef.current || viewInteractionBlocked()) return
     invalidatePreparedInteraction()
     setNotice(undefined)
     arriveAtFeedback("view")
   }
 
   async function sendPreparedCall(call: CamViewerPreparedContractCall): Promise<void> {
-    if (changingViewRef.current) return
+    if (preparedCallRef.current !== call) return
+    if (viewInteractionBlocked() || !walletChainMatches) return
     if (sendingRef.current) {
       showStatus("A wallet submission is already in progress.", false)
       return
@@ -370,10 +404,13 @@ export function App(): ReactElement {
       if (call.then.namespace === "routes" && ownsInteraction()) {
         try {
           setViewChanging(true)
-          const snapshot = await ready.runtime.session.navigate(call.then.function, call.then.args)
-            .finally(() => setViewChanging(false))
-          if (!ownsInteraction() || !ownsSend()) return
-          commitSnapshot(ready, snapshot)
+          try {
+            const snapshot = await ready.runtime.session.navigate(call.then.function, call.then.args)
+            if (!ownsSend()) return
+            commitSnapshot(ready, snapshot)
+          } finally {
+            setViewChanging(false)
+          }
         } catch (error) {
           if (!ownsInteraction() || !ownsSend()) return
           showError(`The transaction is confirmed, but the view could not be refreshed: ${errorMessage(error)}`, true)
@@ -402,7 +439,7 @@ export function App(): ReactElement {
   }
 
   function updateInput(name: string, value: string): void {
-    if (sendingRef.current || changingViewRef.current) return
+    if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
     try {
       invalidatePreparedInteraction()
@@ -416,7 +453,7 @@ export function App(): ReactElement {
   }
 
   function updateAmount(name: string, representation: "base" | "display", text: string, options?: { readonly composing?: boolean }): void {
-    if (sendingRef.current || changingViewRef.current) return
+    if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
     try {
       invalidatePreparedInteraction()
@@ -427,7 +464,7 @@ export function App(): ReactElement {
   }
 
   function updateInteger(name: string, text: string, options?: { readonly composing?: boolean }): void {
-    if (sendingRef.current || changingViewRef.current) return
+    if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
     try {
       invalidatePreparedInteraction()
@@ -441,6 +478,11 @@ export function App(): ReactElement {
     if (value) cancelPendingDocumentHashes()
     changingViewRef.current = value
     setChangingView(value)
+    if (!value) void walletBindingRef.current?.resume()
+  }
+
+  function viewInteractionBlocked(): boolean {
+    return changingViewRef.current || walletRefreshingRef.current || !walletAccountSynchronizedRef.current
   }
 
   function cancelPendingDocumentHashes(): void {
@@ -456,7 +498,7 @@ export function App(): ReactElement {
   }
 
   async function calculateDocumentHash(name: string, source: "url" | "file", file?: File): Promise<void> {
-    if (sendingRef.current || changingViewRef.current) return
+    if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
     try {
       const operation = ready.runtime.session.beginDocumentHash(name, source)
@@ -546,6 +588,11 @@ export function App(): ReactElement {
     setPreparedCall(undefined)
   }
 
+  function setPreparedCall(call: CamViewerPreparedContractCall | undefined): void {
+    preparedCallRef.current = call
+    setPreparedCallState(call)
+  }
+
   function nextSendRevision(): number {
     sendRevision.current += 1
     return sendRevision.current
@@ -574,7 +621,7 @@ export function App(): ReactElement {
       {wallet.status === "unavailable" ? (
         <p className="notice">No injected wallet was detected.</p>
       ) : (
-        <button className="wallet-button" type="button" disabled={changingView || sending} onClick={() => { void connectWallet() }}>
+        <button className="wallet-button" type="button" disabled={loadState.status !== "ready" || changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
           {wallet.status === "connected" ? "Switch wallet" : "Connect wallet"}
         </button>
       )}
@@ -595,8 +642,8 @@ export function App(): ReactElement {
         <PreparedCallView
           call={preparedCall}
           reviewRef={preparedRef}
-          canSend={wallet.status === "connected" && !changingView}
-          canDiscard={!sending && !changingView}
+          canSend={wallet.status === "connected" && walletChainMatches && walletAccountSynchronized && !changingView && !walletRefreshing}
+          canDiscard={!sending && !changingView && !walletRefreshing}
           sending={sending}
           onSend={sendPreparedCall}
           onDiscard={discardPreparedCall}
@@ -618,7 +665,7 @@ export function App(): ReactElement {
         <UiView
           snapshot={loadState.snapshot}
           viewRef={viewRef}
-          changingView={changingView}
+          changingView={changingView || walletRefreshing || !walletAccountSynchronized}
           sending={sending}
           onBack={goBack}
           onAction={dispatch}
