@@ -27,7 +27,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "The address being viewed selects the available actions. Connect a wallet to act as its account. Write actions prepare a transaction for review; send it separately with your wallet and wait for confirmation."
+            "text": "The address being viewed selects the available actions. Connecting a wallet changes the viewed address to its connected account. Write actions prepare a transaction for review; send it separately with your wallet and wait for confirmation."
           }
         },
         {
@@ -51,7 +51,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
+            "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial, then choose Look up component to find it or Check registration to check whether it can be registered."
           }
         },
         {
@@ -351,7 +351,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Active means registered with no open missing report. Missing means a report is open. Retired is final for registry edits; it does not burn the NFT or prevent ordinary token transfers."
+            "text": "Active means registered with no open missing report. Missing means a report is open. Retired is permanent: metadata updates and missing-report changes are no longer allowed through this registry. It does not burn the NFT or prevent ordinary token transfers."
           }
         },
         {
@@ -460,7 +460,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Retirement is permanent. Resolve any open missing report first. Retired components cannot be edited, reported missing or restored through this registry."
+            "text": "Retirement is permanent. Resolve any open missing report first. Retired components cannot have their metadata updated, be reported missing or return to active status through this registry."
           }
         },
         {
