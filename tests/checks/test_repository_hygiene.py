@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 import tomllib
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 from .common import is_skipped, iter_repo_text_files, read_text, repo_path
 
@@ -18,6 +20,34 @@ ALLOWED_FORBIDDEN_NAME_LITERALS = (
     # Preserve this captured evidence filename; it is not a product label.
     "/tmp/dapp" + "32-multiparty-fields-20261012/movie-final-state.json",
 )
+
+# These exact historical identifiers belong to the recording note, not product branding.
+ALLOWED_RECORDED_ARTIFACT_PATHS = {
+    repo_path("notes/017_escrow_walkthrough_recording.txt"): tuple(
+        "/tmp/dapp" + "32-walkthrough-" + suffix
+        for suffix in (
+            "record-original.mjs",
+            "record.mjs",
+            "recover.mjs",
+            "validate.mjs",
+            "cleanup.mjs",
+            "output",
+            "output/evidence.json",
+            "output/recording-attempt.json",
+            "output/escrow-multiparty-20261013.webm",
+            "output/documents/terms.txt",
+            "output/documents/submission.txt",
+            "output/frames/",
+            "output/decoded-0.jpg",
+            "output/decoded-1.jpg",
+            "output/decoded-2.jpg",
+            "record.log",
+            "recover.log",
+            "validate.log",
+            "cleanup.log",
+        )
+    ),
+}
 
 LICENSE_MARKERS = [
     "SPDX-" + "License-Identifier",
@@ -61,10 +91,42 @@ class RepositoryHygieneTest(unittest.TestCase):
         )
 
     def test_forbidden_text_patterns_are_absent(self) -> None:
-        self.assert_no_matches(FORBIDDEN_NAME_PATTERNS, "forbidden project name", ALLOWED_FORBIDDEN_NAME_LITERALS)
+        self.assert_no_matches(
+            FORBIDDEN_NAME_PATTERNS, "forbidden project name", ALLOWED_FORBIDDEN_NAME_LITERALS,
+            allowed_artifact_paths=ALLOWED_RECORDED_ARTIFACT_PATHS,
+        )
         markers = [re.compile(re.escape(marker)) for marker in LICENSE_MARKERS]
         self.assert_no_matches(markers, "license marker", ())
         self.assert_no_matches(SECRET_PATTERNS, "secret pattern", ())
+
+    def test_recorded_artifact_paths_are_admitted_only_as_exact_note_references(self) -> None:
+        artifact = "/tmp/dapp" + "32-walkthrough-record.mjs"
+        note = repo_path("notes/017_escrow_walkthrough_recording.txt")
+        for reference in (artifact, f'"{artifact}"', f"--volume {artifact}:/validation.mjs:ro"):
+            with self.subTest(reference=reference), patch(
+                __name__ + ".iter_repo_text_files", return_value=[note]
+            ), patch(__name__ + ".read_text", return_value=reference):
+                self.test_forbidden_text_patterns_are_absent()
+
+    def test_recorded_artifact_exceptions_do_not_hide_branding_or_other_hygiene_failures(self) -> None:
+        artifact = "/tmp/dapp" + "32-walkthrough-record.mjs"
+        note = repo_path("notes/017_escrow_walkthrough_recording.txt")
+        for path, text, reason in (
+            (repo_path("README.md"), artifact, "forbidden project name"),
+            (note, artifact + ".other", "forbidden project name"),
+            (note, artifact + "/other", "forbidden project name"),
+            (note, "prefix" + artifact, "forbidden project name"),
+            (note, "https://numpde.github.io/dapp" + "32/" + artifact, "forbidden project name"),
+            (note, "/tmp/dapp" + "32-walkthrough-unknown.mjs", "forbidden project name"),
+            (note, artifact + " dapp" + "32 product", "forbidden project name"),
+            (note, artifact + " GITHUB_" + "ACCESS_TOKEN", "secret pattern"),
+            (note, artifact + " SPDX-" + "License-Identifier", "license marker"),
+        ):
+            with self.subTest(path=path, text=text), patch(
+                __name__ + ".iter_repo_text_files", return_value=[path]
+            ), patch(__name__ + ".read_text", return_value=text):
+                with self.assertRaisesRegex(AssertionError, reason):
+                    self.test_forbidden_text_patterns_are_absent()
 
     def test_js_build_outputs_are_not_materialized_on_host(self) -> None:
         failures: list[str] = []
@@ -416,13 +478,25 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil/host/up"))
         self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil/down"))
 
-    def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
+    def assert_no_matches(
+        self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...],
+        *, allowed_artifact_paths: dict[Path, tuple[str, ...]] | None = None,
+    ) -> None:
         failures: list[str] = []
 
         for path in iter_repo_text_files():
             text = read_text(path)
+            artifact_pattern = None
+            if allowed_artifact_paths is not None and path in allowed_artifact_paths:
+                artifact_pattern = re.compile(
+                    r"""(?<![^\s"'<>():])(?:"""
+                    + "|".join(re.escape(artifact) for artifact in allowed_artifact_paths[path])
+                    + r""")(?![^\s"'<>():])"""
+                )
             for line_number, line in enumerate(text.splitlines(), start=1):
                 line_to_check = line
+                if artifact_pattern is not None:
+                    line_to_check = artifact_pattern.sub("", line_to_check)
                 for allowed in allowed_literals:
                     line_to_check = line_to_check.replace(allowed, "")
                 if any(pattern.search(line_to_check) for pattern in patterns):
