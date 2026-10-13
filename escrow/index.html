@@ -46,7 +46,7 @@
 <section class="narrow">
 <h2>Choose the three parties</h2>
 <p>The account that sends the successful creation transaction becomes the <strong>client</strong> and funds the agreement. The <strong>contractor</strong> accepts and submits work. The <strong>arbitrator</strong>, selected by the client, may award the entire disputed payment to either party.</p>
-<p>The three addresses must differ. Contractor and arbitrator must be nonzero and cannot be the escrow contract. Naming an arbitrator does not confirm their consent: there is no onchain acknowledgement step, fee, or guarantee of independence or availability. Agree on participation and terms before funding.</p>
+<p>The three addresses must differ. Contractor and arbitrator must be nonzero and cannot be the escrow contract. There is no onchain arbitrator acknowledgement step or fee. Agree on participation and terms before funding.</p>
 </section>
 <section id="try">
 <h2>Try locally with Docker</h2>
@@ -142,7 +142,7 @@ make escrow/local/demo/gui/up</code>
 # Paste 0x followed by the hash, without the filename.</code>
 </pre>
 <p>A successful calculation replaces the digest. Failure or cancellation keeps the current digest. Editing the URI keeps the digest too, but clears the previous calculation's association with that URI and cancels work tied to the old source. Check both fields before preparing the transaction.</p>
-<p>Hash the file, not its URI text; changing even whitespace changes the digest. This field calculates a new digest, rather than verifying bytes against an existing expected digest. A file hash does not prove that the URI serves that file; a URL hash describes the response now, not what a mutable URL will serve later. Neither proves authorship, safety, or truth. Each URI is limited to 512 UTF-8 bytes. The contract stores the URI and digest without retrieving or checking the file or matching the digest. Verify retrieved bytes independently against the stored digest.</p>
+<p>Hash the file, not its URI text; changing even whitespace changes the digest. This field calculates a new digest, rather than verifying bytes against an existing expected digest. A file hash does not prove that the URI serves that file; a URL hash describes the response now, not what a mutable URL will serve later. Each URI is limited to 512 UTF-8 bytes. The contract stores the URI and digest without retrieving or checking the file or matching the digest. Verify retrieved bytes independently against the stored digest.</p>
 <p>Onchain references are public. Encrypt sensitive material before publication and hash the exact published bytes. Agree separately on how authorized parties obtain decryption keys; do not put secrets in URLs or agreement fields.</p>
 </section>
 <section class="narrow">
@@ -154,8 +154,8 @@ make escrow/local/demo/gui/up</code>
 <section class="narrow">
 <h2>Trust and publication boundaries</h2>
 <p>
-<code>CamEscrow</code> is immutable and has no owner, pause, fee, sweep, upgrade, or recovery path. Its read-only <code>CamEscrowUI</code> maps core-provided actions into stable route names. <code>CamRoot</code> has an owner who can change the CAM pointer and address bindings; integrity pins protect byte identity, not the quality or trustworthiness of a publication.</p>
-<p>For public-network planning and verification, use the source <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/README.md">release guide</a> and <a href="https://github.com/numpde/dapp32/blob/main/docs/release-ceremony.md">release ceremony</a>. Local workflow checks do not constitute a security audit or prove a public deployment.</p>
+<code>CamEscrow</code> is immutable and has no owner, pause, fee, sweep, upgrade, or recovery path. Its read-only <code>CamEscrowUI</code> maps core-provided actions into stable route names. <code>CamRoot</code> has an owner who can change the CAM pointer and address bindings; integrity pins protect byte identity.</p>
+<p>For public-network planning and verification, use the source <a href="https://github.com/numpde/dapp32/blob/main/dapps/escrow/README.md">release guide</a> and <a href="https://github.com/numpde/dapp32/blob/main/docs/release-ceremony.md">release ceremony</a>.</p>
 </section>
 </main>
 </body>
