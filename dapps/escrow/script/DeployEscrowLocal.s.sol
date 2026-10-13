@@ -12,13 +12,14 @@ import {EscrowLocalFixture} from "./EscrowLocalFixture.sol";
 /// Required environment:
 /// - PRIVATE_KEY: local deployer/CamRoot owner key used by Forge broadcast.
 /// - CAM_URI: exact browser- or container-reachable CAM root URI.
-/// - CAM_HASH: keccak256 hash of the checked-in CAM root bytes.
+///
+/// The script hashes the mounted CAM root bytes before broadcasting.
 contract DeployEscrowLocal is Script, EscrowLocalFixture {
     function run() external returns (Deployment memory deployment) {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
         string memory camURI = vm.envString("CAM_URI");
-        bytes32 camHash = vm.envBytes32("CAM_HASH");
+        bytes32 camHash = keccak256(vm.readFileBinary("escrow/cam/main.json"));
 
         vm.startBroadcast(deployerKey);
         deployment = deployLocalFixture(deployer, camURI, camHash);

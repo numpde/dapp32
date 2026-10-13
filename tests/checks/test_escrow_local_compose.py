@@ -21,7 +21,6 @@ from .common import (
 
 
 ESCROW_ENV = {
-    "CAM_HASH": "0xe06f268057be3d32e11ab8e897683376760dfa7550c95943032434e0a4f44430",
     "CAM_URI": "http://escrow-cam-http:8080/main.json",
     "CAM_VIEWER_RESOURCE_ORIGIN": "http://escrow-cam-http:8080",
     "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
@@ -45,6 +44,15 @@ FIXTURE_KEYS = {
 
 
 class EscrowLocalComposeTest(unittest.TestCase):
+    def test_all_fixture_consumers_do_not_forward_external_cam_hash(self) -> None:
+        for consumer in (SCENARIO, TERMINAL, GUI):
+            with self.subTest(consumer=consumer):
+                config = rendered_compose_config(
+                    (DEPLOY, HTTP, consumer), env={**ESCROW_ENV, "CAM_HASH": "0x" + "11" * 32}
+                )
+                deploy = compose_service(config, "deploy-escrow-local")
+                self.assertNotIn("CAM_HASH", compose_mapping(deploy, "environment"))
+
     def test_gui_urls_select_only_cam_root_deployment(self) -> None:
         escrow = rendered_compose_config((DEPLOY, HTTP, GUI), env=ESCROW_ENV)
         bike = rendered_compose_config(

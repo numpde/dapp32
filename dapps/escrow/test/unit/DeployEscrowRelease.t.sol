@@ -34,7 +34,7 @@ contract DeployEscrowReleaseHarness is DeployEscrowRelease {
 contract DeployEscrowReleaseTest is Test {
     string private constant SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567";
     string private constant CAM_URI = "https://example.test/escrow/cam/main.json";
-    bytes32 private constant CAM_ROOT_HASH = 0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66;
+    bytes32 private constant PLAN_JSON_HASH = 0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66;
     uint256 private constant RELEASE_CHAIN_ID = 11_155_111;
     address private constant FINAL_OWNER = address(0xBEEF);
     string private constant PLAN_JSON =
@@ -56,7 +56,7 @@ contract DeployEscrowReleaseTest is Test {
         assertEq(plan.sourceCommit, SOURCE_COMMIT);
         assertEq(plan.expectedChainId, RELEASE_CHAIN_ID);
         assertEq(plan.camURI, CAM_URI);
-        assertEq(plan.camHash, CAM_ROOT_HASH);
+        assertEq(plan.camHash, PLAN_JSON_HASH);
         assertEq(plan.intendedCamRootOwner, FINAL_OWNER);
     }
 
@@ -107,12 +107,13 @@ contract DeployEscrowReleaseTest is Test {
     }
 
     function testAcceptsPlanBoundToExactCamRootBytes() external view {
-        harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID, CAM_URI, CAM_ROOT_HASH, FINAL_OWNER);
+        bytes32 sourceHash = keccak256(vm.readFileBinary("escrow/cam/main.json"));
+        harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID, CAM_URI, sourceHash, FINAL_OWNER);
     }
 
     function testRejectsCamHashNotBoundToExactCamRootBytes() external {
-        bytes32 plannedHash = keccak256("other-cam-root");
-        bytes32 sourceHash = CAM_ROOT_HASH;
+        bytes32 sourceHash = keccak256(vm.readFileBinary("escrow/cam/main.json"));
+        bytes32 plannedHash = sourceHash ^ bytes32(uint256(1));
 
         vm.expectRevert(
             abi.encodeWithSelector(DeployEscrowRelease.CamHashSourceMismatch.selector, plannedHash, sourceHash)
@@ -121,10 +122,11 @@ contract DeployEscrowReleaseTest is Test {
     }
 
     function testRejectsOperatorChainMismatch() external {
+        bytes32 sourceHash = keccak256(vm.readFileBinary("escrow/cam/main.json"));
         vm.expectRevert(
             abi.encodeWithSelector(DeployEscrowRelease.ChainIdMismatch.selector, RELEASE_CHAIN_ID + 1, RELEASE_CHAIN_ID)
         );
-        harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID + 1, CAM_URI, CAM_ROOT_HASH, FINAL_OWNER);
+        harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID + 1, CAM_URI, sourceHash, FINAL_OWNER);
     }
 
     function _operatorInputs() private pure returns (DeployEscrowRelease.OperatorInputs memory inputs) {

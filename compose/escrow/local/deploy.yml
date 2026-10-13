@@ -70,7 +70,6 @@ services:
       FOUNDRY_OUT: /tmp/foundry-out
       FOUNDRY_BROADCAST: "${ESCROW_BROADCAST_DIR:?missing_ESCROW_BROADCAST_DIR}"
       CAM_URI: "${CAM_URI:?missing_CAM_URI}"
-      CAM_HASH: "${CAM_HASH:?missing_CAM_HASH}"
       PRIVATE_KEY: "0xbabababababababababababababababababababababababababababababababa"
       ESCROW_CONTRACTOR_PRIVATE_KEY: "0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca"
       ESCROW_ARBITRATOR_PRIVATE_KEY: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"

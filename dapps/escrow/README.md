@@ -244,7 +244,7 @@ Each path uses a new agreement reference, switches the viewer account through `C
 make escrow/local/scenario/run
 ```
 
-The Make target owns the accepted checked-in CAM hash, internal resource URI, fixture broadcast path, Compose project, merged files, and teardown.
+The local deployment script hashes the exact mounted `cam/main.json` bytes before broadcasting. The Make target owns the internal resource URI, fixture broadcast path, Compose project, merged files, and teardown.
 
 ### Interactive real-RPC terminal
 
