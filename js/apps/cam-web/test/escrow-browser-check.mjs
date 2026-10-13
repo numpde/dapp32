@@ -709,6 +709,27 @@ try {
     assert.equal(await field('amount'), draft.amount, 'prepare rejection discarded amount')
   })
 
+  await browserCase('notice messages preserve long hashes and URLs without narrow overflow', async () => {
+    const before = await evaluate(`(()=>{const notice=document.querySelector('p.notice');if(!notice)throw Error('Expected rendered notice');return {width:innerWidth,height:innerHeight,text:notice.textContent,role:notice.getAttribute('role')}})()`)
+    try {
+      for (const width of [320, 390]) {
+        await call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId)
+        for (const [role, message] of [
+          ['status', `Transaction confirmed in block 8. Transaction hash: 0x${'1'.repeat(64)}.`],
+          ['alert', `Cannot complete request to https://example.test/${'a'.repeat(512)}`],
+        ]) {
+          const layout = await evaluate(`(()=>{const notice=document.querySelector('p.notice');notice.textContent=${JSON.stringify(message)};notice.setAttribute('role',${JSON.stringify(role)});const bounds=notice.getBoundingClientRect();return {text:notice.textContent,page:document.documentElement.scrollWidth,viewport:innerWidth,client:notice.clientWidth,scroll:notice.scrollWidth,left:bounds.left,right:bounds.right}})()`)
+          assert.equal(layout.text, message, `${role} notice lost the complete value`)
+          assert(layout.page <= layout.viewport, `${role} notice overflows the document at ${width}px`)
+          assert(layout.scroll <= layout.client && layout.left >= 0 && layout.right <= layout.viewport, `${role} notice clips its value at ${width}px`)
+        }
+      }
+    } finally {
+      await evaluate(`(()=>{const notice=document.querySelector('p.notice');notice.textContent=${JSON.stringify(before.text)};const role=${JSON.stringify(before.role)};if(role===null)notice.removeAttribute('role');else notice.setAttribute('role',role)})()`)
+      await call('Emulation.setDeviceMetricsOverride', { width: before.width, height: before.height, deviceScaleFactor: 1, mobile: false }, sessionId)
+    }
+  })
+
   await browserCase('repeated rejection and ordinary editing focus', async () => {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')

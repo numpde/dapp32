@@ -140,6 +140,7 @@ dd,
 
 .notice {
   margin-bottom: 14px;
+  overflow-wrap: anywhere;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--accent), var(--line) 55%);
   border-radius: 8px;
