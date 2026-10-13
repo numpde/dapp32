@@ -67,7 +67,7 @@ make escrow-viewer-gui</code>
 </article>
 <article class="card">
 <h3>Use a fixture wallet</h3>
-<p>Sending requires an injected browser wallet connected to the fixture chain and account. Connecting replaces the viewed identity with the wallet address. Switch accounts for contractor or arbitrator actions. In a separate browser wallet profile, add chain ID <code>31337</code> with RPC URL <code>http://127.0.0.1:5174/rpc</code> (or the printed GUI origin followed by <code>/rpc</code> if you changed the port). Import the local fixture keys from <a href="https://github.com/numpde/dapp32/blob/main/compose/escrow/local/deploy.yml">compose/escrow/local/deploy.yml</a>: <code>PRIVATE_KEY</code> is client/root owner; the named contractor, arbitrator, and finalizer keys select the other three roles. Deployment funds all four accounts for local transactions. These repeated-pattern keys are public and unsafe on any other chain; keep real funds and valuable keys out of this disposable chain.</p>
+<p>Sending requires an injected browser wallet connected to the fixture chain and account. Connecting replaces the viewed identity with the wallet address. For contractor or arbitrator actions, switch accounts in the wallet, then reconnect it in the viewer and prepare again. In a separate browser wallet profile, add chain ID <code>31337</code> with RPC URL <code>http://127.0.0.1:5174/rpc</code> (or the printed GUI origin followed by <code>/rpc</code> if you changed the port). Import the local fixture keys from <a href="https://github.com/numpde/dapp32/blob/main/compose/escrow/local/deploy.yml">compose/escrow/local/deploy.yml</a>: <code>PRIVATE_KEY</code> is client/root owner; the named contractor, arbitrator, and finalizer keys select the other three roles. Deployment funds all four accounts for local transactions. These repeated-pattern keys are public and unsafe on any other chain; keep real funds and valuable keys out of this disposable chain.</p>
 </article>
 <article class="card">
 <h3>Other local modes</h3>
@@ -75,7 +75,7 @@ make escrow-viewer-gui</code>
 <code>make escrow-viewer-terminal</code> reads real local RPC state and prepares writes, but does not sign or submit them. <code>make escrow-local-scenario</code> automatically exercises all nine terminal settlement paths and complete withdrawal through the viewer stack.</p>
 </article>
 </div>
-<p class="narrow">The GUI target cleans up when its foreground command exits. After an interrupted run, use <code>make escrow-viewer-gui-down</code>. A fakechain preview, where used in development, is an in-memory fixture; it does not prove real RPC, wallet approval, transaction confirmation, or deployment behavior.</p>
+<p class="narrow">The GUI target attempts teardown when its foreground command exits. Successful teardown removes the local fixture state. After an interrupted run, or if the fixture remains running, use <code>make escrow-viewer-gui-down</code> and check that it has stopped. A fakechain preview, where used in development, is an in-memory fixture; it does not prove real RPC, wallet approval, transaction confirmation, or deployment behavior.</p>
 </section>
 <section class="narrow">
 <h2>Create and fund</h2>
@@ -90,7 +90,7 @@ make escrow-viewer-gui</code>
 </section>
 <section id="phases">
 <h2>Act before the deadline, finalize after it</h2>
-<p class="narrow">Each phase starts at the successful transaction's block time. Ordinary actions require a block time strictly before its deadline. At or after the deadline, anyone can send the corresponding timeout transaction. Timeouts never execute automatically. The contract's enabled actions are authoritative; a displayed action can become unavailable before execution.</p>
+<p class="narrow">Each phase starts at the successful transaction's block time. Ordinary actions require a block time strictly before its deadline. At or after the deadline, anyone can send the corresponding timeout transaction. Timeouts never execute automatically. Unavailable actions and their fields remain visible but disabled for the address being viewed. Availability comes from the contract at the last read and can change before execution; the contract checks it again when the transaction runs.</p>
 <div class="route-table">
 <table>
 <caption>Active phases and whole-payment outcomes</caption>
@@ -146,8 +146,8 @@ make escrow-viewer-gui</code>
 </section>
 <section class="narrow">
 <h2>Settlement is followed by withdrawal</h2>
-<p>Cancellation, approval, arbitration, or timeout closes the agreement and adds its entire amount to one party's withdrawable credit. It does not send funds to that party's wallet. Open the account-credit view with the credited account and prepare <code>withdrawTo</code>.</p>
-<p>The credit owner sends a separate transaction that withdraws their <strong>complete aggregated credit</strong>, potentially from several agreements, to the entered recipient. The recipient may differ from the credit owner, must be able to receive the native asset, and cannot be zero or the escrow contract. Check that address before signing. A failed transfer reverts the withdrawal.</p>
+<p>Cancellation, approval, arbitration, or timeout closes the agreement and adds its entire amount to one party's withdrawable credit. It does not send funds to that party's wallet. Connect the credited account, open its account-credit view, and prepare <code>withdrawTo</code>. Browsing as that account without its wallet does not authorize withdrawal.</p>
+<p>The credit owner sends a separate transaction that withdraws their <strong>complete aggregated credit</strong> to the entered recipient. This is their unwithdrawn credit from settlements in this escrow contract on this network. Credit in other escrow contracts or networks is separate. The recipient may differ from the credit owner, must be able to receive the native asset, and cannot be zero or the escrow contract. Check that address before signing. A failed transfer reverts the withdrawal.</p>
 <p>If a wallet rejects a request or a view refresh fails, inspect the transaction status and reopen the agreement or credit view before retrying. Preparation, submission, confirmation, settlement credit, and withdrawal are separate steps.</p>
 </section>
 <section class="narrow">
