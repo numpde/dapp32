@@ -155,13 +155,30 @@ test("credit distinguishes the credit owner, full amount and withdrawal destinat
     }), CONTEXT)
     const help = precedingHelp(resolvedUi, "recipient")
     assert.match(help, /may differ from the credit owner/)
-    assert.match(help, /40 hexadecimal/)
-    assert.match(help, /zero address and this escrow contract are not allowed/)
+    assert.match(help, /defaults to the account being viewed/)
+    assert.match(help, /0x followed by 40 hexadecimal/)
+    assert.match(help, /zero address and this escrow contract are rejected/)
+    const recipient = requiredField(resolvedUi, "recipient")
+    const withdrawal = requiredButton(resolvedUi, "withdrawTo")
+    assert.equal(isDisabled(recipient), amount === "0")
+    assert.equal(isDisabled(withdrawal), amount === "0")
     const texts: string[] = []
+    const statusLabels: string[] = []
     forEachResolvedUiNode(resolvedUi, (node) => {
       if (node.element === "Text") texts.push(String(node.props.text))
+      if (node.element === "Status") statusLabels.push(String(node.props.label))
     })
-    assert.ok(texts.some((text) => /Only the credit owner can withdraw/.test(text) && /entire credit/.test(text)))
+    assert.ok(statusLabels.includes("Total withdrawable credit for this account (wei)"))
+    assert.ok(texts.some((text) => /payments and refunds from all agreements for the account being viewed, less previous withdrawals/.test(text)))
+    assert.ok(texts.some((text) => /1 native asset = 1,000,000,000,000,000,000 wei/.test(text)))
+    assert.ok(texts.some((text) => /When credit is available, send the withdrawal transaction from the account shown/.test(text)))
+    assert.ok(texts.some((text) => /full balance; partial withdrawals are unavailable/.test(text)))
+    if (amount === "0") {
+      assert.ok(texts.includes("No credit is available to withdraw."))
+      assert.ok(!texts.some((text) => /Review the prepared transaction/.test(text)))
+    } else {
+      assert.ok(texts.some((text) => /Review the prepared transaction, then submit it separately with your wallet./.test(text)))
+    }
   }
 })
 
