@@ -243,3 +243,29 @@ checked only; the business workflow was not rerun with it. No player HTML or
 captions were produced for this recording. The exact document bytes and
 SHA-256 values are in the sidecar and separate files. Their recording URLs
 were temporary Fetch fixtures, not durable publication URLs.
+
+Reconstructed focus guide, 2026-10-13
+
+The original recording did not retain native pointer coordinates. Do not draw
+an authentic mouse trail over it. The guided WebM adds a 72-pixel event-caption
+strip below the original viewport. Its companion local HTML player adds hollow
+outlines and left-margin arrows at three focus positions verified from original
+frames: contractor address at 12 seconds, submission URI at 58.4 seconds, and
+withdrawal recipient at 90 seconds. These are reconstructed attention markers,
+not recorded mouse events. The player labels that boundary visibly and offers
+buttons that pause at each verified position.
+
+  /home/ra/tmp/escrow-multiparty-20261013-guided.html
+  /home/ra/tmp/escrow-multiparty-20261013-guided.webm
+  /home/ra/tmp/escrow-multiparty-20261013-guided.json
+
+The positional markers are player overlays, not burned into the WebM. The
+original movie remains unchanged. Postprocessing used the existing tab and
+browser-native encoding; it sent no wallet requests or transactions.
+
+For a future recording, preserve each successful native mouse press/release
+coordinate and timestamp in the evidence, in CSS viewport pixels. Paint a
+cursor at those dispatched coordinates and a short click pulse on the recording
+canvas. The updated transient recorder does this; it was syntax checked only,
+without replaying the business workflow. Do not infer intermediate mouse
+movement that the input driver did not dispatch.
