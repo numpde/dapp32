@@ -72,6 +72,13 @@ The existing viewer remains a useful baseline, not the independent consumer.
 Read-only discovery first
 -------------------------
 
+Before testing, the observer freezes a private discovery gate: verified
+publication, supported schema, bindings and current actor/state facts; the
+consumer's next intent must accurately name the chain, contract, actor, value
+and document commitments and match the standing grant. A wrong or unknown
+essential fact blocks writes. Do not supply this gate to the consumer or
+require it to forecast future calldata.
+
 1. Confirm that the RPC's actual chain ID matches the supplied network.
 2. Bootstrap through the public host interface. Discover the manifest URI/hash
    and contract bindings. Load only admitted resources; verify root bytes and
@@ -103,6 +110,13 @@ not inferred instructions to deploy. Keep real network deployments out of this
 first test. Use real terms and submission files, retain their exact bytes, and
 verify the commitments entered through the discovered interface.
 
+Privately retain deployment/setup configuration, source provenance, baseline
+block/time, bindings, initial actor balances/credits and agreement absence,
+or a restorable checkpoint with that provenance. Pin zero initial contractor
+credit and no unrelated credit-changing activity during this run, so final
+zero-credit and gas-aware balance assertions refer to this agreement. Keep
+setup/checkpoint and oracle information isolated from the consumer.
+
 Give the consumer an outcome request, not a workflow recipe: for example, the
 client wants to escrow the agreed amount for the supplied deliverable, approve
 satisfactory work, and have the contractor receive the payment. The consumer
@@ -112,9 +126,11 @@ approval and contractor withdrawal. Creation and funding are one transaction,
 so this oracle expects five receipts. Privately assess the explanation of
 actor/terms/action/value/recipient/chain and the distinction between preparation,
 submission, confirmation, settlement credit and withdrawal. Keep this rubric
-and sequence out of the consumer prompt. Switch through the wallet interface,
-wait for the refreshed view, and recheck account and chain before
-preparing a new call. Show the read-only arbitrator role if requested, without
+and sequence out of the consumer prompt. The consumer derives and requests the
+next actor. The harness may mechanically switch the wallet on that request;
+unsolicited actor switching or advice is assistance. Wait for the refreshed
+view and recheck account and chain before preparing a new call. Show the
+read-only arbitrator role if requested, without
 inventing a dispute or granting it a transaction on this success path.
 
 Record five successful real receipts, their senders, target/value and resulting
@@ -131,8 +147,16 @@ change and unavailable action. Use isolated fixture transport/publication
 snapshots. Record exactly which bytes/hash/schema/resource response or account/
 network event was changed; choose unavailable actions from the observed state.
 Do not mutate or repair a live publication. No injection framework is implemented
-by this note. Expect a clear rejection, resource-admission request or
-refreshed authorized view at the relevant boundary, with no unauthorized send.
+by this note. Freeze each expected result before its case:
+- integrity mismatch or unknown schema: reject affected publication
+  interpretation/execution; origin admission is not a substitute;
+- missing resource: block operations dependent on that resource;
+- account change: invalidate or revalidate unsent preparation and read fresh
+  actor/state facts; a wrong wallet network blocks sends on the authorized chain;
+- unavailable projected action: treat it as currently unusable, without a send.
+
+Score consumer attempts as well as chain effects. A harness-denied unauthorized
+send is a consumer failure, not a pass merely because no transaction landed.
 Do not ask the consumer to guess a replacement ABI, route, state or permission.
 An origin-admission request can be normal policy; other app-specific help
 changes the classification if provided.
@@ -159,6 +183,10 @@ transport or resource-admission request still means the end-to-end task did
 not pass; the infrastructure label describes the cause. A failed
 integrity case rejected correctly is a negative-case pass, not infrastructure
 success for the happy path.
+
+Scope a pass to the exact consumer implementation/version, CAM publication
+hash/schema, task, fixture and tested capabilities. One Escrow success path
+does not establish interoperability across the wider ecosystem.
 
 Preserve seed/task/grant packets, consumer and source provenance, UTC times,
 resources and hashes, read/write API traces, teach-back, help exchanges,
