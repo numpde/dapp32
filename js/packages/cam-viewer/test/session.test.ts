@@ -63,6 +63,123 @@ const BIKE_ACCOUNT_INFO_URI = "fixture://bike-nft/accounts/session-owner.json"
 const BIKE_REGISTRATION_TOKEN_URI = "fixture://bike-nft/tokens/session-registration.json"
 const NO_RESOURCE_OVERRIDES = {}
 
+test("bike availability keeps component writes and their fields visible across authority and lifecycle changes", async () => {
+  for (const scenario of [
+    { name: "active owner", status: "active", account: userAddress },
+    { name: "missing owner", status: "missing", account: userAddress },
+    { name: "retired owner", status: "retired", account: userAddress },
+    { name: "other account", status: "active", account: otherUserAddress },
+    { name: "manager paused", status: "active", account: userAddress, paused: true },
+    { name: "token paused", status: "active", account: userAddress, tokenPaused: true },
+  ] as const) {
+    const projection = bikeComponentRouteResult(BIKE_SERIAL_NUMBER, scenario.account, scenario.status)
+    if ("paused" in scenario) Object.assign(projection, { paused: true, actions: ["lookupComponent"] })
+    if ("tokenPaused" in scenario) Object.assign(projection, {
+      componentTokenPaused: true, actions: ["lookupComponent", "markComponentMissing", "retireComponent"],
+    })
+    const routeResults = { ...bikeRouteResults(BIKE_SERIAL_NUMBER, scenario.account, scenario.status), [BIKE_VIEW_COMPONENT]: projection }
+    const session = createSession(sessionFixtureOptions({ publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })) }))
+    await session.load()
+    if (scenario.account !== userAddress) await session.setAccount({ address: scenario.account })
+    const snapshot = await session.navigate("component", { serialNumber: BIKE_SERIAL_NUMBER })
+    const actions = projection.actions as string[]
+    const buttons = resolvedUiButtons(snapshot.resolvedUi)
+    for (const action of ["updateComponentMetadata", "markComponentMissing", "clearComponentMissing", "retireComponent"]) {
+      const button = buttons.find(node => node.call.function === action)
+      assert.ok(button, `${scenario.name}: ${action} must remain visible`)
+      assert.equal(button.disabled === true, !actions.includes(action), `${scenario.name}: ${action} availability`)
+      if (button.disabled === true) await assert.rejects(() => session.dispatchAction(button))
+    }
+    for (const [field, action] of [["tokenURI", "updateComponentMetadata"], ["reportURI", "markComponentMissing"], ["resolutionURI", "clearComponentMissing"]]) {
+      let input: Extract<ResolvedUiNode, { element: "TextField" }> | undefined
+      forEachResolvedUiNode(snapshot.resolvedUi, node => {
+        if (node.element === "TextField" && node.state.key === field) input = node
+      })
+      assert.ok(input, `${scenario.name}: ${field} must remain visible`)
+      assert.equal(input.disabled === true, !actions.includes(action), `${scenario.name}: ${field} availability`)
+    }
+  }
+})
+
+test("bike availability keeps registration inputs and preparation visible when registration is unavailable", async () => {
+  for (const scenario of [
+    { name: "new serial registrar", serial: BIKE_UNKNOWN_SERIAL_NUMBER, account: userAddress },
+    { name: "empty serial", serial: "", account: userAddress },
+    { name: "existing serial", serial: BIKE_SERIAL_NUMBER, account: userAddress },
+    { name: "other account", serial: BIKE_UNKNOWN_SERIAL_NUMBER, account: otherUserAddress },
+    { name: "manager paused", serial: BIKE_UNKNOWN_SERIAL_NUMBER, account: userAddress, paused: true },
+    { name: "token paused", serial: BIKE_UNKNOWN_SERIAL_NUMBER, account: userAddress, tokenPaused: true },
+  ] as const) {
+    const projection = bikeRegisterRouteResult(scenario.serial, scenario.account)
+    if ("paused" in scenario) Object.assign(projection, { paused: true, actions: ["lookupComponent"] })
+    if ("tokenPaused" in scenario) Object.assign(projection, { componentTokenPaused: true, actions: ["lookupComponent"] })
+    const routeResults = { ...bikeRouteResults(BIKE_SERIAL_NUMBER, scenario.account, "active"), [BIKE_VIEW_REGISTER]: projection }
+    const session = createSession(sessionFixtureOptions({ publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })) }))
+    await session.load()
+    if (scenario.account !== userAddress) await session.setAccount({ address: scenario.account })
+    const snapshot = await session.navigate("register", { serialNumber: scenario.serial })
+    const enabled = (projection.actions as string[]).includes("registerComponent")
+    const button = resolvedUiButtons(snapshot.resolvedUi).find(node => node.call.function === "registerComponent")
+    assert.ok(button, `${scenario.name}: registration preparation must remain visible`)
+    assert.equal(button.disabled === true, !enabled, scenario.name)
+    for (const field of ["owner", "tokenURI"]) {
+      let input: Extract<ResolvedUiNode, { element: "TextField" }> | undefined
+      forEachResolvedUiNode(snapshot.resolvedUi, node => {
+        if (node.element === "TextField" && node.state.key === field) input = node
+      })
+      assert.ok(input, `${scenario.name}: ${field} must remain visible`)
+      assert.equal(input.disabled === true, !enabled, `${scenario.name}: ${field} availability`)
+    }
+  }
+})
+
+test("bike availability keeps entry account editing visible and matches the projected action grant", async () => {
+  for (const scenario of [
+    { name: "registrar", account: userAddress },
+    { name: "other account", account: otherUserAddress },
+    { name: "no account", account: BIKE_ZERO_ADDRESS },
+    { name: "manager paused", account: userAddress, paused: true },
+  ] as const) {
+    const projection = bikeEntryRouteResult(scenario.account)
+    if ("paused" in scenario) Object.assign(projection, { paused: true, actions: ["lookupComponent"] })
+    const routeResults = { ...bikeRouteResults(BIKE_SERIAL_NUMBER, scenario.account, "active"), [BIKE_VIEW_ENTRY]: projection }
+    const session = createSession(sessionFixtureOptions({ publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })) }))
+    await session.load()
+    const snapshot = await session.setAccount({ address: scenario.account })
+    const actions = projection.actions as string[]
+    const buttons = resolvedUiButtons(snapshot.resolvedUi)
+    for (const [action, route] of [["lookupComponent", "component"], ["openRegister", "register"], ["setAccountInfo", "setAccountInfo"]]) {
+      const button = buttons.find(node => node.call.function === route)
+      assert.ok(button, `${scenario.name}: ${action} must remain visible`)
+      assert.equal(button.disabled === true, !actions.includes(action), `${scenario.name}: ${action} availability`)
+    }
+    let accountInfo: Extract<ResolvedUiNode, { element: "TextField" }> | undefined
+    forEachResolvedUiNode(snapshot.resolvedUi, node => {
+      if (node.element === "TextField" && node.state.key === "accountInfo") accountInfo = node
+    })
+    assert.ok(accountInfo)
+    assert.equal(accountInfo.disabled === true, !actions.includes("setAccountInfo"), scenario.name)
+  }
+})
+
+test("bike availability keeps the loaded write target visible when the lookup draft changes", async () => {
+  const session = createSession(sessionFixtureOptions({}))
+  await session.load()
+  await session.navigate("component", { serialNumber: BIKE_SERIAL_NUMBER })
+  const snapshot = session.updateState({ serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER, tokenURI: BIKE_REGISTRATION_TOKEN_URI })
+  let loadedSerialVisible = false
+  forEachResolvedUiNode(snapshot.resolvedUi, node => {
+    if (node.element === "Status" && node.props.value === BIKE_SERIAL_NUMBER) loadedSerialVisible = true
+  })
+  assert.equal(loadedSerialVisible, true, "the loaded component serial remains visible while another serial is entered for lookup")
+  const button = resolvedUiButtons(snapshot.resolvedUi).find(node => node.call.function === "updateComponentMetadata")
+  assert.ok(button)
+  const prepared = await session.dispatchAction(button)
+  assert.equal(prepared.type, "contractCall")
+  if (prepared.type !== "contractCall") assert.fail("Expected metadata preparation")
+  assert.deepEqual(prepared.call.args, toInertValue({ serialNumber: BIKE_SERIAL_NUMBER, tokenURI_: BIKE_REGISTRATION_TOKEN_URI }))
+})
+
 test("bike fixture covers unpaused fixture projection cases", () => {
   assertBikeProjection(bikeComponentRouteResult("", userAddress, "active"), {
     viewId: "component.empty",
@@ -186,7 +303,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
   assert.equal(snapshot.resolvedUi.children[0]?.element, "Status")
   assert.equal(snapshot.resolvedUi.children[0]?.props.label, "Registry paused")
   assert.equal(snapshot.resolvedUi.children[0]?.props.value, false)
-  assert.equal(snapshot.resolvedUi.children[1]?.element, "Fragment")
+  assert.ok(snapshot.resolvedUi.children.some(node => node.element === "Fragment"))
   assert.deepEqual(snapshot.values, toInertValue([
     {
       viewId: "entry",
@@ -265,7 +382,7 @@ test("Back drops edits whose inputs are absent from the refreshed view", async (
   await session.navigate("register", { serialNumber: BIKE_UNKNOWN_SERIAL_NUMBER })
   session.updateState({ owner: registeredOwnerAddress, tokenURI: BIKE_REGISTRATION_TOKEN_URI })
   await session.navigate(BIKE_ROUTE_ENTRY, {})
-  routeResults[BIKE_VIEW_REGISTER] = bikeRegisterRouteResult(BIKE_SERIAL_NUMBER, userAddress)
+  routeResults[BIKE_VIEW_REGISTER] = { ...bikeRegisterRouteResult(BIKE_SERIAL_NUMBER, userAddress), viewId: "component.notFound" }
   const restored = await session.back()
   assert.equal(Object.hasOwn(restored.state, "owner"), false)
   assert.equal(Object.hasOwn(restored.state, "tokenURI"), false)
@@ -282,11 +399,6 @@ test("Back preserves visible drafts while refreshed contract availability disabl
   const membership = { member: "lookupComponent", in: "$view.actions" }
   serialField.enabledWhen = membership
   mutableRecord(nodes.lookupComponent).enabledWhen = membership
-  const appChildren = mutableRecord(nodes.app).children as Record<string, unknown>[]
-  const actionInclude = appChildren.find((child) => child.element === "Include"
-    && mutableRecord(child.call).function === "$view.actions")
-  assert.ok(actionInclude)
-  mutableRecord(actionInclude.call).function = "lookupComponent"
   const uiBytes = encodeJson(ui)
   const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
   mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
@@ -1574,7 +1686,7 @@ test("updateState resolves route actions, while write routes are surfaced withou
   if (!("children" in accountSnapshot.resolvedUi)) {
     assert.fail("expected entry root children")
   }
-  const accountButton = accountSnapshot.resolvedUi.children.find((child) =>
+  const accountButton = resolvedUiButtons(accountSnapshot.resolvedUi).find((child) =>
     child.element === "Button" && child.call.function === "setAccountInfo"
   )
   assert.equal(accountButton?.element, "Button")
@@ -1607,7 +1719,7 @@ test("updateState resolves route actions, while write routes are surfaced withou
   if (!("children" in preparedRegisterSnapshot.resolvedUi)) {
     assert.fail("expected register root children")
   }
-  const registerButton = preparedRegisterSnapshot.resolvedUi.children.find((child) =>
+  const registerButton = resolvedUiButtons(preparedRegisterSnapshot.resolvedUi).find((child) =>
     child.element === "Button" && child.call.function === "registerComponent"
   )
   assert.equal(registerButton?.element, "Button")
@@ -1640,7 +1752,7 @@ test("updateState resolves route actions, while write routes are surfaced withou
   if (!("children" in snapshot.resolvedUi)) {
     assert.fail("expected resolved root children")
   }
-  const action = snapshot.resolvedUi.children.find((child) => child.element === "Button")
+  const action = resolvedUiButtons(snapshot.resolvedUi).find((child) => child.call.function === BIKE_ROUTE_COMPONENT)
   assert.equal(action?.element, "Button")
   if (action?.element !== "Button") {
     assert.fail("expected resolved action")
@@ -1667,7 +1779,7 @@ test("updateState resolves route actions, while write routes are surfaced withou
   if (!("children" in reportSnapshot.resolvedUi)) {
     assert.fail("expected resolved root children")
   }
-  const writeButton = reportSnapshot.resolvedUi.children.find((child) =>
+  const writeButton = resolvedUiButtons(reportSnapshot.resolvedUi).find((child) =>
     child.element === "Button" && child.call.function === "markComponentMissing"
   )
   assert.equal(writeButton?.element, "Button")
@@ -1698,7 +1810,7 @@ test("updateState resolves route actions, while write routes are surfaced withou
   routeResults[BIKE_VIEW_COMPONENT] = missingResult
   const missingSnapshot = await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
   assert.equal(
-    resolvedStatusValue(missingSnapshot.resolvedUi, "Missing report URI"),
+    resolvedStatusValue(missingSnapshot.resolvedUi, "Current missing report URI"),
     BIKE_MISSING_REPORT_URI,
   )
   const resolutionSnapshot = session.updateState({
@@ -1710,7 +1822,7 @@ test("updateState resolves route actions, while write routes are surfaced withou
   if (!("children" in resolutionSnapshot.resolvedUi)) {
     assert.fail("expected missing resolved root children")
   }
-  const clearButton = resolutionSnapshot.resolvedUi.children.find((child) =>
+  const clearButton = resolvedUiButtons(resolutionSnapshot.resolvedUi).find((child) =>
     child.element === "Button" && child.call.function === "clearComponentMissing"
   )
   assert.equal(clearButton?.element, "Button")

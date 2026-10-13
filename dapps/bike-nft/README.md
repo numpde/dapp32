@@ -19,6 +19,18 @@ account. A write button prepares and simulates a call; **Send with wallet** requ
 its submission after review. On-chain roles and ownership determine
 whether the transaction can execute.
 
+Use the exact serial text, including case and spaces. To register an unused
+serial, choose **Look up component**, then **Check registration** when available.
+The registrar sends the transaction; the initial NFT owner may be another
+account. Token metadata, missing reports and resolutions use nonempty URIs;
+these controls store locations rather than uploading files or calculating
+document digests.
+
+Unavailable actions and their inputs stay visible and disabled. Registry pause,
+component-token pause and the viewed account's registrar role are separate facts.
+On a component view, editing the lookup serial does not change the displayed
+loaded component or the target of its writes; look up the new serial first.
+
 After connection, wallets that report account and network changes update the
 viewer automatically and clear unsent prepared calls. After an account change,
 wait for the refreshed view, check the account and chain, then prepare anew.

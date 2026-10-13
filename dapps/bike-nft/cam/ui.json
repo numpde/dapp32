@@ -18,20 +18,23 @@
           }
         },
         {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "$view.viewId",
-            "args": {
-              "view": "$view"
-            }
+          "element": "Status",
+          "props": {
+            "label": "Component token paused",
+            "value": "$view.componentTokenPaused"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The address being viewed selects the available actions. Connect a wallet to act as its account. Write actions prepare a transaction for review; send it separately with your wallet and wait for confirmation."
           }
         },
         {
           "element": "Include",
           "call": {
             "namespace": "ui",
-            "function": "$view.actions",
+            "function": "$view.viewId",
             "args": {
               "view": "$view"
             }
@@ -48,21 +51,27 @@
         {
           "element": "Text",
           "props": {
-            "text": "Look up a component by the serial number stamped on the bicycle."
+            "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
           }
         },
         {
           "element": "Address",
           "props": {
-            "label": "Connected account",
+            "label": "Address being viewed",
             "address": "$view.account"
           }
         },
         {
           "element": "Status",
           "props": {
-            "label": "Can register components",
+            "label": "Registrar role",
             "value": "$view.canRegister"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Account info URI is an optional public profile or contact-document location for the account sending the update. Enter an empty value to clear it."
           }
         },
         {
@@ -73,16 +82,50 @@
           "state": {
             "key": "accountInfo",
             "defaultValue": "$view.accountInfo"
+          },
+          "enabledWhen": {
+            "member": "setAccountInfo",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "setAccountInfo",
+            "args": {
+              "view": "$view"
+            }
           }
         },
         {
           "element": "TextField",
           "props": {
-            "label": "Serial number"
+            "label": "Serial number to look up"
           },
           "state": {
             "key": "serialNumber",
             "defaultValue": "$view.serialNumber"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openRegister",
+            "args": {
+              "view": "$view"
+            }
           }
         }
       ]
@@ -96,17 +139,37 @@
         {
           "element": "Text",
           "props": {
-            "text": "Enter a bicycle component serial number."
+            "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
           }
         },
         {
           "element": "TextField",
           "props": {
-            "label": "Serial number"
+            "label": "Serial number to look up"
           },
           "state": {
             "key": "serialNumber",
             "defaultValue": "$view.serialNumber"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openRegister",
+            "args": {
+              "view": "$view"
+            }
           }
         }
       ]
@@ -118,9 +181,15 @@
       "element": "Fragment",
       "children": [
         {
+          "element": "Text",
+          "props": {
+            "text": "No component is registered for this exact serial in this registry. Check the serial, contract and network before registering."
+          }
+        },
+        {
           "element": "TextField",
           "props": {
-            "label": "Serial number"
+            "label": "Serial number to look up"
           },
           "state": {
             "key": "serialNumber",
@@ -133,6 +202,26 @@
             "label": "Registered",
             "value": false
           }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "openRegister",
+            "args": {
+              "view": "$view"
+            }
+          }
         }
       ]
     },
@@ -143,9 +232,22 @@
       "element": "Fragment",
       "children": [
         {
+          "element": "Status",
+          "props": {
+            "label": "Loaded component serial",
+            "value": "$view.serialNumber"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Component writes below affect this loaded serial. Editing the lookup field does not change that target; use Look up component to load another record."
+          }
+        },
+        {
           "element": "TextField",
           "props": {
-            "label": "Serial number"
+            "label": "Serial number to look up"
           },
           "state": {
             "key": "serialNumber",
@@ -153,9 +255,19 @@
           }
         },
         {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
           "element": "Status",
           "props": {
-            "label": "Status",
+            "label": "Registry status",
             "value": "$view.statusId"
           }
         },
@@ -169,14 +281,14 @@
         {
           "element": "Status",
           "props": {
-            "label": "Owner info",
+            "label": "Owner's public info URI",
             "value": "$view.ownerInfo"
           }
         },
         {
           "element": "Status",
           "props": {
-            "label": "Current authority",
+            "label": "Authority of address being viewed",
             "value": "$view.authorityId"
           }
         },
@@ -204,7 +316,7 @@
         {
           "element": "Status",
           "props": {
-            "label": "Delegation valid until",
+            "label": "Delegation expiry (Unix seconds)",
             "value": "$view.delegationValidUntil"
           }
         },
@@ -228,6 +340,138 @@
             "label": "Serial hash",
             "value": "$view.serialHash"
           }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Registered by",
+            "address": "$view.registrar"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Active means registered with no open missing report. Missing means a report is open. Retired is final for registry edits; it does not burn the NFT or prevent ordinary token transfers."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Authority and delegation describe the address being viewed. Capability values combine 1 for metadata, 2 for reporting missing, 4 for resolving a report and 8 for retirement. Zero delegation values mean no active delegation in this view. A delegation expires or stops applying when its grantor is no longer the token owner."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current missing report URI",
+            "value": "$view.missingReportURI"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Token URI is a required nonempty location for token metadata. The contract stores the URI; this viewer displays the NFT contract and token ID without loading that metadata."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "New token URI"
+          },
+          "state": {
+            "key": "tokenURI",
+            "defaultValue": "$view.tokenURI"
+          },
+          "enabledWhen": {
+            "member": "updateComponentMetadata",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "updateComponentMetadata",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Publish the missing report and enter its nonempty URI. Confirmation changes an active component to missing and stores this report URI."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Missing report URI"
+          },
+          "state": {
+            "key": "reportURI",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "markComponentMissing",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "markComponentMissing",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Publish the explanation for resolving the report and enter its nonempty URI. Confirmation returns a missing component to active, clears the current report URI and records the resolution URI in the transaction event."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Resolution URI"
+          },
+          "state": {
+            "key": "resolutionURI",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "clearComponentMissing",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "clearComponentMissing",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Retirement is permanent. Resolve any open missing report first. Retired components cannot be edited, reported missing or restored through this registry."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "retireComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
         }
       ]
     },
@@ -245,26 +489,6 @@
             "args": {
               "view": "$view"
             }
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "New token URI"
-          },
-          "state": {
-            "key": "tokenURI",
-            "defaultValue": "$view.tokenURI"
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Missing report URI"
-          },
-          "state": {
-            "key": "reportURI",
-            "defaultValue": ""
           }
         }
       ]
@@ -284,33 +508,6 @@
               "view": "$view"
             }
           }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "New token URI"
-          },
-          "state": {
-            "key": "tokenURI",
-            "defaultValue": "$view.tokenURI"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Missing report URI",
-            "value": "$view.missingReportURI"
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Resolution URI"
-          },
-          "state": {
-            "key": "resolutionURI",
-            "defaultValue": ""
-          }
         }
       ]
     },
@@ -318,14 +515,19 @@
       "requires": [
         "view"
       ],
-      "element": "Include",
-      "call": {
-        "namespace": "ui",
-        "function": "component.found",
-        "args": {
-          "view": "$view"
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "component.found",
+            "args": {
+              "view": "$view"
+            }
+          }
         }
-      }
+      ]
     },
     "register.empty": {
       "requires": [
@@ -334,29 +536,13 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "Text",
-          "props": {
-            "text": "Enter a serial number before preparing registration."
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Serial number"
-          },
-          "state": {
-            "key": "serialNumber",
-            "defaultValue": "$view.serialNumber"
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Token URI"
-          },
-          "state": {
-            "key": "tokenURI",
-            "defaultValue": "$view.tokenURI"
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "register.form",
+            "args": {
+              "view": "$view"
+            }
           }
         }
       ]
@@ -368,47 +554,13 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "TextField",
-          "props": {
-            "label": "Serial number"
-          },
-          "state": {
-            "key": "serialNumber",
-            "defaultValue": "$view.serialNumber"
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Token URI"
-          },
-          "state": {
-            "key": "tokenURI",
-            "defaultValue": "$view.tokenURI"
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Component owner"
-          },
-          "state": {
-            "key": "owner",
-            "defaultValue": ""
-          }
-        },
-        {
-          "element": "Address",
-          "props": {
-            "label": "Component contract",
-            "address": "$view.componentsAddress"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Account info",
-            "value": "$view.accountInfo"
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "register.form",
+            "args": {
+              "view": "$view"
+            }
           }
         }
       ]
@@ -420,34 +572,13 @@
       "element": "Fragment",
       "children": [
         {
-          "element": "TextField",
-          "props": {
-            "label": "Serial number"
-          },
-          "state": {
-            "key": "serialNumber",
-            "defaultValue": "$view.serialNumber"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Connected account can register",
-            "value": "$view.canRegister"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Component already exists",
-            "value": "$view.exists"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Account info",
-            "value": "$view.accountInfo"
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "register.form",
+            "args": {
+              "view": "$view"
+            }
           }
         }
       ]
@@ -466,6 +597,10 @@
         "args": {
           "serialNumber": "$state.serialNumber"
         }
+      },
+      "enabledWhen": {
+        "member": "lookupComponent",
+        "in": "$view.actions"
       }
     },
     "openRegister": {
@@ -474,7 +609,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Register component"
+        "label": "Check registration"
       },
       "call": {
         "namespace": "routes",
@@ -482,6 +617,10 @@
         "args": {
           "serialNumber": "$state.serialNumber"
         }
+      },
+      "enabledWhen": {
+        "member": "openRegister",
+        "in": "$view.actions"
       }
     },
     "registerComponent": {
@@ -500,6 +639,10 @@
           "serialNumber": "$state.serialNumber",
           "tokenURI": "$state.tokenURI"
         }
+      },
+      "enabledWhen": {
+        "member": "registerComponent",
+        "in": "$view.actions"
       }
     },
     "setAccountInfo": {
@@ -516,6 +659,10 @@
         "args": {
           "accountInfo": "$state.accountInfo"
         }
+      },
+      "enabledWhen": {
+        "member": "setAccountInfo",
+        "in": "$view.actions"
       }
     },
     "updateComponentMetadata": {
@@ -533,6 +680,10 @@
           "serialNumber": "$view.serialNumber",
           "tokenURI": "$state.tokenURI"
         }
+      },
+      "enabledWhen": {
+        "member": "updateComponentMetadata",
+        "in": "$view.actions"
       }
     },
     "markComponentMissing": {
@@ -550,6 +701,10 @@
           "serialNumber": "$view.serialNumber",
           "reportURI": "$state.reportURI"
         }
+      },
+      "enabledWhen": {
+        "member": "markComponentMissing",
+        "in": "$view.actions"
       }
     },
     "clearComponentMissing": {
@@ -558,7 +713,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Prepare recovery resolution"
+        "label": "Prepare missing-report resolution"
       },
       "call": {
         "namespace": "routes",
@@ -567,6 +722,10 @@
           "serialNumber": "$view.serialNumber",
           "resolutionURI": "$state.resolutionURI"
         }
+      },
+      "enabledWhen": {
+        "member": "clearComponentMissing",
+        "in": "$view.actions"
       }
     },
     "retireComponent": {
@@ -575,7 +734,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Prepare retirement"
+        "label": "Prepare permanent retirement"
       },
       "call": {
         "namespace": "routes",
@@ -583,7 +742,135 @@
         "args": {
           "serialNumber": "$view.serialNumber"
         }
+      },
+      "enabledWhen": {
+        "member": "retireComponent",
+        "in": "$view.actions"
       }
+    },
+    "register.form": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "A registrar sends registration; the initial NFT owner may be a different account. The serial must be unused in this registry. Registration creates an active record and mints its component NFT to that owner."
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Address being viewed",
+            "address": "$view.account"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Registrar role",
+            "value": "$view.canRegister"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Component already exists",
+            "value": "$view.exists"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Use the exact serial text for this registry. Case and spaces matter; the contract does not trim or normalize it. Enter a nonempty serial to find or register a component."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Serial number"
+          },
+          "state": {
+            "key": "serialNumber",
+            "defaultValue": "$view.serialNumber"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "To check an edited serial, choose Look up component. If it is unused and registration is available, choose Check registration in the lookup result. Registration preparation is disabled when the contracts are paused, the record exists or the viewed account lacks the registrar role."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Initial NFT owner is required: 0x followed by 40 hexadecimal characters, other than the zero address. The recipient must accept an ERC-721 NFT; contract recipients need the ERC-721 receiver interface."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Initial NFT owner"
+          },
+          "state": {
+            "key": "owner",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "registerComponent",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Token URI is required and nonempty. Publish the token metadata and enter its location; registration stores the URI without fetching or validating its contents."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Token URI"
+          },
+          "state": {
+            "key": "tokenURI",
+            "defaultValue": "$view.tokenURI"
+          },
+          "enabledWhen": {
+            "member": "registerComponent",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Address",
+          "props": {
+            "label": "Component token contract",
+            "address": "$view.componentsAddress"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "registerComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "lookupComponent",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
     }
   }
 }
