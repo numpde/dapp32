@@ -174,13 +174,21 @@
           and launches the React viewer through a local gateway. The target
           prints the URL to open in your browser.
         </p>
+        <p>
+          Each demo attempts cleanup when its foreground command exits. Closing
+          the browser tab does not stop the GUI. Successful cleanup removes the
+          fixture state. If interruption or cleanup failure leaves a demo running,
+          use <code>make bike-nft/local/demo/gui/down</code> or
+          <code>make escrow/local/demo/gui/down</code> for the matching demo,
+          then check that it has stopped.
+        </p>
       </div>
       <pre class="code-block"><span>git clone https://github.com/numpde/dapp32.git
 cd dapp32
-make deps
-make package-deps
-make cam-conformance-check
-make bike-nft-viewer-gui
+make dapps/deps/install
+make js/deps/install
+make cam/conformance/check
+make bike-nft/local/demo/gui/up
 # open the printed http://127.0.0.1:5173/... URL</span></pre>
     </section>
 

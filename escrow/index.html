@@ -55,10 +55,10 @@
 <pre class="code-block">
 <code>git clone https://github.com/numpde/dapp32.git
 cd dapp32
-make deps
-make package-deps
-make cam-conformance-check
-make escrow-viewer-gui</code>
+make dapps/deps/install
+make js/deps/install
+make cam/conformance/check
+make escrow/local/demo/gui/up</code>
 </pre>
 <div class="grid">
 <article class="card">
@@ -73,10 +73,10 @@ make escrow-viewer-gui</code>
 <article class="card">
 <h3>Other local modes</h3>
 <p>
-<code>make escrow-viewer-terminal</code> reads real local RPC state and prepares writes, but does not sign or submit them. <code>make escrow-local-scenario</code> automatically exercises all nine terminal settlement paths and complete withdrawal through the viewer stack.</p>
+<code>make escrow/local/demo/terminal/up</code> deploys a fresh disposable fixture, then reads its real local RPC state and prepares writes, but does not sign or submit them. <code>make escrow/local/scenario/run</code> automatically exercises all nine terminal settlement paths and complete withdrawal through the viewer stack.</p>
 </article>
 </div>
-<p class="narrow">The GUI target attempts teardown when its foreground command exits. Successful teardown removes the local fixture state. After an interrupted run, or if the fixture remains running, use <code>make escrow-viewer-gui-down</code> and check that it has stopped. A fakechain preview, where used in development, is an in-memory fixture; it does not prove real RPC, wallet approval, transaction confirmation, or deployment behavior.</p>
+<p class="narrow">The GUI target attempts teardown when its foreground command exits. Successful teardown removes the local fixture state. After an interrupted run, or if the fixture remains running, use <code>make escrow/local/demo/gui/down</code> and check that it has stopped. A fakechain preview, where used in development, is an in-memory fixture; it does not prove real RPC, wallet approval, transaction confirmation, or deployment behavior.</p>
 </section>
 <section class="narrow">
 <h2>Create and fund</h2>
