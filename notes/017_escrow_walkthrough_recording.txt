@@ -1,0 +1,245 @@
+Recording an Escrow multi-party walkthrough
+=========================================
+
+Use the running disposable Escrow fixture and the existing Chromium viewer
+page exposed through CDP at http://127.0.0.1:9222. Do not open another browser
+window or CDP target, restart the fixture, or replay old transaction footage.
+The walkthrough creates a new agreement on the current local chain.
+
+Before recording
+----------------
+
+Record the source commit, UTC start time, CDP target ID, full viewer URL,
+viewport, RPC endpoint, chain ID, CamRoot and Escrow addresses, CAM URI, and
+keccak256 of the served manifest bytes. Verify the actual RPC chain is 31337,
+that the configured viewer selects that chain, and that CamRoot's URI/hash and
+contract bindings match the served CAM bundle. Mount the current checked-in
+manifest read-only, calculate its keccak256, and compare the source, served
+bytes and contract hash before proceeding. Check ABI/UI integrity too.
+Stop before signing if these checks fail.
+
+Use an explicit fixture provider for the existing page. Load only the public
+repeated-pattern client, contractor and arbitrator keys from
+compose/escrow/local/deploy.yml. Limit submission to five transactions against
+the verified Escrow contract: createAgreement, acceptAgreement,
+submitAgreement, approveAgreement, withdrawTo. Recheck the chain before each
+submission. Account changes must pass through the provider's accountsChanged
+notification and the app's normal wallet handling. Use a fresh agreement
+reference and retain the agreement ID returned by the real creation receipt.
+
+Prepare two real UTF-8 files: agreed terms and the contractor's submitted work.
+Save their exact bytes alongside the movie and record their SHA-256 hashes.
+The temporary harness can fulfill two explicitly named same-origin document
+URLs through CDP Fetch, serving those exact bytes. Mark these as local recording
+fixtures in the accompanying evidence: these URLs exist only while that CDP
+interception is active, not on a durable document host. Enter each URI through
+the actual form and use Calculate from URL; compare the digest with the file hash.
+Do not mock app state or transaction receipts.
+
+Capture and encode
+------------------
+
+Use an ephemeral Node harness through the existing secured
+compose/escrow/local/browser-check.yml service
+escrow-viewer-browser-write-check. Keep its pinned image, non-root user,
+read-only source/dependency mounts, dropped capabilities, resource bounds, and
+host networking for the existing loopback RPC/CDP endpoints. Use a command
+override with --no-deps, --pull never and --rm; do not add a permanent service,
+lane, dependency or recording helper to the application.
+
+Mount the temporary harness read-only and copy it into the service's staged
+/work/js workspace so it can use the existing fixture/CDP utilities and viem.
+Build @cam/protocol with the workspace runner before executing the harness.
+Use the same required CDP_ORIGIN, VIEWER_URL, EXPECTED_CAM_URI and
+EXPECTED_CAM_HASH inputs as the maintained browser-check lane. Export artifacts
+before the run container is removed; do not rely on its disposable /tmp.
+Preserve the exact invocation and harness bytes with the recording evidence.
+
+Ephemeral implementation recipe, from the repository root (the /tmp script is
+operator-created for this run, not a maintained repository command):
+
+  LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
+  WALKTHROUGH_COMMIT="$(git rev-parse HEAD)" \
+  CDP_ORIGIN=http://127.0.0.1:9222 \
+  VIEWER_URL='<full existing viewer URL>' \
+  EXPECTED_CAM_URI='<verified onchain CAM URI>' \
+  EXPECTED_CAM_HASH='<verified nonzero onchain CAM hash>' \
+  docker compose -f compose/escrow/local/browser-check.yml run \
+    --no-deps --pull never --rm \
+    --volume /tmp/dapp32-walkthrough-record.mjs:/validation.mjs:ro \
+    --volume "$PWD/dapps/escrow/cam/main.json:/fixture/main.json:ro" \
+    --volume /tmp/dapp32-walkthrough-output:/recording-output:rw \
+    escrow-viewer-browser-write-check \
+    run-js-workspace sh -eu -c '
+      npm run build -w @cam/protocol
+      cp /validation.mjs /work/js/apps/cam-web/test/escrow-walkthrough-record.mjs
+      exec node /work/js/apps/cam-web/test/escrow-walkthrough-record.mjs
+    '
+
+Before this command, reject symlink/wrong-type staging paths and explicitly
+create /tmp/dapp32-walkthrough-output as a directory owned by the operator.
+Docker must not create that host path implicitly. Use the already available
+lane image; dependency installation remains a separate explicit operation.
+Bound total harness execution to 240 seconds; bound capture to 180 seconds
+and at most 900 screenshot frames, stopping cleanly at either capture limit.
+The host staging directory contains the WebM, evidence.json, and frame JPEGs
+before the run container is removed.
+
+Capture the existing viewport with Page.captureScreenshot every 200 ms
+(JPEG, quality 80, captureBeyondViewport=false). Encode those frames with an
+unattached canvas in that same page: canvas.captureStream(5) and MediaRecorder
+using video/webm;codecs=vp9 after checking browser support. Feed screenshots to
+the canvas without adding a visible overlay or altering the app layout. Keep
+capture and encoding offscreen; helper labels must not appear as app controls.
+The movie contains the app viewport only, without OS/browser chrome or audio.
+No host ffmpeg installation is required. Stop recording before reloading the
+page and retain the completed WebM blob in the current document until export
+is verified. Read Blob.slice ranges of at most 512 KiB through bounded CDP
+requests and write the returned chunks in order to the staging file. Verify
+its byte count and SHA-256 before deleting the retained blob. Avoid sending an
+entire multi-megabyte base64 blob in one CDP result.
+
+Drive native browser input through CDP Input keyboard/mouse events. Pause about
+1.5 seconds after each visible field edit, role change, prepared transaction,
+receipt and resulting view. Preserve elapsed wall-clock time in the frame
+sequence; do not compress receipt waits into instant success. Optional VTT
+captions and a player page are separate artifacts, labelled with actor/action
+and elapsed time, rather than changes to the viewer itself.
+
+Walkthrough sequence
+--------------------
+
+1. Client: connect, enter the reference, contractor, arbitrator, amount,
+   timeout recipient and four durations; enter the terms URI and calculate its
+   digest. Prepare creation, show the simulation and value, then Send with
+   wallet. Wait for the successful receipt and funded agreement view.
+2. Contractor: switch the provider account, wait for the refreshed view,
+   prepare acceptance and send it. Wait for confirmation and accepted state.
+3. Contractor: enter the submission URI, calculate the exact-file digest,
+   prepare submission and send it. Wait for confirmation and submitted state.
+   Arbitrator: briefly switch to the arbitrator and show the submitted view.
+   Resolution is unavailable because this success path has no dispute; do not
+   send an arbitrator transaction.
+4. Client: switch accounts, wait for the refreshed view, prepare approval and
+   send it. Wait for confirmation and released state. Show that payment is
+   contractor credit requiring a separate withdrawal.
+5. Contractor: switch accounts, open account credit, record the credit and
+   balance, prepare withdrawal to the contractor address and send it. Wait for
+   confirmation. Show zero remaining credit and verify the recipient balance
+   increase, accounting for the transaction's gas cost.
+
+Keep a timestamped event log with actor address, visible action, agreement ID,
+transaction hash, receipt status/block, and resulting state. Preserve before/
+after credit and balance values and withdrawal receipt gasUsed and
+effectiveGasPrice. A successful movie has five successful real transaction
+receipts and the final credit/balance evidence, not just prepared-call screens.
+
+Artifacts and cleanup
+---------------------
+
+Export the WebM to /home/ra/tmp/escrow-multiparty-20261013.webm using an explicit
+copy of the completed staging file. Keep the terms/submission files, event and
+receipt evidence, optional VTT/player, harness and invocation alongside it.
+Validate the exported WebM with an offscreen video element in the same page:
+check video dimensions/metadata and decode stills at representative timestamps.
+Confirm those frames contain the actual app and visible workflow stages before
+reporting a usable movie. Preserve the evidence and remove the validation
+elements afterward.
+Record the UTC end time and any capture interruption. Resume an existing
+agreement after an interruption only from observed current state; never repeat
+a send merely because the recorder lost its response.
+
+Persist the exact identifiers returned by addScriptToEvaluateOnNewDocument,
+the runtime binding names and the attached session ID before any interaction.
+Remove the recorded identifiers; do not guess script IDs. Attempt each cleanup
+operation independently, retaining the original failure and any later cleanup
+failures so one cannot mask the other.
+
+In finally cleanup, stop the recorder and all media tracks, release screenshot
+timers and CDP pending work, disable Fetch interception, remove the injected
+provider/new-document script/binding and recorder globals, and detach the CDP
+session. After artifacts are safely exported, use an explicit Page.reload to
+verify provider/recorder globals are absent in a new document realm. Navigating
+to a URL that changes only its fragment may retain the old realm; lingering
+globals there do not prove a new-document injection is still registered.
+Leave the same existing page and running fixture available. Do not
+close the tab, stop the GUI or remove fixture state as part of recording cleanup.
+Report any cleanup failure and retained artifact path.
+
+Recorded result: 2026-10-13
+--------------------------
+
+This procedure was written before recording. The captured app source was
+a5222fa4b4b2135913f197ab8532761ae98dc97c. Recording started at
+2026-10-13T17:22:53.079Z (UTC). The existing target was
+6E37050591A0219B704DEC678A144110 on chain 31337. The movie uses
+native CDP mouse/keyboard input and an explicit local fixture provider.
+The recording completed and recovery/validation finished at
+2026-10-13T17:33:26.973207+00:00 (UTC). The arbitrator's view was inspected after
+submission; there was no dispute or arbitrator transaction.
+
+The WebM has 501 captured frames, 1440 x 841 pixels, VP9 video, no audio,
+99.916 seconds, and 9,004,365 bytes. The initially unspecified WebM duration
+was resolved by seeking to its end; three decoded stills were visually reviewed
+and showed the actual app at the recorded stages. Its SHA-256 is:
+  9f3267dd98efa182c8eb4d9267e0ce3a486b8d110dbd8a4db16e3d32f7ff944b
+
+All five business transaction receipts succeeded (operation, block, hash):
+  createAgreement, 4, 0x4ccae9a23e51a376e433f60b3034a826eabfcf4ec9daf3975569c97be33b20ce
+  acceptAgreement, 5, 0xebfea5fc338c4609c22c9d67be3e70471b6ef53d25d72dcad803583afa06fe10
+  submitAgreement, 6, 0x34f54d6900e68146ce3b5640983a7ab86281f55c53ca60ca5d7fb5ec80435288
+  approveAgreement, 7, 0x66c24ef0a8f5b315defb1e32c42c81209c493d48950f844b03ce576ad337a49a
+  withdrawTo, 8, 0x33de6bd7d9f7e92330c00ca271299a061254523e8306a63becbdf9133680496d
+
+Agreement ID:
+  0x96a037b99aa1147c9b622662f3d839cdae1409269bd617a5f57d1d59c382fcd0
+The contractor received 1,000,000,000,000,000 wei of credit and withdrew it.
+Before withdrawal: 999999734485468620763 wei.
+After withdrawal:  1000000682237276172683 wei.
+Withdrawal gas:   52248192448080 wei.
+Remaining credit: 0 wei. After - before + gas equals the credited amount.
+
+The initial large single-result movie export timed out. The original attempt
+is retained; its reported final failure is
+"CDP Page.removeScriptToEvaluateOnNewDocument timed out". A recovery session
+found the completed browser recording still present and exported it in 512 KiB
+chunks. No business transaction was replayed. A later cleanup check initially
+found old-document provider markers; explicit Page.reload cleared that realm
+and verified provider/recorder removal while retaining the same tab and fixture.
+No guessed script identifier is treated as evidence of registration or removal.
+
+Transient implementation and evidence (outside the maintained repository):
+  /tmp/dapp32-walkthrough-record-original.mjs
+  /tmp/dapp32-walkthrough-record.mjs
+  /tmp/dapp32-walkthrough-recover.mjs
+  /tmp/dapp32-walkthrough-validate.mjs
+  /tmp/dapp32-walkthrough-cleanup.mjs
+  /tmp/dapp32-walkthrough-output/evidence.json
+  /tmp/dapp32-walkthrough-output/recording-attempt.json
+  /tmp/dapp32-walkthrough-output/escrow-multiparty-20261013.webm
+  /tmp/dapp32-walkthrough-output/documents/terms.txt
+  /tmp/dapp32-walkthrough-output/documents/submission.txt
+  /tmp/dapp32-walkthrough-output/frames/
+  /tmp/dapp32-walkthrough-output/decoded-0.jpg (1 second)
+  /tmp/dapp32-walkthrough-output/decoded-1.jpg (49.958 seconds)
+  /tmp/dapp32-walkthrough-output/decoded-2.jpg (98.916 seconds)
+  /tmp/dapp32-walkthrough-record.log
+  /tmp/dapp32-walkthrough-recover.log
+  /tmp/dapp32-walkthrough-validate.log
+  /tmp/dapp32-walkthrough-cleanup.log
+
+Delivered artifacts:
+  /home/ra/tmp/escrow-multiparty-20261013.webm
+  /home/ra/tmp/escrow-multiparty-20261013.json
+  /home/ra/tmp/escrow-multiparty-20261013/
+
+The folder preserves documents, decoded stills, original/recovery/validation
+harnesses and logs, and the failed recording-attempt.json. The sidecar records
+source/transaction/capture evidence and script provenance; the original capture
+script SHA-256 is:
+  c1bae8f84674c6a9751ced6aa5d022da95b546e2809985c93129bab291e5ab1f
+The corrected reusable harness has chunked-export/reload fixes and was syntax
+checked only; the business workflow was not rerun with it. No player HTML or
+captions were produced for this recording. The exact document bytes and
+SHA-256 values are in the sidecar and separate files. Their recording URLs
+were temporary Fetch fixtures, not durable publication URLs.
