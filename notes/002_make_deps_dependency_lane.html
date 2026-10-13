@@ -193,7 +193,7 @@
     <div class="shell">
       <h1>How the dependency lane works</h1>
       <p class="lede">
-        <code>make deps</code> is the controlled dependency lane. By default it installs only the currently locked dependency set, applies declared local patches, and fails if lock, remapping, or checksum metadata would change.
+        <code>make dapps/deps/install</code> is the controlled dependency lane. By default it installs only the currently locked dependency set, applies declared local patches, and fails if lock, remapping, or checksum metadata would change.
       </p>
       <div class="meta">
         <span class="pill">Current source: Soldeer</span>
@@ -247,7 +247,7 @@
         <div class="card">
           <strong>5. Update</strong>
           <h3><code>soldeer-apply-update</code></h3>
-          <p>Image: <code>containers/foundry</code>. No network. Used only by <code>make deps ALLOW_UPDATE=1</code>. It uses the same staged dependency-tree replacement and is the only dependency-lane service allowed to copy staged metadata back into the repo.</p>
+          <p>Image: <code>containers/foundry</code>. No network. Used only by <code>make dapps/deps/install ALLOW_UPDATE=1</code>. It uses the same staged dependency-tree replacement and is the only dependency-lane service allowed to copy staged metadata back into the repo.</p>
         </div>
         <div class="card">
           <strong>6. Final Verify</strong>
@@ -257,10 +257,10 @@
         <div class="card">
           <strong>7. Build/Test</strong>
           <h3><code>forge-build</code> / <code>forge-test</code></h3>
-          <p>Image: <code>containers/foundry</code>. No network, repo read-only. Runs <code>forge build --offline</code> over every first-level <code>dapps/*/src</code> directory, or <code>forge test --offline</code> over the shared <code>*/test/unit/**/*.sol</code> convention, after the dependency verifier has accepted the installed tree.</p>
+          <p>Image: <code>containers/foundry</code>. No network, repo read-only. Runs <code>forge build --offline</code> over every first-level <code>dapps/*/src</code> directory, or <code>forge test --offline</code> over both <code>*/test/unit/**/*.sol</code> and <code>*/test/scenario/**/*.sol</code>, after the dependency verifier has accepted the installed tree.</p>
         </div>
       </div>
-      <pre><code>make deps
+      <pre><code>make dapps/deps/install
   dependency-egress-proxy
   soldeer-stage
     forge soldeer install --config-location foundry
@@ -275,14 +275,15 @@
     stage_dependency_tree under dependencies/.next
   soldeer-verify
 
-make build
+make dapps/build
   soldeer-verify
   forge build --offline */src
 
-make test
+make dapps/tests/unit-scenario
   soldeer-verify
   checks
-  forge test --offline --match-path '*/test/unit/**/*.sol' -vvv</code></pre>
+  for each existing */test/unit and */test/scenario directory:
+    forge test --offline --match-path '&lt;directory&gt;/**/*.sol' -vvv</code></pre>
     </section>
 
     <section>
@@ -309,7 +310,7 @@ make test
         </div>
         <div class="item">
           <strong><code>dapps/dependency-patches.txt</code> and <code>dapps/_patches/</code></strong>
-          <p>Reviewable patch metadata and patch files. They are committed source inputs, not generated outputs. Update them deliberately, then run <code>make deps ALLOW_UPDATE=1</code> to refresh the final dependency checksum.</p>
+          <p>Reviewable patch metadata and patch files. They are committed source inputs, not generated outputs. Update them deliberately, then run <code>make dapps/deps/install ALLOW_UPDATE=1</code> to refresh the final dependency checksum.</p>
         </div>
       </div>
     </section>
@@ -320,10 +321,10 @@ make test
         <code>forge soldeer install</code> runs in the networked staging container against a temporary working tree. It may produce or refresh a staged <code>dapps/soldeer.lock</code> there, but that file lives in the Docker volume until the offline apply step decides what to do with it.
       </p>
       <p>
-        Plain <code>make deps</code> is locked mode. It compares the staged <code>dapps/soldeer.lock</code> with the committed <code>dapps/soldeer.lock</code> and fails if they differ. It does not update the repository lockfile.
+        Plain <code>make dapps/deps/install</code> is locked mode. It compares the staged <code>dapps/soldeer.lock</code> with the committed <code>dapps/soldeer.lock</code> and fails if they differ. It does not update the repository lockfile.
       </p>
       <p>
-        <code>make deps ALLOW_UPDATE=1</code> is update mode. After staging, the offline <code>soldeer-apply-update</code> service may copy the staged <code>dapps/soldeer.lock</code>, <code>dapps/remappings.txt</code>, and <code>dapps/dependency-checksums.txt</code> back into the repo. That is the deliberate path for adding, removing, or changing Soldeer dependencies.
+        <code>make dapps/deps/install ALLOW_UPDATE=1</code> is update mode. After staging, the offline <code>soldeer-apply-update</code> service may copy the staged <code>dapps/soldeer.lock</code>, <code>dapps/remappings.txt</code>, and <code>dapps/dependency-checksums.txt</code> back into the repo. That is the deliberate path for adding, removing, or changing Soldeer dependencies.
       </p>
       <p>
         Both apply modes replace the installed dependency tree through a temporary <code>dapps/dependencies/.next</code> directory. That keeps the generated tree separate from the visible tree until the metadata checks or update-mode decision have passed.
@@ -385,19 +386,19 @@ make test
       <h2>Check lanes</h2>
       <div class="list">
         <div class="item">
-          <strong><code>make checks</code></strong>
+          <strong><code>make tests/checks</code></strong>
           <p>Runs offline repository/source checks in the checks container. This is the default static-policy lane and does not intentionally reach the external network.</p>
         </div>
         <div class="item">
-          <strong><code>make check-runtime</code></strong>
-          <p>Runs local Docker-backed runtime checks that need a renderer or runtime but should still avoid external network. Today this includes the rendered Anvil Compose posture checks.</p>
+          <strong><code>make tests/checks/anvil-compose</code></strong>
+          <p>Renders and inspects Anvil Compose posture without starting Anvil or contacting external networks.</p>
         </div>
         <div class="item">
-          <strong><code>make check-live</code></strong>
+          <strong><code>make tests/live</code></strong>
           <p>Umbrella for live checks that intentionally use external network. Keep this separate from default CI unless the runner is expected to have network access.</p>
         </div>
         <div class="item">
-          <strong><code>make check-live-deps-egress</code></strong>
+          <strong><code>make tests/live/dependency-egress</code></strong>
           <p>Starts the real <code>dependency-egress-proxy</code> from <code>compose/deps.yml</code> plus the live-check overlay. The checker has no direct egress, derives allowed dependency hosts from <code>dapps/soldeer.lock</code>, proves CONNECT to those hosts succeeds, and proves CONNECT to <code>example.com</code> is denied.</p>
         </div>
       </div>
@@ -406,29 +407,29 @@ make test
     <section>
       <h2>Routine commands</h2>
       <pre><code># Install the locked Soldeer set, apply declared patches, and verify the result.
-make deps
+make dapps/deps/install
 
 # Explicitly allow soldeer.lock, remapping, and checksum updates.
-make deps ALLOW_UPDATE=1
+make dapps/deps/install ALLOW_UPDATE=1
 
 # Check the installed patched dependency tree without network.
-make deps-verify
+make dapps/deps/verify
 
 # Run offline repository/source checks.
-make checks
+make tests/checks
 
-# Run local Docker-backed runtime checks that do not intentionally hit the internet.
-make check-runtime
+# Render and inspect Anvil Compose posture without starting services.
+make tests/checks/anvil-compose
 
 # Prove live dependency-egress allow/deny behavior through the real proxy.
-make check-live-deps-egress
+make tests/live/dependency-egress
 
 # Run all live external-network checks.
-make check-live
+make tests/live
 
-# Compile or test. These run deps-verify first.
-make build
-make test
+# Compile or test. These run dapps/deps/verify first.
+make dapps/build
+make dapps/tests/unit-scenario
 make ci</code></pre>
     </section>
 
@@ -450,14 +451,14 @@ deps-verify:   Forge may also warn FailedIntegrity for this declared patch.</cod
     <section>
       <h2>Adding more Soldeer dependencies</h2>
       <p>
-        For another Soldeer dependency, add it through the normal Soldeer configuration path, then run <code>make deps ALLOW_UPDATE=1</code>. The command should regenerate <code>dapps/soldeer.lock</code>, <code>dapps/remappings.txt</code>, <code>dapps/dependencies/</code>, and <code>dapps/dependency-checksums.txt</code>. Review all committed outputs before committing.
+        For another Soldeer dependency, add it through the normal Soldeer configuration path, then run <code>make dapps/deps/install ALLOW_UPDATE=1</code>. The command should regenerate <code>dapps/soldeer.lock</code>, <code>dapps/remappings.txt</code>, <code>dapps/dependencies/</code>, and <code>dapps/dependency-checksums.txt</code>. Review all committed outputs before committing.
       </p>
       <p>
         The source policy is intentionally narrow. A normal Soldeer dependency should lock to <code>soldeer-revisions.s3.amazonaws.com</code>. If a dependency introduces a different locked URL host or archive shape, the verifier and proxy allowlist should fail until that new source is reviewed and deliberately added.
       </p>
-      <pre><code>make deps ALLOW_UPDATE=1
+      <pre><code>make dapps/deps/install ALLOW_UPDATE=1
 make ci
-make check-live-deps-egress
+make tests/live/dependency-egress
 git diff -- dapps/foundry.toml dapps/soldeer.lock dapps/remappings.txt dapps/dependency-checksums.txt</code></pre>
     </section>
 
@@ -477,7 +478,7 @@ git diff -- dapps/foundry.toml dapps/soldeer.lock dapps/remappings.txt dapps/dep
         </div>
         <div class="item">
           <strong>Refresh the final checksum.</strong>
-          <p>Run <code>make deps ALLOW_UPDATE=1</code>, then review <code>dapps/dependency-checksums.txt</code> and the patch files before committing.</p>
+          <p>Run <code>make dapps/deps/install ALLOW_UPDATE=1</code>, then review <code>dapps/dependency-checksums.txt</code> and the patch files before committing.</p>
         </div>
       </div>
     </section>
@@ -485,7 +486,7 @@ git diff -- dapps/foundry.toml dapps/soldeer.lock dapps/remappings.txt dapps/dep
     <section>
       <h2>Adding a different dependency source</h2>
       <p>
-        <code>make deps</code> is allowed to be the umbrella command, but each dependency system should have its own contained lane. Do not put npm, git submodules, code generation, ABI downloads, or other package managers inside the Soldeer lane.
+        <code>make dapps/deps/install</code> is allowed to be the umbrella command, but each dependency system should have its own contained lane. Do not put npm, git submodules, code generation, ABI downloads, or other package managers inside the Soldeer lane.
       </p>
       <div class="list">
         <div class="item">
@@ -505,7 +506,7 @@ git diff -- dapps/foundry.toml dapps/soldeer.lock dapps/remappings.txt dapps/dep
           <p>If the source needs network access, keep its host allowlist specific and add a live allow/deny proof for that proxy behavior.</p>
         </div>
         <div class="item">
-          <strong>Wire it into <code>make deps</code> and <code>make deps-verify</code>.</strong>
+          <strong>Wire it into <code>make dapps/deps/install</code> and <code>make dapps/deps/verify</code>.</strong>
           <p>The public interface can stay simple while the trust boundaries remain explicit. Default installation must stay locked; metadata updates need an explicit opt-in such as <code>ALLOW_UPDATE=1</code>.</p>
         </div>
       </div>

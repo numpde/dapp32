@@ -58,12 +58,12 @@ The useful moments are:
 
 In this repository, the builder-facing entrypoint is:
 
-  make cam-publication-preflight DAPP=<first-level-dapp> CAM_URI=<https-or-ipfs-root-uri>
-  make cam-publication-preflight-json DAPP=<first-level-dapp> CAM_URI=<https-or-ipfs-root-uri>
+  make cam/publication/preflight DAPP=<first-level-dapp> CAM_URI=<https-or-ipfs-root-uri>
+  make cam/publication/preflight/json DAPP=<first-level-dapp> CAM_URI=<https-or-ipfs-root-uri>
 
 That command assembles the checked-in local root manifest plus declared local
 resources, runs `@cam/conformance`, and prints the exact `CAM_HASH` to publish.
-Use the `-json` target when an agent, CI lane, or publication script needs the
+Use the `/json` target when an agent, CI lane, or publication script needs the
 stable issue list and hash as structured data. That target keeps the JSON
 payload on stdout; build and Compose progress belong on stderr so callers can
 parse stdout directly.
@@ -86,7 +86,7 @@ resource map. The command accepts HTTPS roots and CID-shaped IPFS roots because
 it is for publication, not for local HTTP fixture serving. HTTPS roots rely on
 the published `CAM_HASH`; IPFS roots must also pass the protocol's reviewable
 CID policy. It is a publication preflight, not an integrity refresher; run
-`make abi` or `make cam-integrity` first when ABI/UI bytes changed.
+`make cam/abi/export` or `make cam/integrity/refresh` first when ABI/UI bytes changed.
 
 Runtime viewers must still validate every untrusted resource they load. The
 conformance package is heavier and builder-facing: it gives authors precise

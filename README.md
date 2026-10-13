@@ -27,18 +27,32 @@ Docker with Compose and Make are the supported development entrypoints. Run
 demo, materialize the locked dependencies:
 
 ```bash
-make deps
-make package-deps
+make dapps/deps/install
+make js/deps/install
 ```
 
 These are the explicit networked dependency steps. To check the installed
 workspace and checked-in CAM bundles offline, run:
 
 ```bash
-make checks
-make package-test
-make cam-conformance-check
+make tests/checks
+make js/tests
+make cam/conformance/check
 ```
+
+`make dapps/tests` runs Solidity unit/scenario, fuzz, and invariant tests. `make ci`
+runs the offline checks, formatting and build checks, Solidity suites, and
+`js/ci` against already installed dependencies.
+
+`make tests` runs the complete automatic test campaigns: repository checks,
+Solidity unit/scenario, fuzz, and invariant tests, JS and tool checks, the live dependency-egress
+check, offline Cast check, Escrow local scenario, and Bike NFT local integration
+fuzz campaigns with reads and fixture writes. It uses network access and deploys
+disposable local chains; successful cleanup removes their state.
+
+Checks against an operator-supplied RPC, browser CDP endpoint, or release
+deployment remain separate commands with explicit inputs. `make tests` does not
+select those external systems or perform a release deployment.
 
 Conformance checks find publication defects in supplied bundles; they do not
 prove live contract state, wallet authority, or that a transaction will succeed.
@@ -48,11 +62,11 @@ prove live contract state, wallet authority, or that a transaction will succeed.
 Normalize one first-level dapp with the repository-pinned Foundry image:
 
 ```bash
-make format DAPP=escrow
+make dapps/format DAPP=escrow
 ```
 
 Check formatting across every dapp without modifying files:
 
 ```bash
-make fmt
+make dapps/format/check
 ```

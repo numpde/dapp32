@@ -13,7 +13,7 @@
 # - soldeer-apply-locked has no network, can write only dapps/dependencies/, and
 #   fails if locked metadata would change.
 # - soldeer-apply-update has no network and can write dependency metadata only
-#   when make deps is run with ALLOW_UPDATE=1.
+#   when make dapps/deps/install is run with ALLOW_UPDATE=1.
 # - soldeer-verify has no network and verifies installed dependency contents.
 # Routine build/test lanes must stay offline and read-only.
 services:
@@ -249,7 +249,7 @@ services:
         test -f /out/dependency-checksums.txt
         for file in soldeer.lock remappings.txt dependency-checksums.txt; do
           if ! cmp -s "/out/$$file" "/work/$$file"; then
-            printf 'soldeer-apply-locked: %s would change; rerun make deps ALLOW_UPDATE=1 only if this dependency update is intended.\n' "$$file" >&2
+            printf 'soldeer-apply-locked: %s would change; rerun make dapps/deps/install ALLOW_UPDATE=1 only if this dependency update is intended.\n' "$$file" >&2
             exit 2
           fi
         done

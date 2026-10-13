@@ -12,17 +12,17 @@ class ReleaseHostGuardTest(unittest.TestCase):
         starts = {
             name: cls.source.index(f"{name}:")
             for name in (
-                "escrow-release-deploy",
-                "escrow-release-verify",
-                "bike-nft-release-deploy",
-                "bike-nft-release-verify",
+                "escrow/release/deploy",
+                "escrow/release/verify",
+                "bike-nft/release/deploy",
+                "bike-nft/release/verify",
             )
         }
         cls.targets = {
-            "escrow-release-deploy": cls.source[starts["escrow-release-deploy"]:starts["escrow-release-verify"]],
-            "escrow-release-verify": cls.source[starts["escrow-release-verify"]:starts["bike-nft-release-deploy"]],
-            "bike-nft-release-deploy": cls.source[starts["bike-nft-release-deploy"]:starts["bike-nft-release-verify"]],
-            "bike-nft-release-verify": cls.source[starts["bike-nft-release-verify"]:],
+            "escrow/release/deploy": cls.source[starts["escrow/release/deploy"]:starts["escrow/release/verify"]],
+            "escrow/release/verify": cls.source[starts["escrow/release/verify"]:starts["bike-nft/release/deploy"]],
+            "bike-nft/release/deploy": cls.source[starts["bike-nft/release/deploy"]:starts["bike-nft/release/verify"]],
+            "bike-nft/release/verify": cls.source[starts["bike-nft/release/verify"]:],
         }
 
     def test_common_release_guards_have_one_implementation(self) -> None:
@@ -41,10 +41,10 @@ class ReleaseHostGuardTest(unittest.TestCase):
 
     def test_all_release_targets_invoke_common_guards_before_snapshotting(self) -> None:
         labels = {
-            "escrow-release-deploy": "Escrow release deployment",
-            "escrow-release-verify": "Escrow release verification",
-            "bike-nft-release-deploy": "Bike NFT release deployment",
-            "bike-nft-release-verify": "Bike NFT release verification",
+            "escrow/release/deploy": "Escrow release deployment",
+            "escrow/release/verify": "Escrow release verification",
+            "bike-nft/release/deploy": "Bike NFT release deployment",
+            "bike-nft/release/verify": "Bike NFT release verification",
         }
         for name, target in self.targets.items():
             source_guard = f"$(call release_require_clean_source,{labels[name]})"
@@ -57,8 +57,8 @@ class ReleaseHostGuardTest(unittest.TestCase):
 
     def test_deploy_output_is_rechecked_before_creation(self) -> None:
         for name, label in (
-            ("escrow-release-deploy", "ESCROW_RELEASE_OUTPUT_DIR"),
-            ("bike-nft-release-deploy", "BIKE_NFT_RELEASE_OUTPUT_DIR"),
+            ("escrow/release/deploy", "ESCROW_RELEASE_OUTPUT_DIR"),
+            ("bike-nft/release/deploy", "BIKE_NFT_RELEASE_OUTPUT_DIR"),
         ):
             target = self.targets[name]
             initial = f'validate_new_release_output "$$output_dir" "{label}"'

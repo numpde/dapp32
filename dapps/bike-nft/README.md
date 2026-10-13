@@ -4,11 +4,12 @@ Bike NFT publishes its manager workflow through CAM while keeping token ownershi
 
 ## Try the local workflow
 
-From the repository root, install the locked dependencies with `make deps` and
-`make package-deps`, then choose one demo:
+From the repository root, install the locked dependencies with `make dapps/deps/install` and
+`make js/deps/install`, then choose one demo. Each demo deploys a fresh disposable fixture before
+starting its viewer:
 
 ```bash
-make bike-nft-viewer-gui
+make bike-nft/local/demo/gui/up
 ```
 
 Open the full URL printed by the command. The initial viewed account is the
@@ -32,7 +33,7 @@ For a terminal that reads the real local RPC and prepares writes without signing
 or submitting them, run:
 
 ```bash
-make bike-nft-viewer-terminal
+make bike-nft/local/demo/terminal/up
 ```
 
 Both commands deploy disposable fixtures and attempt cleanup when their
@@ -41,8 +42,8 @@ Closing the browser tab does not stop the GUI. If interruption or cleanup
 failure leaves a project running, use the matching cleanup target:
 
 ```bash
-make bike-nft-viewer-gui-down
-make bike-nft-viewer-terminal-down
+make bike-nft/local/demo/gui/down
+make bike-nft/local/demo/terminal/down
 ```
 
 The Bike fixture permits a zero CAM hash by default. This explicit local-demo
@@ -51,7 +52,7 @@ the exact CAM bytes.
 
 ## Release policy
 
-`make bike-nft-release-deploy` is the only supported non-fixture deployment lane. It requires four distinct kinds of input:
+`make bike-nft/release/deploy` is the only supported non-fixture deployment lane. It requires four distinct kinds of input:
 
 - publication: exact CAM URI and bytes;
 - collection identity: name, symbol, base token URI, and collection metadata URI;
@@ -64,7 +65,7 @@ The funded deployer must differ from every lasting authority. The same final acc
 2. `BicycleComponents.acceptDefaultAdminTransfer()` by the final component admin after its delay;
 3. `BicycleComponentManager.acceptDefaultAdminTransfer()` by the final manager admin after its delay.
 
-Until all three calls complete, the deployer remains a temporary default admin where OpenZeppelin's delayed transfer requires it, and `make bike-nft-release-verify` intentionally fails.
+Until all three calls complete, the deployer remains a temporary default admin where OpenZeppelin's delayed transfer requires it, and `make bike-nft/release/verify` intentionally fails.
 
 Choose the authority addresses and delays before creating a release plan. A production-like Sepolia rehearsal should normally use a disposable funded deployer, a testnet Safe or separate owner for final administration, a separate registrar, and explicitly controlled pauser/configurer accounts. The release lane requires a nonempty base URI and collection URI; this is a stricter publication policy than the contracts themselves, which permit empty constructor values.
 
@@ -84,17 +85,17 @@ cam/
 Use an immutable or versioned HTTPS origin with JSON content types and browser-readable CORS. Before any release ceremony, run:
 
 ```bash
-make format DAPP=bike-nft
+make dapps/format DAPP=bike-nft
 git diff --check
 git diff --exit-code
-make cam-publication-preflight DAPP=bike-nft CAM_URI=https://published.example/bike-nft/v1/main.json
-make bike-nft-release-check
-make checks
-make fmt
-make build
-make script-build
-make test
-make package-test
+make cam/publication/preflight DAPP=bike-nft CAM_URI=https://published.example/bike-nft/v1/main.json
+make bike-nft/release/check
+make tests/checks
+make dapps/format/check
+make dapps/build
+make dapps/scripts/build
+make dapps/tests/unit-scenario
+make js/tests
 ```
 
 The publication preflight prints the `CAM_HASH`; the deploy planner recomputes it from the exact mounted `main.json`, and the Solidity signer independently hashes the same binary file immediately before broadcast.
@@ -103,7 +104,7 @@ The publication preflight prints the `CAM_HASH`; the deploy planner recomputes i
 
 Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in [the release ceremony guide](../../docs/release-ceremony.md).
 
-No RPC or key is needed for `make bike-nft-release-check`. A real deployment additionally requires these app inputs:
+No RPC or key is needed for `make bike-nft/release/check`. A real deployment additionally requires these app inputs:
 
 ```bash
 umask 077
@@ -134,7 +135,7 @@ BIKE_NFT_RELEASE_REGISTRARS=0x<registrar-one>,0x<registrar-two> \
 RPC_URL_FILE=/secure/bike-nft-sepolia-rpc \
 DEPLOYER_PRIVATE_KEY_FILE=/secure/bike-nft-sepolia-deployer \
 BIKE_NFT_RELEASE_OUTPUT_DIR=/secure/releases/bike-nft-sepolia-v1 \
-make bike-nft-release-deploy
+make bike-nft/release/deploy
 ```
 
 This command is documentation for a future ceremony, not a command to run while preparing the repository. The Bike output contains:
@@ -150,7 +151,7 @@ After independently accepting all three handoffs, verify from the same exact cle
 ```bash
 RPC_URL_FILE=/secure/bike-nft-sepolia-rpc \
 BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/bike-nft-sepolia-v1/artifact/deployment.json \
-make bike-nft-release-verify
+make bike-nft/release/verify
 ```
 
 Verification rechecks all four creation receipts, exact source/runtime and artifact code hashes, CAM identity and bindings, UI and manager backing, completed ownership/admin handoffs, absence of pending admin-delay changes, exact delays and metadata, current unpaused state, the manager's default delegation duration, required roles, deployer role removal, and interface support.
@@ -161,7 +162,7 @@ Configure the generic CAM web viewer with the public chain ID, a public read RPC
 
 The viewer URL supplies `chainId` (for example `eip155:11155111`), `host`, `account`, and `rpcUrl`. The hosting configuration supplies `VITE_CAM_WEB_RESOURCE_ORIGIN` and `VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH=false`; links cannot override that publication policy. Use a credential-free public read RPC because its URL is included in shareable read links. Such links reopen a route against current state and do not carry wallet authority, unsent form edits, or prepared transactions.
 
-Exercise registrar creation, token receipt, metadata update, missing/report resolution, delegation grant/revoke, transfer with permission changes, pause/unpause, and unauthorized failures. Verify explorer metadata and rerun `make bike-nft-release-verify` after activity. Explorer source publication is advisable but remains separate from the repository's bytecode verifier.
+Exercise registrar creation, token receipt, metadata update, missing/report resolution, delegation grant/revoke, transfer with permission changes, pause/unpause, and unauthorized failures. Verify explorer metadata and rerun `make bike-nft/release/verify` after activity. Explorer source publication is advisable but remains separate from the repository's bytecode verifier.
 
 ## Explicit uncertainties and limits
 

@@ -1,7 +1,7 @@
 # Offline JS workspace build/test lanes.
 #
 # This file deliberately does not install dependencies and has no network. Run
-# make package-deps first to materialize js/node_modules/ from the committed
+# make js/deps/install first to materialize js/node_modules/ from the committed
 # js/package-lock.json through compose/package-deps.yml.
 x-package-base: &package_base
   extends:

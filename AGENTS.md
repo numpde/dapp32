@@ -77,6 +77,14 @@ the repo unchanged or update the appropriate note.
 - Keep dependency installation as the explicit networked step.
 - Prefer read-only, least-privilege containers for check/test lanes.
 - `Makefile` should be the supported operator entrypoint.
+- Scope Make targets with slash-separated names; only `help`, `tests`, and `ci`
+  are repository-wide names. Keep every target phony and documented in
+  `make help`, with an explicit default of `help`; remove displaced aliases.
+- `make dapps/tests` runs Solidity unit/scenario, fuzz, and invariant campaigns.
+  `make tests` includes all self-contained campaigns, external dependency
+  egress checks, and disposable local fixture deployments. Operator-supplied
+  live deployments and browser sessions remain explicit lanes. `make ci` and
+  `make js/ci` retain their offline scope.
 - Do not run Docker containers, pull images, or start services until the command
   is properly secured and scoped. Use pinned images, least privilege, explicit
   mounts, bounded resources, and no unnecessary network access.
@@ -86,8 +94,8 @@ the repo unchanged or update the appropriate note.
   checksums, and writes to a staging volume; the offline apply step writes only
   the expected dependency outputs.
 - Default dependency installation must not change committed dependency metadata.
-  Soldeer lock/remapping/checksum updates require `make deps ALLOW_UPDATE=1`;
-  npm workspace lock updates require `make package-deps ALLOW_UPDATE=1`.
+  Soldeer lock/remapping/checksum updates require `make dapps/deps/install ALLOW_UPDATE=1`;
+  npm workspace lock updates require `make js/deps/install ALLOW_UPDATE=1`.
 - Keep direct npm dependency versions exact. For local workspace package
   references, use the referenced package's exact local version so npm records a
   workspace link in `package-lock.json`. Generated package locks must resolve
@@ -130,9 +138,9 @@ the repo unchanged or update the appropriate note.
 - Workspace package tests must run `tsc -p tsconfig.test.json` before
   `node --test`; strip-types execution is runtime convenience, not semantic
   typechecking.
-- `package-build-check` is compile validation only. Do not add `package-build`
+- `js/build/check` is compile validation only. Do not add `js/build`
   unless there is a deliberate durable artifact-export lane.
-- `package-ci` is a Make aggregation over JS workspace tests and package-backed tool
+- `js/ci` is a Make aggregation over JS workspace tests and package-backed tool
   checks. Do not duplicate a tool's smoke command inside `compose/packages.yml`;
   run the tool's own Compose check service instead.
 - ABI export must parse CAM manifests structurally, write a temporary export
@@ -145,7 +153,7 @@ the repo unchanged or update the appropriate note.
   `cam/abi/<ContractName>.json`; unused `cam/abi/*.json` files are repository
   hygiene failures.
 - CAM manifest `integrity` fields are derived from local ABI/UI resource bytes.
-  Refresh them with `make cam-integrity`; `make abi` runs that refresh after
+  Refresh them with `make cam/integrity/refresh`; `make cam/abi/export` runs that refresh after
   exporting generated ABIs.
 - CAM integrity refresh may rewrite only explicit
   `dapps/<name>/cam/main.json` bind mounts. Keep the broader `dapps/` mount
@@ -185,11 +193,11 @@ the repo unchanged or update the appropriate note.
 
 - Repository/source hygiene checks live in `tests/checks/` as Python
   `unittest` tests using only the standard library.
-- Run them with `make checks`. The lane uses `compose/checks.yml` and
+- Run them with `make tests/checks`. The lane uses `compose/checks.yml` and
   `containers/checks/`: no network, read-only repo mount, read-only root
   filesystem, non-root user, no capabilities, bounded memory/PIDs, and no
   Python bytecode writes.
-- `make test` must include `make checks` before Forge unit tests, so routine
+- `make dapps/tests/unit-scenario` must include `make tests/checks` before Forge unit tests, so routine
   hygiene cannot be skipped accidentally.
 - Put text/repo-shape checks here, not in Solidity tests. Examples: compiler
   pragma consistency, forbidden names, secret patterns, Compose posture, and

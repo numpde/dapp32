@@ -102,8 +102,8 @@ class BikeNftReleasePostureTest(unittest.TestCase):
 
     def test_make_entrypoints_require_clean_snapshotted_source_and_protected_files(self) -> None:
         source = read_text(repo_path("Makefile"))
-        deploy = source[source.index("bike-nft-release-deploy:"):source.index("bike-nft-release-verify:")]
-        verify = source[source.index("bike-nft-release-verify:"):]
+        deploy = source[source.index("bike-nft/release/deploy:"):source.index("bike-nft/release/verify:")]
+        verify = source[source.index("bike-nft/release/verify:"):]
         self.assertIn("CONFIRM_BIKE_NFT_RELEASE_DEPLOY", deploy)
         self.assertIn(
             'require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "$$RPC_URL_FILE"',

@@ -1,6 +1,6 @@
 # Local bike NFT graphical viewer scenario.
 #
-# Compose this file with deploy.yml and http.yml after make package-deps has
+# Compose this file with deploy.yml and http.yml after make js/deps/install has
 # materialized js/node_modules for the JS workspace.
 # Unlike the terminal overlay, this scenario is browser-facing. A single
 # unprivileged HTTP gateway publishes the configured host interface and routes

@@ -31,18 +31,18 @@ SECRET_PATTERNS = [
     re.compile(r"ghp_[A-Za-z0-9_]{20,}"),
     re.compile(r"BEGIN [A-Z ]*PRIVATE KEY"),
 ]
-MAKE_TARGET_RE = re.compile(r"^(?P<name>[A-Za-z0-9_-]+)\s*:(?![=])")
-MAKE_TARGET_WITH_PREREQS_RE = re.compile(r"^(?P<name>[A-Za-z0-9_-]+)\s*:(?![=])\s*(?P<prereqs>.*)$")
-MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_-]+)\b")
-MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$")
-MAKE_DEFAULT_GOAL_RE = re.compile(r"^\.DEFAULT_GOAL\s*:?=\s*(?P<name>[A-Za-z0-9_-]+)\s*$", re.MULTILINE)
+MAKE_TARGET_RE = re.compile(r"^(?P<name>[A-Za-z0-9_/-]+)\s*:(?![=])")
+MAKE_TARGET_WITH_PREREQS_RE = re.compile(r"^(?P<name>[A-Za-z0-9_/-]+)\s*:(?![=])\s*(?P<prereqs>.*)$")
+MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_/-]+)\b")
+MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$", re.MULTILINE)
+MAKE_DEFAULT_GOAL_RE = re.compile(r"^\.DEFAULT_GOAL\s*:?=\s*(?P<name>[A-Za-z0-9_/-]+)\s*$", re.MULTILINE)
 PACKAGE_CI_PREREQS = (
-    "package-test",
-    "viewer-terminal-check",
-    "cam-publication-preflight-check",
-    "cam-integration-fuzz-check",
-    "bike-nft-release-check",
-    "escrow-release-check",
+    "js/tests",
+    "viewer/terminal/check",
+    "cam/publication/preflight/check",
+    "cam/integration/fuzz/check",
+    "bike-nft/release/check",
+    "escrow/release/check",
 )
 FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
 
@@ -138,7 +138,31 @@ class RepositoryHygieneTest(unittest.TestCase):
 
         # `make help` is the operator's map of supported entrypoints. If it
         # advertises a stale target, the safest path becomes guesswork.
-        self.assertEqual(set(), advertised - targets)
+        self.assertEqual(targets, advertised)
+
+    def test_make_scoped_targets_are_hierarchical(self) -> None:
+        targets = self.make_targets(read_text(repo_path("Makefile")))
+        for target in targets - {"help", "tests", "ci"}:
+            with self.subTest(target=target):
+                self.assertRegex(target, r"^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)+$")
+
+    def test_make_test_scopes_run_their_supported_campaigns(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+        self.assertEqual(
+            ("dapps/tests/unit-scenario", "dapps/tests/fuzz", "dapps/tests/invariant"),
+            self.make_target_prereqs(makefile, "dapps/tests"),
+        )
+        self.assertEqual(
+            ("tests/checks", "dapps/tests", "js/ci", "tests/live", "cast/offline/check",
+             "escrow/local/scenario/run", "bike-nft/local/integration/fuzz/run",
+             "bike-nft/local/integration/fuzz/fixture-writes/run"),
+            self.make_target_prereqs(makefile, "tests"),
+        )
+        for target in ("dapps/tests", "tests"):
+            self.assertEqual("", self.make_target_recipe(makefile, target).strip())
+        help_recipe = self.make_help_recipe(makefile)
+        self.assertIn("external network", help_recipe)
+        self.assertIn("disposable fixture", help_recipe)
 
     def test_repository_has_one_make_entrypoint(self) -> None:
         make_entrypoints = [
@@ -151,7 +175,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertEqual(["Makefile"], make_entrypoints)
 
     def test_format_target_only_mounts_staging_output_writable(self) -> None:
-        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "format")
+        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "dapps/format")
 
         # Forge must finish formatting a temporary copy before Make applies
         # results. The formatter container must never receive repository write
@@ -171,7 +195,7 @@ class RepositoryHygieneTest(unittest.TestCase):
 
         # Phony declarations are also operator API inventory. A stale `.PHONY`
         # entry makes it harder to review which Make names are real lanes.
-        self.assertEqual(set(), phony_targets - targets)
+        self.assertEqual(targets, phony_targets)
 
     def test_make_default_goal_is_explicit_help_target(self) -> None:
         makefile = read_text(repo_path("Makefile"))
@@ -198,10 +222,10 @@ class RepositoryHygieneTest(unittest.TestCase):
     def test_package_ci_aggregates_package_backed_tool_checks(self) -> None:
         makefile = read_text(repo_path("Makefile"))
 
-        # `package-ci` is the JS/package confidence lane. It should stay a thin
+        # `js/ci` is the JS/package confidence lane. It should stay a thin
         # Make aggregation over package tests plus package-backed tool checks,
         # not a parallel Compose service or a stale subset of tool smoke tests.
-        self.assertEqual(PACKAGE_CI_PREREQS, self.make_target_prereqs(makefile, "package-ci"))
+        self.assertEqual(PACKAGE_CI_PREREQS, self.make_target_prereqs(makefile, "js/ci"))
 
     def test_closed_abi_inventory_does_not_advertise_open_characterization_gaps(self) -> None:
         inventory = read_text(repo_path("notes/012_abi_traversal_inventory.md"))
@@ -270,9 +294,9 @@ class RepositoryHygieneTest(unittest.TestCase):
         # before those recipes reach Compose.
         self.assertIn("export LOCAL_UID LOCAL_GID ALLOW_UPDATE", makefile)
         self.assertIn('ALLOW_UPDATE_GUARD := if [[ "$${ALLOW_UPDATE:?missing_ALLOW_UPDATE}"', makefile)
-        self.assertIn("$(ALLOW_UPDATE_GUARD);", self.make_target_recipe(makefile, "deps"))
-        self.assertIn("$(ALLOW_UPDATE_GUARD);", self.make_target_recipe(makefile, "deps-verify"))
-        self.assertIn("$(ALLOW_UPDATE_GUARD);", self.make_target_recipe(makefile, "package-deps"))
+        self.assertIn("$(ALLOW_UPDATE_GUARD);", self.make_target_recipe(makefile, "dapps/deps/install"))
+        self.assertIn("$(ALLOW_UPDATE_GUARD);", self.make_target_recipe(makefile, "dapps/deps/verify"))
+        self.assertIn("$(ALLOW_UPDATE_GUARD);", self.make_target_recipe(makefile, "js/deps/install"))
         self.assertNotIn('case "$(ALLOW_UPDATE)"', makefile)
 
     def test_bike_cam_inputs_are_guarded_before_docker(self) -> None:
@@ -286,18 +310,18 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("CAM_URI must be an absolute http(s) or ipfs URI without shell syntax", makefile)
         self.assertNotIn('if [[ -z "$(CAM_URI)" ]]', makefile)
         for target in (
-            "bike-nft-local-deploy",
-            "bike-nft-viewer-terminal",
-            "bike-nft-viewer-terminal-down",
-            "bike-nft-viewer-gui",
-            "bike-nft-viewer-gui-down",
-            "test-integration-fuzz-bike-nft",
-            "test-integration-fuzz-with-writes-bike-nft",
-            "test-integration-fuzz-bike-nft-down",
+            "bike-nft/local/deploy",
+            "bike-nft/local/demo/terminal/up",
+            "bike-nft/local/demo/terminal/down",
+            "bike-nft/local/demo/gui/up",
+            "bike-nft/local/demo/gui/down",
+            "bike-nft/local/integration/fuzz/run",
+            "bike-nft/local/integration/fuzz/fixture-writes/run",
+            "bike-nft/local/integration/fuzz/down",
         ):
             with self.subTest(target=target):
                 self.assertIn("$(BIKE_NFT_CAM_HASH_GUARD);", self.make_target_recipe(makefile, target))
-        self.assertIn("$(CAM_URI_GUARD);", self.make_target_recipe(makefile, "bike-nft-local-deploy"))
+        self.assertIn("$(CAM_URI_GUARD);", self.make_target_recipe(makefile, "bike-nft/local/deploy"))
 
     def test_viewer_terminal_mock_is_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
@@ -307,18 +331,18 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("export VIEWER_TERMINAL_MOCK", makefile)
         self.assertIn("VIEWER_TERMINAL_MOCK must be a mock name", makefile)
         for target in (
-            "viewer-terminal-check",
-            "viewer-terminal",
-            "viewer-terminal-status",
-            "viewer-terminal-attach",
-            "viewer-terminal-down",
+            "viewer/terminal/check",
+            "viewer/terminal/mock/up",
+            "viewer/terminal/mock/status",
+            "viewer/terminal/mock/attach",
+            "viewer/terminal/mock/down",
         ):
             with self.subTest(target=target):
                 self.assertIn("$(VIEWER_TERMINAL_MOCK_GUARD);", self.make_target_recipe(makefile, target))
 
     def test_integration_fuzz_descriptor_bind_is_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
-        recipe = self.make_target_recipe(makefile, "test-integration-fuzz")
+        recipe = self.make_target_recipe(makefile, "cam/live/integration/fuzz/run")
 
         # Docker may resolve host symlinks before the container can inspect the
         # bind target, and the external Docker network is an authority boundary.
@@ -336,16 +360,16 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("must be a Docker network name", recipe)
 
         for target in (
-            "cam-integration-fuzz-check",
-            "test-integration-fuzz-bike-nft",
-            "test-integration-fuzz-with-writes-bike-nft",
-            "test-integration-fuzz-bike-nft-down",
+            "cam/integration/fuzz/check",
+            "bike-nft/local/integration/fuzz/run",
+            "bike-nft/local/integration/fuzz/fixture-writes/run",
+            "bike-nft/local/integration/fuzz/down",
         ):
             with self.subTest(target=target):
                 self.assertIn("$(CAM_INTEGRATION_INPUT_GUARD);", self.make_target_recipe(makefile, target))
 
     def test_package_dependency_manifest_discovery_can_reject_symlinks(self) -> None:
-        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "package-deps")
+        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "js/deps/install")
 
         # The loop below rejects symlinked workspace package manifests. A
         # `find -type f` prefilter would hide those symlinks before the guard.
@@ -355,7 +379,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn('if [[ ! -f "$$manifest" ]]; then', recipe)
 
     def test_cast_rpc_secret_file_is_guarded_before_docker(self) -> None:
-        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "cast-rpc")
+        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "cast/live/block-number/read")
 
         # Compose cannot validate the operator's original path after Make has
         # copied it into a temporary secret file. Keep that host-side boundary
@@ -378,8 +402,8 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn('origin="$${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}"', makefile)
         self.assertNotIn('origin="$(BIKE_NFT_GUI_ORIGIN)"', makefile)
         self.assertIn("[^:/@", makefile)
-        self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui"))
-        self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft-viewer-gui-down"))
+        self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft/local/demo/gui/up"))
+        self.assertIn("$(BIKE_NFT_GUI_BIND_GUARD);", self.make_target_recipe(makefile, "bike-nft/local/demo/gui/down"))
 
     def test_anvil_published_port_is_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
@@ -389,8 +413,8 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertIn("ANVIL_HOST_PORT must be an integer from 1 to 65535", makefile)
         self.assertIn('port="$${ANVIL_HOST_PORT:?missing_ANVIL_HOST_PORT}"', makefile)
         self.assertNotIn('port="$(ANVIL_HOST_PORT)"', makefile)
-        self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil-host"))
-        self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil-down"))
+        self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil/host/up"))
+        self.assertIn("$(ANVIL_HOST_PORT_GUARD);", self.make_target_recipe(makefile, "anvil/down"))
 
     def assert_no_matches(self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...]) -> None:
         failures: list[str] = []

@@ -227,7 +227,7 @@
           The Makefile maps that answer to a Compose service with a narrow runtime posture.
         </p>
         <ul class="rule-list">
-          <li>Routine checks build and test offline.</li>
+          <li><code>make ci</code> builds and tests offline; <code>make tests</code> also runs network and disposable-fixture campaigns.</li>
           <li>Dependency installation is the explicit networked path.</li>
           <li>Repository writes happen only in named write lanes.</li>
           <li>RPC, local chains, private keys, and interactive sessions have separate targets.</li>
@@ -268,7 +268,7 @@
           </thead>
           <tbody>
             <tr>
-              <td><code>deps</code></td>
+              <td><code>dapps/deps/install</code></td>
               <td><code>compose/deps.yml</code></td>
               <td><code>dependency-egress-proxy</code>, <code>soldeer-stage</code>, <code>soldeer-verify-stage</code>, apply, verify</td>
               <td>Proxy has egress; stage containers use internal network; apply/verify are offline.</td>
@@ -279,7 +279,7 @@
               <td>Download and patch Solidity dependencies without giving networked tools repo write access.</td>
             </tr>
             <tr>
-              <td><code>deps-verify</code></td>
+              <td><code>dapps/deps/verify</code></td>
               <td><code>compose/deps.yml</code></td>
               <td><code>soldeer-verify</code></td>
               <td><code>network_mode: "none"</code></td>
@@ -290,7 +290,7 @@
               <td>Check installed Solidity dependencies against the committed lock, remappings, patch manifest, and checksums.</td>
             </tr>
             <tr>
-              <td><code>package-deps</code></td>
+              <td><code>js/deps/install</code></td>
               <td><code>compose/package-deps.yml</code></td>
               <td><code>package-egress-proxy</code>, <code>package-stage</code>, apply</td>
               <td>Proxy has egress to npm registry; stage uses internal network; apply is offline.</td>
@@ -301,7 +301,7 @@
               <td>Install npm dependencies from a minimal manifest tree with lifecycle scripts disabled.</td>
             </tr>
             <tr>
-              <td><code>package-graph-check</code></td>
+              <td><code>js/deps/graph/check</code></td>
               <td><code>compose/packages.yml</code></td>
               <td><code>package-graph-check</code></td>
               <td><code>network_mode: "none"</code></td>
@@ -312,7 +312,7 @@
               <td>Check the installed npm workspace graph before package scripts execute.</td>
             </tr>
             <tr>
-              <td><code>checks</code></td>
+              <td><code>tests/checks</code></td>
               <td><code>compose/checks.yml</code></td>
               <td><code>checks</code></td>
               <td><code>network_mode: "none"</code></td>
@@ -323,7 +323,7 @@
               <td>Run repository policy checks, including rendered Compose posture checks.</td>
             </tr>
             <tr>
-              <td><code>check-runtime</code>, <code>check-anvil-compose</code></td>
+              <td><code>tests/checks/anvil-compose</code></td>
               <td><code>compose/checks.yml</code></td>
               <td><code>checks</code> with a narrower unittest selector</td>
               <td><code>network_mode: "none"</code></td>
@@ -334,7 +334,7 @@
               <td>Render and inspect Compose runtime posture without starting the runtime services.</td>
             </tr>
             <tr>
-              <td><code>check-live</code>, <code>check-live-deps-egress</code></td>
+              <td><code>tests/live</code>, <code>tests/live/dependency-egress</code></td>
               <td><code>compose/deps.yml</code> + <code>compose/check-live-deps-egress.yml</code></td>
               <td><code>dependency-egress-proxy</code>, <code>egress-proxy-check</code></td>
               <td>Proxy has constrained external egress; check container uses the internal dependency network.</td>
@@ -345,7 +345,7 @@
               <td>Prove the HTTPS dependency egress proxy allows intended hosts and denies unintended destinations.</td>
             </tr>
             <tr>
-              <td><code>format DAPP=...</code></td>
+              <td><code>dapps/format DAPP=...</code></td>
               <td><code>compose/forge.yml</code></td>
               <td><code>forge-fmt</code> with the source-mutating command supplied by Make</td>
               <td><code>network_mode: "none"</code></td>
@@ -356,7 +356,7 @@
               <td>Normalize one dapp without allowing a parse failure to leave a partially formatted repository tree.</td>
             </tr>
             <tr>
-              <td><code>fmt</code>, <code>build</code>, <code>script-build</code>, <code>test</code>, <code>fuzz</code>, <code>invariant</code>, <code>coverage</code></td>
+              <td><code>dapps/format/check</code>, <code>dapps/build</code>, <code>dapps/scripts/build</code>, <code>dapps/tests/unit-scenario</code>, <code>dapps/tests/fuzz</code>, <code>dapps/tests/invariant</code>, <code>dapps/tests/coverage</code></td>
               <td><code>compose/forge.yml</code></td>
               <td><code>forge-fmt</code>, <code>forge-build</code>, <code>forge-script-build</code>, test services</td>
               <td><code>network_mode: "none"</code></td>
@@ -367,7 +367,7 @@
               <td>Compile and test contracts without RPC, private keys, or generated repo artifacts.</td>
             </tr>
             <tr>
-              <td><code>abi</code></td>
+              <td><code>cam/abi/export</code></td>
               <td><code>compose/forge.yml</code></td>
               <td><code>forge-abi-plan</code>, then <code>forge-abi</code></td>
               <td><code>network_mode: "none"</code></td>
@@ -378,7 +378,7 @@
               <td>Parse CAM manifests as JSON, generate only the ABI resources declared by <code>namespaces.contracts.&lt;ContractName&gt;.abiURI</code>, and avoid deriving Solidity source paths from ABI filenames.</td>
             </tr>
             <tr>
-              <td><code>package-build-check</code>, <code>package-test</code></td>
+              <td><code>js/build/check</code>, <code>js/tests</code></td>
               <td><code>compose/packages.yml</code></td>
               <td><code>package-build-check</code>, <code>package-test</code></td>
               <td><code>network_mode: "none"</code></td>
@@ -389,7 +389,7 @@
               <td>Validate and test the JS workspace by staging it, checking the installed dependency graph inside that execution tree, then building workspace packages/apps and typechecking tests before running them offline.</td>
             </tr>
             <tr>
-              <td><code>viewer-terminal</code>, <code>viewer-terminal-check</code></td>
+              <td><code>viewer/terminal/mock/up</code>, <code>viewer/terminal/check</code></td>
               <td><code>compose/viewer-terminal.yml</code></td>
               <td><code>viewer-terminal</code>, <code>viewer-terminal-check</code></td>
               <td><code>network_mode: "none"</code></td>
@@ -400,7 +400,7 @@
               <td>Run or smoke-check the mock-backed CAM viewer terminal through its own runtime boundary.</td>
             </tr>
             <tr>
-              <td><code>cast-offline</code></td>
+              <td><code>cast/offline/check</code></td>
               <td><code>compose/cast.yml</code></td>
               <td><code>cast-offline</code></td>
               <td><code>network_mode: "none"</code></td>
@@ -411,7 +411,7 @@
               <td>Smoke-test the Cast binary without RPC authority.</td>
             </tr>
             <tr>
-              <td><code>cast-rpc</code></td>
+              <td><code>cast/live/block-number/read</code></td>
               <td><code>compose/cast.yml</code></td>
               <td><code>cast-rpc</code>, <code>rpc-proxy</code></td>
               <td>Cast is internal only; proxy has egress to configured HTTPS RPC.</td>
@@ -422,18 +422,18 @@
               <td>Allow narrow read-only RPC inspection without giving Cast arbitrary egress.</td>
             </tr>
             <tr>
-              <td><code>anvil-internal</code>, <code>anvil-host</code></td>
+              <td><code>anvil/internal/up</code>, <code>anvil/host/up</code></td>
               <td><code>compose/anvil.yml</code></td>
               <td><code>anvil-internal</code> or <code>anvil-host</code></td>
               <td>Internal Docker network, or host-loopback port <code>127.0.0.1:8545</code>.</td>
               <td>Host UID/GID; read-only rootfs; dropped capabilities; <code>no-new-privileges</code>; bounded PIDs/memory.</td>
               <td>None.</td>
               <td>None.</td>
-              <td><code>anvil-down</code> stops both profiles and removes volumes/orphans.</td>
+              <td><code>anvil/down</code> stops both profiles and removes volumes/orphans.</td>
               <td>Make the local RPC exposure boundary explicit.</td>
             </tr>
             <tr>
-              <td><code>bike-nft-local-deploy</code></td>
+              <td><code>bike-nft/local/deploy</code></td>
               <td><code>compose/bike-nft/local/deploy.yml</code></td>
               <td><code>bike-nft-anvil</code>, <code>deploy-bike-nft-local</code></td>
               <td>Internal Compose network only; no host port.</td>
@@ -444,7 +444,7 @@
               <td>Deploy the local fixture without exposing RPC or writing sensitive broadcast material into the repo.</td>
             </tr>
             <tr>
-              <td><code>bike-nft-viewer-terminal</code></td>
+              <td><code>bike-nft/local/demo/terminal/up</code></td>
               <td><code>compose/bike-nft/local/deploy.yml</code>, <code>compose/bike-nft/local/http.yml</code>, <code>compose/bike-nft/local/viewer-terminal.yml</code></td>
               <td><code>bike-nft-anvil</code>, <code>deploy-bike-nft-local</code>, <code>bike-nft-cam-http</code>, <code>bike-nft-viewer-terminal</code></td>
               <td>Internal Compose network only; no host port.</td>
@@ -463,7 +463,7 @@
       <h2>What happens when you run dependency targets</h2>
       <div class="lane">
         <div>
-          <div class="lane-title"><code>make deps</code></div>
+          <div class="lane-title"><code>make dapps/deps/install</code></div>
           <p>Solidity dependencies</p>
         </div>
         <div>
@@ -502,7 +502,7 @@
 
       <div class="lane">
         <div>
-          <div class="lane-title"><code>make package-deps</code></div>
+          <div class="lane-title"><code>make js/deps/install</code></div>
           <p>npm dependencies</p>
         </div>
         <div>
@@ -550,28 +550,39 @@
       <h2>What happens when you run routine checks</h2>
       <div class="lane">
         <div>
-          <div class="lane-title"><code>make test</code></div>
-          <p>Repository checks and unit tests</p>
+          <div class="lane-title"><code>make dapps/tests/unit-scenario</code></div>
+          <p>Repository checks, unit tests, and scenario tests</p>
         </div>
         <div>
           <div class="facts">
             <div class="fact">
               <strong>First</strong>
-              <code>deps-verify</code> checks installed Solidity dependencies.
+              <code>dapps/deps/verify</code> checks installed Solidity dependencies.
             </div>
             <div class="fact">
               <strong>Then</strong>
-              <code>checks</code> runs Python policy tests in <code>compose/checks.yml</code>.
+              <code>tests/checks</code> runs Python policy tests in <code>compose/checks.yml</code>.
             </div>
             <div class="fact">
               <strong>Finally</strong>
-              <code>forge-test</code> runs unit tests from <code>compose/forge.yml</code>.
+              <code>forge-test</code> runs unit and scenario tests from <code>compose/forge.yml</code>.
             </div>
           </div>
           <div class="why">
-            Unit tests are not allowed to bypass repository policy. The Python checks catch source-shape,
-            dependency, import, pragma, and Compose posture problems before Forge unit tests run.
+            Unit and scenario tests are not allowed to bypass repository policy. The Python checks catch source-shape,
+            dependency, import, pragma, and Compose posture problems before Forge unit and scenario tests run.
           </div>
+        </div>
+      </div>
+
+      <div class="lane">
+        <div>
+          <div class="lane-title"><code>make tests</code></div>
+          <p>All automatic test campaigns</p>
+        </div>
+        <div>
+          <p>Runs <code>tests/checks</code>, <code>dapps/tests</code> (unit/scenario, fuzz, invariant), <code>js/ci</code>, <code>tests/live</code> (dependency egress), <code>cast/offline/check</code>, <code>escrow/local/scenario/run</code>, and both Bike NFT local integration-fuzz campaigns (reads and fixture writes).</p>
+          <p>This aggregate needs network access and deploys disposable local chains. Successful cleanup removes fixture state. Operator-supplied RPC reads, browser CDP checks, release deployment and release verification remain separate targets with explicit inputs.</p>
         </div>
       </div>
 
@@ -584,11 +595,11 @@
           <div class="facts">
             <div class="fact">
               <strong>Solidity</strong>
-              <code>fmt</code>, <code>build</code>, <code>script-build</code>, <code>test</code>, <code>fuzz</code>, and <code>invariant</code>.
+              <code>dapps/format/check</code>, <code>dapps/build</code>, <code>dapps/scripts/build</code>, and <code>dapps/tests</code> (unit/scenario, fuzz, and invariant).
             </div>
             <div class="fact">
               <strong>Packages</strong>
-              <code>package-ci</code>, a Make aggregation over <code>package-test</code>, <code>viewer-terminal-check</code>, <code>cam-publication-preflight-check</code>, and <code>cam-integration-fuzz-check</code>. The package lane tests the JS workspace; the tool lanes smoke-run the terminal and publication-preflight boundaries, while integration-fuzz typechecks and tests its runner through Compose.
+              <code>js/ci</code>, a Make aggregation over <code>js/tests</code>, <code>viewer/terminal/check</code>, <code>cam/publication/preflight/check</code>, <code>cam/integration/fuzz/check</code>, <code>bike-nft/release/check</code>, and <code>escrow/release/check</code>. The package lane tests the JS workspace; the tool lanes smoke-run the terminal and publication-preflight boundaries, integration-fuzz typechecks and tests its runner through Compose, and the two release checks validate their tools offline without deployment.
             </div>
             <div class="fact">
               <strong>Network</strong>
@@ -606,7 +617,7 @@
       <h2>What happens when you run local runtime targets</h2>
       <div class="lane">
         <div>
-          <div class="lane-title"><code>make viewer-terminal</code></div>
+          <div class="lane-title"><code>make viewer/terminal/mock/up</code></div>
           <p>Mock CAM viewer session</p>
         </div>
         <div>
@@ -629,11 +640,11 @@
             </div>
             <div class="fact">
               <strong>Lifecycle</strong>
-              <code>viewer-terminal-status</code>, <code>viewer-terminal-attach</code>, <code>viewer-terminal-down</code> are useful only while the interactive run container still exists.
+              <code>viewer/terminal/mock/status</code>, <code>viewer/terminal/mock/attach</code>, <code>viewer/terminal/mock/down</code> are useful only while the interactive run container still exists.
             </div>
             <div class="fact">
               <strong>Check</strong>
-              <code>viewer-terminal-check</code> stages JS workspace sources into tmpfs, checks the read-only dependency graph, builds the workspace, typechecks the terminal tool, and runs its entrypoint noninteractively.
+              <code>viewer/terminal/check</code> stages JS workspace sources into tmpfs, checks the read-only dependency graph, builds the workspace, typechecks the terminal tool, and runs its entrypoint noninteractively.
             </div>
             <div class="fact">
               <strong>Reality</strong>
@@ -648,7 +659,7 @@
 
       <div class="lane">
         <div>
-          <div class="lane-title"><code>make bike-nft-local-deploy</code></div>
+          <div class="lane-title"><code>make bike-nft/local/deploy</code></div>
           <p>Live local scenario</p>
         </div>
         <div>

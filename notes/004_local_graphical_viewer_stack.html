@@ -537,8 +537,8 @@
       <div class="panel">
         <p>
           Runtime services must not install dependencies. Solidity dependency
-          acquisition stays in <code>make deps</code>. CAM package dependency
-          acquisition stays in <code>make package-deps</code>. The
+          acquisition stays in <code>make dapps/deps/install</code>. CAM package dependency
+          acquisition stays in <code>make js/deps/install</code>. The
           <code>js/apps/cam-web</code> app is part of that same JS workspace, so
           it must use the shared lock and not add a nested app lock.
         </p>
@@ -558,13 +558,13 @@
             <tr>
               <td><code>js/</code></td>
               <td><code>js/package-lock.json</code> and <code>js/node_modules/</code></td>
-              <td>Existing <code>package-*</code> lanes.</td>
+              <td>Existing <code>js/build/check</code> and <code>js/tests</code> lanes.</td>
               <td>Builds reusable CAM libraries.</td>
             </tr>
             <tr>
               <td><code>js/apps/cam-web/</code></td>
               <td>Shared <code>js/package-lock.json</code> and <code>js/node_modules/</code>.</td>
-              <td>Existing <code>package-*</code> lanes.</td>
+              <td>Existing <code>js/build/check</code> and <code>js/tests</code> lanes.</td>
               <td>Runs the graphical viewer and imports workspace CAM packages.</td>
             </tr>
           </tbody>
@@ -631,7 +631,7 @@
         <h2>How To Run</h2>
         <p>
           Start the local graphical scenario with:
-          <code>make bike-nft-viewer-gui</code>.
+          <code>make bike-nft/local/demo/gui/up</code>.
         </p>
         <p>
           The target composes <code>deploy.yml</code>, <code>http.yml</code>,
@@ -641,7 +641,7 @@
         </p>
         <p>
           Stop and remove the scenario with
-          <code>make bike-nft-viewer-gui-down</code>. If the browser is not on
+          <code>make bike-nft/local/demo/gui/down</code>. If the browser is not on
           the same host, set both <code>BIKE_NFT_GUI_BIND_HOST</code> and
           <code>BIKE_NFT_GUI_ORIGIN</code> deliberately.
         </p>
@@ -664,9 +664,9 @@
       <h2>Operational Checks</h2>
       <div class="panel">
         <ul>
-          <li><code>make package-test</code> builds and tests CAM packages plus <code>cam-web</code>.</li>
-          <li><code>make checks</code> asserts repository and Compose posture, including GUI stack mounts and ports.</li>
-          <li><code>make bike-nft-viewer-gui</code> prints a URL with <code>chainId</code>, <code>host</code>, <code>account</code>, and <code>rpcUrl</code>.</li>
+          <li><code>make js/tests</code> builds and tests CAM packages plus <code>cam-web</code>.</li>
+          <li><code>make tests/checks</code> asserts repository and Compose posture, including GUI stack mounts and ports.</li>
+          <li><code>make bike-nft/local/demo/gui/up</code> prints a URL with <code>chainId</code>, <code>host</code>, <code>account</code>, and <code>rpcUrl</code>.</li>
           <li>The browser loads <code>/cam/main.json</code> and <code>/rpc</code> through the same configured origin.</li>
           <li>Writes are prepared and simulated by the app, then sent only through an injected wallet.</li>
         </ul>

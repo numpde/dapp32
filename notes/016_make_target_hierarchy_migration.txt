@@ -1,0 +1,21 @@
+Make target hierarchy migration — 2026-10-13
+
+Current commands use slash-separated ownership and operation names. dapps/
+owns Solidity dependencies, formatting, builds, and tests; js/ owns the npm
+workspace; cam/ owns publication and protocol tools. App-specific commands
+start with bike-nft/ or escrow/ and distinguish local fixture demos from
+release operations. local/demo/gui/up and local/demo/terminal/up deploy fresh
+disposable fixtures before starting viewers; down cleans up those fixtures.
+
+make dapps/tests/unit-scenario runs both Solidity unit and scenario tests.
+make dapps/tests aggregates unit/scenario, fuzz, and invariant tests. make ci remains
+offline. make tests includes all automatic test campaigns, including live
+dependency egress and disposable local-chain read/write workflows. Checks
+against operator-supplied RPC, CDP, or release deployment inputs remain
+separate. Dependencies must be installed explicitly before these lanes.
+
+There are no aliases for replaced targets. Use make help and the current
+README/operator guides. Dated historical notes retain captured commands and
+results under their original spellings; those spellings are evidence of the
+past invocation, not commands for the current Makefile. Compose service names,
+file paths, and historical archive filenames are unchanged.

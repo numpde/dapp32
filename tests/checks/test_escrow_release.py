@@ -54,9 +54,9 @@ class EscrowReleasePostureTest(unittest.TestCase):
 
     def test_release_make_targets_fail_closed(self) -> None:
         source = read_text(repo_path("Makefile"))
-        deploy_start = source.index("escrow-release-deploy:")
-        verify_start = source.index("escrow-release-verify:")
-        bike_start = source.index("bike-nft-release-deploy:")
+        deploy_start = source.index("escrow/release/deploy:")
+        verify_start = source.index("escrow/release/verify:")
+        bike_start = source.index("bike-nft/release/deploy:")
         deploy = source[deploy_start:verify_start]
         verify = source[verify_start:bike_start]
 
@@ -88,9 +88,9 @@ class EscrowReleasePostureTest(unittest.TestCase):
 
     def test_release_make_targets_run_from_disposable_commit_snapshots(self) -> None:
         source = read_text(repo_path("Makefile"))
-        deploy_start = source.index("escrow-release-deploy:")
-        verify_start = source.index("escrow-release-verify:")
-        bike_start = source.index("bike-nft-release-deploy:")
+        deploy_start = source.index("escrow/release/deploy:")
+        verify_start = source.index("escrow/release/verify:")
+        bike_start = source.index("bike-nft/release/deploy:")
         deploy = source[deploy_start:verify_start]
         verify = source[verify_start:bike_start]
         cleanup = source[source.index("define release_snapshot_cleanup"):source.index("endef", source.index("define release_snapshot_cleanup"))]

@@ -192,7 +192,7 @@ There is deliberately no generic CAM machine resource. `escrow.agreement.v1` and
 
 ## Local vertical workflow
 
-Install the locked dependencies first with `make deps` and `make package-deps` from the repository root. The commands below create disposable local chains and attempt cleanup when they exit. Chain state is removed only when cleanup succeeds.
+Install the locked dependencies first with `make dapps/deps/install` and `make js/deps/install` from the repository root. The local scenario and demo commands below deploy fresh disposable fixtures and attempt cleanup when they exit. Chain state is removed only when cleanup succeeds.
 
 The local fixture deploys:
 
@@ -241,7 +241,7 @@ Each path uses a new agreement reference, switches the viewer account through `C
 ### Automated nine-path workflow
 
 ```bash
-make escrow-local-scenario
+make escrow/local/scenario/run
 ```
 
 The Make target owns the accepted checked-in CAM hash, internal resource URI, fixture broadcast path, Compose project, merged files, and teardown.
@@ -249,7 +249,7 @@ The Make target owns the accepted checked-in CAM hash, internal resource URI, fi
 ### Interactive real-RPC terminal
 
 ```bash
-make escrow-viewer-terminal
+make escrow/local/demo/terminal/up
 ```
 
 The terminal starts as the client. Use:
@@ -264,13 +264,13 @@ The terminal prepares writes but does not sign or submit them. It is useful for 
 The target attempts cleanup when the terminal exits. If interruption or cleanup failure leaves a project running, run:
 
 ```bash
-make escrow-viewer-terminal-down
+make escrow/local/demo/terminal/down
 ```
 
 ### Browser viewer
 
 ```bash
-make escrow-viewer-gui
+make escrow/local/demo/gui/up
 ```
 
 Open the full URL printed by the command. Its account parameter starts the viewer as the client; it grants no wallet access. You can read views without connecting a wallet. **Connect wallet** replaces the viewed account with the wallet account and refreshes the role-specific controls. Import only the explicit local fixture accounts to exercise contractor and arbitrator actions.
@@ -288,19 +288,19 @@ CDP_ORIGIN=http://127.0.0.1:9222 \
 VIEWER_URL='paste full printed GUI URL' \
 EXPECTED_CAM_URI='paste expected CAM URI' \
 EXPECTED_CAM_HASH='paste expected 0x-prefixed CAM hash' \
-make escrow-viewer-browser-check
+make escrow/live/browser/check
 ```
 
 The check opens and closes its own tab. It verifies onchain resource identity, CAM integrity, read navigation, and failure messages and overflow at desktop and narrow widths. It performs no wallet-signed writes and is outside offline CI.
 
-To exercise signed transactions on the disposable fixture chain, use the same four environment variables with `make escrow-viewer-browser-write-check`. This separate opt-in lane requires the locked workspace dependencies installed by `make package-deps`. It verifies their installed dependency graph and builds `@cam/protocol` in container-local tmpfs to consume its public HTTP validators and bounded reader. It checks the actual RPC chain ID `31337`, the contract-anchored CAM bytes and ABI integrity, and the Escrow target before signing with the obvious fixture keys declared in `compose/escrow/local/deploy.yml`. It signs and sends real local transactions, including a complete dispute and credit withdrawal workflow; do not use it with a chain containing valuable state.
+To exercise signed transactions on the disposable fixture chain, use the same four environment variables with `make escrow/live/browser/fixture-writes/check`. This separate opt-in lane requires the locked workspace dependencies installed by `make js/deps/install`. It verifies their installed dependency graph and builds `@cam/protocol` in container-local tmpfs to consume its public HTTP validators and bounded reader. It checks the actual RPC chain ID `31337`, the contract-anchored CAM bytes and ABI integrity, and the Escrow target before signing with the obvious fixture keys declared in `compose/escrow/local/deploy.yml`. It signs and sends real local transactions, including a complete dispute and credit withdrawal workflow; do not use it with a chain containing valuable state.
 
 The write check injects a test provider into fresh tabs that it owns and closes. It checks recovery from wallet rejection, a held submission or receipt, a lost reply after broadcast, and a confirmed transaction whose following view refresh fails. Actions use DOM activation; this lane does not prove physical pointer input or wallet-extension approval behavior. Both browser lanes grant ordinary host-network egress to reach the operator's loopback endpoints and leave existing browser tabs and services running.
 
-`make escrow-viewer-gui` attempts fixture cleanup when its foreground command exits. Closing the browser check's tab does not stop the GUI. If interruption or cleanup failure leaves a project running, run:
+`make escrow/local/demo/gui/up` attempts fixture cleanup when its foreground command exits. Closing the browser check's tab does not stop the GUI. If interruption or cleanup failure leaves a project running, run:
 
 ```bash
-make escrow-viewer-gui-down
+make escrow/local/demo/gui/down
 ```
 
 The default listener is `127.0.0.1:5174`. To admit another browser host, pass an explicit bind and matching origin:
@@ -308,7 +308,7 @@ The default listener is `127.0.0.1:5174`. To admit another browser host, pass an
 ```bash
 ESCROW_GUI_BIND_HOST=0.0.0.0 \
 ESCROW_GUI_ORIGIN=http://host:5174 \
-make escrow-viewer-gui
+make escrow/local/demo/gui/up
 ```
 
 ## Release deployment
@@ -339,7 +339,7 @@ ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER=0x<intended-root-owner> \
 RPC_URL_FILE=/secure/escrow-rpc-url \
 DEPLOYER_PRIVATE_KEY_FILE=/secure/escrow-deployer-key \
 ESCROW_RELEASE_OUTPUT_DIR=/secure/releases/escrow-<chain>-<version> \
-make escrow-release-deploy
+make escrow/release/deploy
 ```
 
 The target writes:
@@ -361,7 +361,7 @@ Run verification from the same exact clean source commit recorded in `deployment
 ```bash
 RPC_URL_FILE=/secure/escrow-rpc-url \
 ESCROW_DEPLOYMENT_ARTIFACT_FILE=/secure/releases/escrow-<chain>-<version>/artifact/deployment.json \
-make escrow-release-verify
+make escrow/release/verify
 ```
 
 The verifier checks:
@@ -405,20 +405,20 @@ The CAM conformance suite loads the checked-in escrow bundle from repository byt
 Run the ordinary repository gates before either a local scenario or release ceremony:
 
 ```bash
-make format DAPP=escrow
-make fmt
-make abi
-make cam-integrity
-make cam-conformance-check
-make escrow-release-check
-make checks
-make build
-make script-build
-make test
-make package-test
+make dapps/format DAPP=escrow
+make dapps/format/check
+make cam/abi/export
+make cam/integrity/refresh
+make cam/conformance/check
+make escrow/release/check
+make tests/checks
+make dapps/build
+make dapps/scripts/build
+make dapps/tests
+make js/tests
 ```
 
-`make abi` exports only manifest-declared contracts and then refreshes integrity pins. Its Compose service has write authority only over explicitly admitted CAM ABI directories; `cam-integrity` can rewrite only explicitly admitted manifests. A clean second `make abi` run is the generated-resource idempotence check.
+`make cam/abi/export` exports only manifest-declared contracts and then refreshes integrity pins. Its Compose service has write authority only over explicitly admitted CAM ABI directories; `cam/integrity/refresh` can rewrite only explicitly admitted manifests. A clean second `make cam/abi/export` run is the generated-resource idempotence check.
 
 ## Explicit non-goals
 

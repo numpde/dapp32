@@ -9,7 +9,7 @@
 # - package-apply-locked has no network, writes only js/node_modules/,
 #   and fails if js/package-lock.json would change.
 # - package-apply-update has no network and may update js/package-lock.json only
-#   when make package-deps is run with ALLOW_UPDATE=1.
+#   when make js/deps/install is run with ALLOW_UPDATE=1.
 services:
   package-egress-proxy:
     build:
@@ -148,7 +148,7 @@ services:
         test -d /out/node_modules
         test -f /out/package-lock.json
         if ! cmp -s /out/package-lock.json /work/package-lock.json; then
-          printf '%s\n' 'package-apply-locked: package-lock.json would change; rerun make package-deps ALLOW_UPDATE=1 only if this dependency update is intended.' >&2
+          printf '%s\n' 'package-apply-locked: package-lock.json would change; rerun make js/deps/install ALLOW_UPDATE=1 only if this dependency update is intended.' >&2
           exit 2
         fi
         stage-node-modules /out/node_modules /work/node_modules

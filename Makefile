@@ -263,8 +263,8 @@ define compose_run
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-PACKAGE_DEPS_GUARD := if [[ -L "$(PACKAGE_NODE_MODULES_DIR)" || -L "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Refusing package lane because node_modules or package-lock.json is a symlink.' >&2; exit 2; fi; if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Missing npm workspace dependencies. Run make package-deps to install the locked package dependencies.' >&2; exit 2; fi
-SOLDEER_DEPS_GUARD := if [[ -L "$(DEPENDENCIES_DIR)" || -L "$(FOUNDRY_MANIFEST_FILE)" ]]; then printf '%s\n' 'Refusing Soldeer lane because dapps/dependencies or dapps/foundry.toml is a symlink.' >&2; exit 2; fi; if [[ ! -d "$(DEPENDENCIES_DIR)" || ! -f "$(FOUNDRY_MANIFEST_FILE)" ]]; then printf '%s\n' 'Missing Soldeer dependencies. Run make deps to install the locked Solidity dependencies.' >&2; exit 2; fi; for file in $(DEPENDENCY_METADATA_FILES); do if [[ -L "$$file" ]]; then printf 'Refusing Soldeer lane because metadata file is a symlink: %s\n' "$$file" >&2; exit 2; fi; if [[ ! -f "$$file" ]]; then printf 'Missing Soldeer metadata: %s\n' "$$file" >&2; exit 2; fi; done
+PACKAGE_DEPS_GUARD := if [[ -L "$(PACKAGE_NODE_MODULES_DIR)" || -L "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Refusing package lane because node_modules or package-lock.json is a symlink.' >&2; exit 2; fi; if [[ ! -d "$(PACKAGE_NODE_MODULES_DIR)" || ! -f "$(PACKAGE_LOCK_FILE)" ]]; then printf '%s\n' 'Missing npm workspace dependencies. Run make js/deps/install to install the locked package dependencies.' >&2; exit 2; fi
+SOLDEER_DEPS_GUARD := if [[ -L "$(DEPENDENCIES_DIR)" || -L "$(FOUNDRY_MANIFEST_FILE)" ]]; then printf '%s\n' 'Refusing Soldeer lane because dapps/dependencies or dapps/foundry.toml is a symlink.' >&2; exit 2; fi; if [[ ! -d "$(DEPENDENCIES_DIR)" || ! -f "$(FOUNDRY_MANIFEST_FILE)" ]]; then printf '%s\n' 'Missing Soldeer dependencies. Run make dapps/deps/install to install the locked Solidity dependencies.' >&2; exit 2; fi; for file in $(DEPENDENCY_METADATA_FILES); do if [[ -L "$$file" ]]; then printf 'Refusing Soldeer lane because metadata file is a symlink: %s\n' "$$file" >&2; exit 2; fi; if [[ ! -f "$$file" ]]; then printf 'Missing Soldeer metadata: %s\n' "$$file" >&2; exit 2; fi; done
 
 define compose_run_with_package_deps
 @$(LANE_GUARD); \
@@ -272,78 +272,85 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help deps deps-verify package-deps package-graph-check package-build-check package-test package-ci cam-conformance-check cam-publication-preflight cam-publication-preflight-json cam-publication-preflight-check viewer-terminal-check cam-integration-fuzz-check bike-nft-release-check bike-nft-release-deploy bike-nft-release-verify escrow-release-check escrow-release-deploy escrow-release-verify checks check-runtime check-live check-live-deps-egress viewer-terminal viewer-terminal-status viewer-terminal-attach viewer-terminal-down check-anvil-compose format fmt build script-build abi cam-integrity test fuzz invariant test-integration-fuzz test-integration-fuzz-bike-nft test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-bike-nft-down coverage ci cast-offline cast-rpc anvil-internal anvil-host anvil-down anvil bike-nft-local-deploy bike-nft-viewer-terminal bike-nft-viewer-terminal-down bike-nft-viewer-gui bike-nft-viewer-gui-down escrow-local-scenario escrow-viewer-terminal escrow-viewer-terminal-down escrow-viewer-gui escrow-viewer-gui-down escrow-viewer-browser-check
+.PHONY: help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight cam/publication/preflight/json cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
 
 help:
 	@printf '%s\n' \
 	  'Supported lanes:' \
-	  '  make deps         Install only the currently locked Soldeer dependencies' \
-	  '  make deps ALLOW_UPDATE=1  Allow dependency lock/remapping/checksum updates' \
-	  '  make deps-verify  Verify installed dependencies against committed checksums' \
-	  '  make package-deps Install only the currently locked npm workspace dependencies' \
-	  '  make package-deps ALLOW_UPDATE=1  Allow package-lock.json updates' \
-	  '  make package-graph-check  Check installed npm dependency graph offline' \
-	  '  make package-build-check  Validate npm workspace builds offline' \
-	  '  make package-test   Build and test npm workspace packages/apps offline' \
-	  '  make package-ci     Run JS workspace tests and package-backed tool checks offline' \
-	  '  make cam-conformance-check  Validate checked-in CAM bundles offline' \
-	  '  make cam-publication-preflight DAPP=... CAM_URI=...  Validate a CAM bundle and print CAM_HASH' \
-	  '  make cam-publication-preflight-json DAPP=... CAM_URI=...  Same preflight with structured JSON output' \
-	  '  make cam-publication-preflight-check  Smoke-check publication preflight offline' \
-	  '  make viewer-terminal-check  Smoke-check the CAM viewer terminal offline' \
-	  '  make cam-integration-fuzz-check  Typecheck the CAM integration fuzz runner offline' \
-	  '  make bike-nft-release-check  Typecheck and test Bike NFT release tooling offline' \
-	  '  make bike-nft-release-deploy ...  Deploy one explicitly confirmed pinned Bike NFT release' \
-	  '  make bike-nft-release-verify RPC_URL_FILE=... BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE=...  Verify one Bike NFT release read-only' \
-	  '  make escrow-release-check  Typecheck and test escrow release tooling offline' \
-	  '  make escrow-release-deploy ...  Deploy one explicitly confirmed pinned escrow release' \
-	  '  make escrow-release-verify RPC_URL_FILE=... ESCROW_DEPLOYMENT_ARTIFACT_FILE=...  Verify one deployed release read-only' \
-	  '  make viewer-terminal  Run the CAM viewer terminal offline; defaults to VIEWER_TERMINAL_MOCK=bike-nft' \
-	  '  make viewer-terminal-status  Show viewer terminal Compose status' \
-	  '  make viewer-terminal-attach  Attach if the mock viewer terminal is still running' \
-	  '  make viewer-terminal-down    Stop and clean up the viewer terminal Compose project' \
-	  '  make checks       Run offline repository/source checks' \
-	  '  make check-runtime  Run local Docker-backed runtime checks' \
-	  '  make check-live    Run live checks that intentionally use external network' \
-	  '  make check-live-deps-egress  Prove dependency egress allow/deny behavior' \
-	  '  make check-anvil-compose  Run only the rendered Anvil Compose posture checks' \
-	  '  make format DAPP=...  Format one dapp source tree' \
-	  '  make fmt          Check Solidity formatting for all dapps' \
-	  '  make build        Compile all dapp source trees' \
-	  '  make script-build Compile all dapp deployment scripts without executing them' \
-	  '  make abi          Export CAM manifest-declared ABIs and refresh CAM integrity pins' \
-	  '  make cam-integrity  Refresh CAM manifest sha256 pins for local ABI/UI resources' \
-	  '  make test         Run unit tests for all dapps' \
-	  '  make fuzz         Run fuzz tests for all dapps' \
-	  '  make invariant    Run invariant tests for all dapps' \
-	  '  make test-integration-fuzz CAM_INTEGRATION_DESCRIPTOR_HOST_PATH=/path CAM_INTEGRATION_NETWORK=name  Run generic CAM integration fuzzing against an existing deployment' \
-	  '  make test-integration-fuzz-bike-nft  Deploy bike NFT locally and run generic CAM integration fuzzing' \
-	  '  make test-integration-fuzz-with-writes-bike-nft  Deploy bike NFT locally and run integration fuzzing with local fixture writes' \
-	  '  make coverage     Print coverage summary from all dapp unit tests' \
-	  '  make ci           Run fmt, build, script-build, unit, fuzz, invariant, and package-ci lanes' \
-	  '  make cast-offline Run offline cast smoke lane' \
-	  '  make cast-rpc RPC_URL_FILE=/path  Read a block number through the RPC egress proxy' \
-	  '  RPC_URL=https://... make cast-rpc  Same, using a temporary secret file' \
-	  '  make anvil-internal  Start Docker-only Anvil with no host port' \
-	  '  make anvil-host      Start Anvil on 127.0.0.1:$${ANVIL_HOST_PORT}' \
-	  '  make anvil-down      Stop Anvil services and remove their network' \
-	  '  make bike-nft-local-deploy CAM_URI=...  Deploy the bike NFT fixture to an internal Anvil' \
+	  '  make help         Show every supported entrypoint' \
+	  '  make tests        Run all self-contained campaigns; uses external network and disposable fixture deployments' \
+	  '  make dapps/tests  Run Solidity unit/scenario, fuzz, and invariant campaigns' \
+	  '  make dapps/deps/install         Install only the currently locked Soldeer dependencies' \
+	  '  make dapps/deps/install ALLOW_UPDATE=1  Allow dependency lock/remapping/checksum updates' \
+	  '  make dapps/deps/verify  Verify installed dependencies against committed checksums' \
+	  '  make js/deps/install Install only the currently locked npm workspace dependencies' \
+	  '  make js/deps/install ALLOW_UPDATE=1  Allow package-lock.json updates' \
+	  '  make js/deps/graph/check  Check installed npm dependency graph offline' \
+	  '  make js/build/check  Validate npm workspace builds offline' \
+	  '  make js/tests   Build and test npm workspace packages/apps offline' \
+	  '  make js/ci     Run JS workspace tests and package-backed tool checks offline' \
+	  '  make cam/conformance/check  Validate checked-in CAM bundles offline' \
+	  '  make cam/publication/preflight DAPP=... CAM_URI=...  Validate a CAM bundle and print CAM_HASH' \
+	  '  make cam/publication/preflight/json DAPP=... CAM_URI=...  Same preflight with structured JSON output' \
+	  '  make cam/publication/preflight/check  Smoke-check publication preflight offline' \
+	  '  make viewer/terminal/check  Smoke-check the CAM viewer terminal offline' \
+	  '  make cam/integration/fuzz/check  Typecheck the CAM integration fuzz runner offline' \
+	  '  make bike-nft/release/check  Typecheck and test Bike NFT release tooling offline' \
+	  '  make bike-nft/release/deploy ...  Deploy one explicitly confirmed pinned Bike NFT release' \
+	  '  make bike-nft/release/verify RPC_URL_FILE=... BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE=...  Verify one Bike NFT release read-only' \
+	  '  make escrow/release/check  Typecheck and test escrow release tooling offline' \
+	  '  make escrow/release/deploy ...  Deploy one explicitly confirmed pinned escrow release' \
+	  '  make escrow/release/verify RPC_URL_FILE=... ESCROW_DEPLOYMENT_ARTIFACT_FILE=...  Verify one deployed release read-only' \
+	  '  make viewer/terminal/mock/up  Run the CAM viewer terminal offline; defaults to VIEWER_TERMINAL_MOCK=bike-nft' \
+	  '  make viewer/terminal/mock/status  Show viewer terminal Compose status' \
+	  '  make viewer/terminal/mock/attach  Attach if the mock viewer terminal is still running' \
+	  '  make viewer/terminal/mock/down    Stop and clean up the viewer terminal Compose project' \
+	  '  make tests/checks       Run offline repository/source checks' \
+	  '  make tests/live    Run live checks that intentionally use external network' \
+	  '  make tests/live/dependency-egress  Prove dependency egress allow/deny behavior' \
+	  '  make tests/checks/anvil-compose  Run only the rendered Anvil Compose posture checks' \
+	  '  make dapps/format DAPP=...  Format one dapp source tree' \
+	  '  make dapps/format/check          Check Solidity formatting for all dapps' \
+	  '  make dapps/build        Compile all dapp source trees' \
+	  '  make dapps/scripts/build Compile all dapp deployment scripts without executing them' \
+	  '  make cam/abi/export          Export CAM manifest-declared ABIs and refresh CAM integrity pins' \
+	  '  make cam/integrity/refresh  Refresh CAM manifest sha256 pins for local ABI/UI resources' \
+	  '  make dapps/tests/unit-scenario         Run unit and scenario tests for all dapps' \
+	  '  make dapps/tests/fuzz         Run fuzz tests for all dapps' \
+	  '  make dapps/tests/invariant    Run invariant tests for all dapps' \
+	  '  make cam/live/integration/fuzz/run CAM_INTEGRATION_DESCRIPTOR_HOST_PATH=/path CAM_INTEGRATION_NETWORK=name  Run generic CAM integration fuzzing against an existing deployment' \
+	  '  make bike-nft/local/integration/fuzz/run  Deploy bike NFT locally and run generic CAM integration fuzzing' \
+	  '  make bike-nft/local/integration/fuzz/down  Stop both local bike NFT fuzz fixture projects' \
+	  '  make bike-nft/local/integration/fuzz/fixture-writes/run  Deploy bike NFT locally and run integration fuzzing with local fixture writes' \
+	  '  make dapps/tests/coverage     Print coverage summary from all dapp unit tests' \
+	  '  make ci           Run offline Solidity format/build/script/unit-scenario/fuzz/invariant and JS CI lanes' \
+	  '  make cast/offline/check Run offline cast smoke lane' \
+	  '  make cast/live/block-number/read RPC_URL_FILE=/path  Read a block number through the RPC egress proxy' \
+	  '  RPC_URL=https://... make cast/live/block-number/read  Same, using a temporary secret file' \
+	  '  make anvil/internal/up  Start Docker-only Anvil with no host port' \
+	  '  make anvil/host/up      Start Anvil on 127.0.0.1:$${ANVIL_HOST_PORT}' \
+	  '  make anvil/down      Stop Anvil services and remove their network' \
+	  '  make bike-nft/local/deploy CAM_URI=...  Deploy the bike NFT fixture to an internal Anvil' \
 	  '                        Fixture default: BIKE_NFT_CAM_HASH=0x00..00; pass BIKE_NFT_CAM_HASH to pin CAM bytes' \
-	  '  make bike-nft-viewer-terminal  Deploy bike NFT locally and open the real-RPC viewer terminal' \
-	  '  make bike-nft-viewer-gui       Deploy bike NFT locally and run the browser GUI on $${BIKE_NFT_GUI_ORIGIN}' \
-	  '  BIKE_NFT_GUI_BIND_HOST=0.0.0.0 BIKE_NFT_GUI_ORIGIN=http://host:5173 make bike-nft-viewer-gui  Expose the local GUI to another browser host' \
-	  '  make escrow-local-scenario      Run all nine escrow terminal paths through the real-RPC CAM viewer' \
-	  '  make escrow-viewer-terminal     Deploy escrow locally and open the real-RPC viewer terminal' \
-	  '  make escrow-viewer-gui          Deploy escrow locally and run the browser GUI on $${ESCROW_GUI_ORIGIN}' \
-	  '  make escrow-viewer-browser-check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check the running GUI in a fresh CDP tab' \
-	  '  make escrow-viewer-browser-write-check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Sign local fixture transactions and check wallet fault recovery' \
-	  '  ESCROW_GUI_BIND_HOST=0.0.0.0 ESCROW_GUI_ORIGIN=http://host:5174 make escrow-viewer-gui  Expose the local GUI to another browser host' \
+	  '  make bike-nft/local/demo/terminal/down  Stop the bike NFT terminal demo' \
+	  '  make bike-nft/local/demo/gui/down  Stop the bike NFT browser demo' \
+	  '  make escrow/local/demo/terminal/down  Stop the escrow terminal demo' \
+	  '  make escrow/local/demo/gui/down  Stop the escrow browser demo' \
+	  '  make bike-nft/local/demo/terminal/up  Deploy bike NFT locally and open the real-RPC viewer terminal' \
+	  '  make bike-nft/local/demo/gui/up       Deploy bike NFT locally and run the browser GUI on $${BIKE_NFT_GUI_ORIGIN}' \
+	  '  BIKE_NFT_GUI_BIND_HOST=0.0.0.0 BIKE_NFT_GUI_ORIGIN=http://host:5173 make bike-nft/local/demo/gui/up  Expose the local GUI to another browser host' \
+	  '  make escrow/local/scenario/run      Run all nine escrow terminal paths through the real-RPC CAM viewer' \
+	  '  make escrow/local/demo/terminal/up     Deploy escrow locally and open the real-RPC viewer terminal' \
+	  '  make escrow/local/demo/gui/up          Deploy escrow locally and run the browser GUI on $${ESCROW_GUI_ORIGIN}' \
+	  '  make escrow/live/browser/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check the running GUI in a fresh CDP tab' \
+	  '  make escrow/live/browser/fixture-writes/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Sign local fixture transactions and check wallet fault recovery' \
+	  '  ESCROW_GUI_BIND_HOST=0.0.0.0 ESCROW_GUI_ORIGIN=http://host:5174 make escrow/local/demo/gui/up  Expose the local GUI to another browser host' \
 	  '' \
 	  'Supported lanes are Docker/Compose-backed. Default check lanes are offline, read-only,' \
 	  'non-root, capability-free, and avoid writing build artifacts into the repo.' \
 	  'Dependency install lanes are the only guarded host bind-target setup exception.'
 
-deps:
+dapps/deps/install:
 	@$(LANE_GUARD); \
 	$(ALLOW_UPDATE_GUARD); \
 	created_dependency_metadata_placeholders=""; \
@@ -387,7 +394,7 @@ deps:
 	    for file in $(DEPENDENCY_METADATA_FILES); do \
 	      if [[ ! -f "$$file" ]]; then \
 	        printf 'Missing locked dependency metadata: %s\n' "$$file" >&2; \
-	        printf '%s\n' 'Run make deps ALLOW_UPDATE=1 only if creating or updating dependency metadata is intended.' >&2; \
+	        printf '%s\n' 'Run make dapps/deps/install ALLOW_UPDATE=1 only if creating or updating dependency metadata is intended.' >&2; \
 	        exit 2; \
 	      fi; \
 	    done ;; \
@@ -411,13 +418,13 @@ deps:
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm "$$apply_service"; \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify
 
-deps-verify:
+dapps/deps/verify:
 	@$(LANE_GUARD); \
 	$(ALLOW_UPDATE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(DEPS_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/deps.yml run --build --rm soldeer-verify
 
-package-deps:
+js/deps/install:
 	@$(LANE_GUARD); \
 	$(ALLOW_UPDATE_GUARD); \
 	package_input_dir=""; \
@@ -458,7 +465,7 @@ package-deps:
 	    apply_service="package-apply-locked"; \
 	    if [[ ! -f "$(PACKAGE_LOCK_FILE)" ]]; then \
 	      printf 'Missing locked package metadata: %s\n' "$(PACKAGE_LOCK_FILE)" >&2; \
-	      printf '%s\n' 'Run make package-deps ALLOW_UPDATE=1 only if creating or updating package metadata is intended.' >&2; \
+	      printf '%s\n' 'Run make js/deps/install ALLOW_UPDATE=1 only if creating or updating package metadata is intended.' >&2; \
 	      exit 2; \
 	    fi ;; \
 	  1) apply_service="package-apply-update" ;; \
@@ -494,18 +501,18 @@ package-deps:
 	reject_unsafe_package_targets; \
 	$(PACKAGE_DEPS_COMPOSE_ENV) PACKAGE_INPUT_DIR="$$package_input_dir" $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/package-deps.yml run --build --rm "$$apply_service"
 
-package-graph-check:
+js/deps/graph/check:
 	$(call compose_run_with_package_deps,packages.yml,package-graph-check)
 
-package-build-check:
+js/build/check:
 	$(call compose_run_with_package_deps,packages.yml,package-build-check)
 
-package-test:
+js/tests:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-package-ci: package-test viewer-terminal-check cam-publication-preflight-check cam-integration-fuzz-check bike-nft-release-check escrow-release-check
+js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check
 
-cam-conformance-check:
+cam/conformance/check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
 
 define cam_publication_preflight
@@ -537,71 +544,69 @@ define cam_publication_preflight
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES) run --build --quiet-build --rm cam-publication-preflight
 endef
 
-cam-publication-preflight:
+cam/publication/preflight:
 	$(call cam_publication_preflight,)
 
-cam-publication-preflight-json:
+cam/publication/preflight/json:
 	$(call cam_publication_preflight,--json)
 
-cam-publication-preflight-check:
-	@$(MAKE) --no-print-directory cam-publication-preflight-json DAPP=bike-nft CAM_URI=https://example.test/bike-nft/cam/main.json >/dev/null
+cam/publication/preflight/check:
+	@$(MAKE) --no-print-directory cam/publication/preflight/json DAPP=bike-nft CAM_URI=https://example.test/bike-nft/cam/main.json >/dev/null
 
-viewer-terminal-check:
+viewer/terminal/check:
 	@$(LANE_GUARD); \
 	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm -T viewer-terminal-check
 
-cam-integration-fuzz-check:
+cam/integration/fuzz/check:
 	@$(LANE_GUARD); \
 	$(CAM_INTEGRATION_INPUT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(TEST_INTEGRATION_FUZZ_ENV) CAM_INTEGRATION_DESCRIPTOR_HOST_PATH=/dev/null CAM_INTEGRATION_NETWORK=cam-integration-fuzz-check-unused $(DOCKER_COMPOSE) $(TEST_INTEGRATION_FUZZ_COMPOSE_FILES) run --build --rm -T test-integration-fuzz-check
 
-escrow-release-check:
+escrow/release/check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(ESCROW_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(ESCROW_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T escrow-release-check
 
-bike-nft-release-check:
+bike-nft/release/check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T bike-nft-release-check
 
-viewer-terminal:
+viewer/terminal/mock/up:
 	@$(LANE_GUARD); \
 	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	if $(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all --quiet viewer-terminal | grep -q .; then \
 	  printf 'Viewer terminal container already exists: %s\n' "$(VIEWER_TERMINAL_CONTAINER_NAME)" >&2; \
-	  printf '%s\n' 'Use make viewer-terminal-attach or make viewer-terminal-down.' >&2; \
+	  printf '%s\n' 'Use make viewer/terminal/mock/attach or make viewer/terminal/mock/down.' >&2; \
 	  exit 2; \
 	fi; \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml run --build --rm viewer-terminal
 
-viewer-terminal-status:
+viewer/terminal/mock/status:
 	@$(LANE_GUARD); \
 	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml ps --all viewer-terminal
 
-viewer-terminal-attach:
+viewer/terminal/mock/attach:
 	@$(LANE_GUARD); \
 	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml attach viewer-terminal
 
-viewer-terminal-down:
+viewer/terminal/mock/down:
 	@$(LANE_GUARD); \
 	$(VIEWER_TERMINAL_MOCK_GUARD); \
 	$(VIEWER_TERMINAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/viewer-terminal.yml $(COMPOSE_DOWN_CLEANUP)
 
-checks:
+tests/checks:
 	$(call compose_run,checks.yml,checks)
 
-check-runtime: check-anvil-compose
+tests/live: tests/live/dependency-egress
 
-check-live: check-live-deps-egress
-
-check-live-deps-egress:
+tests/live/dependency-egress:
 	@$(LANE_GUARD); \
 	cleanup() { \
 	  status="$$?"; \
@@ -611,18 +616,18 @@ check-live-deps-egress:
 	trap cleanup EXIT; \
 	$(LIVE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(LIVE_DEPS_EGRESS_COMPOSE_FILES) up --build --abort-on-container-exit --exit-code-from egress-proxy-check egress-proxy-check
 
-check-anvil-compose:
+tests/checks/anvil-compose:
 	@$(LANE_GUARD); \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/checks.yml run --build --rm checks -I -B -m unittest discover -s tests/checks -t . -p test_anvil_compose.py
 
-format:
+dapps/format:
 	@$(LANE_GUARD); \
 	if [[ ! -v DAPP ]]; then \
-	  printf '%s\n' 'Set DAPP to a first-level dapp directory, for example: make format DAPP=escrow' >&2; \
+	  printf '%s\n' 'Set DAPP to a first-level dapp directory, for example: make dapps/format DAPP=escrow' >&2; \
 	  exit 2; \
 	fi; \
 	if [[ -z "$$DAPP" ]]; then \
-	  printf '%s\n' 'Set DAPP to a first-level dapp directory, for example: make format DAPP=escrow' >&2; \
+	  printf '%s\n' 'Set DAPP to a first-level dapp directory, for example: make dapps/format DAPP=escrow' >&2; \
 	  exit 2; \
 	fi; \
 	if [[ ! "$$DAPP" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then \
@@ -664,16 +669,16 @@ format:
 	  fi; \
 	done
 
-fmt:
+dapps/format/check:
 	$(call compose_run,forge.yml,forge-fmt)
 
-build: deps-verify
+dapps/build: dapps/deps/verify
 	$(call compose_run,forge.yml,forge-build)
 
-script-build: deps-verify
+dapps/scripts/build: dapps/deps/verify
 	$(call compose_run,forge.yml,forge-script-build)
 
-abi: deps-verify
+cam/abi/export: dapps/deps/verify
 	@$(LANE_GUARD); \
 	abi_plan_dir="$$(mktemp -d)"; \
 	chmod 0700 "$$abi_plan_dir"; \
@@ -688,20 +693,20 @@ abi: deps-verify
 	$(COMPOSE_ENV) ABI_PLAN_DIR="$$abi_plan_dir" $(DOCKER_COMPOSE) $(FORGE_ABI_COMPOSE_FILES) run --build --rm forge-abi; \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_COMPOSE_FILES) run --build --rm cam-integrity
 
-cam-integrity:
+cam/integrity/refresh:
 	@$(LANE_GUARD); \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_COMPOSE_FILES) run --build --rm cam-integrity
 
-test: deps-verify checks
+dapps/tests/unit-scenario: dapps/deps/verify tests/checks
 	$(call compose_run,forge.yml,forge-test)
 
-fuzz: deps-verify
+dapps/tests/fuzz: dapps/deps/verify
 	$(call compose_run,forge.yml,forge-fuzz)
 
-invariant: deps-verify
+dapps/tests/invariant: dapps/deps/verify
 	$(call compose_run,forge.yml,forge-invariant)
 
-test-integration-fuzz:
+cam/live/integration/fuzz/run:
 	@$(LANE_GUARD); \
 	$(CAM_INTEGRATION_INPUT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
@@ -741,7 +746,7 @@ test-integration-fuzz:
 	  $(DOCKER_COMPOSE) $(TEST_INTEGRATION_FUZZ_COMPOSE_FILES) \
 	  run --build --rm test-integration-fuzz
 
-test-integration-fuzz-bike-nft: deps-verify
+bike-nft/local/integration/fuzz/run: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_CAM_HASH_GUARD); \
 	$(CAM_INTEGRATION_INPUT_GUARD); \
@@ -758,7 +763,7 @@ test-integration-fuzz-bike-nft: deps-verify
 	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
 	  up --build --abort-on-container-exit --exit-code-from test-integration-fuzz-bike-nft test-integration-fuzz-bike-nft
 
-test-integration-fuzz-with-writes-bike-nft: deps-verify
+bike-nft/local/integration/fuzz/fixture-writes/run: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_CAM_HASH_GUARD); \
 	$(CAM_INTEGRATION_INPUT_GUARD); \
@@ -775,7 +780,7 @@ test-integration-fuzz-with-writes-bike-nft: deps-verify
 	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
 	  up --build --abort-on-container-exit --exit-code-from test-integration-fuzz-with-writes-bike-nft test-integration-fuzz-with-writes-bike-nft
 
-test-integration-fuzz-bike-nft-down:
+bike-nft/local/integration/fuzz/down:
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_CAM_HASH_GUARD); \
 	$(CAM_INTEGRATION_INPUT_GUARD); \
@@ -786,15 +791,19 @@ test-integration-fuzz-bike-nft-down:
 	  $(TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES) \
 	  $(COMPOSE_DOWN_CLEANUP)
 
-coverage: deps-verify
+dapps/tests/coverage: dapps/deps/verify
 	$(call compose_run,forge.yml,forge-coverage)
 
-ci: fmt build script-build test fuzz invariant package-ci
+dapps/tests: dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant
 
-cast-offline:
+tests: tests/checks dapps/tests js/ci tests/live cast/offline/check escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run
+
+ci: dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
+
+cast/offline/check:
 	$(call compose_run,cast.yml,cast-offline)
 
-cast-rpc:
+cast/live/block-number/read:
 	@$(LANE_GUARD); \
 	if [[ -v RPC_URL && -n "$$RPC_URL" && -v RPC_URL_FILE && -n "$$RPC_URL_FILE" ]]; then \
 	  printf '%s\n' 'Set only one of RPC_URL or RPC_URL_FILE.' >&2; \
@@ -841,25 +850,21 @@ cast-rpc:
 	chmod 0444 "$$rpc_url_file"; \
 	$(RPC_COMPOSE_ENV) RPC_URL_FILE="$$rpc_url_file" env -u RPC_URL -u MAKEFLAGS -u MFLAGS -u MAKEOVERRIDES $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml up --build --abort-on-container-exit --exit-code-from cast-rpc cast-rpc
 
-anvil-internal:
+anvil/internal/up:
 	@$(LANE_GUARD); \
 	$(ANVIL_INTERNAL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml up --build anvil-internal
 
-anvil-host:
+anvil/host/up:
 	@$(LANE_GUARD); \
 	$(ANVIL_HOST_PORT_GUARD); \
 	$(ANVIL_HOST_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml up --build anvil-host
 
-anvil-down:
+anvil/down:
 	@$(LANE_GUARD); \
 	$(ANVIL_HOST_PORT_GUARD); \
 	$(ANVIL_ALL_COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/anvil.yml down --volumes --remove-orphans
 
-anvil:
-	@printf '%s\n' 'Choose an explicit Anvil access boundary: make anvil-internal or make anvil-host.' >&2
-	@exit 2
-
-bike-nft-local-deploy: deps-verify
+bike-nft/local/deploy: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_CAM_HASH_GUARD); \
 	$(CAM_URI_GUARD); \
@@ -871,7 +876,7 @@ bike-nft-local-deploy: deps-verify
 	trap cleanup EXIT; \
 	$(BIKE_NFT_LOCAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(BIKE_NFT_LOCAL_COMPOSE_FILES) up --build --abort-on-container-exit --exit-code-from deploy-bike-nft-local deploy-bike-nft-local
 
-bike-nft-viewer-terminal: deps-verify
+bike-nft/local/demo/terminal/up: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_CAM_HASH_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
@@ -887,14 +892,14 @@ bike-nft-viewer-terminal: deps-verify
 	  $(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES) \
 	  run --build --rm bike-nft-viewer-terminal
 
-bike-nft-viewer-terminal-down:
+bike-nft/local/demo/terminal/down:
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_CAM_HASH_GUARD); \
 	$(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES) \
 	  $(COMPOSE_DOWN_CLEANUP)
 
-bike-nft-viewer-gui: deps-verify
+bike-nft/local/demo/gui/up: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_CAM_HASH_GUARD); \
 	$(BIKE_NFT_GUI_BIND_GUARD); \
@@ -923,7 +928,7 @@ bike-nft-viewer-gui: deps-verify
 	  $(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES) \
 	  up --build --force-recreate --abort-on-container-exit cam-web bike-nft-browser-gateway
 
-bike-nft-viewer-gui-down:
+bike-nft/local/demo/gui/down:
 	@$(LANE_GUARD); \
 	$(BIKE_NFT_CAM_HASH_GUARD); \
 	$(BIKE_NFT_GUI_BIND_GUARD); \
@@ -931,7 +936,7 @@ bike-nft-viewer-gui-down:
 	  $(BIKE_NFT_VIEWER_GUI_COMPOSE_FILES) \
 	  $(COMPOSE_DOWN_CLEANUP)
 
-escrow-local-scenario: deps-verify
+escrow/local/scenario/run: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
@@ -946,7 +951,7 @@ escrow-local-scenario: deps-verify
 	  $(ESCROW_LOCAL_SCENARIO_COMPOSE_FILES) \
 	  up --build --abort-on-container-exit --exit-code-from escrow-local-scenario escrow-local-scenario
 
-escrow-viewer-terminal: deps-verify
+escrow/local/demo/terminal/up: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	cleanup() { \
@@ -961,13 +966,13 @@ escrow-viewer-terminal: deps-verify
 	  $(ESCROW_VIEWER_TERMINAL_COMPOSE_FILES) \
 	  run --build --rm escrow-viewer-terminal
 
-escrow-viewer-terminal-down:
+escrow/local/demo/terminal/down:
 	@$(LANE_GUARD); \
 	$(ESCROW_VIEWER_TERMINAL_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
 	  $(ESCROW_VIEWER_TERMINAL_COMPOSE_FILES) \
 	  $(COMPOSE_DOWN_CLEANUP)
 
-escrow-viewer-gui: deps-verify
+escrow/local/demo/gui/up: dapps/deps/verify
 	@$(LANE_GUARD); \
 	$(ESCROW_GUI_BIND_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
@@ -995,7 +1000,7 @@ escrow-viewer-gui: deps-verify
 	  $(ESCROW_VIEWER_GUI_COMPOSE_FILES) \
 	  up --build --force-recreate --abort-on-container-exit cam-web escrow-browser-gateway
 
-escrow-viewer-gui-down:
+escrow/local/demo/gui/down:
 	@$(LANE_GUARD); \
 	$(ESCROW_GUI_BIND_GUARD); \
 	$(ESCROW_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
@@ -1006,7 +1011,7 @@ escrow-viewer-gui-down:
 # CDP, GUI, and RPC endpoints and grants ordinary host-network egress. The
 # runner validates its direct URLs; the external browser fetches public CAM.
 # This lane never starts or stops the GUI or browser.
-escrow-viewer-browser-check:
+escrow/live/browser/check:
 	@$(LANE_GUARD); \
 	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
 	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
@@ -1014,15 +1019,15 @@ escrow-viewer-browser-check:
 
 # Distinct opt-in fixture-write grant. Existing readonly browser check remains
 # dependency-free; this runner consumes locked viem through the workspace gate.
-.PHONY: escrow-viewer-browser-write-check
-escrow-viewer-browser-write-check:
+.PHONY: escrow/live/browser/fixture-writes/check
+escrow/live/browser/fixture-writes/check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
 	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES) run --build --rm --no-deps -T escrow-viewer-browser-write-check
 
-escrow-release-deploy:
+escrow/release/deploy:
 	@$(LANE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
@@ -1092,7 +1097,7 @@ escrow-release-deploy:
 	  up --build --abort-on-container-exit --exit-code-from escrow-release-artifact escrow-release-artifact; \
 	printf 'Escrow release artifact: %s/artifact/deployment.json\n' "$$output_dir"
 
-escrow-release-verify:
+escrow/release/verify:
 	@$(LANE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
@@ -1126,7 +1131,7 @@ escrow-release-verify:
 	compose_release \
 	  up --build --abort-on-container-exit --exit-code-from verify-escrow-release verify-escrow-release
 
-bike-nft-release-deploy:
+bike-nft/release/deploy:
 	@$(LANE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
@@ -1171,7 +1176,7 @@ bike-nft-release-deploy:
 	compose_release up --build --abort-on-container-exit --exit-code-from bike-nft-release-artifact bike-nft-release-artifact; \
 	printf 'Bike NFT release artifact: %s/artifact/deployment.json\n' "$$output_dir"
 
-bike-nft-release-verify:
+bike-nft/release/verify:
 	@$(LANE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
