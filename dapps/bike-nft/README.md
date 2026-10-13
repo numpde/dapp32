@@ -2,6 +2,45 @@
 
 Bike NFT publishes its manager workflow through CAM while keeping token ownership and every privileged write on-chain. The local fixture is intentionally unsuitable for public networks: it uses zero admin delays, fixture authority, and optional demo records.
 
+## Try the local workflow
+
+From the repository root, install the locked dependencies with `make deps` and
+`make package-deps`, then choose one demo:
+
+```bash
+make bike-nft-viewer-gui
+```
+
+Open the full URL printed by the command. The initial viewed account is the
+local fixture account, which grants no wallet access. Reads work without a
+wallet. **Connect wallet** changes the viewed account to the injected wallet
+account; after changing accounts in the wallet, use **Switch wallet** in the
+viewer to reconnect. Check the viewed account and network before preparing a
+call. A write button prepares and simulates a call; **Send with wallet** requests
+its submission after review. On-chain roles and ownership determine
+whether the transaction can execute.
+
+For a terminal that reads the real local RPC and prepares writes without signing
+or submitting them, run:
+
+```bash
+make bike-nft-viewer-terminal
+```
+
+Both commands deploy disposable fixtures and attempt cleanup when their
+foreground command exits. Chain state is removed only when cleanup succeeds.
+Closing the browser tab does not stop the GUI. If interruption or cleanup
+failure leaves a project running, use the matching cleanup target:
+
+```bash
+make bike-nft-viewer-gui-down
+make bike-nft-viewer-terminal-down
+```
+
+The Bike fixture permits a zero CAM hash by default. This explicit local-demo
+policy does not establish publication integrity; the release lane below pins
+the exact CAM bytes.
+
 ## Release policy
 
 `make bike-nft-release-deploy` is the only supported non-fixture deployment lane. It requires four distinct kinds of input:
@@ -111,6 +150,8 @@ Verification rechecks all four creation receipts, exact source/runtime and artif
 ## Public rehearsal
 
 Configure the generic CAM web viewer with the public chain ID, a public read RPC, the deployed `CamRoot` address, the published CAM resource origin, and wallet/network switching. Hosting and wallet injection are deployment-provider concerns; this repository does not yet own a public hosting target.
+
+The viewer URL supplies `chainId` (for example `eip155:11155111`), `host`, `account`, and `rpcUrl`. The hosting configuration supplies `VITE_CAM_WEB_RESOURCE_ORIGIN` and `VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH=false`; links cannot override that publication policy. Use a credential-free public read RPC because its URL is included in shareable read links. Such links reopen a route against current state and do not carry wallet authority, unsent form edits, or prepared transactions.
 
 Exercise registrar creation, token receipt, metadata update, missing/report resolution, delegation grant/revoke, transfer with permission changes, pause/unpause, and unauthorized failures. Verify explorer metadata and rerun `make bike-nft-release-verify` after activity. Explorer source publication is advisable but remains separate from the repository's bytecode verifier.
 

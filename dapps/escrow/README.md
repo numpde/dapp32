@@ -1,6 +1,6 @@
 # CAM Escrow V1
 
-`CamEscrow` is a non-upgradeable, single-milestone native-asset escrow. A client creates and funds an agreement in one payable transaction. The contractor may accept, submit committed work evidence, and receive payment after client approval, review timeout, or an arbitrator decision. The client may cancel before acceptance, dispute a submission, or recover funds after acceptance/work timeout or an arbitrator decision.
+`CamEscrow` is a non-upgradeable, single-milestone native-asset escrow. A client creates and funds an agreement in one payable transaction. The contractor may accept and submit committed work evidence. Client approval, timeout finalization, or an arbitrator decision closes the agreement and credits the beneficiary; that account must withdraw separately to receive the funds. The client may cancel before acceptance, dispute a submission, or receive refund credit after acceptance/work timeout or an arbitrator decision.
 
 This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.1 manifest/UI/ABI bundle, deterministic/fuzz/stateful verification, a local real-RPC vertical workflow, and explicit release deployment/verification lanes. It deliberately contains no generic CAM machine descriptor.
 
@@ -62,7 +62,7 @@ ArbitrationTimeoutBeneficiary.Contractor
 
 `None` is an in-range sentinel and is rejected. Out-of-range enum values are rejected by Solidity's ABI decoding boundary before the function body executes.
 
-If the arbitrator does not act before the arbitration deadline, the configured party receives the complete agreement amount. V1 has no split, percentage, rounding rule, dual credit, or residual agreement liability.
+If the arbitrator does not act before the arbitration deadline, anyone may finalize the timeout to credit the configured party with the complete agreement amount. The beneficiary must withdraw separately. V1 has no split, percentage, rounding rule, dual credit, or residual agreement liability.
 
 ## Native value and accounting
 
@@ -104,6 +104,8 @@ totalLiabilities() <= address(escrow).balance
 ```
 
 Forced native surplus is inert. There is no owner or sweep function. Direct transfers and unknown selectors revert. `withdrawTo` is the only native-value send path and uses checks-effects-interactions plus `ReentrancyGuard`.
+
+Account credit aggregates settlements across this escrow contract. Only the credit owner can call `withdrawTo`, and it sends their complete current credit to the chosen recipient. Viewing another account's credit does not authorize withdrawal from it. If the recipient rejects payment, the transaction reverts and the credit remains available.
 
 ## Agreement identity and documents
 
@@ -184,11 +186,13 @@ Creation has one nested input, `params`. The same nested amount expression owns 
 }
 ```
 
-Every stored transition continues to the canonical `agreement(agreementId)` observation. Creation continues by client/reference lookup. Withdrawal continues to the caller's account-credit observation. The UI renders only transition IDs supplied by `CamEscrowUI`; it does not infer actor or deadline legality.
+Every stored transition continues to the canonical `agreement(agreementId)` observation. Creation continues by client/reference lookup. Withdrawal continues to the caller's account-credit observation. In active agreement views, unavailable transition buttons and their input fields remain visible but disabled. Enabled transitions come from `CamEscrowUI`; the UI does not infer actor or deadline legality. The escrow contract checks authorization and deadlines again when a transaction executes.
 
 There is deliberately no generic CAM machine resource. `escrow.agreement.v1` and its stable state/transition IDs remain an application projection until another application demonstrates a small repeated protocol need.
 
 ## Local vertical workflow
+
+Install the locked dependencies first with `make deps` and `make package-deps` from the repository root. The commands below create disposable local chains and attempt cleanup when they exit. Chain state is removed only when cleanup succeeds.
 
 The local fixture deploys:
 
@@ -257,7 +261,7 @@ account none        render an anonymous account context
 
 The terminal prepares writes but does not sign or submit them. It is useful for inspecting role-specific rendered actions and exact calldata/value preparation.
 
-The target cleans up when the terminal exits. To clean up a separately interrupted project, run:
+The target attempts cleanup when the terminal exits. If interruption or cleanup failure leaves a project running, run:
 
 ```bash
 make escrow-viewer-terminal-down
@@ -269,7 +273,11 @@ make escrow-viewer-terminal-down
 make escrow-viewer-gui
 ```
 
-The browser query starts with the client as the viewer identity. Actual writes remain controlled by the injected browser wallet. Import only the explicit local fixture accounts and switch wallet accounts to exercise contractor and arbitrator actions.
+Open the full URL printed by the command. Its account parameter starts the viewer as the client; it grants no wallet access. You can read views without connecting a wallet. **Connect wallet** replaces the viewed account with the wallet account and refreshes the role-specific controls. After changing accounts in the wallet, use **Switch wallet** in the viewer to reconnect before preparing another action. Import only the explicit local fixture accounts to exercise contractor and arbitrator actions.
+
+An agreement-changing button prepares and simulates a call. Check the viewed account and network, review the call's target, calldata, and native value, then use **Send with wallet** to request wallet submission. Preparation is not a transaction. Confirmation closes or advances the agreement; settlement funds remain account credit until a separate withdrawal transaction succeeds.
+
+The address bar tracks the current read route and inputs, so copying its URL can reopen an agreement or account-credit view. It does not preserve unsent form edits, prepared calls, or wallet access, and reopening reads current chain state. The URL includes the RPC endpoint and viewed account: use a public read RPC when sharing links, and keep credentials out of it.
 
 With the GUI running and a separate browser profile exposing CDP on loopback, run the optional live browser check in another terminal. CDP grants control of that browser profile. Replace the placeholders with the full URL printed by the GUI and the expected onchain CAM URI and nonzero hash:
 
@@ -287,7 +295,7 @@ To exercise signed transactions on the disposable fixture chain, use the same fo
 
 The write check injects a test provider into fresh tabs that it owns and closes. It checks recovery from wallet rejection, a held submission or receipt, a lost reply after broadcast, and a confirmed transaction whose following view refresh fails. Actions use DOM activation; this lane does not prove physical pointer input or wallet-extension approval behavior. Both browser lanes grant ordinary host-network egress to reach the operator's loopback endpoints and leave existing browser tabs and services running.
 
-`make escrow-viewer-gui` cleans up its fixture when its foreground command exits. Closing the browser check's tab does not stop the GUI. To clean up a separately interrupted project, run:
+`make escrow-viewer-gui` attempts fixture cleanup when its foreground command exits. Closing the browser check's tab does not stop the GUI. If interruption or cleanup failure leaves a project running, run:
 
 ```bash
 make escrow-viewer-gui-down
