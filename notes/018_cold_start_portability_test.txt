@@ -1,0 +1,168 @@
+Cold-start portability test
+===========================
+
+Proposed test, not executed by this note. Test whether a consumer can discover,
+explain and complete a workflow from its published CAM interface without
+application-specific repository knowledge. Begin with read-only discovery,
+then one authorized Escrow workflow on a disposable local fixture.
+
+Starting information
+--------------------
+
+Give the consumer a recorded seed packet containing:
+- network identity, including the EVM chain ID;
+- an already configured RPC transport for that network;
+- the CAM host contract address;
+- a consumer-neutral public CAM specification and EVM host-interface ABI;
+- the consumer's trusted resource-fetch policy and admitted origins.
+
+A chain ID names a network; it does not locate an RPC endpoint. A host address
+alone does not explain how to call its interface. The generic bootstrap ABI may
+include ERC-165, camURI(), camHash(), and the protocol's contract-binding reads.
+This protocol knowledge is allowed; app-specific routes and selectors are not
+bootstrap inputs. Record the exact specification/ABI versions supplied.
+
+Admission to fetch resources is consumer policy, not authority supplied by an
+untrusted manifest. Preconfigure a permitted resource origin or have the
+consumer request explicit admission before fetching an unapproved origin.
+Record exact admitted origins/schemes, redirect policy, byte/time caps and
+admission requests. Choose these limits in the execution packet before testing.
+A matching hash must not silently expand network access.
+Changing policy after a fetch failure must be explicit and recorded; the
+harness must not silently adapt the policy to make the run succeed.
+
+Give task facts separately as user inputs: intended outcome, parties, document
+bytes/locations, amount, durations, timeout recipient and withdrawal recipient.
+Supply domain meanings, such as a chosen timeout recipient, rather than ABI
+enum numbers or route argument keys. The consumer must derive the representation
+from public declarations. Record the initial authorized task and standing
+wallet grant: actors, target/chain, task scope, spending, fees and action-count
+bounds. Choose these limits before execution. A harness may supply fixture
+wallets and funds; record its grant separately. Do not infer signing access or
+business permission from the
+host address, manifest, viewed account, or an enabled-looking button.
+
+The observer may know the source contracts, fixture setup, expected effects
+and assertions. This full plan and its oracle are observer-only, not the
+consumer prompt. In particular, do not
+hand it state IDs, route names, UI node names, call selectors, workflow scripts,
+repository READMEs, test fixtures, or precomputed transaction calldata. It may
+learn these through the supplied public protocol and fetched CAM/ABI resources.
+
+Consumer identity
+-----------------
+
+Use a clean consumer session with no app history, cached walkthrough, repository
+checkout or prior actor/route advice. Record its implementation and version,
+model/instructions if it is an agent, dependencies, caches and supplied files.
+
+A protocol-capable independent consumer already understands the supplied CAM
+version and implements its own application-neutral interpretation. An agent
+with no CAM knowledge is a separate experiment: explicitly supplying the
+public specification is allowed, while coaching its app-specific decisions
+must be recorded as assistance.
+
+A separate consumer may use generic packages, with versions, source/build
+provenance and shared components disclosed. Repository workspace packages do
+not imply an available public package release. Record the actual distribution
+used. Reusing @cam/core or @cam/viewer for route/UI interpretation proves another consumer of the same interpretation
+core. It does not establish that an independent implementation interoperates.
+The existing viewer remains a useful baseline, not the independent consumer.
+
+Read-only discovery first
+-------------------------
+
+1. Confirm that the RPC's actual chain ID matches the supplied network.
+2. Bootstrap through the public host interface. Discover the manifest URI/hash
+   and contract bindings. Load only admitted resources; verify root bytes and
+   declared resource integrity before interpreting them.
+3. Determine the supported schema version, available views and inputs from the
+   published documents. Load declared ABIs and resolve contract references.
+   Explain what the application offers using those documents and read calls.
+   Read current contract-provided actor/state views and action availability;
+   do not predict dynamic permissions from the manifest alone. The contracts
+   enforce business permission when a transaction executes.
+4. Before writes, ask openly: "Explain this application and the supplied task.
+   What options are currently available, and what would you do next? Explain
+   who acts and the proposed effects." Do not supply the expected sequence.
+   Before each send, ask for changed facts and the current proposed action;
+   check state/account/chain and the prepared call against the standing grant.
+   This is not new user permission for every step or a requirement to predict
+   future calldata. A call outside the grant needs separate authorization.
+
+Do not correct a wrong explanation and then call the run unassisted. Preserve
+the first failure, resource trace and exact requested help before deciding
+whether to continue a separately classified assisted run.
+
+Escrow execution after discovery passes
+--------------------------------------
+
+Use a fresh agreement on an already supplied disposable chain (31337 for the
+current local fixture). Fixture setup and account funding are harness duties,
+not inferred instructions to deploy. Keep real network deployments out of this
+first test. Use real terms and submission files, retain their exact bytes, and
+verify the commitments entered through the discovered interface.
+
+Give the consumer an outcome request, not a workflow recipe: for example, the
+client wants to escrow the agreed amount for the supplied deliverable, approve
+satisfactory work, and have the contractor receive the payment. The consumer
+must derive the required sequence from published state and available actions.
+The observer privately expects creation/funding, acceptance, submission, client
+approval and contractor withdrawal. Creation and funding are one transaction,
+so this oracle expects five receipts. Privately assess the explanation of
+actor/terms/action/value/recipient/chain and the distinction between preparation,
+submission, confirmation, settlement credit and withdrawal. Keep this rubric
+and sequence out of the consumer prompt. Switch through the wallet interface,
+wait for the refreshed view, and recheck account and chain before
+preparing a new call. Show the read-only arbitrator role if requested, without
+inventing a dispute or granting it a transaction on this success path.
+
+Record five successful real receipts, their senders, target/value and resulting
+states. Verify the same agreement throughout, the approved credit amount,
+zero remaining credit after withdrawal, and recipient balance increase with
+gas accounted for. A prepared call or a successful simulation is not a receipt.
+
+Negative cases and stopping rules
+---------------------------------
+
+After the first discovery proof, run separate bounded cases for a wrong
+integrity hash, unknown schema, missing declared resource, account/network
+change and unavailable action. Use isolated fixture transport/publication
+snapshots. Record exactly which bytes/hash/schema/resource response or account/
+network event was changed; choose unavailable actions from the observed state.
+Do not mutate or repair a live publication. No injection framework is implemented
+by this note. Expect a clear rejection, resource-admission request or
+refreshed authorized view at the relevant boundary, with no unauthorized send.
+Do not ask the consumer to guess a replacement ABI, route, state or permission.
+An origin-admission request can be normal policy; other app-specific help
+changes the classification if provided.
+
+Stop on the first unexplained failure or request for app-specific help. Save
+the exact inputs, fetched resources, API calls, consumer explanation and any
+actual effects. Do not silently repair publications or add hints mid-run.
+If a send's outcome is uncertain, inspect its hash/receipt and current state
+before any further action; never retry a business operation merely because
+an RPC or wallet reply was lost.
+
+Only after the basic evidence is understood, test Bike NFT as a second app
+with different role and ownership semantics. Specify its task and grants
+separately. Do not reuse an Escrow script or assume its approval/credit model.
+
+Report the observed result
+--------------------------
+
+Classify each run as independent pass, same-core consumer pass, assisted, or
+infrastructure failure; otherwise record the consumer failure and its first
+blocked step. Identify the exact shared interpretation core, assistance and
+transport/resource failures so the classification can be checked. A blocked
+transport or resource-admission request still means the end-to-end task did
+not pass; the infrastructure label describes the cause. A failed
+integrity case rejected correctly is a negative-case pass, not infrastructure
+success for the happy path.
+
+Preserve seed/task/grant packets, consumer and source provenance, UTC times,
+resources and hashes, read/write API traces, teach-back, help exchanges,
+receipts and final credit/balance evidence. Report actual effects even when
+classification is failure. Retain this evidence before cleaning up harness
+providers or owned resources; leave operator-owned sessions and deployments
+alone unless their cleanup was separately authorized.
