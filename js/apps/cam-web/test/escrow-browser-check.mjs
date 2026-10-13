@@ -383,6 +383,36 @@ try {
     }
   })
 
+  await browserCase('keyboard lookup, repeated lookup, and Back orient focus at the current view', async () => {
+    await freshForm()
+    const id = `0x${'ab'.repeat(32)}`
+    for (let lookup = 0; lookup < 2; lookup++) {
+      await enter('agreementId', id)
+      await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
+      await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
+      assert.equal(await evaluate('document.activeElement?.textContent.trim()'), 'Open agreement by ID', 'Tab did not reach the lookup action')
+      await evaluate(`(() => { window.__lookupKeyboardClick = false; document.activeElement.addEventListener('click', event => { window.__lookupKeyboardClick = event.isTrusted }, {once:true}) })()`)
+      await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' }, sessionId)
+      await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId)
+      assert.equal(await evaluate('window.__lookupKeyboardClick'), true, 'lookup received no trusted keyboard activation')
+      await waitFor(async state => state.text.includes('No agreement is stored for this ID in this escrow contract.') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'lookup arrival focus')
+      assert.equal(await field('agreementId'), id, 'lookup lost the selected agreement')
+    }
+    const selected = await evaluate('location.href')
+    await evaluate('document.querySelector(\'input[name="agreementId"]\').focus()')
+    assert.equal(await evaluate('location.href'), selected, 'ordinary input focus navigated')
+    assert.equal(await evaluate('document.activeElement?.getAttribute("name")'), 'agreementId', 'ordinary focus was moved to the view')
+    await clickButton('View account credit')
+    await waitFor(async state => state.text.includes('Total withdrawable credit for this account (wei)') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'contextual navigation arrival focus')
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
+    assert.equal(await evaluate('document.activeElement?.textContent.trim()'), 'Back', 'arrival focus did not make Back the next keyboard control')
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' }, sessionId)
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId)
+    await waitFor(async state => state.text.includes('No agreement is stored for this ID in this escrow contract.') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'Back arrival focus')
+    assert.equal(transactionRequests.length, 0, 'navigation or focus requested a transaction')
+  })
+
   await browserCase('initial read fragment, refresh, and exact lookup default', async () => {
     const id = `0x${'ac'.repeat(32)}`
     const linked = new URL(viewer)

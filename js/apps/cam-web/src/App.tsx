@@ -282,8 +282,11 @@ export function App(): ReactElement {
       } finally {
         setViewChanging(false)
       }
-      if (result.type === "navigated") return
       if (!isCurrentInteraction(revision)) return
+      if (result.type === "navigated") {
+        arriveAtFeedback("view")
+        return
+      }
 
       await preflightPreparedCall(result.call)
       if (!isCurrentInteraction(revision)) return
@@ -324,6 +327,8 @@ export function App(): ReactElement {
     try {
       const snapshot = await ready.runtime.session.back()
       commitSnapshot(ready, snapshot)
+      if (!isCurrentInteraction(revision)) return
+      arriveAtFeedback("view")
     } catch (error) {
       if (isCurrentInteraction(revision)) showError(errorMessage(error), true)
     } finally {
