@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CAM 1.1.0 reference — Experimental draft</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.6; }
+    body { max-width: 76rem; margin: auto; padding: 1rem clamp(.75rem, 4vw, 3rem) 4rem; }
+    main { max-width: 62rem; }
+    h1, h2, h3 { line-height: 1.25; } h2 { margin-top: 3rem; }
+    a { color: light-dark(#1647a1, #99c4ff); } a:focus-visible { outline: 3px solid; outline-offset: 3px; }
+    code { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+    pre { border: 1px solid #888; padding: .85rem; overflow-x: auto; line-height: 1.45; }
+    pre code { overflow-wrap: normal; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+    th, td { padding: .6rem; border: 1px solid #888; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+    .table-scroll { overflow-x: auto; } .table-scroll table { min-width: 30rem; }
+    .note { border-left: .25rem solid #888; padding: .3rem 1rem; }
+    nav ul { padding-left: 1.2rem; } li { margin: .35rem 0; }
+    section { scroll-margin-top: 1rem; } .skip { display: inline-block; }
+  </style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to reference</a>
+<header>
+  <h1>Contract Application Manifest (CAM) 1.1.0</h1>
+  <p><strong>Experimental draft.</strong> UI document version: <code>1.0.0</code>. Implementation baseline: <code>6a3c3c4</code>. Revisions of this document are tracked in Git; they do not change either wire version.</p>
+  <p>A contract can advertise a document that names its resources, callable routes, and user interface. An agent can use that document to understand a workflow, prepare contract calls, and interpret the next view. The called contracts enforce their business rules.</p>
+  <p>This reference is for AI and LLM coding agents and the people reviewing their work. It explains the document model and the repository's EVM execution profile so a reader can author or interpret a bundle without starting from an application example. It describes verified behavior at the baseline, rather than claiming a complete independent standard or interoperability with other implementations.</p>
+</header>
+<nav aria-label="Reference contents">
+  <h2>Contents</h2>
+  <ul>
+    <li><a href="#ownership">How the contract, bundle, and host work together</a></li>
+    <li><a href="#discovery">Find and verify a manifest</a></li>
+    <li><a href="#manifest">Declare the manifest and namespaces</a></li>
+    <li><a href="#routes">Define routes, arguments, and results</a></li>
+    <li><a href="#expressions">Resolve expressions</a></li>
+    <li><a href="#ui">Describe a UI 1.0.0 view</a></li>
+    <li><a href="#lifecycle">Execute a route and handle its outcome</a></li>
+    <li><a href="#example">Follow a neutral worked example</a></li>
+    <li><a href="#failures">Recognize invalid and failed cases</a></li>
+    <li><a href="#provenance">Sources, checks, and open limits</a></li>
+  </ul>
+</nav>
+<main id="main">
+<section id="ownership">
+<h2>How the contract, bundle, and host work together</h2>
+<p>A bundle consists of the CAM JSON document, contract ABIs, and a UI JSON document. The ABI describes callable EVM functions and their value types; the UI document describes named views and controls. The manifest joins these resources through namespaces and routes.</p>
+<table>
+<thead><tr><th>Owner</th><th>Fact it supplies</th><th>Limit</th></tr></thead>
+<tbody>
+<tr><td>CAM host contract</td><td>Manifest URI and hash; named contract addresses.</td><td>A commitment establishes byte identity, not the truth or usefulness of labels.</td></tr>
+<tr><td>Called contract</td><td>Live read results and onchain acceptance or rejection of writes.</td><td>A manifest cannot grant permissions or bypass contract checks.</td></tr>
+<tr><td>Bundle author</td><td>Route graph, ABI/UI references, integrity digests, and presentation.</td><td>Declarations can be malformed or inconsistent with each other.</td></tr>
+<tr><td>Runtime and resource loader</td><td>Validation, resource access policy, expression resolution, ABI conversion, and execution ordering.</td><td>Different loading or wallet policies are not new CAM fields.</td></tr>
+<tr><td>User and wallet</td><td>Account selection and authorization of a transaction.</td><td>A visible or enabled button does not establish transaction authority.</td></tr>
+</tbody></table>
+<p>In this document, <strong>document rules</strong> describe accepted CAM/UI shapes. <strong>EVM profile</strong> describes this repository's adapter. <strong>runtime policy</strong> describes loader or viewer choices. Authoring advice is identified as advice. A rejection during document loading is separate from a contract revert during execution.</p>
+</section>
+<section id="discovery">
+<h2>Find and verify a manifest</h2>
+<p>Start with an independently selected chain and CAM host address. The EVM profile uses a chain identifier such as <code>eip155:1</code>, with a positive safe-integer chain number, checks the RPC client's chain, and checks ERC-165 support for <code>ICamApp</code> (<code>0x03625ff6</code>). That interface exposes <code>camURI()</code> and <code>camHash()</code>. This repository's <code>CamRoot</code> extension additionally supplies <code>contractAddress(string)</code>. The lookup argument is the bare contract name: <code>contracts.Registry</code> maps to <code>Registry</code>.</p>
+<p>The host lookup needs a bootstrap ABI before the advertised ABIs are available. These signatures describe the calls used by this profile:</p>
+<pre id="host-interface"><code>function supportsInterface(bytes4 interfaceId) external view returns (bool);
+function camURI() external view returns (string);
+function camHash() external view returns (bytes32);
+function contractAddress(string contractName) external view returns (address);</code></pre>
+<p>The loader requires <code>supportsInterface(0x03625ff6)</code> to return <code>true</code>; false or a failed read blocks loading. The CAM interface ID excludes the inherited ERC-165 selector. The adapter uses the separately known binding signature after loading the manifest; support for ICamApp alone does not assert support for that extension.</p>
+<p>A nonboolean interface response is also rejected. The URI must be a string, the root hash must be <code>0x</code> plus 64 hexadecimal digits, and each contract binding must be a valid nonzero EVM address. Malformed responses fail at the host or binding boundary.</p>
+<p>Contract bindings are separate, mutable host facts. The root hash does not commit to their addresses, and loading does not promise an atomic snapshot of root URI, hash, and bindings. An agent reviewing a transaction needs to inspect the actual selected chain and resolved destination.</p>
+<p>A JavaScript safe integer is an integer from −9,007,199,254,740,991 to 9,007,199,254,740,991. EVM chain identifiers use only the positive part of this range; expression array indexes use only the nonnegative part.</p>
+<p>The root commitment is <strong>Keccak-256 of the downloaded manifest bytes</strong>, returned as <code>bytes32</code>. Hash the original bytes before parsing JSON. Reformatting JSON changes those bytes even when the parsed objects appear equivalent. A zero root hash is rejected by default; the adapter's explicit unsigned-loading option permits it and skips root hash verification. Do not describe such a load as contract-anchored integrity.</p>
+<p>Contract ABI and UI declarations carry <code>integrity</code> in the form <code>sha256:0x</code> followed by exactly 64 lowercase hexadecimal digits. Verify SHA-256 of each resource's original bytes before parsing it. This second commitment lets the root manifest bind the resources it references. Neither digest authenticates a human author's identity or proves that an ABI matches deployed bytecode.</p>
+<table>
+<thead><tr><th>URI boundary</th><th>Accepted form at the baseline</th></tr></thead>
+<tbody>
+<tr><td>Published root</td><td>Absolute <code>https://…</code> or supported <code>ipfs://CID/…</code>.</td></tr>
+<tr><td>Runtime root</td><td>Also accepts <code>http://…</code> for local fixtures and development. HTTP(S) roots reject credentials, raw control characters, and backslashes. HTTP(S) root URLs may contain query and fragment components.</td></tr>
+<tr><td>ABI/UI declaration</td><td><code>./…</code> relative to the root document, or supported <code>ipfs://CID/…</code>. No query, fragment, percent escape, backslash, empty path segment, <code>.</code>, or <code>..</code> path segment.</td></tr>
+</tbody></table>
+<p>Supported IPFS spellings are CIDv0 base58btc (<code>Qm</code> plus 44 base58btc characters) decoding to a SHA-256 multihash, or lowercase CIDv1 base32 with version 1, raw (<code>0x55</code>) or dag-pb (<code>0x70</code>) codec, and a 32-byte SHA-256 multihash. IPFS roots and secondaries use the same path restrictions shown above; credentials, trailing slashes, and query or fragment components are rejected. URI acceptance does not supply an IPFS transport. A caller-provided loader still has to retrieve the bytes.</p>
+<p>Relative resource references resolve against the directory of the original <code>camURI</code>: <code>https://example.org/app/main.json</code> plus <code>./abi/Registry.json</code> becomes <code>https://example.org/app/abi/Registry.json</code>. The same rule applies to the UI resource.</p>
+<p>Resolution drops the root's query and fragment: <code>https://example.org/app/main.json?rev=2#section</code> plus <code>./ui/main.json</code> becomes <code>https://example.org/app/ui/main.json</code>.</p>
+<p><strong>Runtime policy:</strong> the shared HTTP loader restricts requests to a selected origin, refuses redirects, and bounds decoded response bytes to 2 MiB per resource. A custom loader has its own access and timeout responsibilities; accepting a URI is not permission to access arbitrary network or local resources. The adapter also checks returned resource size. A zero or invalid contract binding is rejected.</p>
+</section>
+<section id="manifest">
+<h2>Declare the manifest and namespaces</h2>
+<p>CAM is declarative JSON. Its root has exactly <code>cam</code>, <code>entry</code>, <code>namespaces</code>, and <code>routes</code>. <code>cam</code> is <code>"1.1.0"</code>; the readers also accept explicit <code>"1.0.0"</code> documents. <code>entry</code> names an existing route. Unknown fields are rejected at the closed document, namespace, route, and invocation boundaries.</p>
+<table>
+<thead><tr><th>Namespace name</th><th>Declaration fields</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>contracts.&lt;Name&gt;</code></td><td><code>type: "contract"</code>, <code>abiURI</code>, <code>integrity</code></td><td>Calls a host-bound contract. Name matches <code>[A-Za-z_][A-Za-z0-9_]*</code>.</td></tr>
+<tr><td><code>routes</code></td><td><code>type: "routes"</code></td><td>Names routes within this manifest; has no external resource.</td></tr>
+<tr><td><code>ui</code></td><td><code>type: "ui"</code>, <code>uri</code>, <code>integrity</code></td><td>Names nodes in the UI document.</td></tr>
+</tbody></table>
+<p>Invocations use <code>{"namespace": "…", "function": "…", "args": {…}}</code>. The namespace has to exist and have the type allowed at that call site. In CAM routes, <code>function</code> is a nonempty literal name. Argument values may contain expressions recursively. An ABI call's argument keys are ABI parameter names, not positions.</p>
+</section>
+<section id="routes">
+<h2>Define routes, arguments, and results</h2>
+<p>A route has <code>kind</code>, <code>inputs</code>, <code>call</code>, and <code>then</code>. <code>inputs</code> declares its complete external argument interface as an array of unique expression identifiers. Route execution rejects missing and additional input names before resolving either invocation, even if the route does not read every input.</p>
+<table>
+<thead><tr><th>Kind</th><th><code>call</code></th><th><code>then</code></th></tr></thead>
+<tbody>
+<tr><td><code>read</code></td><td>Contract namespace; EVM function is <code>view</code> or <code>pure</code>.</td><td>UI namespace; passes resolved arguments to a named UI node.</td></tr>
+<tr><td><code>write</code></td><td>Contract namespace; EVM function is <code>nonpayable</code> or <code>payable</code>.</td><td>Routes namespace; the viewer's write continuation goes to a read route after successful confirmation.</td></tr>
+</tbody></table>
+<p><strong>EVM profile:</strong> a bare function name must identify one ABI function; an overloaded bare name is ambiguous and rejected. A full signature using the types declared in the supplied ABI, such as <code>lookup(uint256)</code>, selects an overload. The named arguments must match its named inputs, including tuple component names. The adapter checks the following value shapes and ranges before calling. Use decimal strings to avoid rounding large integers. Fixed-size arrays are unsupported in this profile.</p>
+<p>Signature matching uses the supplied ABI's type spellings without whitespace, expands tuple components inside parentheses, and retains array suffixes. For example, a tuple of <code>uint256</code> and <code>address</code> has signature type <code>(uint256,address)</code>. The adapter does not rewrite <code>uint</code> to <code>uint256</code> while matching signatures.</p>
+<table>
+<thead><tr><th>ABI value type</th><th>Accepted input and normalization</th></tr></thead>
+<tbody>
+<tr><td><code>uintN</code>, <code>intN</code></td><td><code>N</code> is 8–256 in steps of 8; bare <code>uint</code>/<code>int</code> mean 256. Strings match <code>-?[0-9]+</code>, or numbers are safe integers. Values must fit the type: unsigned 0 through 2<sup>N</sup>−1, signed −2<sup>N−1</sup> through 2<sup>N−1</sup>−1. Leading zeros and negative zero are accepted where in range.</td></tr>
+<tr><td><code>address</code></td><td>String <code>0x</code> plus 40 hexadecimal digits; ABI normalization lowercases it.</td></tr>
+<tr><td><code>bytes</code>, <code>bytesN</code></td><td>String <code>0x</code> plus complete hexadecimal byte pairs. Dynamic bytes permits empty <code>0x</code>; <code>N</code> is 1–32 and requires exactly N bytes.</td></tr>
+<tr><td><code>bool</code>, <code>string</code></td><td>Boolean or string respectively, without converting text into booleans.</td></tr>
+<tr><td>Dynamic array, named tuple</td><td>Array of recursively checked values, or object with exactly the tuple's uniquely named component keys.</td></tr>
+</tbody></table>
+<p>Read outputs are a positional array: no ABI outputs produces <code>[]</code>; one ABI output produces one array item, even if that item is itself an array or tuple. Integer outputs become decimal strings, addresses become lowercase strings, bytes remain hexadecimal strings, and named tuple components become object fields. A continuation can use <code>$outputs.0</code> or <code>$outputs.0.component</code>. ABI output names do not create expression roots.</p>
+<p>Top-level ABI outputs may be unnamed because their position identifies them. Tuple components, including components of output tuples, must have unique nonempty names; unnamed or duplicated components are rejected. This lets an agent select tuple fields by name without guessing how a decoder represented them.</p>
+<p>The adapter validates the entire loaded ABI array, including functions no route currently calls. Unsupported parameter types, malformed function declarations, and duplicate function signatures reject the ABI; nonfunction entries receive only an object/type check, so this is not a comprehensive ABI linter. Separately, a read result with the wrong count, shape, or range is rejected at runtime rather than silently converted or skipped.</p>
+<h3 id="native-value">Native transaction value in CAM 1.1.0</h3>
+<p>A write route may additionally declare <code>value</code>, as a literal or expression. It is transaction value in the chain's native base unit, separate from <code>call.args</code>. For a payable function this profile requires an explicit value, including <code>"0"</code> for zero. It must resolve to a decimal uint256 value. A nonpayable function rejects any declared value, including zero. Read routes and CAM 1.0.0 routes reject the <code>value</code> field.</p>
+<p>Advice: publish an explicit unit with any amount editor and pass its canonical base-unit string as route input. A token amount in ABI arguments is not automatically native transaction value; transferring a token remains a contract operation.</p>
+</section>
+<section id="expressions">
+<h2>Resolve expressions</h2>
+<p>Expressions select values already supplied by the runtime. They do not evaluate JavaScript, perform arithmetic, concatenate strings, or fetch resources. An expression occupies the entire string. A normal string is literal; a leading <code>$$</code> escapes one dollar sign.</p>
+<p>Runtime values are <em>inert</em>: strings, finite numbers, booleans, null, arrays, and plain objects containing those values. Functions, undefined values, bigint values, and cycles are rejected. EVM integer results are converted to decimal strings before entering this model.</p>
+<pre><code>reference  = "$" identifier ("." segment)*
+identifier = [A-Za-z][A-Za-z0-9_]*
+segment    = identifier | arrayIndex
+arrayIndex = "0" | [1-9][0-9]*  (within JS safe-integer range)</code></pre>
+<p>Array indexes have no leading zeros; <code>$outputs.01</code>, empty segments, bracket notation, and operator syntax are invalid. Selection traverses arrays by numeric index and objects by their own fields. A missing root or segment fails resolution; it does not become <code>null</code> or an empty string. Selecting an existing <code>null</code> leaf succeeds; traversing through it fails. Recursive resolution preserves the selected value's type. A selected string beginning with <code>$</code> is a value, not a second expression to execute.</p>
+<table>
+<thead><tr><th>Root</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>$host</code></td><td>Selected host's <code>chainId</code> and <code>address</code>.</td></tr>
+<tr><td><code>$account</code></td><td>Optional current account object with <code>address</code>. Referencing it requires an available account.</td></tr>
+<tr><td><code>$inputs</code></td><td>Inputs for the current route.</td></tr>
+<tr><td><code>$outputs</code></td><td>Current call's normalized positional results; available to the read continuation.</td></tr>
+<tr><td><code>$state</code></td><td>UI-local editable values, available only during UI resolution.</td></tr>
+<tr><td><code>$view</code></td><td>Explicit view handoff value, available only during UI resolution.</td></tr>
+</tbody></table>
+<pre><code>"$inputs.itemId"    → the input value, preserving its type
+"$outputs.0.name"   → a named field in the first result
+"$$inputs.itemId"   → the literal string "$inputs.itemId"
+"ID: $inputs.id"    → a literal string, without interpolation</code></pre>
+<p>Advice: use <code>$outputs</code> in the continuation of the read that produced it, and pass needed values into the next route explicitly. A write does not turn a Solidity return value, receipt, or event into route outputs.</p>
+</section>
+<section id="ui">
+<h2>Describe a UI 1.0.0 view</h2>
+<p>A UI document has exactly <code>ui: "1.0.0"</code> and a nonempty <code>nodes</code> object. Each named node declares <code>requires</code>, either <code>[]</code> or <code>["view"]</code>; its caller supplies exactly those argument names. The <code>view</code> value is the explicit handoff from a route or another UI node. Inline children have no <code>requires</code>. Runtime roots such as <code>host</code> and <code>state</code> cannot be shadowed by node arguments.</p>
+<p>The element vocabulary is closed. Each element accepts only its listed structure and props, plus the named-node <code>requires</code> declaration. String props may be expressions but have to resolve to strings. There are no style, script, event-handler, or arbitrary HTML fields.</p>
+<div class="table-scroll" tabindex="0" role="region" aria-label="UI element fields">
+<table>
+<thead><tr><th>Element</th><th>Required structure and props</th><th>Other rules and behavior</th></tr></thead>
+<tbody>
+<tr><td><code>Screen</code></td><td><code>props.title</code>, <code>children</code></td><td>View container.</td></tr>
+<tr><td><code>Fragment</code></td><td><code>children</code></td><td>Groups children without a title.</td></tr>
+<tr><td><code>Text</code></td><td><code>props.text</code></td><td>Text display.</td></tr>
+<tr><td><code>Address</code></td><td><code>props.label</code>, <code>props.address</code></td><td>Address resolves to <code>0x</code> plus 40 hex digits.</td></tr>
+<tr><td><code>Status</code></td><td><code>props.label</code>, <code>props.value</code></td><td><code>props.format</code>: literal <code>bytes</code>, <code>durationSeconds</code>, or <code>stringList</code>.</td></tr>
+<tr><td><code>Nft</code></td><td><code>props.contractAddress</code>, <code>props.tokenId</code></td><td>Contract address has the address shape. Token ID may resolve to any inert JSON value; this node does not enforce a uint256 token ID or perform a contract call.</td></tr>
+<tr><td><code>TextField</code></td><td><code>props.label</code>, <code>state</code></td><td><code>enabledWhen</code>; stores editable text.</td></tr>
+<tr><td><code>DocumentHashField</code></td><td><code>props.label</code>, literal <code>props.algorithm: "sha256"</code>, <code>state</code></td><td><code>props.sourceURI</code>, <code>enabledWhen</code>; stores a selected document's digest.</td></tr>
+<tr><td><code>AmountField</code></td><td><code>props.label</code>, literal <code>props.unit</code>, <code>state</code></td><td><code>enabledWhen</code>; stores a base-unit integer string.</td></tr>
+<tr><td><code>NonNegativeIntegerField</code></td><td><code>props.label</code>, <code>state</code></td><td><code>props.min</code>, <code>props.max</code>, <code>enabledWhen</code>; inclusive decimal bounds.</td></tr>
+<tr><td><code>Include</code></td><td><code>call</code> into <code>ui</code></td><td>Composes selected named nodes.</td></tr>
+<tr><td><code>Button</code></td><td><code>props.label</code>, <code>call</code> into <code>routes</code></td><td><code>enabledWhen</code>; asks the host to invoke a route.</td></tr>
+</tbody></table></div>
+<p><code>Status</code> with <code>stringList</code> requires an array of strings, displays an empty array as <code>None</code>, and otherwise joins entries with comma and space. <code>bytes</code> and <code>durationSeconds</code> require a nonnegative decimal integer string or safe nonnegative integer number. Bytes are comma-grouped with singular/plural units, such as <code>1 byte</code> or <code>1,024 bytes</code>. Durations below 60 use seconds; larger values use nonzero day/hour/minute/second parts followed by total seconds, such as <code>1 minute, 1 second (61 seconds)</code>. Without a format, the host chooses the presentation of the inert value.</p>
+<p><strong>Publication tool policy:</strong> this repository's conformance typeflow check expects statically known <code>Nft.tokenId</code> references to provide an integer or string; known boolean, tuple, or array references receive a diagnostic. That check does not restrict literal values at this site. The screen runtime's acceptance of any inert token ID remains a separate boundary.</p>
+<h3 id="ui-state">State and typed editing</h3>
+<p>Each field's <code>state</code> contains <code>key</code> and <code>defaultValue</code>, both expression-capable values. The key resolves to an expression identifier and the default resolves to a string. Selected fields, including fields reached through Includes, collect their defaults before ordinary view and action resolution. Duplicate state keys fail, even when their defaults agree. Default collection starts with empty state because those defaults initialize the state: defaults and the Includes selecting fields cannot depend on editable <code>$state</code>. An Include selecting Buttons without fields can consume state after defaults exist.</p>
+<p>The screen runtime separates initialization from rendering current state. Initial resolution discards any supplied state, collects defaults, then resolves the view. Current resolution uses the supplied state without merging defaults, pruning old keys, or initializing fields that appear after an Include changes. The host owns edits and persistence. This repository's viewer starts fresh state on ordinary route navigation; its Back action can restore compatible saved drafts after rereading the prior route. Those choices do not add persistence rules to UI 1.0.0.</p>
+<p>Typed numeric fields distinguish editable text from usable values. Empty, incomplete, invalid input, or text still being composed through an input method, has a canonical value of <code>null</code>; a valid zero has the string <code>"0"</code>. An agent preparing a call must respect that distinction instead of converting unset input into zero.</p>
+<p><strong>Runtime policy:</strong> numeric editing accepts at most 2,048 UTF-16 code units of text and 1,024 canonical significant digits. Integer field bounds resolve to nonnegative decimal strings with empty editable state; <code>min</code> and <code>max</code> are inclusive and cannot depend on <code>$state</code>. These editing limits do not replace the ABI's integer range or the contract's business limits.</p>
+<p>Integer and base-unit amount editors accept ASCII decimal digits only. Display-unit amount editing also permits one decimal point: <code>.5</code> and <code>1.</code> can represent valid values; a lone point is incomplete. Signs, whitespace, grouping separators, hexadecimal forms, and exponents are invalid. Leading zeros are allowed in editing and removed from the canonical value. Amount precision beyond the declared scale is accepted only when the excess digits are zero.</p>
+<p>Numeric defaults are base-unit digit strings or empty strings. Invalid or out-of-bounds defaults reject view initialization rather than becoming an editable null value. If both integer bounds are supplied, <code>min</code> cannot exceed <code>max</code>; there is no implicit uint256 maximum in the editor.</p>
+<p><code>AmountField.props.unit</code> has exactly <code>assetId</code>, <code>baseLabel</code>, <code>displayLabel</code> (nonempty literal strings), and <code>decimals</code> (an integer from 0 to 255). For example, a scale of 2 converts display text <code>"1.25"</code> to canonical <code>"125"</code>. Conversion uses exact decimal scaling; nonzero excess precision fails instead of rounding. A unit declaration does not verify the asset or authorize spending it.</p>
+<p><code>DocumentHashField</code> can calculate SHA-256 of selected document bytes or bytes obtained from optional <code>sourceURI</code>, producing a <code>0x</code> plus 64-hex-digit digest. Its editable/default string is not itself guaranteed to be a valid digest; the receiving ABI or contract owns acceptance of the supplied value. This document digest is distinct from ABI/UI resource <code>integrity</code>. File selection and fetching behavior belong to the host.</p>
+<h3 id="ui-composition">Composition and availability</h3>
+<p>An Include's <code>call.function</code> resolves to a node name or an ordered array of distinct node names; an empty array includes nothing. Every selected node must exist and receive its exact required argument set. Include cycles fail. Included nodes share the runtime and state; the Include is replaced by its resolved children in selection order. A Button's <code>call.function</code> resolves to one route name, and <code>call.args</code> supplies that route's inputs.</p>
+<pre><code>"enabledWhen": {
+  "member": "edit",
+  "in": "$view.availableActions"
+}</code></pre>
+<p><code>enabledWhen</code> is allowed only on Buttons and fields. It has exactly a nonempty literal <code>member</code> and <code>in</code>, either an expression resolving to an array of nonempty strings or a literal array of them. Membership uses exact case-sensitive equality. Absence of the member disables the control while retaining it in the view. Disabled controls still resolve props, arguments, and defaults, so an unresolved value remains an error. Membership is presentation availability, not permission proof.</p>
+<p>Literal membership strings cannot be single-dollar references and do not apply dollar escaping: a literal <code>"$$edit"</code> compares as those two dollar signs. Route and UI node names and invocation argument keys are nonempty strings; they do not share the identifier restriction on route inputs and state keys.</p>
+<p>UI 1.0.0 defines route buttons and node composition. Back, history, focus placement, storage, wallet controls, and confirmation dialogs are host features, without corresponding UI document fields.</p>
+</section>
+<section id="lifecycle">
+<h2>Execute a route and handle its outcome</h2>
+<p>For a read, the runtime supplies the current host, optional account, route inputs, and initially empty outputs. It resolves the call, validates it against the bound ABI, performs the read, normalizes the results, then resolves the UI continuation with those outputs. A failed call or invalid result cannot supply an ordinary successful view.</p>
+<p>For a write, the viewer prepares both the contract call and route continuation with empty outputs. The EVM adapter can simulate a call and submit it through a wallet; submission returns a transaction hash. Simulation is a host step and predicts only the simulated state. The hash identifies a submission, not a successful confirmed operation. This repository's web host waits for a successful receipt before invoking the prepared read continuation.</p>
+<p>Confirmation count, timeouts, replacement transactions, reorg recovery, and stale-interaction handling are host policy. CAM does not specify those policies or require the repository's session architecture. If confirmation succeeds but the following read fails, report both facts: the write has succeeded and the view refresh has failed. A timeout or uncertain submission is not proof of failure; check the wallet or chain before retrying a consequential write.</p>
+<p>Authoring advice: have writes continue to a read that obtains the needed live state. Do not fabricate write outputs from events or simulated return values. Account availability, RPC connectivity, wallet approval, and contract state can change after a document passes conformance checks.</p>
+</section>
+<section id="example">
+<h2>Follow a neutral worked example</h2>
+<p>Consider a hypothetical registry contract with <code>labelOf(uint256 itemId) view returns (string)</code> and <code>setLabel(uint256 itemId, string label) nonpayable</code>. Assume a host binds <code>Registry</code> and publishes the following resources. The contract decides who may edit a label.</p>
+<p>The next read receives the item ID explicitly because write outputs are empty. The UI receives the previous read's label through <code>view</code>, then keeps the user's edit in local state. This separates live contract results from an unsubmitted draft.</p>
+<pre id="example-cam"><code>{
+  "cam": "1.1.0",
+  "entry": "show",
+  "namespaces": {
+    "contracts.Registry": {
+      "type": "contract", "abiURI": "./abi/Registry.json",
+      "integrity": "sha256:0xe11b67b27adf4e4ff5a34bb0b2c91afcc61cfae6a90aa33223e3d954063dc8e3"
+    },
+    "routes": { "type": "routes" },
+    "ui": {
+      "type": "ui", "uri": "./ui/main.json",
+      "integrity": "sha256:0x78d72558471330294d9bccf3d53a7f3f1e66a83fde3fa4c7665e43374f7c2da1"
+    }
+  },
+  "routes": {
+    "show": {
+      "kind": "read", "inputs": ["itemId"],
+      "call": {
+        "namespace": "contracts.Registry", "function": "labelOf",
+        "args": { "itemId": "$inputs.itemId" }
+      },
+      "then": {
+        "namespace": "ui", "function": "Editor",
+        "args": { "view": { "itemId": "$inputs.itemId", "label": "$outputs.0" } }
+      }
+    },
+    "save": {
+      "kind": "write", "inputs": ["itemId", "label"],
+      "call": {
+        "namespace": "contracts.Registry", "function": "setLabel",
+        "args": { "itemId": "$inputs.itemId", "label": "$inputs.label" }
+      },
+      "then": {
+        "namespace": "routes", "function": "show",
+        "args": { "itemId": "$inputs.itemId" }
+      }
+    }
+  }
+}</code></pre>
+<p>The digests match the exact UTF-8 text inside the UI and ABI code blocks below, with no added trailing newline. If you save the snippets with changed whitespace, recompute their digests. The manifest has a read entry with an input: a caller must supply <code>itemId</code>, for example <code>{"itemId":"7"}</code>. Hosts that start entry with no inputs need a separate input-free entry design.</p>
+<pre id="example-ui"><code>{
+  "ui": "1.0.0",
+  "nodes": {
+    "Editor": {
+      "requires": ["view"], "element": "Screen",
+      "props": { "title": "Edit label" },
+      "children": [
+        {
+          "element": "TextField", "props": { "label": "Label" },
+          "state": { "key": "labelDraft", "defaultValue": "$view.label" }
+        },
+        {
+          "element": "Button", "props": { "label": "Save" },
+          "call": {
+            "namespace": "routes", "function": "save",
+            "args": { "itemId": "$view.itemId", "label": "$state.labelDraft" }
+          }
+        }
+      ]
+    }
+  }
+}</code></pre>
+<p>Calling <code>show</code> with item ID <code>"7"</code> reads its label and supplies <code>{itemId, label}</code> as <code>view</code>. The field initializes <code>labelDraft</code> from that label. Save prepares <code>setLabel</code> with the draft and no native value. After successful confirmation, the web host calls <code>show</code> again. A reverted write leaves the draft uncommitted; a successful write followed by a failed read has changed contract state without producing a refreshed view.</p>
+<h3 id="example-abi-heading">Registry ABI</h3>
+<pre id="example-abi"><code>[
+  {
+    "type": "function", "name": "labelOf", "stateMutability": "view",
+    "inputs": [{ "name": "itemId", "type": "uint256" }],
+    "outputs": [{ "name": "", "type": "string" }]
+  },
+  {
+    "type": "function", "name": "setLabel", "stateMutability": "nonpayable",
+    "inputs": [{ "name": "itemId", "type": "uint256" }, { "name": "label", "type": "string" }],
+    "outputs": []
+  }
+]</code></pre>
+<p>The example demonstrates document and route behavior; no contract deployment or live transaction is supplied.</p>
+</section>
+<section id="failures">
+<h2>Recognize invalid and failed cases</h2>
+<table>
+<thead><tr><th>Condition</th><th>Rejection or outcome</th></tr></thead>
+<tbody>
+<tr><td>Downloaded root bytes differ from the nonzero root hash.</td><td>EVM loader rejects them before JSON interpretation.</td></tr>
+<tr><td>Valid manifest JSON, but ABI/UI bytes differ from declared integrity.</td><td>Resource verification rejects them; parser success is insufficient.</td></tr>
+<tr><td>Duplicate JSON object key or invalid UTF-8.</td><td>Byte-to-JSON parsing rejects the document.</td></tr>
+<tr><td><code>abiURI: "https://example.org/abi.json"</code> or <code>"./../abi.json"</code>.</td><td>Secondary URI declaration policy rejects it.</td></tr>
+<tr><td>Read continuation uses the routes namespace.</td><td>CAM invocation validation rejects the namespace type.</td></tr>
+<tr><td>Call to <code>show</code> omits <code>itemId</code>, or adds <code>debug</code>.</td><td>Route input validation rejects the argument set.</td></tr>
+<tr><td><code>$outputs[0]</code> or <code>$outputs.01</code>.</td><td>Expression syntax validation rejects the reference.</td></tr>
+<tr><td><code>$account.address</code> without an account.</td><td>Runtime cannot resolve the value.</td></tr>
+<tr><td>Nonpayable write includes <code>value: "0"</code>.</td><td>EVM write validation rejects the value declaration.</td></tr>
+<tr><td>Two selected fields resolve to the same state key.</td><td>UI state collection rejects the conflicting declarations.</td></tr>
+<tr><td>A disabled Button contains a missing expression value.</td><td>UI resolution still fails; disabled state does not skip validation.</td></tr>
+<tr><td>Well-formed write violates a contract business rule.</td><td>The contract can revert; document conformance does not predict success.</td></tr>
+</tbody></table>
+</section>
+<section id="provenance">
+<h2>Sources, checks, and open limits</h2>
+<p>This draft derives from the implementation at <code>6a3c3c4</code>. The links below pin that source baseline rather than following a moving branch. Repository tests are evidence for this implementation's behavior; they are not an independent interoperability certification.</p>
+<ul>
+<li><a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/dapps/cam/src/ICamApp.sol">ICamApp contract interface</a> and <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/dapps/cam/src/CamRoot.sol">CamRoot binding extension</a>.</li>
+<li><a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-protocol/src/versions.ts">Wire versions</a>, <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-core/src/validate.ts">CAM parser</a>, and <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-core/test/core.test.ts">core route and parser tests</a>.</li>
+<li><a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-protocol/src/resources.ts">URI, integrity, and resource bounds</a>, <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-protocol/src/expressions.ts">expression grammar and resolution</a>, and <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-protocol/test/protocol.test.ts">protocol tests</a>.</li>
+<li><a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-evm-viem/src/host.ts">EVM host loading</a>, <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-evm-viem/src/routes.ts">read/result conversion</a>, <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-evm-viem/src/writes.ts">write submission</a>, and <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-evm-viem/test/evm-viem.test.ts">EVM tests</a>.</li>
+<li><a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-screen/src/validate.ts">UI parser</a>, <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-screen/src/resolve.ts">UI resolution and state</a>, and <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-screen/test/ui.test.ts">UI tests</a>.</li>
+<li><a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-viewer/src/write-preparation.ts">Viewer write preparation</a> and <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/apps/cam-web/src/App.tsx">web host lifecycle</a>.</li>
+</ul>
+<p>The existing offline validation commands are <code>make tests/checks</code>, <code>make js/tests</code>, and <code>make cam/conformance/check</code>, after materializing locked dependencies through the repository's separate dependency lanes. Conformance examines supplied document/resource joins. It does not contact live contracts to prove account authority or transaction success.</p>
+<p>Open limits: this reference does not define independent discovery catalogs, non-EVM adapters, wallet permissions, a transaction finality standard, an atomic snapshot protocol, deployed code identity, or a complete renderer appearance contract. The worked example has not been exercised against an independently implemented consumer. A consumer should select and document its resource transport and transaction policies before operating a live workflow.</p>
+</section>
+</main>
+<footer><p><a href="../">Reference versions</a> · <a href="https://numpde.github.io/dapp32/">Project overview</a> · <a href="#main">Return to reference</a></p></footer>
+</body>
+</html>

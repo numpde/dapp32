@@ -11,6 +11,8 @@ contracts that authorize them.
 
 Project overview: <https://numpde.github.io/dapp32/>
 
+Experimental protocol reference: [CAM 1.1.0 and UI 1.0.0](docs/reference/cam/1.1.0/index.html).
+
 ## Start here
 
 - [Escrow](dapps/escrow/README.md): create and fund an agreement, review work,
