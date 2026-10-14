@@ -252,22 +252,27 @@ function validateStateBinding(
 ): void {
   if ((element !== "TextField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField") || !isRecordObject(node.state)) return
 
-  // TextField defaults have a renderer contract; this rejects only literal or
-  // ABI-known non-string defaults.
+  // ABI integers normalize to decimal strings before numeric defaults resolve;
+  // conformance retains the existing string-type expectation for text and
+  // document-hash defaults.
+  const expectation: ValueExpectation = element === "AmountField" || element === "NonNegativeIntegerField"
+    ? "integer-or-string"
+    : "string"
+  const label = `${element} state.defaultValue`
   const value = node.state.defaultValue
   const valuePath = `${path}.state.defaultValue`
   if (typeof value === "string") {
-    validateBoundValue(scope, valuePath, "TextField state.defaultValue", value, "string", context)
+    validateBoundValue(scope, valuePath, label, value, expectation, context)
     return
   }
 
   const known = knownValueShape(value, (item) => valueFromExpression(item, context))
-  if (known === undefined || isUnknownValue(known) || abiValueMatches(known, "string")) return
+  if (known === undefined || isUnknownValue(known) || abiValueMatches(known, expectation)) return
 
   reportTypeflowIssue(
     scope,
     valuePath,
-    `TextField state.defaultValue expects string, but value is ${abiTypeName(known)}`,
+    `${label} expects ${expectation}, but value is ${abiTypeName(known)}`,
   )
 }
 

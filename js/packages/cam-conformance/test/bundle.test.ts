@@ -3355,6 +3355,61 @@ test("UI typeflow rejects non-string TextField state defaults", () => {
   ])
 })
 
+test("numeric field defaults accept normalized ABI integers and strings", () => {
+  for (const element of ["NonNegativeIntegerField", "AmountField"]) {
+    for (const type of ["uint8", "uint256", "int256", "string"]) {
+      const uiBytes = jsonBytes({
+        ui: UI_VERSION,
+        nodes: {
+          app: {
+            element,
+            requires: ["view"],
+            props: element === "AmountField"
+              ? { label: "Value", unit: { assetId: "asset", baseLabel: "base", displayLabel: "display", decimals: 2 } }
+              : { label: "Value" },
+            state: { key: "draft", defaultValue: "$view" },
+          },
+        },
+      })
+      const abiBytes = jsonBytes([{ ...viewEntryFunction(), outputs: [{ name: "value", type }] }])
+      const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) =>
+        replaceBundleResources(root, bundle, { uiBytes, abiBytes }))
+
+      assert.deepEqual(issues, [], `${element} default from ${type}`)
+    }
+  }
+})
+
+test("field default typeflow rejects incompatible ABI values and names the field", () => {
+  const outputs = [
+    { name: "value", type: "bool" },
+    { name: "value", type: "tuple", components: [{ name: "count", type: "uint256" }] },
+    { name: "value", type: "uint256[]" },
+  ]
+  for (const element of ["NonNegativeIntegerField", "AmountField", "TextField", "DocumentHashField"]) {
+    const rejectedOutputs = element === "TextField" || element === "DocumentHashField"
+      ? [...outputs, { name: "value", type: "uint256" }]
+      : outputs
+    for (const output of rejectedOutputs) {
+      const props = element === "AmountField"
+        ? { label: "Value", unit: { assetId: "asset", baseLabel: "base", displayLabel: "display", decimals: 2 } }
+        : element === "DocumentHashField"
+          ? { label: "Value", algorithm: "sha256" }
+          : { label: "Value" }
+      const uiBytes = jsonBytes({
+        ui: UI_VERSION,
+        nodes: { app: { element, requires: ["view"], props, state: { key: "draft", defaultValue: "$view" } } },
+      })
+      const abiBytes = jsonBytes([{ ...viewEntryFunction(), outputs: [output] }])
+      const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) =>
+        replaceBundleResources(root, bundle, { uiBytes, abiBytes }))
+
+      assert.deepEqual(issueLocations(issues), [["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.state.defaultValue"]])
+      assert.match(issues[0]!.message, new RegExp(`${element} state.defaultValue`))
+    }
+  }
+})
+
 test("UI typeflow keeps route-specific diagnostics distinct", () => {
   const uiBytes = jsonBytes({
     ui: UI_VERSION,
