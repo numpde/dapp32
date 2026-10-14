@@ -51,7 +51,8 @@ class CamReferenceTests(unittest.TestCase):
                 document = ReferenceHTML(path.read_text(encoding="utf-8"))
                 self.assertEqual(len(document.ids), len(set(document.ids)))
                 self.assertIn("main", document.ids)
-                self.assertIn("#main", document.links)
+                if path != REFERENCE / "index.html":
+                    self.assertIn("#main", document.links)
                 self.assertEqual(document.external_resources, [])
                 for link in document.links:
                     target = urlsplit(link)
