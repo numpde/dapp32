@@ -33,8 +33,8 @@
 <p>A CAM application is advertised by a deployed contract, called the <strong>CAM host contract</strong>. To load the application, an agent or viewer needs the chain ID of the network hosting that contract and its deployed address. The agent or viewer calls <code>camURI()</code> and <code>camHash()</code> on that contract to obtain the manifest URI and expected manifest hash; <code>ICamApp</code> defines these discovery methods. The repository's EVM adapter validates the URI, asks its supplied resource loader for manifest bytes, and by default checks their hash before JSON parsing. The manifest declares ABI/UI resources, contract calls, and continuations. The agent or viewer uses the parsed routes and arguments to prepare requested contract calls.</p>
 <p>The manifest joins each <code>contracts.Name</code> namespace to an ABI resource. This repository's EVM profile resolves <code>Name</code> to a destination address through the host contract's <code>contractAddress(string)</code> binding API. That API is a <code>CamRoot</code> extension, separate from <code>ICamApp</code>'s URI/hash interface. The manifest's <code>ui</code> namespace selects a UI resource; its <code>routes</code> namespace selects routes declared in the same manifest. Mutable address bindings are outside the manifest hash.</p>
 <p>Each route joins one contract call to a next invocation. A read exposes normalized results as <code>$outputs</code> while resolving its continuation arguments for a named UI node. A write prepares a transaction and names another route to follow after success. The agent or viewer prepares requests; called contracts enforce their business rules. An agent can inspect the resolved UI and action model without drawing an interface, while following the declared read-to-UI handoff.</p>
-<p>A bundle author supplies the manifest and ABI/UI resource bytes under their declared URIs. For publication, the author makes those resources available through a chosen transport. The authorized <code>CamRoot</code> owner advertises the manifest URI/hash and configures address bindings through separate transactions; the owner need not be the bundle author. Agents and viewers read the metadata and request resource bytes from their loader when loading the workflow. Editing resource bytes does not update <code>CamRoot</code>'s stored hash.</p>
-<p>This reference is for agents that know JSON, HTTP, EVM, ABI, and RPC semantics but lack CAM context. The baseline is <code>6a3c3c4</code>, including CAM <code>1.0.0</code> compatibility. Document rules govern the manifest/UI graph. EVM profile rules describe this repository's <code>@cam/evm-viem</code> adapter; UI resolution describes <code>@cam/screen</code>. Viewer policies describe the <code>@cam/viewer</code> session library and the web viewer that uses it. Conformance checks inspect supplied bundles for publication defects, without establishing live state, account authority, or transaction success.</p>
+<p>A bundle author supplies the manifest and ABI/UI resource bytes under their declared URIs. For publication, the author makes those resources available through a chosen transport. The authorized <code>CamRoot</code> owner advertises the manifest URI/hash and configures address bindings through separate transactions; the owner need not be the bundle author. Editing resource bytes does not update <code>CamRoot</code>'s stored hash.</p>
+<p>Document rules govern the manifest/UI graph. EVM profile rules describe this repository's <code>@cam/evm-viem</code> adapter; UI resolution describes <code>@cam/screen</code>. Viewer policies describe the <code>@cam/viewer</code> session library and the web viewer that uses it. Conformance checks inspect supplied bundles for publication defects, without establishing live state, account authority, or transaction success.</p>
 </section>
 <nav aria-label="Reference contents">
 <h2>Contents</h2>
@@ -47,7 +47,6 @@
 <li><a href="#ui">Interpret UI 1.0.0</a></li>
 <li><a href="#execution">Execute and report outcomes</a></li>
 <li><a href="#example">Worked bundle</a></li>
-<li><a href="#failures">Rejections</a></li>
 <li><a href="#provenance">Evidence and limits</a></li>
 </ul>
 </nav>
@@ -70,7 +69,7 @@ function contractAddress(string contractName) external view returns (address);</
 <tr><td>Parsed CAM ABI/UI declaration</td><td><code>./…</code> relative to the manifest, or supported <code>ipfs://CID/…</code>. No query, fragment, percent escape, backslash, empty segment, or <code>.</code>/<code>..</code> segment.</td></tr>
 </tbody></table>
 <p><strong>Current URI policy:</strong> the EVM adapter rejects <code>data:</code> URIs and raw JSON strings before calling the supplied loader. Replacing that callback does not bypass the URI gate. For permitted URI keys, the callback can return fetched, cached, in-memory, or contract-derived bytes. URI acceptance does not require physical external storage or provide a transport; the shared HTTP loader performs a network fetch.</p>
-<p>Supported IPFS forms are CIDv0 base58btc (<code>Qm</code> plus 44 base58btc characters, decoding to a SHA-256 multihash with a 32-byte digest), or lowercase CIDv1 base32 with version 1, raw (<code>0x55</code>) or dag-pb (<code>0x70</code>) codec, and a SHA-256 multihash with a 32-byte digest. IPFS manifest and resource URIs share the path restrictions above; bare <code>ipfs://CID</code> is allowed, while credentials, trailing slashes, queries, and fragments are rejected. Accepting an IPFS URI does not provide a transport.</p>
+<p>Supported IPFS forms are CIDv0 base58btc or lowercase CIDv1 base32 with raw or dag-pb codec; both require a SHA-256 multihash with a 32-byte digest. IPFS manifest and resource URIs share the path restrictions above; bare <code>ipfs://CID</code> is allowed, while credentials, trailing slashes, queries, and fragments are rejected. Accepting an IPFS URI does not provide a transport.</p>
 <p>Relative resources resolve from the directory of the original <code>camURI</code>, dropping its query and fragment. For example, <code>https://example.org/app/main.json?rev=2#section</code> plus <code>./ui/main.json</code> resolves to <code>https://example.org/app/ui/main.json</code>.</p>
 <p><strong>Loader policy:</strong> the shared HTTP loader pins an allowed origin, rejects redirects, and bounds decoded responses to 2 MiB inclusive. The adapter also checks returned byte size. Custom loaders own their transport, access, and timeout policies; URI resolution is not an access grant.</p>
 <h3 id="bindings">Address bindings and their lifetime</h3>
@@ -79,7 +78,6 @@ function contractAddress(string contractName) external view returns (address);</
 </section>
 <section id="graph">
 <h2>Interpret the manifest graph</h2>
-<p>Namespaces identify three invocation domains: bound contracts described by ABIs, named UI nodes in a resource, and routes within the manifest. Routes join these domains into a call graph. An invocation names the domain and target, then supplies named arguments; it does not itself execute a transaction.</p>
 <p>The top-level manifest has exactly <code>cam</code>, <code>entry</code>, <code>namespaces</code>, and <code>routes</code>. Supported <code>cam</code> values are <code>"1.1.0"</code> and <code>"1.0.0"</code>. <code>entry</code> names an existing route. Unknown structural fields are rejected at the manifest, namespace, route, and invocation boundaries.</p>
 <table>
 <thead><tr><th>Namespace</th><th>Declaration</th><th>Invocation target</th></tr></thead>
@@ -145,7 +143,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 "$outputs.0.name"   → a named field in the first result
 "$$inputs.itemId"   → the literal "$inputs.itemId"
 "ID: $inputs.id"    → literal text, without interpolation</code></pre>
-<p>For read continuations, select needed results into <code>then.args</code>. Pass values needed by the next route explicitly. Do not manufacture write outputs from events, receipts, or simulation results.</p>
+<p>Do not manufacture write outputs from events, receipts, or simulation results.</p>
 </section>
 <section id="ui">
 <h2>Interpret UI 1.0.0</h2>
@@ -169,7 +167,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <tr><td><code>Include</code></td><td><code>call</code> into <code>ui</code></td><td>Composes selected named nodes.</td></tr>
 <tr><td><code>Button</code></td><td><code>props.label</code>, <code>call</code> into <code>routes</code></td><td><code>enabledWhen</code>; describes a route action for an agent or viewer to invoke.</td></tr>
 </tbody></table></div>
-<p><code>Status</code> with <code>stringList</code> requires an array of strings: empty displays <code>None</code>, otherwise entries are joined with comma and space. <code>bytes</code>/<code>durationSeconds</code> require unsigned decimal integer strings or safe nonnegative integer numbers. Bytes use comma grouping and singular/plural units; durations below 60 use seconds, and larger durations use nonzero day/hour/minute/second parts plus total seconds, for example <code>1 minute, 1 second (61 seconds)</code>. Unformatted value presentation belongs to the viewer.</p>
+<p><code>Status</code> with <code>stringList</code> requires an array of strings. <code>bytes</code>/<code>durationSeconds</code> require unsigned decimal integer strings or safe nonnegative integer numbers. Unformatted value presentation belongs to the viewer.</p>
 <p><strong>Publication policy:</strong> conformance follows statically known reference types through route/UI handoffs. For <code>Nft.tokenId</code>, known references must supply an integer or string; boolean, tuple, or array references receive a diagnostic. This check does not restrict literals at that site. The UI runtime accepts any inert token ID, with no contract call implied.</p>
 <h3 id="ui-composition">Includes and route actions</h3>
 <p>An Include invokes <code>ui</code>; its function resolves to one node name or an ordered array of distinct names. Empty arrays include nothing. Targets must exist, receive their exact required arguments, and form no Include cycle. Selected nodes share runtime/state and replace the Include in selection order. A Button invokes <code>routes</code>; its function resolves to one nonempty route name and its arguments supply that route's inputs.</p>
@@ -180,7 +178,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <p>Numeric fields expose canonical decimal strings for valid drafts, including <code>"0"</code>. Empty, incomplete, invalid, or input-method-composing drafts expose <code>null</code>. Editing is bounded to 2,048 UTF-16 code units and 1,024 canonical significant digits; these limits do not replace ABI ranges or business constraints.</p>
 <p>For every numeric field, <code>state.defaultValue</code> must resolve to a digit string or an empty string. An <code>AmountField</code> default always uses base units, regardless of its interactive editing mode. With <code>unit.decimals: 2</code>, default <code>"125"</code> initializes canonical state <code>"125"</code>, corresponding to display value <code>1.25</code>. Default <code>"1.25"</code> is invalid and rejects initialization. A user may instead type <code>"1.25"</code> during display-unit editing, which produces canonical state <code>"125"</code>. Empty defaults initialize null; invalid or out-of-bounds defaults reject initialization rather than becoming null.</p>
 <p>Integer/base-unit editing permits only ASCII digits; leading zeros are removed canonically. Integer bounds resolve with empty editable state to nonnegative decimal strings, are inclusive, and require <code>min ≤ max</code> when both are supplied. There is no implicit uint256 editor maximum. Display amount editing additionally permits one decimal point: <code>.5</code> and <code>1.</code> can be valid, while <code>.</code> is incomplete. Signs, whitespace, separators, hexadecimal notation, and exponents are invalid.</p>
-<p><code>AmountField.props.unit</code> contains exactly the literal nonempty strings <code>assetId</code>, <code>baseLabel</code>, <code>displayLabel</code>, and integer <code>decimals</code> from 0 to 255. Scale 2 converts <code>"1.25"</code> to <code>"125"</code>. Scaling is exact: excess fractional precision is accepted only for zero digits, without rounding. The unit declaration does not verify an asset or authorize spending.</p>
+<p><code>AmountField.props.unit</code> contains exactly the literal nonempty strings <code>assetId</code>, <code>baseLabel</code>, <code>displayLabel</code>, and integer <code>decimals</code> from 0 to 255. Scaling is exact: excess fractional precision is accepted only for zero digits, without rounding. The unit declaration does not verify an asset or authorize spending.</p>
 <p><code>DocumentHashField</code> declares algorithm <code>sha256</code>, a state binding, and optional <code>sourceURI</code>. On request, the repository's web viewer can calculate a <code>0x</code>-prefixed 32-byte digest from selected file bytes or bytes fetched from that URI. Resolving the UI node itself does not fetch or hash a document. Manual/default strings are not digest-validated by the UI runtime; the receiving ABI or contract owns acceptance. This requested calculation is separate from ABI/UI resource integrity checking.</p>
 <h3 id="availability">Availability</h3>
 <pre><code>"enabledWhen": {
@@ -200,7 +198,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <section id="example">
 <h2>Worked bundle</h2>
 <p>Assume a <code>CamRoot</code> host binds <code>Registry</code> with <code>labelOf(uint256 itemId) view returns (string)</code> and <code>setLabel(uint256 itemId, string label) nonpayable</code>. The manifest joins that ABI to an editor UI and routes <code>show</code>/<code>save</code>. The registry contract owns edit authorization.</p>
-<p>The host advertises the manifest URI/hash and <code>Registry</code> address. ABI/UI URIs and SHA-256 commitments are in the manifest. The digests below match the exact UTF-8 text in the resource code blocks, without an added trailing newline. Changed resource whitespace requires new digests.</p>
+<p>The digests below match the exact UTF-8 text in the resource code blocks, without an added trailing newline. Changed resource whitespace requires new digests.</p>
 <pre id="example-cam"><code>{
   "cam": "1.1.0",
   "entry": "show",
@@ -277,26 +275,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
   }
 ]</code></pre>
 <p>The agent or viewer requests <code>labelOf(7)</code>, obtaining one normalized string at <code>$outputs.0</code>. The continuation constructs <code>view: {itemId, label}</code> for <code>Editor</code>. Initial UI resolution sets <code>labelDraft</code> from that label; editing changes only the draft. Invoking Save captures <code>itemId</code> and <code>labelDraft</code>, prepares the nonpayable <code>setLabel</code> call without native value, and prepares <code>show</code> as its next route.</p>
-<p>After successful submission and confirmation, the repository's web viewer requests <code>show</code> again and resolves the updated interface. A reverted write does not apply the label update; a successful write with a failed reread leaves the transaction successful and the view unrefreshed. These examples establish document and handoff shapes, not a deployment or live transaction.</p>
-</section>
-<section id="failures">
-<h2>Rejections</h2>
-<table>
-<thead><tr><th>Condition</th><th>Owning boundary</th></tr></thead>
-<tbody>
-<tr><td>Manifest bytes mismatch a nonzero <code>camHash()</code>.</td><td>EVM loading rejects before JSON interpretation.</td></tr>
-<tr><td>ABI/UI bytes mismatch declared integrity.</td><td>Resource verification rejects; valid JSON is insufficient.</td></tr>
-<tr><td>Duplicate JSON key or invalid UTF-8.</td><td>Byte-to-JSON parsing rejects.</td></tr>
-<tr><td><code>abiURI: "https://example.org/abi.json"</code> or <code>"./../abi.json"</code>.</td><td>Secondary resource URI policy rejects.</td></tr>
-<tr><td>A read's <code>then</code> targets <code>routes</code>.</td><td>Manifest invocation validation rejects that edge.</td></tr>
-<tr><td>Missing <code>itemId</code> or extra <code>debug</code> in <code>show</code> inputs.</td><td>Route input matching rejects before resolution.</td></tr>
-<tr><td><code>$outputs[0]</code> or <code>$outputs.01</code>.</td><td>Expression syntax rejects.</td></tr>
-<tr><td><code>$account.address</code> without an account.</td><td>Expression resolution fails.</td></tr>
-<tr><td>Nonpayable write declares <code>value: "0"</code>.</td><td>EVM write validation rejects.</td></tr>
-<tr><td>Two selected fields use one state key.</td><td>UI initialization rejects duplicate keys.</td></tr>
-<tr><td>A disabled Button references a missing value.</td><td>UI resolution still fails.</td></tr>
-<tr><td>A well-formed write violates contract rules.</td><td>Contract execution can revert despite bundle conformance.</td></tr>
-</tbody></table>
+<p>After successful submission and confirmation, the repository's web viewer requests <code>show</code> again and resolves the updated interface. These examples establish document and handoff shapes, not a deployment or live transaction.</p>
 </section>
 <section id="provenance">
 <h2>Evidence and limits</h2>
@@ -309,8 +288,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <li><a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-screen/src/validate.ts">UI parser</a>, <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-screen/src/resolve.ts">UI resolution and state</a>, and <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-screen/test/ui.test.ts">UI tests</a>.</li>
 <li><a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/packages/cam-viewer/src/write-preparation.ts">Viewer write preparation</a> and <a href="https://raw.githubusercontent.com/numpde/dapp32/6a3c3c4cc8592b5f29021201fb686c0a74b105c7/js/apps/cam-web/src/App.tsx">web viewer lifecycle</a>.</li>
 </ul>
-<p>Existing offline validation lanes are <code>make tests/checks</code>, <code>make js/tests</code>, and <code>make cam/conformance/check</code>, after the explicit dependency materialization lanes. Conformance checks supplied document/resource/ABI/UI/route joins; they do not perform live contract or wallet qualification.</p>
-<p>This is an implementation-derived experimental reference. The examples and repository tests do not establish interoperability with independently implemented agents or viewers. Applications still choose resource transport/access, finality/reorg handling, and code identity checks. Loading does not establish an atomic metadata/binding snapshot, and CAM does not prescribe a renderer appearance or session architecture.</p>
+<p>The examples and repository tests do not establish interoperability with independently implemented agents or viewers.</p>
 </section>
 </main>
 <footer><p><a href="../">Reference versions</a> · <a href="https://numpde.github.io/dapp32/">Project overview</a> · <a href="#main">Return to reference</a></p></footer>
