@@ -25,13 +25,13 @@
 <a class="skip" href="#main">Skip to reference</a>
 <header>
   <h1>Contract Application Manifest (CAM) 1.2.0</h1>
-  <p><strong>Experimental draft.</strong> Document format versions: CAM <code>1.2.0</code>, UI <code>1.0.0</code>. Revision: 2026-10-15; paired manifest reference and protocol discovery. Documentation revisions do not change these format versions.</p>
+  <p><strong>Experimental draft.</strong> Document format versions: CAM <code>1.2.0</code>, UI <code>1.0.0</code>. Revision: 2026-10-15. Documentation revisions do not change these format versions.</p>
 </header>
 <main id="main">
 <section id="model">
 <h2>CAM model</h2>
 <p>A CAM application is advertised by a deployed contract, called the <strong>CAM host contract</strong>. To load the application, an agent or viewer needs the chain ID of the network hosting that contract and its deployed address. The agent or viewer calls <code>camManifest()</code> on that contract to obtain one coherent manifest URI and SHA-256 digest; <code>ICamApp</code> defines these discovery methods. The repository's EVM adapter validates the URI, asks its supplied resource loader for manifest bytes, and checks their SHA-256 digest before JSON parsing. The manifest declares ABI/UI resources, contract calls, and continuations. The agent or viewer uses the parsed routes and arguments to prepare requested contract calls.</p>
-<p>The manifest joins each <code>contracts.Name</code> namespace to an ABI resource. This repository's EVM profile resolves <code>Name</code> to a destination address through the host contract's <code>contractAddress(string)</code> binding API. That resolver belongs to the new <code>ICamApp</code> interface together with the paired manifest getter. The manifest's <code>ui</code> namespace selects a UI resource; its <code>routes</code> namespace selects routes declared in the same manifest. Mutable address bindings are outside the manifest hash.</p>
+<p>The manifest joins each <code>contracts.Name</code> namespace to an ABI resource. This repository's EVM profile resolves <code>Name</code> to a destination address through the host contract's <code>contractAddress(string)</code> binding API. That resolver belongs to the <code>ICamApp</code> interface together with the paired manifest getter. The manifest's <code>ui</code> namespace selects a UI resource; its <code>routes</code> namespace selects routes declared in the same manifest. Mutable address bindings are outside the manifest hash.</p>
 <p>Each route joins one contract call to a next invocation. A read exposes normalized results as <code>$outputs</code> while resolving its continuation arguments for a named UI node. A write prepares a transaction and names another route to follow after success. The agent or viewer prepares requests; called contracts enforce their business rules. An agent can inspect the resolved UI and action model without drawing an interface, while following the declared read-to-UI handoff.</p>
 <p>A bundle author supplies the manifest and ABI/UI resource bytes under their declared URIs. For publication, the author makes those resources available through a chosen transport. The authorized <code>CamRoot</code> owner advertises the manifest URI/hash and configures address bindings through separate transactions; the owner need not be the bundle author. Editing resource bytes does not update <code>CamRoot</code>'s stored hash.</p>
 <p>Document rules govern the manifest/UI graph. EVM profile rules describe this repository's <code>@cam/evm-viem</code> adapter; UI resolution describes <code>@cam/screen</code>. Viewer policies describe the <code>@cam/viewer</code> session library and the web viewer that uses it. Conformance checks inspect supplied bundles for publication defects, without establishing live state, account authority, or transaction success.</p>
@@ -48,7 +48,7 @@
 <li><a href="#expressions">Resolve expressions and handoffs</a></li>
 <li><a href="#ui">Interpret UI 1.0.0</a></li>
 <li><a href="#execution">Execute and report outcomes</a></li>
-<li><a href="#example">Worked bundle</a></li>
+<li><a href="#example">Worked route and UI example</a></li>
 <li><a href="#provenance">Evidence and limits</a></li>
 </ul>
 </nav>
@@ -87,7 +87,6 @@ function contractAddress(string contractName) external view returns (address);</
 <h2>Resolve and verify a bundle</h2>
 <p>The <a href="#bootstrap">bootstrap sequence</a> uses the URI and loader policies below. ABI and UI declarations use the same integrity spelling and exact-byte verification as the protocol resource.</p>
 <p>The repository publishes this versioned reference at <code>docs/reference/cam/1.2.0/index.html</code> and copies those exact bytes into each dapp bundle as <code>protocol.html</code>. The manifest pins the bundled copy. Refresh publication digests after editing resources; serve the protocol file alongside the manifest, ABI and UI files.</p>
-<p>CAM 1.0 and 1.1 document readers remain available, with their original closed top-level shape and without a protocol field. Their historical <code>camURI()</code>/<code>camHash()</code> hosts use different discovery and Keccak-256 commitments: the new adapter rejects that old interface. Do not reinterpret existing host digests as SHA-256 or relabel their deployments. See the <a href="https://numpde.github.io/dapp32/reference/cam/1.1.0/">historical CAM 1.1 reference</a>.</p>
 <table>
 <thead><tr><th>URI site</th><th>Accepted form</th></tr></thead>
 <tbody>
@@ -105,7 +104,7 @@ function contractAddress(string contractName) external view returns (address);</
 </section>
 <section id="graph">
 <h2>Interpret the manifest graph</h2>
-<p>The CAM 1.2 top-level manifest has exactly <code>cam</code>, <code>protocol</code>, <code>entry</code>, <code>namespaces</code>, and <code>routes</code>. Its <code>cam</code> value is <code>"1.2.0"</code>. Readers also accept CAM 1.0 and 1.1 documents, whose closed top-level field set excludes <code>protocol</code>. <code>entry</code> names an existing route. Unknown structural fields are rejected at the manifest, namespace, route, and invocation boundaries.</p>
+<p>The CAM 1.2 top-level manifest has exactly <code>cam</code>, <code>protocol</code>, <code>entry</code>, <code>namespaces</code>, and <code>routes</code>. Its <code>cam</code> value is <code>"1.2.0"</code>. <code>entry</code> names an existing route. Unknown structural fields are rejected at the manifest, namespace, route, and invocation boundaries so unsupported declarations fail instead of being silently ignored.</p>
 <table>
 <thead><tr><th>Namespace</th><th>Declaration</th><th>Invocation target</th></tr></thead>
 <tbody>
@@ -114,7 +113,7 @@ function contractAddress(string contractName) external view returns (address);</
 <tr><td><code>routes</code></td><td><code>type: "routes"</code>; no resource fields.</td><td>A route declared in this manifest.</td></tr>
 </tbody></table>
 <p>Invocations have exactly <code>{"namespace":"…","function":"…","args":{…}}</code>. The namespace must be declared with an allowed type for that edge. In CAM routes, <code>function</code> is a nonempty literal string; argument values may contain expressions recursively. Route names and invocation argument keys need only be nonempty strings, unlike input identifiers.</p>
-<p>A route has <code>kind</code>, <code>inputs</code>, <code>call</code>, and <code>then</code>. <code>inputs</code> is its exact callable interface: an array of unique names matching the <a href="#expressions">expression identifier grammar</a>. Resolving either invocation rejects missing or extra inputs, including unused inputs.</p>
+<p>A route has <code>kind</code>, <code>inputs</code>, <code>call</code>, and <code>then</code>. <code>inputs</code> is its exact callable interface: an array of unique names matching the <a href="#expressions">expression identifier grammar</a>. Resolving either invocation rejects missing or extra inputs, including unused inputs. This catches mismatched caller parameters before the call is made.</p>
 <table>
 <thead><tr><th>Route kind</th><th><code>call</code> edge</th><th><code>then</code> edge</th></tr></thead>
 <tbody>
@@ -144,7 +143,7 @@ function contractAddress(string contractName) external view returns (address);</
 <p>A read route must target a <code>view</code> or <code>pure</code> function. A supplied <code>account.address</code> is also the RPC caller, independently of whether any expression references it. Caller-dependent reads may therefore differ across accounts. Without an account, the adapter leaves the caller unspecified. These reads require no wallet signature.</p>
 <p>The result is always an outer positional list: no ABI outputs gives <code>[]</code>; one output gives <code>[value]</code>, even when value is itself an array or tuple. Integers become canonical decimal strings, addresses become lowercase strings, bytes retain hex letter case, and tuples become named objects. Counts, shapes, and ranges that disagree with the ABI are rejected. Use <code>$outputs.0</code> or <code>$outputs.0.component</code>, not top-level ABI output names.</p>
 <h3 id="native-value">Native transaction value</h3>
-<p>CAM 1.1.0 and 1.2.0 write routes may declare <code>value</code>, separate from <code>call.args</code>. It resolves as a literal or expression to a decimal uint256 value in native base units. Payable targets require an explicit value, including <code>"0"</code>. Nonpayable targets reject any declared value, including zero. Read routes and CAM 1.0.0 reject the field.</p>
+<p>Write routes may declare <code>value</code>, separate from <code>call.args</code>. It resolves as a literal or expression to a decimal uint256 value in native base units. Payable targets require an explicit value, including <code>"0"</code>, so omitting an amount cannot silently default to zero. Nonpayable targets reject any declared value, including zero. Read routes reject the field.</p>
 <p>No unit conversion or token transfer is implied. An amount passed as an ABI argument remains an argument; transferring tokens remains a contract operation. Writes have no modeled ABI return values in route context.</p>
 </section>
 <section id="expressions">
@@ -223,13 +222,11 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 <p>Agents and viewers choose confirmation, timeout, replacement, reorg, and stale-interaction policy. An application also decides when an account change requires rereading caller-dependent results and whether drafts or prepared calls remain usable. CAM does not prescribe these policies. A timeout or uncertain submission is not proof of failure; resolve wallet/chain status before retrying a consequential write.</p>
 </section>
 <section id="example">
-<h2>Worked bundle</h2>
-<p>This worked route/UI example retains the supported CAM 1.1 document shape. For CAM 1.2 publication, set <code>cam</code> to <code>1.2.0</code> and add the required <code>protocol</code> declaration with the SHA-256 of the exact published reference bytes.</p>
+<h2>Worked route and UI example</h2>
+<p>The first code block is a partial manifest containing only <code>namespaces</code> and <code>routes</code>. A complete manifest also supplies <code>cam: "1.2.0"</code>, the <a href="#bootstrap">authenticated <code>protocol: {uri, integrity}</code> declaration</a>, and <code>entry: "show"</code> selecting the route used here; see the <a href="#graph">manifest graph rules</a>.</p>
 <p>Assume a <code>CamRoot</code> host binds <code>Registry</code> with <code>labelOf(uint256 itemId) view returns (string)</code> and <code>setLabel(uint256 itemId, string label) nonpayable</code>. The manifest joins that ABI to an editor UI and routes <code>show</code>/<code>save</code>. The registry contract owns edit authorization.</p>
 <p>The digests below match the exact UTF-8 text in the resource code blocks, without an added trailing newline. Changed resource whitespace requires new digests.</p>
 <pre id="example-cam"><code>{
-  "cam": "1.1.0",
-  "entry": "show",
   "namespaces": {
     "contracts.Registry": {
       "type": "contract", "abiURI": "./abi/Registry.json",
@@ -307,7 +304,7 @@ arrayIndex = "0" | [1-9][0-9]*  (at most 9,007,199,254,740,991)</code></pre>
 </section>
 <section id="provenance">
 <h2>Evidence and limits</h2>
-<p>This experimental revision accompanies the CAM 1.2 implementation. The source links below follow the main branch and may change; the manifest integrity field authenticates the exact bundled reference bytes. The <a href="https://numpde.github.io/dapp32/reference/cam/">version index</a> retains the historical 1.1 reference.</p>
+<p>This experimental revision accompanies the CAM 1.2 implementation. The source links below follow the main branch and may change; the manifest integrity field authenticates the exact bundled reference bytes.</p>
 <ul>
 <li><a href="https://raw.githubusercontent.com/numpde/dapp32/main/dapps/cam/src/ICamApp.sol">ICamApp contract interface</a> and <a href="https://raw.githubusercontent.com/numpde/dapp32/main/dapps/cam/src/CamRoot.sol">CamRoot host and bindings</a>.</li>
 <li><a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-protocol/src/versions.ts">Wire versions</a>, <a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-core/src/validate.ts">CAM parser</a>, and <a href="https://raw.githubusercontent.com/numpde/dapp32/main/js/packages/cam-core/test/core.test.ts">core route and parser tests</a>.</li>

@@ -68,16 +68,18 @@ class CamReferenceTests(unittest.TestCase):
                         self.assertIn(target.fragment, linked_document.ids, link)
 
     def test_worked_example_resource_bytes_match_manifest(self):
-        document = ReferenceHTML((REFERENCE / "1.1.0/index.html").read_text(encoding="utf-8"))
-        manifest = strict_json_loads(document.examples["example-cam"])
-        for namespace, example in (("contracts.Registry", "example-abi"), ("ui", "example-ui")):
-            resource_bytes = document.examples[example].encode("utf-8")
-            strict_json_loads(document.examples[example])
-            self.assertEqual(
-                manifest["namespaces"][namespace]["integrity"],
-                "sha256:0x" + sha256(resource_bytes).hexdigest(),
-                namespace,
-            )
+        for version in ("1.1.0", "1.2.0"):
+            with self.subTest(version=version):
+                document = ReferenceHTML((REFERENCE / version / "index.html").read_text(encoding="utf-8"))
+                manifest = strict_json_loads(document.examples["example-cam"])
+                for namespace, example in (("contracts.Registry", "example-abi"), ("ui", "example-ui")):
+                    resource_bytes = document.examples[example].encode("utf-8")
+                    strict_json_loads(document.examples[example])
+                    self.assertEqual(
+                        manifest["namespaces"][namespace]["integrity"],
+                        "sha256:0x" + sha256(resource_bytes).hexdigest(),
+                        namespace,
+                    )
 
 
 if __name__ == "__main__":
