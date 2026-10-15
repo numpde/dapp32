@@ -48,8 +48,18 @@ const UI_CODE_HASH = `0x${"dd".repeat(32)}` as Hex
 const ROOT_TX = `0x${"11".repeat(32)}` as Hex
 const ESCROW_TX = `0x${"22".repeat(32)}` as Hex
 const UI_TX = `0x${"33".repeat(32)}` as Hex
-const CHECKED_IN_CAM_HASH = "0x5eb1ff78cd301af40def8982e71e518cdac7054ed2cc4b827d6bd2a31995bb49"
+const CHECKED_IN_CAM_HASH = "0x154314ecbeaa9146f8b2f5b90ce4bb732ec61efca37568bcc1f7218edbd03521"
 const DAPPS_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../dapps")
+
+test("release parsing rejects the old Keccak commitment schemas", () => {
+  assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({
+    schema: "escrow.release-plan.v1", sourceCommit: SOURCE_COMMIT, expectedChainId: 11155111,
+    camURI: "https://example.test/escrow/cam/main.json", camHash: CAM_HASH, intendedCamRootOwner: OWNER,
+  }))), /unsupported release plan schema/)
+  assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
+    ...deploymentArtifact(), schema: "escrow.deployment.v1",
+  }))), /unsupported deployment artifact schema/)
+})
 
 test("release chain ID is explicit and rejects fixture chains", () => {
   assert.equal(requiredReleaseChainId("1"), 1)
@@ -157,13 +167,10 @@ test("deployment JSON preserves the complete strict record", () => {
     new TextEncoder().encode(JSON.stringify(artifact)),
   )
   assert.deepEqual(parsed, artifact)
-  assert.throws(
-    () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
-      ...artifact,
-      camHash: `0x${"00".repeat(32)}`,
-    }))),
-    /deployment camHash must not be zero/,
-  )
+  const zeroDigest = `0x${"00".repeat(32)}`
+  assert.equal(parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
+    ...artifact, camHash: zeroDigest,
+  }))).camHash, zeroDigest)
   assert.throws(
     () => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
       ...artifact,

@@ -45,6 +45,10 @@ const INVOCATION_KEYS = new Set(["namespace", "function", "args"])
 
 export function parseCam(input: unknown): CamDocument {
   const root = parseRootFact(input)
+  const protocolResult = collectCamResourceDeclarationFacts([], root)
+  const protocolDiagnostic = protocolResult.diagnostics[0]
+  if (protocolDiagnostic !== undefined) throw camErrorFromFactDiagnostic(protocolDiagnostic)
+  const protocol = protocolResult.declarations[0]
   const namespaces = parseNamespaces(root)
   const routes = parseRoutes(requiredRecord(root.value.routes, "routes"), namespaces, root.version)
   const entry = requiredNonEmptyString(root.value.entry, "entry")
@@ -54,6 +58,7 @@ export function parseCam(input: unknown): CamDocument {
   }
 
   return {
+    ...(protocol === undefined ? {} : { protocol: { uri: protocol.uri, integrity: protocol.integrity } }),
     cam: root.version,
     entry,
     namespaces,

@@ -76,12 +76,12 @@ import {
 } from "../src/index.ts"
 
 test("exports protocol document versions from the protocol package", () => {
-  assert.equal(CAM_VERSION, "1.1.0")
+  assert.equal(CAM_VERSION, "1.2.0")
   assert.equal(UI_VERSION, "1.0.0")
 })
 
 test("owns top-level document field vocabularies", () => {
-  assert.deepEqual([...CAM_MANIFEST_TOP_LEVEL_KEYS], ["cam", "entry", "namespaces", "routes"])
+  assert.deepEqual([...CAM_MANIFEST_TOP_LEVEL_KEYS], ["cam", "entry", "namespaces", "routes", "protocol"])
   assert.deepEqual([...UI_DOCUMENT_TOP_LEVEL_KEYS], ["ui", "nodes"])
 })
 

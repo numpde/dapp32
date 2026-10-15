@@ -151,7 +151,6 @@ export function App(): ReactElement {
           },
           inputs: startup.inputs,
           ...(startup.route === undefined ? {} : { route: startup.route }),
-          allowUnsignedCamHash: startup.allowUnsignedCamHash,
           loadResource: createPinnedOriginResourceLoader(startup.resourceOrigin),
         })
         const snapshot = await session.load()

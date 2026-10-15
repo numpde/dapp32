@@ -25,10 +25,6 @@ services:
         condition: service_healthy
     environment:
       CAM_VIEWER_BACKEND: local-rpc
-      # Intentional fixture opt-in: the local demo deploy currently leaves
-      # CamRoot.camHash() as bytes32(0). Non-demo viewers should set this false
-      # and require a nonzero content hash.
-      CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH: "true"
       CAM_VIEWER_RPC_URL: http://bike-nft-anvil:8545
       CAM_VIEWER_BROADCAST_PATH: "${BIKE_NFT_BROADCAST_PATH:?missing_BIKE_NFT_BROADCAST_PATH}"
       CAM_VIEWER_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"

@@ -51,7 +51,13 @@ export async function checkedInAbiPaths(): Promise<string[]> {
 }
 
 export function checkedInDeclaredLocalResourceURIs(root: unknown): readonly string[] {
-  return checkedInLocalResourceDeclarations(root).map((declaration) => declaration.uri)
+  const uris = checkedInLocalResourceDeclarations(root).map((declaration) => declaration.uri)
+  const source = requiredRecord(root, "CAM root")
+  if (source.protocol !== undefined) {
+    const protocol = requiredRecord(source.protocol, "protocol")
+    uris.push(requiredNonEmptyString(protocol.uri, "protocol.uri"))
+  }
+  return uris
 }
 
 export async function testCheckedInFiles(

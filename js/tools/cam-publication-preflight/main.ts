@@ -1,6 +1,6 @@
 import { resolve } from "node:path"
 
-import { keccak256 } from "viem"
+import { sha256 } from "viem"
 
 import { validateCamBundle } from "../../packages/cam-conformance/dist/index.js"
 import type { CamConformanceBundle, CamConformanceIssue } from "../../packages/cam-conformance/dist/index.js"
@@ -73,7 +73,7 @@ async function preflight(options: Options): Promise<PreflightResult> {
     ok: issues.length === 0,
     rootPath,
     camURI,
-    camHash: keccak256(rootBytes),
+    camHash: sha256(rootBytes),
     resources: [...resources.keys()].sort(),
     issues,
   }
@@ -94,6 +94,12 @@ async function declaredLocalResources(rootPath: string, root: unknown): Promise<
   const resources = new Map<string, Uint8Array>()
   if (!isRecordObject(root) || !isRecordObject(root.namespaces)) {
     return resources
+  }
+
+  if (isRecordObject(root.protocol) && typeof root.protocol.uri === "string" && root.protocol.uri.startsWith("./")) {
+    const uri = root.protocol.uri
+    const resourcePath = await localCamResourcePath({ rootPath, uri, uriLabel: "protocol" })
+    resources.set(uri, await readBoundedFile(resourcePath, `local CAM resource ${uri}`))
   }
 
   for (const [namespaceName, namespace] of Object.entries(root.namespaces)) {

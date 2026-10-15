@@ -35,12 +35,9 @@ services:
       bike-nft-cam-http:
         condition: service_healthy
     environment:
-      # Local fixture CAMs are deliberately unsigned. This is deployment policy,
-      # not a browser URL parameter, so a deep link cannot loosen hash checks.
-      VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH: "true"
       # Browser resource authority is an explicit scenario policy. The app
       # rejects every CAM/ABI/UI fetch outside this origin, including CamRoot's
-      # first camURI, instead of learning trust from a contract-returned URL.
+      # manifest URI, instead of learning trust from a contract-returned URL.
       VITE_CAM_WEB_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
       # Vite sees the gateway-forwarded browser Host header. Keep that allowlist
       # tied to the same operator-declared origin that make prints.

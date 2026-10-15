@@ -44,7 +44,6 @@ type CreatedContract = {
 export function createLocalRpcBackend(
   env: NodeJS.ProcessEnv,
   {
-    allowUnsignedCamHash,
     initialInputs,
   }: TerminalBackendOptions,
 ): TerminalBackend {
@@ -74,7 +73,6 @@ export function createLocalRpcBackend(
           address: deployment.account,
         },
         inputs: initialInputs,
-        allowUnsignedCamHash,
         async loadResource(uri) {
           const bytes = await loadResource(uri)
           events.push({

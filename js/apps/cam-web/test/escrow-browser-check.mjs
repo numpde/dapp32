@@ -1,5 +1,6 @@
 // Live publication smoke. CDP controls only the target created below.
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 
 const loopback = new Set(['127.0.0.1', 'localhost', '[::1]'])
 function url(value, name, protocols, local) {
@@ -15,7 +16,7 @@ assert(cdp.pathname === '/' && !cdp.search && !cdp.hash, 'CDP_ORIGIN must be an 
 const viewer = url(process.env.VIEWER_URL, 'VIEWER_URL', ['http:'], true)
 const cam = url(process.env.EXPECTED_CAM_URI, 'EXPECTED_CAM_URI', ['http:', 'https:'], false)
 const hash = process.env.EXPECTED_CAM_HASH
-assert(/^0x[0-9a-fA-F]{64}$/.test(hash) && !/^0x0+$/.test(hash), 'EXPECTED_CAM_HASH must be a nonzero bytes32')
+assert(/^0x[0-9a-fA-F]{64}$/.test(hash), 'EXPECTED_CAM_HASH must be bytes32')
 const host = viewer.searchParams.get('host')
 const rpc = url(viewer.searchParams.get('rpcUrl'), 'viewer rpcUrl', ['http:'], true)
 assert(/^0x[0-9a-fA-F]{40}$/.test(host), 'viewer host must be an address')
@@ -37,14 +38,29 @@ const rpcCall = async selector => {
   return reply.result
 }
 
-// These are keccak function selectors for camURI() and camHash().
-const onchainURI = await rpcCall('0x82cf13be')
-const uriBytes = Buffer.from(onchainURI.slice(2), 'hex')
-const uriOffset = Number(BigInt(`0x${uriBytes.subarray(0, 32).toString('hex')}`))
-const uriLength = Number(BigInt(`0x${uriBytes.subarray(uriOffset, uriOffset + 32).toString('hex')}`))
-assert(uriOffset === 32 && uriLength > 0 && uriLength <= 4096 && uriBytes.length >= uriOffset + 32 + uriLength, 'invalid camURI result')
-assert.equal(uriBytes.subarray(uriOffset + 32, uriOffset + 32 + uriLength).toString(), cam.href, 'onchain CAM URI differs')
-assert.equal((await rpcCall('0x81ad4c48')).toLowerCase(), hash.toLowerCase(), 'onchain CAM hash differs')
+// camManifest() returns one dynamic tuple (string uri, bytes32 sha256Digest).
+const manifestBytes = Buffer.from((await rpcCall('0xa812dad3')).slice(2), 'hex')
+const word = offset => Number(BigInt(`0x${manifestBytes.subarray(offset, offset + 32).toString('hex')}`))
+assert(manifestBytes.length >= 128 && word(0) === 32 && word(32) === 64, 'invalid camManifest tuple offsets')
+const uriLength = word(96)
+assert(uriLength > 0 && uriLength <= 4096 && manifestBytes.length >= 128 + uriLength, 'invalid camManifest URI length')
+assert.equal(manifestBytes.subarray(128, 128 + uriLength).toString(), cam.href, 'onchain CAM URI differs')
+assert.equal(`0x${manifestBytes.subarray(64, 96).toString('hex')}`, hash.toLowerCase(), 'onchain CAM SHA-256 digest differs')
+const manifestResponse = await fetch(cam, { signal: timeout, redirect: 'error' })
+assert(manifestResponse.ok, 'manifest request failed')
+const rootBytes = Buffer.from(await manifestResponse.arrayBuffer())
+assert.equal(`0x${createHash('sha256').update(rootBytes).digest('hex')}`, hash.toLowerCase(), 'served manifest SHA-256 differs')
+const rootDocument = JSON.parse(rootBytes.toString())
+if (rootDocument.cam === '1.2.0') {
+  const protocol = rootDocument.protocol
+  assert(protocol && /^sha256:0x[0-9a-f]{64}$/.test(protocol.integrity), 'invalid CAM protocol reference')
+  const protocolURL = url(new URL(protocol.uri, cam).href, 'CAM protocol URI', ['http:', 'https:'], false)
+  assert.equal(protocolURL.origin, cam.origin, 'CAM protocol URI must use the pinned resource origin')
+  const protocolResponse = await fetch(protocolURL, { signal: timeout, redirect: 'error' })
+  assert(protocolResponse.ok, 'CAM protocol request failed')
+  const protocolBytes = Buffer.from(await protocolResponse.arrayBuffer())
+  assert.equal(`sha256:0x${createHash('sha256').update(protocolBytes).digest('hex')}`, protocol.integrity, 'CAM protocol integrity differs')
+}
 
 const version = await jsonFetch(new URL('/json/version', cdp), {})
 const browserSocket = url(version.webSocketDebuggerUrl, 'browser CDP socket', ['ws:'], true)

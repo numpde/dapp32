@@ -19,7 +19,6 @@ export type CreateCamViewerSessionOptions = {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
   readonly loadResource: ResourceLoader
-  readonly allowUnsignedCamHash: boolean
   readonly account?: CamViewerAccount
   readonly inputs: InertRecord
   /** Omit to load the contract-anchored manifest entry. */

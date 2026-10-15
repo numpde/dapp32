@@ -22,7 +22,7 @@ import type {
 } from "./fixtures.ts"
 
 type WriteRouteOptions = {
-  readonly version: "1.0.0" | "1.1.0"
+  readonly version: import("@cam/protocol").CamVersion
   readonly functionName: "fund" | "save"
   readonly includeValue: boolean
   readonly value: unknown
@@ -73,6 +73,7 @@ function addWriteRoute(
     value,
   } = options
   root.cam = version
+  if (version !== "1.2.0") delete root.protocol
   root.routes.write = {
     kind: "write",
     inputs: ["amount"],
@@ -93,9 +94,10 @@ function addWriteRoute(
 function validateWriteRoute(options: WriteRouteOptions) {
   return validateEditedRoot<RootWithNamespacesAndRoutes & Record<string, unknown>>((root, bundle) => {
     addWriteRoute(root, options)
-    return replaceBundleResources(root, bundle, {
-      abiBytes: payableAbiBytes(),
-    })
+    const replacements = replaceBundleResources(root, bundle, { abiBytes: payableAbiBytes() })
+    const resources = new Map(replacements.resources)
+    if (options.version !== "1.2.0") resources.delete("./protocol.html")
+    return { resources }
   })
 }
 

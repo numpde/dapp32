@@ -14,7 +14,6 @@ x-bike-nft-integration-fuzz-environment: &bike_nft_integration_fuzz_environment
   CAM_INTEGRATION_CHAIN_ID: "eip155:31337"
   CAM_INTEGRATION_RPC_URL: http://bike-nft-anvil:8545
   CAM_INTEGRATION_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
-  CAM_INTEGRATION_ALLOW_UNSIGNED_CAM_HASH: "true"
   # Address derived from the obvious local-only 0xbaba... fixture key in
   # deploy.yml. It is the local scenario account, not an operator secret.
   CAM_INTEGRATION_ACCOUNT: "0xfe7854bc8ca79fbe9dc94dfdaf8c10e5c6decab7"
@@ -91,7 +90,6 @@ x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
         camHost,
         resourceOrigin: requiredEnv("CAM_INTEGRATION_RESOURCE_ORIGIN"),
         accounts: [requiredEnv("CAM_INTEGRATION_ACCOUNT")],
-        allowUnsignedCamHash: requiredBooleanEnv("CAM_INTEGRATION_ALLOW_UNSIGNED_CAM_HASH"),
       }
       writeFileSync(requiredEnv("CAM_INTEGRATION_DESCRIPTOR_PATH"), JSON.stringify(descriptor, null, 2) + "\n")
       JS

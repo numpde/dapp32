@@ -165,6 +165,7 @@ test("formatError survives hostile thrown values", () => {
 function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][], title?: string, commands?: string): string {
   const snapshot: CamViewerLoadedSnapshot = {
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",
+    documentHashes: {},
     resolvedUi: title === undefined
       ? { element: "Fragment", props: {}, children }
       : { element: "Screen", props: { title }, children },

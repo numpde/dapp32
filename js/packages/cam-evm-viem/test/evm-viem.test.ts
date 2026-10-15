@@ -29,6 +29,7 @@ import type { CamHost, CamSimulationClient, CamWalletClient } from "../src/index
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camDocumentURI,
+  BIKE_PROTOCOL_URI,
   BIKE_COMPONENTS_ADDRESS,
   BIKE_MANAGER_ABI_URI as managerAbiURI,
   BIKE_MANAGER_ADDRESS as managerAddress,
@@ -40,7 +41,7 @@ import {
   BIKE_SERIAL_HASH,
   BIKE_SERIAL_NUMBER,
   BIKE_TOKEN_ID,
-  BIKE_UNSIGNED_CAM_HASH,
+  BIKE_ZERO_BYTES32,
   BIKE_UI_ABI_URI as uiAbiURI,
   BIKE_UI_ADDRESS as uiAddress,
   BIKE_UI_CONTRACT,
@@ -55,6 +56,7 @@ import {
 } from "../../../../tests/fixtures/cam/bike.mts"
 import {
   bikeCamJson as camJson,
+  bikeProtocolBytes,
   bikeManagerAbiBytes as managerAbiBytes,
   bikeManagerAbi as managerAbiJson,
   bikeUiAbiBytes as uiAbiBytes,
@@ -62,13 +64,12 @@ import {
 } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import {
   createMockCamPublicClient,
-  createMockResourceLoader as createResourceLoader,
+  createMockResourceLoader,
   encodeJson,
 } from "../../../../tests/fixtures/cam/mock.mts"
 
 const host: CamHost = bikeHost
-const ROOT_CAM_URI = "camURI"
-const ROOT_CAM_HASH = "camHash"
+const ROOT_CAM_MANIFEST = "camManifest"
 const NO_ROUTE_RESULTS = {}
 const uiAbi = uiAbiJson as Abi
 const managerAbi = managerAbiJson as Abi
@@ -106,14 +107,14 @@ test("validates EVM HTTP client transport URLs before creating clients", () => {
 })
 
 test("uses the Solidity ICamApp interface id", () => {
-  assert.equal(ICAM_APP_INTERFACE_ID, xorSelectors(["camURI()", "camHash()"]))
+  assert.equal(ICAM_APP_INTERFACE_ID, xorSelectors(["camManifest()", "contractAddress(string)"]))
 })
 
 test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects hash mismatches", async () => {
   const camBytes = encodeJson(camJson)
   const publicClient = createPublicClient(publicClientFixtureOptions({
     camURI: camDocumentURI,
-    camHash: BIKE_UNSIGNED_CAM_HASH,
+    camHash: sha256(encodeJson(camJson)),
   }))
   const resources = createResourceLoader({
     [camDocumentURI]: camBytes,
@@ -123,15 +124,13 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
     publicClient,
     host,
     loadResource: resources,
-    allowUnsignedCamHash: true,
   })
 
   assert.equal(loaded.camURI, camDocumentURI)
   assert.deepEqual(loaded.cam, parseCam(camJson))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
     "supportsInterface",
-    ROOT_CAM_URI,
-    ROOT_CAM_HASH,
+    ROOT_CAM_MANIFEST,
   ])
   assert.deepEqual(publicClient.calls[0]?.args, [ICAM_APP_INTERFACE_ID])
   assert.equal(publicClient.chainCalls, 1)
@@ -144,28 +143,26 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
       })),
       host,
       loadResource: resources,
-      allowUnsignedCamHash: false,
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_HASH_MISMATCH",
   )
 
-  let unsignedRootLoads = 0
+  let zeroDigestRootLoads = 0
   await assert.rejects(
     () => loadCamFromHost({
       publicClient: createPublicClient(publicClientFixtureOptions({
         camURI: camDocumentURI,
-        camHash: BIKE_UNSIGNED_CAM_HASH,
+        camHash: BIKE_ZERO_BYTES32,
       })),
       host,
       async loadResource() {
-        unsignedRootLoads += 1
+        zeroDigestRootLoads += 1
         return camBytes
       },
-      allowUnsignedCamHash: false,
     }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_HASH_UNSIGNED",
+    (error) => error instanceof CamEvmError && error.code === "CAM_HASH_MISMATCH",
   )
-  assert.equal(unsignedRootLoads, 0)
+  assert.equal(zeroDigestRootLoads, 1)
 
   await assert.rejects(
     () => loadCamFromHost({
@@ -174,7 +171,6 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
       })),
       host,
       loadResource: resources,
-      allowUnsignedCamHash: true,
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_CHAIN_MISMATCH",
   )
@@ -186,7 +182,6 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
       })),
       host,
       loadResource: resources,
-      allowUnsignedCamHash: true,
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_HOST_UNSUPPORTED",
   )
@@ -202,7 +197,6 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
         unsafeRootLoads += 1
         return camBytes
       },
-      allowUnsignedCamHash: true,
     }),
     (error) => error instanceof CamEvmError
       && error.code === "CAM_DOCUMENT_INVALID"
@@ -218,13 +212,51 @@ test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects h
       loadResource: createResourceLoader({
         [camDocumentURI]: new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1),
       }),
-      allowUnsignedCamHash: true,
     }),
     (error) => error instanceof CamEvmError
       && error.code === "CAM_RESOURCE_LOAD_FAILED"
       && error.cause instanceof Error
       && /too large/.test(error.cause.message),
   )
+})
+
+test("loads one coherent SHA-256 manifest reference and never reads legacy getters", async () => {
+  const bytes = encodeJson(camJson)
+  const calls: string[] = []
+  const publicClient = {
+    async getChainId() { return 31337 },
+    async readContract(request: { functionName: string }) {
+      calls.push(request.functionName)
+      if (request.functionName === "supportsInterface") return true
+      if (request.functionName === "camManifest") return { uri: camDocumentURI, sha256Digest: sha256(bytes) }
+      throw new Error(`legacy or unexpected read: ${request.functionName}`)
+    },
+  }
+  const loaded = await loadCamFromHost({ publicClient, host, loadResource: createResourceLoader({ [camDocumentURI]: bytes }) })
+  assert.deepEqual(loaded.cam, parseCam(camJson))
+  assert.deepEqual(calls, ["supportsInterface", "camManifest"])
+})
+
+test("rejects malformed atomic references before loading and bad digests before parsing", async () => {
+  for (const reference of [undefined, [], [camDocumentURI, sha256(encodeJson(camJson))], { uri: 42, sha256Digest: "0x" }, { uri: camDocumentURI, sha256Digest: "0x" }]) {
+    let loads = 0
+    await assert.rejects(() => loadCamFromHost({
+      publicClient: { async getChainId() { return 31337 }, async readContract(request) { return request.functionName === "supportsInterface" ? true : reference } },
+      host,
+      async loadResource() { loads += 1; return encodeJson(camJson) },
+    }), (error) => error instanceof CamEvmError && error.code === "CAM_HOST_READ_FAILED")
+    assert.equal(loads, 0)
+  }
+  const invalidJson = new TextEncoder().encode("{ invalid json")
+  for (const digest of [BIKE_ZERO_BYTES32, sha256(encodeJson(camJson))]) {
+    const loads: string[] = []
+    await assert.rejects(() => loadCamFromHost({
+      publicClient: { async getChainId() { return 31337 }, async readContract(request) { return request.functionName === "supportsInterface" ? true : { uri: camDocumentURI, sha256Digest: digest } } },
+      host,
+      async loadResource(uri) { loads.push(uri); return invalidJson },
+    }), (error) => error instanceof CamEvmError && error.code === "CAM_HASH_MISMATCH")
+    assert.deepEqual(loads, [camDocumentURI])
+  }
 })
 
 test("resolveCamContracts resolves namespaced contracts through CamRoot", async () => {
@@ -1259,7 +1291,7 @@ function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOption
   return {
     chainId: 31337,
     camURI: camDocumentURI,
-    camHash: BIKE_UNSIGNED_CAM_HASH,
+    camHash: sha256(encodeJson(camJson)),
     supportsCamInterface: true,
     addresses: bikeContractAddresses,
     routeResults: NO_ROUTE_RESULTS,
@@ -1556,4 +1588,8 @@ function findAbiFunction(abi: Abi, functionName: string): AbiFunctionItem {
   }
 
   return item
+}
+
+function createResourceLoader(resources: Readonly<Record<string, Uint8Array>>) {
+  return createMockResourceLoader({ [BIKE_PROTOCOL_URI]: bikeProtocolBytes, ...resources })
 }

@@ -13,6 +13,7 @@ import {
 function camDocument(version: unknown): Record<string, unknown> {
   return {
     cam: version,
+    ...(version === "1.2.0" ? { protocol: { uri: "./protocol.html", integrity: "sha256:fixture" } } : {}),
     entry: "entry",
     namespaces: {
       "contracts.App": {
@@ -65,4 +66,14 @@ test("parseCam still rejects versions outside the supported inventory", () => {
       && error.path === "cam"
       && error.message === "cam: unsupported CAM version: 2.0.0",
   )
+})
+
+
+test("CAM 1.2 requires a closed protocol resource declaration with secondary URI policy", () => {
+  for (const protocol of [undefined, null, {}, { uri: "./protocol.html" }, { uri: "https://example.com/protocol", integrity: "sha256:fixture" }, { uri: "./protocol.html", integrity: "sha256:fixture", extra: true }]) {
+    assert.throws(() => parseCam({ ...camDocument("1.2.0"), protocol }), CamError)
+  }
+  const protocol = { uri: "./protocol.html", integrity: "sha256:fixture" }
+  assert.deepEqual(parseCam({ ...camDocument("1.2.0"), protocol }).protocol, protocol)
+  assert.throws(() => parseCam({ ...camDocument("1.1.0"), protocol }), /field is not allowed/)
 })

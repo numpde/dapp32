@@ -11,7 +11,6 @@ import {
   requireHttpURL,
 } from "../../packages/cam-protocol/dist/index.js"
 import {
-  requiredBoolean,
   requiredEnv,
   requiredPositiveIntegerEnv,
   requiredString,
@@ -28,7 +27,6 @@ export type Descriptor = {
   readonly camHost: Address
   readonly resourceOrigin: string
   readonly accounts: readonly Address[]
-  readonly allowUnsignedCamHash: boolean
 }
 
 export type RunnerOptions = {
@@ -56,7 +54,6 @@ const DESCRIPTOR_KEYS = new Set([
   "camHost",
   "resourceOrigin",
   "accounts",
-  "allowUnsignedCamHash",
 ])
 
 export function readOptions(env: NodeJS.ProcessEnv): RunnerOptions {
@@ -133,7 +130,6 @@ function readDescriptor(path: string): Descriptor {
     accounts: accountsValue.map((account, index) =>
       requireEvmAddress(requiredStringValue(account, `descriptor.accounts.${index}`), `descriptor.accounts.${index}`),
     ),
-    allowUnsignedCamHash: requiredBoolean(value, "allowUnsignedCamHash", "descriptor.allowUnsignedCamHash"),
   }
 }
 

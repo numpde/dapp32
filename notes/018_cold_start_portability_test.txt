@@ -1,7 +1,8 @@
 Cold-start portability test
 ===========================
 
-Proposed test, not executed by this note. Test whether a consumer can discover,
+Proposed full workflow test; the read-only trial below covers discovery only.
+Test whether a consumer can discover,
 explain and complete a workflow from its published CAM interface without
 application-specific repository knowledge. Begin with read-only discovery,
 then one authorized Escrow workflow on a disposable local fixture.
@@ -13,14 +14,22 @@ Give the consumer a recorded seed packet containing:
 - network identity, including the EVM chain ID;
 - an already configured RPC transport for that network;
 - the CAM host contract address;
-- a consumer-neutral public CAM specification and EVM host-interface ABI;
+- the minimal consumer-neutral CAM 1.2 bootstrap ABI and SHA-256 verification
+  rules below, without the execution reference;
 - the consumer's trusted resource-fetch policy and admitted origins.
 
 A chain ID names a network; it does not locate an RPC endpoint. A host address
 alone does not explain how to call its interface. The generic bootstrap ABI may
-include ERC-165, camURI(), camHash(), and the protocol's contract-binding reads.
-This protocol knowledge is allowed; app-specific routes and selectors are not
-bootstrap inputs. Record the exact specification/ABI versions supplied.
+include supportsInterface(bytes4), camManifest() returning one tuple
+(string uri, bytes32 sha256Digest), and contractAddress(string) returning address.
+The interface ID 0xb6a5fc7c is the XOR of the camManifest() and contractAddress(string)
+selectors, excluding inherited ERC-165. The root digest is SHA-256 of exact
+loaded bytes, checked before JSON parsing, with every bytes32 value permitted.
+CAM 1.2 requires top-level protocol: {uri, integrity}; resolve ./ relative to the
+manifest directory or use admitted IPFS transport, then verify exact resource
+bytes against sha256:0x plus 64 hex digits before reading the execution rules.
+These minimal authentication rules are bootstrap inputs; app routes, selectors
+and the full execution specification are not. Record the exact ABI/rules supplied.
 
 Admission to fetch resources is consumer policy, not authority supplied by an
 untrusted manifest. Preconfigure a permitted resource origin or have the
@@ -47,7 +56,7 @@ and assertions. This full plan and its oracle are observer-only, not the
 consumer prompt. In particular, do not
 hand it state IDs, route names, UI node names, call selectors, workflow scripts,
 repository READMEs, test fixtures, or precomputed transaction calldata. It may
-learn these through the supplied public protocol and fetched CAM/ABI resources.
+learn these through the authenticated protocol resource and fetched CAM/ABI resources.
 
 Consumer identity
 -----------------
@@ -58,9 +67,9 @@ model/instructions if it is an agent, dependencies, caches and supplied files.
 
 A protocol-capable independent consumer already understands the supplied CAM
 version and implements its own application-neutral interpretation. An agent
-with no CAM knowledge is a separate experiment: explicitly supplying the
-public specification is allowed, while coaching its app-specific decisions
-must be recorded as assistance.
+with no CAM knowledge receives only the minimal bootstrap rules above and
+discovers the full protocol through the manifest. Supplying the full execution
+reference directly is assistance and must be recorded separately.
 
 A separate consumer may use generic packages, with versions, source/build
 provenance and shared components disclosed. Repository workspace packages do
@@ -80,9 +89,11 @@ essential fact blocks writes. Do not supply this gate to the consumer or
 require it to forecast future calldata.
 
 1. Confirm that the RPC's actual chain ID matches the supplied network.
-2. Bootstrap through the public host interface. Discover the manifest URI/hash
-   and contract bindings. Load only admitted resources; verify root bytes and
-   declared resource integrity before interpreting them.
+2. Bootstrap through camManifest(). Verify SHA-256 of the exact manifest bytes
+   before JSON parsing. Discover its protocol URI and integrity, load only
+   admitted bytes, and authenticate the protocol reference before interpreting
+   it or loading ABI/UI resources. Resolve contracts.Name by calling the host's
+   contractAddress("Name"); reject address(0). Retain the call/fetch/hash order.
 3. Determine the supported schema version, available views and inputs from the
    published documents. Load declared ABIs and resolve contract references.
    Explain what the application offers using those documents and read calls.
@@ -194,3 +205,16 @@ receipts and final credit/balance evidence. Report actual effects even when
 classification is failure. Retain this evidence before cleaning up harness
 providers or owned resources; leave operator-owned sessions and deployments
 alone unless their cleanup was separately authorized.
+
+
+Read-only trial result — 2026-10-15
+----------------------------------
+
+A fresh agent completed bootstrap-only discovery on the new local CAM 1.2
+Escrow publication: root and linked protocol authentication preceded their
+interpretation, followed by ABI/UI authentication, onchain binding resolution
+and the learned entry read from the seeded account. The retained report is
+/tmp/cam-fresh-discovery-2026-10-15.txt; note 019 records validation context and
+limits. Isolation was by prompt rather than an OS access boundary. This trial
+sent no transactions and does not complete this note's five-receipt workflow,
+negative cases or broader interoperability qualification.

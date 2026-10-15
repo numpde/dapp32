@@ -24,7 +24,7 @@ contract BikeNftReleaseDeploymentHarness is DeployBikeNftRelease {
 contract BikeNftReleaseVerifierTest is Test {
     string private constant SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567";
     string private constant CAM_URI = "https://example.test/bike-nft/v1/main.json";
-    bytes32 private constant CAM_HASH = keccak256("bike CAM");
+    bytes32 private constant CAM_HASH = sha256("bike CAM");
     uint48 private constant ADMIN_DELAY = 1 days;
 
     address private constant ROOT_OWNER = address(0xA001);
@@ -61,6 +61,7 @@ contract BikeNftReleaseVerifierTest is Test {
     }
 
     function testVerifierRejectsPendingRootOwnership() public {
+        BikeNftReleaseVerifier.Artifact memory artifact = _artifact();
         vm.expectRevert(
             abi.encodeWithSelector(
                 bytes4(keccak256("AddressMismatch(string,address,address)")),
@@ -69,7 +70,7 @@ contract BikeNftReleaseVerifierTest is Test {
                 deployer
             )
         );
-        verifier.verify(_artifact(), SOURCE_COMMIT);
+        verifier.verify(artifact, SOURCE_COMMIT);
     }
 
     function testVerifierRejectsQueuedAdminDelayChange() public {
@@ -77,6 +78,7 @@ contract BikeNftReleaseVerifierTest is Test {
         vm.prank(COMPONENTS_ADMIN);
         components.changeDefaultAdminDelay(2 days);
         (uint48 pendingDelay, uint48 schedule) = components.pendingDefaultAdminDelay();
+        BikeNftReleaseVerifier.Artifact memory artifact = _artifact();
         vm.expectRevert(
             abi.encodeWithSelector(
                 bytes4(keccak256("PendingAdminDelay(string,uint48,uint48)")),
@@ -85,7 +87,7 @@ contract BikeNftReleaseVerifierTest is Test {
                 schedule
             )
         );
-        verifier.verify(_artifact(), SOURCE_COMMIT);
+        verifier.verify(artifact, SOURCE_COMMIT);
     }
 
     function testVerifierRejectsDeployerTokenRole() public {
@@ -93,6 +95,7 @@ contract BikeNftReleaseVerifierTest is Test {
         bytes32 minterRole = components.MINTER_ROLE();
         vm.prank(COMPONENTS_ADMIN);
         components.grantRole(minterRole, deployer);
+        BikeNftReleaseVerifier.Artifact memory artifact = _artifact();
         vm.expectRevert(
             abi.encodeWithSelector(
                 bytes4(keccak256("RoleMismatch(string,bytes32,address,bool)")),
@@ -102,7 +105,7 @@ contract BikeNftReleaseVerifierTest is Test {
                 false
             )
         );
-        verifier.verify(_artifact(), SOURCE_COMMIT);
+        verifier.verify(artifact, SOURCE_COMMIT);
     }
 
     function testVerifierRejectsProjectionImmutableMismatch() public {

@@ -25,6 +25,7 @@ export const BIKE_CAM_URI = "ipfs://QmYwAPJzv5CZsnAzt8auVZRnJQt6P2JxC1ZyQ3GzFZ2q
 
 const BIKE_RELATIVE_UI_ABI_URI = "./abi/BicycleComponentManagerUI.json"
 const BIKE_RELATIVE_MANAGER_ABI_URI = "./abi/BicycleComponentManager.json"
+export const BIKE_PROTOCOL_URI = bikeResourceURI("./protocol.html")
 const BIKE_RELATIVE_UI_URI = "./ui.json"
 export const BIKE_UI_ABI_URI = bikeResourceURI(BIKE_RELATIVE_UI_ABI_URI)
 export const BIKE_MANAGER_ABI_URI = bikeResourceURI(BIKE_RELATIVE_MANAGER_ABI_URI)
@@ -38,7 +39,6 @@ export const BIKE_SERIAL_HASH = "0x111111111111111111111111111111111111111111111
 export const BIKE_UNKNOWN_SERIAL_HASH = "0x2222222222222222222222222222222222222222222222222222222222222222"
 export const BIKE_TOKEN_ID = BigInt(BIKE_SERIAL_HASH)
 export const BIKE_UNKNOWN_TOKEN_ID = BigInt(BIKE_UNKNOWN_SERIAL_HASH)
-export const BIKE_UNSIGNED_CAM_HASH = BIKE_ZERO_BYTES32
 
 export type BikeComponentFixtureStatus = "active" | "missing" | "retired"
 

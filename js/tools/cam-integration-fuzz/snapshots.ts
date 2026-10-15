@@ -21,6 +21,7 @@ export function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoa
     || snapshot.uiURI === undefined
     || snapshot.resolvedUi === undefined
     || snapshot.values === undefined
+    || snapshot.documentHashes === undefined
   ) {
     throw new Error("viewer snapshot is not loaded")
   }
@@ -34,5 +35,6 @@ export function requireLoadedSnapshot(snapshot: CamViewerSnapshot): CamViewerLoa
     uiURI: snapshot.uiURI,
     resolvedUi: snapshot.resolvedUi,
     values: snapshot.values,
+    documentHashes: snapshot.documentHashes,
   }
 }

@@ -51,7 +51,7 @@ export function collectCamRootFact(
 
   const version = input.cam
   for (const key of Object.keys(input)) {
-    if (CAM_MANIFEST_TOP_LEVEL_KEYS.has(key)) continue
+    if (CAM_MANIFEST_TOP_LEVEL_KEYS.has(key) && (key !== "protocol" || version === "1.2.0")) continue
     diagnostics.push(camFactDiagnostic({
       code: "CAM_FACT_ROOT_FIELD_UNKNOWN",
       resource: options.resource,

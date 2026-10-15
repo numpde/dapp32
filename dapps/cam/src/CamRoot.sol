@@ -18,23 +18,19 @@ import "./ICamApp.sol";
 ///
 /// Passing `address(0)` to `setContractAddress` clears a binding.
 contract CamRoot is ICamApp, Ownable2Step {
-    /// @inheritdoc ICamApp
-    string public override camURI;
-
-    /// @inheritdoc ICamApp
-    bytes32 public override camHash;
+    ManifestRef private _manifest;
 
     /// @notice Resolves a CAM contract name to this chain's deployed address.
     mapping(bytes32 contractNameHash => address deployedAt) private _contractAddress;
 
-    event CamUpdated(string camURI, bytes32 camHash);
+    event CamUpdated(string uri, bytes32 sha256Digest);
     event ContractAddressSet(bytes32 indexed contractNameHash, string contractName, address indexed deployedAt);
 
     error EmptyCamURI();
     error EmptyContractName();
 
-    constructor(address admin, string memory uri, bytes32 hash) Ownable(admin) {
-        _setCam(uri, hash);
+    constructor(address admin, string memory uri, bytes32 sha256Digest) Ownable(admin) {
+        _setCam(uri, sha256Digest);
     }
 
     /// @inheritdoc IERC165
@@ -42,16 +38,18 @@ contract CamRoot is ICamApp, Ownable2Step {
         return interfaceId == type(ICamApp).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 
-    /// @notice Updates the CAM served by this root contract.
-    ///
-    /// `hash` should be `keccak256` of the exact CAM document bytes.
-    /// Use `bytes32(0)` only for intentionally mutable or unpinned CAMs.
-    function setCam(string calldata uri, bytes32 hash) external onlyOwner {
-        _setCam(uri, hash);
+    /// @inheritdoc ICamApp
+    function camManifest() external view override returns (ManifestRef memory) {
+        return _manifest;
+    }
+
+    /// @notice Updates the URI and SHA-256 digest of the exact CAM bytes together.
+    function setCam(string calldata uri, bytes32 sha256Digest) external onlyOwner {
+        _setCam(uri, sha256Digest);
     }
 
     /// @notice Resolves a CAM contract name to this chain's deployed address.
-    function contractAddress(string calldata contractName) external view returns (address) {
+    function contractAddress(string calldata contractName) external view override returns (address) {
         // Intentional default: Solidity mappings return address(0) for an
         // unset binding. CAM clients currently must treat address(0) as
         // unbound; consider an explicit exists flag if this becomes ambiguous.
@@ -75,12 +73,11 @@ contract CamRoot is ICamApp, Ownable2Step {
         emit ContractAddressSet(contractNameHash, contractName, deployedAt);
     }
 
-    function _setCam(string memory uri, bytes32 hash) private {
+    function _setCam(string memory uri, bytes32 sha256Digest) private {
         if (bytes(uri).length == 0) revert EmptyCamURI();
 
-        camURI = uri;
-        camHash = hash;
+        _manifest = ManifestRef(uri, sha256Digest);
 
-        emit CamUpdated(uri, hash);
+        emit CamUpdated(uri, sha256Digest);
     }
 }

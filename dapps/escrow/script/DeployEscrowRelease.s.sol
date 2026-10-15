@@ -11,7 +11,7 @@ import {EscrowDeployment} from "./EscrowDeployment.sol";
 /// If the intended owner differs, this script starts Ownable2Step transfer; the
 /// release remains unverified until that owner accepts independently.
 contract DeployEscrowRelease is Script, EscrowDeployment {
-    string private constant RELEASE_PLAN_SCHEMA = "escrow.release-plan.v1";
+    string private constant RELEASE_PLAN_SCHEMA = "escrow.release-plan.v2";
     string private constant CAM_ROOT_PATH = "escrow/cam/main.json";
 
     struct ReleasePlan {
@@ -35,7 +35,6 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error UnsupportedReleaseChainId(uint256 chainId);
     error CamHashSourceMismatch(bytes32 planned, bytes32 source);
-    error ZeroCamHash();
     error EmptyCamURI();
     error ZeroCamRootOwner();
 
@@ -111,11 +110,10 @@ contract DeployEscrowRelease is Script, EscrowDeployment {
         if (plan.expectedChainId == 1337 || plan.expectedChainId == 31337) {
             revert UnsupportedReleaseChainId(plan.expectedChainId);
         }
-        if (plan.camHash == bytes32(0)) revert ZeroCamHash();
         if (bytes(plan.camURI).length == 0) revert EmptyCamURI();
         if (plan.intendedCamRootOwner == address(0)) revert ZeroCamRootOwner();
 
-        bytes32 sourceCamHash = keccak256(vm.readFileBinary(CAM_ROOT_PATH));
+        bytes32 sourceCamHash = sha256(vm.readFileBinary(CAM_ROOT_PATH));
         if (plan.camHash != sourceCamHash) {
             revert CamHashSourceMismatch(plan.camHash, sourceCamHash);
         }

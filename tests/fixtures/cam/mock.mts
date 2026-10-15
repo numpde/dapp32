@@ -2,12 +2,14 @@ import { TextEncoder } from "node:util"
 
 import {
   BIKE_CAM_URI,
+  BIKE_PROTOCOL_URI,
   BIKE_MANAGER_ABI_URI,
   BIKE_UI_ABI_URI,
   BIKE_UI_URI,
 } from "./bike.mts"
 import {
   bikeCamBytes,
+  bikeProtocolBytes,
   bikeManagerAbiBytes,
   bikeUiAbiBytes,
   bikeUiBytes,
@@ -85,12 +87,8 @@ export function createMockCamPublicClient({
       return supportsCamInterface
     }
 
-    if (request.functionName === "camURI") {
-      return camURI
-    }
-
-    if (request.functionName === "camHash") {
-      return camHash
+    if (request.functionName === "camManifest") {
+      return { uri: camURI, sha256Digest: camHash }
     }
 
     if (request.functionName === "contractAddress") {
@@ -131,6 +129,7 @@ export function bikeResourceBytes(
 ): Record<string, Uint8Array> {
   return {
     [BIKE_CAM_URI]: bikeCamBytes,
+    [BIKE_PROTOCOL_URI]: bikeProtocolBytes,
     [BIKE_UI_ABI_URI]: bikeUiAbiBytes,
     [BIKE_MANAGER_ABI_URI]: bikeManagerAbiBytes,
     [BIKE_UI_URI]: bikeUiBytes,

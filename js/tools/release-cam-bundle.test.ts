@@ -14,7 +14,7 @@ import { dirname, join, resolve } from "node:path"
 import test from "node:test"
 import { fileURLToPath } from "node:url"
 
-import { keccak256 } from "viem"
+import { sha256 } from "viem"
 
 import { inspectReleaseCamBundle } from "./release-cam-bundle.ts"
 
@@ -93,8 +93,8 @@ test("release CAM hashing uses the exact raw root bytes", async () => {
     await writeFile(fixture.rootPath, Buffer.concat([originalBytes, Buffer.from("\n")]))
     const rootBytes = await readFile(fixture.rootPath)
     const inspected = await inspectFixture(fixture, "fixture")
-    assert.equal(inspected.camHash, keccak256(rootBytes))
-    assert.notEqual(inspected.camHash, keccak256(originalBytes))
+    assert.equal(inspected.camHash, sha256(rootBytes))
+    assert.notEqual(inspected.camHash, sha256(originalBytes))
   } finally {
     await rm(fixture.directory, { recursive: true, force: true })
   }

@@ -1,7 +1,6 @@
 import type { TerminalBackend, TerminalBackendOptions } from "../types.ts"
 import {
   readInertRecordEnv,
-  requiredBooleanEnv,
   requiredEnv,
 } from "../../input.ts"
 import type { BikeComponentFixtureStatus } from "../../../../tests/fixtures/cam/bike.mts"
@@ -43,7 +42,6 @@ function readBikeMockComponentStatus(env: NodeJS.ProcessEnv): BikeComponentFixtu
 
 function readBackendOptions(env: NodeJS.ProcessEnv): TerminalBackendOptions {
   return {
-    allowUnsignedCamHash: requiredBooleanEnv(env, "CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH"),
     initialInputs: readInertRecordEnv(env, "CAM_VIEWER_INITIAL_INPUTS_JSON"),
   }
 }

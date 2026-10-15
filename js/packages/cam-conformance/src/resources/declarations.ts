@@ -7,6 +7,7 @@ import {
 } from "@cam/protocol"
 import type {
   CamFactDiagnostic,
+  CamRootFact,
   CamResourceDeclarationFact,
 } from "@cam/protocol"
 
@@ -28,12 +29,14 @@ export type ResourceDeclaration = CamResourceDeclarationFact
 
 export function declaredResources({
   namespaces,
+  root,
   issues,
 }: {
+  readonly root: CamRootFact
   readonly namespaces: readonly DeclaredNamespace[]
   readonly issues: CamConformanceIssue[]
 }): readonly ResourceDeclaration[] {
-  const result = collectCamResourceDeclarationFacts(namespaces)
+  const result = collectCamResourceDeclarationFacts(namespaces, root)
   for (const diagnostic of result.diagnostics) {
     issues.push(resourceFactDiagnosticIssue(diagnostic))
   }

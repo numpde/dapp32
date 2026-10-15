@@ -1,7 +1,7 @@
 // Top-level document keys are protocol vocabulary, not parser-local detail:
 // parsers reject unknown fields and conformance uses the same closed-world
 // boundary as a join gate before cross-document checks run.
-export const CAM_MANIFEST_TOP_LEVEL_KEYS: ReadonlySet<string> = new Set(["cam", "entry", "namespaces", "routes"])
+export const CAM_MANIFEST_TOP_LEVEL_KEYS: ReadonlySet<string> = new Set(["cam", "entry", "namespaces", "routes", "protocol"])
 
 export type CamRouteKind = "read" | "write"
 export type CamNamespaceType = "contract" | "routes" | "ui"

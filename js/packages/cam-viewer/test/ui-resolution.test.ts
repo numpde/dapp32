@@ -234,7 +234,7 @@ test("resolveViewerCurrentUi passes inputs, outputs, and state into UI context",
 
 function camDocument(): CamDocument {
   return parseCam({
-    cam: CAM_VERSION,
+    cam: CAM_VERSION, protocol: { uri: "./protocol.html", integrity: "sha256:0x" + "00".repeat(32) },
     entry: "entry",
     namespaces: {
       "contracts.App": {

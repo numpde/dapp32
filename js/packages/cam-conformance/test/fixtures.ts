@@ -57,6 +57,7 @@ function buildMinimalBundle(uiIntegrityOverride: string | undefined): CamConform
   }
   const rootBytes = jsonBytes({
     cam: CAM_VERSION,
+    protocol: { uri: "./protocol.html", integrity: sha256Integrity(new TextEncoder().encode("CAM 1.2.0")) },
     entry: "entry",
     namespaces: {
       "contracts.App": {
@@ -97,6 +98,7 @@ function buildMinimalBundle(uiIntegrityOverride: string | undefined): CamConform
     rootURI: "file:///bundle/root.json",
     rootBytes,
     resources: new Map([
+      ["./protocol.html", new TextEncoder().encode("CAM 1.2.0")],
       ["./abi/App.json", abiBytes],
       ["./ui.json", uiBytes],
     ]),

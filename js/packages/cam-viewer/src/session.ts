@@ -73,7 +73,6 @@ export function createCamViewerSession({
   publicClient,
   host,
   loadResource,
-  allowUnsignedCamHash,
   account: initialAccount,
   inputs: initialInputs,
   route: initialRoute,
@@ -122,7 +121,6 @@ export function createCamViewerSession({
       publicClient,
       host: sessionHost,
       loadResource,
-      allowUnsignedCamHash,
     })
 
     const contracts = await resolveCamContracts({

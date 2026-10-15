@@ -5,7 +5,7 @@ import { displayRpcEndpoint, parseStartupOptions, readStartupPolicy, urlForView 
 
 const POLICY = {
   resourceOrigin: "https://resources.example.test",
-  allowUnsignedCamHash: false,
+
 }
 
 test("startup parser rejects duplicate deep-link parameters", () => {
@@ -28,19 +28,9 @@ test("startup parser rejects unknown deep-link parameters", () => {
   )
 })
 
-test("startup policy requires explicit boolean text", () => {
-  assert.deepEqual(readStartupPolicy({
-    VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test",
-    VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH: "false",
-  }), POLICY)
-
-  assert.throws(
-    () => readStartupPolicy({
-      VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test",
-      VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH: "0",
-    }),
-    /expected "true" or "false"/,
-  )
+test("startup policy requires a pinned resource origin", () => {
+  assert.deepEqual(readStartupPolicy({ VITE_CAM_WEB_RESOURCE_ORIGIN: "https://resources.example.test" }), POLICY)
+  assert.throws(() => readStartupPolicy({}), /missing environment setting/)
 })
 
 function validStartupUrl(): URL {

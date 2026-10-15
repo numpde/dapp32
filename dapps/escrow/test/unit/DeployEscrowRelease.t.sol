@@ -38,7 +38,7 @@ contract DeployEscrowReleaseTest is Test {
     uint256 private constant RELEASE_CHAIN_ID = 11_155_111;
     address private constant FINAL_OWNER = address(0xBEEF);
     string private constant PLAN_JSON =
-        '{"schema":"escrow.release-plan.v1","sourceCommit":"0123456789abcdef0123456789abcdef01234567","expectedChainId":11155111,"camURI":"https://example.test/escrow/cam/main.json","camHash":"0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66","intendedCamRootOwner":"0x000000000000000000000000000000000000bEEF"}';
+        '{"schema":"escrow.release-plan.v2","sourceCommit":"0123456789abcdef0123456789abcdef01234567","expectedChainId":11155111,"camURI":"https://example.test/escrow/cam/main.json","camHash":"0x08f41b8991602fa55e28230933cf6642345a28d1bbf0c18215ae044608a6fb66","intendedCamRootOwner":"0x000000000000000000000000000000000000bEEF"}';
 
     DeployEscrowReleaseHarness private harness;
 
@@ -107,12 +107,12 @@ contract DeployEscrowReleaseTest is Test {
     }
 
     function testAcceptsPlanBoundToExactCamRootBytes() external view {
-        bytes32 sourceHash = keccak256(vm.readFileBinary("escrow/cam/main.json"));
+        bytes32 sourceHash = sha256(vm.readFileBinary("escrow/cam/main.json"));
         harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID, CAM_URI, sourceHash, FINAL_OWNER);
     }
 
     function testRejectsCamHashNotBoundToExactCamRootBytes() external {
-        bytes32 sourceHash = keccak256(vm.readFileBinary("escrow/cam/main.json"));
+        bytes32 sourceHash = sha256(vm.readFileBinary("escrow/cam/main.json"));
         bytes32 plannedHash = sourceHash ^ bytes32(uint256(1));
 
         vm.expectRevert(
@@ -122,7 +122,7 @@ contract DeployEscrowReleaseTest is Test {
     }
 
     function testRejectsOperatorChainMismatch() external {
-        bytes32 sourceHash = keccak256(vm.readFileBinary("escrow/cam/main.json"));
+        bytes32 sourceHash = sha256(vm.readFileBinary("escrow/cam/main.json"));
         vm.expectRevert(
             abi.encodeWithSelector(DeployEscrowRelease.ChainIdMismatch.selector, RELEASE_CHAIN_ID + 1, RELEASE_CHAIN_ID)
         );

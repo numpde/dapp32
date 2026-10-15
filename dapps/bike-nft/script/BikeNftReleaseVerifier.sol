@@ -84,7 +84,6 @@ abstract contract BikeNftReleaseVerifier {
             revert UnsupportedReleaseChainId(artifact.chainId);
         }
         _requireText(artifact.camURI, "camURI");
-        if (artifact.camHash == bytes32(0)) revert ZeroValue("camHash");
         _requireText(artifact.tokenName, "tokenName");
         _requireText(artifact.tokenSymbol, "tokenSymbol");
         _requireText(artifact.baseTokenURI, "baseTokenURI");
@@ -103,8 +102,9 @@ abstract contract BikeNftReleaseVerifier {
 
     function _verifyCamRoot(Artifact memory artifact) private view {
         CamRoot root = CamRoot(artifact.camRoot);
-        _requireString("camURI", artifact.camURI, root.camURI());
-        if (root.camHash() != artifact.camHash) revert ValueMismatch("camHash");
+        ICamApp.ManifestRef memory manifest = root.camManifest();
+        _requireString("camURI", artifact.camURI, manifest.uri);
+        if (manifest.sha256Digest != artifact.camHash) revert ValueMismatch("camHash");
         _requireAddress("intendedCamRootOwner", artifact.intendedCamRootOwner, root.owner());
         address pendingOwner = root.pendingOwner();
         if (pendingOwner != address(0)) revert PendingAuthority("intendedCamRootOwner", pendingOwner);

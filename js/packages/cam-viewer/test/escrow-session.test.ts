@@ -5,7 +5,7 @@ import test from "node:test"
 import type { CamPublicClient } from "@cam/evm-viem"
 import { toInertValue } from "@cam/protocol"
 import { forEachResolvedUiNode, resolvedUiButtons } from "@cam/screen"
-import { keccak256 } from "viem"
+import { sha256 } from "viem"
 import type { Address } from "viem"
 
 import { createCamViewerSession } from "../src/index.ts"
@@ -67,7 +67,7 @@ test("failed credit-account reprojection preserves the last coherent account, cr
 
 async function escrowSession(amountA: bigint, amountB: bigint) {
   const resources: Record<string, Uint8Array> = {}
-  for (const path of ["main.json", "ui.json", "abi/CamEscrow.json", "abi/CamEscrowUI.json"]) {
+  for (const path of ["main.json", "protocol.html", "ui.json", "abi/CamEscrow.json", "abi/CamEscrowUI.json"]) {
     resources[new URL(path, CAM_URI).href] = new Uint8Array(await readFile(new URL(path, CAM_DIRECTORY)))
   }
   const rootBytes = resources[CAM_URI]
@@ -75,7 +75,7 @@ async function escrowSession(amountA: bigint, amountB: bigint) {
   const hostClient = createMockCamPublicClient({
     chainId: 31337,
     camURI: CAM_URI,
-    camHash: keccak256(rootBytes),
+    camHash: sha256(rootBytes),
     supportsCamInterface: true,
     addresses: { CamEscrow: ESCROW, CamEscrowUI: UI },
     routeResults: {},
@@ -119,7 +119,7 @@ async function escrowSession(amountA: bigint, amountB: bigint) {
       host: { chainId: "eip155:31337", address: HOST },
       account: { address: ACCOUNT_A },
       inputs: {},
-      allowUnsignedCamHash: false,
+
       loadResource: createMockResourceLoader(resources),
     }),
     reads,

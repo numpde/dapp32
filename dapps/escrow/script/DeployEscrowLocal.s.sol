@@ -19,7 +19,7 @@ contract DeployEscrowLocal is Script, EscrowLocalFixture {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
         string memory camURI = vm.envString("CAM_URI");
-        bytes32 camHash = keccak256(vm.readFileBinary("escrow/cam/main.json"));
+        bytes32 camHash = sha256(vm.readFileBinary("escrow/cam/main.json"));
 
         vm.startBroadcast(deployerKey);
         deployment = deployLocalFixture(deployer, camURI, camHash);

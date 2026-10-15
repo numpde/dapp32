@@ -6,14 +6,15 @@ import {
   requireExactKeys,
   requiredNonzeroAddress,
   requiredNonzeroBytes32,
+  requiredBytes32,
   requiredSafeInteger,
   requiredSingleLineString,
   requiredSourceCommit,
   requiredTransactionHash,
 } from "../release-values.ts"
 
-export const RELEASE_PLAN_SCHEMA = "bike-nft.release-plan.v1"
-export const DEPLOYMENT_SCHEMA = "bike-nft.deployment.v1"
+export const RELEASE_PLAN_SCHEMA = "bike-nft.release-plan.v2"
+export const DEPLOYMENT_SCHEMA = "bike-nft.deployment.v2"
 
 const PLAN_KEYS = [
   "schema", "sourceCommit", "expectedChainId", "camURI", "camHash", "intendedCamRootOwner",
@@ -136,7 +137,7 @@ function parseCommonFields(value: Record<string, unknown>): Omit<ReleasePlan, "s
   return {
     sourceCommit: requiredSourceCommit(value.sourceCommit),
     camURI: requiredSingleLineString(value.camURI, "camURI"),
-    camHash: requiredNonzeroBytes32(value.camHash, "camHash"),
+    camHash: requiredBytes32(value.camHash, "camHash"),
     intendedCamRootOwner: addressField(value, "intendedCamRootOwner"),
     tokenName: requiredSingleLineString(value.tokenName, "tokenName"), tokenSymbol: requiredSingleLineString(value.tokenSymbol, "tokenSymbol"),
     baseTokenURI: requiredSingleLineString(value.baseTokenURI, "baseTokenURI"), collectionURI: requiredSingleLineString(value.collectionURI, "collectionURI"),

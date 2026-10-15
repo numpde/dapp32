@@ -75,8 +75,11 @@ test("bundle conformance accepts each supported CAM version", () => {
     if (!isRecordObject(root)) continue
 
     root.cam = version
+    const resources = new Map(bundle.resources)
+    if (version !== "1.2.0") { delete root.protocol; resources.delete("./protocol.html") }
     assert.deepEqual(validateCamBundle({
       ...bundle,
+      resources,
       rootBytes: jsonBytes(root),
     }), [])
   }

@@ -250,7 +250,7 @@ test("prepareViewerContractCall resolves continuations with the route context", 
 
 function camDocument(): CamDocument {
   return parseCam({
-    cam: CAM_VERSION,
+    cam: CAM_VERSION, protocol: { uri: "./protocol.html", integrity: "sha256:0x" + "00".repeat(32) },
     entry: "readRoute",
     namespaces: {
       "contracts.App": {

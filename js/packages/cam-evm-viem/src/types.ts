@@ -31,7 +31,6 @@ export type LoadCamFromHostOptions = {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
   readonly loadResource: ResourceLoader
-  readonly allowUnsignedCamHash: boolean
 }
 
 export type LoadedCam = {
@@ -42,7 +41,6 @@ export type LoadedCam = {
 export type VerifyCamHashOptions = {
   readonly bytes: Uint8Array
   readonly expectedHash: Hex
-  readonly allowUnsigned: boolean
 }
 
 export type VerifyCamResourceIntegrityOptions = {

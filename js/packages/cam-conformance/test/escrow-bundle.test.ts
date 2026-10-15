@@ -29,7 +29,7 @@ const AGREEMENT_TRANSITIONS = [
   "finalizeArbitrationTimeout",
 ] as const
 
-test("checked-in escrow CAM 1.1 bundle conforms", async () => {
+test("checked-in escrow CAM 1.2 bundle conforms", async () => {
   const bundle = await escrowBundle()
   assert.deepEqual(validateCamBundle(bundle), [])
 })
@@ -81,7 +81,7 @@ async function escrowBundle() {
   const namespaces = requiredRecord(root.namespaces, "namespaces")
   const resources = new Map<string, Uint8Array>()
 
-  for (const declarationValue of Object.values(namespaces)) {
+  for (const declarationValue of [root.protocol, ...Object.values(namespaces)]) {
     if (!isRecordObject(declarationValue)) continue
 
     const uri = resourceUri(declarationValue)

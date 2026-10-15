@@ -353,7 +353,7 @@ function testStartup(): StartupOptions {
     account: walletAddress,
     rpcUrl: "http://127.0.0.1:8545",
     resourceOrigin: "http://127.0.0.1:5173",
-    allowUnsignedCamHash: false,
+
     inputs: {},
   }
 }

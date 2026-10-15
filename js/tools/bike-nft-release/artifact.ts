@@ -20,8 +20,7 @@ import type { ReleasePlan } from "./shared.ts"
 
 const MAX_BYTES = 16 * 1024 * 1024
 const ROOT_ABI = parseAbi([
-  "function camURI() view returns (string)",
-  "function camHash() view returns (bytes32)",
+  "function camManifest() view returns ((string uri, bytes32 sha256Digest))",
   "function contractAddress(string) view returns (address)",
   "function owner() view returns (address)",
   "function pendingOwner() view returns (address)",
@@ -231,17 +230,16 @@ async function observeCode(
 }
 
 async function observeRoot(read: ContractReader, address: Address): Promise<RootObservation> {
-  const [camURI, camHash, managerBinding, uiBinding, owner, pendingOwner] = await Promise.all([
-    read<string>(address, ROOT_ABI, "camURI"),
-    read<Hex>(address, ROOT_ABI, "camHash"),
+  const [manifest, managerBinding, uiBinding, owner, pendingOwner] = await Promise.all([
+    read<{ uri: string; sha256Digest: Hex }>(address, ROOT_ABI, "camManifest"),
     read<Address>(address, ROOT_ABI, "contractAddress", ["BicycleComponentManager"]),
     read<Address>(address, ROOT_ABI, "contractAddress", ["BicycleComponentManagerUI"]),
     read<Address>(address, ROOT_ABI, "owner"),
     read<Address>(address, ROOT_ABI, "pendingOwner"),
   ])
   return {
-    camURI,
-    camHash,
+    camURI: manifest.uri,
+    camHash: manifest.sha256Digest,
     managerBinding,
     uiBinding,
     owner,

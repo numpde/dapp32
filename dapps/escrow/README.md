@@ -2,7 +2,7 @@
 
 `CamEscrow` is a non-upgradeable, single-milestone native-asset escrow. A client creates and funds an agreement in one payable transaction. The contractor may accept and submit committed work evidence. Client approval, timeout finalization, or an arbitrator decision closes the agreement and credits the beneficiary; that account must withdraw separately to receive the funds. The client may cancel before acceptance, dispute a submission, or receive refund credit after acceptance/work timeout or an arbitrator decision.
 
-This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.1 manifest/UI/ABI bundle, deterministic/fuzz/stateful verification, a local real-RPC vertical workflow, and explicit release deployment/verification lanes. It deliberately contains no generic CAM machine descriptor.
+This package contains the core contract, the read-only `CamEscrowUI` semantic projection, the CAM 1.2 manifest/UI/ABI bundle, deterministic/fuzz/stateful verification, a local real-RPC vertical workflow, and explicit release deployment/verification lanes. It deliberately contains no generic CAM machine descriptor.
 
 ## Roles and trust
 
@@ -161,7 +161,7 @@ arbitrator acknowledgement: not required and not recorded on-chain
 
 The projection does not recalculate authorization, deadline expiry, acceptance readiness, or terminal transitions. It calls `availableActions(agreementId, actor)` and maps the returned enum values in their core-defined order. Creation remains a factory action and withdrawal remains an account-credit action; neither is represented as an agreement-machine transition.
 
-## CAM 1.1 bundle
+## CAM 1.2 bundle
 
 `cam/main.json` declares two contract namespaces, the route namespace, and the UI resource. Generated ABI resources live under `cam/abi/`; their byte identities and the UI byte identity are pinned in the manifest.
 
@@ -313,13 +313,13 @@ make escrow/local/demo/gui/up
 
 ## Release deployment
 
-A release deployment is deliberately separate from the local fixture. It has no default chain and accepts no local fixture chain ID. The offline planning step validates the complete checked-in CAM bundle and computes the exact `keccak256` root hash stored in `CamRoot`.
+A release deployment is deliberately separate from the local fixture. It has no default chain and accepts no local fixture chain ID. The offline planning step validates the complete checked-in CAM bundle and computes the exact-byte SHA-256 root digest stored in `CamRoot`.
 
 Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in [the release ceremony guide](../../docs/release-ceremony.md).
 
 For the first public rehearsal, prepare Ethereum Sepolia (`11155111`) but do not conflate it with the local Anvil workflow. Anvil is a disposable process on the operator's machine; Sepolia is a persistent public test network with externally funded accounts, provider RPC, public CAM hosting, wallet interaction, explorer records, and an explicit finality decision.
 
-Publish the exact checked-in CAM bytes at the chosen URI before deployment. The release planner binds the URI and checked-in root hash; it does not fetch the remote publication. Viewers will reject the publication if the bytes served there do not match the hash stored in `CamRoot`.
+Publish the exact checked-in CAM bytes and their declared protocol/ABI/UI resources at the chosen URI before deployment. The release planner binds the URI and checked-in root hash; it does not fetch the remote publication. Viewers will reject the publication if the bytes served there do not match the hash stored in `CamRoot`.
 
 Prepare the RPC and deployer-key files:
 
@@ -349,6 +349,8 @@ plan/release-plan.json
 broadcast/DeployEscrowRelease.s.sol/<chain-id>/run-latest.json
 artifact/deployment.json
 ```
+
+The `escrow.release-plan.v2` and `escrow.deployment.v2` schemas identify SHA-256 manifest commitments; older v1 artifacts retain their Keccak meaning and are rejected by these lanes.
 
 `plan/release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `artifact/deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, final owner, and whether the ownership handoff has already been accepted.
 

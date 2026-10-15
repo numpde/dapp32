@@ -27,18 +27,15 @@ export type StartupOptions = {
   readonly account: CamHost["address"]
   readonly rpcUrl: string
   readonly resourceOrigin: string
-  readonly allowUnsignedCamHash: boolean
   readonly route?: string
   readonly inputs: InertRecord
 }
 
 export type StartupPolicy = {
   readonly resourceOrigin: string
-  readonly allowUnsignedCamHash: boolean
 }
 
 export type StartupEnv = {
-  readonly VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH?: string
   readonly VITE_CAM_WEB_RESOURCE_ORIGIN?: string
 }
 
@@ -61,7 +58,6 @@ export function parseStartupOptions(url: URL, policy: StartupPolicy): StartupOpt
     account: requireEvmAddress(requiredParam(params, "account"), "account"),
     rpcUrl: requireHttpURL(requiredParam(params, "rpcUrl"), "rpcUrl").href,
     resourceOrigin: policy.resourceOrigin,
-    allowUnsignedCamHash: policy.allowUnsignedCamHash,
     ...parseViewFragment(url.hash),
   }
 }
@@ -71,10 +67,6 @@ export function readStartupPolicy(env: StartupEnv): StartupPolicy {
     resourceOrigin: requireHttpOrigin(
       requiredEnv(env.VITE_CAM_WEB_RESOURCE_ORIGIN, "VITE_CAM_WEB_RESOURCE_ORIGIN"),
       "VITE_CAM_WEB_RESOURCE_ORIGIN",
-    ),
-    allowUnsignedCamHash: parseRequiredBoolean(
-      env.VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH,
-      "VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH",
     ),
   }
 }
@@ -140,13 +132,6 @@ function requiredEnv(value: string | undefined, name: string): string {
   }
 
   return value
-}
-
-function parseRequiredBoolean(value: string | undefined, name: string): boolean {
-  value = requiredEnv(value, name)
-  if (value === "true") return true
-  if (value === "false") return false
-  throw new Error(`${name}: expected "true" or "false"`)
 }
 
 // These web-link bounds limit untrusted URL work before the protocol's recursive

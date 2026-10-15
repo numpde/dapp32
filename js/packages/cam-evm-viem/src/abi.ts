@@ -20,8 +20,7 @@ import {
 import { CamEvmError } from "./errors.ts"
 
 export const CAM_ROOT_FUNCTIONS = {
-  camURI: "camURI",
-  camHash: "camHash",
+  camManifest: "camManifest",
   contractAddress: "contractAddress",
   supportsInterface: "supportsInterface",
 } as const
@@ -29,7 +28,7 @@ export const CAM_ROOT_FUNCTIONS = {
 // type(ICamApp).interfaceId from ICamApp.sol. Solidity does not include the
 // inherited IERC165 function in the child interface id; ERC-165 itself is
 // checked separately with 0x01ffc9a7 if needed.
-export const ICAM_APP_INTERFACE_ID = "0x03625ff6"
+export const ICAM_APP_INTERFACE_ID = "0xb6a5fc7c"
 
 export const camRootAbi = [
   {
@@ -41,17 +40,13 @@ export const camRootAbi = [
   },
   {
     type: "function",
-    name: CAM_ROOT_FUNCTIONS.camURI,
+    name: CAM_ROOT_FUNCTIONS.camManifest,
     stateMutability: "view",
     inputs: [],
-    outputs: [{ name: "", type: "string" }],
-  },
-  {
-    type: "function",
-    name: CAM_ROOT_FUNCTIONS.camHash,
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "bytes32" }],
+    outputs: [{ name: "", type: "tuple", components: [
+      { name: "uri", type: "string" },
+      { name: "sha256Digest", type: "bytes32" },
+    ] }],
   },
   {
     type: "function",

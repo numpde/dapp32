@@ -35,7 +35,6 @@ abstract contract EscrowReleaseVerifier {
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error UnsupportedReleaseChainId(uint256 chainId);
     error EmptyCamURI();
-    error ZeroCamHash();
     error ZeroAddress(string field);
     error MissingCode(string field, address target);
     error CodeHashMismatch(string field, bytes32 expected, bytes32 actual);
@@ -69,7 +68,6 @@ abstract contract EscrowReleaseVerifier {
             revert UnsupportedReleaseChainId(artifact.chainId);
         }
         if (bytes(artifact.camURI).length == 0) revert EmptyCamURI();
-        if (artifact.camHash == bytes32(0)) revert ZeroCamHash();
     }
 
     function _verifyAddressesAndCode(Artifact memory artifact) private view {
@@ -84,9 +82,10 @@ abstract contract EscrowReleaseVerifier {
 
     function _verifyRootAndProjection(Artifact memory artifact) private view {
         CamRoot root = CamRoot(artifact.camRoot);
-        _requireCamURI(artifact.camURI, root.camURI());
+        ICamApp.ManifestRef memory manifest = root.camManifest();
+        _requireCamURI(artifact.camURI, manifest.uri);
 
-        bytes32 actualCamHash = root.camHash();
+        bytes32 actualCamHash = manifest.sha256Digest;
         if (actualCamHash != artifact.camHash) {
             revert CamHashMismatch(artifact.camHash, actualCamHash);
         }

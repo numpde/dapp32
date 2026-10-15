@@ -3,6 +3,8 @@ import {
   isCamResourceNamespaceType,
   type CamResourceNamespaceType,
 } from "../manifest.ts"
+import { isRecordObject } from "../json.ts"
+import type { CamRootFact } from "./root.ts"
 import {
   assertCamSecondaryResourceURI,
 } from "../resources.ts"
@@ -17,7 +19,7 @@ import type {
 export type CamResourceDeclarationFact = {
   readonly sourceResource: string
   readonly namespace: string
-  readonly namespaceType: CamResourceNamespaceType
+  readonly namespaceType: CamResourceNamespaceType | "protocol"
   readonly uri: string
   readonly integrity: string
   readonly uriPath: string
@@ -26,6 +28,7 @@ export type CamResourceDeclarationFact = {
 
 export function collectCamResourceDeclarationFacts(
   namespaces: readonly CamNamespaceFact[],
+  root?: CamRootFact,
 ): {
   readonly declarations: readonly CamResourceDeclarationFact[]
   readonly diagnostics: readonly CamFactDiagnostic[]
@@ -39,6 +42,26 @@ export function collectCamResourceDeclarationFacts(
     }
   }
 
+  if (root?.version === "1.2.0") {
+    const protocol = root.value.protocol
+    if (!isRecordObject(protocol) || Object.keys(protocol).some(key => key !== "uri" && key !== "integrity")) {
+      diagnostics.push(camFactDiagnostic({
+        code: "CAM_FACT_RESOURCE_URI_INVALID",
+        resource: root.resource,
+        path: "protocol",
+        message: "CAM 1.2 protocol must be an object containing only uri and integrity",
+      }))
+    } else {
+      const declaration = collectResourceDeclaration({
+        resource: root.resource,
+        name: "protocol",
+        path: "protocol",
+        type: "protocol",
+        declaration: protocol,
+      }, diagnostics)
+      if (declaration !== undefined) declarations.push(declaration)
+    }
+  }
   return { declarations, diagnostics }
 }
 
@@ -47,7 +70,20 @@ function collectCamResourceDeclarationFact(
   diagnostics: CamFactDiagnostic[],
 ): CamResourceDeclarationFact | undefined {
   if (!isCamResourceNamespaceType(namespace.type)) return undefined
-  const uriKey = camNamespaceResourceURIKey(namespace.type)
+  return collectResourceDeclaration({ ...namespace, type: namespace.type }, diagnostics)
+}
+
+function collectResourceDeclaration(
+  namespace: {
+    readonly resource: string
+    readonly name: string
+    readonly path: string
+    readonly type: CamResourceNamespaceType | "protocol"
+    readonly declaration: Record<string, unknown>
+  },
+  diagnostics: CamFactDiagnostic[],
+): CamResourceDeclarationFact | undefined {
+  const uriKey = namespace.type === "protocol" ? "uri" : camNamespaceResourceURIKey(namespace.type)
   const uriPath = `${namespace.path}.${uriKey}`
   const integrityPath = `${namespace.path}.integrity`
   const uri = nonEmptyString(namespace.declaration[uriKey])
@@ -116,7 +152,7 @@ function resourceDiagnostic({
     | "CAM_FACT_RESOURCE_URI_INVALID"
     | "CAM_FACT_RESOURCE_URI_POLICY_INVALID"
     | "CAM_FACT_RESOURCE_INTEGRITY_INVALID"
-  readonly namespace: CamNamespaceFact
+  readonly namespace: { readonly resource: string }
   readonly path: string
   readonly message: string
 }): CamFactDiagnostic {

@@ -74,7 +74,6 @@ services:
       FOUNDRY_OUT: /tmp/foundry-out
       FOUNDRY_BROADCAST: "${BIKE_NFT_BROADCAST_DIR:?missing_BIKE_NFT_BROADCAST_DIR}"
       CAM_URI: "${CAM_URI:?missing_CAM_URI}"
-      CAM_HASH: "${CAM_HASH:?missing_CAM_HASH}"
       # Public Anvil default account private key. This is a local fixture key,
       # not an operator secret, and must not be reused outside local chains.
       PRIVATE_KEY: "0xbabababababababababababababababababababababababababababababababa"

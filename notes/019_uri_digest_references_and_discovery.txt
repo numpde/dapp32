@@ -1,5 +1,5 @@
 URI + digest references: precedents, current CAM boundaries, proposed unification
-2026-10-15 — current behavior verified from source; recommendations not implemented
+2026-10-15 — baseline research and proposal; see implementation status below
 
 Purpose
 
@@ -7,7 +7,7 @@ Decide how a CAM contract should publish a manifest URI and its content digest
 together, and what related document-integrity rules should be shared. This note
 also separates that improvement from the remaining protocol-discovery gap.
 
-Current behavior
+Baseline behavior before the implementation below
 
 - dapps/cam/src/ICamApp.sol declares separate camURI() and camHash() getters.
   dapps/cam/src/CamRoot.sol stores both and updates them in one transaction.
@@ -18,7 +18,7 @@ Current behavior
 - js/packages/cam-evm-viem/src/hash.ts checks the manifest's exact loaded bytes
   with Keccak-256 before JSON parsing. No JSON normalization is performed.
   CamRoot permits zero camHash; the adapter rejects it unless its caller
-  explicitly enables unsigned loading. This is current implementation policy,
+  explicitly enables unsigned loading. This was then-current implementation policy,
   separate from the proposed shared reference type below.
 - ABI/UI resource declarations use SHA-256 integrity strings, for example
   sha256:0x<64 lowercase hexadecimal digits>. js/packages/cam-protocol/src/resources.ts
@@ -96,7 +96,7 @@ URI policies also differ: CAM roots allow HTTP(S)/IPFS; declared resources
 allow ./ paths or IPFS; Escrow stores bounded nonempty URI text; the browser's
 URL hash calculator fetches HTTP(S), subject to CORS. Keep these policies local.
 
-Existing unsigned-loading opt-in and Escrow's nonzero policy remain current
+The unsigned-loading opt-in and Escrow's nonzero policy were then-current
 implementation behavior, not requirements of the proposed shared type.
 Do not reinterpret existing nonzero camHash values as SHA-256.
 
@@ -155,3 +155,66 @@ Affected owners and tests-first implementation plan
 Treat steps 1 and 2 as coordinated parts of one runnable change: do not publish
 a partial algorithm migration with producers and consumers disagreeing. Each
 published slice must pass its relevant tests before the next is started.
+
+
+Implementation status — 2026-10-15
+
+The coordinated implementation introduces CAM 1.2.0. ICamApp exposes the atomic
+camManifest() ManifestRef (uri, sha256Digest), together with contractAddress(string)
+in its ERC-165 support claim. Manifest commitments use SHA-256 of exact loaded
+bytes. The shared reference type permits every bytes32 value, including zero,
+without a sentinel meaning or special loading opt-in. Existing deployed hosts
+retain their old interface and Keccak commitment semantics; they need new
+publication/deployment rather than reinterpretation by the new adapter.
+
+CAM 1.2 requires the top-level protocol resource {uri, integrity}. Parsing,
+conformance and runtime loading use the existing secondary URI and SHA-256
+resource boundaries. The old 1.0/1.1 document readers remain deliberate and
+reject the new field. The old 1.1 reference remains unchanged. The canonical
+1.2 reference is docs/reference/cam/1.2.0/index.html; each dapp's protocol.html
+is a mechanical publication copy, authenticated by its manifest. Address
+bindings remain onchain. The cold-start protocol in note 018 now starts with
+minimal bootstrap authentication rules and discovers execution instructions
+through that authenticated resource.
+
+Validation and local deployment evidence — 2026-10-15
+
+Escrow and Bike were redeployed on their existing local chains without resetting
+them. Both new hosts reject the old interface ID and accept 0xb6a5fc7c; paired
+manifest SHA-256 and linked protocol integrity were checked against served bytes.
+Existing browser tabs loaded the new hosts and performed application read/lookup
+flows. A later base-URL navigation showed a blank page until reload; clearing
+the fragment in an already-ready session and waiting ten seconds did not
+reproduce it (form ready, no errors; /tmp/dapp32-blank-navigation-evidence.json),
+so the transient cause remains unresolved. This qualifies the observed local
+loads and reads, not a general UI guarantee or any older/live deployment.
+
+A fresh agent received only bootstrap coordinates/rules and a viewed account,
+without application context or repository access in its prompt. It authenticated
+manifest bytes before JSON parsing, authenticated the discovered protocol before
+reading it, then authenticated ABI/UI resources, resolved the UI contract through
+the host and called the entry read learned from the manifest, using the supplied
+account as eth_call sender. Its report at
+/tmp/cam-fresh-discovery-2026-10-15.txt narrates the verification order and the
+chain/interface checks and sender selection. Post-trial raw chain/interface
+and entry request/response confirmations were appended separately; they do not
+establish the original run's verification chronology. Independent review validated the retained
+root/protocol hashes and binding/entry byte correspondence. The artifacts alone
+do not prove execution chronology. This is a read-only discovery trial:
+isolation was instructed in the prompt, not enforced by an OS sandbox. It proves
+neither a complete independent interpreter nor the five-receipt workflow proposed
+in note 018. The fresh agent signed and sent no transactions.
+
+All js/ci constituent suites passed across focused runs. The initial aggregate
+run stopped at stale tool fixtures; those fixtures were corrected and their
+suites passed afterward. Solidity unit/scenario tests, 164 repository hygiene
+checks, Solidity formatting and script compilation passed. A final independent
+source audit found no actionable findings. These results do not claim a completed
+aggregate make ci, make tests, or full fuzz/invariant campaign.
+
+Separately, make escrow/local/scenario/run passed all nine real-RPC Escrow paths
+on a disposable fixture, including actual multi-party writes through the generic
+viewer. /tmp/cam-migration-escrow-scenario.log ends with event ok, scenarios 9,
+and exit code 0. This deterministic scenario suite exercises full workflows; it
+does not turn the fresh agent's read-only trial into an independent signing or
+workflow proof. Source edits do not upgrade existing deployments.

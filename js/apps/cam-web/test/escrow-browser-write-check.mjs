@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { createPublicClient, createWalletClient, http, keccak256, parseAbi, toFunctionSelector, toHex } from 'viem'
+import { createPublicClient, createWalletClient, http, sha256, parseAbi, toFunctionSelector } from 'viem'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
 import { createCdpCommands, fixtureAccount, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 
@@ -22,7 +22,7 @@ const rpcUrl = endpoint(viewer.searchParams.get('rpcUrl'), 'viewer RPC', true)
 assert.equal(viewer.searchParams.get('chainId'), 'eip155:31337', 'viewer must select fixture chain')
 const camUri = endpoint(process.env.EXPECTED_CAM_URI, 'EXPECTED_CAM_URI', false)
 const camHash = process.env.EXPECTED_CAM_HASH
-assert(/^0x[0-9a-fA-F]{64}$/.test(camHash) && !/^0x0+$/.test(camHash), 'CAM hash must be a nonzero bytes32')
+assert(/^0x[0-9a-fA-F]{64}$/.test(camHash), 'CAM SHA-256 digest must be bytes32')
 const root = viewer.searchParams.get('host')
 assert(/^0x[0-9a-fA-F]{40}$/.test(root), 'missing CAM root address')
 const deadline = Date.now() + 240000
@@ -50,12 +50,17 @@ async function assertFixtureChain() {
 await assertFixtureChain()
 const chain = { id: 31337, name: 'Local fixture', nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [rpcUrl.href] } } }
 const publicClient = createPublicClient({ chain, transport: http(rpcUrl.href, { retryCount: 0, timeout: 10000 }) })
-const rootAbi = parseAbi(['function camURI() view returns (string)', 'function camHash() view returns (bytes32)', 'function contractAddress(string) view returns (address)'])
-assert.equal(await publicClient.readContract({ address: root, abi: rootAbi, functionName: 'camURI' }), camUri.href)
-assert.equal((await publicClient.readContract({ address: root, abi: rootAbi, functionName: 'camHash' })).toLowerCase(), camHash.toLowerCase())
+const rootAbi = parseAbi(['function camManifest() view returns ((string uri, bytes32 sha256Digest))', 'function contractAddress(string) view returns (address)'])
+const manifest = await publicClient.readContract({ address: root, abi: rootAbi, functionName: 'camManifest' })
+assert.equal(manifest.uri, camUri.href)
+assert.equal(manifest.sha256Digest.toLowerCase(), camHash.toLowerCase())
 const camBytes = await boundedFetch(camUri, {})
-assert.equal(keccak256(toHex(camBytes)).toLowerCase(), camHash.toLowerCase(), 'CAM bytes do not match contract hash')
+assert.equal(sha256(camBytes).toLowerCase(), camHash.toLowerCase(), 'CAM bytes do not match contract SHA-256 digest')
 const cam = JSON.parse(camBytes.toString())
+const protocolUrl = endpoint(new URL(cam.protocol.uri, camUri).href, 'CAM protocol', false)
+requireSameHttpOrigin(protocolUrl.href, camUri.origin, 'CAM protocol')
+const protocolBytes = await boundedFetch(protocolUrl, {})
+assert.equal(`sha256:${sha256(protocolBytes)}`, cam.protocol.integrity, 'CAM protocol integrity differs')
 const declaration = cam.namespaces['contracts.CamEscrow']
 assert.equal(declaration.type, 'contract')
 const abiUrl = endpoint(new URL(declaration.abiURI, camUri).href, 'Escrow ABI', false)

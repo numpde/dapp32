@@ -58,9 +58,9 @@ make bike-nft/local/demo/gui/down
 make bike-nft/local/demo/terminal/down
 ```
 
-The Bike fixture permits a zero CAM hash by default. This explicit local-demo
-policy does not establish publication integrity; the release lane below pins
-the exact CAM bytes.
+The Bike fixture and release lane both pin SHA-256 of the exact CAM manifest
+bytes. CAM 1.2 also authenticates the bundled protocol reference before ABI/UI
+loading.
 
 ## Release policy
 
@@ -110,9 +110,11 @@ make dapps/tests/unit-scenario
 make js/tests
 ```
 
-The publication preflight prints the `CAM_HASH`; the deploy planner recomputes it from the exact mounted `main.json`, and the Solidity signer independently hashes the same binary file immediately before broadcast.
+The publication preflight prints the exact-byte SHA-256 `CAM_HASH`; the deploy planner recomputes it from the exact mounted `main.json`, and the Solidity signer independently hashes the same binary file immediately before broadcast.
 
 ## Release deployment
+
+The `bike-nft.release-plan.v2` and `bike-nft.deployment.v2` schemas identify SHA-256 manifest commitments. Older v1 artifacts retain their Keccak meaning and are rejected by these lanes. Publish the manifest together with every declared protocol/ABI/UI resource.
 
 Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in [the release ceremony guide](../../docs/release-ceremony.md).
 
@@ -172,7 +174,7 @@ Verification rechecks all four creation receipts, exact source/runtime and artif
 
 Configure the generic CAM web viewer with the public chain ID, a public read RPC, the deployed `CamRoot` address, the published CAM resource origin, and wallet/network switching. Hosting and wallet injection are deployment-provider concerns; this repository does not yet own a public hosting target.
 
-The viewer URL supplies `chainId` (for example `eip155:11155111`), `host`, `account`, and `rpcUrl`. The hosting configuration supplies `VITE_CAM_WEB_RESOURCE_ORIGIN` and `VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH=false`; links cannot override that publication policy. Use a credential-free public read RPC because its URL is included in shareable read links. Such links reopen a route against current state and do not carry wallet authority, unsent form edits, or prepared transactions.
+The viewer URL supplies `chainId` (for example `eip155:11155111`), `host`, `account`, and `rpcUrl`. The hosting configuration supplies `VITE_CAM_WEB_RESOURCE_ORIGIN`; links cannot override that resource origin. Use a credential-free public read RPC because its URL is included in shareable read links. Such links reopen a route against current state and do not carry wallet authority, unsent form edits, or prepared transactions.
 
 Exercise registrar creation, token receipt, metadata update, missing/report resolution, delegation grant/revoke, transfer with permission changes, pause/unpause, and unauthorized failures. Verify explorer metadata and rerun `make bike-nft/release/verify` after activity. Explorer source publication is advisable but remains separate from the repository's bytecode verifier.
 

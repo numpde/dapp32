@@ -1,3 +1,4 @@
+import { sha256 } from "viem"
 import { resolve } from "node:path"
 
 import type {
@@ -20,7 +21,6 @@ import {
   BIKE_ACCOUNT_ADDRESS,
   BIKE_HOST_ADDRESS,
   BIKE_HOST_CHAIN_ID,
-  BIKE_UNSIGNED_CAM_HASH,
   BIKE_VIEW_COMPONENT,
   BIKE_VIEW_ENTRY,
   BIKE_VIEW_REGISTER,
@@ -50,7 +50,6 @@ export type BikeMockBackendOptions = TerminalBackendOptions & {
 }
 
 export function createBikeMockBackend({
-  allowUnsignedCamHash,
   componentStatus,
   initialInputs,
 }: BikeMockBackendOptions): TerminalBackend {
@@ -69,7 +68,6 @@ export function createBikeMockBackend({
           address: BIKE_ACCOUNT_ADDRESS,
         },
         inputs: initialInputs,
-        allowUnsignedCamHash,
         loadResource: createMockResourceLoader(events),
       })
     },
@@ -85,7 +83,14 @@ function createMockPublicClient(events: DebugEvent[], componentStatus: BikeCompo
       const args = request.args === undefined
         ? []
         : request.args.map((arg) => toInertValue(arg))
-      const result = mockReadContract(request.functionName, args, componentStatus)
+      let result: unknown
+      if (request.functionName === "camManifest") {
+        requireNoArgs("camManifest", args)
+        const rootBytes = await createMockResourceLoader(events)(BIKE_MOCK_CAM_URI)
+        result = { uri: BIKE_MOCK_CAM_URI, sha256Digest: sha256(rootBytes) }
+      } else {
+        result = mockReadContract(request.functionName, args, componentStatus)
+      }
       events.push({
         step: events.length + 1,
         kind: "contract-read",
@@ -106,12 +111,6 @@ function mockReadContract(
   componentStatus: BikeComponentFixtureStatus,
 ): unknown {
   switch (functionName) {
-    case "camURI":
-      requireNoArgs(functionName, args)
-      return BIKE_MOCK_CAM_URI
-    case "camHash":
-      requireNoArgs(functionName, args)
-      return BIKE_UNSIGNED_CAM_HASH
     case "supportsInterface":
       requireStringArgs(functionName, args, 1)
       return true

@@ -300,6 +300,7 @@ test("root-level checks report alongside resource checks", () => {
     delete root.entry
     return {
       resources: new Map([
+        ["./protocol.html", mustGetResource(bundle, "./protocol.html")],
         ["./abi/App.json", mustGetResource(bundle, "./abi/App.json")],
       ]),
     }
@@ -4773,6 +4774,7 @@ test("malformed resource declarations report each bad field", () => {
     }
     return {
       resources: new Map([
+        ["./protocol.html", mustGetResource(bundle, "./protocol.html")],
         ["./ui.json", mustGetResource(bundle, "./ui.json")],
       ]),
     }
@@ -4785,7 +4787,7 @@ test("malformed resource declarations report each bad field", () => {
 })
 
 test("resource declarations reject mutable remote and escaping URIs", () => {
-  const issues = validateEditedRoot<RootWithNamespaces>((root) => {
+  const issues = validateEditedRoot<RootWithNamespaces>((root, bundle) => {
     root.namespaces["contracts.App"].abiURI = "https://example.test/App.json"
     root.namespaces["contracts.Other"] = {
       type: "contract",
@@ -4804,7 +4806,7 @@ test("resource declarations reject mutable remote and escaping URIs", () => {
     }
     root.namespaces.ui.uri = "../ui.json"
     return {
-      resources: new Map(),
+      resources: new Map([["./protocol.html", mustGetResource(bundle, "./protocol.html")]]),
     }
   })
 
@@ -4877,6 +4879,7 @@ test("missing UI namespace is reported with dependent route incompatibility", ()
     delete root.namespaces.ui
     return {
       resources: new Map([
+        ["./protocol.html", mustGetResource(bundle, "./protocol.html")],
         ["./abi/App.json", mustGetResource(bundle, "./abi/App.json")],
       ]),
     }

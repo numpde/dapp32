@@ -32,7 +32,7 @@ test("assertViewerRouteAccountAvailable enforces account preflight for route exp
 
 function camDocument(): CamDocument {
   return {
-    cam: CAM_VERSION,
+    cam: CAM_VERSION, protocol: { uri: "./protocol.html", integrity: "sha256:0x" + "00".repeat(32) },
     entry: "readRoute",
     namespaces: {},
     routes: {

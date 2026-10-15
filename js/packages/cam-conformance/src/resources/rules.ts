@@ -21,7 +21,7 @@ export const RESOURCE_RULES = conformanceRules({
   },
   CAM_RESOURCE_DECLARATION_INVALID: {
     class: "A",
-    reason: "Resource URI and integrity fields connect namespaces to supplied bytes.",
+    reason: "Resource URI and integrity fields connect root declarations to supplied bytes.",
   },
   CAM_RESOURCE_INTEGRITY_INVALID: {
     class: "A",

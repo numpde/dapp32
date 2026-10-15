@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -20,6 +21,52 @@ from tools.json_policy import read_strict_json
 
 
 class CamResourceIntegrityToolTest(unittest.TestCase):
+    def test_oversized_canonical_protocol_does_not_change_publication_outputs(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            manifest_path.parent.mkdir()
+            protocol_path = manifest_path.parent / "protocol.html"
+            protocol_path.write_bytes(b"previous protocol")
+            write_json(manifest_path, {
+                "cam": "1.2.0",
+                "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
+                "namespaces": {},
+            })
+            manifest_before = manifest_path.read_bytes()
+            canonical_path = Path(tmp) / "canonical.html"
+            canonical_path.write_bytes(b"x" * (MAX_CAM_RESOURCE_BYTES + 1))
+            with patch("tools.cam_resource_integrity.PROTOCOL_REFERENCE_PATH", canonical_path):
+                with self.assertRaisesRegex(CamResourceIntegrityError, "protocol reference exceeds"):
+                    refresh_manifest(manifest_path)
+            self.assertEqual(manifest_before, manifest_path.read_bytes())
+            self.assertEqual(b"previous protocol", protocol_path.read_bytes())
+
+    def test_checked_in_protocol_copies_match_the_canonical_reference(self) -> None:
+        canonical = repo_path("docs/reference/cam/1.2.0/index.html").read_bytes()
+        for manifest_path in repo_path("dapps").glob("*/cam/main.json"):
+            with self.subTest(manifest=manifest_path):
+                self.assertEqual(canonical, (manifest_path.parent / "protocol.html").read_bytes())
+
+    def test_refresh_manifest_copies_and_pins_the_canonical_protocol_bytes(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            manifest_path.parent.mkdir()
+            protocol_path = manifest_path.parent / "protocol.html"
+            protocol_path.write_bytes(b"stale protocol")
+            write_json(manifest_path, {
+                "cam": "1.2.0",
+                "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
+                "namespaces": {},
+            })
+            self.assertTrue(refresh_manifest(manifest_path))
+            canonical = repo_path("docs/reference/cam/1.2.0/index.html").read_bytes()
+            self.assertEqual(canonical, protocol_path.read_bytes())
+            self.assertEqual(
+                "sha256:0x" + hashlib.sha256(canonical).hexdigest(),
+                read_strict_json(manifest_path)["protocol"]["integrity"],
+            )
+            self.assertFalse(refresh_manifest(manifest_path))
+
     def test_python_namespace_constants_match_protocol_runtime_constants(self) -> None:
         protocol_source = read_text(repo_path("js/packages/cam-protocol/src/namespaces.ts"))
 

@@ -155,10 +155,12 @@ the repo unchanged or update the appropriate note.
 - CAM manifest `integrity` fields are derived from local ABI/UI resource bytes.
   Refresh them with `make cam/integrity/refresh`; `make cam/abi/export` runs that refresh after
   exporting generated ABIs.
-- CAM integrity refresh may rewrite only explicit
-  `dapps/<name>/cam/main.json` bind mounts. Keep the broader `dapps/` mount
-  read-only, and let rendered Compose checks fail when a new CAM dapp needs an
-  explicit manifest output.
+- CAM integrity refresh may rewrite only explicit, pre-existing
+  `dapps/<name>/cam/main.json` and `dapps/<name>/cam/protocol.html` bind mounts.
+  The versioned `docs/reference/cam/<version>/index.html` reference is the
+  read-only source for mechanically copied protocol resources. Keep the broader
+  `dapps/` mount read-only, and let rendered Compose checks fail when a new CAM
+  dapp needs explicit manifest and protocol outputs.
 - Shared browser/tool resource boundaries, such as HTTP(S) URL validation,
   origin validation, and bounded response reads, belong in `@cam/protocol`.
   EVM-specific address and `eip155:*` chain helpers belong in `@cam/evm-viem`.

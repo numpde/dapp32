@@ -364,25 +364,12 @@ class RepositoryHygieneTest(unittest.TestCase):
     def test_bike_cam_inputs_are_guarded_before_docker(self) -> None:
         makefile = read_text(repo_path("Makefile"))
 
-        # Local bike lanes pass CAM identifiers through Make-built Compose
-        # environments. The hash is exact data; the URI gets a coarse shell
-        # safety check here and deeper protocol validation in the tool/runtime.
-        self.assertIn("export CAM_URI BIKE_NFT_CAM_HASH", makefile)
-        self.assertIn("BIKE_NFT_CAM_HASH must be a 32-byte hex value", makefile)
+        # The fixture script computes SHA-256 from its own mounted root bytes.
+        # Only the operator-supplied URI crosses Make's shell boundary.
+        self.assertIn("export CAM_URI", makefile)
+        self.assertNotIn("BIKE_NFT_CAM_HASH", makefile)
         self.assertIn("CAM_URI must be an absolute http(s) or ipfs URI without shell syntax", makefile)
         self.assertNotIn('if [[ -z "$(CAM_URI)" ]]', makefile)
-        for target in (
-            "bike-nft/local/deploy",
-            "bike-nft/local/demo/terminal/up",
-            "bike-nft/local/demo/terminal/down",
-            "bike-nft/local/demo/gui/up",
-            "bike-nft/local/demo/gui/down",
-            "bike-nft/local/integration/fuzz/run",
-            "bike-nft/local/integration/fuzz/fixture-writes/run",
-            "bike-nft/local/integration/fuzz/down",
-        ):
-            with self.subTest(target=target):
-                self.assertIn("$(BIKE_NFT_CAM_HASH_GUARD);", self.make_target_recipe(makefile, target))
         self.assertIn("$(CAM_URI_GUARD);", self.make_target_recipe(makefile, "bike-nft/local/deploy"))
 
     def test_viewer_terminal_mock_is_guarded_before_docker(self) -> None:

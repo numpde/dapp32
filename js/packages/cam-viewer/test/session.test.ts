@@ -12,12 +12,14 @@ import {
 import { CamViewerError } from "../src/errors.ts"
 import type {
   CamHost,
+  CamPublicClient,
 } from "@cam/evm-viem"
 import type { CamViewerLoadedSnapshot, CreateCamViewerSessionOptions } from "../src/index.ts"
 import type { Address, Hex } from "viem"
 import {
   BIKE_ACCOUNT_ADDRESS as userAddress,
   BIKE_CAM_URI as camURI,
+  BIKE_PROTOCOL_URI,
   BIKE_MARK_MISSING,
   BIKE_MANAGER_ABI_URI,
   BIKE_MANAGER_ADDRESS as managerAddress,
@@ -30,7 +32,6 @@ import {
   BIKE_UNKNOWN_SERIAL_HASH,
   BIKE_UNKNOWN_SERIAL_NUMBER,
   BIKE_UNKNOWN_TOKEN_ID,
-  BIKE_UNSIGNED_CAM_HASH,
   BIKE_UI_ABI_URI,
   BIKE_UI_NAMESPACE,
   BIKE_UI_URI,
@@ -292,6 +293,48 @@ test("bike fixture covers unpaused fixture projection cases", () => {
   })
 })
 
+for (const protocolCase of ["valid", "tampered", "missing", "oversized"] as const) {
+  test(`CAM 1.2 verifies the ${protocolCase} protocol resource before bindings, ABIs and UI`, async () => {
+    const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
+    assert.equal(JSON.parse(new TextDecoder().decode(resources[camURI])).cam, "1.2.0")
+    const fixtureClient = createPublicClient(publicClientFixtureOptions({}))
+    const requests: string[] = []
+    const publicClient: CamPublicClient = {
+      ...fixtureClient,
+      async readContract(request) {
+        requests.push(request.functionName)
+        return fixtureClient.readContract(request)
+      },
+    }
+    const session = createCamViewerSession({
+      publicClient, host, account: { address: userAddress }, inputs: {},
+      async loadResource(uri) {
+        requests.push(uri)
+        if (uri === BIKE_PROTOCOL_URI) {
+          if (protocolCase === "tampered") return new TextEncoder().encode("tampered protocol bytes")
+          if (protocolCase === "missing") throw new Error("protocol resource unavailable")
+          if (protocolCase === "oversized") return new Uint8Array(CAM_RESOURCE_MAX_BYTES + 1)
+        }
+        const bytes = resources[uri]
+        assert.ok(bytes, `unexpected resource request: ${uri}`)
+        return bytes
+      },
+    })
+    const discoveryRequests = ["supportsInterface", "camManifest", camURI, BIKE_PROTOCOL_URI]
+    if (protocolCase === "valid") {
+      assert.equal((await session.load()).route, BIKE_ROUTE_ENTRY)
+      assert.deepEqual(requests.slice(0, discoveryRequests.length), discoveryRequests)
+      for (const request of ["contractAddress", BIKE_UI_ABI_URI, BIKE_MANAGER_ABI_URI, BIKE_UI_URI]) {
+        assert.ok(requests.indexOf(request) >= discoveryRequests.length, `${request} must follow verified protocol loading`)
+      }
+    } else {
+      await assert.rejects(() => session.load(), (error) => error instanceof CamEvmError
+        && error.code === (protocolCase === "tampered" ? "CAM_RESOURCE_INTEGRITY_MISMATCH" : "CAM_RESOURCE_LOAD_FAILED"))
+      assert.deepEqual(requests, discoveryRequests)
+    }
+  })
+}
+
 test("load resolves host CAM, entry route, UI resource, and entry view", async () => {
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
   const session = createSession(sessionFixtureOptions({ publicClient }))
@@ -342,8 +385,7 @@ test("load resolves host CAM, entry route, UI resource, and entry view", async (
   ]))
   assert.deepEqual(publicClient.calls.map((call) => call.functionName), [
     "supportsInterface",
-    "camURI",
-    "camHash",
+    "camManifest",
     "contractAddress",
     "contractAddress",
     BIKE_VIEW_ENTRY,
@@ -404,7 +446,7 @@ test("Back preserves visible drafts while refreshed contract availability disabl
   mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
   const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
   const session = createSession(sessionFixtureOptions({
-    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults, camHash: fixtureDigest(encodeJson(cam)) })),
     loadResource: createResourceLoader(bikeResourceBytes({
       [camURI]: encodeJson(cam),
       [BIKE_UI_URI]: uiBytes,
@@ -489,7 +531,7 @@ test("invalid projected presentation preserves the current view, drafts and navi
   mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
   const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
   const session = createSession(sessionFixtureOptions({
-    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults, camHash: fixtureDigest(encodeJson(cam)) })),
     loadResource: createResourceLoader(bikeResourceBytes({
       [camURI]: encodeJson(cam),
       [BIKE_UI_URI]: uiBytes,
@@ -612,7 +654,7 @@ function paymentPreparationSession(
   const namespaces = mutableRecord(cam.namespaces)
   mutableRecord(namespaces.ui).integrity = sha256Integrity(uiBytes)
   mutableRecord(namespaces["contracts.BicycleComponentManager"]).integrity = sha256Integrity(abiBytes)
-  const publicClient = createPublicClient(publicClientFixtureOptions({}))
+  const publicClient = createPublicClient(publicClientFixtureOptions({ camHash: fixtureDigest(encodeJson(cam)) }))
   return { publicClient, session: createSession(sessionFixtureOptions({ publicClient,
     loadResource: createResourceLoader(bikeResourceBytes({
       [camURI]: encodeJson(cam), [BIKE_UI_URI]: uiBytes, [BIKE_MANAGER_ABI_URI]: abiBytes,
@@ -836,7 +878,7 @@ test("Back revalidates the same integer lexical draft against refreshed readonly
   routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), tokenId: 1n, statusId: "100" }
   routeResults[BIKE_VIEW_COMPONENT] = { ...bikeComponentRouteResult(BIKE_SERIAL_NUMBER, userAddress, "active"), tokenId: 1n, statusId: "100" }
   const session = createSession(sessionFixtureOptions({
-    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+    publicClient: createPublicClient(publicClientFixtureOptions({ routeResults, camHash: fixtureDigest(encodeJson(cam)) })),
     loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: uiBytes })),
   }))
   await session.load()
@@ -881,7 +923,7 @@ test("Back never reinterprets an integer draft as an amount or an amount draft a
     mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
     const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
     const session = createSession(sessionFixtureOptions({
-      publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+      publicClient: createPublicClient(publicClientFixtureOptions({ routeResults, camHash: fixtureDigest(encodeJson(cam)) })),
       loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: uiBytes })),
     }))
     await session.load()
@@ -1267,7 +1309,7 @@ test("Back restores amount drafts only when the complete declared unit identity 
     mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
     const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
     const session = createSession(sessionFixtureOptions({
-      publicClient: createPublicClient(publicClientFixtureOptions({ routeResults })),
+      publicClient: createPublicClient(publicClientFixtureOptions({ routeResults, camHash: fixtureDigest(encodeJson(cam)) })),
       loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: uiBytes })),
     }))
     await session.load()
@@ -1393,7 +1435,7 @@ test("session creation validates host and account boundary values", () => {
       },
       account: { address: userAddress },
       inputs: {},
-      allowUnsignedCamHash: true,
+
     }),
     /expected CAIP-2 EVM chain id/,
   )
@@ -1407,7 +1449,7 @@ test("session creation validates host and account boundary values", () => {
       },
       account: { address: userAddress },
       inputs: {},
-      allowUnsignedCamHash: true,
+
     }),
     /host\.address/,
   )
@@ -1418,7 +1460,7 @@ test("session creation validates host and account boundary values", () => {
       host,
       account: { address: "not-an-address" as Address },
       inputs: {},
-      allowUnsignedCamHash: true,
+
     }),
     /account\.address/,
   )
@@ -1430,7 +1472,6 @@ test("load rejects routes that require an account when none is available", async
     publicClient,
     host,
     inputs: {},
-    allowUnsignedCamHash: true,
     loadResource: createResourceLoader(bikeResourceBytes(NO_RESOURCE_OVERRIDES)),
   })
 
@@ -1444,13 +1485,6 @@ test("load rejects routes that require an account when none is available", async
 })
 
 test("load rejects UI buttons that require an account when none is available", async () => {
-  const publicClient = createPublicClient(publicClientFixtureOptions({
-    routeResults: {
-      viewEntry: {
-        title: "Anonymous entry",
-      },
-    },
-  }))
   const abiBytes = encodeJson([
     {
       type: "function",
@@ -1495,6 +1529,7 @@ test("load rejects UI buttons that require an account when none is available", a
   })
   const camBytes = encodeJson({
     cam: CAM_VERSION,
+    protocol: JSON.parse(new TextDecoder().decode(bikeResourceBytes({})[camURI])).protocol,
     entry: "entry",
     namespaces: {
       [BIKE_UI_NAMESPACE]: {
@@ -1546,16 +1581,19 @@ test("load rejects UI buttons that require an account when none is available", a
       },
     },
   })
+  const publicClient = createPublicClient(publicClientFixtureOptions({
+    camHash: fixtureDigest(camBytes),
+    routeResults: { viewEntry: { title: "Anonymous entry" } },
+  }))
   const session = createCamViewerSession({
     publicClient,
     host,
     inputs: {},
-    allowUnsignedCamHash: true,
-    loadResource: createResourceLoader({
+    loadResource: createResourceLoader(bikeResourceBytes({
       [camURI]: camBytes,
       [BIKE_UI_ABI_URI]: abiBytes,
       [BIKE_UI_URI]: uiBytes,
-    }),
+    })),
   })
 
   await assert.rejects(
@@ -1891,7 +1929,7 @@ function createSession({
     host,
     account: { address: userAddress },
     inputs: {},
-    allowUnsignedCamHash: true,
+
     loadResource,
   })
 }
@@ -1939,7 +1977,7 @@ function sessionFixtureOptions(overrides: Partial<SessionFixtureOptions>): Sessi
 function publicClientFixtureOptions(overrides: Partial<PublicClientFixtureOptions>): PublicClientFixtureOptions {
   return {
     chainId: 31337,
-    camHash: BIKE_UNSIGNED_CAM_HASH,
+    camHash: fixtureDigest(bikeResourceBytes({})[camURI]),
     supportsCamInterface: true,
     addresses: bikeContractAddresses,
     routeResults: bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active"),
@@ -1971,7 +2009,7 @@ test("an explicit initial read route bypasses entry and starts with no Back hist
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
   const options = {
     ...sessionFixtureOptions({ publicClient }), host, account: { address: userAddress as Address },
-    allowUnsignedCamHash: true, route: BIKE_ROUTE_COMPONENT,
+    route: BIKE_ROUTE_COMPONENT,
     inputs: { serialNumber: BIKE_SERIAL_NUMBER },
   }
   const session = createCamViewerSession(options)
@@ -1989,7 +2027,7 @@ test("unknown and write initial routes fail before any projection call", async (
     const publicClient = createPublicClient(publicClientFixtureOptions({}))
     const options = {
       ...sessionFixtureOptions({ publicClient }), host, account: { address: userAddress as Address },
-      allowUnsignedCamHash: true, route, inputs: {},
+      route, inputs: {},
     }
     const session = createCamViewerSession(options)
     await assert.rejects(() => session.load(), /must be declared as read/)
@@ -2019,7 +2057,7 @@ function documentHashSession() {
   const bytes = encodeJson(ui)
   const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
   mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(bytes)
-  return createSession(sessionFixtureOptions({ loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: bytes })) }))
+  return createSession(sessionFixtureOptions({ publicClient: createPublicClient(publicClientFixtureOptions({ camHash: fixtureDigest(encodeJson(cam)) })), loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: bytes })) }))
 }
 const calculatedDigest = `0x${"ab".repeat(32)}`
 
@@ -2080,3 +2118,6 @@ test("document hash replacement and all view transition intents invalidate pendi
     await changing.catch(() => undefined)
   }
 })
+function fixtureDigest(bytes: Uint8Array): Hex {
+  return `0x${createHash("sha256").update(bytes).digest("hex")}`
+}

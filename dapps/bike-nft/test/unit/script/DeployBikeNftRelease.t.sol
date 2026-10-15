@@ -30,7 +30,7 @@ contract DeployBikeNftReleaseHarness is DeployBikeNftRelease {
 contract DeployBikeNftReleaseTest is Test {
     string private constant SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567";
     string private constant CAM_URI = "https://example.test/bike/v1/main.json";
-    bytes32 private constant CAM_HASH = 0x57fa120882de1530d9b48f00e8d3e780edd42c2159378b69ce86996bfb279961;
+    bytes32 private constant CAM_HASH = 0x12fc6616f84c2ba7a0bf35df115d233b0d1c986b6c533a6c966c56e995dc5175;
     uint256 private constant CHAIN_ID = 11_155_111;
     address private constant CAM_ROOT_OWNER = address(0x11);
     address private constant COMPONENTS_ADMIN = address(0x12);
@@ -42,7 +42,7 @@ contract DeployBikeNftReleaseTest is Test {
     address private constant REGISTRAR_ONE = address(0x18);
     address private constant REGISTRAR_TWO = address(0x19);
     string private constant PLAN_JSON =
-        '{"schema":"bike-nft.release-plan.v1","sourceCommit":"0123456789abcdef0123456789abcdef01234567","expectedChainId":11155111,"camURI":"https://example.test/bike/v1/main.json","camHash":"0x57fa120882de1530d9b48f00e8d3e780edd42c2159378b69ce86996bfb279961","intendedCamRootOwner":"0x0000000000000000000000000000000000000011","tokenName":"Bicycle Components","tokenSymbol":"BIKE","baseTokenURI":"https://example.test/bike/tokens/","collectionURI":"https://example.test/bike/collection.json","intendedComponentsAdmin":"0x0000000000000000000000000000000000000012","componentsAdminDelay":86400,"componentsPauser":"0x0000000000000000000000000000000000000013","componentsConfigurer":"0x0000000000000000000000000000000000000014","intendedManagerAdmin":"0x0000000000000000000000000000000000000015","managerAdminDelay":86400,"managerPauser":"0x0000000000000000000000000000000000000016","managerConfigurer":"0x0000000000000000000000000000000000000017","registrars":["0x0000000000000000000000000000000000000018","0x0000000000000000000000000000000000000019"]}';
+        '{"schema":"bike-nft.release-plan.v2","sourceCommit":"0123456789abcdef0123456789abcdef01234567","expectedChainId":11155111,"camURI":"https://example.test/bike/v1/main.json","camHash":"0x12fc6616f84c2ba7a0bf35df115d233b0d1c986b6c533a6c966c56e995dc5175","intendedCamRootOwner":"0x0000000000000000000000000000000000000011","tokenName":"Bicycle Components","tokenSymbol":"BIKE","baseTokenURI":"https://example.test/bike/tokens/","collectionURI":"https://example.test/bike/collection.json","intendedComponentsAdmin":"0x0000000000000000000000000000000000000012","componentsAdminDelay":86400,"componentsPauser":"0x0000000000000000000000000000000000000013","componentsConfigurer":"0x0000000000000000000000000000000000000014","intendedManagerAdmin":"0x0000000000000000000000000000000000000015","managerAdminDelay":86400,"managerPauser":"0x0000000000000000000000000000000000000016","managerConfigurer":"0x0000000000000000000000000000000000000017","registrars":["0x0000000000000000000000000000000000000018","0x0000000000000000000000000000000000000019"]}';
 
     DeployBikeNftReleaseHarness private harness;
 

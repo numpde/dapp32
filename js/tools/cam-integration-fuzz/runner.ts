@@ -112,7 +112,6 @@ async function main(): Promise<void> {
     account,
     writeMode: options.writeMode.kind,
     resourceOrigin: options.descriptor.resourceOrigin,
-    allowUnsignedCamHash: options.descriptor.allowUnsignedCamHash,
   })
 
   await assertHostBoundary(fullPublicClient, host)
@@ -121,7 +120,6 @@ async function main(): Promise<void> {
     publicClient,
     host,
     loadResource,
-    allowUnsignedCamHash: options.descriptor.allowUnsignedCamHash,
   })
   emit({
     event: "cam_loaded",
@@ -154,7 +152,6 @@ async function main(): Promise<void> {
     publicClient,
     host,
     account,
-    allowUnsignedCamHash: options.descriptor.allowUnsignedCamHash,
     initialInputs: generatedRouteInputs({
       route: loadedCam.cam.routes[loadedCam.cam.entry],
       account,
@@ -214,14 +211,12 @@ function createSession({
   publicClient,
   host,
   account,
-  allowUnsignedCamHash,
   initialInputs,
   loadResource,
 }: {
   readonly publicClient: CamPublicClient
   readonly host: CamHost
   readonly account: Address
-  readonly allowUnsignedCamHash: boolean
   readonly initialInputs: InertRecord
   readonly loadResource: (uri: string) => Promise<Uint8Array>
 }): CamViewerSession {
@@ -230,7 +225,6 @@ function createSession({
     host,
     account: { address: account },
     inputs: initialInputs,
-    allowUnsignedCamHash,
     loadResource,
   })
 }

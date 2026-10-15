@@ -11,7 +11,7 @@ import {BicycleComponents} from "../src/BicycleComponents.sol";
 /// @dev The broadcaster is only a bootstrap authority. Verification remains incomplete until
 /// CamRoot ownership and both delayed default-admin transfers are accepted independently.
 contract DeployBikeNftRelease is Script {
-    string private constant RELEASE_PLAN_SCHEMA = "bike-nft.release-plan.v1";
+    string private constant RELEASE_PLAN_SCHEMA = "bike-nft.release-plan.v2";
     string private constant CAM_ROOT_PATH = "bike-nft/cam/main.json";
     string private constant CAM_CONTRACT_MANAGER = "BicycleComponentManager";
     string private constant CAM_CONTRACT_MANAGER_UI = "BicycleComponentManagerUI";
@@ -70,7 +70,6 @@ contract DeployBikeNftRelease is Script {
     error ChainIdMismatch(uint256 expected, uint256 actual);
     error UnsupportedReleaseChainId(uint256 chainId);
     error CamHashSourceMismatch(bytes32 planned, bytes32 source);
-    error ZeroCamHash();
     error EmptyValue(string field);
     error LineBreakInValue(string field);
     error ZeroAddress(string field);
@@ -234,7 +233,6 @@ contract DeployBikeNftRelease is Script {
         if (plan.expectedChainId == 1337 || plan.expectedChainId == 31337) {
             revert UnsupportedReleaseChainId(plan.expectedChainId);
         }
-        if (plan.camHash == bytes32(0)) revert ZeroCamHash();
         _requireText(plan.camURI, "camURI");
         _requireText(plan.tokenName, "tokenName");
         _requireText(plan.tokenSymbol, "tokenSymbol");
@@ -266,7 +264,7 @@ contract DeployBikeNftRelease is Script {
             }
         }
 
-        bytes32 sourceCamHash = keccak256(vm.readFileBinary(CAM_ROOT_PATH));
+        bytes32 sourceCamHash = sha256(vm.readFileBinary(CAM_ROOT_PATH));
         if (plan.camHash != sourceCamHash) revert CamHashSourceMismatch(plan.camHash, sourceCamHash);
     }
 

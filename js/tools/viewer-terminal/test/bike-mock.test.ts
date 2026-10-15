@@ -11,43 +11,35 @@ import { createBikeMockBackend } from "../backends/bike-mock.ts"
 import { createTerminalBackendFromEnv } from "../backends/index.ts"
 import type { DebugEvent } from "../types.ts"
 
-test("bike mock backend renders active and missing lifecycle branches explicitly", async () => {
-  const active = await loadBikeMockComponent("active")
-  const activeButtons = resolvedUiButtons(active.resolvedUi).map((button) => button.call.function)
-
-  assert.deepEqual(activeButtons, [
-    "component",
-    "updateComponentMetadata",
-    "markComponentMissing",
-    "retireComponent",
-  ])
-  assert.equal(Object.hasOwn(active.state, "reportURI"), true)
-  assert.equal(Object.hasOwn(active.state, "resolutionURI"), false)
-
-  const missing = await loadBikeMockComponent("missing")
-  const missingButtons = resolvedUiButtons(missing.resolvedUi).map((button) => button.call.function)
-
-  assert.deepEqual(missingButtons, [
-    "component",
-    "updateComponentMetadata",
-    "clearComponentMissing",
-  ])
-  assert.equal(Object.hasOwn(missing.state, "reportURI"), false)
-  assert.equal(Object.hasOwn(missing.state, "resolutionURI"), true)
-
-  const retired = await loadBikeMockComponent("retired")
-  const retiredButtons = resolvedUiButtons(retired.resolvedUi).map((button) => button.call.function)
-
-  assert.deepEqual(retiredButtons, ["component"])
-  assert.equal(Object.hasOwn(retired.state, "reportURI"), false)
-  assert.equal(Object.hasOwn(retired.state, "resolutionURI"), false)
+test("bike mock backend keeps lifecycle controls visible and disables unavailable actions", async () => {
+  for (const [status, enabledActions] of [
+    ["active", ["component", "updateComponentMetadata", "markComponentMissing", "retireComponent"]],
+    ["missing", ["component", "updateComponentMetadata", "clearComponentMissing"]],
+    ["retired", ["component"]],
+  ] as const) {
+    const component = await loadBikeMockComponent(status)
+    const buttons = resolvedUiButtons(component.resolvedUi)
+    assert.deepEqual(buttons.map((button) => button.call.function), [
+      "component",
+      "updateComponentMetadata",
+      "markComponentMissing",
+      "clearComponentMissing",
+      "retireComponent",
+    ], status)
+    assert.deepEqual(
+      buttons.filter((button) => !button.disabled).map((button) => button.call.function),
+      enabledActions,
+      status,
+    )
+    assert.equal(Object.hasOwn(component.state, "reportURI"), true, status)
+    assert.equal(Object.hasOwn(component.state, "resolutionURI"), true, status)
+  }
 })
 
 test("bike mock backend env selects active by default and validates explicit statuses", async () => {
   const active = await createTerminalBackendFromEnv({
     CAM_VIEWER_BACKEND: "mock",
     CAM_VIEWER_MOCK: "bike-nft",
-    CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH: "true",
     CAM_VIEWER_INITIAL_INPUTS_JSON: "{}",
   })
   assert.equal(active.description, "offline bike NFT fixture (active component)")
@@ -55,7 +47,6 @@ test("bike mock backend env selects active by default and validates explicit sta
   const retired = await createTerminalBackendFromEnv({
     CAM_VIEWER_BACKEND: "mock",
     CAM_VIEWER_MOCK: "bike-nft",
-    CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH: "true",
     CAM_VIEWER_INITIAL_INPUTS_JSON: "{}",
     CAM_VIEWER_BIKE_MOCK_COMPONENT_STATUS: "retired",
   })
@@ -65,7 +56,6 @@ test("bike mock backend env selects active by default and validates explicit sta
     () => createTerminalBackendFromEnv({
       CAM_VIEWER_BACKEND: "mock",
       CAM_VIEWER_MOCK: "bike-nft",
-      CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH: "true",
       CAM_VIEWER_INITIAL_INPUTS_JSON: "{}",
       CAM_VIEWER_BIKE_MOCK_COMPONENT_STATUS: "stolen",
     }),
@@ -75,7 +65,6 @@ test("bike mock backend env selects active by default and validates explicit sta
 
 async function loadBikeMockComponent(status: "active" | "missing" | "retired") {
   const backend = createBikeMockBackend({
-    allowUnsignedCamHash: true,
     componentStatus: status,
     initialInputs: {},
   })

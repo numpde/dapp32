@@ -160,7 +160,6 @@ async function createFixture(): Promise<Fixture> {
     host,
     account: { address: accounts.client.address },
     inputs: inertRecord({}),
-    allowUnsignedCamHash: false,
     loadResource,
   })
   await session.load()

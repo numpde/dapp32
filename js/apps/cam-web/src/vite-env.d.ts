@@ -1,7 +1,6 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH?: string
   readonly VITE_CAM_WEB_RESOURCE_ORIGIN?: string
 }
 

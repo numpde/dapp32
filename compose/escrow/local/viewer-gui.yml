@@ -20,7 +20,6 @@ services:
       escrow-cam-http:
         condition: service_healthy
     environment:
-      VITE_CAM_WEB_ALLOW_UNSIGNED_CAM_HASH: "false"
       VITE_CAM_WEB_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
       CAM_WEB_DEV_ORIGIN: "${ESCROW_GUI_ORIGIN:?missing_ESCROW_GUI_ORIGIN}"
     volumes:

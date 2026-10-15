@@ -27,7 +27,6 @@ export type TerminalBackend = {
 }
 
 export type TerminalBackendOptions = {
-  readonly allowUnsignedCamHash: boolean
   readonly initialInputs: InertRecord
 }
 

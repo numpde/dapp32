@@ -25,6 +25,7 @@ export const bikeManagerAbi = readBikeCamJson("abi/BicycleComponentManager.json"
 export const bikeCamBytes = readBikeCamBytes("main.json")
 export const bikeUiAbiBytes = readBikeCamBytes("abi/BicycleComponentManagerUI.json")
 export const bikeManagerAbiBytes = readBikeCamBytes("abi/BicycleComponentManager.json")
+export const bikeProtocolBytes = readBikeCamBytes("protocol.html")
 export const bikeUiBytes = readBikeCamBytes("ui.json")
 
 function readBikeCamJson(relativePath: string): unknown {

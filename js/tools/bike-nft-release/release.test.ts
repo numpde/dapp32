@@ -15,9 +15,18 @@ import { creationReceiptDeployer } from "../release-provenance.ts"
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
 const hash = (byte: string) => `0x${byte.repeat(64)}` as Hex
 const SOURCE = "0123456789abcdef0123456789abcdef01234567"
-const CHECKED_IN_CAM_HASH = "0x57fa120882de1530d9b48f00e8d3e780edd42c2159378b69ce86996bfb279961"
+const CHECKED_IN_CAM_HASH = "0x12fc6616f84c2ba7a0bf35df115d233b0d1c986b6c533a6c966c56e995dc5175"
 const DAPPS = join(dirname(fileURLToPath(import.meta.url)), "../../../dapps")
 const DEPLOYER = address("1"), OWNER = address("2"), COMPONENTS_ADMIN = address("3"), MANAGER_ADMIN = address("4")
+
+test("Bike release parsing rejects the old Keccak commitment schemas", () => {
+  assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({
+    ...common(), camHash: hash("a"), schema: "bike-nft.release-plan.v1",
+  }))), /unsupported release plan schema/)
+  assert.throws(() => parseDeploymentArtifact(new TextEncoder().encode(JSON.stringify({
+    ...deployment(), schema: "bike-nft.deployment.v1",
+  }))), /unsupported deployment artifact schema/)
+})
 
 test("Bike release inputs reject fixture-shaped authority", () => {
   assert.equal(requiredDelay("86400", "delay"), 86400)

@@ -1,3 +1,4 @@
+import { isRecordObject } from "@cam/protocol"
 import {
   CamConformanceError,
 } from "../issues.ts"
@@ -73,7 +74,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     root,
     issues,
   })
-  if (version === undefined) {
+  if (version === undefined || !isRecordObject(root)) {
     return issues
   }
   // Structural inventory joins root namespaces/resources/routes so later
@@ -85,6 +86,7 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   })
   const declarations = declaredResources({
     namespaces,
+    root: { resource: bundle.rootURI, value: root, version },
     issues,
   })
   const validDeclarations = validateDeclaredResources({

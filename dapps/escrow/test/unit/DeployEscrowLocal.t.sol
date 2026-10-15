@@ -7,13 +7,13 @@ import {EscrowDeployment} from "../../script/EscrowDeployment.sol";
 
 contract DeployEscrowLocalTest is Test {
     function testFixturePinsExactMountedCamBytesDespiteExternalHash() external {
-        bytes32 sourceHash = keccak256(vm.readFileBinary("escrow/cam/main.json"));
+        bytes32 sourceHash = sha256(vm.readFileBinary("escrow/cam/main.json"));
         vm.setEnv("PRIVATE_KEY", "0xbabababababababababababababababababababababababababababababababa");
         vm.setEnv("CAM_URI", "http://escrow-cam-http:8080/main.json");
         vm.setEnv("CAM_HASH", "0x1111111111111111111111111111111111111111111111111111111111111111");
 
         EscrowDeployment.Deployment memory deployment = new DeployEscrowLocal().run();
 
-        assertEq(deployment.camRoot.camHash(), sourceHash);
+        assertEq(deployment.camRoot.camManifest().sha256Digest, sourceHash);
     }
 }

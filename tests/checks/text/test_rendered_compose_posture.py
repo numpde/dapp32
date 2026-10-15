@@ -588,7 +588,7 @@ class RenderedComposePostureTest(unittest.TestCase):
     def assert_local_rpc_viewer_environment(self, config_service: dict[str, Any]) -> None:
         environment = compose_mapping(config_service, "environment")
         self.assertEqual("local-rpc", environment["CAM_VIEWER_BACKEND"])
-        self.assertEqual("true", environment["CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH"])
+        self.assertNotIn("CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH", environment)
         self.assertEqual("http://bike-nft-anvil:8545", environment["CAM_VIEWER_RPC_URL"])
         self.assertEqual(
             BIKE_NFT_BROADCAST_PATH,
@@ -684,9 +684,11 @@ class RenderedComposePostureTest(unittest.TestCase):
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "cam" / "main.json").is_file():
                 manifest_mount = compose_volume(cam_integrity, f"/work/dapps/{dapp_dir.name}/cam/main.json")
-                # Intentional default: this is the one CAM integrity lane
-                # output. The broader dapps tree stays read-only above.
+                # Explicit resource outputs retain the broader read-only tree.
                 self.assertIsNot(manifest_mount.get("read_only"), True)
+                protocol_mount = compose_volume(cam_integrity, f"/work/dapps/{dapp_dir.name}/cam/protocol.html")
+                self.assertIsNot(protocol_mount.get("read_only"), True)
+                self.assertIsNot(protocol_mount["bind"].get("create_host_path"), True)
 
     def test_cast_lanes_mount_only_dapps_sources(self) -> None:
         config = rendered_compose_config("compose/cast.yml")
@@ -776,6 +778,12 @@ class RenderedComposePostureTest(unittest.TestCase):
                         f"/work/dapps/{dapp_dir.name}/cam/main.json",
                     )
                 )
+            if (dapp_dir / "cam" / "protocol.html").is_file():
+                expected.add((
+                    "compose/cam.yml", "cam-integrity",
+                    str(dapp_dir / "cam" / "protocol.html"),
+                    f"/work/dapps/{dapp_dir.name}/cam/protocol.html",
+                ))
             if (dapp_dir / "src").is_dir() and (dapp_dir / "cam").is_dir():
                 expected.add(
                     (
@@ -877,7 +885,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
         deploy_environment = compose_mapping(deploy, "environment")
         self.assertEqual(BIKE_CAM_URI, deploy_environment["CAM_URI"])
-        self.assertEqual(ZERO_HASH, deploy_environment["CAM_HASH"])
+        self.assertNotIn("CAM_HASH", deploy_environment)
         self.assertEqual(BIKE_NFT_BROADCAST_DIR, deploy_environment["FOUNDRY_BROADCAST"])
         self.assertEqual(ANVIL_DEV_PRIVATE_KEY, deploy_environment["PRIVATE_KEY"])
         self.assertIn("anvil_setBalance", compose_command_text(deploy))
@@ -961,7 +969,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assertEqual("eip155:31337", environment["CAM_INTEGRATION_CHAIN_ID"])
         self.assertEqual("http://bike-nft-anvil:8545", environment["CAM_INTEGRATION_RPC_URL"])
         self.assertEqual(BIKE_CAM_HTTP_ORIGIN, environment["CAM_INTEGRATION_RESOURCE_ORIGIN"])
-        self.assertEqual("true", environment["CAM_INTEGRATION_ALLOW_UNSIGNED_CAM_HASH"])
+        self.assertNotIn("CAM_INTEGRATION_ALLOW_UNSIGNED_CAM_HASH", environment)
         self.assertEqual("simulate", environment["CAM_INTEGRATION_WRITE_MODE"])
         self.assertNotIn("PRIVATE_KEY", environment)
         self.assertNotIn("CAM_INTEGRATION_PRIVATE_KEY", environment)

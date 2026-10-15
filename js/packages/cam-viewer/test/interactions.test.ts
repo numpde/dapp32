@@ -169,7 +169,7 @@ test("assertStatePatchTargets rejects unrendered state keys", () => {
 
 function camDocument() {
   return parseCam({
-    cam: CAM_VERSION,
+    cam: CAM_VERSION, protocol: { uri: "./protocol.html", integrity: "sha256:0x" + "00".repeat(32) },
     entry: "readRoute",
     namespaces: {
       "contracts.App": {

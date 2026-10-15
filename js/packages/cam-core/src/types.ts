@@ -1,6 +1,7 @@
 import type { CamRuntimeContext, CamVersion, InertValue } from "@cam/protocol"
 
 export type CamDocument = {
+  readonly protocol?: { readonly uri: string; readonly integrity: string }
   readonly cam: CamVersion
   readonly entry: string
   readonly namespaces: Record<string, CamNamespace>

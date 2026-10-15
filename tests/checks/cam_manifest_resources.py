@@ -122,6 +122,9 @@ class CamManifestResourceValidator:
         failures: list[str] = []
         try:
             resources = resource_declarations(manifest_path, namespaces)
+            protocol = manifest.get("protocol")
+            if isinstance(protocol, dict):
+                resources.append(("protocol", protocol, "uri", "integrity", "protocol"))
         except CamResourceIntegrityError as error:
             failures.append(str(error))
 

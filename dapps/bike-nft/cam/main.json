@@ -1,5 +1,9 @@
 {
-  "cam": "1.0.0",
+  "cam": "1.2.0",
+  "protocol": {
+    "uri": "./protocol.html",
+    "integrity": "sha256:0x16335c3b4f96bd14dac46fb3344eff696c68a17349bdfa9b62c044029218176d"
+  },
   "entry": "entry",
   "namespaces": {
     "contracts.BicycleComponentManagerUI": {

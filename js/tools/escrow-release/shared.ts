@@ -10,13 +10,14 @@ import {
   requiredNonemptyString,
   requiredNonzeroAddress,
   requiredNonzeroBytes32,
+  requiredBytes32,
   requiredSafeInteger,
   requiredSourceCommit,
   requiredTransactionHash,
 } from "../release-values.ts"
 
-export const RELEASE_PLAN_SCHEMA = "escrow.release-plan.v1"
-export const DEPLOYMENT_SCHEMA = "escrow.deployment.v1"
+export const RELEASE_PLAN_SCHEMA = "escrow.release-plan.v2"
+export const DEPLOYMENT_SCHEMA = "escrow.deployment.v2"
 
 const RELEASE_PLAN_KEYS = [
   "schema",
@@ -90,7 +91,7 @@ export function parseReleasePlan(bytes: Uint8Array): ReleasePlan {
     sourceCommit: requiredSourceCommit(value.sourceCommit),
     expectedChainId: checkedReleaseChainId(requiredSafeInteger(value.expectedChainId, "release plan expectedChainId")),
     camURI: requiredNonemptyString(value.camURI, "release plan camURI"),
-    camHash: requiredNonzeroBytes32(value.camHash, "release plan camHash"),
+    camHash: requiredBytes32(value.camHash, "release plan camHash"),
     intendedCamRootOwner: requiredNonzeroAddress(
       value.intendedCamRootOwner,
       "release plan intendedCamRootOwner",
@@ -111,7 +112,7 @@ export function parseDeploymentArtifact(bytes: Uint8Array): DeploymentArtifact {
     chainId: checkedReleaseChainId(requiredSafeInteger(value.chainId, "deployment chainId")),
     deployer: requiredNonzeroAddress(value.deployer, "deployment deployer"),
     camURI: requiredNonemptyString(value.camURI, "deployment camURI"),
-    camHash: requiredNonzeroBytes32(value.camHash, "deployment camHash"),
+    camHash: requiredBytes32(value.camHash, "deployment camHash"),
     intendedCamRootOwner: requiredNonzeroAddress(
       value.intendedCamRootOwner,
       "deployment intendedCamRootOwner",

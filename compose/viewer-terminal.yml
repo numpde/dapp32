@@ -19,8 +19,7 @@ x-viewer-terminal-base: &viewer_terminal_base
   environment:
     CAM_VIEWER_BACKEND: mock
     CAM_VIEWER_MOCK: "${CAM_VIEWER_MOCK:?missing_CAM_VIEWER_MOCK}"
-    # Mock CAM fixtures are intentionally unsigned and start at the entry route.
-    CAM_VIEWER_ALLOW_UNSIGNED_CAM_HASH: "true"
+    # Mock CAM fixtures start at the entry route.
     CAM_VIEWER_INITIAL_INPUTS_JSON: "{}"
   volumes: *viewer_terminal_volumes
 

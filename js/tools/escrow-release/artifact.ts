@@ -29,8 +29,7 @@ import { parseJsonRecord, requiredEnv, runReleaseTool } from "../release-values.
 
 const MAX_BROADCAST_BYTES = 16 * 1024 * 1024
 const CAM_ROOT_ABI = parseAbi([
-  "function camURI() view returns (string)",
-  "function camHash() view returns (bytes32)",
+  "function camManifest() view returns ((string uri, bytes32 sha256Digest))",
   "function contractAddress(string contractName) view returns (address)",
   "function owner() view returns (address)",
   "function pendingOwner() view returns (address)",
@@ -97,17 +96,11 @@ async function main(): Promise<void> {
     ),
   ])
 
-  const [camURI, camHash, escrowBinding, uiBinding, owner, pendingOwner, projectionEscrow] = await Promise.all([
+  const [manifest, escrowBinding, uiBinding, owner, pendingOwner, projectionEscrow] = await Promise.all([
     client.readContract({
       address: contracts.camRoot.address,
       abi: CAM_ROOT_ABI,
-      functionName: "camURI",
-      blockNumber: observationBlockNumber,
-    }),
-    client.readContract({
-      address: contracts.camRoot.address,
-      abi: CAM_ROOT_ABI,
-      functionName: "camHash",
+      functionName: "camManifest",
       blockNumber: observationBlockNumber,
     }),
     client.readContract({
@@ -144,8 +137,8 @@ async function main(): Promise<void> {
     }),
   ])
 
-  assertEqual(camURI, plan.camURI, "CamRoot CAM URI")
-  assertEqual(camHash.toLowerCase(), plan.camHash.toLowerCase(), "CamRoot CAM hash")
+  assertEqual(manifest.uri, plan.camURI, "CamRoot CAM URI")
+  assertEqual(manifest.sha256Digest.toLowerCase(), plan.camHash.toLowerCase(), "CamRoot CAM hash")
   assertAddress(escrowBinding, contracts.camEscrow.address, "CamRoot CamEscrow binding")
   assertAddress(uiBinding, contracts.camEscrowUI.address, "CamRoot CamEscrowUI binding")
   assertAddress(projectionEscrow, contracts.camEscrow.address, "CamEscrowUI backing escrow")
