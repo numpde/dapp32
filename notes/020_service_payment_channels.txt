@@ -1,134 +1,140 @@
 Service payment channels
 ========================
 
-Design record, 2026-10-15. This describes an intended direction and a proposed
-payment flow, not an implemented contract or a complete protocol specification.
-The purpose is to fund repeated API purchases without an onchain transaction
-for every request, while keeping each provider's backing separate.
+Design record, 2026-10-15. This is an intended design, not an implemented
+contract or complete protocol. A customer funds an onchain channel with a
+settlement service Y, then authorizes API purchases offchain. Y coordinates
+payments for multiple APIs and later collects from the channel. Each purchase
+need not wait for an onchain settlement transaction.
 
-Actors and agreed boundaries
----------------------------
+Actors and trust boundaries
+--------------------------
 
-E is the onchain deposit contract. Its developer/admin maintains the catalog
-of approved service providers; users do not add providers to that catalog.
-Users choose a provider and fund a channel for that provider. One E deployment
-can hold many channels for many users and providers. A is a channel's payment
-recipient, initially an ordinary address. Making A a contract needs a concrete
-purpose and is not required by this design.
+E is the deposit contract. Its developer/admin maintains a catalog of approved
+settlement services, not individual APIs. Customers choose a listed service Y;
+they do not add catalog entries. A stable serviceId identifies Y separately
+from its payment recipient A. Both are fixed channel terms, so independently
+catalogued services can share a treasury address. A can initially be an ordinary
+address; making it a contract requires a concrete purpose.
 
-Each provider has a stable providerId distinct from recipient A. Both are
-fixed channel terms, bound by vouchers through the channel identity. Separate
-services can therefore share one treasury address while remaining independently
-catalogued providers.
+One E can hold many customer/service channels. A customer's backing for Y is
+exclusive of channels with another service Yprime. Within Y's channel, however,
+API-1 and API-2 purchases share that backing. E needs neither individual API
+catalog entries nor per-API allocations. Y is the settlement counterpart E
+pays at A; API credits are Y's accounting obligations, not claims enforceable
+against E. APIs need no mutual trust, but depend on Y to avoid overcommitting
+the shared balance and to honor its credits. A malicious Y can misaccount
+credits; APIs bear that settlement-service risk.
 
-The admin may add its own providers, but that gives it no right to other
-channels' funds. Removing a provider from the catalog blocks only new channels
-for that provider. Existing valid claims and withdrawal rights survive removal;
-those operations must not depend on the catalog's current enabled flag. An
-existing channel's payer, providerId, recipient, asset and authorization terms
-are immutable: the admin cannot redirect its balance or suspend valid claims
-through the catalog.
+The admin may add its own services without gaining access to other channels'
+funds. Catalog removal blocks only new channels for that service. Existing
+valid claims and withdrawal rights survive removal and cannot depend on the
+catalog's current enabled flag. Payer, serviceId, recipient, asset,
+authorization terms and claim-period duration are fixed at channel opening;
+admin catalog control cannot redirect balances or suspend valid claims.
 
-Direct funding of a provider-specific channel is the proposed starting point.
-A general free balance in E, later allocated to channels, is an alternative,
-not a committed requirement. The asset is undecided. Illustrations such as a
-$50 deposit or a $0.50 API purchase express prices, not an assumption that the
-contract uses native currency or fixes a native-token exchange rate.
+What E offers a channel
+-----------------------
 
-Proposed purchase and settlement flow
-------------------------------------
+- Open a channel with fixed terms and dedicated customer/Y backing, fund it
+  and top it up. Direct channel funding is the proposed starting point; an E
+  free balance later allocated to channels is an alternative, not selected.
+  Detailed funding mechanics and the payment asset remain undecided.
+- Collect cumulative authorizations. Y submits the highest valid cumulative
+  amount it holds, regardless of voucher arrival order. If C is authorized
+  and P is already paid, C <= P produces no further payment. For C > P, a
+  valid claim pays C - P to A and advances P to C, subject to backing and
+  channel validity/deadline rules. Onward payouts to APIs remain unspecified.
+- Exit through open -> closing -> closed. The customer requests unilateral
+  closing by transaction. E's transition starts the claim period, whose
+  duration was fixed at opening and cannot change retroactively. Valid signed
+  vouchers remain claimable during that period; afterwards the customer can
+  withdraw the unclaimed remainder and close. The duration and exact
+  transition rules remain open. Cooperative early close/refund rules are
+  also undecided.
+- Expose channel state and events for funding, cumulative collection and
+  closing/withdrawal progress. E sees confirmed funding and collection, not
+  every outstanding signed voucher or offchain reservation. Its remaining
+  balance alone is therefore not the customer's spendable amount.
 
-1. The user opens and funds a channel through an onchain transaction. That
-   transaction authorizes the deposit and fixed channel terms.
-2. The API returns an invoice for the requested service. The user separately
-   signs an offchain voucher authorizing an increased cumulative payment to
-   this channel's recipient. That authorization must bind the selected chain,
-   E deployment, and channel identity/fixed terms; the signing format remains
-   open. Funding E alone does not authorize arbitrary service charges.
-3. Before serving, the provider verifies the voucher signature and channel
-   identity, the invoice/request association, payment coverage against tracked
-   obligations, and sufficient confirmed channel backing. The concurrent
-   accounting rules for these checks still need design. It records the
-   accepted voucher and purchase status durably, then serves without waiting
-   for that voucher's onchain settlement.
-4. The provider later submits the highest valid cumulative authorization it
-   holds, regardless of voucher arrival order. In the proposed model, let C
-   be the authorized cumulative amount and P the cumulative amount E has paid.
-   C <= P produces no additional payment. For C > P, a valid claim pays only
-   C - P to A and advances P to C, provided the remaining channel balance
-   covers the delta. Requests do not each become independent claims for their
-   full cumulative amount.
+Replay protection must last across closure and any reuse: paid accounting
+cannot reset while old vouchers still match the same identity. Fresh
+identifiers/epochs versus retained monotonic accounting remains a design choice.
 
-Purchases within one channel must support parallel requests. A higher voucher
-authorizes its entire unpaid cumulative delta, including amounts for lower
-pending or abandoned purchases if included in that total. The accounting
-protocol must define safe inclusion and reconciliation of those amounts,
-backing reservations, voucher ordering, retries and abandoned requests. These
-mechanisms remain open; selecting parallel purchases does not solve them.
+What the customer does
+----------------------
 
-Replay protection must hold for the channel's lifetime: never reset cumulative
-paid accounting while old vouchers can match the same reusable identity.
-Fresh identifiers/epochs or retained monotonic accounting are alternatives;
-the reuse mechanism remains undecided.
+The customer discovers settlement-service terms in E's catalog, chooses Y,
+opens/funds a channel and tops it up as needed. The customer can inspect their
+channels, deposits, collected amounts and closing status. To show spendable
+funds, the customer and Y must also retain outstanding authorizations and
+reservations offchain; E cannot reconstruct them from settled state.
 
-Voucher validity and visible backing alone are not an unconditional payment
-guarantee. The provider must track accepted obligations and pending claims,
-monitor withdrawals/closing, claim within the permitted window, and choose
-confirmation and reorg policies. Provider-specific backing avoids competing
-claims from unrelated providers against a shared free balance; it does not
-remove those operational duties.
+The funding transaction authorizes the deposit and channel terms. API purchases
+require separate offchain authorization; depositing does not authorize
+arbitrary charges. The customer signs cumulative vouchers bound to the selected
+chain, E deployment and channel identity/fixed terms, including serviceId and A.
+The signing format and invoice authentication remain undecided. Illustrations
+such as $50 funding or a $0.50 purchase do not select an asset or assume a
+native-token exchange rate. The customer can initiate the unilateral exit
+above without relying on Y's cooperation.
 
-Proposed lifecycle and service recovery
---------------------------------------
+Concurrent purchases and settlement-service duties
+-------------------------------------------------
 
-Closing ends one funded channel so the user can recover its unclaimed
-remainder. The lifecycle sketch is open -> closing -> closed. The user can
-request unilateral closing through a transaction to E. The claim period starts
-when E transitions to closing. Its duration is fixed at channel opening and
-cannot change retroactively; the duration to use is still undecided. The
-provider/API stops accepting new purchases when it observes closing under its
-confirmation policy. Observation lag reduces the time remaining to claim.
+Purchases for different APIs through Y must run concurrently within one
+channel. Y verifies the customer's authorization, channel and invoice/request
+association, checks confirmed backing against tracked obligations, and must
+atomically account for reservations, debits and API credits without
+overcommitting funds. Y can briefly order ledger updates without serializing
+all API purchases. The exact cumulative authorization, reservation and retry
+protocol remains open.
 
-During that period, signed vouchers remain claimable subject to E's validity
-and deadline rules. This design supplies E with no proof of API acceptance,
-service delivery, or signature creation time; the provider tracks acceptance
-offchain. After the claim period, the user can withdraw the unclaimed remainder
-and close the channel. Exact transition rules
-remain undecided. Cooperative early close/refund may be useful, but its required
-signatures and amounts have not been settled.
+A higher voucher authorizes its entire unpaid cumulative delta, including
+amounts for pending or abandoned purchases if included in that total. The
+protocol must define safe inclusion and reconciliation, voucher ordering and
+abandonment handling. Independent per-request claims for the full cumulative
+amount would pay repeatedly for the same authorization.
 
-Payment authorization does not prove service delivery. Even binding a voucher
-to a purchase hash establishes an association, not that the service was
-provided correctly. The API needs an idempotent, recoverable purchase workflow:
-retries should recover the same purchase and recorded provisioning outcome,
-not silently create another charge or resource. External provisioning cannot
-be promised globally exactly once. Recovery after partial failure, and when
-failed delivery warrants a refund, still need explicit rules.
+Y durably records accepted authorization and purchase status before API
+provisioning proceeds. Y and the API need an idempotent, recoverable workflow:
+retries recover the same purchase and recorded provisioning outcome rather
+than silently creating another charge or resource. Globally exactly-once
+external effects are not promised. Neither a voucher nor a purchase hash
+proves correct delivery; recovery and refund rules still need design.
+
+Y stops accepting new purchases when it observes closing under its confirmation
+policy. The claim period starts at E's transition, so observation lag reduces
+Y's response time. Y must monitor closing, track outstanding obligations and
+claim in time, with explicit confirmation/reorg policies. Valid signatures
+and visible backing alone are not an unconditional collection guarantee.
+This design gives E no proof of API acceptance, delivery or signature creation
+time. E enforces customer/Y settlement rules, not API delivery or Y's
+liabilities to APIs.
 
 Decisions still needed
 ---------------------
 
-Before implementation, settle the payment asset and amount units; voucher
-signer identity and key lifecycle; invoice schema and authentication; exact
-request binding and the accounting protocol for parallel purchases; claim
-period length, exact closing transitions and cooperative close rules; channel
-reuse versus fresh identifiers/epochs; and provisioning recovery/refund
-behavior. These are gaps in the current design, not additional features
-already selected.
+Settle asset/units and funding mechanics; signer identity/key lifecycle;
+invoice schema/authentication and request binding; the concurrent cumulative
+authorization/reservation/retry protocol; claim-period length and exact closing
+rules; cooperative close/refunds; reuse identifiers/accounting; provisioning
+recovery; and Y's onward API payout arrangements. The selected counterpart,
+parallel-purchase capability and fixed channel protections above remain the
+design boundaries while these mechanisms are resolved.
 
 Related patterns, not adopted specifications
 --------------------------------------------
 
 x402's EVM batch-settlement specification describes prefunded channels,
-cumulative signed vouchers and periodic claims. It separates claim accounting
-from a later recipient transfer. Its immutable channel configuration and
-withdrawal delay are relevant patterns; its token methods, authorizer roles
-and full settlement protocol have not been adopted here.
+cumulative vouchers and periodic claims, separating claim accounting from
+recipient transfer. Its receiver is a useful settlement-counterpart analogy;
+its contract and full payment protocol have not been adopted here.
 https://github.com/x402-foundation/x402/blob/main/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md
 
-Raiden's service-contract specification describes a shared UserDeposit balance
-and OneToN IOUs for service payments. It explicitly accepts competition for
-that shared backing and uses delayed withdrawal to limit risk. That differs
-from the proposed provider-specific backing here; it is not evidence that a
-shared deposit guarantees all outstanding provider payments.
+Raiden's UserDeposit/OneToN design accepts competition among service payments
+for shared backing and uses delayed withdrawal to limit risk. Shared-credit
+risk is comparable at Y's accounting layer here; this does not imply unrelated
+settlement services can drain the same E channel. Neither pattern guarantees
+all API liabilities will be paid.
 https://github.com/raiden-network/spec/blob/master/service_contracts.rst
