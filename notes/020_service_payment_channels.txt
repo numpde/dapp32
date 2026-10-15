@@ -1,133 +1,150 @@
 Service payment channels
 ========================
 
-Design record, 2026-10-15. This is an intended design, not an implemented
-contract or complete protocol. A customer directly funds a native-currency
-channel with a settlement service Y, then authorizes API purchases offchain.
-Y coordinates payments for multiple APIs. Collection need not precede service
-provisioning. The deployment chain has not been selected.
+Design record, 2026-10-15. This specifies the selected minimal design, not an
+implemented contract. Customers directly fund native-currency positions in
+channels for settlement services. Offchain vouchers authorize cumulative
+payments; API work need not wait for onchain collection. No deployment chain
+or arbitrary default waiting period has been selected.
 
-Actors and trust boundaries
---------------------------
+Actors and authority
+--------------------
 
-E is the deposit/settlement contract. The deployer/admin defines channels and
-maintains the catalog of settlement services, not individual APIs. Each channel
-has a stable serviceId identifying its consumer Y separately from payment
-recipient A. Independently catalogued services can share a recipient. Channel
-definitions persist separately from each customer's funded position.
+E is the deposit/settlement contract. D is its deployer/admin. C is the customer
+and agent: C's account signs, with no separate human-owner/agent-key role.
+Y is a channel's consumer/settlement service. A is its current payment recipient,
+a wallet or contract. R is any submitter/relayer; submitting gives R no right
+to choose where customer funds go.
 
-The agent is the customer; the customer account signs vouchers. There is no
-separate human-owner versus agent-signing-key role. Anyone can submit a valid
-customer-signed voucher. Every collection pays the channel's current payee A,
-which may be a wallet or contract. The admin can change A, including for
-existing vouchers. This redirect power is an explicit trust assumption:
-customer authorization does not fix a historical payment destination. The
-admin still cannot fabricate the customer's payment authorization.
+D defines each channel's stable identity/serviceId, consumer Y and irreversible
+claim-period duration. D may change A; existing vouchers always pay current A,
+not a historical recipient. This redirection power is an explicit trust
+assumption. D cannot change the wait, consumer, identity, customer balances or
+paid totals, or fabricate C's authorization. The directory is permanent and
+add-only, refining the earlier catalog-removal proposal; no disable/deletion
+machinery is selected and existing rights remain intact.
 
-The admin fixes the channel's claim-period duration irreversibly when defining
-it. Channel identity, serviceId, native asset and authorization rules are fixed;
-payee is deliberately changeable. Customer balance, lifetime paid total and
-release status belong to that customer's position, not the channel definition.
-Catalog removal blocks new participation only. Existing collection and release
-rights survive removal and cannot depend on the catalog's enabled flag.
+A channel definition is separate from each C's position. Backing for Y and
+Yprime is separate. APIs using Y share that position's backing and trust Y's
+ledger and onward payouts; their credits are not claims against E. E needs no
+per-API catalog or allocations. Reserved null channel 0 has no consumer and
+uses the same funding, balance, movement and waiting rules, with an explicitly
+admin-chosen immutable period through ordinary definition/initialization, not
+an automatic zero-time bypass. Voucher collection requires a consumer, so the
+consumerless null channel cannot pay Y vouchers.
 
-One E can hold many customer/channel positions. Backing for Y is separate from
-backing for Yprime; APIs using the same Y share its channel balance. E needs
-neither individual API catalog entries nor per-API allocations. API credits
-are Y's obligations, not E-enforceable claims. APIs need no mutual trust but
-rely on Y's accounting and onward payouts. A malicious Y can misaccount API
-credits; APIs bear that risk.
+One balance, two ways to consume it
+----------------------------------
 
-What E offers a channel
------------------------
+Each customer/channel position needs its available balance, lifetime paid total
+for Y vouchers, and an optional withdrawal request containing only remaining
+amount and ready time. These are logical facts, not a selected storage layout.
+Funding/top-ups credit the balance in native base units. Internal movements
+debit one of C's positions and credit another. No extra free-balance ledger,
+withdrawal lifetime counter, debt ledger, epoch or status enum is needed.
 
-- Direct funding and top-ups in native currency, accounted in native base
-  units. A reserved null channel per customer uses the same balance, movement
-  and release rules; its only restriction is that it cannot have a consumer.
-  It is not a separate unallocated-balance ledger or a separate lifecycle.
-  No special zero claim period or automatic release bypass is selected.
-- Movements debit one customer position and credit another. Moving funds out
-  of a source position, like withdrawal, must respect its release waiting
-  rule; an open funded channel cannot be drained arbitrarily. Exact storage
-  layout and public APIs remain unspecified.
-- Partial cumulative collection. Let C be a valid voucher's authorized total,
-  P this customer's lifetime cumulative amount already paid in this channel,
-  and B its available balance. For C > P, collection transfers min(C - P, B)
-  to the current payee and increases P only by the amount transferred. The
-  same voucher can collect the unpaid remainder after further funding. For
-  C <= P, a valid repeated/older voucher succeeds with no payment.
-- Persistent authorization and accounting. Vouchers have no expiry. Paid
-  total P never resets; there are no epochs or closing/reopening resets.
-  Release does not invalidate unpaid authorization: after release and later
-  redeposit, an old unpaid voucher can collect against the new balance.
-- Release of the entire balance. The customer requests release, starting the
-  channel's fixed waiting period. After waiting, movement/withdrawal takes
-  the full remaining balance at execution, including later top-ups. Top-ups
-  are allowed during the wait and do not restart its deadline; collections
-  can reduce the eventual remainder. The claim period delays release, not
-  voucher expiration or the end of collection rights.
-- State and events for funding, amounts paid and release progress. E knows
-  onchain funding and collection, not all outstanding vouchers or offchain
-  reservations. Onchain balance alone is not the customer's spendable amount.
+Voucher collection uses standard EIP-712 authorization binding C, the channel
+and cumulative total, with chain ID and E deployment in the signing domain.
+It does not bind A. Use the existing OpenZeppelin SignatureChecker support for
+EOA and ERC-1271 customer accounts, not custom cryptography or cached signature
+validity. Contract-wallet authorization must be valid when collection executes.
 
-What the customer does
+Anyone may submit a valid voucher. If its authorized total exceeds the lifetime
+paid total, pay min(authorized total - paid total, current balance) to current
+A. Advance paid only by the amount transferred. Valid repeated/older vouchers
+succeed without payment; zero payments change no state. Paid never resets.
+Vouchers have no protocol expiry: an old unpaid voucher can collect after a
+withdrawal and later funding, subject to current signature validity. There is
+no closing/reopening or epoch mechanism.
+
+Withdrawals use an onchain waiting entitlement instead of a second signed
+voucher. The following rules also govern the source of an internal movement:
+
+- Anyone may request an amount for C. If a request exists, ordinary request is
+  a no-op before checking the new amount, even when C retries. Otherwise require
+  0 < requested amount <= current balance, store that remaining amount, and
+  set ready time to the request timestamp plus the channel's fixed period.
+- Only C may explicitly set/renew: it creates or replaces a request, requires
+  a positive amount no greater than current balance, and starts a full new
+  wait. No cancellation operation is selected.
+- Execution is allowed at timestamp >= ready time. Anyone may withdraw to C;
+  R cannot choose another recipient or an internal destination. Only C may
+  instead move the released funds to another of its own channel positions.
+  Reject source = destination as a meaningless movement.
+- Pay/move min(remaining amount, current balance). Subtract the actual amount
+  from both. A partial execution preserves the unpaid remainder at the same
+  ready time, so later funding can satisfy it without another wait. Clear the
+  request at zero remaining amount. A zero payout changes nothing.
+
+Collections reduce the shared balance, not the requested remaining amount.
+Top-ups change neither amount nor ready time. A mature withdrawal and a Y
+collection have no hard priority: transaction order determines which consumes
+available funds first. A withdrawal request caps an entitlement; it does not
+reserve a separate pot of coins. Native payments and accounting must be atomic:
+a reverting recipient rolls back the operation, and callbacks cannot consume
+the same entitlement twice.
+
+What C and Y see and do
 ----------------------
 
-The customer discovers channel terms, chooses Y, directly funds its position
-and tops it up as needed. It can inspect balances, cumulative paid amounts and
-release status. Customer and Y retain outstanding authorizations/reservations
-so their displayed spendable amount accounts for obligations invisible to E.
-Dollar illustrations such as $50 funding or a $0.50 purchase do not define a
-native-token exchange rate.
+C chooses a channel, directly funds/top-ups its position, signs vouchers and
+can inspect balance, paid total and withdrawal progress. Funding alone does
+not authorize charges. Dollar illustrations such as $50 funding or a $0.50
+purchase do not define a native-token exchange rate. E exposes state/events
+for these onchain facts, not all signed vouchers, purchase reservations or
+API liabilities. C and Y must retain that offchain history to show spendable
+funds and outstanding authorization accurately.
 
-The funding transaction and the signed voucher are separate authorizations.
-Depositing alone grants no arbitrary charge authority. Vouchers bind the
-selected chain, E deployment, customer and persistent channel identity; their
-payments follow the current payee, not a payee address frozen in the signature.
-The customer can request release without Y's cooperation, then move or withdraw
-the full remaining balance after waiting. This does not cancel old unpaid
-vouchers, and the channel definition and paid total persist.
+Y maintains one durable cumulative authorization stream per C/channel. Brief
+atomic acceptance assigns purchase/request IDs and reconciles authorization,
+backing and API credits; the actual API work can run concurrently. Retries must
+recover the same purchase and recorded result instead of silently charging or
+provisioning twice. Exact invoice, sequencing and recovery mechanisms are
+outside this core note, not prerequisites for defining E's accounting.
 
-Concurrent purchases and settlement-service duties
--------------------------------------------------
+Because anyone can initiate a withdrawal, it does not mean C is closing the
+channel or canceling purchases. Y must account for pending/mature withdrawals
+when accepting work; a blanket stop on every request would let strangers
+interrupt service. Y must monitor balance, current payee and requests under its
+confirmation policy. Observation lag reduces time before withdrawal becomes
+executable. Signed authorization does not guarantee backing remains until Y
+collects, prove delivery or settle Y's liabilities to APIs. Delivery refunds
+and Y's onward API payouts remain outside E's core rules; no globally
+exactly-once external effect is promised.
 
-Purchases for multiple APIs through Y must run concurrently within one channel.
-Y verifies customer authorization, channel and invoice/request association,
-checks backing against tracked obligations, and atomically accounts for
-reservations, debits and API credits without overcommitting funds. Y may briefly
-order ledger updates without serializing all purchases. The exact cumulative
-authorization, reservation and retry protocol remains open.
+Worked cases and future proof obligations
+----------------------------------------
 
-A higher voucher authorizes its entire unpaid cumulative delta, including
-pending or abandoned purchases whose amounts it includes. Safe inclusion,
-reconciliation, voucher ordering and abandonment handling still need design.
-Y durably records accepted authorization and purchase status before API
-provisioning. Retries must recover the same purchase and recorded outcome
-rather than silently create another charge/resource. Globally exactly-once
-external effects are not promised. Neither vouchers nor purchase hashes prove
-correct delivery; provisioning recovery and refunds remain open.
+With balance 30, paid 0 and a voucher for total 100, collection pays 30 and
+records paid 30. Funding another 20 lets the same voucher collect 20, recording
+paid 50. Repeating any valid total <= 50 succeeds with no payment. Withdrawing
+funds does not forgive the unpaid authorization.
 
-Y stops accepting new purchases when it observes a release request under its
-confirmation policy. The waiting period starts at E's request transition;
-observation lag reduces the time before the customer can release funds. Y must
-monitor release, outstanding obligations, current payee and confirmations,
-and collect in time to reduce the release remainder. Missing that opportunity
-does not expire a voucher, but later collection depends on available backing.
-Valid signatures and visible backing alone are not an unconditional payment
-guarantee. E has no proof of API acceptance, delivery or signature creation
-time; it enforces customer/channel settlement rules, not Y's API liabilities.
+With balance 100 and a request for 80, a collection of 60 leaves balance 40
+and requested remainder 80. At maturity withdrawal pays 40, leaving a mature
+remainder 40. Funding 50 allows another withdrawal of 40, leaving balance 10.
+No top-up resets the deadline or increases the entitlement. C can instead
+explicitly renew within the current balance, restarting the full wait.
 
-Decisions still needed
----------------------
-
-Settle the deployment chain; signature encoding and contract-wallet
-verification; invoice authentication/request binding; Y's concurrent cumulative
-authorization, reservation, recovery and onward payout mechanisms; exact
-release timestamp boundaries and request lifecycle, including cancellation or
-repeated requests; and provisioning recovery/refunds. Channel definition,
-customer position storage and exact APIs have not been chosen. These open
-mechanisms do not change the selected direct-funding, null-channel, persistent
-voucher/accounting, partial-collection and full-balance release rules above.
+Future contract tests must establish:
+- Voucher partial collection, idempotent retry and unpaid collection after
+  withdrawal/redeposit; lifetime paid changes only by actual voucher payments.
+- Signature replay rejection across chains, E deployments, customers and
+  channels, with contract-wallet validity checked at execution.
+- Rejection before ready time and acceptance exactly at it; partial withdrawal
+  keeps maturity, full payment clears, and zero payout preserves the request.
+- Ordinary duplicate requests are no-ops, including invalid replacement amounts;
+  C's explicit set/renew works with or without an existing request, validates
+  its amount and starts a full new wait; other callers cannot use it.
+- Top-ups and voucher payments leave request amount/deadline unchanged until
+  actual withdrawal/movement consumes it; null positions follow the same rules.
+- Current A receives old vouchers after D changes A; unprivileged updates and
+  changes to fixed channel terms or customer accounting fail.
+- Both transaction orders for mature withdrawal versus collection; anyone's
+  withdrawal pays only C, only C routes internal moves, and source = destination
+  is rejected.
+- Funding/movement/payment conservation, no cross-position overdraft, and full
+  rollback on reverting native calls or attempted callback double consumption.
 
 Contract precedents and related patterns
 ---------------------------------------
@@ -142,15 +159,15 @@ E's core is a unidirectional payment-channel kernel: customer authorization
 lets one settlement counterpart collect from dedicated backing. Evaluate
 existing implementations of that shape before writing a new kernel. Map the
 payee role to Y, with A as its payment destination. This design additionally
-requires the admin's Y catalog, serviceId distinct from payout address, a
+requires D's channel directory, serviceId distinct from payout address, a
 claim-period duration fixed per channel, and CAM workflows. These precedents
 do not choose a dependency, deployment chain or license, or establish safety
 or suitability for this design.
 
 AbstractStreamChannel is an ERC-20 precedent, while this design selects native
 currency. Its operations include open, topUp, settle, requestClose, withdraw,
-close and getChannel. Its EIP-712
-cumulative vouchers let the payee call settle to collect the unpaid delta
+close and getChannel. Its EIP-712 cumulative vouchers let the payee call
+settle to collect the unpaid delta
 without closing the channel. Its channel identity binds payer, payee, token,
 salt, authorized signer, contract address and chain ID. It has a fixed
 15-minute CLOSE_GRACE_PERIOD, not a per-channel duration, and no service
@@ -161,8 +178,8 @@ https://github.com/Abstract-Foundation/abstract-packages/blob/main/packages/cont
 The historical RaidenMicroTransferChannels (microRaiden) design targets API
 and content micropayments using deposits, signed cumulative balance proofs,
 top-ups, cooperative close and unilateral close with a challenge period.
-Settlement is primarily at channel closure rather than periodic delta claims
-while open. Its repository was archived on 2022-05-13; it is a historical
+Its receiver can also withdraw cumulative balance-proof deltas while the
+channel is open. Its repository was archived on 2022-05-13; it is a historical
 design reference, not a selected dependency.
 https://microraiden.readthedocs.io/en/latest/introduction/introduction.html
 https://github.com/raiden-network/microraiden
@@ -171,10 +188,16 @@ x402's EVM batch-settlement specification describes prefunded channels,
 cumulative vouchers and periodic claims, separating claim accounting from
 recipient transfer. Its signed maxClaimableAmount is a ceiling: the server
 tracks actual charges within it. That requires trust in charge accounting and
-differs from this note's cumulative entitlement C, collectible in partial
+differs from this note's cumulative entitlement, collectible in partial
 deltas as backing permits. Its receiver is a useful settlement-counterpart
 analogy; the full protocol has not been adopted here.
 https://github.com/x402-foundation/x402/blob/main/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md
+
+The pinned x402 finalizeWithdraw and Raiden UserDeposit withdrawHelper cap
+withdrawal by the requested amount and current available balance, then clear
+the request even after partial payment. Retaining a mature unpaid remainder
+is this design's explicit difference. AbstractStreamChannel cancels pending
+closing on top-up, whereas this design preserves the withdrawal deadline.
 
 Raiden's UserDeposit/OneToN design accepts competition among service payments
 for shared backing and uses delayed withdrawal to limit risk. Shared-credit
