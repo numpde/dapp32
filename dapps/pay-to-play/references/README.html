@@ -18,13 +18,15 @@
   <h1>Service-payment reference sources</h1>
   <p>These snapshots support the planned pay-to-play app. The
   <a href="../../../notes/020_service_payment_channels.txt">design record</a>
-  describes E, its onchain deposit/settlement contract. A customer funds a
-  dedicated channel with settlement service Y and signs cumulative payment
-  authorizations offchain. Y coordinates concurrent purchases from multiple
-  APIs and collects from E at its fixed recipient A. Different settlement
-  services have separate channel backing; APIs using the same Y share that
-  channel and trust Y's accounting and onward payments. API credits are
-  obligations of Y, not claims against E.</p>
+  describes E, its onchain native-currency deposit/settlement contract. The
+  agent is the customer, whose account signs vouchers. A customer directly
+  funds a dedicated channel with settlement service Y and signs cumulative
+  payment authorizations offchain. Y coordinates concurrent purchases from
+  multiple APIs. Anyone may submit valid vouchers; E pays the channel's current
+  recipient A, which the admin can change even for existing vouchers.
+  Different settlement services have separate channel backing; APIs using the
+  same Y share that channel and trust Y's accounting and onward payments.
+  API credits are obligations of Y, not claims against E.</p>
   <p>The sources below help distinguish the channel contract from Y's shared
   API ledger. They do not settle the app's open authorization, concurrency or
   payout mechanisms. The snapshot collection is under
@@ -50,9 +52,9 @@
       <p>Read the EVM specification and implementation notes, then the matching
       contract. This provides a modern cumulative-voucher and batch-claim
       comparison. Its <code>maxClaimableAmount</code> is a signed ceiling over
-      server-accounted actual charges; this differs from the app's proposed
-      exact cumulative amount. Its claim accounting and recipient transfer
-      are separate.</p>
+      server-accounted actual charges; this differs from the app's cumulative
+      entitlement, collectible in partial deltas as backing permits. Its claim
+      accounting and recipient transfer are separate.</p>
       <ul>
         <li><a href="service-payment-channels/x402/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md">EVM batch-settlement specification</a></li>
         <li><a href="service-payment-channels/x402/contracts/evm/docs/x402-batch-settlement-implementers.md">Implementation notes</a></li>
