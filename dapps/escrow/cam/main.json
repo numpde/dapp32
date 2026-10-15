@@ -2,7 +2,7 @@
   "cam": "1.2.0",
   "protocol": {
     "uri": "./protocol.html",
-    "integrity": "sha256:0xe3d3b5ec40420d5550c242d09aa34d192df0a9245b87919eaef8148148d1376b"
+    "integrity": "sha256:0xc0d5f3c694862eccf5f7e6e0763287f35ae7ed675421cf901f1ae8d3108f419e"
   },
   "entry": "createAgreementForm",
   "namespaces": {

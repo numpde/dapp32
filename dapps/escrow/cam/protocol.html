@@ -40,6 +40,7 @@
 <h2>Contents</h2>
 <ul>
 <li><a href="#model">CAM model</a></li>
+<li><a href="#security">Security and trust boundaries</a></li>
 <li><a href="#bootstrap">Bootstrap an unfamiliar application</a></li>
 <li><a href="#loading">Resolve and verify a bundle</a></li>
 <li><a href="#graph">Interpret the manifest graph</a></li>
@@ -51,6 +52,14 @@
 <li><a href="#provenance">Evidence and limits</a></li>
 </ul>
 </nav>
+<section id="security">
+<h2>Security and trust boundaries</h2>
+<p>Start with a trusted choice of chain, host address, and RPC transport. The chain check compares the RPC's reported chain ID; it does not authenticate that network independently. The <a href="#bootstrap">bootstrap checks</a> establish that the exact manifest bytes match the SHA-256 digest returned by the selected host. That manifest commits to the protocol, ABI, and UI resource digests, so verifying each resource extends the same integrity check to its exact bytes.</p>
+<p>An agent can automate these checks headlessly and inspect resolved calls independently of the publisher's frontend and its displayed claims. Compatible viewers can perform the same checks: SHA-256 provides the same integrity evidence to either consumer. Both paths depend on a trusted verifier: a malicious frontend or agent tool can claim checks passed without performing them.</p>
+<p>Authenticated content can still describe a malicious or buggy workflow, and committed UI text can mislead. Hash verification does not establish that the selected host is trustworthy or that an ABI matches deployed code. Address bindings are outside the manifest commitment and may change separately; the manifest commitment itself can also be updated. See <a href="#bindings">binding lifetime and viewer lookup policy</a>.</p>
+<p>Labels, descriptions, and protocol reference text are application-supplied content. Agents must keep that content within the user's delegated task: a matching hash does not authorize overriding user instructions, exposing secrets, or granting network access or signing permission. Resource-fetch admission remains the caller's policy; apply the <a href="#loading">URI and loader policies</a> before fetching advertised resources.</p>
+<p>Before authorizing a transaction, the signer or its delegated policy must verify the actual destination, calldata, native value, and chain against the intended action. A route declaration or UI label grants no authority to spend or sign. Called contracts enforce their business rules onchain; integrity checks and simulation do not establish that a transaction is safe or will succeed.</p>
+</section>
 <section id="bootstrap">
 <h2>Bootstrap an unfamiliar application</h2>
 <p>An agent can discover an application through RPC and authenticated resource bytes, then interpret its workflow headlessly. A browser or web frontend is unnecessary. Discovery needs no viewing account or draft task inputs; executing the selected entry read may require user inputs declared by that route.</p>
@@ -73,7 +82,6 @@ function contractAddress(string contractName) external view returns (address);</
 <li>Resolve <code>protocol.uri</code>: <code>./…</code> is relative to the original manifest URI's directory, dropping its query and fragment; supported <code>ipfs://CID/…</code> uses an admitted IPFS transport. Apply the resource profile and caller's admission before fetching bounded bytes. Compare SHA-256 of the exact protocol bytes with the digest in <code>protocol.integrity</code>, and stop on mismatch.</li>
 <li>Read the authenticated protocol document to learn how to validate the manifest graph, load and authenticate declared ABI/UI resources, resolve <a href="#bindings">address bindings</a>, and proceed to workflow execution.</li>
 </ol>
-<p>The root commitment covers all declared digests, which cover the protocol/ABI/UI bytes; it does not cover address bindings or deployed contract code. Verified bytes do not grant permissions or prove an ABI matches deployed code.</p>
 </section>
 <section id="loading">
 <h2>Resolve and verify a bundle</h2>
