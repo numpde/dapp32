@@ -5,7 +5,7 @@ import tomllib
 import unittest
 from pathlib import Path
 
-from .common import iter_files, read_text, repo_path
+from .common import SERVICE_PAYMENT_SNAPSHOT_ROOT, first_party_solidity_files, read_text, repo_path
 
 
 OZ_PACKAGE = "@openzeppelin-contracts"
@@ -30,14 +30,21 @@ IMPORT_PATH_RE = re.compile(r'["\'](?P<path>[^"\']+)["\']')
 
 
 class SolidityImportPolicyTest(unittest.TestCase):
+    def test_first_party_imports_cannot_consume_research_snapshots(self) -> None:
+        source = repo_path("dapps/pay-to-play/src/Payments.sol")
+        error = self.validate_relative_import(
+            source,
+            "../references/service-payment-channels/abstract-packages/"
+            "packages/contracts/src/AbstractStreamChannel.sol",
+        )
+        self.assertIsNotNone(error)
+        self.assertIn("research", error)
+
     def test_contract_imports_are_relative_or_explicitly_allowed_dependencies(self) -> None:
         dependency_versions = self.dependency_versions()
         failures: list[str] = []
 
-        for path in self.dapp_solidity_files():
-            if path.suffix != ".sol":
-                continue
-
+        for path in first_party_solidity_files():
             for import_path in self.import_paths(path):
                 error = self.validate_import(path, import_path, dependency_versions)
                 if error is not None:
@@ -69,9 +76,6 @@ class SolidityImportPolicyTest(unittest.TestCase):
             imports.append(matches[0])
         return imports
 
-    def dapp_solidity_files(self) -> list[Path]:
-        return [path for path in iter_files("dapps") if path.suffix == ".sol"]
-
     def validate_import(self, source: Path, import_path: str, dependency_versions: dict[str, str]) -> str | None:
         if import_path.startswith(("./", "../")):
             return self.validate_relative_import(source, import_path)
@@ -95,6 +99,8 @@ class SolidityImportPolicyTest(unittest.TestCase):
             return f"{source}: relative import must target a Solidity file: {import_path}"
 
         resolved = (source.parent / import_path).resolve()
+        if resolved.is_relative_to(SERVICE_PAYMENT_SNAPSHOT_ROOT):
+            return f"{source}: first-party code cannot import research snapshots: {import_path}"
         dapp_root = self.dapp_root_for(source)
         if resolved != dapp_root and dapp_root not in resolved.parents:
             return f"{source}: relative import escapes {dapp_root.relative_to(repo_path(''))}/: {import_path}"

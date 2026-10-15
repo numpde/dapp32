@@ -14,6 +14,7 @@ from tools.json_policy import strict_json_loads
 
 
 ROOT = Path(__file__).resolve().parents[2]
+SERVICE_PAYMENT_SNAPSHOT_ROOT = ROOT / "dapps/pay-to-play/references/service-payment-channels"
 DOCKER_COMPOSE_DEFAULT_RE = re.compile(r"^DOCKER_COMPOSE \?= (?P<command>.+)$", re.MULTILINE)
 # Rendered Compose posture tests need concrete values for required operator
 # inputs before `docker compose config` can produce JSON. These values are test
@@ -151,6 +152,13 @@ def iter_repo_text_files() -> list[Path]:
         if path.name in TEXT_FILENAMES or path.suffix in TEXT_SUFFIXES:
             paths.append(path)
     return sorted(paths)
+
+
+def first_party_solidity_files() -> list[Path]:
+    return [
+        path for path in iter_files("dapps")
+        if path.suffix == ".sol" and not path.is_relative_to(SERVICE_PAYMENT_SNAPSHOT_ROOT)
+    ]
 
 
 def read_text(path: Path) -> str:

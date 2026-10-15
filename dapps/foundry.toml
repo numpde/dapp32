@@ -3,6 +3,7 @@ solc = "0.8.35"
 evm_version = "prague"
 src = "."
 test = "."
+skip = ["pay-to-play/references/service-payment-channels/**"]
 out = "out"
 cache_path = "cache"
 libs = ["dependencies"]

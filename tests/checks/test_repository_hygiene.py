@@ -9,7 +9,14 @@ from unittest.mock import patch
 
 from tools.json_policy import read_strict_json
 
-from .common import is_skipped, iter_repo_text_files, path_has_symlink, read_text, repo_path
+from .common import (
+    SERVICE_PAYMENT_SNAPSHOT_ROOT,
+    is_skipped,
+    iter_repo_text_files,
+    path_has_symlink,
+    read_text,
+    repo_path,
+)
 
 
 FORBIDDEN_NAME_PATTERNS = [
@@ -82,7 +89,7 @@ FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
 
 class RepositoryHygieneTest(unittest.TestCase):
     def verified_research_source_paths(self) -> tuple[Path, ...]:
-        root = repo_path("notes/references/service-payment-channels")
+        root = SERVICE_PAYMENT_SNAPSHOT_ROOT
         self.assertFalse(path_has_symlink(root), "research snapshot must not use symlinks")
         self.assertTrue(root.is_dir(), "research snapshot must be a directory")
         provenance = root / "provenance.json"
@@ -114,8 +121,8 @@ class RepositoryHygieneTest(unittest.TestCase):
         return tuple(sources)
 
     def test_research_snapshot_rejects_modified_source_bytes(self) -> None:
-        source = repo_path(
-            "notes/references/service-payment-channels/abstract-packages/"
+        source = SERVICE_PAYMENT_SNAPSHOT_ROOT / (
+            "abstract-packages/"
             "packages/contracts/src/AbstractStreamChannel.sol"
         )
         original = Path.read_bytes
@@ -129,7 +136,7 @@ class RepositoryHygieneTest(unittest.TestCase):
                 self.verified_research_source_paths()
 
     def test_research_snapshot_rejects_paths_outside_inventory(self) -> None:
-        root = repo_path("notes/references/service-payment-channels")
+        root = SERVICE_PAYMENT_SNAPSHOT_ROOT
         provenance = read_strict_json(root / "provenance.json")
         for path in ("../outside.sol", "/outside.sol", "abstract-packages/../outside.sol"):
             with self.subTest(path=path):
@@ -176,7 +183,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assert_no_matches(SECRET_PATTERNS, "secret pattern", (), additional_paths=research_sources)
 
     def test_research_notices_and_specs_retain_branding_and_secret_checks(self) -> None:
-        root = repo_path("notes/references/service-payment-channels")
+        root = SERVICE_PAYMENT_SNAPSHOT_ROOT
         for source in (root / "microraiden/LICENSE", root / "raiden-spec/service_contracts.rst"):
             for text, reason in (("dapp" + "32 product", "forbidden project name"),
                                  ("GITHUB_" + "ACCESS_TOKEN", "secret pattern")):
