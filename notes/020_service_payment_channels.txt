@@ -46,21 +46,25 @@ Proposed purchase and settlement flow
    E deployment, and channel identity/fixed terms; the signing format remains
    open. Funding E alone does not authorize arbitrary service charges.
 3. Before serving, the provider verifies the voucher signature and channel
-   identity, the invoice/request association, the increase over prior accepted
-   charges, and sufficient confirmed channel backing. It retains the accepted
-   voucher and purchase status durably, then serves without waiting for that
-   voucher's onchain settlement.
-4. The provider later submits its latest voucher to E. In the proposed
-   cumulative model, if the voucher authorizes C and E has already paid P,
-   a valid claim pays only C - P to A and advances P to C. A repeated or older
-   voucher cannot produce another payment; the remaining channel balance must
-   cover the delta. Separate requests do not each become independent claims
-   for their full cumulative amount.
+   identity, the invoice/request association, payment coverage against tracked
+   obligations, and sufficient confirmed channel backing. The concurrent
+   accounting rules for these checks still need design. It records the
+   accepted voucher and purchase status durably, then serves without waiting
+   for that voucher's onchain settlement.
+4. The provider later submits the highest valid cumulative authorization it
+   holds, regardless of voucher arrival order. In the proposed model, let C
+   be the authorized cumulative amount and P the cumulative amount E has paid.
+   C <= P produces no additional payment. For C > P, a valid claim pays only
+   C - P to A and advances P to C, provided the remaining channel balance
+   covers the delta. Requests do not each become independent claims for their
+   full cumulative amount.
 
-Purchases within one channel must support parallel requests. The protocol for
-reserving backing, ordering cumulative vouchers, and handling retries and
-abandoned requests remains to be designed; the selected concurrency capability
-does not settle that accounting mechanism.
+Purchases within one channel must support parallel requests. A higher voucher
+authorizes its entire unpaid cumulative delta, including amounts for lower
+pending or abandoned purchases if included in that total. The accounting
+protocol must define safe inclusion and reconciliation of those amounts,
+backing reservations, voucher ordering, retries and abandoned requests. These
+mechanisms remain open; selecting parallel purchases does not solve them.
 
 Replay protection must hold for the channel's lifetime: never reset cumulative
 paid accounting while old vouchers can match the same reusable identity.
@@ -79,17 +83,19 @@ Proposed lifecycle and service recovery
 
 Closing ends one funded channel so the user can recover its unclaimed
 remainder. The lifecycle sketch is open -> closing -> closed. The user can
-request unilateral closing through a transaction to E. The provider/API
-accepts purchases while open and stops accepting new purchases when it observes
-closing under its confirmation policy. E enforces claim/withdrawal windows,
-including a closing cooldown
-during which outstanding accepted vouchers remain claimable. The claim period
-is fixed when the channel opens and cannot be changed retroactively; its
-length is still undecided. E cannot establish when an offchain signature was
-created. After that window, the user can withdraw the unclaimed remainder and
-close the channel. Exact transition rules remain undecided. Cooperative early
-close/refund may be useful, but its required signatures and amounts have not
-been settled.
+request unilateral closing through a transaction to E. The claim period starts
+when E transitions to closing. Its duration is fixed at channel opening and
+cannot change retroactively; the duration to use is still undecided. The
+provider/API stops accepting new purchases when it observes closing under its
+confirmation policy. Observation lag reduces the time remaining to claim.
+
+During that period, signed vouchers remain claimable subject to E's validity
+and deadline rules. This design supplies E with no proof of API acceptance,
+service delivery, or signature creation time; the provider tracks acceptance
+offchain. After the claim period, the user can withdraw the unclaimed remainder
+and close the channel. Exact transition rules
+remain undecided. Cooperative early close/refund may be useful, but its required
+signatures and amounts have not been settled.
 
 Payment authorization does not prove service delivery. Even binding a voucher
 to a purchase hash establishes an association, not that the service was
