@@ -35,9 +35,10 @@ One balance, two ways to consume it
 
 Each customer/channel position needs its available balance, lifetime paid total
 for Y vouchers, and an optional withdrawal request containing only remaining
-amount and ready time. These are logical facts, not a selected storage layout.
-Funding/top-ups credit the balance in native base units. Internal movements
-debit one of C's positions and credit another.
+amount and ready time. Zero remaining amount denotes no active request. These
+are logical facts, not a selected storage layout. Funding/top-ups credit the
+balance in native base units. Internal movements debit one of C's positions
+and credit another.
 
 Voucher collection uses standard EIP-712 authorization binding C, the channel
 and cumulative total, with chain ID and E deployment in the signing domain.
@@ -85,11 +86,10 @@ What C and Y see and do
 
 C chooses a channel, directly funds/top-ups its position, signs vouchers and
 can inspect balance, paid total and withdrawal progress. Funding alone does
-not authorize charges. Dollar illustrations such as $50 funding or a $0.50
-purchase do not define a native-token exchange rate. E exposes state/events
-for these onchain facts, not all signed vouchers, purchase reservations or
-API liabilities. C and Y must retain that offchain history to show spendable
-funds and outstanding authorization accurately.
+not authorize charges. E exposes state/events for these onchain facts, not all
+signed vouchers, purchase reservations or API liabilities. C and Y must retain
+that offchain history to show spendable funds and outstanding authorization
+accurately.
 
 Y maintains one durable cumulative authorization stream per C/channel and
 retry-safe purchases identified by request/purchase IDs. Concurrent API work
