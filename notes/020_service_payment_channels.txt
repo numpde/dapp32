@@ -39,7 +39,8 @@ What E offers a channel
 - Open a channel with fixed terms and dedicated customer/Y backing, fund it
   and top it up. Direct channel funding is the proposed starting point; an E
   free balance later allocated to channels is an alternative, not selected.
-  Detailed funding mechanics and the payment asset remain undecided.
+  Payments use native currency, with amounts in native base units; this does
+  not select a deployment chain. Detailed funding mechanics remain undecided.
 - Collect cumulative authorizations. Y submits the highest valid cumulative
   amount it holds, regardless of voucher arrival order. If C is authorized
   and P is already paid, C <= P produces no further payment. For C > P, a
@@ -74,8 +75,8 @@ The funding transaction authorizes the deposit and channel terms. API purchases
 require separate offchain authorization; depositing does not authorize
 arbitrary charges. The customer signs cumulative vouchers bound to the selected
 chain, E deployment and channel identity/fixed terms, including serviceId and A.
-The signing format and invoice authentication remain undecided. Illustrations
-such as $50 funding or a $0.50 purchase do not select an asset or assume a
+The signing format and invoice authentication remain undecided. Dollar
+illustrations such as $50 funding or a $0.50 purchase do not define a
 native-token exchange rate. The customer can initiate the unilateral exit
 above without relying on Y's cooperation.
 
@@ -115,7 +116,7 @@ liabilities to APIs.
 Decisions still needed
 ---------------------
 
-Settle asset/units and funding mechanics; signer identity/key lifecycle;
+Settle funding mechanics; signer identity/key lifecycle;
 invoice schema/authentication and request binding; the concurrent cumulative
 authorization/reservation/retry protocol; claim-period length and exact closing
 rules; cooperative close/refunds; reuse identifiers/accounting; provisioning
@@ -141,8 +142,9 @@ claim-period duration fixed per channel, and CAM workflows. These precedents
 do not choose a dependency, deployment chain or license, or establish safety
 or suitability for this design.
 
-AbstractStreamChannel is a concrete ERC-20 implementation with open, topUp,
-settle, requestClose, withdraw, close and getChannel operations. Its EIP-712
+AbstractStreamChannel is an ERC-20 precedent, while this design selects native
+currency. Its operations include open, topUp, settle, requestClose, withdraw,
+close and getChannel. Its EIP-712
 cumulative vouchers let the payee call settle to collect the unpaid delta
 without closing the channel. Its channel identity binds payer, payee, token,
 salt, authorized signer, contract address and chain ID. It has a fixed
