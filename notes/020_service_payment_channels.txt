@@ -4,34 +4,31 @@ Service payment channels
 Design record, 2026-10-15. This specifies the selected minimal design, not an
 implemented contract. Customers directly fund native-currency positions in
 channels for settlement services. Offchain vouchers authorize cumulative
-payments; API work need not wait for onchain collection. No deployment chain
-or arbitrary default waiting period has been selected.
+payments; API work need not wait for onchain collection. The deployment chain
+and actual per-channel waiting periods remain deployment choices.
 
 Actors and authority
 --------------------
 
 E is the deposit/settlement contract. D is its deployer/admin. C is the customer
-and agent: C's account signs, with no separate human-owner/agent-key role.
-Y is a channel's consumer/settlement service. A is its current payment recipient,
-a wallet or contract. R is any submitter/relayer; submitting gives R no right
-to choose where customer funds go.
+and agent: C's account signs. Y describes the offchain settlement service using
+a channel, not another stored address or authorization identity. A is the
+channel's current payment recipient, a wallet or contract. R is any
+submitter/relayer; submitting gives R no right to choose where customer funds go.
 
-D defines each channel's stable identity/serviceId, consumer Y and irreversible
-claim-period duration. D may change A; existing vouchers always pay current A,
-not a historical recipient. This redirection power is an explicit trust
-assumption. D cannot change the wait, consumer, identity, customer balances or
-paid totals, or fabricate C's authorization. The directory is permanent and
-add-only, refining the earlier catalog-removal proposal; no disable/deletion
-machinery is selected and existing rights remain intact.
+D assigns each channel one stable, never-reused channel ID and fixes its
+claim-period duration irreversibly. A is its only changeable term: existing
+vouchers always pay current A, not a historical recipient. This redirection
+power is an explicit trust assumption. D cannot change the wait, identity,
+customer balances or paid totals, or fabricate C's authorization. The channel
+directory is permanent and add-only.
 
-A channel definition is separate from each C's position. Backing for Y and
-Yprime is separate. APIs using Y share that position's backing and trust Y's
-ledger and onward payouts; their credits are not claims against E. E needs no
-per-API catalog or allocations. Reserved null channel 0 has no consumer and
-uses the same funding, balance, movement and waiting rules, with an explicitly
-admin-chosen immutable period through ordinary definition/initialization, not
-an automatic zero-time bypass. Voucher collection requires a consumer, so the
-consumerless null channel cannot pay Y vouchers.
+A channel definition is separate from each C's position. Backing for different
+channel positions is separate. APIs using Y share that position's backing and
+trust Y's ledger and onward payouts; their credits are not claims against E.
+E needs no per-API catalog or allocations. Reserved null channel 0 has no consumer and
+cannot pay Y vouchers. It uses the same funding, balance, movement and waiting
+rules, with an admin-chosen immutable period set through ordinary definition.
 
 One balance, two ways to consume it
 ----------------------------------
@@ -40,22 +37,20 @@ Each customer/channel position needs its available balance, lifetime paid total
 for Y vouchers, and an optional withdrawal request containing only remaining
 amount and ready time. These are logical facts, not a selected storage layout.
 Funding/top-ups credit the balance in native base units. Internal movements
-debit one of C's positions and credit another. No extra free-balance ledger,
-withdrawal lifetime counter, debt ledger, epoch or status enum is needed.
+debit one of C's positions and credit another.
 
 Voucher collection uses standard EIP-712 authorization binding C, the channel
 and cumulative total, with chain ID and E deployment in the signing domain.
-It does not bind A. Use the existing OpenZeppelin SignatureChecker support for
-EOA and ERC-1271 customer accounts, not custom cryptography or cached signature
-validity. Contract-wallet authorization must be valid when collection executes.
+It does not bind A. Authorization must be valid when collection executes,
+including for ERC-1271 customer accounts. The implementation choice is the
+existing OpenZeppelin SignatureChecker support for EOAs and contract wallets.
 
 Anyone may submit a valid voucher. If its authorized total exceeds the lifetime
 paid total, pay min(authorized total - paid total, current balance) to current
 A. Advance paid only by the amount transferred. Valid repeated/older vouchers
 succeed without payment; zero payments change no state. Paid never resets.
 Vouchers have no protocol expiry: an old unpaid voucher can collect after a
-withdrawal and later funding, subject to current signature validity. There is
-no closing/reopening or epoch mechanism.
+withdrawal and later funding, subject to current signature validity.
 
 Withdrawals use an onchain waiting entitlement instead of a second signed
 voucher. The following rules also govern the source of an internal movement:
@@ -70,7 +65,8 @@ voucher. The following rules also govern the source of an internal movement:
 - Execution is allowed at timestamp >= ready time. Anyone may withdraw to C;
   R cannot choose another recipient or an internal destination. Only C may
   instead move the released funds to another of its own channel positions.
-  Reject source = destination as a meaningless movement.
+  Source and destination must be distinct positions so the request is consumed
+  only by an actual balance movement.
 - Pay/move min(remaining amount, current balance). Subtract the actual amount
   from both. A partial execution preserves the unpaid remainder at the same
   ready time, so later funding can satisfy it without another wait. Clear the
@@ -95,18 +91,17 @@ for these onchain facts, not all signed vouchers, purchase reservations or
 API liabilities. C and Y must retain that offchain history to show spendable
 funds and outstanding authorization accurately.
 
-Y maintains one durable cumulative authorization stream per C/channel. Brief
-atomic acceptance assigns purchase/request IDs and reconciles authorization,
-backing and API credits; the actual API work can run concurrently. Retries must
-recover the same purchase and recorded result instead of silently charging or
-provisioning twice. Exact invoice, sequencing and recovery mechanisms are
-outside this core note, not prerequisites for defining E's accounting.
+Y maintains one durable cumulative authorization stream per C/channel and
+retry-safe purchases identified by request/purchase IDs. Concurrent API work
+must preserve correct cumulative authorization and reconcile backing and API
+credits. Retries recover the same purchase and recorded result instead of
+silently charging or provisioning twice. Invoice, sequencing and recovery
+mechanisms remain outside E's accounting rules.
 
-Because anyone can initiate a withdrawal, it does not mean C is closing the
-channel or canceling purchases. Y must account for pending/mature withdrawals
-when accepting work; a blanket stop on every request would let strangers
-interrupt service. Y must monitor balance, current payee and requests under its
-confirmation policy. Observation lag reduces time before withdrawal becomes
+Y must account for pending/mature withdrawals when accepting work. A mature
+remainder can immediately consume future deposits: new funds do not create a
+fresh waiting window. Y monitors balance, current payee and requests under its
+confirmation policy; observation lag reduces time before withdrawal becomes
 executable. Signed authorization does not guarantee backing remains until Y
 collects, prove delivery or settle Y's liabilities to APIs. Delivery refunds
 and Y's onward API payouts remain outside E's core rules; no globally
@@ -149,59 +144,22 @@ Future contract tests must establish:
 Contract precedents and related patterns
 ---------------------------------------
 
-Pinned source/specification snapshots and their provenance are under
-dapps/pay-to-play/references/service-payment-channels/. These are research
-material, not installed dependencies or executable fixtures; third-party
-imports are not fully vendored. provenance.json records exact upstream commits
-and byte hashes.
+The reading guide at dapps/pay-to-play/references/README.html links the pinned
+source/specification snapshots and provenance. Evaluate these channel kernels
+before writing a new one. Relevant differences from the selected design are:
 
-E's core is a unidirectional payment-channel kernel: customer authorization
-lets one settlement counterpart collect from dedicated backing. Evaluate
-existing implementations of that shape before writing a new kernel. Map the
-payee role to Y, with A as its payment destination. This design additionally
-requires D's channel directory, serviceId distinct from payout address, a
-claim-period duration fixed per channel, and CAM workflows. These precedents
-do not choose a dependency, deployment chain or license, or establish safety
-or suitability for this design.
-
-AbstractStreamChannel is an ERC-20 precedent, while this design selects native
-currency. Its operations include open, topUp, settle, requestClose, withdraw,
-close and getChannel. Its EIP-712 cumulative vouchers let the payee call
-settle to collect the unpaid delta
-without closing the channel. Its channel identity binds payer, payee, token,
-salt, authorized signer, contract address and chain ID. It has a fixed
-15-minute CLOSE_GRACE_PERIOD, not a per-channel duration, and no service
-catalog or separate stable serviceId. This is a source-level precedent, not
-a security assessment or an assertion of audit status.
-https://github.com/Abstract-Foundation/abstract-packages/blob/main/packages/contracts/src/AbstractStreamChannel.sol
-
-The historical RaidenMicroTransferChannels (microRaiden) design targets API
-and content micropayments using deposits, signed cumulative balance proofs,
-top-ups, cooperative close and unilateral close with a challenge period.
-Its receiver can also withdraw cumulative balance-proof deltas while the
-channel is open. Its repository was archived on 2022-05-13; it is a historical
-design reference, not a selected dependency.
-https://microraiden.readthedocs.io/en/latest/introduction/introduction.html
-https://github.com/raiden-network/microraiden
-
-x402's EVM batch-settlement specification describes prefunded channels,
-cumulative vouchers and periodic claims, separating claim accounting from
-recipient transfer. Its signed maxClaimableAmount is a ceiling: the server
-tracks actual charges within it. That requires trust in charge accounting and
-differs from this note's cumulative entitlement, collectible in partial
-deltas as backing permits. Its receiver is a useful settlement-counterpart
-analogy; the full protocol has not been adopted here.
-https://github.com/x402-foundation/x402/blob/main/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md
-
-The pinned x402 finalizeWithdraw and Raiden UserDeposit withdrawHelper cap
-withdrawal by the requested amount and current available balance, then clear
-the request even after partial payment. Retaining a mature unpaid remainder
-is this design's explicit difference. AbstractStreamChannel cancels pending
-closing on top-up, whereas this design preserves the withdrawal deadline.
-
-Raiden's UserDeposit/OneToN design accepts competition among service payments
-for shared backing and uses delayed withdrawal to limit risk. Shared-credit
-risk is comparable at Y's accounting layer here; this does not imply unrelated
-settlement services can drain the same E channel. Neither pattern guarantees
-all API liabilities will be paid.
-https://github.com/raiden-network/spec/blob/master/service_contracts.rst
+- AbstractStreamChannel uses ERC-20, a fixed 15-minute grace period and full
+  closing withdrawal. A top-up cancels its pending close; here native-currency
+  top-ups preserve the amount-specific withdrawal entitlement and deadline.
+- AbstractStreamChannel and x402 bind the payee/receiver into channel identity.
+  Here the channel ID is stable while D may change A for existing vouchers.
+- x402 finalizeWithdraw and Raiden UserDeposit withdrawHelper cap withdrawal
+  by the requested amount and current available balance, then clear the
+  request even after partial payment. Here a mature unpaid remainder persists.
+- x402's signed maxClaimableAmount is a ceiling over server-accounted actual
+  charges, and claim accounting is separate from recipient transfer. Here
+  vouchers authorize a cumulative entitlement collected in partial deltas.
+- microRaiden supports cumulative balance-proof withdrawals while open as well
+  as closing settlement. Its closing lifecycle is not adopted here.
+- Raiden's shared UserDeposit risk is comparable to shared API credits at Y,
+  while this design keeps different channel positions separately backed.

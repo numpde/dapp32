@@ -18,18 +18,13 @@
   <h1>Service-payment reference sources</h1>
   <p>These snapshots support the planned pay-to-play app. The
   <a href="../../../notes/020_service_payment_channels.txt">design record</a>
-  describes E, its onchain native-currency deposit/settlement contract. The
-  agent is the customer, whose account signs vouchers. A customer directly
-  funds a dedicated channel with settlement service Y and signs cumulative
-  payment authorizations offchain. Y coordinates concurrent purchases from
-  multiple APIs. Anyone may submit valid vouchers; E pays the channel's current
-  recipient A, which the admin can change even for existing vouchers.
-  Different settlement services have separate channel backing; APIs using the
-  same Y share that channel and trust Y's accounting and onward payments.
-  API credits are obligations of Y, not claims against E.</p>
+  specifies E's native-currency channel accounting and authorization rules.
+  Each channel has one stable ID. Y describes the offchain settlement service
+  coordinating its API purchases; APIs using Y trust its shared accounting and
+  onward payments. Their credits are obligations of Y, not claims against E.</p>
   <p>The sources below help distinguish the channel contract from Y's shared
-  API ledger. They do not settle the app's open authorization, concurrency or
-  payout mechanisms. The snapshot collection is under
+  API ledger. They do not settle Y's purchase coordination and API payout
+  mechanisms. The snapshot collection is under
   <code>service-payment-channels/</code> beside this README. It contains
   <a href="service-payment-channels/provenance.json">provenance.json</a>
   and the five source-family directories.</p>
@@ -41,7 +36,7 @@
       <p>The closest concrete core to inspect first. It supports funding/top-ups,
       cumulative EIP-712 delta payments and closing. Compare its fixed 15-minute
       grace period and payee identity with E's planned per-channel period and
-      separate <code>serviceId</code>/recipient terms.</p>
+      stable channel ID and mutable recipient.</p>
       <ul>
         <li><a href="service-payment-channels/abstract-packages/packages/contracts/src/AbstractStreamChannel.sol">AbstractStreamChannel.sol</a></li>
         <li><a href="service-payment-channels/abstract-packages/packages/contracts/src/interfaces/IAbstractStreamChannel.sol">IAbstractStreamChannel.sol</a></li>
@@ -78,8 +73,8 @@
       model; <code>raiden-contracts</code> contains its concrete contract
       implementations. A shared deposit permits competing service claims,
       an accepted trade-off in that design. Compare this with Y's responsibility
-      for shared API credits; E's separate customer/Y channels do not share
-      backing across Y and Yprime.</p>
+      for shared API credits; E keeps different channel positions separately
+      backed.</p>
       <ul>
         <li><a href="service-payment-channels/raiden-spec/service_contracts.rst">Service-contract specification</a></li>
         <li><a href="service-payment-channels/raiden-contracts/raiden_contracts/data/source/services/UserDeposit.sol">UserDeposit.sol</a></li>
