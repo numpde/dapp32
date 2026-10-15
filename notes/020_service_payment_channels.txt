@@ -123,13 +123,44 @@ recovery; and Y's onward API payout arrangements. The selected counterpart,
 parallel-purchase capability and fixed channel protections above remain the
 design boundaries while these mechanisms are resolved.
 
-Related patterns, not adopted specifications
---------------------------------------------
+Contract precedents and related patterns
+---------------------------------------
+
+E's core is a unidirectional payment-channel kernel: customer authorization
+lets one settlement counterpart collect from dedicated backing. Evaluate
+existing implementations of that shape before writing a new kernel. Map the
+payee role to Y, with A as its payment destination. This design additionally
+requires the admin's Y catalog, serviceId distinct from payout address, a
+claim-period duration fixed per channel, and CAM workflows. These precedents
+do not choose a dependency, deployment chain or license, or establish safety
+or suitability for this design.
+
+AbstractStreamChannel is a concrete ERC-20 implementation with open, topUp,
+settle, requestClose, withdraw, close and getChannel operations. Its EIP-712
+cumulative vouchers let the payee call settle to collect the unpaid delta
+without closing the channel. Its channel identity binds payer, payee, token,
+salt, authorized signer, contract address and chain ID. It has a fixed
+15-minute CLOSE_GRACE_PERIOD, not a per-channel duration, and no service
+catalog or separate stable serviceId. This is a source-level precedent, not
+a security assessment or an assertion of audit status.
+https://github.com/Abstract-Foundation/abstract-packages/blob/main/packages/contracts/src/AbstractStreamChannel.sol
+
+The historical RaidenMicroTransferChannels (microRaiden) design targets API
+and content micropayments using deposits, signed cumulative balance proofs,
+top-ups, cooperative close and unilateral close with a challenge period.
+Settlement is primarily at channel closure rather than periodic delta claims
+while open. Its repository was archived on 2022-05-13; it is a historical
+design reference, not a selected dependency.
+https://microraiden.readthedocs.io/en/latest/introduction/introduction.html
+https://github.com/raiden-network/microraiden
 
 x402's EVM batch-settlement specification describes prefunded channels,
 cumulative vouchers and periodic claims, separating claim accounting from
-recipient transfer. Its receiver is a useful settlement-counterpart analogy;
-its contract and full payment protocol have not been adopted here.
+recipient transfer. Its signed maxClaimableAmount is a ceiling: the server
+tracks actual charges within it. That requires trust in charge accounting and
+differs from this note's proposed exact cumulative amount C paid through delta
+claims. Its receiver is a useful settlement-counterpart analogy; the full
+protocol has not been adopted here.
 https://github.com/x402-foundation/x402/blob/main/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md
 
 Raiden's UserDeposit/OneToN design accepts competition among service payments
