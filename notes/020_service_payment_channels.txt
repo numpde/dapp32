@@ -34,8 +34,8 @@ One balance, two ways to consume it
 ----------------------------------
 
 Each customer/channel position needs its available balance, lifetime paid total
-for Y vouchers, and an optional withdrawal request containing only remaining
-amount and ready time. Zero remaining amount denotes no active request. These
+for Y vouchers, and an optional withdrawal request containing only requested
+amount and ready time. Zero requested amount denotes no active request. These
 are logical facts, not a selected storage layout. Funding/top-ups credit the
 balance in native base units. Internal movements debit one of C's positions
 and credit another.
@@ -58,7 +58,7 @@ voucher. The following rules also govern the source of an internal movement:
 
 - Anyone may request an amount for C. If a request exists, ordinary request is
   a no-op before checking the new amount, even when C retries. Otherwise require
-  0 < requested amount <= current balance, store that remaining amount, and
+  0 < requested amount <= current balance, store that requested amount, and
   set ready time to the request timestamp plus the channel's fixed period.
 - Only C may explicitly set/renew: it creates or replaces a request, requires
   a positive amount no greater than current balance, and starts a full new
@@ -66,20 +66,20 @@ voucher. The following rules also govern the source of an internal movement:
 - Execution is allowed at timestamp >= ready time. Anyone may withdraw to C;
   R cannot choose another recipient or an internal destination. Only C may
   instead move the released funds to another of its own channel positions.
-  Source and destination must be distinct positions so the request is consumed
-  only by an actual balance movement.
-- Pay/move min(remaining amount, current balance). Subtract the actual amount
-  from both. A partial execution preserves the unpaid remainder at the same
-  ready time, so later funding can satisfy it without another wait. Clear the
-  request at zero remaining amount. A zero payout changes nothing.
+  Source and destination must be distinct positions.
+- Pay/move min(requested amount, current balance) and debit the actual amount
+  from the balance. Successful mature execution consumes the request even
+  after partial or zero payment/movement. Later funding requires a fresh
+  request and wait before another withdrawal or movement. This differs from
+  Y's persistent unpaid vouchers.
 
-Collections reduce the shared balance, not the requested remaining amount.
+Collections reduce the shared balance, not the requested amount.
 Top-ups change neither amount nor ready time. A mature withdrawal and a Y
 collection have no hard priority: transaction order determines which consumes
 available funds first. A withdrawal request caps an entitlement; it does not
 reserve a separate pot of coins. Native payments and accounting must be atomic:
-a reverting recipient rolls back the operation, and callbacks cannot consume
-the same entitlement twice.
+a reverting recipient rolls back the operation, including request consumption,
+and callbacks cannot consume the same entitlement twice.
 
 What C and Y see and do
 ----------------------
@@ -98,9 +98,10 @@ credits. Retries recover the same purchase and recorded result instead of
 silently charging or provisioning twice. Invoice, sequencing and recovery
 mechanisms remain outside E's accounting rules.
 
-Y must account for pending/mature withdrawals when accepting work. A mature
-remainder can immediately consume future deposits: new funds do not create a
-fresh waiting window. Y monitors balance, current payee and requests under its
+Y must account for pending/mature withdrawals when accepting work. Top-ups
+before execution can fund the pending request without restarting its wait;
+execution clears that request, so subsequent deposits have no old withdrawal
+permission. Y monitors balance, current payee and requests under its
 confirmation policy; observation lag reduces time before withdrawal becomes
 executable. Signed authorization does not guarantee backing remains until Y
 collects, prove delivery or settle Y's liabilities to APIs. Delivery refunds
@@ -116,23 +117,26 @@ paid 50. Repeating any valid total <= 50 succeeds with no payment. Withdrawing
 funds does not forgive the unpaid authorization.
 
 With balance 100 and a request for 80, a collection of 60 leaves balance 40
-and requested remainder 80. At maturity withdrawal pays 40, leaving a mature
-remainder 40. Funding 50 allows another withdrawal of 40, leaving balance 10.
-No top-up resets the deadline or increases the entitlement. C can instead
-explicitly renew within the current balance, restarting the full wait.
+and requested amount 80. At maturity withdrawal pays 40 and clears the request.
+Funding 50 afterwards does not restore withdrawal permission: a fresh request
+and full wait are required. If the balance is zero at a valid mature execution,
+it pays zero and still clears the request. Before execution, C may explicitly
+set/renew within the current balance, starting a full new wait.
 
 Future contract tests must establish:
 - Voucher partial collection, idempotent retry and unpaid collection after
   withdrawal/redeposit; lifetime paid changes only by actual voucher payments.
 - Signature replay rejection across chains, E deployments, customers and
   channels, with contract-wallet validity checked at execution.
-- Rejection before ready time and acceptance exactly at it; partial withdrawal
-  keeps maturity, full payment clears, and zero payout preserves the request.
+- Rejection before ready time and acceptance exactly at it; every successful
+  mature withdrawal/movement clears the request, including partial and zero
+  payouts. Subsequent funding requires a fresh request and full wait.
 - Ordinary duplicate requests are no-ops, including invalid replacement amounts;
   C's explicit set/renew works with or without an existing request, validates
   its amount and starts a full new wait; other callers cannot use it.
 - Top-ups and voucher payments leave request amount/deadline unchanged until
-  actual withdrawal/movement consumes it; null positions follow the same rules.
+  successful mature withdrawal/movement consumes it; null positions follow the
+  same rules.
 - Current A receives old vouchers after D changes A; unprivileged updates and
   changes to fixed channel terms or customer accounting fail.
 - Both transaction orders for mature withdrawal versus collection; anyone's
@@ -146,7 +150,7 @@ Contract precedents and related patterns
 
 The reading guide at dapps/pay-to-play/references/README.html links the pinned
 source/specification snapshots and provenance. Evaluate these channel kernels
-before writing a new one. Relevant differences from the selected design are:
+before writing a new one. Relevant comparisons with the selected design are:
 
 - AbstractStreamChannel uses ERC-20, a fixed 15-minute grace period and full
   closing withdrawal. A top-up cancels its pending close; here native-currency
@@ -155,7 +159,8 @@ before writing a new one. Relevant differences from the selected design are:
   Here the channel ID is stable while D may change A for existing vouchers.
 - x402 finalizeWithdraw and Raiden UserDeposit withdrawHelper cap withdrawal
   by the requested amount and current available balance, then clear the
-  request even after partial payment. Here a mature unpaid remainder persists.
+  request even after partial payment. This design follows the same rule:
+  execution consumes the request, including zero payment.
 - x402's signed maxClaimableAmount is a ceiling over server-accounted actual
   charges, and claim accounting is separate from recipient transfer. Here
   vouchers authorize a cumulative entitlement collected in partial deltas.
