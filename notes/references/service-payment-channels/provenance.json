@@ -1,0 +1,182 @@
+{
+  "purpose": "Research snapshots for notes/020_service_payment_channels.txt, not installed dependencies, executable fixtures or self-contained compilable libraries; no adoption/security assessment performed here.",
+  "retrieved_on": "2026-10-15",
+  "dependency_scope": "Small repository-local imports are included. External OpenZeppelin, Solady and forge-std dependencies are not vendored.",
+  "repositories": [
+    {
+      "directory": "abstract-packages",
+      "repository": "https://github.com/Abstract-Foundation/abstract-packages",
+      "commit": "b772d01ee37446a28d6eab0e3eec0bc23f3846b3",
+      "commit_date": "2026-05-12T12:19:43Z",
+      "license_note": "No repository-root or contracts-package LICENSE found at this commit; source SPDX notices retained."
+    },
+    {
+      "directory": "microraiden",
+      "repository": "https://github.com/raiden-network/microraiden",
+      "commit": "2d51e78afaf3c0a8ddab87e59a5260c0064cdbdd",
+      "commit_date": "2018-08-22T12:13:32Z",
+      "license_note": "Repository LICENSE retained."
+    },
+    {
+      "directory": "x402",
+      "repository": "https://github.com/x402-foundation/x402",
+      "commit": "e95b06661e1a2a8a9a21fce34cc28b9934834650",
+      "commit_date": "2026-10-13T18:19:34Z",
+      "license_note": "Repository LICENSE retained."
+    },
+    {
+      "directory": "raiden-spec",
+      "repository": "https://github.com/raiden-network/spec",
+      "commit": "3dc0300b5316adf69fa51cd183b01406e01f927e",
+      "commit_date": "2022-08-18T11:53:57Z",
+      "license_note": "No LICENSE file found in the pinned repository tree."
+    },
+    {
+      "directory": "raiden-contracts",
+      "repository": "https://github.com/raiden-network/raiden-contracts",
+      "commit": "ce3d253cc5fbbedbb878a4f8722008ac954aeea3",
+      "commit_date": "2022-10-20T14:30:01Z",
+      "license_note": "Repository LICENSE retained."
+    }
+  ],
+  "files": [
+    {
+      "path": "abstract-packages/packages/contracts/src/AbstractStreamChannel.sol",
+      "url": "https://raw.githubusercontent.com/Abstract-Foundation/abstract-packages/b772d01ee37446a28d6eab0e3eec0bc23f3846b3/packages/contracts/src/AbstractStreamChannel.sol",
+      "bytes": 12806,
+      "sha256": "d5b9c1c914e34d5d78cf49d51548eac11b92719184bc5fc69c6905cfd65c31d3"
+    },
+    {
+      "path": "abstract-packages/packages/contracts/src/interfaces/IAbstractStreamChannel.sol",
+      "url": "https://raw.githubusercontent.com/Abstract-Foundation/abstract-packages/b772d01ee37446a28d6eab0e3eec0bc23f3846b3/packages/contracts/src/interfaces/IAbstractStreamChannel.sol",
+      "bytes": 3474,
+      "sha256": "f023fdaa5ab4ab6e488cb1c8dbf7c7e605e267e809a02c6256d4f4408d7d3eb4"
+    },
+    {
+      "path": "microraiden/contracts/contracts/RaidenMicroTransferChannels.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/microraiden/2d51e78afaf3c0a8ddab87e59a5260c0064cdbdd/contracts/contracts/RaidenMicroTransferChannels.sol",
+      "bytes": 27804,
+      "sha256": "7d398735e9926d0d422960c991c7e7eda21b63fcc215d3f7a0b50823c4c70c0d"
+    },
+    {
+      "path": "microraiden/contracts/contracts/Token.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/microraiden/2d51e78afaf3c0a8ddab87e59a5260c0064cdbdd/contracts/contracts/Token.sol",
+      "bytes": 3806,
+      "sha256": "a1797ca854dcd39b8c134fde3865b6ad317e873ec0fdd71d87ec722a23e18a51"
+    },
+    {
+      "path": "microraiden/contracts/contracts/lib/ECVerify.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/microraiden/2d51e78afaf3c0a8ddab87e59a5260c0064cdbdd/contracts/contracts/lib/ECVerify.sol",
+      "bytes": 1015,
+      "sha256": "8a3cf8fce9385f43b807d7c1899e2a379e5d8792907fa5a5d0af219ca15665e3"
+    },
+    {
+      "path": "microraiden/docs/introduction/introduction.rst",
+      "url": "https://raw.githubusercontent.com/raiden-network/microraiden/2d51e78afaf3c0a8ddab87e59a5260c0064cdbdd/docs/introduction/introduction.rst",
+      "bytes": 9326,
+      "sha256": "0114d48e1e4e4b2a944a294ae965bb1951ce15e2d22b74599fb6ad7b09460176"
+    },
+    {
+      "path": "microraiden/LICENSE",
+      "url": "https://raw.githubusercontent.com/raiden-network/microraiden/2d51e78afaf3c0a8ddab87e59a5260c0064cdbdd/LICENSE",
+      "bytes": 1056,
+      "sha256": "b35d026cc7aca9d5859a02eb87ddf7a386a24c986838651bd1f283f94e003327"
+    },
+    {
+      "path": "x402/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/e95b06661e1a2a8a9a21fce34cc28b9934834650/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md",
+      "bytes": 45113,
+      "sha256": "4c5ea4901e543805d3b460f9cae9a7eed7c36faf9f6e1dbb268179febc5f3af2"
+    },
+    {
+      "path": "x402/contracts/evm/src/x402BatchSettlement.sol",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/e95b06661e1a2a8a9a21fce34cc28b9934834650/contracts/evm/src/x402BatchSettlement.sol",
+      "bytes": 28022,
+      "sha256": "42ef0aac79f45d66a1f842d280dcaee69900e7d71b4d79add6cddf65ca220b98"
+    },
+    {
+      "path": "x402/contracts/evm/src/interfaces/IDepositCollector.sol",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/e95b06661e1a2a8a9a21fce34cc28b9934834650/contracts/evm/src/interfaces/IDepositCollector.sol",
+      "bytes": 1108,
+      "sha256": "01a18a728c0bb9a814e7287a57fe597b755bfe2e6478f9eb1c70a05489656925"
+    },
+    {
+      "path": "x402/contracts/evm/docs/x402-batch-settlement-implementers.md",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/e95b06661e1a2a8a9a21fce34cc28b9934834650/contracts/evm/docs/x402-batch-settlement-implementers.md",
+      "bytes": 7530,
+      "sha256": "1f500507cb9ed6112ef1477603a9b5042a1bfd0d110ad7b374e9d81ec80df36a"
+    },
+    {
+      "path": "x402/LICENSE",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/e95b06661e1a2a8a9a21fce34cc28b9934834650/LICENSE",
+      "bytes": 11324,
+      "sha256": "50e6751797c50dedd75ef1b8a0d9e42f5f8472e9fbce91f34718e9f97b0c780a"
+    },
+    {
+      "path": "x402/NOTICE",
+      "url": "https://raw.githubusercontent.com/x402-foundation/x402/e95b06661e1a2a8a9a21fce34cc28b9934834650/NOTICE",
+      "bytes": 574,
+      "sha256": "0b8a03260dc87d976ea6f24d7ff1fb3f8f361cff317f9dd0da0b8d96936eabf6"
+    },
+    {
+      "path": "raiden-spec/service_contracts.rst",
+      "url": "https://raw.githubusercontent.com/raiden-network/spec/3dc0300b5316adf69fa51cd183b01406e01f927e/service_contracts.rst",
+      "bytes": 21107,
+      "sha256": "6eb8f36b5b9ad6abfd19cd756374bb84df5e93fa080ee93585915e043ce293e7"
+    },
+    {
+      "path": "raiden-contracts/LICENSE",
+      "url": "https://raw.githubusercontent.com/raiden-network/raiden-contracts/ce3d253cc5fbbedbb878a4f8722008ac954aeea3/LICENSE",
+      "bytes": 1080,
+      "sha256": "5043edb448b5d79d422784b372a9fb33f87ba71990bb06444bc4978fbc23c6d2"
+    },
+    {
+      "path": "raiden-contracts/raiden_contracts/data/source/services/OneToN.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/raiden-contracts/ce3d253cc5fbbedbb878a4f8722008ac954aeea3/raiden_contracts/data/source/services/OneToN.sol",
+      "bytes": 8659,
+      "sha256": "c9119f979fa96bb759bb3a6b739c5eb8d6eb1d0d6001437379636750c5af28de"
+    },
+    {
+      "path": "raiden-contracts/raiden_contracts/data/source/services/UserDeposit.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/raiden-contracts/ce3d253cc5fbbedbb878a4f8722008ac954aeea3/raiden_contracts/data/source/services/UserDeposit.sol",
+      "bytes": 10366,
+      "sha256": "edab9d749a357693cd44641896999b0762ab817ed8f26fb95616ca9a4a92c6b3"
+    },
+    {
+      "path": "raiden-contracts/raiden_contracts/data/source/services/ServiceRegistry.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/raiden-contracts/ce3d253cc5fbbedbb878a4f8722008ac954aeea3/raiden_contracts/data/source/services/ServiceRegistry.sol",
+      "bytes": 14765,
+      "sha256": "90b7ef26ae8fe3c8c9c88f3fc36003137363924399a59fc51bf27e1a6c29c9af"
+    },
+    {
+      "path": "raiden-contracts/raiden_contracts/data/source/raiden/Token.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/raiden-contracts/ce3d253cc5fbbedbb878a4f8722008ac954aeea3/raiden_contracts/data/source/raiden/Token.sol",
+      "bytes": 2159,
+      "sha256": "a4fd14f41437df8159ad8f66767de1d6af9c11d656770ea1bd2fa586a987a8dc"
+    },
+    {
+      "path": "raiden-contracts/raiden_contracts/data/source/raiden/Utils.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/raiden-contracts/ce3d253cc5fbbedbb878a4f8722008ac954aeea3/raiden_contracts/data/source/raiden/Utils.sol",
+      "bytes": 1960,
+      "sha256": "c591abb8fe59e5a011856f3d45144a442209a605fd21c79f11f514d9ba6c39ca"
+    },
+    {
+      "path": "raiden-contracts/raiden_contracts/data/source/raiden/Controllable.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/raiden-contracts/ce3d253cc5fbbedbb878a4f8722008ac954aeea3/raiden_contracts/data/source/raiden/Controllable.sol",
+      "bytes": 539,
+      "sha256": "5aca0afaeedfd88a8da99eaa117a9d98b32d9bbbac24cfac419568b0eb31e939"
+    },
+    {
+      "path": "raiden-contracts/raiden_contracts/data/source/lib/ECVerify.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/raiden-contracts/ce3d253cc5fbbedbb878a4f8722008ac954aeea3/raiden_contracts/data/source/lib/ECVerify.sol",
+      "bytes": 1212,
+      "sha256": "a41ac0e169f4b3e6708f61a9c031cbf8e6b003049e6138191c6356e6283f63ac"
+    },
+    {
+      "path": "raiden-contracts/raiden_contracts/data/source/lib/MessageType.sol",
+      "url": "https://raw.githubusercontent.com/raiden-network/raiden-contracts/ce3d253cc5fbbedbb878a4f8722008ac954aeea3/raiden_contracts/data/source/lib/MessageType.sol",
+      "bytes": 306,
+      "sha256": "d8a82588411ffc7d1f13ea6d8cb4749167f0305f26622ed33a316eb3b1a77333"
+    }
+  ]
+}

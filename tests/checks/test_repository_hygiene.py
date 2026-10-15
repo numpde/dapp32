@@ -3,10 +3,13 @@ from __future__ import annotations
 import re
 import tomllib
 import unittest
+from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch
 
-from .common import is_skipped, iter_repo_text_files, read_text, repo_path
+from tools.json_policy import read_strict_json
+
+from .common import is_skipped, iter_repo_text_files, path_has_symlink, read_text, repo_path
 
 
 FORBIDDEN_NAME_PATTERNS = [
@@ -78,6 +81,66 @@ FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
 
 
 class RepositoryHygieneTest(unittest.TestCase):
+    def verified_research_source_paths(self) -> tuple[Path, ...]:
+        root = repo_path("notes/references/service-payment-channels")
+        self.assertFalse(path_has_symlink(root), "research snapshot must not use symlinks")
+        self.assertTrue(root.is_dir(), "research snapshot must be a directory")
+        provenance = root / "provenance.json"
+        self.assertFalse(provenance.is_symlink(), "research provenance must not use a symlink")
+        entries = read_strict_json(provenance)["files"]
+        expected = {provenance}
+        sources: list[Path] = []
+        for entry in entries:
+            relative = Path(entry["path"])
+            self.assertFalse(relative.is_absolute(), "research source path must be relative")
+            self.assertNotIn("..", relative.parts, "research source path must stay inside snapshot")
+            self.assertEqual(relative.as_posix(), entry["path"])
+            source = root / relative
+            self.assertNotIn(source, expected, "duplicate research source path")
+            self.assertFalse(path_has_symlink(source), "research source must not use symlinks")
+            self.assertTrue(source.is_file(), f"research source is not a regular file: {relative}")
+            contents = source.read_bytes()
+            self.assertEqual(len(contents), entry["bytes"], f"research source size: {relative}")
+            self.assertEqual(sha256(contents).hexdigest(), entry["sha256"], f"research source checksum: {relative}")
+            expected.add(source)
+            sources.append(source)
+        actual = set()
+        for path in root.rglob("*"):
+            self.assertFalse(path.is_symlink(), "research snapshot must not use symlinks")
+            self.assertTrue(path.is_dir() or path.is_file(), "research snapshot must contain regular files")
+            if path.is_file():
+                actual.add(path)
+        self.assertEqual(actual, expected, "research snapshot files must match provenance")
+        return tuple(sources)
+
+    def test_research_snapshot_rejects_modified_source_bytes(self) -> None:
+        source = repo_path(
+            "notes/references/service-payment-channels/abstract-packages/"
+            "packages/contracts/src/AbstractStreamChannel.sol"
+        )
+        original = Path.read_bytes
+
+        def altered_bytes(path: Path) -> bytes:
+            contents = original(path)
+            return contents.replace(b"pragma", b"Pragma", 1) if path == source else contents
+
+        with patch.object(Path, "read_bytes", altered_bytes):
+            with self.assertRaisesRegex(AssertionError, "research source checksum"):
+                self.verified_research_source_paths()
+
+    def test_research_snapshot_rejects_paths_outside_inventory(self) -> None:
+        root = repo_path("notes/references/service-payment-channels")
+        provenance = read_strict_json(root / "provenance.json")
+        for path in ("../outside.sol", "/outside.sol", "abstract-packages/../outside.sol"):
+            with self.subTest(path=path):
+                entry = dict(provenance["files"][0], path=path)
+                with patch(__name__ + ".read_strict_json", return_value={"files": [entry]}):
+                    with self.assertRaises(AssertionError):
+                        self.verified_research_source_paths()
+        with patch(__name__ + ".read_strict_json", return_value={"files": provenance["files"][:-1]}):
+            with self.assertRaisesRegex(AssertionError, "must match provenance"):
+                self.verified_research_source_paths()
+
     def test_foundry_file_permissions_are_exact_release_inputs(self) -> None:
         config = tomllib.loads(read_text(repo_path("dapps/foundry.toml")))
         self.assertEqual(
@@ -91,13 +154,39 @@ class RepositoryHygieneTest(unittest.TestCase):
         )
 
     def test_forbidden_text_patterns_are_absent(self) -> None:
+        research_sources = self.verified_research_source_paths()
         self.assert_no_matches(
             FORBIDDEN_NAME_PATTERNS, "forbidden project name", ALLOWED_FORBIDDEN_NAME_LITERALS,
             allowed_artifact_paths=ALLOWED_RECORDED_ARTIFACT_PATHS,
+            additional_paths=research_sources,
         )
         markers = [re.compile(re.escape(marker)) for marker in LICENSE_MARKERS]
-        self.assert_no_matches(markers, "license marker", ())
-        self.assert_no_matches(SECRET_PATTERNS, "secret pattern", ())
+        research_license_lines = {
+            path: tuple(
+                line for line in path.read_text(encoding="utf-8").splitlines()
+                if any(marker in line for marker in LICENSE_MARKERS)
+            )
+            for path in research_sources
+        }
+        self.assert_no_matches(
+            markers, "license marker", (),
+            allowed_artifact_paths=research_license_lines,
+            additional_paths=research_sources,
+        )
+        self.assert_no_matches(SECRET_PATTERNS, "secret pattern", (), additional_paths=research_sources)
+
+    def test_research_notices_and_specs_retain_branding_and_secret_checks(self) -> None:
+        root = repo_path("notes/references/service-payment-channels")
+        for source in (root / "microraiden/LICENSE", root / "raiden-spec/service_contracts.rst"):
+            for text, reason in (("dapp" + "32 product", "forbidden project name"),
+                                 ("GITHUB_" + "ACCESS_TOKEN", "secret pattern")):
+                with self.subTest(source=source, reason=reason), patch(
+                    __name__ + ".iter_repo_text_files", return_value=[]
+                ), patch(__name__ + ".read_text", return_value=text), patch.object(
+                    self, "verified_research_source_paths", return_value=(source,)
+                ):
+                    with self.assertRaisesRegex(AssertionError, reason):
+                        self.test_forbidden_text_patterns_are_absent()
 
     def test_recorded_artifact_paths_are_admitted_only_as_exact_note_references(self) -> None:
         artifact = "/tmp/dapp" + "32-walkthrough-record.mjs"
@@ -105,7 +194,9 @@ class RepositoryHygieneTest(unittest.TestCase):
         for reference in (artifact, f'"{artifact}"', f"--volume {artifact}:/validation.mjs:ro"):
             with self.subTest(reference=reference), patch(
                 __name__ + ".iter_repo_text_files", return_value=[note]
-            ), patch(__name__ + ".read_text", return_value=reference):
+            ), patch(__name__ + ".read_text", return_value=reference), patch.object(
+                self, "verified_research_source_paths", return_value=()
+            ):
                 self.test_forbidden_text_patterns_are_absent()
 
     def test_recorded_artifact_exceptions_do_not_hide_branding_or_other_hygiene_failures(self) -> None:
@@ -124,7 +215,9 @@ class RepositoryHygieneTest(unittest.TestCase):
         ):
             with self.subTest(path=path, text=text), patch(
                 __name__ + ".iter_repo_text_files", return_value=[path]
-            ), patch(__name__ + ".read_text", return_value=text):
+            ), patch(__name__ + ".read_text", return_value=text), patch.object(
+                self, "verified_research_source_paths", return_value=()
+            ):
                 with self.assertRaisesRegex(AssertionError, reason):
                     self.test_forbidden_text_patterns_are_absent()
 
@@ -468,10 +561,14 @@ class RepositoryHygieneTest(unittest.TestCase):
     def assert_no_matches(
         self, patterns: list[re.Pattern[str]], label: str, allowed_literals: tuple[str, ...],
         *, allowed_artifact_paths: dict[Path, tuple[str, ...]] | None = None,
+        additional_paths: tuple[Path, ...] | None = None,
     ) -> None:
         failures: list[str] = []
 
-        for path in iter_repo_text_files():
+        paths = set(iter_repo_text_files())
+        if additional_paths is not None:
+            paths.update(additional_paths)
+        for path in sorted(paths):
             text = read_text(path)
             artifact_pattern = None
             if allowed_artifact_paths is not None and path in allowed_artifact_paths:

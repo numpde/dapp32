@@ -126,6 +126,11 @@ design boundaries while these mechanisms are resolved.
 Contract precedents and related patterns
 ---------------------------------------
 
+Pinned source/specification snapshots and their provenance are under
+notes/references/service-payment-channels/. These are research material, not
+installed dependencies or executable fixtures; third-party imports are not
+fully vendored. provenance.json records exact upstream commits and byte hashes.
+
 E's core is a unidirectional payment-channel kernel: customer authorization
 lets one settlement counterpart collect from dedicated backing. Evaluate
 existing implementations of that shape before writing a new kernel. Map the
