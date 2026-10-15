@@ -15,7 +15,8 @@ Give the consumer a recorded seed packet containing:
 - an already configured RPC transport for that network;
 - the CAM host contract address;
 - the minimal consumer-neutral CAM 1.2 bootstrap ABI and SHA-256 verification
-  rules below, without the execution reference;
+  rules below, without the execution reference (canonical bootstrap section:
+  docs/reference/cam/1.2.0/index.html#bootstrap);
 - the consumer's trusted resource-fetch policy and admitted origins.
 
 A chain ID names a network; it does not locate an RPC endpoint. A host address
@@ -27,7 +28,7 @@ selectors, excluding inherited ERC-165. The root digest is SHA-256 of exact
 loaded bytes, checked before JSON parsing, with every bytes32 value permitted.
 CAM 1.2 requires top-level protocol: {uri, integrity}; resolve ./ relative to the
 manifest directory or use admitted IPFS transport, then verify exact resource
-bytes against sha256:0x plus 64 hex digits before reading the execution rules.
+bytes against sha256:0x plus 64 lowercase hex digits before reading the execution rules.
 These minimal authentication rules are bootstrap inputs; app routes, selectors
 and the full execution specification are not. Record the exact ABI/rules supplied.
 
