@@ -40,6 +40,10 @@ are logical facts, not a selected storage layout. Funding/top-ups credit the
 balance in native base units. Internal movements debit one of C's positions
 and credit another.
 
+Effective balance is derived as max(current balance - requested amount, 0).
+With no request it equals current balance. At most one request is active, and
+effective balance needs no separate stored counter or queue.
+
 Voucher collection uses standard EIP-712 authorization binding C, the channel
 and cumulative total, with chain ID and E deployment in the signing domain.
 It does not bind A. Authorization must be valid when collection executes,
@@ -56,10 +60,10 @@ withdrawal and later funding, subject to current signature validity.
 Withdrawals use an onchain waiting entitlement instead of a second signed
 voucher. The following rules also govern the source of an internal movement:
 
-- Anyone may request an amount for C. If a request exists, ordinary request is
-  a no-op before checking the new amount, even when C retries. Otherwise require
-  0 < requested amount <= current balance, store that requested amount, and
-  set ready time to the request timestamp plus the channel's fixed period.
+- Only C may request an amount; D and other callers have no request authority.
+  If a request exists, C's ordinary request is a no-op before checking the new
+  amount. Otherwise require 0 < requested amount <= current balance; store it
+  and set ready time to the request timestamp plus the channel's fixed period.
 - Only C may explicitly set/renew: it creates or replaces a request, requires
   a positive amount no greater than current balance, and starts a full new
   wait. No cancellation operation is selected.
@@ -76,8 +80,9 @@ voucher. The following rules also govern the source of an internal movement:
 Collections reduce the shared balance, not the requested amount.
 Top-ups change neither amount nor ready time. A mature withdrawal and a Y
 collection have no hard priority: transaction order determines which consumes
-available funds first. A withdrawal request caps an entitlement; it does not
-reserve a separate pot of coins. Native payments and accounting must be atomic:
+available funds first. Voucher collection uses actual balance, not effective
+balance. A withdrawal request caps an entitlement; it does not reserve a
+separate pot of coins. Native payments and accounting must be atomic:
 a reverting recipient rolls back the operation, including request consumption,
 and callbacks cannot consume the same entitlement twice.
 
@@ -98,13 +103,17 @@ credits. Retries recover the same purchase and recorded result instead of
 silently charging or provisioning twice. Invoice, sequencing and recovery
 mechanisms remain outside E's accounting rules.
 
-Y must account for pending/mature withdrawals when accepting work. Top-ups
-before execution can fund the pending request without restarting its wait;
-execution clears that request, so subsequent deposits have no old withdrawal
-permission. Y monitors balance, current payee and requests under its
-confirmation policy; observation lag reduces time before withdrawal becomes
-executable. Signed authorization does not guarantee backing remains until Y
-collects, prove delivery or settle Y's liabilities to APIs. Delivery refunds
+Y budgets new purchases from effective balance while accounting for accepted,
+uncollected purchases. Effective balance is a snapshot, not reserved funds or
+a permanent guarantee. C may increase a request within current balance by
+explicitly renewing, which starts a full new wait during which Y can collect
+existing vouchers. Top-ups before execution can fund the pending request
+without restarting its wait. Successful execution clears that request, so
+subsequent deposits have no old withdrawal permission. Y monitors balance,
+current payee and requests under its confirmation policy; observation lag
+reduces time before withdrawal becomes executable. Signed authorization does
+not guarantee backing remains until Y collects, prove delivery or settle Y's
+liabilities to APIs. Delivery refunds
 and Y's onward API payouts remain outside E's core rules; no globally
 exactly-once external effect is promised.
 
@@ -123,6 +132,11 @@ and full wait are required. If the balance is zero at a valid mature execution,
 it pays zero and still clears the request. Before execution, C may explicitly
 set/renew within the current balance, starting a full new wait.
 
+With balance 100 and a request for 40, effective balance is 60. Y accepts a
+purchase for 50, then C explicitly renews for 100. The full wait starts again.
+Y collects 50 during that wait, leaving balance 50 and effective balance zero.
+At maturity withdrawal is capped to 50 and clears the request.
+
 Future contract tests must establish:
 - Voucher partial collection, idempotent retry and unpaid collection after
   withdrawal/redeposit; lifetime paid changes only by actual voucher payments.
@@ -132,8 +146,13 @@ Future contract tests must establish:
   mature withdrawal/movement clears the request, including partial and zero
   payouts. Subsequent funding requires a fresh request and full wait.
 - Ordinary duplicate requests are no-ops, including invalid replacement amounts;
-  C's explicit set/renew works with or without an existing request, validates
-  its amount and starts a full new wait; other callers cannot use it.
+  only C may initiate or set/renew, including when a request already exists.
+  D and other callers cannot request or renew. C's explicit set/renew works
+  with or without a request, validates its amount and starts a full new wait,
+  including when increasing the amount.
+- Effective balance is derived without underflow:
+  no request returns actual balance, and a request exceeding current balance
+  after collection returns zero. Voucher collection still uses actual balance.
 - Top-ups and voucher payments leave request amount/deadline unchanged until
   successful mature withdrawal/movement consumes it; null positions follow the
   same rules.
