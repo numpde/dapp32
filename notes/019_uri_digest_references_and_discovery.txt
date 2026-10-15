@@ -18,7 +18,8 @@ Current behavior
 - js/packages/cam-evm-viem/src/hash.ts checks the manifest's exact loaded bytes
   with Keccak-256 before JSON parsing. No JSON normalization is performed.
   CamRoot permits zero camHash; the adapter rejects it unless its caller
-  explicitly enables unsigned loading.
+  explicitly enables unsigned loading. This is current implementation policy,
+  separate from the proposed shared reference type below.
 - ABI/UI resource declarations use SHA-256 integrity strings, for example
   sha256:0x<64 lowercase hexadecimal digits>. js/packages/cam-protocol/src/resources.ts
   owns the shared integrity validator; the EVM adapter supplies SHA-256 of
@@ -75,6 +76,12 @@ Expose one named manifest reference through a new getter, for example:
     function camManifest() external view returns (ManifestRef memory);
 
 The protocol fixes the algorithm; the field name makes it visible in the ABI.
+The shared type carries a URI and SHA-256 digest and permits every bytes32
+value, including zero. It reserves no zero sentinel and imposes no zero
+rejection, special client behavior or explicit opt-in. The CAM reference
+documentation may mention zero as an optional convention or hint without
+assigning normative behavior; the CAM protocol/type does not define zero as
+meaning unpinned.
 Do not add algorithm negotiation, a registry, or packed verification methods
 without a caller that needs them. JSON resource declarations can retain their
 existing URI and sha256:0x... integrity representation. Consistent meaning does
@@ -89,10 +96,9 @@ URI policies also differ: CAM roots allow HTTP(S)/IPFS; declared resources
 allow ./ paths or IPFS; Escrow stores bounded nonempty URI text; the browser's
 URL hash calculator fetches HTTP(S), subject to CORS. Keep these policies local.
 
-Decide explicitly whether the new root interface supports unpinned manifests.
-Existing unsigned loading is an opt-in capability; Escrow's nonzero policy
-should not silently remove it. Conversely, zero must never be reported as a
-verified digest. Do not reinterpret existing nonzero camHash values as SHA-256.
+Existing unsigned-loading opt-in and Escrow's nonzero policy remain current
+implementation behavior, not requirements of the proposed shared type.
+Do not reinterpret existing nonzero camHash values as SHA-256.
 
 An atomic getter guarantees a coherent URI/digest pair within that call.
 It does not freeze later contractAddress() reads, contract state or route
@@ -123,7 +129,8 @@ Affected owners and tests-first implementation plan
 
 1. Pin the new interface and digest semantics in contract and adapter tests:
    paired retrieval, exact bytes, mismatch rejection before JSON parsing,
-   explicit zero policy, old-interface rejection, and the included resolver
+   carrying any bytes32 value including zero without assigning it meaning,
+   old-interface rejection, and the included resolver
    method's binding resolution and rejection of unbound address(0). Then revise
    dapps/cam/src/{ICamApp,CamRoot}.sol and
    js/packages/cam-evm-viem/src/{abi,host,hash}.ts. Use a new getter selector;
@@ -145,7 +152,6 @@ Affected owners and tests-first implementation plan
    give the agent only bootstrap coordinates, require discovery through the
    manifest, and retain proof of verification order and namespace resolution.
 
-Resolve the root's zero-digest policy first. Treat steps 1 and 2 as coordinated
-parts of one runnable change: do not publish a partial algorithm migration
-with producers and consumers disagreeing. Each published slice must pass its
-relevant tests before the next is started.
+Treat steps 1 and 2 as coordinated parts of one runnable change: do not publish
+a partial algorithm migration with producers and consumers disagreeing. Each
+published slice must pass its relevant tests before the next is started.
