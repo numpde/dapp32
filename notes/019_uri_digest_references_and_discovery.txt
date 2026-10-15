@@ -1,0 +1,151 @@
+URI + digest references: precedents, current CAM boundaries, proposed unification
+2026-10-15 — current behavior verified from source; recommendations not implemented
+
+Purpose
+
+Decide how a CAM contract should publish a manifest URI and its content digest
+together, and what related document-integrity rules should be shared. This note
+also separates that improvement from the remaining protocol-discovery gap.
+
+Current behavior
+
+- dapps/cam/src/ICamApp.sol declares separate camURI() and camHash() getters.
+  dapps/cam/src/CamRoot.sol stores both and updates them in one transaction.
+  The root does not download documents or compute their content digest onchain.
+- js/packages/cam-evm-viem/src/host.ts reads the two getters independently with
+  Promise.all, without selecting a common block. A root update between reads
+  can therefore produce a URI and digest from different states.
+- js/packages/cam-evm-viem/src/hash.ts checks the manifest's exact loaded bytes
+  with Keccak-256 before JSON parsing. No JSON normalization is performed.
+  CamRoot permits zero camHash; the adapter rejects it unless its caller
+  explicitly enables unsigned loading.
+- ABI/UI resource declarations use SHA-256 integrity strings, for example
+  sha256:0x<64 lowercase hexadecimal digits>. js/packages/cam-protocol/src/resources.ts
+  owns the shared integrity validator; the EVM adapter supplies SHA-256 of
+  the loaded bytes. tools/cam_resource_integrity.py refreshes these digests.
+- dapps/escrow/src/ICamEscrowView.sol already declares DocumentRef with
+  string uri and bytes32 sha256Digest. Escrow uses that reference for terms,
+  submissions and disputes. Supplied documents reject zero digests; absent
+  submission/dispute view values may legitimately be empty URI plus zero.
+  Recording this reference does not mean the contract fetched its URI or
+  verified the referenced content. The browser's DocumentHashField computes
+  SHA-256 from bytes it can read.
+
+Relevant precedents
+
+LUKSO LSP2 VerifiableURI, specification status Draft:
+https://github.com/lukso-network/LIPs/blob/main/LSPs/LSP-2-ERC725YJSONSchema.md#verifiableuri
+It packs a header, verification-method identifier, verification-data length,
+verification data, and UTF-8 URI into bytes for ERC725Y storage. It is the
+closest reviewed precedent for carrying verification information with a URI.
+Its listed methods include keccak256(utf8) and keccak256(bytes). Adopting its
+name alone would not establish compatibility: its binary encoding and method
+semantics require an implementation. CAM currently has no need for that codec.
+
+ERC-2477 Token Metadata Integrity, status Stagnant:
+https://eips.ethereum.org/EIPS/eip-2477
+It exposes digest bytes and a hash-algorithm name for NFT metadata and schema
+integrity. Metadata URI access remains separate. This supports the integrity
+pattern but does not solve the URI/digest read-coherence problem.
+
+ERC-1577 ENS contenthash, status Stagnant on the EIP page:
+https://eips.ethereum.org/EIPS/eip-1577
+It identifies content through a protocol code and protocol-specific content
+address, including CID-based storage. That is useful for content-addressed
+publication; it does not supply a generic HTTPS URI plus exact-file digest
+Solidity struct. A CID must not automatically be treated as a file-byte digest.
+
+These sources establish precedents, not a universal drop-in Solidity type.
+The research found no standard import that directly owns CAM's intended pair.
+
+Recommendation for the next protocol revision
+
+Use SHA-256 of exact document bytes consistently for root manifests and their
+referenced ABI/UI/protocol documents. Escrow document references already use
+that algorithm. This is a proposal to change the root commitment algorithm,
+not a description of camHash() today. Root verification happens offchain, so
+there is no demonstrated onchain hashing-cost reason to retain Keccak there.
+
+Expose one named manifest reference through a new getter, for example:
+
+    struct ManifestRef {
+        string uri;
+        bytes32 sha256Digest;
+    }
+    function camManifest() external view returns (ManifestRef memory);
+
+The protocol fixes the algorithm; the field name makes it visible in the ABI.
+Do not add algorithm negotiation, a registry, or packed verification methods
+without a caller that needs them. JSON resource declarations can retain their
+existing URI and sha256:0x... integrity representation. Consistent meaning does
+not require an identical wire shape in Solidity and JSON.
+
+Keep Escrow's DocumentRef owned by its business interface unless a real shared
+contract caller needs one imported type. Identical fields alone do not justify
+making agreement terms depend on CAM or moving them into a renderer package.
+Share the exact-byte SHA-256 rule and validation implementation where already
+owned, while retaining domain names and intentional policy differences.
+URI policies also differ: CAM roots allow HTTP(S)/IPFS; declared resources
+allow ./ paths or IPFS; Escrow stores bounded nonempty URI text; the browser's
+URL hash calculator fetches HTTP(S), subject to CORS. Keep these policies local.
+
+Decide explicitly whether the new root interface supports unpinned manifests.
+Existing unsigned loading is an opt-in capability; Escrow's nonzero policy
+should not silently remove it. Conversely, zero must never be reported as a
+verified digest. Do not reinterpret existing nonzero camHash values as SHA-256.
+
+An atomic getter guarantees a coherent URI/digest pair within that call.
+It does not freeze later contractAddress() reads, contract state or route
+execution. Any requirement for a common-block read session needs separate
+block-selection behavior and tests.
+
+Discovery still needs its own correction
+
+The manifest currently links ABIs and UI resources but does not link the
+protocol reference that explains how to execute its routes. Add a hash-pinned
+protocol resource in the next manifest revision, using the established
+SHA-256 resource rule. Current strict parsing rejects extra top-level fields;
+this requires an intentional format revision, not an undeclared extension.
+
+That reference must explain that contracts.Name resolves by calling the host's
+contractAddress("Name"). Addresses remain authoritative onchain. Today this
+resolver is a CamRoot extension, not part of ICamApp's ERC-165 claim. Include
+the existing contractAddress(string) method in the new host interface so its
+support claim also covers declared namespace binding. Preserve its existing
+address(0) result for an unbound name and require callers to reject that
+destination. A paired getter alone does not supply resolution instructions.
+
+The bootstrap must still specify the getter ABI, root hash algorithm and how
+to authenticate the linked protocol resource. It cannot learn those rules
+only from a document whose authentication depends on those same rules.
+
+Affected owners and tests-first implementation plan
+
+1. Pin the new interface and digest semantics in contract and adapter tests:
+   paired retrieval, exact bytes, mismatch rejection before JSON parsing,
+   explicit zero policy, old-interface rejection, and the included resolver
+   method's binding resolution and rejection of unbound address(0). Then revise
+   dapps/cam/src/{ICamApp,CamRoot}.sol and
+   js/packages/cam-evm-viem/src/{abi,host,hash}.ts. Use a new getter selector;
+   changing only camURI()'s return type preserves its selector and is unsafe.
+   Update interface-ID assertions and ABI decoding for the returned struct.
+2. Update root-hash producers and consumers together: js/tools/
+   {release-cam-bundle.ts,cam-publication-preflight/main.ts}, Escrow/Bike
+   release planning/artifact verification, dapps/{escrow,bike-nft}/script/,
+   tests/fixtures/cam/mock.mts, adapter/tool tests, browser checks and fixture
+   deployment commands. Restrict algorithm changes to document commitments;
+   keep agreement IDs, namespace lookup keys and bytecode hashes unchanged.
+3. Add publication tests for the protocol reference and its integrity, then
+   revise protocol/core parsing and conformance at their existing owners.
+   Update dapps/*/cam/main.json and docs/reference/cam/ with the actual new
+   bootstrap, resolver and verification rules. Do not relabel the old revision.
+4. Redeploy local hosts and verify both Escrow and Bike. Existing deployments
+   retain their old interface and stored digest semantics. Run the cold-start
+   portability trial described in notes/018_cold_start_portability_test.txt:
+   give the agent only bootstrap coordinates, require discovery through the
+   manifest, and retain proof of verification order and namespace resolution.
+
+Resolve the root's zero-digest policy first. Treat steps 1 and 2 as coordinated
+parts of one runnable change: do not publish a partial algorithm migration
+with producers and consumers disagreeing. Each published slice must pass its
+relevant tests before the next is started.
