@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Service-payment reference sources</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; line-height: 1.6; }
+    body { max-width: 62rem; margin: auto; padding: 1rem clamp(.75rem, 4vw, 3rem) 4rem; }
+    h1, h2, h3 { line-height: 1.25; }
+    a:focus-visible { outline: 3px solid; outline-offset: 3px; }
+    code, a { overflow-wrap: anywhere; }
+    li { margin-bottom: .5rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Service-payment reference sources</h1>
+  <p>These snapshots support the planned pay-to-play app. The
+  <a href="../../../notes/020_service_payment_channels.txt">design record</a>
+  describes E, its onchain deposit/settlement contract. A customer funds a
+  dedicated channel with settlement service Y and signs cumulative payment
+  authorizations offchain. Y coordinates concurrent purchases from multiple
+  APIs and collects from E at its fixed recipient A. Different settlement
+  services have separate channel backing; APIs using the same Y share that
+  channel and trust Y's accounting and onward payments. API credits are
+  obligations of Y, not claims against E.</p>
+  <p>The sources below help distinguish the channel contract from Y's shared
+  API ledger. They do not settle the app's open authorization, concurrency or
+  payout mechanisms. The snapshot collection is under
+  <code>service-payment-channels/</code> beside this README. It contains
+  <a href="service-payment-channels/provenance.json">provenance.json</a>
+  and the five source-family directories.</p>
+
+  <h2>Suggested reading order</h2>
+  <ol>
+    <li>
+      <h3>AbstractStreamChannel</h3>
+      <p>The closest concrete core to inspect first. It supports funding/top-ups,
+      cumulative EIP-712 delta payments and closing. Compare its fixed 15-minute
+      grace period and payee identity with E's planned per-channel period and
+      separate <code>serviceId</code>/recipient terms.</p>
+      <ul>
+        <li><a href="service-payment-channels/abstract-packages/packages/contracts/src/AbstractStreamChannel.sol">AbstractStreamChannel.sol</a></li>
+        <li><a href="service-payment-channels/abstract-packages/packages/contracts/src/interfaces/IAbstractStreamChannel.sol">IAbstractStreamChannel.sol</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>x402 batch settlement</h3>
+      <p>Read the EVM specification and implementation notes, then the matching
+      contract. This provides a modern cumulative-voucher and batch-claim
+      comparison. Its <code>maxClaimableAmount</code> is a signed ceiling over
+      server-accounted actual charges; this differs from the app's proposed
+      exact cumulative amount. Its claim accounting and recipient transfer
+      are separate.</p>
+      <ul>
+        <li><a href="service-payment-channels/x402/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md">EVM batch-settlement specification</a></li>
+        <li><a href="service-payment-channels/x402/contracts/evm/docs/x402-batch-settlement-implementers.md">Implementation notes</a></li>
+        <li><a href="service-payment-channels/x402/contracts/evm/src/x402BatchSettlement.sol">x402BatchSettlement.sol</a></li>
+        <li><a href="service-payment-channels/x402/contracts/evm/src/interfaces/IDepositCollector.sol">IDepositCollector.sol</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>microRaiden</h3>
+      <p>A historical API/content micropayment design. Deposits, cumulative
+      balance proofs and top-ups lead primarily to settlement at closure, with
+      cooperative and challenged unilateral closing paths. Read for that
+      distinction from periodic collection while a channel stays open.</p>
+      <ul>
+        <li><a href="service-payment-channels/microraiden/docs/introduction/introduction.rst">Introduction</a></li>
+        <li><a href="service-payment-channels/microraiden/contracts/contracts/RaidenMicroTransferChannels.sol">RaidenMicroTransferChannels.sol</a></li>
+      </ul>
+    </li>
+    <li>
+      <h3>Raiden service payments</h3>
+      <p><code>raiden-spec</code> describes the shared UserDeposit and OneToN
+      model; <code>raiden-contracts</code> contains its concrete contract
+      implementations. A shared deposit permits competing service claims,
+      an accepted trade-off in that design. Compare this with Y's responsibility
+      for shared API credits; E's separate customer/Y channels do not share
+      backing across Y and Yprime.</p>
+      <ul>
+        <li><a href="service-payment-channels/raiden-spec/service_contracts.rst">Service-contract specification</a></li>
+        <li><a href="service-payment-channels/raiden-contracts/raiden_contracts/data/source/services/UserDeposit.sol">UserDeposit.sol</a></li>
+        <li><a href="service-payment-channels/raiden-contracts/raiden_contracts/data/source/services/OneToN.sol">OneToN.sol</a></li>
+        <li><a href="service-payment-channels/raiden-contracts/raiden_contracts/data/source/services/ServiceRegistry.sol">ServiceRegistry.sol</a></li>
+      </ul>
+    </li>
+  </ol>
+
+  <h2>Snapshot boundaries</h2>
+  <p><a href="service-payment-channels/provenance.json">provenance.json</a>
+  records immutable repository commits, retrieval date, exact upstream
+  paths/URLs, byte sizes and SHA-256 hashes. Upstream files retain their
+  original bytes. Small repository-local imports accompany the main contracts;
+  external OpenZeppelin, Solady and forge-std dependencies are not vendored,
+  so this is not a self-contained compilation tree. No upstream code was
+  executed to prepare the snapshots.</p>
+  <p>Repository LICENSE files are retained for
+  <a href="service-payment-channels/microraiden/LICENSE">microraiden</a>,
+  <a href="service-payment-channels/x402/LICENSE">x402</a> and
+  <a href="service-payment-channels/raiden-contracts/LICENSE">raiden-contracts</a>;
+  <a href="service-payment-channels/x402/NOTICE">x402's NOTICE</a> is retained
+  too. The pinned abstract-packages tree has no root or contracts-package
+  LICENSE, and raiden-spec has no LICENSE file; those absences are recorded in
+  provenance.json and source SPDX notices are preserved. This collection
+  records precedents without selecting a dependency or making an
+  adoption/security assessment.</p>
+</main>
+</body>
+</html>
