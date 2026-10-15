@@ -1,0 +1,113 @@
+Service payment channels
+========================
+
+Design record, 2026-10-15. This describes an intended direction and a proposed
+payment flow, not an implemented contract or a complete protocol specification.
+The purpose is to fund repeated API purchases without an onchain transaction
+for every request, while keeping each provider's backing separate.
+
+Actors and agreed boundaries
+---------------------------
+
+E is the onchain deposit contract. Its developer/admin maintains the catalog
+of approved service providers; users do not add providers to that catalog.
+Users choose a provider and fund a channel for that provider. One E deployment
+can hold many channels for many users and providers. A is a channel's payment
+recipient, initially an ordinary address. Making A a contract needs a concrete
+purpose and is not required by this design.
+
+The admin may add its own providers, but that gives it no right to other
+channels' funds. Removing a provider from the catalog blocks new channels for
+that provider. Existing valid claims and withdrawal rights survive removal.
+An existing channel's payer, recipient, asset and authorization terms are
+immutable: the admin cannot redirect its balance or disable historical claims
+that remain valid under those terms.
+
+Direct funding of a provider-specific channel is the proposed starting point.
+A general free balance in E, later allocated to channels, is an alternative,
+not a committed requirement. The asset is undecided. Illustrations such as a
+$50 deposit or a $0.50 API purchase express prices, not an assumption that the
+contract uses native currency or fixes a native-token exchange rate.
+
+Proposed purchase and settlement flow
+------------------------------------
+
+1. The user opens and funds a channel through an onchain transaction. That
+   transaction authorizes the deposit and fixed channel terms.
+2. The API returns an invoice for the requested service. The user separately
+   signs an offchain voucher authorizing an increased cumulative payment to
+   this channel's recipient. That authorization must bind the selected chain,
+   E deployment, and channel identity/fixed terms; the signing format remains
+   open. Funding E alone does not authorize arbitrary service charges.
+3. Before serving, the provider verifies the voucher signature and channel
+   identity, the invoice/request association, the increase over prior accepted
+   charges, and sufficient confirmed channel backing. It retains the accepted
+   voucher and purchase status durably, then serves without waiting for that
+   voucher's onchain settlement.
+4. The provider later submits its latest voucher to E. In the proposed
+   cumulative model, if the voucher authorizes C and E has already paid P,
+   a valid claim pays only C - P to A and advances P to C. A repeated or older
+   voucher cannot produce another payment; the remaining channel balance must
+   cover the delta. Separate requests do not each become independent claims
+   for their full cumulative amount.
+
+Replay protection must hold for the channel's lifetime: never reset cumulative
+paid accounting while old vouchers can match the same reusable identity.
+Fresh identifiers/epochs or retained monotonic accounting are alternatives;
+the reuse mechanism remains undecided.
+
+Voucher validity and visible backing alone are not an unconditional payment
+guarantee. The provider must track accepted obligations and pending claims,
+monitor withdrawals/closing, claim within the permitted window, and choose
+confirmation and reorg policies. Provider-specific backing avoids competing
+claims from unrelated providers against a shared free balance; it does not
+remove those operational duties.
+
+Proposed lifecycle and service recovery
+--------------------------------------
+
+The lifecycle sketch is open -> closing -> closed. The user can request
+unilateral closing. The provider/API accepts purchases while open and stops
+accepting new purchases when it observes closing under its confirmation
+policy. E enforces claim/withdrawal windows, including a closing cooldown
+during which the provider can claim outstanding valid vouchers; E cannot
+establish when an offchain signature was created. After that window, the user
+can withdraw the unclaimed remainder and close the channel. The cooldown
+length and exact transition rules remain undecided. Cooperative early
+close/refund may be useful, but its required signatures and amounts have not
+been settled.
+
+Payment authorization does not prove service delivery. Even binding a voucher
+to a purchase hash establishes an association, not that the service was
+provided correctly. The API needs an idempotent, recoverable purchase workflow:
+retries should recover the same purchase and recorded provisioning outcome,
+not silently create another charge or resource. External provisioning cannot
+be promised globally exactly once. Recovery after partial failure, and when
+failed delivery warrants a refund, still need explicit rules.
+
+Decisions still needed
+---------------------
+
+Before implementation, settle the payment asset and amount units; voucher
+signer identity and key lifecycle; invoice schema and authentication; exact
+request binding and concurrent-request accounting; cooldown and cooperative
+close rules; channel reuse versus fresh identifiers/epochs; and provisioning
+recovery/refund behavior. These are gaps in the current design, not additional
+features already selected.
+
+Related patterns, not adopted specifications
+--------------------------------------------
+
+x402's EVM batch-settlement specification describes prefunded channels,
+cumulative signed vouchers and periodic claims. It separates claim accounting
+from a later recipient transfer. Its immutable channel configuration and
+withdrawal delay are relevant patterns; its token methods, authorizer roles
+and full settlement protocol have not been adopted here.
+https://github.com/x402-foundation/x402/blob/main/specs/schemes/batch-settlement/scheme_batch_settlement_evm.md
+
+Raiden's service-contract specification describes a shared UserDeposit balance
+and OneToN IOUs for service payments. It explicitly accepts competition for
+that shared backing and uses delayed withdrawal to limit risk. That differs
+from the proposed provider-specific backing here; it is not evidence that a
+shared deposit guarantees all outstanding provider payments.
+https://github.com/raiden-network/spec/blob/master/service_contracts.rst
