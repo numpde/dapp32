@@ -54,6 +54,9 @@
 <section id="bootstrap">
 <h2>Bootstrap an unfamiliar application</h2>
 <p>An agent can discover an application through RPC and authenticated resource bytes, then interpret its workflow headlessly. A browser or web frontend is unnecessary. Discovery needs no viewing account or draft task inputs; executing the selected entry read may require user inputs declared by that route.</p>
+<h3>Human discovery</h3>
+<p>A person can find an application through its publisher, a shared link, or a directory. That initial lookup supplies the chain and host address outside CAM; CAM discovery starts from that host and reveals its published workflow. A compatible viewer receives the selected chain and host through a viewer link or supported manual inputs. RPC access is configured separately or supplied through supported viewer launch parameters; CAM defines no universal viewer-link syntax or directory registry.</p>
+<p>The viewer performs the bootstrap sequence below on the person's behalf and presents the discovered workflow. A viewer may also request a viewing address to run account-dependent reads; this repository's web viewer requires one at startup. A viewing address does not require a connected wallet: discovery and reads can proceed without wallet signing, while submitting a transaction requires a signer.</p>
 <h3>Deployment-specific handoff</h3>
 <p>A trusted initial handoff supplies the selected chain identifier, an RPC transport for that chain, and the CAM host contract address. A chain identifier does not locate an RPC endpoint. The caller also supplies resource-fetch admission: permitted transports and origins, redirect policy, byte limits, and timeouts. An advertised URI or matching digest does not grant network access. The selected chain identifier matches <code>eip155:[1-9][0-9]*</code>, with a number no greater than 9,007,199,254,740,991.</p>
 <h3>Application-independent bootstrap rules</h3>
