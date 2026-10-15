@@ -16,12 +16,18 @@ can hold many channels for many users and providers. A is a channel's payment
 recipient, initially an ordinary address. Making A a contract needs a concrete
 purpose and is not required by this design.
 
+Each provider has a stable providerId distinct from recipient A. Both are
+fixed channel terms, bound by vouchers through the channel identity. Separate
+services can therefore share one treasury address while remaining independently
+catalogued providers.
+
 The admin may add its own providers, but that gives it no right to other
-channels' funds. Removing a provider from the catalog blocks new channels for
-that provider. Existing valid claims and withdrawal rights survive removal.
-An existing channel's payer, recipient, asset and authorization terms are
-immutable: the admin cannot redirect its balance or disable historical claims
-that remain valid under those terms.
+channels' funds. Removing a provider from the catalog blocks only new channels
+for that provider. Existing valid claims and withdrawal rights survive removal;
+those operations must not depend on the catalog's current enabled flag. An
+existing channel's payer, providerId, recipient, asset and authorization terms
+are immutable: the admin cannot redirect its balance or suspend valid claims
+through the catalog.
 
 Direct funding of a provider-specific channel is the proposed starting point.
 A general free balance in E, later allocated to channels, is an alternative,
@@ -51,6 +57,11 @@ Proposed purchase and settlement flow
    cover the delta. Separate requests do not each become independent claims
    for their full cumulative amount.
 
+Purchases within one channel must support parallel requests. The protocol for
+reserving backing, ordering cumulative vouchers, and handling retries and
+abandoned requests remains to be designed; the selected concurrency capability
+does not settle that accounting mechanism.
+
 Replay protection must hold for the channel's lifetime: never reset cumulative
 paid accounting while old vouchers can match the same reusable identity.
 Fresh identifiers/epochs or retained monotonic accounting are alternatives;
@@ -66,14 +77,17 @@ remove those operational duties.
 Proposed lifecycle and service recovery
 --------------------------------------
 
-The lifecycle sketch is open -> closing -> closed. The user can request
-unilateral closing. The provider/API accepts purchases while open and stops
-accepting new purchases when it observes closing under its confirmation
-policy. E enforces claim/withdrawal windows, including a closing cooldown
-during which the provider can claim outstanding valid vouchers; E cannot
-establish when an offchain signature was created. After that window, the user
-can withdraw the unclaimed remainder and close the channel. The cooldown
-length and exact transition rules remain undecided. Cooperative early
+Closing ends one funded channel so the user can recover its unclaimed
+remainder. The lifecycle sketch is open -> closing -> closed. The user can
+request unilateral closing through a transaction to E. The provider/API
+accepts purchases while open and stops accepting new purchases when it observes
+closing under its confirmation policy. E enforces claim/withdrawal windows,
+including a closing cooldown
+during which outstanding accepted vouchers remain claimable. The claim period
+is fixed when the channel opens and cannot be changed retroactively; its
+length is still undecided. E cannot establish when an offchain signature was
+created. After that window, the user can withdraw the unclaimed remainder and
+close the channel. Exact transition rules remain undecided. Cooperative early
 close/refund may be useful, but its required signatures and amounts have not
 been settled.
 
@@ -90,10 +104,11 @@ Decisions still needed
 
 Before implementation, settle the payment asset and amount units; voucher
 signer identity and key lifecycle; invoice schema and authentication; exact
-request binding and concurrent-request accounting; cooldown and cooperative
-close rules; channel reuse versus fresh identifiers/epochs; and provisioning
-recovery/refund behavior. These are gaps in the current design, not additional
-features already selected.
+request binding and the accounting protocol for parallel purchases; claim
+period length, exact closing transitions and cooperative close rules; channel
+reuse versus fresh identifiers/epochs; and provisioning recovery/refund
+behavior. These are gaps in the current design, not additional features
+already selected.
 
 Related patterns, not adopted specifications
 --------------------------------------------
