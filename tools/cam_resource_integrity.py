@@ -1,9 +1,10 @@
-"""Refresh manifest-pinned CAM resource digests.
+"""Synchronize bundled protocol references and refresh CAM resource digests.
 
 `cam/main.json` is the contract-published root document. It pins secondary CAM
-resources, such as ABI files and UI catalogs, with `sha256:0x...` integrity
-fields. This tool recomputes those fields from local `./` resource references
-so generated ABI updates and UI edits have one routine refresh path.
+resources with `sha256:0x...` integrity fields. The versioned reference under
+`docs/reference/cam/1.2.0/` owns the bundled protocol bytes. This tool validates
+each manifest's local resources before writing its protocol copy and refreshed
+pins, so protocol, generated ABI, and UI edits share one refresh path.
 """
 
 from __future__ import annotations
@@ -17,9 +18,7 @@ import sys
 CONTRACT_NAMESPACE_PREFIX = "contracts."
 CONTRACT_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 INTEGRITY_PREFIX = "sha256:0x"
-# Runtime verification accepts equivalent hex case, but checked-in manifests
-# should be stable and reviewable after refresh. The publication tool therefore
-# owns the stricter lowercase spelling for repository JSON.
+# Match the lowercase integrity spelling required by @cam/protocol.
 INTEGRITY_PATTERN = re.compile(r"^sha256:0x[0-9a-f]{64}$")
 LOCAL_URI_PREFIX = "./"
 MAX_CAM_RESOURCE_BYTES = 2 * 1024 * 1024
@@ -75,6 +74,7 @@ def refresh_manifest(manifest_path: Path) -> bool:
         raise CamResourceIntegrityError(f"{manifest_path}: namespaces must be an object")
 
     changed = False
+    protocol_copy: tuple[Path, bytes] | None = None
     protocol = document.get("protocol")
     if protocol is not None:
         if document.get("cam") != "1.2.0" or not isinstance(protocol, dict):
@@ -91,19 +91,30 @@ def refresh_manifest(manifest_path: Path) -> bool:
         with protocol_path.open("rb") as protocol_file:
             existing_bytes = protocol_file.read(MAX_CAM_RESOURCE_BYTES + 1)
         if existing_bytes != canonical_bytes:
-            protocol_path.write_bytes(canonical_bytes)
+            protocol_copy = (protocol_path, canonical_bytes)
             changed = True
-        changed |= refresh_integrity_field(manifest_path, protocol, "uri", "integrity", "protocol")
+        changed |= refresh_integrity_field(
+            manifest_path, protocol, "integrity", "protocol",
+            f"{INTEGRITY_PREFIX}{hashlib.sha256(canonical_bytes).hexdigest()}",
+        )
 
     for _namespace, declaration, uri_key, integrity_key, path in resource_declarations(manifest_path, namespaces):
+        uri = declaration.get(uri_key)
+        resource_path = local_resource_path(manifest_path, uri, f"{path}.{uri_key}")
+        if protocol_copy is not None and resource_path == protocol_copy[0]:
+            digest = hashlib.sha256(protocol_copy[1]).hexdigest()
+        else:
+            digest = resource_sha256(manifest_path, resource_path, uri)
         changed |= refresh_integrity_field(
             manifest_path,
             declaration,
-            uri_key,
             integrity_key,
             path,
+            f"{INTEGRITY_PREFIX}{digest}",
         )
 
+    if protocol_copy is not None:
+        protocol_copy[0].write_bytes(protocol_copy[1])
     if changed:
         write_json_in_place(manifest_path, document)
 
@@ -157,9 +168,9 @@ def resource_declarations(
 def refresh_integrity_field(
     manifest_path: Path,
     declaration: dict[object, object],
-    uri_key: str,
     integrity_key: str,
     path: str,
+    digest: str,
 ) -> bool:
     current_digest = declaration.get(integrity_key)
     if not isinstance(current_digest, str) or not INTEGRITY_PATTERN.fullmatch(current_digest):
@@ -167,7 +178,6 @@ def refresh_integrity_field(
             f"{manifest_path}: {path}.{integrity_key} must be a sha256:0x-prefixed lowercase digest",
         )
 
-    digest = resource_integrity(manifest_path, declaration.get(uri_key), f"{path}.{uri_key}")
     if current_digest == digest:
         return False
 

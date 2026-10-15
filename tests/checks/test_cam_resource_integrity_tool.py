@@ -21,6 +21,62 @@ from tools.json_policy import read_strict_json
 
 
 class CamResourceIntegrityToolTest(unittest.TestCase):
+    def test_invalid_resource_declarations_do_not_change_publication_outputs(self) -> None:
+        for failure in (
+            "protocol integrity", "namespace", "resource integrity",
+            "missing resource", "missing ABI", "oversized resource",
+        ):
+            with self.subTest(failure=failure), TemporaryDirectory() as tmp:
+                manifest_path = Path(tmp) / "cam" / "main.json"
+                manifest_path.parent.mkdir()
+                protocol_path = manifest_path.parent / "protocol.html"
+                protocol_path.write_bytes(b"previous protocol")
+                resource_path = manifest_path.parent / "ui.json"
+                resource_path.write_bytes(b"{}")
+                document = {
+                    "cam": "1.2.0",
+                    "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
+                    "namespaces": {"ui": {"type": "ui", "uri": "./ui.json", "integrity": ZERO_SHA256}},
+                }
+                if failure == "protocol integrity":
+                    document["protocol"]["integrity"] = "invalid"
+                elif failure == "namespace":
+                    document["namespaces"]["ui"]["type"] = "contract"
+                elif failure == "resource integrity":
+                    document["namespaces"]["ui"]["integrity"] = "invalid"
+                elif failure == "missing resource":
+                    resource_path.unlink()
+                elif failure == "missing ABI":
+                    document["namespaces"]["contracts.Aux"] = {
+                        "type": "contract", "abiURI": "./missing.json", "integrity": ZERO_SHA256,
+                    }
+                elif failure == "oversized resource":
+                    resource_path.write_bytes(b"x" * (MAX_CAM_RESOURCE_BYTES + 1))
+                write_json(manifest_path, document)
+                manifest_before = manifest_path.read_bytes()
+
+                with self.assertRaises(CamResourceIntegrityError):
+                    refresh_manifest(manifest_path)
+
+                self.assertEqual(manifest_before, manifest_path.read_bytes())
+                self.assertEqual(b"previous protocol", protocol_path.read_bytes())
+
+    def test_resource_referencing_protocol_is_pinned_to_the_published_bytes(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            manifest_path.parent.mkdir()
+            manifest_path.parent.joinpath("protocol.html").write_bytes(b"previous protocol")
+            write_json(manifest_path, {
+                "cam": "1.2.0",
+                "protocol": {"uri": "./protocol.html", "integrity": ZERO_SHA256},
+                "namespaces": {"ui": {"type": "ui", "uri": "./protocol.html", "integrity": ZERO_SHA256}},
+            })
+
+            self.assertTrue(refresh_manifest(manifest_path))
+            published = read_strict_json(manifest_path)
+            self.assertEqual(published["protocol"]["integrity"], published["namespaces"]["ui"]["integrity"])
+            self.assertFalse(refresh_manifest(manifest_path))
+
     def test_oversized_canonical_protocol_does_not_change_publication_outputs(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"

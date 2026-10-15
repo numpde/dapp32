@@ -215,6 +215,17 @@ def compose_config_process(
 
 
 class RenderedComposePostureTest(unittest.TestCase):
+    def test_cam_refresh_guards_the_canonical_source_before_docker(self) -> None:
+        makefile = read_text(repo_path("Makefile"))
+        first_party_roots = re.search(r"^FIRST_PARTY_ROOTS := (.+)$", makefile, re.MULTILINE)
+        self.assertIsNotNone(first_party_roots)
+        assert first_party_roots is not None
+        self.assertIn("docs", first_party_roots.group(1).split())
+        self.assertIn("! -f docs/reference/cam/1.2.0/index.html", makefile)
+        refresh_recipe = makefile.split("\ncam/integrity/refresh:\n", 1)[1].split("\n\n", 1)[0]
+        self.assertLess(refresh_recipe.index("$(LANE_GUARD)"), refresh_recipe.index("$(CAM_RESOURCE_OUTPUT_GUARD)"))
+        self.assertLess(refresh_recipe.index("$(CAM_RESOURCE_OUTPUT_GUARD)"), refresh_recipe.index("$(DOCKER_COMPOSE)"))
+
     def test_rendered_compose_fixture_env_is_explicit(self) -> None:
         # This pins the happy-path render fixture so posture tests do not gain
         # hidden environment inputs. It is deliberately not the fail-closed
@@ -681,6 +692,12 @@ class RenderedComposePostureTest(unittest.TestCase):
         self.assert_hardened(cam_integrity)
         self.assertEqual("none", cam_integrity.get("network_mode"))
         self.assertEqual(True, compose_volume(cam_integrity, "/work/dapps").get("read_only"))
+        reference_path = "docs/reference/cam/1.2.0/index.html"
+        reference_mount = compose_volume(cam_integrity, f"/work/{reference_path}")
+        self.assertEqual(str(repo_path(reference_path)), reference_mount["source"])
+        self.assertIs(reference_mount.get("read_only"), True)
+        # Compose omits the false default when normalizing long-form binds.
+        self.assertIsNot(reference_mount["bind"].get("create_host_path"), True)
         for dapp_dir in sorted(repo_path("dapps").iterdir()):
             if (dapp_dir / "cam" / "main.json").is_file():
                 manifest_mount = compose_volume(cam_integrity, f"/work/dapps/{dapp_dir.name}/cam/main.json")

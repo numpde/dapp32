@@ -30,7 +30,6 @@ contract DeployBikeNftReleaseHarness is DeployBikeNftRelease {
 contract DeployBikeNftReleaseTest is Test {
     string private constant SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567";
     string private constant CAM_URI = "https://example.test/bike/v1/main.json";
-    bytes32 private constant CAM_HASH = 0x12fc6616f84c2ba7a0bf35df115d233b0d1c986b6c533a6c966c56e995dc5175;
     uint256 private constant CHAIN_ID = 11_155_111;
     address private constant CAM_ROOT_OWNER = address(0x11);
     address private constant COMPONENTS_ADMIN = address(0x12);
@@ -41,21 +40,26 @@ contract DeployBikeNftReleaseTest is Test {
     address private constant MANAGER_CONFIGURER = address(0x17);
     address private constant REGISTRAR_ONE = address(0x18);
     address private constant REGISTRAR_TWO = address(0x19);
-    string private constant PLAN_JSON =
-        '{"schema":"bike-nft.release-plan.v2","sourceCommit":"0123456789abcdef0123456789abcdef01234567","expectedChainId":11155111,"camURI":"https://example.test/bike/v1/main.json","camHash":"0x12fc6616f84c2ba7a0bf35df115d233b0d1c986b6c533a6c966c56e995dc5175","intendedCamRootOwner":"0x0000000000000000000000000000000000000011","tokenName":"Bicycle Components","tokenSymbol":"BIKE","baseTokenURI":"https://example.test/bike/tokens/","collectionURI":"https://example.test/bike/collection.json","intendedComponentsAdmin":"0x0000000000000000000000000000000000000012","componentsAdminDelay":86400,"componentsPauser":"0x0000000000000000000000000000000000000013","componentsConfigurer":"0x0000000000000000000000000000000000000014","intendedManagerAdmin":"0x0000000000000000000000000000000000000015","managerAdminDelay":86400,"managerPauser":"0x0000000000000000000000000000000000000016","managerConfigurer":"0x0000000000000000000000000000000000000017","registrars":["0x0000000000000000000000000000000000000018","0x0000000000000000000000000000000000000019"]}';
+    string private planJson;
 
     DeployBikeNftReleaseHarness private harness;
 
     function setUp() external {
         vm.chainId(CHAIN_ID);
+        bytes32 camHash = sha256(vm.readFileBinary("bike-nft/cam/main.json"));
+        planJson = string.concat(
+            '{"schema":"bike-nft.release-plan.v2","sourceCommit":"0123456789abcdef0123456789abcdef01234567","expectedChainId":11155111,"camURI":"https://example.test/bike/v1/main.json","camHash":"',
+            vm.toString(camHash),
+            '","intendedCamRootOwner":"0x0000000000000000000000000000000000000011","tokenName":"Bicycle Components","tokenSymbol":"BIKE","baseTokenURI":"https://example.test/bike/tokens/","collectionURI":"https://example.test/bike/collection.json","intendedComponentsAdmin":"0x0000000000000000000000000000000000000012","componentsAdminDelay":86400,"componentsPauser":"0x0000000000000000000000000000000000000013","componentsConfigurer":"0x0000000000000000000000000000000000000014","intendedManagerAdmin":"0x0000000000000000000000000000000000000015","managerAdminDelay":86400,"managerPauser":"0x0000000000000000000000000000000000000016","managerConfigurer":"0x0000000000000000000000000000000000000017","registrars":["0x0000000000000000000000000000000000000018","0x0000000000000000000000000000000000000019"]}'
+        );
         harness = new DeployBikeNftReleaseHarness();
     }
 
     function testParsesAndValidatesCanonicalPlan() external view {
-        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
+        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
         assertEq(plan.sourceCommit, SOURCE_COMMIT);
         assertEq(plan.expectedChainId, CHAIN_ID);
-        assertEq(plan.camHash, CAM_HASH);
+        assertEq(plan.camHash, sha256(vm.readFileBinary("bike-nft/cam/main.json")));
         assertEq(plan.componentsAdminDelay, 86_400);
         assertEq(plan.managerAdminDelay, 86_400);
         assertEq(plan.registrars.length, 2);
@@ -67,7 +71,7 @@ contract DeployBikeNftReleaseTest is Test {
 
     function testReleaseWiringDoesNotRegisterOrMintSeedComponents() external {
         vm.recordLogs();
-        DeployBikeNftRelease.Deployment memory deployment = harness.deployRelease(harness.parsePlan(PLAN_JSON));
+        DeployBikeNftRelease.Deployment memory deployment = harness.deployRelease(harness.parsePlan(planJson));
         Vm.Log[] memory logs = vm.getRecordedLogs();
         bytes32 registered = BicycleComponentManager.ComponentRegistered.selector;
         bytes32 transfer = keccak256("Transfer(address,address,uint256)");
@@ -83,7 +87,7 @@ contract DeployBikeNftReleaseTest is Test {
     }
 
     function testRejectsEveryOperatorFieldMismatch() external {
-        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
+        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
         DeployBikeNftRelease.OperatorInputs memory inputs = _operatorInputs(plan);
 
         inputs.sourceCommit = "other";
@@ -164,7 +168,7 @@ contract DeployBikeNftReleaseTest is Test {
     }
 
     function testRejectsDeployerAsFinalAuthority() external {
-        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
+        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
         vm.expectRevert(
             abi.encodeWithSelector(DeployBikeNftRelease.DeployerRetainsAuthority.selector, "intendedCamRootOwner")
         );
@@ -172,20 +176,20 @@ contract DeployBikeNftReleaseTest is Test {
     }
 
     function testRejectsMultilineReleaseText() external {
-        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(PLAN_JSON);
+        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
 
         plan.camURI = "https://example.test/\nbike/v1/main.json";
         _expectLineBreak(plan, "camURI");
-        plan = harness.parsePlan(PLAN_JSON);
+        plan = harness.parsePlan(planJson);
         plan.tokenName = "Bicycle\nComponents";
         _expectLineBreak(plan, "tokenName");
-        plan = harness.parsePlan(PLAN_JSON);
+        plan = harness.parsePlan(planJson);
         plan.tokenSymbol = "BIKE\rNFT";
         _expectLineBreak(plan, "tokenSymbol");
-        plan = harness.parsePlan(PLAN_JSON);
+        plan = harness.parsePlan(planJson);
         plan.baseTokenURI = "https://example.test/\ntokens/";
         _expectLineBreak(plan, "baseTokenURI");
-        plan = harness.parsePlan(PLAN_JSON);
+        plan = harness.parsePlan(planJson);
         plan.collectionURI = "https://example.test/\rcollection.json";
         _expectLineBreak(plan, "collectionURI");
     }

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { createHash } from "node:crypto"
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -15,8 +16,8 @@ import { creationReceiptDeployer } from "../release-provenance.ts"
 const address = (suffix: string) => `0x${suffix.padStart(40, "0")}` as Address
 const hash = (byte: string) => `0x${byte.repeat(64)}` as Hex
 const SOURCE = "0123456789abcdef0123456789abcdef01234567"
-const CHECKED_IN_CAM_HASH = "0x12fc6616f84c2ba7a0bf35df115d233b0d1c986b6c533a6c966c56e995dc5175"
 const DAPPS = join(dirname(fileURLToPath(import.meta.url)), "../../../dapps")
+const CHECKED_IN_CAM_HASH = `0x${createHash("sha256").update(readFileSync(join(DAPPS, "bike-nft/cam/main.json"))).digest("hex")}` as Hex
 const DEPLOYER = address("1"), OWNER = address("2"), COMPONENTS_ADMIN = address("3"), MANAGER_ADMIN = address("4")
 
 test("Bike release parsing rejects the old Keccak commitment schemas", () => {
@@ -35,7 +36,7 @@ test("Bike release inputs reject fixture-shaped authority", () => {
   assert.throws(() => requiredAddresses(`${address("5")},${address("5")}`, "registrars"), /must be distinct/)
 })
 
-test("checked-in Bike CAM bytes reproduce the accepted release hash", async () => {
+test("Bike release inspection reports SHA-256 of the exact checked-in manifest bytes", async () => {
   const bundle = await inspectReleaseCamBundle({
     dappsRootPath: DAPPS,
     rootPath: join(DAPPS, "bike-nft/cam/main.json"),

@@ -185,7 +185,7 @@ manifest SHA-256 and linked protocol integrity were checked against served bytes
 Existing browser tabs loaded the new hosts and performed application read/lookup
 flows. A later base-URL navigation showed a blank page until reload; clearing
 the fragment in an already-ready session and waiting ten seconds did not
-reproduce it (form ready, no errors; /tmp/dapp32-blank-navigation-evidence.json),
+reproduce it (form ready, no errors; /tmp/cam-blank-navigation-evidence.json),
 so the transient cause remains unresolved. This qualifies the observed local
 loads and reads, not a general UI guarantee or any older/live deployment.
 

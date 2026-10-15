@@ -1,4 +1,5 @@
 import assert from "node:assert/strict"
+import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import {
   existsSync,
@@ -48,8 +49,8 @@ const UI_CODE_HASH = `0x${"dd".repeat(32)}` as Hex
 const ROOT_TX = `0x${"11".repeat(32)}` as Hex
 const ESCROW_TX = `0x${"22".repeat(32)}` as Hex
 const UI_TX = `0x${"33".repeat(32)}` as Hex
-const CHECKED_IN_CAM_HASH = "0x154314ecbeaa9146f8b2f5b90ce4bb732ec61efca37568bcc1f7218edbd03521"
 const DAPPS_ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../dapps")
+const CHECKED_IN_CAM_HASH = `0x${createHash("sha256").update(readFileSync(join(DAPPS_ROOT, "escrow/cam/main.json"))).digest("hex")}` as Hex
 
 test("release parsing rejects the old Keccak commitment schemas", () => {
   assert.throws(() => parseReleasePlan(new TextEncoder().encode(JSON.stringify({
@@ -103,7 +104,7 @@ test("escrow release parsing preserves shared identity rules and nonempty text",
   )
 })
 
-test("checked-in escrow bundle reproduces the accepted release hash", async () => {
+test("escrow release inspection reports SHA-256 of the exact checked-in manifest bytes", async () => {
   const bundle = await inspectReleaseCamBundle({
     dappsRootPath: DAPPS_ROOT,
     rootPath: join(DAPPS_ROOT, "escrow/cam/main.json"),
