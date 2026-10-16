@@ -159,7 +159,7 @@ function resolveNode(
       return [{
         element: node.element,
         props,
-        ...(props.format === undefined ? {} : { formattedValue: formatStatusValue(props.value, props.format, `${path}.props`) }),
+        ...(props.format === undefined ? {} : { formattedValue: formatStatusValue(props.value, props.format, `${path}.props`, props.zeroText) }),
         children: [] as const,
       }]
     }

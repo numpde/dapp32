@@ -1017,7 +1017,7 @@ function valueAtSegments(value: unknown, segments: readonly string[]): unknown |
 
 function propExpectation(element: UiPropElement, prop: string): ValueExpectation | undefined {
   if ((UI_PROP_SCHEMAS[element].address as readonly string[]).includes(prop)) return "address"
-  if (element === "DocumentHashField" && prop === "sourceURI") return "string"
+  if ((element === "DocumentHashField" && prop === "sourceURI") || (element === "Status" && prop === "zeroText")) return "string"
   if (element === "Nft" && prop === "tokenId") return "integer-or-string"
   if ((UI_PROP_SCHEMAS[element].string as readonly string[]).includes(prop)) return "string"
   return undefined

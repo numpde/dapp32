@@ -93,8 +93,10 @@
         {
           "element": "Status",
           "props": {
-            "label": "Ready time (Unix seconds; 0 = no request)",
-            "value": "$view.readyAt"
+            "label": "Withdrawal ready at",
+            "value": "$view.readyAt",
+            "format": "timestampSeconds",
+            "zeroText": "No active withdrawal request"
           }
         },
         {

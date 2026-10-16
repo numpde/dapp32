@@ -65,7 +65,7 @@ export const UI_PROP_SCHEMAS = {
   },
   Status: {
     required: ["label", "value"],
-    optional: ["format"],
+    optional: ["format", "zeroText"],
     string: ["label"],
     address: [],
   },
@@ -81,7 +81,7 @@ export const UI_PROP_SCHEMAS = {
   },
 } as const
 
-export const UI_STATUS_FORMATS = ["bytes", "durationSeconds", "stringList"] as const
+export const UI_STATUS_FORMATS = ["bytes", "durationSeconds", "timestampSeconds", "stringList"] as const
 
 export type UiPropElement = keyof typeof UI_PROP_SCHEMAS
 

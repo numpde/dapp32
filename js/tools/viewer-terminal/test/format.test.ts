@@ -26,10 +26,14 @@ test("terminal display escapes C0/DEL before enforcing its output bound", () => 
 
 test("terminal output consumes resolved Status presentation and preserves unformatted values", () => {
   const output = statusTerminalOutput([
+    { element: "Status", props: { label: "Deadline", value: "951782400", format: "timestampSeconds" }, formattedValue: "2000-02-29 00:00:00 UTC (951,782,400 Unix seconds)", children: [] },
+    { element: "Status", props: { label: "Absent deadline", value: "0", format: "timestampSeconds", zeroText: "No active deadline" }, formattedValue: "No active deadline", children: [] },
     { element: "Status", props: { label: "Formatted bytes", value: "128" }, formattedValue: "128 bytes", children: [] },
     { element: "Status", props: { label: "Empty presentation", value: "must not replace empty text" }, formattedValue: "", children: [] },
     { element: "Status", props: { label: "Unformatted", value: ["client", "contractor"] }, children: [] },
   ])
+  assert.ok(output.includes("Deadline: 2000-02-29 00:00:00 UTC (951,782,400 Unix seconds)\n"))
+  assert.ok(output.includes("Absent deadline: No active deadline\n"))
   assert.ok(output.includes("Formatted bytes: 128 bytes\n"))
   assert.ok(output.includes("Empty presentation: \n"))
   assert.ok(output.includes('Unformatted: ["client","contractor"]\n'))

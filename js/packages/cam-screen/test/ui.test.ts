@@ -308,6 +308,59 @@ test("declared Status formats preserve raw values while resolving exact readable
   }
 })
 
+test("timestamp Status keeps UTC instants and exact seconds, including values beyond the calendar range", () => {
+  for (const [value, text] of [
+    ["0", "1970-01-01 00:00:00 UTC (0 Unix seconds)"],
+    ["951782400", "2000-02-29 00:00:00 UTC (951,782,400 Unix seconds)"],
+    ["8640000000000", "+275760-09-13 00:00:00 UTC (8,640,000,000,000 Unix seconds)"],
+    ["8640000000001", "Outside UTC calendar range (8,640,000,000,001 Unix seconds)"],
+    ["9007199254740993", "Outside UTC calendar range (9,007,199,254,740,993 Unix seconds)"],
+  ]) {
+    const ui = parseUi({ ui: UI_VERSION, nodes: {
+      app: { requires: [], element: "Status", props: { label: "Deadline", value, format: "timestampSeconds" } },
+    } })
+    const resolved = resolveUiNode(ui, "app", {}, context)
+    assert.ok(resolved.element === "Status")
+    assert.equal(resolved.formattedValue, text)
+    assert.equal(resolved.props.value, value)
+  }
+})
+
+test("timestamp absence is explicit app meaning and applies only to zero", () => {
+  const ui = parseUi({ ui: UI_VERSION, nodes: {
+    app: { requires: ["view"], element: "Status", props: {
+      label: "Deadline", value: "$view.value", format: "timestampSeconds", zeroText: "No active deadline",
+    } },
+  } })
+  for (const value of ["0", "000", 0]) {
+    const resolved = resolveUiNode(ui, "app", { view: toInertValue({ value }) }, context)
+    assert.ok(resolved.element === "Status")
+    assert.equal(resolved.formattedValue, "No active deadline")
+  }
+  const resolved = resolveUiNode(ui, "app", { view: { value: "1" } }, context)
+  assert.ok(resolved.element === "Status")
+  assert.equal(resolved.formattedValue, "1970-01-01 00:00:01 UTC (1 Unix seconds)")
+  const dynamic = parseUi({ ui: UI_VERSION, nodes: {
+    app: { requires: ["view"], element: "Status", props: {
+      label: "Deadline", value: "0", format: "timestampSeconds", zeroText: "$view.text",
+    } },
+  } })
+  for (const text of ["", "   ", 0, null]) {
+    assert.throws(() => resolveUiNode(dynamic, "app", { view: toInertValue({ text }) }, context),
+      (error: unknown) => error instanceof UiError && error.path === "app.props.zeroText")
+  }
+  for (const props of [
+    { format: "timestampSeconds", zeroText: "" },
+    { format: "timestampSeconds", zeroText: 0 },
+    { format: "durationSeconds", zeroText: "None" },
+    { zeroText: "None" },
+  ]) {
+    assert.throws(() => parseUi({ ui: UI_VERSION, nodes: {
+      app: { requires: [], element: "Status", props: { label: "Deadline", value: "0", ...props } },
+    } }), (error: unknown) => error instanceof UiError && error.path === "nodes.app.props.zeroText")
+  }
+})
+
 test("Status without a format keeps inert values raw and invents no presentation semantics", () => {
   for (const value of ["31536000", "0x1234", ["client", "contractor"], { seconds: "60" }]) {
     const ui = parseUi({ ui: UI_VERSION, nodes: {
@@ -359,7 +412,7 @@ test("Status format declarations are literal supported presentation choices", ()
 })
 
 test("formatted Status operands fail during resolution rather than after a view is published", () => {
-  for (const format of ["bytes", "durationSeconds"]) {
+  for (const format of ["bytes", "durationSeconds", "timestampSeconds"]) {
     const ui = parseUi({ ui: UI_VERSION, nodes: {
       app: { requires: ["view"], element: "Status", props: { label: "Value", value: "$view.value", format } },
     } })

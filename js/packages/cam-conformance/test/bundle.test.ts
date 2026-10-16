@@ -3366,6 +3366,19 @@ test("TextField defaults accept normalized ABI addresses without relaxing hash f
   }
 })
 
+test("timestamp absence text follows string typeflow without interpreting timestamp business meaning", () => {
+  for (const type of ["string", "uint256"]) {
+    const uiBytes = jsonBytes({ ui: UI_VERSION, nodes: { app: {
+      element: "Status", requires: ["view"], props: {
+        label: "Deadline", value: "0", format: "timestampSeconds", zeroText: "$view",
+      },
+    } } })
+    const abiBytes = jsonBytes([{ ...viewEntryFunction(), outputs: [{ name: "value", type }] }])
+    const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => replaceBundleResources(root, bundle, { uiBytes, abiBytes }))
+    assert.deepEqual(issueLocations(issues), type === "string" ? [] : [["CAM_UI_TYPEFLOW_MISMATCH", "nodes.app.props.zeroText"]])
+  }
+})
+
 test("numeric field defaults accept normalized ABI integers and strings", () => {
   for (const element of ["NonNegativeIntegerField", "AmountField"]) {
     for (const type of ["uint8", "uint256", "int256", "string"]) {

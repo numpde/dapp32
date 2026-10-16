@@ -264,7 +264,11 @@ function parseProps(value: unknown, path: string, schema: {
 function parseStatusProps(value: unknown, path: string): InertRecord {
   const props = parseProps(value, path, UI_PROP_SCHEMAS.Status)
   if (Object.hasOwn(props, "format") && !(UI_STATUS_FORMATS as readonly unknown[]).includes(props.format)) {
-    throw new UiError("UI_INVALID_FIELD", "Cannot display Status: format must be bytes, durationSeconds, or stringList.", `${path}.format`)
+    throw new UiError("UI_INVALID_FIELD", "Cannot display Status: format must be bytes, durationSeconds, timestampSeconds, or stringList.", `${path}.format`)
+  }
+  if (Object.hasOwn(props, "zeroText")
+    && (props.format !== "timestampSeconds" || typeof props.zeroText !== "string" || props.zeroText.trim().length === 0)) {
+    throw new UiError("UI_INVALID_FIELD", "Cannot display Status absence: zeroText requires timestampSeconds and a nonempty string.", `${path}.zeroText`)
   }
   return props
 }
