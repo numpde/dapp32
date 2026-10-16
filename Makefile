@@ -115,7 +115,7 @@ LANE_GUARD := $(COMPOSE_PROJECT_NAME_GUARD); $(NON_ROOT_GUARD); $(REPO_SHAPE_GUA
 ANVIL_HOST_PORT_GUARD := port="$${ANVIL_HOST_PORT:?missing_ANVIL_HOST_PORT}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'ANVIL_HOST_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi
 BIKE_NFT_GUI_BIND_GUARD := port="$${BIKE_NFT_GUI_PORT:?missing_BIKE_NFT_GUI_PORT}"; host="$${BIKE_NFT_GUI_BIND_HOST:?missing_BIKE_NFT_GUI_BIND_HOST}"; origin="$${BIKE_NFT_GUI_ORIGIN:?missing_BIKE_NFT_GUI_ORIGIN}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'BIKE_NFT_GUI_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi; if [[ "$$host" != "localhost" ]]; then IFS=. read -r a b c d extra <<< "$$host"; for octet in "$$a" "$$b" "$$c" "$$d"; do if [[ -z "$$octet" || ! "$$octet" =~ ^[0-9]{1,3}$$ || "$$octet" -gt 255 ]]; then printf '%s\n' 'BIKE_NFT_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; done; if [[ -n "$$extra" ]]; then printf '%s\n' 'BIKE_NFT_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; fi; if [[ ! "$$origin" =~ ^https?://[^:/@?\#]+(:[1-9][0-9]{0,4})?$$ || "$$origin" == *'$$'* || "$$origin" == *'`'* || "$$origin" == *\\* || "$$origin" == *\"* || "$$origin" == *\'* || "$$origin" == *\;* || "$$origin" == *\#* ]]; then printf '%s\n' 'BIKE_NFT_GUI_ORIGIN must be an http(s) origin without credentials, path, query, fragment, invalid port, or shell syntax.' >&2; exit 2; fi; if [[ "$$origin" =~ :([1-9][0-9]{0,4})$$ ]]; then origin_port="$${BASH_REMATCH[1]}"; if [[ "$$origin_port" -gt 65535 ]]; then printf '%s\n' 'BIKE_NFT_GUI_ORIGIN port must be an integer from 1 to 65535.' >&2; exit 2; fi; fi
 ESCROW_GUI_BIND_GUARD := port="$${ESCROW_GUI_PORT:?missing_ESCROW_GUI_PORT}"; host="$${ESCROW_GUI_BIND_HOST:?missing_ESCROW_GUI_BIND_HOST}"; origin="$${ESCROW_GUI_ORIGIN:?missing_ESCROW_GUI_ORIGIN}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'ESCROW_GUI_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi; if [[ "$$host" != "localhost" ]]; then IFS=. read -r a b c d extra <<< "$$host"; for octet in "$$a" "$$b" "$$c" "$$d"; do if [[ -z "$$octet" || ! "$$octet" =~ ^[0-9]{1,3}$$ || "$$octet" -gt 255 ]]; then printf '%s\n' 'ESCROW_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; done; if [[ -n "$$extra" ]]; then printf '%s\n' 'ESCROW_GUI_BIND_HOST must be localhost or an IPv4 literal.' >&2; exit 2; fi; fi; if [[ ! "$$origin" =~ ^https?://[^:/@?\#]+(:[1-9][0-9]{0,4})?$$ || "$$origin" == *'$$'* || "$$origin" == *'`'* || "$$origin" == *\\* || "$$origin" == *\"* || "$$origin" == *\'* || "$$origin" == *\;* || "$$origin" == *\#* ]]; then printf '%s\n' 'ESCROW_GUI_ORIGIN must be an http(s) origin without credentials, path, query, fragment, invalid port, or shell syntax.' >&2; exit 2; fi; if [[ "$$origin" =~ :([1-9][0-9]{0,4})$$ ]]; then origin_port="$${BASH_REMATCH[1]}"; if [[ "$$origin_port" -gt 65535 ]]; then printf '%s\n' 'ESCROW_GUI_ORIGIN port must be an integer from 1 to 65535.' >&2; exit 2; fi; fi
-CAM_RESOURCE_OUTPUT_GUARD := if [[ ! -f docs/reference/cam/1.2.0/index.html ]]; then printf '%s\n' 'CAM protocol reference must be an existing regular file: docs/reference/cam/1.2.0/index.html' >&2; exit 2; fi; for cam_path in dapps/bike-nft/cam/{main.json,protocol.html} dapps/escrow/cam/{main.json,protocol.html}; do if [[ ! -f "$$cam_path" ]]; then printf 'CAM output must be an existing regular file: %s\n' "$$cam_path" >&2; exit 2; fi; done
+CAM_RESOURCE_OUTPUT_GUARD := if [[ ! -f docs/reference/cam/1.2.0/index.html ]]; then printf '%s\n' 'CAM protocol reference must be an existing regular file: docs/reference/cam/1.2.0/index.html' >&2; exit 2; fi; for cam_path in dapps/bike-nft/cam/{main.json,protocol.html} dapps/escrow/cam/{main.json,protocol.html} dapps/pay-to-play/cam/{main.json,protocol.html}; do if [[ ! -f "$$cam_path" ]]; then printf 'CAM output must be an existing regular file: %s\n' "$$cam_path" >&2; exit 2; fi; done
 CAM_URI_GUARD := uri="$${CAM_URI?missing_CAM_URI}"; if [[ -z "$$uri" ]]; then printf '%s\n' 'Set CAM_URI to the CAM document URI for the local fixture.' >&2; exit 2; fi; if [[ ! "$$uri" =~ ^(https?|ipfs):// || "$$uri" == *'$$'* || "$$uri" == *'`'* || "$$uri" == *\"* || "$$uri" == *\'* || "$$uri" == *\;* ]]; then printf '%s\n' 'CAM_URI must be an absolute http(s) or ipfs URI without shell syntax.' >&2; exit 2; fi
 CAM_INTEGRATION_INPUT_GUARD := seed="$${CAM_INTEGRATION_SEED:?missing_CAM_INTEGRATION_SEED}"; runs="$${CAM_INTEGRATION_RUNS:?missing_CAM_INTEGRATION_RUNS}"; steps="$${CAM_INTEGRATION_STEPS:?missing_CAM_INTEGRATION_STEPS}"; if [[ ! "$$seed" =~ ^[A-Za-z0-9_.:-]{1,128}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_SEED must be 1-128 URL-safe label characters.' >&2; exit 2; fi; if [[ ! "$$runs" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_RUNS must be a positive decimal integer under 10000.' >&2; exit 2; fi; if [[ ! "$$steps" =~ ^[1-9][0-9]{0,3}$$ ]]; then printf '%s\n' 'CAM_INTEGRATION_STEPS must be a positive decimal integer under 10000.' >&2; exit 2; fi
 VIEWER_TERMINAL_MOCK_GUARD := if [[ ! "$${VIEWER_TERMINAL_MOCK:?missing_VIEWER_TERMINAL_MOCK}" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then printf '%s\n' 'VIEWER_TERMINAL_MOCK must be a mock name, not a path or shell expression.' >&2; exit 2; fi
@@ -335,6 +335,11 @@ help:
 	  '  make bike-nft/local/demo/gui/up       Deploy bike NFT locally and run the browser GUI on $${BIKE_NFT_GUI_ORIGIN}' \
 	  '  BIKE_NFT_GUI_BIND_HOST=0.0.0.0 BIKE_NFT_GUI_ORIGIN=http://host:5173 make bike-nft/local/demo/gui/up  Expose the local GUI to another browser host' \
 	  '  make escrow/local/scenario/run      Run all nine escrow terminal paths through the real-RPC CAM viewer' \
+	  '  make pay-to-play/local/scenario/run  Run payment-channel workflows through real-RPC CAM actions' \
+	  '  make pay-to-play/local/demo/gui/up   Run the generic payment-channel browser viewer on loopback port 5175' \
+	  '  make pay-to-play/local/demo/gui/down Stop the disposable payment-channel browser fixture' \
+	  '  make pay-to-play/live/browser/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check local fixture writes in an existing browser' \
+	  '  make pay-to-play/local/voucher/sign PAY_TO_PLAY_ADDRESS=... PAY_TO_PLAY_TOTAL=...  Sign a local fixture voucher offline' \
 	  '  make escrow/local/demo/terminal/up     Deploy escrow locally and open the real-RPC viewer terminal' \
 	  '  make escrow/local/demo/gui/up          Deploy escrow locally and run the browser GUI on $${ESCROW_GUI_ORIGIN}' \
 	  '  make escrow/live/browser/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check the running GUI in a fresh CDP tab' \
@@ -790,7 +795,7 @@ dapps/tests/coverage: dapps/deps/verify
 
 dapps/tests: dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant
 
-tests: tests/checks dapps/tests js/ci tests/live cast/offline/check escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run
+tests: tests/checks dapps/tests js/ci tests/live cast/offline/check pay-to-play/local/scenario/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run
 
 ci: dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
 
@@ -1185,3 +1190,101 @@ bike-nft/release/verify:
 	compose_release_dependencies run --build --rm soldeer-verify; \
 	release_run_started=1; \
 	compose_release up --build --abort-on-container-exit --exit-code-from verify-bike-nft-release verify-bike-nft-release
+
+# Disposable payment-channel fixture. Its scenario and browser projects are isolated.
+PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-pay-to-play-local-scenario
+PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-pay-to-play-viewer-gui
+PAY_TO_PLAY_GUI_PORT ?= 5175
+PAY_TO_PLAY_GUI_BIND_HOST ?= 127.0.0.1
+PAY_TO_PLAY_GUI_ORIGIN ?= http://127.0.0.1:$(PAY_TO_PLAY_GUI_PORT)
+PAY_TO_PLAY_CAM_HTTP_ORIGIN := http://pay-to-play-cam-http:8080
+PAY_TO_PLAY_BROADCAST_DIR := /foundry-broadcast
+PAY_TO_PLAY_BROADCAST_PATH := $(PAY_TO_PLAY_BROADCAST_DIR)/DeployPayToPlayLocal.s.sol/31337/run-latest.json
+PAY_TO_PLAY_COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID) PAY_TO_PLAY_BROADCAST_DIR=$(PAY_TO_PLAY_BROADCAST_DIR) PAY_TO_PLAY_BROADCAST_PATH=$(PAY_TO_PLAY_BROADCAST_PATH)
+PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV := $(PAY_TO_PLAY_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME) CAM_URI=$(PAY_TO_PLAY_CAM_HTTP_ORIGIN)/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(PAY_TO_PLAY_CAM_HTTP_ORIGIN)
+PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV := $(PAY_TO_PLAY_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME) CAM_URI=$(PAY_TO_PLAY_GUI_ORIGIN)/cam/main.json CAM_VIEWER_RESOURCE_ORIGIN=$(PAY_TO_PLAY_GUI_ORIGIN) PAY_TO_PLAY_GUI_PORT=$(PAY_TO_PLAY_GUI_PORT) PAY_TO_PLAY_GUI_BIND_HOST=$(PAY_TO_PLAY_GUI_BIND_HOST) PAY_TO_PLAY_GUI_ORIGIN=$(PAY_TO_PLAY_GUI_ORIGIN)
+PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/local/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/local/http.yml -f $(COMPOSE_DIR)/pay-to-play/local/scenario.yml
+PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/local/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/local/http.yml -f $(COMPOSE_DIR)/pay-to-play/local/viewer-gui.yml
+COMPOSE_PROJECT_NAME_VARS += PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
+export PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME PAY_TO_PLAY_VIEWER_GUI_COMPOSE_PROJECT_NAME
+export PAY_TO_PLAY_GUI_PORT PAY_TO_PLAY_GUI_BIND_HOST PAY_TO_PLAY_GUI_ORIGIN
+
+PAY_TO_PLAY_GUI_BIND_GUARD := port="$${PAY_TO_PLAY_GUI_PORT:?missing_PAY_TO_PLAY_GUI_PORT}"; host="$${PAY_TO_PLAY_GUI_BIND_HOST:?missing_PAY_TO_PLAY_GUI_BIND_HOST}"; origin="$${PAY_TO_PLAY_GUI_ORIGIN:?missing_PAY_TO_PLAY_GUI_ORIGIN}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'PAY_TO_PLAY_GUI_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi; if [[ "$$host" != "127.0.0.1" && "$$host" != "localhost" ]]; then printf '%s\n' 'PAY_TO_PLAY_GUI_BIND_HOST must be 127.0.0.1 or localhost.' >&2; exit 2; fi; if [[ "$$origin" != "http://$$host:$$port" ]]; then printf '%s\n' 'PAY_TO_PLAY_GUI_ORIGIN must match the loopback HTTP bind host and port.' >&2; exit 2; fi
+
+pay-to-play/local/scenario/run: dapps/deps/verify
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	cleanup() { \
+	  status="$$?"; \
+	  $(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	    $(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES) \
+	    $(COMPOSE_DOWN_CLEANUP); \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	  $(PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES) \
+	  up --build --abort-on-container-exit --exit-code-from pay-to-play-local-scenario pay-to-play-local-scenario
+
+pay-to-play/local/demo/gui/up: dapps/deps/verify
+	@$(LANE_GUARD); \
+	$(PAY_TO_PLAY_GUI_BIND_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	cleanup() { \
+	  status="$$?"; \
+	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	    $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
+	    $(COMPOSE_DOWN_CLEANUP); \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
+	  up --build --detach pay-to-play-anvil pay-to-play-cam-http; \
+	$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
+	  run --build --rm --no-deps deploy-pay-to-play-local; \
+	viewer_url="$$( \
+	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	    $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
+	    run --build --rm --no-deps -T pay-to-play-viewer-url \
+	)"; \
+	printf '\n%s\n\n' "$$viewer_url"; \
+	$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
+	  up --build --force-recreate --abort-on-container-exit cam-web pay-to-play-browser-gateway
+
+pay-to-play/local/demo/gui/down:
+	@$(LANE_GUARD); \
+	$(PAY_TO_PLAY_GUI_BIND_GUARD); \
+	$(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) \
+	  $(PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES) \
+	  $(COMPOSE_DOWN_CLEANUP)
+
+
+.PHONY: pay-to-play/local/scenario/run pay-to-play/local/demo/gui/up pay-to-play/local/demo/gui/down pay-to-play/local/voucher/sign
+
+
+# Offline fixture signing: only the fixed local customer key is available here.
+PAY_TO_PLAY_ADDRESS ?=
+PAY_TO_PLAY_CHANNEL_ID ?= 1
+PAY_TO_PLAY_TOTAL ?=
+export PAY_TO_PLAY_ADDRESS PAY_TO_PLAY_CHANNEL_ID PAY_TO_PLAY_TOTAL
+pay-to-play/local/voucher/sign:
+	@$(LANE_GUARD); \
+	if [[ ! "$$PAY_TO_PLAY_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$$ || ! "$$PAY_TO_PLAY_CHANNEL_ID" =~ ^[0-9]+$$ || ! "$$PAY_TO_PLAY_TOTAL" =~ ^[0-9]+$$ ]]; then \
+	  printf '%s\n' 'Set PAY_TO_PLAY_ADDRESS to the local PayToPlay address and PAY_TO_PLAY_CHANNEL_ID/PAY_TO_PLAY_TOTAL to unsigned decimal integers.' >&2; exit 2; \
+	fi; \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml run --build --rm --no-deps -T \
+	  -e PAY_TO_PLAY_ADDRESS -e PAY_TO_PLAY_CHANNEL_ID -e PAY_TO_PLAY_TOTAL cast-offline \
+	  bash -eu -c 'customer="$$(cast wallet address --private-key 0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca)"; \
+	  typed="$$(printf '\''{"types":{"EIP712Domain":[{"name":"name","type":"string"},{"name":"version","type":"string"},{"name":"chainId","type":"uint256"},{"name":"verifyingContract","type":"address"}],"Voucher":[{"name":"customer","type":"address"},{"name":"channelId","type":"uint256"},{"name":"cumulativeTotal","type":"uint256"}]},"primaryType":"Voucher","domain":{"name":"PayToPlay","version":"1","chainId":31337,"verifyingContract":"%s"},"message":{"customer":"%s","channelId":"%s","cumulativeTotal":"%s"}}'\'' "$$PAY_TO_PLAY_ADDRESS" "$$customer" "$$PAY_TO_PLAY_CHANNEL_ID" "$$PAY_TO_PLAY_TOTAL")"; \
+	  cast wallet sign --private-key 0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca --data "$$typed"'
+
+.PHONY: pay-to-play/live/browser/check
+pay-to-play/live/browser/check:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
+	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/pay-to-play/local/browser-check.yml run --build --rm --no-deps -T pay-to-play-viewer-browser-check

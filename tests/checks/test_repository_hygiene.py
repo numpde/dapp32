@@ -154,6 +154,7 @@ class RepositoryHygieneTest(unittest.TestCase):
             [
                 {"access": "read", "path": "./bike-nft/cam/main.json"},
                 {"access": "read", "path": "./escrow/cam/main.json"},
+                {"access": "read", "path": "./pay-to-play/cam/main.json"},
                 {"access": "read", "path": "/out/deployment.json"},
                 {"access": "read", "path": "/release-plan/release-plan.json"},
             ],
@@ -316,7 +317,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         )
         self.assertEqual(
             ("tests/checks", "dapps/tests", "js/ci", "tests/live", "cast/offline/check",
-             "escrow/local/scenario/run", "bike-nft/local/integration/fuzz/run",
+             "pay-to-play/local/scenario/run", "escrow/local/scenario/run", "bike-nft/local/integration/fuzz/run",
              "bike-nft/local/integration/fuzz/fixture-writes/run"),
             self.make_target_prereqs(makefile, "tests"),
         )

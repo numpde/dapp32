@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Service payment channels</title>
+<style>body{font:1rem/1.6 system-ui,sans-serif;max-width:65rem;margin:auto;padding:2rem}code,pre{overflow-wrap:anywhere}pre{white-space:pre-wrap}a:focus-visible{outline:3px solid}</style></head>
+<body><main>
+<h1>Service payment channels</h1>
+<p>A customer funds a native-currency position and signs cumulative payment vouchers for a settlement service. Anyone can collect a valid voucher; payment goes to the channel's current recipient. Each channel has a fixed withdrawal waiting period. The <a href="../../notes/020_service_payment_channels.txt">design record</a> describes the accounting rules and trust assumptions.</p>
+<h2>Run the local fixture</h2>
+<pre>make pay-to-play/local/scenario/run
+make pay-to-play/local/demo/gui/up</pre>
+<p>The scenario deploys a private Anvil chain, PayToPlay and a CAM host, then exercises the published CAM actions through the generic viewer session. It signs vouchers offchain and advances fixture time using RPC. It checks cumulative purchases, partial collection and retries, current-recipient changes, renewal, collection during the wait, mature partial and zero withdrawals, and movement through channel 0. It is included in <code>make tests</code>. Solidity tests cover additional signature, recipient, authorization and accounting boundaries.</p>
+<p>The GUI command prints its viewer URL on loopback port 5175 and remains in the foreground. Open that URL in your existing browser. Connect a wallet on chain 31337 to prepare and submit transactions. The fixed admin, customer, relayer and recipient keys in <code>compose/pay-to-play/local/deploy.yml</code> are public local fixture values; use them only on this disposable chain. The deployment initially defines only channel 0. Use the admin account to create channel 1, then use the customer account to open and fund its position. Unavailable fields and actions remain visible and disabled. Native amount controls accept wei or exact decimal native amounts; transaction fees are separate.</p>
+<pre>make pay-to-play/local/demo/gui/down</pre>
+<p>The fixture uses an internal network, read-only source mounts and container-local build outputs. Only the GUI gateway exposes a loopback port. Teardown removes the fixture containers and broadcast volume. It does not deploy to an operator-supplied chain.</p>
+<h2>Sign a voucher</h2>
+<p>Use standard EIP-712 typed-data signing. Obtain the PayToPlay deployment address from the deployment log; the CAM host is a different contract. The domain and message are:</p>
+<pre>{
+  "domain": {
+    "name": "PayToPlay", "version": "1",
+    "chainId": 31337, "verifyingContract": "&lt;PayToPlay address&gt;"
+  },
+  "types": {
+    "Voucher": [
+      {"name": "customer", "type": "address"},
+      {"name": "channelId", "type": "uint256"},
+      {"name": "cumulativeTotal", "type": "uint256"}
+    ]
+  },
+  "primaryType": "Voucher",
+  "message": {
+    "customer": "&lt;customer address&gt;", "channelId": "1",
+    "cumulativeTotal": "100"
+  }
+}</pre>
+<p>The deployment's chain ID and PayToPlay address must match the domain. Amounts are native base units. The signature binds the customer, channel and lifetime cumulative authorized total; it does not bind the payment recipient or expire. A valid voucher can collect unpaid authorization after later deposits. The admin can redirect existing vouchers by changing the recipient. Contract-wallet signatures must still be valid at collection.</p>
+<p>For the fixed local customer only, this offline helper prints a signature to paste into the viewer. Keep that output out of logs and commits:</p>
+<pre>make pay-to-play/local/voucher/sign PAY_TO_PLAY_ADDRESS=0x... PAY_TO_PLAY_CHANNEL_ID=1 PAY_TO_PLAY_TOTAL=100</pre>
+<p>The viewer's signing-details action shows the digest for comparison with a standard EIP-712 signer. Do not sign that digest as a personal message. The viewer prepares collection transactions; it does not sign vouchers.</p>
+<h2>Settlement-service responsibilities</h2>
+<p>The settlement service assigns cumulative totals for API purchases, retains signed authorizations, and provides retry-safe purchase IDs and a durable ledger. The local scenario uses two sample purchases with assigned totals; it does not implement an API server or a purchase ledger. Service credits and onward API payments remain outside the contract.</p>
+<p>Effective balance is max(balance minus requested withdrawal, 0). This is a snapshot for budgeting, not reserved funds. A customer may renew a larger request within the balance, starting the full wait again. Vouchers may consume the actual balance during that wait. Mature withdrawal or movement consumes the request even if it pays zero; later deposits need a fresh request. Channel 0 has no voucher consumer.</p>
+<h2>Browser check</h2>
+<p>With the GUI and an existing browser CDP endpoint running, run the opt-in fixture write check. It opens a tab in that browser, checks the pinned CAM publication and signs local fixture transactions:</p>
+<pre>make pay-to-play/live/browser/check CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL='&lt;printed viewer URL&gt;' EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json EXPECTED_CAM_HASH=0x...</pre>
+<p>Set the expected hash from the SHA-256 of the checked-in <code>cam/main.json</code> bytes. This lane uses host networking to reach the existing browser and GUI. It neither starts a browser window nor starts the GUI.</p>
+</main></body></html>

@@ -1,9 +1,11 @@
 Service payment channels
 ========================
 
-Design record, 2026-10-15. This specifies the selected minimal design, not an
-implemented contract. Customers directly fund native-currency positions in
-channels for settlement services. Offchain vouchers authorize cumulative
+Design record, 2026-10-15; local implementation verified 2026-10-16.
+The PayToPlay contract and generic CAM bundle implement the selected design.
+The maintained private-Anvil CAM scenario and browser fixture exercise the local
+workflow; no production deployment or settlement-service API server is implied.
+Customers directly fund native-currency positions in channels for settlement services. Offchain vouchers authorize cumulative
 payments; API work need not wait for onchain collection. The deployment chain
 and actual per-channel waiting periods remain deployment choices.
 
@@ -117,8 +119,8 @@ liabilities to APIs. Delivery refunds
 and Y's onward API payouts remain outside E's core rules; no globally
 exactly-once external effect is promised.
 
-Worked cases and future proof obligations
-----------------------------------------
+Worked cases and proof obligations
+----------------------------------
 
 With balance 30, paid 0 and a voucher for total 100, collection pays 30 and
 records paid 30. Funding another 20 lets the same voucher collect 20, recording
@@ -137,7 +139,7 @@ purchase for 50, then C explicitly renews for 100. The full wait starts again.
 Y collects 50 during that wait, leaving balance 50 and effective balance zero.
 At maturity withdrawal is capped to 50 and clears the request.
 
-Future contract tests must establish:
+The contract tests cover these accounting and authorization obligations:
 - Voucher partial collection, idempotent retry and unpaid collection after
   withdrawal/redeposit; lifetime paid changes only by actual voucher payments.
 - Signature replay rejection across chains, E deployments, customers and

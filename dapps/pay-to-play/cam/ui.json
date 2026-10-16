@@ -1,0 +1,590 @@
+{
+  "ui": "1.0.0",
+  "nodes": {
+    "position": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Service payment channels"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Inspect a customer's balance and channel terms, then prepare a transaction for your wallet. Unavailable controls stay disabled according to the contract's account and time checks. Preparation alone moves no funds."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Customer being inspected",
+            "value": "$view.customer"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current payment recipient",
+            "value": "$view.payee"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Fixed withdrawal waiting period",
+            "value": "$view.claimPeriod",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Admin",
+            "value": "$view.admin"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Number of defined channels (IDs start at 0)",
+            "value": "$view.channelCount"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Channel 0 is an unallocated balance: it accepts funding and withdrawals/movements but no voucher claims. Each channel's waiting period is immutable. The admin can change other channels' recipient, including for previously signed vouchers."
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Balance in wei",
+            "value": "$view.balance"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Effective balance in wei",
+            "value": "$view.effectiveBalance"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Lifetime voucher payments in wei",
+            "value": "$view.voucherPaid"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Requested withdrawal in wei",
+            "value": "$view.requestedAmount"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Withdrawal ready time (Unix seconds)",
+            "value": "$view.readyAt"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Effective balance is max(balance \u2212 requested withdrawal, 0), an accounting view. Voucher claims can consume the full balance. A request does not reserve coins. Zero requested amount means no active request; deadlines require a transaction to execute."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Open another position"
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Customer address"
+          },
+          "state": {
+            "key": "lookupCustomer",
+            "defaultValue": ""
+          }
+        },
+        {
+          "element": "NonNegativeIntegerField",
+          "props": {
+            "label": "Channel ID"
+          },
+          "state": {
+            "key": "lookupChannelId",
+            "defaultValue": "$view.channelId"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Open position"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "position",
+            "args": {
+              "customer": "$state.lookupCustomer",
+              "channelId": "$state.lookupChannelId"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Use an existing channel ID smaller than the channel count. An undefined ID fails without creating a position. The viewed customer can differ from your wallet account; only that customer's account can fund, request, renew or move this position."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Fund this position"
+          }
+        },
+        {
+          "element": "AmountField",
+          "props": {
+            "label": "Funding amount in wei",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          },
+          "state": {
+            "key": "fundAmount",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "fund",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Prepare funding"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "fund",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "amount": "$state.fundAmount"
+            }
+          },
+          "enabledWhen": {
+            "member": "fund",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Funding credits the sending account only. Enter whole native base units (wei); 1 native coin = 1,000,000,000,000,000,000 wei. Transaction fees are separate. A deposit does not authorize voucher payments or restart a withdrawal wait."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Request or renew a withdrawal"
+          }
+        },
+        {
+          "element": "AmountField",
+          "props": {
+            "label": "Requested amount in wei",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          },
+          "state": {
+            "key": "withdrawAmount",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "setWithdrawal",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Prepare withdrawal request"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "requestWithdrawal",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "amount": "$state.withdrawAmount"
+            }
+          },
+          "enabledWhen": {
+            "member": "requestWithdrawal",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Prepare replacement / renewal"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "setWithdrawal",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "amount": "$state.withdrawAmount"
+            }
+          },
+          "enabledWhen": {
+            "member": "setWithdrawal",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Only the customer can request or renew. A new request must be positive and no greater than balance. Ordinary retries preserve an existing request, ignoring the new amount. Replacement / renewal replaces the amount and starts the full wait again. There is no cancellation."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Prepare mature withdrawal to customer"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "withdraw",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
+            }
+          },
+          "enabledWhen": {
+            "member": "withdraw",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "NonNegativeIntegerField",
+          "props": {
+            "label": "Destination channel ID"
+          },
+          "state": {
+            "key": "targetId",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "move",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Prepare mature movement"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "move",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "targetId": "$state.targetId"
+            }
+          },
+          "enabledWhen": {
+            "member": "move",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "At maturity anyone can withdraw to the customer; only the customer can move to a distinct defined channel. Execution pays/moves the smaller of requested amount and current balance, then clears the request, including after a partial or zero payment. Future deposits need a fresh request and wait."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Collect a signed voucher"
+          }
+        },
+        {
+          "element": "AmountField",
+          "props": {
+            "label": "Cumulative authorized total in wei",
+            "unit": {
+              "assetId": "native",
+              "baseLabel": "wei",
+              "displayLabel": "Native asset",
+              "decimals": 18
+            }
+          },
+          "state": {
+            "key": "cumulativeTotal",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "collect",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Show voucher signing digest"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "voucherDigest",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "cumulativeTotal": "$state.cumulativeTotal"
+            }
+          },
+          "enabledWhen": {
+            "member": "collect",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Customer signature (0x-prefixed bytes)"
+          },
+          "state": {
+            "key": "signature",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "collect",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Prepare voucher collection"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "collect",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "cumulativeTotal": "$state.cumulativeTotal",
+              "signature": "$state.signature"
+            }
+          },
+          "enabledWhen": {
+            "member": "collect",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The customer signs EIP-712 Voucher(address customer,uint256 channelId,uint256 cumulativeTotal), domain name PayToPlay, version 1, this chain ID and the deployed PayToPlay address (not the CAM host). Sign externally and paste the signature; the viewer does not sign vouchers. The local guide provides an offline fixture command."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Anyone can submit a valid voucher. The current recipient receives min(total \u2212 lifetime paid, balance) when total exceeds lifetime paid; older/repeated valid vouchers pay zero. Unpaid authorization has no expiry and can collect after later deposits. Recipient changes redirect old vouchers. Contract-wallet signatures must remain valid at collection."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Admin: channel directory"
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "New channel recipient address"
+          },
+          "state": {
+            "key": "newPayee",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "createChannel",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "NonNegativeIntegerField",
+          "props": {
+            "label": "New channel fixed waiting period in seconds"
+          },
+          "state": {
+            "key": "newClaimPeriod",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "createChannel",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Prepare new channel"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "createChannel",
+            "args": {
+              "payee": "$state.newPayee",
+              "claimPeriod": "$state.newClaimPeriod"
+            }
+          },
+          "enabledWhen": {
+            "member": "createChannel",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The new channel receives the previous channel count as its ID. Channel creation returns to your null position; open that ID to inspect it. IDs and waiting periods cannot change."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Replacement recipient address for this channel"
+          },
+          "state": {
+            "key": "replacementPayee",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "setPayee",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Prepare recipient change"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "setPayee",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId",
+              "payee": "$state.replacementPayee"
+            }
+          },
+          "enabledWhen": {
+            "member": "setPayee",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Only the admin can create channels or change recipients. A replacement changes where existing vouchers pay; it does not change customer balances, authorizations or waiting periods."
+          }
+        }
+      ]
+    },
+    "voucher": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Voucher signing details"
+      },
+      "children": [
+        {
+          "element": "Status",
+          "props": {
+            "label": "Customer",
+            "value": "$view.customer"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Cumulative total in wei",
+            "value": "$view.cumulativeTotal"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Chain",
+            "value": "$view.chainId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "EIP-712 signing digest",
+            "value": "$view.digest"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Sign the typed voucher, not this digest as a personal message. Domain name is PayToPlay and version is 1. Use the deployed PayToPlay contract address as verifyingContract, not the CAM host. The local fixture guide documents offline signing. No signature has been created or submitted by opening this view."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Return to position"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "position",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

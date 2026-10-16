@@ -1,0 +1,288 @@
+{
+  "cam": "1.2.0",
+  "protocol": {
+    "uri": "./protocol.html",
+    "integrity": "sha256:0xd4a535568c66eaf9149ea4e76fb5531a36aaa9310c2eda36bbe090d9c82f45b8"
+  },
+  "entry": "home",
+  "namespaces": {
+    "contracts.PayToPlay": {
+      "type": "contract",
+      "abiURI": "./abi/PayToPlay.json",
+      "integrity": "sha256:0x572eef069a5d9fe12e75d931eda1940f170eeaafc4fc1a2148f8d9dd684c5acf"
+    },
+    "routes": {
+      "type": "routes"
+    },
+    "ui": {
+      "type": "ui",
+      "uri": "./ui.json",
+      "integrity": "sha256:0x145e960c88133ff8df0c2786c9b5e0f8a9305a8a7244aae9d8fc7ea40ea5e20a"
+    }
+  },
+  "routes": {
+    "home": {
+      "kind": "read",
+      "inputs": [],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$account.address",
+          "channelId": "0",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "position",
+        "args": {
+          "view": "$outputs.0"
+        }
+      }
+    },
+    "position": {
+      "kind": "read",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "position",
+        "args": {
+          "view": "$outputs.0"
+        }
+      }
+    },
+    "createChannel": {
+      "kind": "write",
+      "inputs": [
+        "payee",
+        "claimPeriod"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "createChannel",
+        "args": {
+          "payee": "$inputs.payee",
+          "claimPeriod": "$inputs.claimPeriod"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "home",
+        "args": {}
+      }
+    },
+    "setPayee": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId",
+        "payee"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "setPayee",
+        "args": {
+          "channelId": "$inputs.channelId",
+          "payee": "$inputs.payee"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "fund": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId",
+        "amount"
+      ],
+      "value": "$inputs.amount",
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "fund",
+        "args": {
+          "channelId": "$inputs.channelId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "requestWithdrawal": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId",
+        "amount"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "requestWithdrawal",
+        "args": {
+          "channelId": "$inputs.channelId",
+          "amount": "$inputs.amount"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "setWithdrawal": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId",
+        "amount"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "setWithdrawal",
+        "args": {
+          "channelId": "$inputs.channelId",
+          "amount": "$inputs.amount"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "withdraw": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "withdraw",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "move": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId",
+        "targetId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "move",
+        "args": {
+          "sourceId": "$inputs.channelId",
+          "targetId": "$inputs.targetId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "collect": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId",
+        "cumulativeTotal",
+        "signature"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "collect",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId",
+          "cumulativeTotal": "$inputs.cumulativeTotal",
+          "signature": "$inputs.signature"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "voucherDigest": {
+      "kind": "read",
+      "inputs": [
+        "customer",
+        "channelId",
+        "cumulativeTotal"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "voucherDigest",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId",
+          "cumulativeTotal": "$inputs.cumulativeTotal"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "voucher",
+        "args": {
+          "view": {
+            "digest": "$outputs.0",
+            "customer": "$inputs.customer",
+            "channelId": "$inputs.channelId",
+            "cumulativeTotal": "$inputs.cumulativeTotal",
+            "chainId": "$host.chainId"
+          }
+        }
+      }
+    }
+  }
+}

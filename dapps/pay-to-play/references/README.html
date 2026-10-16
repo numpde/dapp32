@@ -16,7 +16,7 @@
 <body>
 <main>
   <h1>Service-payment reference sources</h1>
-  <p>These snapshots support the planned pay-to-play app. The
+  <p>These snapshots support the pay-to-play app. The
   <a href="../../../notes/020_service_payment_channels.txt">design record</a>
   specifies E's native-currency channel accounting and authorization rules.
   Each channel has one stable ID. Y describes the offchain settlement service
@@ -35,7 +35,7 @@
       <h3>AbstractStreamChannel</h3>
       <p>The closest concrete core to inspect first. It supports funding/top-ups,
       cumulative EIP-712 delta payments and closing. Compare its fixed 15-minute
-      grace period and payee identity with E's planned per-channel period and
+      grace period and payee identity with E's per-channel period and
       stable channel ID and mutable recipient.</p>
       <ul>
         <li><a href="service-payment-channels/abstract-packages/packages/contracts/src/AbstractStreamChannel.sol">AbstractStreamChannel.sol</a></li>

@@ -279,6 +279,11 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
                 "ESCROW_RELEASE_OUTPUT_DIR": "/tmp/escrow-release-output",
                 "ESCROW_RELEASE_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
+                "PAY_TO_PLAY_BROADCAST_DIR": "/foundry-broadcast",
+                "PAY_TO_PLAY_BROADCAST_PATH": "/foundry-broadcast/DeployPayToPlayLocal.s.sol/31337/run-latest.json",
+                "PAY_TO_PLAY_GUI_BIND_HOST": "127.0.0.1",
+                "PAY_TO_PLAY_GUI_ORIGIN": "http://127.0.0.1:5175",
+                "PAY_TO_PLAY_GUI_PORT": "5175",
                 "LOCAL_GID": "1000",
                 "LOCAL_UID": "1000",
                 "RPC_URL_FILE": "/tmp/escrow-release-rpc-url",
@@ -394,6 +399,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "5174",
             ),
         }
+        expected_ports.add((makefile_compose_unit("PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES"), "pay-to-play-browser-gateway", "127.0.0.1", 8080, "5175"))
         expected_secrets = {
             ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
             ("compose/bike-nft/release/deploy.yml", "bike-nft-release-rpc-proxy", "rpc_url", "rpc_url"),
@@ -462,6 +468,21 @@ class RenderedComposePostureTest(unittest.TestCase):
         scenario_unit = makefile_compose_unit("ESCROW_LOCAL_SCENARIO_COMPOSE_FILES")
         for name, value in ESCROW_SCENARIO_FIXTURE_KEYS.items():
             expected_fixture_keys.add((scenario_unit, "escrow-local-scenario", name, value))
+        payment_keys = {
+            "PRIVATE_KEY": "0x" + "ba" * 32,
+            "PAY_TO_PLAY_CUSTOMER_PRIVATE_KEY": "0x" + "ca" * 32,
+            "PAY_TO_PLAY_RELAYER_PRIVATE_KEY": "0x" + "da" * 32,
+            "PAY_TO_PLAY_PAYEE_PRIVATE_KEY": "0x" + "fa" * 32,
+        }
+        for unit_name in ("PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES", "PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES"):
+            compose_unit = makefile_compose_unit(unit_name)
+            for name, value in payment_keys.items():
+                expected_fixture_keys.add((compose_unit, "deploy-pay-to-play-local", name, value))
+        for name, value in payment_keys.items():
+            scenario_name = name
+            if name == "PRIVATE_KEY":
+                scenario_name = "PAY_TO_PLAY_ADMIN_PRIVATE_KEY"
+            expected_fixture_keys.add((makefile_compose_unit("PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES"), "pay-to-play-local-scenario", scenario_name, value))
         actual_ports = set()
         actual_secrets = set()
         actual_fixture_keys = set()

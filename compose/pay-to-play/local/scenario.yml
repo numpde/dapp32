@@ -1,0 +1,35 @@
+# Real-RPC payment-channel workflows through generic CAM viewer actions.
+services:
+  pay-to-play-local-scenario:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    depends_on:
+      deploy-pay-to-play-local:
+        condition: service_completed_successfully
+      pay-to-play-cam-http:
+        condition: service_healthy
+    environment:
+      PAY_TO_PLAY_SCENARIO_RPC_URL: http://pay-to-play-anvil:8545
+      PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN: "${CAM_VIEWER_RESOURCE_ORIGIN:?missing_CAM_VIEWER_RESOURCE_ORIGIN}"
+      PAY_TO_PLAY_SCENARIO_BROADCAST_PATH: "${PAY_TO_PLAY_BROADCAST_PATH:?missing_PAY_TO_PLAY_BROADCAST_PATH}"
+      PAY_TO_PLAY_ADMIN_PRIVATE_KEY: "0xbabababababababababababababababababababababababababababababababa"
+      PAY_TO_PLAY_CUSTOMER_PRIVATE_KEY: "0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca"
+      PAY_TO_PLAY_RELAYER_PRIVATE_KEY: "0xdadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"
+      PAY_TO_PLAY_PAYEE_PRIVATE_KEY: "0xfafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafafa"
+    volumes:
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+      - "pay-to-play_broadcast:${PAY_TO_PLAY_BROADCAST_DIR:?missing_PAY_TO_PLAY_BROADCAST_DIR}:ro"
+    networks:
+      - pay-to-play_local
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build -w @cam/protocol -w @cam/core -w @cam/evm-viem -w @cam/screen -w @cam/viewer
+        ./node_modules/.bin/tsc -p tools/pay-to-play-local-scenario/tsconfig.json
+        node --experimental-strip-types tools/pay-to-play-local-scenario/runner.ts

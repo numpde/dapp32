@@ -64,6 +64,11 @@ services:
       - ../dapps:/work/dapps:ro
       - ../dapps/bike-nft/cam/abi:/work/dapps/bike-nft/cam/abi:rw
       - ../dapps/escrow/cam/abi:/work/dapps/escrow/cam/abi:rw
+      - type: bind
+        source: ../dapps/pay-to-play/cam/abi
+        target: /work/dapps/pay-to-play/cam/abi
+        bind:
+          create_host_path: false
     command:
       - "sh"
       - "-eu"

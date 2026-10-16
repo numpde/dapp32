@@ -38,6 +38,16 @@ services:
       - ../dapps/bike-nft/cam/main.json:/work/dapps/bike-nft/cam/main.json:rw
       - ../dapps/escrow/cam/main.json:/work/dapps/escrow/cam/main.json:rw
       - type: bind
+        source: ../dapps/pay-to-play/cam/main.json
+        target: /work/dapps/pay-to-play/cam/main.json
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../dapps/pay-to-play/cam/protocol.html
+        target: /work/dapps/pay-to-play/cam/protocol.html
+        bind:
+          create_host_path: false
+      - type: bind
         source: ../dapps/bike-nft/cam/protocol.html
         target: /work/dapps/bike-nft/cam/protocol.html
         bind:
