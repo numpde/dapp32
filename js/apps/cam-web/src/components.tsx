@@ -46,15 +46,15 @@ export function ConnectionSummary({
         <dd>{chainId}</dd>
       </div>
       <div>
-        <dt>Host</dt>
+        <dt>App host</dt>
         <dd>{shortenAddress(host)}</dd>
       </div>
       <div>
-        <dt>Viewer account</dt>
+        <dt>Selected account</dt>
         <dd>{shortenAddress(account)}</dd>
       </div>
       <div>
-        <dt>Wallet</dt>
+        <dt>Connected wallet</dt>
         <dd>{wallet}</dd>
       </div>
     </dl>
@@ -97,8 +97,11 @@ export function UiView({
         <button type="button" disabled={changingView || sending} onClick={() => { void onRefresh() }}>
           Refresh
         </button>
-        <span>{snapshot.route}</span>
-        <span>{snapshot.uiURI}</span>
+        <details>
+          <summary>App details</summary>
+          <KeyValue label="Read route" value={snapshot.route} mono={false} />
+          <KeyValue label="UI resource" value={snapshot.uiURI} mono={false} />
+        </details>
       </div>
       <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
         <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
@@ -126,10 +129,15 @@ export function PreparedCallView({
 }): ReactElement {
   return (
     <section className="panel prepared-call" ref={reviewRef} tabIndex={-1} aria-labelledby="prepared-call-title">
-      <h2 id="prepared-call-title">Prepared contract call</h2>
+      <h2 id="prepared-call-title">Review transaction</h2>
       {preparedCallFields(call).map((field) => (
         <KeyValue key={field.label} label={field.label} value={field.value} mono={field.mono} />
       ))}
+      <details>
+        <summary>Technical details</summary>
+        <KeyValue label="App action" value={call.route} mono={false} />
+        <KeyValue label="After confirmation" value={`${call.then.namespace}.${call.then.function} ${formatInertValue(call.then.args)}`} mono={false} />
+      </details>
       <button
         className="send-button"
         type="button"
@@ -141,7 +149,7 @@ export function PreparedCallView({
         {sending ? "Sending..." : "Send with wallet"}
       </button>
       <button type="button" disabled={!canDiscard} onClick={onDiscard}>
-        Discard prepared call
+        Discard transaction
       </button>
     </section>
   )
@@ -380,7 +388,7 @@ function AmountFieldView({ node, onAmount }: { readonly node: ResolvedAmountFiel
     : issue === "lineBreak" ? "Amounts must be on one line. The value was cleared; enter it again."
     : issue === "precision" ? `This amount cannot be represented exactly with ${node.unit.decimals} decimal places. Remove nonzero extra fractional digits.`
     : issue === "tooLong" ? activeText === "" ? `Input is too long (limit ${MAX_NUMERIC_TEXT_LENGTH}). The value was cleared; enter it again.` : `The amount exceeds the limit of ${MAX_NUMERIC_DIGITS} base-unit digits.`
-    : node.draft.status === "incomplete" ? "Finish entering the amount before preparing an action." : undefined
+    : node.draft.status === "incomplete" ? "Finish entering the amount." : undefined
   return <fieldset className="amount-field" disabled={node.disabled === true}>
     <legend>{displayText(stringProp(node.props, "label"))}</legend>
     <div className="amount-pair">
@@ -405,7 +413,7 @@ function IntegerFieldView({ node, onInteger }: { readonly node: ResolvedNonNegat
     : issue === "belowMin" ? `Enter ${node.props.min} or greater.`
     : issue === "aboveMax" ? `Enter ${node.props.max} or less.`
     : issue === "tooLong" ? node.draft.text === "" ? `Input is too long (limit ${MAX_NUMERIC_TEXT_LENGTH}). The value was cleared; enter it again.` : `The value exceeds the limit of ${MAX_NUMERIC_DIGITS} digits.`
-    : node.draft.status === "incomplete" ? "Finish entering the number before preparing an action." : undefined
+    : node.draft.status === "incomplete" ? "Finish entering the number." : undefined
   return <div>
     <label className="field">
       <span>{displayText(stringProp(node.props, "label"))}</span>

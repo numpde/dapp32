@@ -214,12 +214,12 @@ export function App(): ReactElement {
         setWalletAccountSynchronized(state.accountSynchronized)
         setWalletChainMatches(state.chainMatches)
         if (!state.chainMatches) {
-          showError(`Wallet network differs from viewer chain ${loadedRuntime.startup.chainId}. The viewer stays on its configured network. Connect the wallet to use that network.`, false)
+          showError(`Wallet network differs from viewer chain ${loadedRuntime.startup.chainId}. Change the network in your wallet, then use Reconnect wallet. The app stays on its configured network.`, false)
         } else if (!state.refreshing && state.accountSynchronized) {
-          showStatus(state.wallet.status === "connected" ? "Wallet connected. Viewed account updated." : "Wallet disconnected. The last viewed account is retained.", false)
+          showStatus(state.wallet.status === "connected" ? "Wallet connected." : "Wallet disconnected. The selected account is unchanged.", false)
         }
       },
-      onError: error => showError(`Cannot synchronize the wallet account: ${errorMessage(error)} The last viewed account is retained. Connect the wallet to retry.`, false),
+      onError: error => showError(`Cannot synchronize the wallet account: ${errorMessage(error)} The selected account is unchanged. Use Reconnect wallet to retry.`, false),
     })
     walletBindingRef.current = binding
     return () => {
@@ -291,10 +291,10 @@ export function App(): ReactElement {
       if (!isCurrentInteraction(revision)) return
       setPreparedCall(result.call)
       showStatus(!walletChainMatches
-        ? `Simulation passed on viewer chain ${ready.runtime.startup.chainId}, but the wallet is on another network. Connect the wallet to the configured network, then prepare the call again.`
+        ? `Simulation passed on viewer chain ${ready.runtime.startup.chainId}, but the wallet is on another network. Change the network in your wallet, use Reconnect wallet, then review the transaction again.`
         : wallet.status === "connected"
-          ? "Prepared contract call. Simulation passed; review it before sending."
-          : "Prepared contract call. Simulation passed; connect a wallet to send it.", false)
+          ? "Simulation passed. Review the transaction, then send it with your wallet."
+          : "Simulation passed. Connect a wallet, then review the transaction again before sending.", false)
       arriveAtFeedback("prepared")
     } catch (error) {
       if (!isCurrentInteraction(revision)) return
@@ -401,7 +401,7 @@ export function App(): ReactElement {
       if (txHash === undefined) return
       submittedTxHash = txHash
       if (!ownsSend()) return
-      reportTransaction(`Transaction sent: ${txHash}`, "status", false)
+      reportTransaction(`Transaction submitted: ${txHash}`, "status", false)
 
       const nonceGap = await submittedTransactionDiagnosis({
         client: ready.runtime.publicClient,
@@ -641,11 +641,13 @@ export function App(): ReactElement {
         )}
       </header>
 
+      <p className="field-hint">Before wallet connection, Selected account comes from the page link. Connecting a wallet selects its active address; the selected account is used to check actions. Send with wallet asks the connected wallet to sign and submit the transaction.</p>
+
       {wallet.status === "unavailable" ? (
-        <p className="notice">No injected wallet was detected.</p>
+        <p className="notice">No wallet was detected in this tab.</p>
       ) : (
         <button className="wallet-button" type="button" disabled={loadState.status !== "ready" || changingView || walletRefreshing || sending} onClick={() => { void connectWallet() }}>
-          {wallet.status === "connected" ? "Switch wallet" : "Connect wallet"}
+          {wallet.status === "connected" ? "Reconnect wallet" : "Connect wallet"}
         </button>
       )}
 
@@ -674,12 +676,12 @@ export function App(): ReactElement {
       )}
 
       {loadState.status === "loading" ? (
-        <section className="panel">Loading CAM session...</section>
+        <section className="panel">Loading app...</section>
       ) : null}
 
       {loadState.status === "failed" ? (
         <section className="panel error">
-          <h2>Cannot load viewer</h2>
+          <h2>Cannot load app</h2>
           <p>{loadState.message}</p>
         </section>
       ) : null}

@@ -227,7 +227,7 @@ async function waitFor(predicate, label, failOnViewerError) {
     lastState = state
     if (state !== null) {
       if (await predicate(state)) return state
-      if (failOnViewerError && state.text.includes('Cannot load viewer')) throw new Error(`viewer failed before ${label}: ${state.text}`)
+      if (failOnViewerError && state.text.includes('Cannot load app')) throw new Error(`viewer failed before ${label}: ${state.text}`)
     }
     await new Promise(resolve => setTimeout(resolve, 250))
   }
@@ -539,7 +539,7 @@ try {
     const linked = new URL(viewer)
     linked.hash = new URLSearchParams({ route: 'createAgreement', inputs: '{}' }).toString()
     await openViewer(linked.href)
-    await waitFor(state => state.text.includes('Cannot load viewer'), 'initial write rejection')
+    await waitFor(state => state.text.includes('Cannot load app'), 'initial write rejection')
     assert((await evaluate('document.body.innerText')).includes('must be declared as read'))
     assert.equal(await evaluate('document.querySelectorAll(".prepared-call").length'), 0)
     assert.equal(transactionRequests.length, 0, 'initial write fragment requested a transaction')
@@ -629,13 +629,13 @@ try {
       await freshForm()
       assert(await evaluate(`window.ethereum?.isAmountReadOnlyFixtureWallet===true`), 'read-only fixture must not replace an existing wallet')
       await clickButton('Connect wallet')
-      await waitFor(state => state.text.includes('Switch wallet'), 'read-only fixture connection')
+      await waitFor(state => state.text.includes('Reconnect wallet'), 'read-only fixture connection')
       await amountInput('display','0.0100')
       await evaluate(`document.querySelector('input[name="amount.display"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
       await evaluate(`void(window.__retiredAmountInput=document.querySelector('input[name="amount.display"]'))`)
       await waitFor(async () => (await field('amount')) === '', 'composition before account refresh')
       await evaluate(`window.__amountFixtureAccount=${JSON.stringify(changedAccount)}`)
-      await clickButton('Switch wallet')
+      await clickButton('Reconnect wallet')
       await waitFor(async () => (await evaluate('location.search')).includes(changedAccount) && (await field('amount.display')) === '', 'fresh account draft')
       await evaluate(`(()=>{const input=window.__retiredAmountInput;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0.0100');input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertCompositionText',data:'0.0100',isComposing:true}));input.dispatchEvent(new CompositionEvent('compositionend',{bubbles:true,data:'0.0100'}));})()`)
       assert.equal(await field('amount'), '', 'retired composition restored an old canonical value after account refresh')
@@ -718,9 +718,9 @@ try {
     await fillDraft()
     await enter('acceptanceDuration','0003600')
     await clickButton('Prepare creation transaction')
-    await waitFor(async ()=>Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')),'integer prepared review')
+    await waitFor(async ()=>Boolean((await feedback('prepared'))?.text?.includes('Review transaction')),'integer prepared review')
     const review=await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
-    assert.equal(JSON.parse(review.Args).params.acceptanceDuration,'3600')
+    assert.equal(JSON.parse(review['Function inputs']).params.acceptanceDuration,'3600')
     assert.equal(await field('acceptanceDuration'),'0003600')
     await enter('acceptanceDuration','1.5')
     assert(await evaluate(`document.querySelector('.prepared-call')===null`),'invalid integer retained an already prepared call')
@@ -791,7 +791,7 @@ try {
   await browserCase('prepared review feedback', async () => {
     await fillDraft()
     await clickButton('Prepare creation transaction')
-    await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')), 'prepared review')
+    await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'prepared review')
     const prepared = await feedback('prepared')
     assert(prepared.top >= 0 && prepared.top < prepared.height && prepared.bottom > 0, 'prepared review is outside the viewport')
     assert(prepared.focus, 'prepared review did not receive accessible focus')
@@ -804,10 +804,10 @@ try {
       await amountInput('display',display)
       await waitFor(async () => (await field('amount')) === base, 'canonical amount before preparation')
       await clickButton('Prepare creation transaction')
-      await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')), 'exact amount prepared review')
+      await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'exact amount prepared review')
       const review = await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
-      assert.equal(JSON.parse(review.Args).params.amount, base, 'prepared tuple amount changed precision')
-      assert.equal(review['Value (wei)'], base, 'prepared transaction value differs from tuple amount')
+      assert.equal(JSON.parse(review['Function inputs']).params.amount, base, 'prepared tuple amount changed precision')
+      assert.equal(review['Native amount to send (wei)'], base, 'prepared transaction value differs from tuple amount')
       assert.equal(await field('amount.display'), display, 'preparation normalized active human input')
       assert.equal(transactionRequests.length, 0, 'preparation sent a transaction')
     }
@@ -845,8 +845,8 @@ try {
   await browserCase('discard prepared review preserves draft', async () => {
     await fillDraft()
     await clickButton('Prepare creation transaction')
-    await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Prepared contract call')), 'review before discard')
-    await clickButton('Discard prepared call')
+    await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'review before discard')
+    await clickButton('Discard transaction')
     await waitFor(async () => await evaluate("document.querySelector('.prepared-call') === null && document.activeElement === document.querySelector('.ui')"), 'discarded review and current-view focus')
     for (const [name, value] of Object.entries(draft)) assert.equal(await field(name), value, `${name} draft changed after discard`)
     assert.equal(transactionRequests.length, 0, 'discard sent a transaction')
@@ -871,14 +871,14 @@ try {
   await call('Fetch.enable', { patterns: [{ urlPattern: cam.href, requestStage: 'Request' }] }, sessionId)
   intercept = 'tamper'
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const tampered = await waitFor(state => state.text.includes('Cannot load viewer') && /CAM hash mismatch/i.test(state.text), 'CAM hash rejection', true)
+  const tampered = await waitFor(state => state.text.includes('Cannot load app') && /CAM hash mismatch/i.test(state.text), 'CAM hash rejection', true)
   assert.notEqual(tampered.heading, 'Create and fund an escrow agreement', 'tampered CAM rendered as ready')
   assert(/CAM hash mismatch/i.test(tampered.text), 'tampered CAM did not report a hash mismatch')
 
   // A failed fetch must leave Loading and identify the URL and cause.
   intercept = 'fail'
   await call('Page.navigate', { url: viewer.href }, sessionId)
-  const failed = await waitFor(state => state.text.includes('Cannot load viewer') && /Failed to fetch|net::ERR_FAILED/.test(state.text), 'failed-load explanation', false)
+  const failed = await waitFor(state => state.text.includes('Cannot load app') && /Failed to fetch|net::ERR_FAILED/.test(state.text), 'failed-load explanation', false)
   assert.notEqual(failed.heading, 'Loading', 'failure left the page titled Loading')
   assert(failed.text.includes(cam.href), 'failure hid the failed resource URL')
   assert(/Failed to fetch|net::ERR_FAILED/.test(failed.text), 'failure hid the browser fetch cause')

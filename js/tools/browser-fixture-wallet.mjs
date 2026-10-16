@@ -63,7 +63,7 @@ function installFixtureWallet(options) {
       if (method !== 'eth_sendTransaction') throw failure('Unsupported fixture wallet method', 4200)
       if (chainId !== '0x7a69') throw failure('Fixture wallet is not on chain 31337', 4901)
       if (!connected || params?.length !== 1 || params[0]?.from?.toLowerCase() !== addresses[role].toLowerCase()) throw failure('Transaction must use the selected fixture account', -32602)
-      if (options.confirmTransactions && !confirm(`LOCAL FIXTURE: send immediately from ${role} on chain 31337? No extension wallet is involved.`)) throw failure('Fixture transaction cancelled', 4001)
+      if (options.confirmTransactions && !confirm(`Send this local test transaction as ${role} on chain 31337? Confirming submits it immediately.`)) throw failure('Fixture transaction cancelled', 4001)
       const id = ++next
       const requestedRole = role
       return new Promise((resolve, reject) => {
@@ -106,7 +106,7 @@ function installFixtureWallet(options) {
     bar.id = 'local-fixture-wallet'
     bar.style.cssText = 'position:sticky;top:0;z-index:2147483647;background:#fff3c4;color:#242424;border:2px solid #826000;padding:10px;font:14px/1.4 system-ui;display:flex;gap:12px;align-items:center;flex-wrap:wrap'
     const label = document.createElement('label')
-    label.textContent = 'Local fixture wallet · chain 31337 · account '
+    label.textContent = 'Local test wallet · chain 31337 · account '
     select = document.createElement('select')
     select.id = 'local-fixture-wallet-role'
     for (const name of Object.keys(addresses)) { const option = document.createElement('option'); option.value = name; option.textContent = name; select.append(option) }
@@ -117,7 +117,7 @@ function installFixtureWallet(options) {
     accountLabel.textContent = addresses[role]
     accountLabel.style.cssText = 'overflow-wrap:anywhere;min-width:0;max-width:100%'
     const explanation = document.createElement('span')
-    explanation.textContent = options.confirmTransactions ? 'Public test accounts. Confirming a send submits immediately. Not an extension wallet.' : 'Automated local fixture. Sends are handled by the test process.'
+    explanation.textContent = options.confirmTransactions ? 'Public test accounts. Confirming a send submits immediately on this local chain.' : 'Local test accounts. The test process submits transactions.'
     bar.append(label, accountLabel, explanation)
     document.body.prepend(bar)
   }

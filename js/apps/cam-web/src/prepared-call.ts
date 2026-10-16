@@ -14,17 +14,11 @@ export type PreparedCallField = {
 
 export function preparedCallFields(call: CamViewerPreparedContractCall): readonly PreparedCallField[] {
   return [
-    { label: "Route", value: call.route, mono: false },
-    { label: "Address", value: call.address, mono: true },
-    { label: "Function", value: call.function, mono: false },
-    { label: "Args", value: formatInertValue(call.args), mono: false },
+    { label: "Contract address", value: call.address, mono: true },
+    { label: "Contract function", value: call.function, mono: false },
+    { label: "Function inputs", value: formatInertValue(call.args), mono: false },
     ...(call.value === undefined
       ? []
-      : [{ label: "Value (wei)", value: formatInertValue(call.value), mono: true }]),
-    {
-      label: "Then",
-      value: `${call.then.namespace}.${call.then.function} ${formatInertValue(call.then.args)}`,
-      mono: false,
-    },
+      : [{ label: "Native amount to send (wei)", value: formatInertValue(call.value), mono: true }]),
   ]
 }

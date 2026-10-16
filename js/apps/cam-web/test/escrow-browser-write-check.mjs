@@ -179,7 +179,7 @@ function providerSource() {
     };
   })()`
 }
-const snapshotExpression = `({href:location.href,chainSwitches:window.__fixtureChainSwitches,readReached:window.__fixtureReadReached,text:document.body.innerText, submissionMethods:window.__fixtureSubmissionMethods, account:[...document.querySelectorAll('.connection dt')].find(x=>x.textContent==='Viewer account')?.nextElementSibling?.textContent, receiptReached:window.__fixtureReceiptReached, notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText), transaction:document.querySelector('.transaction-feedback')?.innerText, prepared:!!document.querySelector('.prepared-call'), buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})), inputs:[...document.querySelectorAll('input')].map(x=>({name:x.name,value:x.value,disabled:x.matches(':disabled')}))})`
+const snapshotExpression = `({href:location.href,chainSwitches:window.__fixtureChainSwitches,readReached:window.__fixtureReadReached,text:document.body.innerText, submissionMethods:window.__fixtureSubmissionMethods, account:[...document.querySelectorAll('.connection dt')].find(x=>x.textContent==='Selected account')?.nextElementSibling?.textContent, receiptReached:window.__fixtureReceiptReached, notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText), transaction:document.querySelector('.transaction-feedback')?.innerText, prepared:!!document.querySelector('.prepared-call'), buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})), inputs:[...document.querySelectorAll('input')].map(x=>({name:x.name,value:x.value,disabled:x.matches(':disabled')}))})`
 async function waitFor(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30000)
   let state
@@ -194,7 +194,7 @@ function showingActor(state, role) {
   const address = accounts[role].address.toLowerCase()
   return state.account?.toLowerCase().startsWith(address.slice(0, 6))
     && state.account.toLowerCase().endsWith(address.slice(-4))
-    && state.buttons.some(button => button.name === 'Switch wallet' && !button.disabled)
+    && state.buttons.some(button => button.name === 'Reconnect wallet' && !button.disabled)
 }
 async function click(label) {
   assert(await evaluate(`(() => {const button=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===${JSON.stringify(label)});if(!button||button.matches(':disabled'))return false;button.click();return true})()`), `Button unavailable: ${label}`)
@@ -419,7 +419,7 @@ try {
     assert.equal(await nonce(), before)
     assert.equal(owner.sent.length, 0)
     assert.equal((await agreement(ref)).state, 0, 'rejection must leave contract state unchanged')
-    await click('Discard prepared call')
+    await click('Discard transaction')
     await waitFor(view => !view.prepared, 'discard rejected unsent call')
   })
   await withCase('lost', async owner => {
@@ -439,7 +439,7 @@ try {
     await click('View account credit')
     const navigated = await waitFor(view => view.text.includes('Total withdrawable credit for this account (wei)'), 'navigation after uncertain submission')
     assert(navigated.transaction?.includes('may have been sent'), 'ordinary edits/navigation must preserve uncertainty')
-    assert(!navigated.buttons.some(button => ['Send with wallet', 'Discard prepared call'].includes(button.name)), 'old uncertain call must not offer retry or discard')
+    assert(!navigated.buttons.some(button => ['Send with wallet', 'Discard transaction'].includes(button.name)), 'old uncertain call must not offer retry or discard')
     assert.equal(owner.sendRequests, 1, 'navigation must not retry submission')
     assert.equal(await nonce(), before + 1n)
   })

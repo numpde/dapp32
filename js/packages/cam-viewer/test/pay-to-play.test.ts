@@ -69,6 +69,8 @@ test("wallet positions follow account changes while inspected customer positions
   const changed = await session.setAccount({ address: other })
   assert.equal((changed.values[0] as Record<string, unknown>).customer, customer)
   assert.equal(changed.state.lookupCustomer, customer)
+  const deposit = resolvedUiButtons(changed.resolvedUi).find(button => button.call.function === "fund")
+  assert.equal(deposit?.disabled, true, "A foreign selected account cannot deposit on the looked-up owner’s screen")
   const own = resolvedUiButtons(changed.resolvedUi).find(button => button.call.function === "myPosition")
   assert(own, "An inspected position needs an explicit path to the selected wallet's position")
 })
@@ -105,7 +107,7 @@ test("voucher details use Back to restore drafts and label direct position navig
   const details = session.snapshot()
   assert.equal(details.route, "voucherDigest")
   const fresh = resolvedUiButtons(details.resolvedUi!).find(button => button.call.function === "position")!
-  assert.equal(fresh.props.label, "Open position with fresh inputs")
+  assert.equal(fresh.props.label, "View balance with fresh inputs")
   const restored = await session.back()
   assert.equal(restored.state.cumulativeTotal, "20")
   assert.equal(restored.state.signature, "unfinished signature")
