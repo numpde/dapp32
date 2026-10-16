@@ -69,6 +69,7 @@ export type CamViewerSession = {
   readonly snapshot: () => CamViewerSnapshot
   readonly load: () => Promise<CamViewerLoadedSnapshot>
   readonly back: () => Promise<CamViewerLoadedSnapshot>
+  readonly refresh: () => Promise<CamViewerLoadedSnapshot>
   readonly navigate: (
     /** Undefined selects the loaded manifest entry. */
     route: string | undefined,

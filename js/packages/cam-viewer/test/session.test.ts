@@ -414,6 +414,28 @@ test("Back restores edited inputs across visits while refreshing read results; n
   assert.equal(fresh.state.accountInfo, "fresh chain info")
 })
 
+test("Refresh re-reads the current route and keeps compatible drafts and Back history", async () => {
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  const publicClient = createPublicClient(publicClientFixtureOptions({ routeResults }))
+  const session = createSession(sessionFixtureOptions({ publicClient }))
+  await session.load()
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  await session.navigate(BIKE_ROUTE_ENTRY, {})
+  const before = session.updateState({ serialNumber: "unfinished serial", accountInfo: "unfinished info" })
+  routeResults[BIKE_VIEW_ENTRY] = { ...bikeEntryRouteResult(userAddress), accountInfo: "fresh chain info" }
+  const refreshed = await session.refresh()
+  assert.equal(refreshed.route, BIKE_ROUTE_ENTRY)
+  assert.deepEqual(refreshed.inputs, before.inputs)
+  assert.equal(refreshed.account?.address, userAddress)
+  assert.equal(refreshed.state.serialNumber, "unfinished serial")
+  assert.equal(refreshed.state.accountInfo, "unfinished info")
+  assert.equal(mutableRecord(refreshed.values[0]).accountInfo, "fresh chain info")
+  assert.equal(refreshed.canGoBack, true)
+  assert.equal(publicClient.calls.at(-1)?.functionName, BIKE_VIEW_ENTRY)
+  assert.equal((await session.back()).route, BIKE_ROUTE_COMPONENT)
+  assert.equal((await session.back()).canGoBack, false)
+})
+
 test("Back drops edits whose inputs are absent from the refreshed view", async () => {
   const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
   routeResults[BIKE_VIEW_REGISTER] = bikeRegisterRouteResult(BIKE_UNKNOWN_SERIAL_NUMBER, userAddress)
@@ -430,7 +452,7 @@ test("Back drops edits whose inputs are absent from the refreshed view", async (
   assert.equal(Object.hasOwn(restored.state, "tokenURI"), false)
 })
 
-test("Back preserves visible drafts while refreshed contract availability disables and re-enables their controls", async () => {
+for (const operation of ["Back", "Refresh"] as const) test(`${operation} preserves visible drafts while refreshed contract availability disables and re-enables their controls`, async () => {
   const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
   const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
   const nodes = mutableRecord(ui.nodes)
@@ -456,12 +478,12 @@ test("Back preserves visible drafts while refreshed contract availability disabl
   session.updateState({ serialNumber: "unfinished draft" })
 
   for (const available of [false, true]) {
-    await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+    if (operation === "Back") await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
     routeResults[BIKE_VIEW_ENTRY] = {
       ...bikeEntryRouteResult(userAddress),
       actions: available ? ["lookupComponent"] : [],
     }
-    const restored = await session.back()
+    const restored = operation === "Back" ? await session.back() : await session.refresh()
     assert.equal(restored.state.serialNumber, "unfinished draft")
     let matchingControls = 0
     forEachResolvedUiNode(restored.resolvedUi, (node) => {
@@ -494,7 +516,7 @@ test("successful account changes and loads clear history", async () => {
   assert.equal((await session.load()).canGoBack, false)
 })
 
-test("failed navigation, Back, account changes and reloads preserve the view and history", async () => {
+test("failed navigation, Back, Refresh, account changes and reloads preserve the view and history", async () => {
   let failReads = false
   const publicClient = createPublicClient(publicClientFixtureOptions({}))
   const session = createSession(sessionFixtureOptions({ publicClient: {
@@ -511,6 +533,7 @@ test("failed navigation, Back, account changes and reloads preserve the view and
   for (const operation of [
     () => session.navigate(BIKE_ROUTE_ENTRY, {}),
     () => session.back(),
+    () => session.refresh(),
     () => session.setAccount({ address: otherUserAddress }),
     () => session.load(),
   ]) {

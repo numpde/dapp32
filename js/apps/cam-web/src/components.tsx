@@ -67,6 +67,7 @@ export function UiView({
   changingView,
   sending,
   onBack,
+  onRefresh,
   onAction,
   onInput,
   onAmount,
@@ -79,6 +80,7 @@ export function UiView({
   readonly changingView: boolean
   readonly sending: boolean
   readonly onBack: () => Promise<void>
+  readonly onRefresh: () => Promise<void>
   readonly onAction: (action: ResolvedButtonNode) => Promise<void>
   readonly onInput: (name: string, value: string) => void
   readonly onAmount: AmountEdit
@@ -91,6 +93,9 @@ export function UiView({
       <div className="ui-meta">
         <button type="button" disabled={changingView || sending || !snapshot.canGoBack} onClick={() => { void onBack() }}>
           Back
+        </button>
+        <button type="button" disabled={changingView || sending} onClick={() => { void onRefresh() }}>
+          Refresh
         </button>
         <span>{snapshot.route}</span>
         <span>{snapshot.uiURI}</span>

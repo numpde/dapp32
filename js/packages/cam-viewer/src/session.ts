@@ -164,6 +164,19 @@ export function createCamViewerSession({
       throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", "Cannot go back: there is no previous view")
     }
     const refreshed = await resolveLoadedView(current, previous.route, previous.inputs, account)
+    currentView = restoreDrafts(previous, refreshed)
+    history.pop()
+    return loadedSnapshot(currentView)
+  }
+
+  async function refresh(): Promise<CamViewerLoadedSnapshot> {
+    const view = assertCurrentView()
+    const refreshed = await resolveLoadedView(assertLoaded(), view.route, view.inputs, account)
+    currentView = restoreDrafts(view, refreshed)
+    return loadedSnapshot(currentView)
+  }
+
+  function restoreDrafts(previous: PreviousView, refreshed: CurrentView): CurrentView {
     const state = { ...refreshed.state }
     const numericDrafts = { ...refreshed.numericDrafts }
     for (const name of resolvedUiInputNames(refreshed.resolvedUi)) {
@@ -177,9 +190,7 @@ export function createCamViewerSession({
       } else if (Object.hasOwn(previous.state, name) && !Object.hasOwn(previous.numericDrafts, name)) state[name] = previous.state[name]
     }
     const resolvedUi = resolveCurrentUi(refreshed.route, refreshed.inputs, refreshed.values, state, numericDrafts)
-    currentView = { ...refreshed, state, resolvedUi, numericDrafts }
-    history.pop()
-    return loadedSnapshot(currentView)
+    return { ...refreshed, state, resolvedUi, numericDrafts }
   }
 
   async function setAccount(nextAccount?: CamViewerAccount): Promise<CamViewerLoadedSnapshot> {
@@ -470,6 +481,7 @@ export function createCamViewerSession({
     snapshot,
     load: () => changeView(load),
     back: () => changeView(back),
+    refresh: () => changeView(refresh),
     navigate: (route, inputs) => changeView(() => navigate(route, inputs)),
     setAccount: (nextAccount) => changeView(() => setAccount(nextAccount)),
     beginDocumentHash,

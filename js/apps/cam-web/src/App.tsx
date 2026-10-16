@@ -335,6 +335,25 @@ export function App(): ReactElement {
     }
   }
 
+  async function refreshView(): Promise<void> {
+    if (sendingRef.current || viewInteractionBlocked()) return
+    const ready = requireReadyState(loadState)
+    const revision = nextInteractionRevision()
+    setPreparedCall(undefined)
+    setNotice(undefined)
+    setViewChanging(true)
+    try {
+      const snapshot = await ready.runtime.session.refresh()
+      commitSnapshot(ready, snapshot)
+      if (!isCurrentInteraction(revision)) return
+      arriveAtFeedback("view")
+    } catch (error) {
+      if (isCurrentInteraction(revision)) showError(errorMessage(error), true)
+    } finally {
+      setViewChanging(false)
+    }
+  }
+
   function discardPreparedCall(): void {
     if (sendingRef.current || viewInteractionBlocked()) return
     invalidatePreparedInteraction()
@@ -672,6 +691,7 @@ export function App(): ReactElement {
           changingView={changingView || walletRefreshing || !walletAccountSynchronized}
           sending={sending}
           onBack={goBack}
+          onRefresh={refreshView}
           onAction={dispatch}
           onInput={updateInput}
           onAmount={updateAmount}
