@@ -181,7 +181,7 @@ async function inspect(customer, channelId) {
   await fill('lookupCustomer', customer)
   await fill('lookupChannelId', channelId)
   await click('Open position')
-  await wait(state => state.values['Customer being inspected']?.toLowerCase() === customer.toLowerCase() && state.values['Channel ID'] === channelId, 'position lookup')
+  await wait(state => state.values['Customer account']?.toLowerCase() === customer.toLowerCase() && state.values['Channel ID'] === channelId, 'position lookup')
 }
 async function role(name) {
   await evaluate(`(()=>{const select=document.getElementById("local-fixture-wallet-role");select.value=${JSON.stringify(name)};select.dispatchEvent(new Event("change"));return true})()`)
@@ -239,6 +239,7 @@ try {
     types: { Voucher: [{ name: 'customer', type: 'address' }, { name: 'channelId', type: 'uint256' }, { name: 'cumulativeTotal', type: 'uint256' }] },
     primaryType: 'Voucher', message: { customer: accounts.customer.address, channelId: BigInt(id), cumulativeTotal: 60n },
   })
+  await inspect(accounts.customer.address, id)
   await role('relayer')
   state = await wait(state => state.buttons.some(button => button.name === 'Prepare funding' && button.disabled), 'relayer cannot fund inspected customer')
   disabled(state, 'Prepare withdrawal request')

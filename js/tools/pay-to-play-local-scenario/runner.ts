@@ -73,7 +73,9 @@ async function main(): Promise<void> {
     await session.navigate("position", inert({ customer: accounts.customer.address, channelId }))
   }
   async function write(role: Role, route: string, state: Record<string, unknown>) {
+    const inspected = view()
     await session.setAccount({ address: accounts[role].address })
+    await session.navigate("position", inert({ customer: inspected.customer, channelId: inspected.channelId }))
     session.updateState(inert(state))
     const prepared = await session.dispatchAction(action(route, false))
     assert.equal(prepared.type, "contractCall")

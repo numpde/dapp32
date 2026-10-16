@@ -1,14 +1,11 @@
 {
   "ui": "1.0.0",
   "nodes": {
-    "position": {
+    "positionFields": {
       "requires": [
         "view"
       ],
-      "element": "Screen",
-      "props": {
-        "title": "Pay-to-Play"
-      },
+      "element": "Fragment",
       "children": [
         {
           "element": "Text",
@@ -19,7 +16,7 @@
         {
           "element": "Status",
           "props": {
-            "label": "Customer being inspected",
+            "label": "Customer account",
             "value": "$view.customer"
           }
         },
@@ -107,6 +104,19 @@
           }
         },
         {
+          "element": "Button",
+          "props": {
+            "label": "Open my wallet position"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "myPosition",
+            "args": {
+              "channelId": "$view.channelId"
+            }
+          }
+        },
+        {
           "element": "Text",
           "props": {
             "text": "Open another position"
@@ -119,7 +129,7 @@
           },
           "state": {
             "key": "lookupCustomer",
-            "defaultValue": ""
+            "defaultValue": "$view.customer"
           }
         },
         {
@@ -187,7 +197,6 @@
             "namespace": "routes",
             "function": "fund",
             "args": {
-              "customer": "$view.customer",
               "channelId": "$view.channelId",
               "amount": "$state.fundAmount"
             }
@@ -238,7 +247,6 @@
             "namespace": "routes",
             "function": "requestWithdrawal",
             "args": {
-              "customer": "$view.customer",
               "channelId": "$view.channelId",
               "amount": "$state.withdrawAmount"
             }
@@ -257,7 +265,6 @@
             "namespace": "routes",
             "function": "setWithdrawal",
             "args": {
-              "customer": "$view.customer",
               "channelId": "$view.channelId",
               "amount": "$state.withdrawAmount"
             }
@@ -314,7 +321,6 @@
             "namespace": "routes",
             "function": "move",
             "args": {
-              "customer": "$view.customer",
               "channelId": "$view.channelId",
               "targetId": "$state.targetId"
             }
@@ -581,6 +587,60 @@
             "args": {
               "customer": "$view.customer",
               "channelId": "$view.channelId"
+            }
+          }
+        }
+      ]
+    },
+    "myPosition": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Pay-to-Play"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "My wallet position follows the selected wallet. Switching wallet accounts opens this channel for the new account and clears unfinished inputs."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionFields",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "position": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Pay-to-Play"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "This customer position stays fixed when the wallet changes. The selected wallet determines which actions the contract makes available; switching accounts clears unfinished inputs."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "positionFields",
+            "args": {
+              "view": "$view"
             }
           }
         }

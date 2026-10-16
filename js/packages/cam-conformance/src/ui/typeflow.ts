@@ -76,7 +76,7 @@ type RouteInputCollector = {
   readonly names: Set<string>
   hasUnknown: boolean
 }
-type ValueExpectation = "address" | "integer-or-string" | "string" | "string-array" | "string-or-string-array"
+type ValueExpectation = "string-or-address" | "address" | "integer-or-string" | "string" | "string-array" | "string-or-string-array"
 type ValueResolver = (value: unknown) => unknown | undefined
 type IncludeSelection = {
   readonly names: readonly string[]
@@ -252,12 +252,12 @@ function validateStateBinding(
 ): void {
   if ((element !== "TextField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField") || !isRecordObject(node.state)) return
 
-  // ABI integers normalize to decimal strings before numeric defaults resolve;
-  // conformance retains the existing string-type expectation for text and
-  // document-hash defaults.
-  const expectation: ValueExpectation = element === "AmountField" || element === "NonNegativeIntegerField"
-    ? "integer-or-string"
-    : "string"
+  // Addresses normalize to strings accepted by editable text fields. Hash
+  // defaults retain their stricter string expectation; numeric fields separately
+  // accept normalized ABI integers.
+  const expectation: ValueExpectation = element === "TextField"
+    ? "string-or-address"
+    : element === "AmountField" || element === "NonNegativeIntegerField" ? "integer-or-string" : "string"
   const label = `${element} state.defaultValue`
   const value = node.state.defaultValue
   const valuePath = `${path}.state.defaultValue`
@@ -1041,6 +1041,8 @@ function isInvalidAddressLiteral(value: unknown, expectation: ValueExpectation):
 function abiValueMatches(value: unknown, expectation: ValueExpectation): boolean {
   const type = abiType(value)
   switch (expectation) {
+    case "string-or-address":
+      return type === "address" || type === "string" || type === "literal-string"
     case "address":
       return type === "address" || type === "literal-string"
     case "integer-or-string":

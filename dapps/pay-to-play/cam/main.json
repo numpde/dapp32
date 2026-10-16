@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x510ed766aca47beff97f3ce16854b2ef4522220f6cfc53ce937228a7098ecc7d"
+      "integrity": "sha256:0x25644fa28cf86e30d81a3e3397f69017009ffb344dacca75a2e60190900dbd1f"
     }
   },
   "routes": {
@@ -35,7 +35,7 @@
       },
       "then": {
         "namespace": "ui",
-        "function": "position",
+        "function": "myPosition",
         "args": {
           "view": "$outputs.0"
         }
@@ -111,7 +111,6 @@
     "fund": {
       "kind": "write",
       "inputs": [
-        "customer",
         "channelId",
         "amount"
       ],
@@ -125,9 +124,8 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "position",
+        "function": "myPosition",
         "args": {
-          "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
         }
       }
@@ -135,7 +133,6 @@
     "requestWithdrawal": {
       "kind": "write",
       "inputs": [
-        "customer",
         "channelId",
         "amount"
       ],
@@ -149,9 +146,8 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "position",
+        "function": "myPosition",
         "args": {
-          "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
         }
       }
@@ -159,7 +155,6 @@
     "setWithdrawal": {
       "kind": "write",
       "inputs": [
-        "customer",
         "channelId",
         "amount"
       ],
@@ -173,9 +168,8 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "position",
+        "function": "myPosition",
         "args": {
-          "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
         }
       }
@@ -206,7 +200,6 @@
     "move": {
       "kind": "write",
       "inputs": [
-        "customer",
         "channelId",
         "targetId"
       ],
@@ -220,9 +213,8 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "position",
+        "function": "myPosition",
         "args": {
-          "customer": "$inputs.customer",
           "channelId": "$inputs.channelId"
         }
       }
@@ -281,6 +273,28 @@
             "cumulativeTotal": "$inputs.cumulativeTotal",
             "chainId": "$host.chainId"
           }
+        }
+      }
+    },
+    "myPosition": {
+      "kind": "read",
+      "inputs": [
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$account.address",
+          "channelId": "$inputs.channelId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "myPosition",
+        "args": {
+          "view": "$outputs.0"
         }
       }
     }

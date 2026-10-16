@@ -3356,6 +3356,16 @@ test("UI typeflow rejects non-string TextField state defaults", () => {
   ])
 })
 
+test("TextField defaults accept normalized ABI addresses without relaxing hash fields", () => {
+  const abiBytes = jsonBytes([{ ...viewEntryFunction(), outputs: [{ name: "value", type: "address" }] }])
+  for (const element of ["TextField", "DocumentHashField"]) {
+    const uiBytes = jsonBytes({ ui: UI_VERSION, nodes: { app: { element, requires: ["view"], props: element === "DocumentHashField" ? { label: "Value", algorithm: "sha256" } : { label: "Value" }, state: { key: "draft", defaultValue: "$view" } } } })
+    const issues = validateEditedRoot<RootWithNamespacesAndRoutes>((root, bundle) => replaceBundleResources(root, bundle, { uiBytes, abiBytes }))
+    if (element === "TextField") assert.deepEqual(issues, [])
+    else assert(issues.some(issue => issue.rule === "CAM_UI_TYPEFLOW_MISMATCH"))
+  }
+})
+
 test("numeric field defaults accept normalized ABI integers and strings", () => {
   for (const element of ["NonNegativeIntegerField", "AmountField"]) {
     for (const type of ["uint8", "uint256", "int256", "string"]) {
