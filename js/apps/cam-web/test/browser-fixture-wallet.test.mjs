@@ -97,3 +97,111 @@ test('reload cannot sign for an old document or resolve a new document request w
   assert.equal(replies[0].contextId, 10)
   assert(!replies[0].expression.includes('old hash'))
 })
+
+for (const failure of ['timeout', 'error', 'close']) {
+  test(`failed socket handshake (${failure}) closes the socket and removes initialization listeners`, async () => {
+    const { awaitFixtureSocketOpen } = await import('../../../tools/browser-fixture-wallet.mjs')
+    const listeners = new Map()
+    let closes = 0
+    const socket = {
+      addEventListener(name, fn) { listeners.set(name, fn) },
+      removeEventListener(name, fn) { if (listeners.get(name) === fn) listeners.delete(name) },
+      close() { closes++ },
+    }
+    const opening = awaitFixtureSocketOpen(socket, 5)
+    if (failure !== 'timeout') listeners.get(failure)()
+    await assert.rejects(opening, /CDP connection/)
+    assert.equal(closes, 1)
+    assert.equal(listeners.size, 0)
+  })
+}
+
+test('successful socket handshake releases initialization listeners without closing the live socket', async () => {
+  const { awaitFixtureSocketOpen } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const listeners = new Map()
+  let closes = 0
+  const socket = { addEventListener(name, fn) { listeners.set(name, fn) }, removeEventListener(name) { listeners.delete(name) }, close() { closes++ } }
+  const opening = awaitFixtureSocketOpen(socket, 5)
+  listeners.get('open')()
+  await opening
+  await new Promise(resolve => setTimeout(resolve, 10))
+  assert.equal(closes, 0)
+  assert.equal(listeners.size, 0)
+})
+
+for (const failure of ['Page.removeScriptToEvaluateOnNewDocument', 'Runtime.evaluate', 'Runtime.removeBinding']) {
+  test(`disposal still attempts all owned cleanup after ${failure} fails`, async () => {
+    const { installFixtureWalletInTarget } = await import('../../../tools/browser-fixture-wallet.mjs')
+    const cleanup = []
+    let disposing = false
+    const installed = await installFixtureWalletInTarget(async method => {
+      if (disposing) { cleanup.push(method); if (method === failure) throw new Error('cleanup transport failed') }
+      return { result: { value: false }, identifier: 'owned-script' }
+    }, 'fixture source')
+    disposing = true
+    await assert.rejects(installed.dispose(), error => error instanceof AggregateError && error.errors.length === 1)
+    assert.deepEqual(cleanup, ['Page.removeScriptToEvaluateOnNewDocument', 'Runtime.evaluate', 'Runtime.removeBinding'])
+  })
+}
+
+test('failed script registration releases the binding and retains both initialization and cleanup failures', async () => {
+  const { installFixtureWalletInTarget } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const effects = []
+  await assert.rejects(installFixtureWalletInTarget(async method => {
+    effects.push(method)
+    if (method === 'Page.addScriptToEvaluateOnNewDocument') throw new Error('registration failed')
+    if (method === 'Runtime.removeBinding') throw new Error('binding cleanup failed')
+    return { result: { value: false } }
+  }, 'fixture source'), error => error instanceof AggregateError && error.errors.length === 2)
+  assert.deepEqual(effects, ['Runtime.evaluate', 'Runtime.addBinding', 'Page.addScriptToEvaluateOnNewDocument', 'Runtime.removeBinding'])
+})
+
+test('uncertain binding registration attempts removal without touching a reload script or operator tab', async () => {
+  const { installFixtureWalletInTarget } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const effects = []
+  await assert.rejects(installFixtureWalletInTarget(async method => {
+    effects.push(method)
+    if (method === 'Runtime.addBinding') throw new Error('binding reply lost')
+    return { result: { value: false } }
+  }, 'fixture source'), error => error instanceof AggregateError && error.errors.length === 1)
+  assert.deepEqual(effects, ['Runtime.evaluate', 'Runtime.addBinding', 'Runtime.removeBinding'])
+})
+
+test('throwing account subscriber cannot orphan the owned provider or selector during shutdown', () => {
+  const { owner, window, elements } = install(undefined)
+  window.ethereum.on('accountsChanged', () => { throw new Error('subscriber failed') })
+  assert.throws(() => owner.shutdown(), /subscriber failed/)
+  assert.equal(window.ethereum, undefined)
+  assert.equal(window.__fixtureWallet, undefined)
+  assert(!elements.has('local-fixture-wallet'))
+})
+
+test('browser shutdown exception is reported while binding removal still runs', async () => {
+  const { installFixtureWalletInTarget } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const effects = []
+  let disposing = false
+  const installed = await installFixtureWalletInTarget(async method => {
+    effects.push(method)
+    if (disposing && method === 'Runtime.evaluate') return { exceptionDetails: { text: 'subscriber failed' } }
+    return { result: { value: false }, identifier: 'owned-script' }
+  }, 'fixture source')
+  disposing = true
+  await assert.rejects(installed.dispose(), error => error instanceof AggregateError && /Runtime.evaluate/.test(error.message))
+  assert.equal(effects.at(-1), 'Runtime.removeBinding')
+})
+
+test('attachment finalization closes its submission gate and transports while retaining primary and disposal failures', async () => {
+  const { finishFixtureAttachment } = await import('../../../tools/browser-fixture-wallet.mjs')
+  const primary = new Error('reload failed')
+  const cleanup = new Error('disposal failed')
+  const effects = []
+  await assert.rejects(finishFixtureAttachment({
+    primaryFailure: primary,
+    stopSubmissions() { effects.push('stop submissions') },
+    wallet: { async dispose() { effects.push('dispose'); throw cleanup } },
+    commands: { close() { effects.push('close commands') } },
+    socket: { close() { effects.push('close socket') } },
+    pending: [],
+  }), error => error instanceof AggregateError && error.errors.includes(primary) && error.errors.includes(cleanup))
+  assert.deepEqual(effects, ['stop submissions', 'dispose', 'close commands', 'close socket'])
+})

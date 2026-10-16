@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { createPublicClient, createWalletClient, http, parseAbi, sha256, toFunctionSelector } from 'viem'
 import { requireHttpURL, requireSameHttpOrigin, readBoundedResponseBytes } from '@cam/protocol'
-import { fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest } from './browser-fixture-wallet.mjs'
+import { fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
 import { createCdpCommands, submitFixtureTransaction } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
 
 let phase = 'validating app account configuration'
@@ -66,10 +66,11 @@ async function main() {
   assert.equal(socketURL.protocol, 'ws:'); assert.equal(socketURL.host, cdp.host)
   assert(!socketURL.username && !socketURL.password)
   const socket = new WebSocket(socketURL)
-  await new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error('CDP connection timed out')), 10000); socket.addEventListener('open', () => { clearTimeout(timer); resolve() }, { once: true }); socket.addEventListener('error', () => { clearTimeout(timer); reject(new Error('CDP connection failed')) }, { once: true }) })
+  await awaitFixtureSocketOpen(socket, 10000)
   const commands = createCdpCommands({ socket, now: Date.now, runDeadline: Infinity })
   let session
   let installed
+  let primaryFailure
   let stop
   const stopped = new Promise(resolve => { stop = resolve })
   process.once('SIGINT', () => stop()); process.once('SIGTERM', () => stop())
@@ -132,7 +133,10 @@ async function main() {
     session = (await call('Target.attachToTarget', { targetId, flatten: true })).sessionId
     await call('Page.enable', {}); await call('Runtime.enable', {})
     phase = 'installing the fixture provider (an existing wallet must be removed first)'
-    installed = await installFixtureWalletInTarget(call, fixtureWalletSource({ accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])), initialRole: config.initialRole, origin: viewer.origin, host: root, confirmTransactions: true }))
+    try { installed = await installFixtureWalletInTarget(call, fixtureWalletSource({ accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])), initialRole: config.initialRole, origin: viewer.origin, host: root, confirmTransactions: true })) } catch (installationFailure) {
+      if (installationFailure instanceof AggregateError) process.stderr.write(installationFailure.message+'\n')
+      throw installationFailure
+    }
     await call('Page.reload', { ignoreCache: true })
     const until = Date.now() + 10000
     let ready = false
@@ -145,12 +149,14 @@ async function main() {
     phase = 'maintaining the fixture attachment'
     process.stdout.write(JSON.stringify({ event: 'fixture_wallet_attached', targetId, app, initialRole: config.initialRole, reload: 'Reconnect the app wallet after reload; selection resets to the configured initial account.', stop: 'Ctrl-C removes the selector and provider without closing the tab.' })+'\n')
     await stopped
+  } catch (failure) {
+    primaryFailure = failure
   } finally {
-    open = false
-    try {
-      if (installed !== undefined) await installed.dispose()
-      await Promise.allSettled([...pending])
-    } finally { commands.close(); socket.close() }
+    await finishFixtureAttachment({ stopSubmissions: () => { open = false }, wallet: installed, pending, commands, socket, primaryFailure })
   }
 }
-main().catch(() => { process.stderr.write(`Cannot maintain the local fixture wallet during ${phase}. Verify the selected tab and pinned local deployment.\n`); process.exitCode = 1 })
+main().catch(failure => {
+  if (failure instanceof AggregateError) process.stderr.write(failure.message+'\n')
+  process.stderr.write(`Cannot maintain the local fixture wallet during ${phase}. Verify the selected tab and pinned local deployment.\n`)
+  process.exitCode = 1
+})

@@ -90,11 +90,12 @@ function installFixtureWallet(options) {
       closed = true
       for (const request of pending.values()) request.reject(failure('Fixture wallet stopped', 4900))
       pending.clear()
-      emit('accountsChanged', [])
-      listeners.clear()
-      document.getElementById('local-fixture-wallet')?.remove()
-      if (window.ethereum === provider) delete window.ethereum
-      if (window.__fixtureWallet === owner) delete window.__fixtureWallet
+      try { emit('accountsChanged', []) } finally {
+        listeners.clear()
+        document.getElementById('local-fixture-wallet')?.remove()
+        if (window.ethereum === provider) delete window.ethereum
+        if (window.__fixtureWallet === owner) delete window.__fixtureWallet
+      }
     },
   }
   window.ethereum = provider
@@ -128,13 +129,36 @@ function installFixtureWallet(options) {
 export async function installFixtureWalletInTarget(call, source) {
   const existing = await call('Runtime.evaluate', { expression: 'window.ethereum !== undefined', returnByValue: true })
   if (existing.exceptionDetails || existing.result.value !== false) throw new Error('A wallet is already installed in this tab')
-  await call('Runtime.addBinding', { name: 'fixtureWalletBridge' })
-  const registration = await call('Page.addScriptToEvaluateOnNewDocument', { source })
+  let registration
+  let installing = 'Runtime.addBinding'
+  try {
+    await call('Runtime.addBinding', { name: 'fixtureWalletBridge' })
+    installing = 'Page.addScriptToEvaluateOnNewDocument'
+    registration = await call(installing, { source })
+  } catch (initializationFailure) {
+    const failures = [initializationFailure]
+    let outcome = 'binding removal completed'
+    try { await call('Runtime.removeBinding', { name: 'fixtureWalletBridge' }) } catch (cleanupFailure) {
+      failures.push(cleanupFailure)
+      outcome = 'binding removal also failed'
+    }
+    throw new AggregateError(failures, `Cannot install the fixture wallet: ${installing} failed; ${outcome}`)
+  }
   return {
     async dispose() {
-      await call('Page.removeScriptToEvaluateOnNewDocument', { identifier: registration.identifier })
-      await call('Runtime.evaluate', { expression: 'window.__fixtureWallet?.shutdown()', awaitPromise: true })
-      await call('Runtime.removeBinding', { name: 'fixtureWalletBridge' })
+      const failures = []
+      const failedOperations = []
+      for (const [method, params] of [
+        ['Page.removeScriptToEvaluateOnNewDocument', { identifier: registration.identifier }],
+        ['Runtime.evaluate', { expression: 'window.__fixtureWallet?.shutdown()', awaitPromise: true }],
+        ['Runtime.removeBinding', { name: 'fixtureWalletBridge' }],
+      ]) {
+        try {
+          const result = await call(method, params)
+          if (method === 'Runtime.evaluate' && result.exceptionDetails !== undefined) throw new Error('Fixture wallet shutdown raised an exception in the browser')
+        } catch (failure) { failures.push(failure); failedOperations.push(method) }
+      }
+      if (failures.length !== 0) throw new AggregateError(failures, `Cannot fully detach the fixture wallet: ${failedOperations.join(', ')} failed`)
     },
   }
 }
@@ -149,5 +173,62 @@ export function fixtureDocumentRequest({ executionContextId, documents, isOpen, 
     async resolve(id, ok, value) {
       if (shouldContinue()) await call('Runtime.evaluate', { contextId: executionContextId, expression: `window.__fixtureWallet?.resolve(${JSON.stringify(id)},${ok},${JSON.stringify(value)})` })
     },
+  }
+}
+
+
+// Initialization owns the connecting socket until its handshake succeeds.
+export function awaitFixtureSocketOpen(socket, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const timer = setTimeout(() => fail('CDP connection timed out'), timeoutMs)
+    function releaseListeners() {
+      clearTimeout(timer)
+      socket.removeEventListener('open', opened)
+      socket.removeEventListener('error', failed)
+      socket.removeEventListener('close', closed)
+    }
+    function opened() {
+      if (settled) return
+      settled = true
+      releaseListeners()
+      resolve()
+    }
+    function fail(message) {
+      if (settled) return
+      settled = true
+      releaseListeners()
+      const failure = new Error(message)
+      try { socket.close() } catch (closeFailure) {
+        reject(new AggregateError([failure, closeFailure], 'Cannot close the failed CDP connection'))
+        return
+      }
+      reject(failure)
+    }
+    function failed() { fail('CDP connection failed') }
+    function closed() { fail('CDP connection closed before opening') }
+    socket.addEventListener('open', opened)
+    socket.addEventListener('error', failed)
+    socket.addEventListener('close', closed)
+  })
+}
+
+
+// Finalization owns the broadcast gate, installed wallet and both transports.
+export async function finishFixtureAttachment({ stopSubmissions, wallet, pending, commands, socket, primaryFailure }) {
+  stopSubmissions()
+  const failures = []
+  const failedOperations = []
+  if (primaryFailure !== undefined) failures.push(primaryFailure)
+  if (wallet !== undefined) {
+    try { await wallet.dispose() } catch (failure) { failures.push(failure); failedOperations.push('wallet disposal') }
+  }
+  try { commands.close() } catch (failure) { failures.push(failure); failedOperations.push('CDP command closure') }
+  try { socket.close() } catch (failure) { failures.push(failure); failedOperations.push('socket closure') }
+  await Promise.allSettled([...pending])
+  if (failures.length !== 0) {
+    let message = 'Fixture attachment failed'
+    if (failedOperations.length !== 0) message += `; cleanup failed during ${failedOperations.join(', ')}. Reload the tab before reattaching`
+    throw new AggregateError(failures, message)
   }
 }
