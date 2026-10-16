@@ -205,7 +205,7 @@ try {
   await call('Page.addScriptToEvaluateOnNewDocument', { source: provider })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await call('Page.navigate', { url: viewer.href })
-  await wait(state => state.text.includes('Service payment channels'), 'cold entry')
+  await wait(state => state.text.includes('Pay-to-Play'), 'cold entry')
   await click('Connect wallet')
   await wait(state => state.buttons.some(button => button.name === 'Switch wallet'), 'wallet connection')
   const id = String(await publicClient.readContract({ address: payments, abi, functionName: 'channelCount' }))

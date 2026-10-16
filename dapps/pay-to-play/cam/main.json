@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x145e960c88133ff8df0c2786c9b5e0f8a9305a8a7244aae9d8fc7ea40ea5e20a"
+      "integrity": "sha256:0x510ed766aca47beff97f3ce16854b2ef4522220f6cfc53ce937228a7098ecc7d"
     }
   },
   "routes": {
