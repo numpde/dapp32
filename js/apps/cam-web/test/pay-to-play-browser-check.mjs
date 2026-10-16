@@ -1,10 +1,11 @@
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
 import { AssertionError } from 'node:assert'
-import { readFileSync } from 'node:fs'
 import { createPublicClient, createWalletClient, http, parseAbi, sha256, toFunctionSelector } from 'viem'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
-import { createCdpCommands, fixtureAccount, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import { createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import { fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import walletConfig from './pay-to-play-fixture-wallet.mjs'
 
 function localURL(value, label) {
   const url = requireHttpURL(value, label)
@@ -65,13 +66,7 @@ const abi = JSON.parse(resources.get(declaration.abiURI).toString())
 const payments = await publicClient.readContract({ address: root, abi: rootABI, functionName: 'contractAddress', args: ['PayToPlay'] })
 assert(!/^0x0+$/.test(payments), 'PayToPlay binding must exist')
 assert.notEqual(await rpc('eth_getCode', [payments, 'latest']), '0x')
-const fixture = readFileSync('/fixture/deploy.yml', 'utf8')
-const accounts = {
-  admin: fixtureAccount(fixture, 'PRIVATE_KEY', 'ba'),
-  customer: fixtureAccount(fixture, 'PAY_TO_PLAY_CUSTOMER_PRIVATE_KEY', 'ca'),
-  relayer: fixtureAccount(fixture, 'PAY_TO_PLAY_RELAYER_PRIVATE_KEY', 'da'),
-  payee: fixtureAccount(fixture, 'PAY_TO_PLAY_PAYEE_PRIVATE_KEY', 'fa'),
-}
+const accounts = fixtureWalletAccounts(walletConfig.accounts)
 assert.equal(viewer.searchParams.get('account').toLowerCase(), accounts.admin.address.toLowerCase())
 assert.equal((await publicClient.readContract({ address: payments, abi, functionName: 'owner' })).toLowerCase(), accounts.admin.address.toLowerCase())
 const allowed = new Set(['createChannel', 'fund', 'requestWithdrawal', 'setWithdrawal', 'collect'])
@@ -136,13 +131,13 @@ async function bridge(request) {
   } catch {
     result = { code: -32602, message: 'Fixture provider rejected an unsupported payment-channel transaction' }
   }
-  if (open) await evaluate(`window.__paymentResolve(${JSON.stringify(request.id)},${ok},${JSON.stringify(result)})`)
+  if (open) await evaluate(`window.__fixtureWallet.resolve(${JSON.stringify(request.id)},${ok},${JSON.stringify(result)})`)
 }
 ws.addEventListener('message', event => {
   const message = JSON.parse(event.data)
   if (message.id) return commands.receive(message)
   if (message.sessionId !== sessionId) return
-  if (message.method === 'Runtime.bindingCalled' && message.params.name === 'paymentWalletBridge') {
+  if (message.method === 'Runtime.bindingCalled' && message.params.name === 'fixtureWalletBridge') {
     const task = bridge(JSON.parse(message.params.payload))
     bridgeTasks.add(task)
     task.finally(() => bridgeTasks.delete(task)).catch(() => {})
@@ -154,23 +149,10 @@ ws.addEventListener('message', event => {
     task.catch(() => {})
   }
 })
-const provider = `(() => {
-  const accounts=${JSON.stringify(Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])))}, pending=new Map(), listeners=new Map();
-  let role='admin', next=0;
-  window.__paymentResolve=(id,ok,value)=>{const p=pending.get(id);if(!p)return;pending.delete(id);ok?p.resolve(value):p.reject(Object.assign(new Error(value.message),{code:value.code}))};
-  window.__paymentRole=value=>{if(!accounts[value])throw Error('unknown fixture role');role=value;const subscriptions=listeners.get('accountsChanged');if(subscriptions)for(const fn of subscriptions)fn([accounts[role]])};
-  window.ethereum={
-    request:({method,params})=>{
-      if(method==='eth_requestAccounts'||method==='eth_accounts')return Promise.resolve([accounts[role]]);
-      if(method==='eth_chainId')return Promise.resolve('0x7a69');
-      if(method==='wallet_switchEthereumChain'&&params?.[0]?.chainId==='0x7a69')return Promise.resolve(null);
-      if(method!=='eth_sendTransaction')return Promise.reject(Object.assign(new Error('Unsupported fixture method'),{code:4200}));
-      return new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.paymentWalletBridge(JSON.stringify({id,role,method,params}))});
-    },
-    on:(event,fn)=>{if(!listeners.has(event))listeners.set(event,new Set());listeners.get(event).add(fn);return window.ethereum},
-    removeListener:(event,fn)=>listeners.get(event)?.delete(fn)
-  };
-})()`
+const provider = fixtureWalletSource({
+  accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])),
+  initialRole: 'admin', origin: viewer.origin, host: root, confirmTransactions: false,
+})
 const snapshot = `({text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(x=>[x.firstElementChild?.textContent,x.lastElementChild?.textContent])),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
 async function wait(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30_000)
@@ -202,7 +184,7 @@ async function inspect(customer, channelId) {
   await wait(state => state.values['Customer being inspected']?.toLowerCase() === customer.toLowerCase() && state.values['Channel ID'] === channelId, 'position lookup')
 }
 async function role(name) {
-  await evaluate(`window.__paymentRole(${JSON.stringify(name)});true`)
+  await evaluate(`(()=>{const select=document.getElementById("local-fixture-wallet-role");select.value=${JSON.stringify(name)};select.dispatchEvent(new Event("change"));return true})()`)
   await wait(state => state.buttons.some(button => button.name === 'Switch wallet' && !button.disabled), `${name} account refresh`)
 }
 function disabled(state, label) {
@@ -219,7 +201,7 @@ try {
   await call('Runtime.enable', {})
   await call('Network.enable', {})
   await call('Network.setCacheDisabled', { cacheDisabled: true })
-  await call('Runtime.addBinding', { name: 'paymentWalletBridge' })
+  await call('Runtime.addBinding', { name: 'fixtureWalletBridge' })
   await call('Page.addScriptToEvaluateOnNewDocument', { source: provider })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   await call('Page.navigate', { url: viewer.href })
@@ -227,7 +209,7 @@ try {
   await click('Connect wallet')
   await wait(state => state.buttons.some(button => button.name === 'Switch wallet'), 'wallet connection')
   const id = String(await publicClient.readContract({ address: payments, abi, functionName: 'channelCount' }))
-  await fill('newPayee', accounts.payee.address)
+  await fill('newPayee', accounts.recipient.address)
   await fill('newClaimPeriod', '60')
   await send('Prepare new channel')
   await inspect(accounts.customer.address, id)

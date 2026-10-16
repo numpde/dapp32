@@ -2,10 +2,11 @@
 // DOM activation proves application behavior, not physical input or extension UI.
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
-import { createPublicClient, createWalletClient, http, sha256, parseAbi, toFunctionSelector } from 'viem'
+import { createPublicClient, createWalletClient, http, sha256, parseAbi, toFunctionSelector, toHex } from 'viem'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
-import { createCdpCommands, fixtureAccount, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import { createCdpCommands, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import { fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import walletConfig from './escrow-fixture-wallet.mjs'
 
 function endpoint(value, name, local) {
   const parsed = new URL(requireHttpURL(value, name).href)
@@ -74,12 +75,7 @@ assert.notEqual(await rpc('eth_getCode', [escrow, 'latest']), '0x', 'Escrow bind
 const allowedNames = new Set(['createAgreement', 'acceptAgreement', 'submitAgreement', 'disputeAgreement', 'resolveForContractor', 'withdrawTo'])
 const allowedSelectors = new Set(abi.filter(entry => entry.type === 'function' && allowedNames.has(entry.name)).map(toFunctionSelector))
 assert.equal(allowedSelectors.size, allowedNames.size, 'fixture ABI must expose each allowed action once')
-const fixture = readFileSync('/fixture/deploy.yml', 'utf8')
-const accounts = {
-  client: fixtureAccount(fixture, 'PRIVATE_KEY', 'ba'),
-  contractor: fixtureAccount(fixture, 'ESCROW_CONTRACTOR_PRIVATE_KEY', 'ca'),
-  arbitrator: fixtureAccount(fixture, 'ESCROW_ARBITRATOR_PRIVATE_KEY', 'da'),
-}
+const accounts = fixtureWalletAccounts(walletConfig.accounts)
 assert.equal(accounts.client.address.toLowerCase(), viewer.searchParams.get('account').toLowerCase(), 'viewer account must be fixture client')
 const wallets = Object.fromEntries(Object.entries(accounts).map(([role, account]) => [role, createWalletClient({ account, chain, transport: http(rpcUrl.href, { retryCount: 0, timeout: 10000 }) })]))
 const MAX_VALUE = 1000000000000000n
@@ -168,27 +164,18 @@ ws.addEventListener('message', event => {
 })
 function providerSource() {
   const addresses = Object.fromEntries(Object.entries(accounts).map(([role, account]) => [role, account.address]))
-  return `(() => {
-    const addresses=${JSON.stringify(addresses)}, pending=new Map(), listeners=new Map();
-    let role='client', next=0, chainId='0x7a69', connected=true;
-    const emit=(event,value)=>{const handlers=listeners.get(event);if(handlers===undefined)return;for(const fn of [...handlers])fn(value)};
+  return fixtureWalletSource({ accounts: addresses, initialRole: 'client', origin: viewer.origin, host: viewer.searchParams.get('host'), confirmTransactions: false }) + `;
+  (()=>{
+    const owner=window.__fixtureWallet, request=owner.provider.request;
     window.__fixtureSubmissionMethods=[];window.__fixtureChainSwitches=0;
-    window.__fixtureResolve=(id,ok,value)=>{const request=pending.get(id);if(!request)return;pending.delete(id);if(ok)request.resolve(value);else{const error=new Error(value.message);error.code=value.code;request.reject(error)}};
-    window.__fixtureSetRole=nextRole=>{if(!Object.hasOwn(addresses,nextRole))throw Error('unknown fixture actor');role=nextRole;connected=true;emit('accountsChanged',[addresses[role]])};
-    window.__fixtureEmptyAccounts=()=>{connected=false;emit('accountsChanged',[])};
-    window.__fixtureSetChain=nextChain=>{if(chainId!==nextChain){chainId=nextChain;emit('chainChanged',chainId)}};
-    window.ethereum={
-      request:({method,params})=>{
-        if(method==='eth_sendTransaction'||method==='wallet_sendTransaction')window.__fixtureSubmissionMethods.push(method);
-        if(method==='eth_requestAccounts'){connected=true;return Promise.resolve([addresses[role]])}
-        if(method==='eth_accounts')return Promise.resolve(connected?[addresses[role]]:[]);
-        if(method==='eth_chainId')return Promise.resolve(chainId);
-        if(method==='wallet_switchEthereumChain'&&params?.[0]?.chainId==='0x7a69'){window.__fixtureChainSwitches++;window.__fixtureSetChain('0x7a69');return Promise.resolve(null)};
-        if(method!=='eth_sendTransaction')return Promise.reject(Object.assign(new Error('Unsupported fixture wallet method'),{code:4200}));
-        return new Promise((resolve,reject)=>{const id=++next;pending.set(id,{resolve,reject});window.fixtureWalletBridge(JSON.stringify({id,role,method,params}))});
-      },
-      on:(event,fn)=>{if(!listeners.has(event))listeners.set(event,new Set());listeners.get(event).add(fn);return window.ethereum},
-      removeListener:(event,fn)=>{listeners.get(event)?.delete(fn);return window.ethereum},
+    window.__fixtureResolve=owner.resolve;
+    window.__fixtureSetRole=owner.setRole;
+    window.__fixtureEmptyAccounts=owner.disconnect;
+    window.__fixtureSetChain=owner.setChain;
+    owner.provider.request=options=>{
+      if(options.method==='eth_sendTransaction'||options.method==='wallet_sendTransaction')window.__fixtureSubmissionMethods.push(options.method);
+      if(options.method==='wallet_switchEthereumChain')window.__fixtureChainSwitches++;
+      return request(options);
     };
   })()`
 }
@@ -276,7 +263,7 @@ async function withCase(mode, test) {
   commands = createCdpCommands({ socket: ws, runDeadline: deadline, now: Date.now })
   activeCase = owner
   try {
-    targetId = (await call('Target.createTarget', { url: 'about:blank' }, undefined)).targetId
+    targetId = (await call('Target.createTarget', { url: 'about:blank', newWindow: false }, undefined)).targetId
     sessionId = (await call('Target.attachToTarget', { targetId, flatten: true }, undefined)).sessionId
     await call('Page.enable', {}, sessionId)
     await call('Runtime.enable', {}, sessionId)

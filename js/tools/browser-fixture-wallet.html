@@ -1,0 +1,20 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Local fixture wallet</title>
+<style>body{font:1rem/1.6 system-ui;max-width:65rem;margin:auto;padding:2rem}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style>
+<h1>Local fixture wallet</h1>
+<p>Attach a test wallet to an existing local CAM viewer tab. The selector changes the wallet account and emits the same accountsChanged event that an extension wallet would emit. The viewer handles that transition normally; contracts still enforce permissions. This tool adds no production viewer or protocol behavior.</p>
+<pre>make viewer/local/fixture-wallet/attach \
+  FIXTURE_WALLET_APP=pay-to-play CDP_TARGET_ID=&lt;existing-tab-id&gt; \
+  CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL='&lt;viewer URL&gt;' \
+  EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json \
+  EXPECTED_CAM_HASH=0x... EXPECTED_CONTRACT_ADDRESS=0x...</pre>
+<p>Use pay-to-play or escrow. The app fixture module under js/apps/cam-web/test supplies its named accounts and transaction grant. Each account explicitly supplies an address and privateKey; their match is checked before browser access. Names have no special meaning to the shared wallet. For example:</p>
+<pre>accounts: {
+  customer: { address: '0x...', privateKey: '0x...' },
+  settlementAgent: { address: '0x...', privateKey: '0x...' }
+}</pre>
+<p>These are public disposable-chain fixture keys only. Keys stay in the fixture process; the page receives account names, addresses and transaction responses. The process signs using the selected account captured when the request began. Changing the selector later does not change a pending request's signer. This tool does not unlock Anvil accounts.</p>
+<p>The selected tab, loopback origin, CAM host, chain 31337, manifest hash, ABI integrity and app contract address must match the explicit pins. An existing wallet is refused. The app config limits contract functions, native value, gas and call size. It does not grant business permissions that the contract would deny.</p>
+<p>Click Connect wallet after attachment. Sending asks for a browser confirmation; confirming submits immediately using a public fixture key. This is not an extension wallet. Typed voucher signing remains external.</p>
+<p>The foreground process keeps the reload injection active. Reload resets the selection to the app's initial account and requires reconnecting the viewer wallet. Ctrl-C removes the preload script, selector and provider, rejects pending requests and leaves the tab open. Shutdown prevents later signing or broadcast phases; an already broadcast transaction cannot be undone. If the process is forcibly killed, reload the tab before reattaching; a current-page provider may remain without its signer bridge. The process does not start or stop the browser, GUI or chain.</p>
+<p>Both PayToPlay and escrow browser acceptance checks use the same provider/selector with their own account configuration and test-owned transaction handling.</p>
+</html>

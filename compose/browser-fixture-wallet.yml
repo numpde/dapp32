@@ -1,0 +1,38 @@
+# Foreground signer bridge to an existing local CDP tab. Host networking reaches
+# operator-owned loopback endpoints; this lane also has ordinary host egress.
+services:
+  browser-fixture-wallet:
+    extends:
+      file: fragments/node-workspace.yml
+      service: hardened-node-workspace
+    network_mode: host
+    cpus: 1
+    environment:
+      FIXTURE_WALLET_APP: "${FIXTURE_WALLET_APP:?Select an explicit app fixture}"
+      CDP_TARGET_ID: "${CDP_TARGET_ID:?Select an existing browser tab}"
+      CDP_ORIGIN: "${CDP_ORIGIN:?Set the loopback CDP origin}"
+      VIEWER_URL: "${VIEWER_URL:?Set the pinned local viewer URL}"
+      EXPECTED_CAM_URI: "${EXPECTED_CAM_URI:?Set the pinned manifest URI}"
+      EXPECTED_CAM_HASH: "${EXPECTED_CAM_HASH:?Set the pinned manifest hash}"
+      EXPECTED_CONTRACT_ADDRESS: "${EXPECTED_CONTRACT_ADDRESS:?Set the pinned app contract address}"
+    volumes:
+      - type: bind
+        source: ../js
+        target: /input/js
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../js/node_modules
+        target: /work/js/node_modules
+        read_only: true
+        bind:
+          create_host_path: false
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build -w @cam/protocol
+        exec node /work/js/tools/browser-fixture-wallet-attach.mjs

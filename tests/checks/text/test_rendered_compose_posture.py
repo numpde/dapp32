@@ -262,6 +262,9 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "CAM_PREFLIGHT_ROOT_PATH": "/work/dapps/bike-nft/cam/main.json",
                 "CAM_URI": "https://example.test/bike-nft/cam/main.json",
                 "CAM_VIEWER_RESOURCE_ORIGIN": "http://escrow-cam-http:8080",
+                "CDP_TARGET_ID": "00000000000000000000000000000001",
+                "FIXTURE_WALLET_APP": "pay-to-play",
+                "EXPECTED_CONTRACT_ADDRESS": "0x0000000000000000000000000000000000000001",
                 "CDP_ORIGIN": "http://127.0.0.1:9222",
                 "COMPOSE_PROJECT_NAME": "dapps-check",
                 "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
@@ -354,7 +357,7 @@ class RenderedComposePostureTest(unittest.TestCase):
         # prevents an absent script bind from creating a host directory.
         self.assertIn("create_host_path: false", read_text(repo_path("compose/escrow/local/browser-check.yml")))
 
-    def test_escrow_browser_write_check_has_verified_workspace_and_fixture_only_mounts(self) -> None:
+    def test_escrow_browser_write_check_has_verified_workspace_mounts(self) -> None:
         config = rendered_compose_config("compose/escrow/local/browser-check.yml", env=compose_render_env())
         service = compose_service(config, "escrow-viewer-browser-write-check")
         self.assert_hardened(service)
@@ -372,7 +375,6 @@ class RenderedComposePostureTest(unittest.TestCase):
                 for source, target in [
                     ("js", "/input/js"),
                     ("js/node_modules", "/work/js/node_modules"),
-                    ("compose/escrow/local/deploy.yml", "/fixture/deploy.yml"),
                 ]
             ],
             service["volumes"],

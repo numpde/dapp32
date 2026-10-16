@@ -54,12 +54,6 @@ services:
         read_only: true
         bind:
           create_host_path: false
-      - type: bind
-        source: ./deploy.yml
-        target: /fixture/deploy.yml
-        read_only: true
-        bind:
-          create_host_path: false
     command:
       - run-js-workspace
       - sh

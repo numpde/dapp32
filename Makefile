@@ -338,6 +338,7 @@ help:
 	  '  make pay-to-play/local/scenario/run  Run payment-channel workflows through real-RPC CAM actions' \
 	  '  make pay-to-play/local/demo/gui/up   Run the generic payment-channel browser viewer on loopback port 5175' \
 	  '  make pay-to-play/local/demo/gui/down Stop the disposable payment-channel browser fixture' \
+	  '  make viewer/local/fixture-wallet/attach FIXTURE_WALLET_APP=... CDP_TARGET_ID=... CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=... EXPECTED_CONTRACT_ADDRESS=...  Attach a local fixture signer to an existing tab' \
 	  '  make pay-to-play/live/browser/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check local fixture writes in an existing browser' \
 	  '  make pay-to-play/local/voucher/sign PAY_TO_PLAY_ADDRESS=... PAY_TO_PLAY_TOTAL=...  Sign a local fixture voucher offline' \
 	  '  make escrow/local/demo/terminal/up     Deploy escrow locally and open the real-RPC viewer terminal' \
@@ -1288,3 +1289,14 @@ pay-to-play/live/browser/check:
 	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
 	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/pay-to-play/local/browser-check.yml run --build --rm --no-deps -T pay-to-play-viewer-browser-check
+
+# Distinct foreground grant: a local signer for one already-running browser tab.
+.PHONY: viewer/local/fixture-wallet/attach
+viewer/local/fixture-wallet/attach:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	FIXTURE_WALLET_APP="$${FIXTURE_WALLET_APP:?Set FIXTURE_WALLET_APP}" CDP_TARGET_ID="$${CDP_TARGET_ID:?Set CDP_TARGET_ID}" \
+	CDP_ORIGIN="$${CDP_ORIGIN:?Set CDP_ORIGIN}" VIEWER_URL="$${VIEWER_URL:?Set VIEWER_URL}" \
+	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
+	EXPECTED_CONTRACT_ADDRESS="$${EXPECTED_CONTRACT_ADDRESS:?Set EXPECTED_CONTRACT_ADDRESS}" \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/browser-fixture-wallet.yml run --build --rm --no-deps -T browser-fixture-wallet
