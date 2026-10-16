@@ -1,7 +1,7 @@
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
 import { AssertionError } from 'node:assert'
-import { createPublicClient, createWalletClient, http, parseAbi, sha256, toFunctionSelector } from 'viem'
+import { createPublicClient, createWalletClient, decodeEventLog, http, parseAbi, sha256, toFunctionSelector } from 'viem'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
 import { createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import { fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
@@ -208,16 +208,28 @@ try {
   await wait(state => state.text.includes('Pay-to-Play'), 'cold entry')
   await click('Connect wallet')
   await wait(state => state.buttons.some(button => button.name === 'Switch wallet'), 'wallet connection')
-  const id = String(await publicClient.readContract({ address: payments, abi, functionName: 'channelCount' }))
   await fill('newPayee', accounts.recipient.address)
   await fill('newClaimPeriod', '60')
   await send('Prepare new channel')
+  await wait(state => state.text.includes('Channel lookup'), 'creation lookup')
+  assert(await evaluate(`document.querySelector('input[name="lookupCustomer"]').value.toLowerCase() === ${JSON.stringify(accounts.admin.address.toLowerCase())} && document.querySelector('input[name="lookupChannelId"]').value === ""`), 'creation lookup prefills the wallet and leaves channel choice explicit')
+  const receipt = await publicClient.getTransactionReceipt({ hash: lastHash })
+  const creationLogs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
+  assert.equal(creationLogs.length, 1, 'creation receipt must identify one channel')
+  const created = decodeEventLog({ abi, eventName: 'ChannelCreated', ...creationLogs[0] })
+  const id = String(created.args.channelId)
   await inspect(accounts.customer.address, id)
   await role('customer')
   await wait(state => state.buttons.some(button => button.name === 'Prepare funding' && !button.disabled), 'customer funding capability')
   await fill('fundAmount', '100')
   await send('Prepare funding')
   await wait(state => state.values['Balance in wei'] === '100', 'funded balance')
+  await fill('fundAmount', '23')
+  await click('Prepare funding')
+  await wait(state => state.prepared && state.notices.some(value => value.includes('Simulation passed')), 'prepared funding before refresh')
+  await click('Refresh')
+  await wait(state => !state.prepared && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), 'refresh discards prepared transaction')
+  assert(await evaluate(`document.querySelector('input[name="fundAmount"]').value === "23"`), 'refresh preserves the amount draft')
   await fill('withdrawAmount', '40')
   await send('Prepare withdrawal request')
   await wait(state => state.values['Effective balance in wei'] === '60', 'request effective balance')
@@ -246,6 +258,11 @@ try {
   disabled(state, 'Prepare replacement / renewal')
   await fill('cumulativeTotal', '60')
   await fill('signature', signature)
+  await click('Show voucher signing digest')
+  await wait(state => state.text.includes('Voucher signing details'), 'voucher digest')
+  await click('Back')
+  await wait(state => state.values['Customer account']?.toLowerCase() === accounts.customer.address.toLowerCase(), 'draft return')
+  assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]').value === "60" && document.querySelector('input[name="signature"]').value === ${JSON.stringify(signature)}`), 'Back restores the voucher inputs')
   await send('Prepare voucher collection')
   await wait(state => state.values['Balance in wei'] === '40' && state.values['Lifetime voucher payments in wei'] === '60', 'relayed voucher payment')
   phase = 'cold-start integrity rejection'

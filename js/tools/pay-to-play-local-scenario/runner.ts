@@ -98,8 +98,7 @@ async function main(): Promise<void> {
     const current = (await publicClient.getBlock()).timestamp
     if (deadline > current) await localRpc(rpcURL, "evm_increaseTime", [Number(deadline - current)])
     await localRpc(rpcURL, "evm_mine", [])
-    const snapshot = loaded()
-    await session.navigate(snapshot.route, snapshot.inputs)
+    await session.refresh()
   }
   async function voucher(total: bigint) {
     const typed = {

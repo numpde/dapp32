@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x25644fa28cf86e30d81a3e3397f69017009ffb344dacca75a2e60190900dbd1f"
+      "integrity": "sha256:0x4b027e4b80d327dbc4bc9df11a179ece64a389f8daa06f10d858592c7213d94d"
     }
   },
   "routes": {
@@ -80,7 +80,7 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "home",
+        "function": "channelLookup",
         "args": {}
       }
     },
@@ -295,6 +295,25 @@
         "function": "myPosition",
         "args": {
           "view": "$outputs.0"
+        }
+      }
+    },
+    "channelLookup": {
+      "kind": "read",
+      "inputs": [],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "channelCount",
+        "args": {}
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "channelLookup",
+        "args": {
+          "view": {
+            "channelCount": "$outputs.0",
+            "customer": "$account.address"
+          }
         }
       }
     }
