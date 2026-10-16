@@ -968,6 +968,96 @@ test("Back never reinterprets an integer draft as an amount or an amount draft a
   }
 })
 
+test("duration editing keeps parts while canonical patches, Back and account changes retain their own meaning", async () => {
+  const { session } = durationEditingSession("60", false)
+  await session.load()
+  const edited = session.editDuration("amount", "minutes", "0002")
+  assert.equal(edited.state.amount, "120")
+  assert.equal(durationDraft(edited).parts.minutes.text, "0002")
+  const composing = session.editDuration("amount", "hours", "1", { composing: true })
+  assert.equal(composing.state.amount, null)
+  await assert.rejects(() => session.dispatchAction(resolvedUiButtons(composing.resolvedUi)[0]), CamEvmError)
+  session.editDuration("amount", "hours", "")
+  await session.navigate(BIKE_ROUTE_COMPONENT, { serialNumber: BIKE_SERIAL_NUMBER })
+  const restored = await session.back()
+  assert.equal(restored.state.amount, "120")
+  assert.equal(durationDraft(restored).parts.minutes.text, "0002")
+  const patched = session.updateState({ amount: "90061" })
+  assert.equal(patched.state.amount, "90061")
+  assert.equal(durationDraft(patched).parts.days.text, "1")
+  const reset = await session.setAccount({ address: otherUserAddress })
+  assert.equal(reset.state.amount, "60")
+  assert.equal(reset.canGoBack, false)
+})
+
+test("Refresh revalidates duration parts against fresh bounds and rolls back a failed read", async () => {
+  const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
+  const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
+  const nodes = mutableRecord(ui.nodes)
+  nodes.app = { requires: ["view"], element: "Screen", props: { title: "Duration" }, children: [
+    { element: "Button", props: { label: "Inspect" }, call: { namespace: "routes", function: BIKE_ROUTE_COMPONENT, args: { serialNumber: "$state.amount" } } },
+    { element: "DurationField", props: { label: "Wait", min: "$view.tokenId", max: "$view.statusId" }, state: { key: "amount", defaultValue: "" } },
+  ] }
+  const uiBytes = encodeJson(ui)
+  const cam = mutableRecord(JSON.parse(new TextDecoder().decode(resources[camURI])))
+  mutableRecord(mutableRecord(cam.namespaces).ui).integrity = sha256Integrity(uiBytes)
+  const routeResults = bikeRouteResults(BIKE_SERIAL_NUMBER, userAddress, "active")
+  const result = bikeEntryRouteResult(userAddress)
+  routeResults[BIKE_VIEW_ENTRY] = { ...result, tokenId: 1n, statusId: "120" }
+  const publicClient = createPublicClient(publicClientFixtureOptions({ routeResults, camHash: fixtureDigest(encodeJson(cam)) }))
+  const session = createSession(sessionFixtureOptions({ publicClient,
+    loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: uiBytes })),
+  }))
+  await session.load()
+  session.editDuration("amount", "minutes", "0002")
+  routeResults[BIKE_VIEW_ENTRY] = { ...result, tokenId: 1n, statusId: "119" }
+  const invalid = await session.refresh()
+  assert.equal(invalid.state.amount, null)
+  assert.equal(durationDraft(invalid).parts.minutes.text, "0002")
+  assert.equal(durationDraft(invalid).issue, "aboveMax")
+  assert.equal(resolvedUiButtons(invalid.resolvedUi)[0].call.args.serialNumber, null)
+  assert.equal(invalid.canGoBack, false)
+  const readContract = publicClient.readContract
+  Object.assign(publicClient, { readContract: async () => { throw new Error("fixture read unavailable") } })
+  await assert.rejects(() => session.refresh())
+  assert.deepEqual(session.snapshot(), invalid)
+  Object.assign(publicClient, { readContract })
+  routeResults[BIKE_VIEW_ENTRY] = { ...result, tokenId: 1n, statusId: "120" }
+  const valid = await session.refresh()
+  assert.equal(valid.state.amount, "120")
+  assert.equal(durationDraft(valid).parts.minutes.text, "0002")
+  assert.equal(resolvedUiButtons(valid.resolvedUi)[0].call.args.serialNumber, "120")
+})
+
+test("duration edits enforce rendered field ownership and fail atomically for malformed API calls", async () => {
+  const disabled = durationEditingSession("60", true).session
+  await disabled.load()
+  const before = disabled.snapshot()
+  assert.throws(() => disabled.editDuration("amount", "days", "1"), CamViewerError)
+  assert.deepEqual(disabled.snapshot(), before)
+  const { session } = durationEditingSession("60", false)
+  await session.load()
+  const coherent = session.snapshot()
+  assert.throws(() => session.editDuration("amount", "weeks" as never, "1"), CamViewerError)
+  assert.throws(() => session.editDuration("missing", "days", "1"), CamViewerError)
+  assert.throws(() => session.updateState({ amount: 60 }), CamViewerError)
+  assert.deepEqual(session.snapshot(), coherent)
+})
+
+function durationEditingSession(defaultValue: string, disabled: boolean) {
+  return paymentPreparationSession({ amount: "$state.amount", recipients: [registeredOwnerAddress] }, undefined, "nonpayable", {
+    element: "DurationField", props: { label: "Wait" }, state: { key: "amount", defaultValue },
+    ...(disabled ? { enabledWhen: { member: "edit", in: [] } } : {}),
+  })
+}
+
+function durationDraft(snapshot: CamViewerLoadedSnapshot) {
+  let result: import("@cam/screen").ResolvedDurationFieldNode | undefined
+  forEachResolvedUiNode(snapshot.resolvedUi, node => { if (node.element === "DurationField") result = node })
+  assert.ok(result)
+  return result.draft
+}
+
 function integerEditingSession(defaultValue?: string, bounds?: Record<string, unknown>, disabled?: boolean) {
   return paymentPreparationSession(
     { amount: "$state.amount", recipients: [registeredOwnerAddress] }, undefined, "nonpayable",

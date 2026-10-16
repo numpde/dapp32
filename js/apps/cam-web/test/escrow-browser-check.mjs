@@ -192,9 +192,11 @@ async function evaluate(expression) {
   return result.result.value
 }
 async function field(name) {
+  if (["acceptanceDuration", "workDuration", "reviewDuration", "arbitrationDuration"].includes(name)) name += ".seconds"
   return evaluate(`document.querySelector('input[name=${JSON.stringify(name)}]')?.value`)
 }
 async function enter(name, value) {
+  if (["acceptanceDuration", "workDuration", "reviewDuration", "arbitrationDuration"].includes(name)) name += ".seconds"
   const found = await evaluate(`(() => { const input = document.querySelector('input[name=${JSON.stringify(name)}]'); if (!input) return false; input.scrollIntoView({block:'center'}); input.focus(); input.select(); return true })()`)
   assert(found, `missing ${name} field`)
   await call('Input.insertText', { text: value }, sessionId)
@@ -498,7 +500,7 @@ try {
       await evaluate(`location.hash = new URLSearchParams({ route: 'accountCredit', inputs: '{}' }).toString()`)
       await waitFor(() => heldRequests.length > 0, 'paused credit read')
       assert(await evaluate(`(()=>{const fields=[...document.querySelectorAll('.amount-field input')];return fields.length===2&&fields.every(field=>field.matches(':disabled')&&field.getBoundingClientRect().width>0);})()`), 'pending read must keep both amount controls visible and disabled')
-      assert(await evaluate(`['acceptanceDuration','workDuration','reviewDuration','arbitrationDuration'].every(name=>{const field=document.querySelector('input[name="'+name+'"]');return field?.matches(':disabled')&&field.getBoundingClientRect().width>0;})`), 'pending read must keep integer controls visible and disabled')
+      assert(await evaluate(`['acceptanceDuration.seconds','workDuration.seconds','reviewDuration.seconds','arbitrationDuration.seconds'].every(name=>{const field=document.querySelector('input[name="'+name+'"]');return field?.matches(':disabled')&&field.getBoundingClientRect().width>0;})`), 'pending read must keep integer controls visible and disabled')
       await evaluate(`location.hash = new URLSearchParams({ route: 'agreement', inputs: '{}' }).toString()`)
       await waitFor(async () => (await evaluate('location.href')) === committed && (await feedback('notice'))?.text.includes('Finish the current operation'), 'busy link rollback')
       assert.equal(await field('agreementRef'), 'pending-link-draft')
@@ -652,49 +654,49 @@ try {
     await freshForm()
     for (const [name, value] of Object.entries(draft)) await enter(name, value)
   }
-  await browserCase('dedicated integer fields preserve lexical integers and give associated syntax and range feedback', async () => {
+  await browserCase('duration parts preserve lexical integers and give associated syntax and range feedback', async () => {
     await freshForm()
-    for (const name of ['acceptanceDuration','workDuration','reviewDuration','arbitrationDuration']) {
+    for (const name of ['acceptanceDuration.seconds','workDuration.seconds','reviewDuration.seconds','arbitrationDuration.seconds']) {
       assert.equal(await field(name), '', `${name} must begin unset`)
-      assert(await evaluate(`(()=>{const input=document.querySelector('input[name=${JSON.stringify(name)}]');return input.type==='text'&&input.inputMode==='numeric'&&input.labels.length>0&&input.getAttribute('aria-describedby')===null;})()`), `${name} lacks typed numeric input semantics`)
+      assert(await evaluate(`(()=>{const input=document.querySelector('input[name=${JSON.stringify(name)}]');return input.type==='text'&&input.inputMode==='numeric'&&input.labels.length>0&&input.getAttribute('aria-describedby')!==null;})()`), `${name} lacks typed numeric input semantics`)
     }
     await enter('agreementRef','00042')
     assert.equal(await field('agreementRef'),'00042','numeric-looking identifiers were normalized')
-    await enter('acceptanceDuration','0003600')
-    assert(await evaluate(`document.querySelector('input[name="acceptanceDuration"]').getAttribute('aria-invalid')==='false'`), 'exact integer was marked invalid')
-    await enter('acceptanceDuration','1.5')
-    await waitFor(async () => await evaluate(`document.querySelector('input[name="acceptanceDuration"]').getAttribute('aria-invalid')==='true'`),'invalid integer before caret recovery')
-    await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0003601');input.setSelectionRange(3,3);input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:'0003601'}));})()`)
-    await waitFor(async () => await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration"]');return input.getAttribute('aria-invalid')==='false'&&input.getAttribute('aria-describedby')===null;})()`),'integer renderer commits valid recovery')
-    assert.equal(await field('acceptanceDuration'),'0003601','valid integer render rewrote lexical spelling')
-    assert(await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration"]');return document.activeElement===input&&input.selectionStart===3&&input.selectionEnd===3;})()`), 'integer render rewrote caret or focus')
+    await enter('acceptanceDuration.seconds','0003600')
+    assert(await evaluate(`document.querySelector('input[name="acceptanceDuration.seconds"]').getAttribute('aria-invalid')==='false'`), 'exact integer was marked invalid')
+    await enter('acceptanceDuration.seconds','1.5')
+    await waitFor(async () => await evaluate(`document.querySelector('input[name="acceptanceDuration.seconds"]').getAttribute('aria-invalid')==='true'`),'invalid integer before caret recovery')
+    await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration.seconds"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'0003601');input.setSelectionRange(3,3);input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:'0003601'}));})()`)
+    await waitFor(async () => await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration.seconds"]');return input.getAttribute('aria-invalid')==='false'&&input.getAttribute('aria-describedby')!==null;})()`),'integer renderer commits valid recovery')
+    assert.equal(await field('acceptanceDuration.seconds'),'0003601','valid integer render rewrote lexical spelling')
+    assert(await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration.seconds"]');return document.activeElement===input&&input.selectionStart===3&&input.selectionEnd===3;})()`), 'integer render rewrote caret or focus')
     for (const [text, correction] of [['1.5',/whole|digits/],['-1',/whole|digits/],['1e3',/whole|digits/],['0',/1/],['31536001',/31536000/],['18446744073709551615',/31536000/]]) {
-      await enter('acceptanceDuration',text)
-      const feedback = await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration"]');const hint=document.getElementById(input.getAttribute('aria-describedby'));return {invalid:input.getAttribute('aria-invalid'),hint:hint?.textContent,role:hint?.getAttribute('role')};})()`)
+      await enter('acceptanceDuration.seconds',text)
+      const feedback = await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration.seconds"]');const hint=document.getElementById(input.getAttribute('aria-describedby'));return {invalid:input.getAttribute('aria-invalid'),hint:hint?.textContent,role:hint?.getAttribute('role')};})()`)
       assert.equal(feedback.invalid,'true',`${text} lacks invalid semantics`)
       assert.equal(feedback.role,'status',`${text} correction is not announced`)
       assert(correction.test(feedback.hint),`${text} lacks actionable correction`)
-      assert.equal(await field('acceptanceDuration'),text,'invalid integer text was silently rewritten')
+      assert.equal(await field('acceptanceDuration.seconds'),text,'invalid integer text was silently rewritten')
     }
     for (const width of [320,375]) {
       await call('Emulation.setDeviceMetricsOverride',{width,height:800,deviceScaleFactor:1,mobile:true},sessionId)
       assert(await evaluate(`document.documentElement.scrollWidth<=innerWidth`),'integer feedback overflows narrow viewport')
     }
   })
-  await browserCase('integer composition cancellation and Back preserve unavailable drafts until an ordinary edit', async () => {
+  await browserCase('duration composition cancellation and Back preserve unavailable drafts until an ordinary edit', async () => {
     await fillDraft()
-    await evaluate(`document.querySelector('input[name="acceptanceDuration"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
-    await waitFor(async () => await evaluate(`document.getElementById(document.querySelector('input[name="acceptanceDuration"]').getAttribute('aria-describedby'))?.textContent.includes('Finish entering')`),'integer composition start')
+    await evaluate(`document.querySelector('input[name="acceptanceDuration.seconds"]').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))`)
+    await waitFor(async () => await evaluate(`document.getElementById(document.querySelector('input[name="acceptanceDuration.seconds"]').getAttribute('aria-describedby'))?.textContent.includes('Finish entering')`),'integer composition start')
     await clickButton('Find agreement by client and reference')
     await waitFor(state=>state.text.includes('No agreement is stored for this ID in this escrow contract.'),'lookup with unfinished integer')
     await clickButton('Back')
-    await waitFor(async ()=>(await field('acceptanceDuration'))==='3600','restored unfinished integer')
-    assert(await evaluate(`document.querySelector('input[name="acceptanceDuration"]').getAttribute('aria-describedby')!==null`),'Back authorized unfinished integer')
-    await enter('acceptanceDuration','0003601')
-    assert(await evaluate(`document.querySelector('input[name="acceptanceDuration"]').getAttribute('aria-describedby')===null`),'ordinary edit did not finish restored integer')
-    await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration"]');input.focus();input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));input.blur();})()`)
-    await enter('acceptanceDuration','0003602')
-    assert(await evaluate(`document.querySelector('input[name="acceptanceDuration"]').getAttribute('aria-describedby')===null`),'blur left integer transport stuck composing')
+    await waitFor(async ()=>(await field('acceptanceDuration.seconds'))==='3600','restored unfinished integer')
+    assert(await evaluate(`document.getElementById(document.querySelector('input[name="acceptanceDuration.seconds"]').getAttribute('aria-describedby'))?.textContent.includes('Finish entering')`),'Back authorized unfinished duration')
+    await enter('acceptanceDuration.seconds','0003601')
+    assert(await evaluate(`document.querySelector('input[name="acceptanceDuration.seconds"]').getAttribute('aria-invalid')==='false'`),'ordinary edit did not finish restored integer')
+    await evaluate(`(()=>{const input=document.querySelector('input[name="acceptanceDuration.seconds"]');input.focus();input.dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));input.blur();})()`)
+    await enter('acceptanceDuration.seconds','0003602')
+    assert(await evaluate(`document.querySelector('input[name="acceptanceDuration.seconds"]').getAttribute('aria-invalid')==='false'`),'blur left integer transport stuck composing')
   })
   await browserCase('component-shaped integer guidance wraps supported exact bounds without clipping', async () => {
     await freshForm()
@@ -714,15 +716,15 @@ try {
       assert.deepEqual(await evaluate(`({width:innerWidth,height:innerHeight,scroll:scrollY,fields:[...document.querySelectorAll('.ui input')].map(input=>[input.name,input.value]),focus:document.activeElement.getAttribute('name')})`),before,'layout fixture changed the actual draft or focus')
     }
   })
-  await browserCase('integer preparation uses canonical values while preserving active lexical spelling', async () => {
+  await browserCase('duration preparation uses canonical values while preserving active lexical spelling', async () => {
     await fillDraft()
-    await enter('acceptanceDuration','0003600')
+    await enter('acceptanceDuration.seconds','0003600')
     await clickButton('Prepare creation transaction')
     await waitFor(async ()=>Boolean((await feedback('prepared'))?.text?.includes('Review transaction')),'integer prepared review')
     const review=await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
     assert.equal(JSON.parse(review['Function inputs']).params.acceptanceDuration,'3600')
-    assert.equal(await field('acceptanceDuration'),'0003600')
-    await enter('acceptanceDuration','1.5')
+    assert.equal(await field('acceptanceDuration.seconds'),'0003600')
+    await enter('acceptanceDuration.seconds','1.5')
     assert(await evaluate(`document.querySelector('.prepared-call')===null`),'invalid integer retained an already prepared call')
     await clickButton('Prepare creation transaction')
     await waitFor(async ()=>Boolean((await feedback('notice'))?.text),'invalid integer preparation rejection')

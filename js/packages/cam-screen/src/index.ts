@@ -2,6 +2,9 @@ export type {
   AmountUnit,
   AmountDraft,
   NumericDraft,
+  DurationDraft,
+  DurationPart,
+  ResolvedDurationFieldNode,
   IntegerDraft,
   ResolvedNonNegativeIntegerFieldNode,
   ResolvedAmountFieldNode,
@@ -37,3 +40,5 @@ export {
   resolveInitialUiNode,
   resolveUiNode,
 } from "./resolve.ts"
+
+export { DURATION_PARTS, durationDraftFromSeconds, editDurationDraft, projectDurationDraft } from "./duration.ts"

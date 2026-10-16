@@ -209,7 +209,7 @@ try {
   await click('Connect wallet')
   await wait(state => state.buttons.some(button => button.name === 'Reconnect wallet'), 'wallet connection')
   await fill('newPayee', accounts.recipient.address)
-  await fill('newClaimPeriod', '60')
+  await fill('newClaimPeriod.seconds', '60')
   await send('Review new channel')
   await wait(state => state.text.includes('Look up a balance'), 'creation lookup')
   assert(await evaluate(`document.querySelector('input[name="lookupCustomer"]').value.toLowerCase() === ${JSON.stringify(accounts.admin.address.toLowerCase())} && document.querySelector('input[name="lookupChannelId"]').value === ""`), 'creation lookup prefills the wallet and leaves channel choice explicit')

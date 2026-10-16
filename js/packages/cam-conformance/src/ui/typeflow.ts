@@ -201,7 +201,7 @@ function validateAvailability(
   path: string,
   context: AbiContext,
 ): void {
-  if (element !== "TextField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "Button") return
+  if (element !== "TextField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField" && element !== "Button") return
   if (!isRecordObject(node.enabledWhen)) return
   validateBoundValue(scope, `${path}.enabledWhen.in`, "UI enabledWhen.in", node.enabledWhen.in, "string-array", context)
 }
@@ -250,14 +250,14 @@ function validateStateBinding(
   path: string,
   context: AbiContext,
 ): void {
-  if ((element !== "TextField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField") || !isRecordObject(node.state)) return
+  if ((element !== "TextField" && element !== "DocumentHashField" && element !== "AmountField" && element !== "NonNegativeIntegerField" && element !== "DurationField") || !isRecordObject(node.state)) return
 
   // Addresses normalize to strings accepted by editable text fields. Hash
   // defaults retain their stricter string expectation; numeric fields separately
   // accept normalized ABI integers.
   const expectation: ValueExpectation = element === "TextField"
     ? "string-or-address"
-    : element === "AmountField" || element === "NonNegativeIntegerField" ? "integer-or-string" : "string"
+    : element === "AmountField" || element === "NonNegativeIntegerField" || element === "DurationField" ? "integer-or-string" : "string"
   const label = `${element} state.defaultValue`
   const value = node.state.defaultValue
   const valuePath = `${path}.state.defaultValue`
@@ -965,7 +965,7 @@ function resolvedInputName(
   path: string,
   context: AbiContext,
 ): string | undefined {
-  if ((node.element !== "TextField" && node.element !== "DocumentHashField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField") || !isRecordObject(node.state)) return undefined
+  if ((node.element !== "TextField" && node.element !== "DocumentHashField" && node.element !== "AmountField" && node.element !== "NonNegativeIntegerField" && node.element !== "DurationField") || !isRecordObject(node.state)) return undefined
 
   const staticName = staticString(node.state.key)
   const name = staticName === undefined ? knownLiteralString(node.state.key, context) : staticName

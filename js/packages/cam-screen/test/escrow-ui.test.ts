@@ -286,8 +286,9 @@ test("escrow creation screen resolves nested payable calldata from one form", as
   for (const name of ["acceptanceDuration", "workDuration", "reviewDuration", "arbitrationDuration"]) {
     assert.equal(state[name], null)
     const field = requiredField(resolvedUi, name)
-    assert.ok(field.element === "NonNegativeIntegerField")
-    assert.deepEqual(field.draft, { text: "", status: "empty" })
+    assert.ok(field.element === "DurationField")
+    assert.equal(field.draft.status, "empty")
+    assert.ok(Object.values(field.draft.parts).every(part => part.text === "" && part.status === "empty"))
     assert.equal(field.props.min, "1")
     assert.equal(field.props.max, "31536000")
   }
@@ -662,7 +663,7 @@ function isDisabled(node: ResolvedUiNode): boolean {
 function requiredField(resolvedUi: ResolvedUiNode, name: string): ResolvedUiNode {
   let field: ResolvedUiNode | undefined
   forEachResolvedUiNode(resolvedUi, (node) => {
-    if ((node.element === "TextField" || node.element === "DocumentHashField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField") && node.state.key === name) field = node
+    if ((node.element === "TextField" || node.element === "DocumentHashField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") && node.state.key === name) field = node
   })
   assert.notEqual(field, undefined, `missing resolved field: ${name}`)
   return field as ResolvedUiNode

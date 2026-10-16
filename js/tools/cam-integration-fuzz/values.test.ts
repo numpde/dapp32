@@ -65,12 +65,13 @@ test("value generation treats account and URI-like names as protocol fixtures", 
 test("state fuzzing includes dedicated integer controls and excludes disabled controls", () => {
   const patch = generatedStatePatch({ snapshot: {
     canGoBack: false, inputs: {}, state: {}, resolvedUi: { element: "Fragment", props: {}, children: [
+      { element: "DurationField", props: { label: "Duration" }, state: { key: "duration" }, draft: { parts: { days: { text: "", status: "empty" }, hours: { text: "", status: "empty" }, minutes: { text: "", status: "empty" }, seconds: { text: "", status: "empty" } }, status: "empty" }, children: [] },
       { element: "NonNegativeIntegerField", props: { label: "Counter" }, state: { key: "counter" }, draft: { text: "", status: "empty" }, children: [] },
       { element: "NonNegativeIntegerField", props: { label: "Disabled counter" }, disabled: true, state: { key: "disabled" }, draft: { text: "", status: "empty" }, children: [] },
       { element: "TextField", props: { label: "Identifier" }, state: { key: "identifier" }, children: [] },
     ] },
   }, account, prng: firstValuePrng(), mode: "broad" })
-  assert.deepEqual(plainRecord(patch), { counter: "", identifier: "" })
+  assert.deepEqual(plainRecord(patch), { counter: "", duration: "", identifier: "" })
 })
 
 function plainRecord(record: Record<string, unknown>): Record<string, unknown> {

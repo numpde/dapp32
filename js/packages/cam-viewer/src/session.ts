@@ -24,10 +24,15 @@ import {
   sameAmountUnit,
   editIntegerDraft,
   projectIntegerDraft,
+  DURATION_PARTS,
+  durationDraftFromSeconds,
+  editDurationDraft,
+  projectDurationDraft,
 } from "@cam/screen"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type {
   NumericDraft,
+  DurationPart,
   ResolvedButtonNode,
   ResolvedDocumentHashFieldNode,
   ResolvedUiNode,
@@ -183,7 +188,7 @@ export function createCamViewerSession({
       const fresh = Object.hasOwn(numericDrafts, name) ? numericDrafts[name] : undefined
       if (fresh !== undefined) {
         const saved = Object.hasOwn(previous.numericDrafts, name) ? previous.numericDrafts[name] : undefined
-        if (saved !== undefined && saved.kind === fresh.kind && (saved.kind === "integer" || fresh.kind === "amount" && sameAmountUnit(saved.unit, fresh.unit))) {
+        if (saved !== undefined && saved.kind === fresh.kind && (saved.kind === "integer" || saved.kind === "duration" || saved.kind === "amount" && fresh.kind === "amount" && sameAmountUnit(saved.unit, fresh.unit))) {
           numericDrafts[name] = saved
           state[name] = projectNumericField(saved, refreshed.resolvedUi, name)
         }
@@ -272,7 +277,7 @@ export function createCamViewerSession({
     }
     const view = assertCurrentView()
     if (!Object.hasOwn(view.numericDrafts, name) || view.numericDrafts[name].kind !== "amount") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Amount field is not rendered: ${name}`)
-    return editState({ [name]: text }, { name, representation, composing: options?.composing === true })
+    return editState({ [name]: text }, { name, draft: editAmountDraft(view.numericDrafts[name].unit, representation, text, options?.composing) })
   }
 
   function editInteger(name: string, text: string, options?: { readonly composing?: boolean }): CamViewerLoadedSnapshot {
@@ -281,10 +286,20 @@ export function createCamViewerSession({
     }
     const view = assertCurrentView()
     if (!Object.hasOwn(view.numericDrafts, name) || view.numericDrafts[name].kind !== "integer") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Integer field is not rendered: ${name}`)
-    return editState({ [name]: text }, { name, representation: "base", composing: options?.composing === true })
+    return editState({ [name]: text }, { name, draft: editIntegerDraft(text, options?.composing) })
   }
 
-  function editState(patch: InertRecord, numericEdit?: { name: string; representation: "base" | "display"; composing: boolean }): CamViewerLoadedSnapshot {
+  function editDuration(name: string, part: DurationPart, text: string, options?: { readonly composing?: boolean }): CamViewerLoadedSnapshot {
+    if (typeof name !== "string" || !(DURATION_PARTS as readonly unknown[]).includes(part) || typeof text !== "string" || options !== undefined && (typeof options !== "object" || options === null || Object.keys(options).some((key) => key !== "composing") || options.composing !== undefined && typeof options.composing !== "boolean")) {
+      throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", "Duration edit requires a field name, days, hours, minutes or seconds part, text, and optional composing boolean")
+    }
+    const view = assertCurrentView()
+    const previous = Object.hasOwn(view.numericDrafts, name) ? view.numericDrafts[name] : undefined
+    if (previous?.kind !== "duration") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Duration field is not rendered: ${name}`)
+    return editState({ [name]: text }, { name, draft: editDurationDraft(previous, part, text, options?.composing) })
+  }
+
+  function editState(patch: InertRecord, numericEdit?: { name: string; draft: NumericDraft }): CamViewerLoadedSnapshot {
     assertViewAvailable()
     if (currentView === undefined) {
       throw new CamViewerError("CAM_VIEWER_NOT_LOADED", "CAM viewer session has no loaded state")
@@ -304,8 +319,9 @@ export function createCamViewerSession({
       const previous = Object.hasOwn(numericDrafts, name) ? numericDrafts[name] : undefined
       if (previous === undefined) continue
       if (typeof text !== "string") throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Numeric field edit must be a string: ${name}`)
-      const composing = numericEdit?.name === name && numericEdit.composing
-      const draft = previous.kind === "amount" ? editAmountDraft(previous.unit, numericEdit?.name === name ? numericEdit.representation : "base", text, composing) : editIntegerDraft(text, composing)
+      const draft = numericEdit?.name === name ? numericEdit.draft
+        : previous.kind === "amount" ? editAmountDraft(previous.unit, "base", text)
+        : previous.kind === "duration" ? durationDraftFromSeconds(text) : editIntegerDraft(text)
       numericDrafts[name] = draft
       state[name] = projectNumericField(draft, currentView.resolvedUi, name)
     }
@@ -331,11 +347,11 @@ export function createCamViewerSession({
     if (draft.kind === "amount") return projectAmountDraft(draft).canonical
     let bounds: { min?: string; max?: string } | undefined
     forEachResolvedUiNode(ui, (node) => {
-      if (node.element !== "NonNegativeIntegerField" || node.state.key !== name) return
+      if ((node.element !== "NonNegativeIntegerField" && node.element !== "DurationField") || node.state.key !== name) return
       bounds = node.props
     })
-    if (bounds === undefined) throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Integer field is not rendered: ${name}`)
-    return projectIntegerDraft(draft, bounds).canonical
+    if (bounds === undefined) throw new CamViewerError("CAM_VIEWER_INVALID_INERT_VALUE", `Numeric field is not rendered: ${name}`)
+    return draft.kind === "duration" ? projectDurationDraft(draft, bounds).canonical : projectIntegerDraft(draft, bounds).canonical
   }
 
   async function dispatchAction(action: ResolvedButtonNode): Promise<CamViewerActionResult> {
@@ -398,6 +414,11 @@ export function createCamViewerSession({
     forEachResolvedUiNode(view.resolvedUi, (node) => {
       if (node.element === "AmountField") numericDrafts[node.state.key] = editAmountDraft(node.unit, node.draft.representation, node.draft.representation === "base" ? node.draft.baseText : node.draft.displayText)
       if (node.element === "NonNegativeIntegerField") numericDrafts[node.state.key] = editIntegerDraft(node.draft.text)
+      if (node.element === "DurationField") {
+        let draft = durationDraftFromSeconds("")
+        for (const part of DURATION_PARTS) draft = editDurationDraft(draft, part, node.draft.parts[part].text, node.draft.parts[part].composing)
+        numericDrafts[node.state.key] = draft
+      }
     })
     return { ...view, numericDrafts }
   }
@@ -489,6 +510,7 @@ export function createCamViewerSession({
     updateState,
     editAmount,
     editInteger,
+    editDuration,
     dispatchAction,
   }
 }

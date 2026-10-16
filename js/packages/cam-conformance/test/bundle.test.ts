@@ -3380,7 +3380,7 @@ test("timestamp absence text follows string typeflow without interpreting timest
 })
 
 test("numeric field defaults accept normalized ABI integers and strings", () => {
-  for (const element of ["NonNegativeIntegerField", "AmountField"]) {
+  for (const element of ["NonNegativeIntegerField", "AmountField", "DurationField"]) {
     for (const type of ["uint8", "uint256", "int256", "string"]) {
       const uiBytes = jsonBytes({
         ui: UI_VERSION,
@@ -3410,7 +3410,7 @@ test("field default typeflow rejects incompatible ABI values and names the field
     { name: "value", type: "tuple", components: [{ name: "count", type: "uint256" }] },
     { name: "value", type: "uint256[]" },
   ]
-  for (const element of ["NonNegativeIntegerField", "AmountField", "TextField", "DocumentHashField"]) {
+  for (const element of ["NonNegativeIntegerField", "AmountField", "DurationField", "TextField", "DocumentHashField"]) {
     const rejectedOutputs = element === "TextField" || element === "DocumentHashField"
       ? [...outputs, { name: "value", type: "uint256" }]
       : outputs

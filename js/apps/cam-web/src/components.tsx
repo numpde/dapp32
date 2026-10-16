@@ -3,11 +3,13 @@ import type { ReactElement, Ref } from "react"
 
 import type { InertValue } from "@cam/protocol"
 import { isDocumentHashDigest } from "@cam/protocol"
-import { MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "@cam/screen"
+import { DURATION_PARTS, MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "@cam/screen"
 import type {
   ResolvedButtonNode,
   ResolvedAmountFieldNode,
   ResolvedNonNegativeIntegerFieldNode,
+  ResolvedDurationFieldNode,
+  DurationPart,
   ResolvedDocumentHashFieldNode,
   ResolvedUiNode,
 } from "@cam/screen"
@@ -72,6 +74,7 @@ export function UiView({
   onInput,
   onAmount,
   onInteger,
+  onDuration,
   onDocumentHash,
   onCancelDocumentHash,
 }: {
@@ -85,6 +88,7 @@ export function UiView({
   readonly onInput: (name: string, value: string) => void
   readonly onAmount: AmountEdit
   readonly onInteger: IntegerEdit
+  readonly onDuration: DurationEdit
   readonly onDocumentHash: DocumentHashCalculate
   readonly onCancelDocumentHash: (name: string) => void
 }): ReactElement {
@@ -104,7 +108,7 @@ export function UiView({
         </details>
       </div>
       <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
-        <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       </fieldset>
     </section>
   )
@@ -163,6 +167,7 @@ function UiNodeView({
   onInput,
   onAmount,
   onInteger,
+  onDuration,
   onDocumentHash,
   onCancelDocumentHash,
 }: {
@@ -173,6 +178,7 @@ function UiNodeView({
   readonly onInput: (name: string, value: string) => void
   readonly onAmount: AmountEdit
   readonly onInteger: IntegerEdit
+  readonly onDuration: DurationEdit
   readonly onDocumentHash: DocumentHashCalculate
   readonly onCancelDocumentHash: (name: string) => void
 }): ReactElement {
@@ -182,7 +188,7 @@ function UiNodeView({
       return (
         <>
           {node.children.map((child, index) => (
-            <UiNodeView key={index} node={child} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+            <UiNodeView key={index} node={child} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
           ))}
         </>
       )
@@ -209,6 +215,8 @@ function UiNodeView({
       return <KeyValue label={stringProp(node.props, "label")} value={stringProp(node.props, "address")} mono={true} />
     case "AmountField":
       return <AmountFieldView node={node} onAmount={onAmount} />
+    case "DurationField":
+      return <DurationFieldView node={node} onDuration={onDuration} />
     case "NonNegativeIntegerField":
       return <IntegerFieldView node={node} onInteger={onInteger} />
     case "DocumentHashField":
@@ -241,6 +249,7 @@ function UiNodeView({
 }
 
 type AmountEdit = (name: string, representation: "base" | "display", text: string, options?: { readonly composing?: boolean }) => void
+type DurationEdit = (name: string, part: DurationPart, text: string, options?: { readonly composing?: boolean }) => void
 type IntegerEdit = (name: string, text: string, options?: { readonly composing?: boolean }) => void
 type DocumentHashCalculate = (name: string, source: "url" | "file", file?: File) => Promise<void>
 
@@ -402,6 +411,31 @@ function AmountFieldView({ node, onAmount }: { readonly node: ResolvedAmountFiel
       </label>)}
     </div>
     {explanation === undefined ? null : <p id={hintId} className="field-hint" role="status">{explanation}</p>}
+  </fieldset>
+}
+
+function DurationFieldView({ node, onDuration }: { readonly node: ResolvedDurationFieldNode; readonly onDuration: DurationEdit }): ReactElement {
+  const hintId = useId()
+  const issue = node.draft.issue
+  const explanation = issue === "belowMin" ? `Enter a total of at least ${node.props.min} seconds.`
+    : issue === "aboveMax" ? `Enter a total of at most ${node.props.max} seconds.`
+    : issue === "tooLong" ? `The total duration must fit in ${MAX_NUMERIC_DIGITS} digits when expressed in seconds.`
+    : node.draft.status === "invalid" ? "Use whole numbers with digits only. A part that is too long or contains a line break is cleared; enter it again."
+    : node.draft.status === "incomplete" ? "Finish entering the duration."
+    : "Whole numbers only. Blank parts count as 0 once you enter a value."
+  return <fieldset className="duration-field" disabled={node.disabled === true} aria-describedby={hintId}>
+    <legend>{displayText(node.props.label)}</legend>
+    <div className="duration-parts">
+      {DURATION_PARTS.map(part => <label className="field" key={part}>
+        <span>{part[0].toUpperCase() + part.slice(1)}</span>
+        <NumericInput key={`${node.state.key}.${part}`} name={`${node.state.key}.${part}`} inputMode="numeric"
+          value={node.draft.parts[part].text} composing={node.draft.parts[part].composing} issue={node.draft.parts[part].issue}
+          aria-describedby={hintId} aria-invalid={node.draft.status === "invalid"}
+          onEdit={(text, options) => onDuration(node.state.key, part, text, options)} />
+      </label>)}
+    </div>
+    <p id={hintId} className="field-hint" role="status">{explanation}</p>
+    {node.formattedValue === undefined ? null : <p className="field-hint">Total: {displayText(node.formattedValue)}</p>}
   </fieldset>
 }
 

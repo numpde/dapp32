@@ -1,3 +1,4 @@
+import { durationDraftFromSeconds, projectDurationDraft } from "./duration.ts"
 import { UiError } from "./errors.ts"
 import { resolveValueAtPath } from "./expressions.ts"
 import { formatStatusValue } from "./status-format.ts"
@@ -197,6 +198,17 @@ function resolveNode(
         children: [],
       }]
     }
+    case "DurationField": {
+      const state = resolveStateBinding(node.state, context, `${path}.state`, false, node.element)
+      const props = resolveIntegerProps(node.props, context, `${path}.props`)
+      const source = context.numericDrafts !== undefined && hasOwn(context.numericDrafts, state.key) ? context.numericDrafts[state.key] : undefined
+      if (source !== undefined && source.kind !== "duration") throw new UiError("UI_INVALID_FIELD", "Duration field draft kind changed during editing", `${path}.state`)
+      const raw = context.state[state.key]
+      if (source === undefined && typeof raw !== "string" && raw !== null) throw new UiError("UI_INVALID_FIELD", "Duration field state must contain whole seconds as a decimal string or null", `${path}.state`)
+      const projection = projectDurationDraft(source === undefined ? durationDraftFromSeconds(raw === null ? "" : raw as string) : source, props)
+      return [{ element: node.element, ...resolveAvailability(node.enabledWhen, context, `${path}.enabledWhen`), props, state,
+        draft: projection.draft, ...(projection.canonical === null ? {} : { formattedValue: formatStatusValue(projection.canonical, "durationSeconds", `${path}.props`) }), children: [] }]
+    }
     case "NonNegativeIntegerField": {
       const state = resolveStateBinding(node.state, context, `${path}.state`, false, node.element)
       const props = resolveIntegerProps(node.props, context, `${path}.props`)
@@ -324,6 +336,18 @@ function collectInitialStateFromNode(
       } else state[binding.key] = binding.defaultValue
       return
     }
+    case "DurationField": {
+      const binding = resolveStateBinding(node.state, context, `${path}.state`, true, node.element)
+      if (binding.defaultValue === undefined) throw new UiError("UI_INVALID_FIELD", "Duration field defaultValue was not resolved", `${path}.state.defaultValue`)
+      if (hasOwn(state, binding.key)) throw new UiError("UI_INVALID_FIELD", `duplicate ${node.element} state key: ${binding.key}`, `${path}.state.key`)
+      const draft = durationDraftFromSeconds(binding.defaultValue)
+      const projection = projectDurationDraft(draft, resolveIntegerProps(node.props, context, `${path}.props`))
+      if (projection.draft.status !== "valid" && projection.draft.status !== "empty") throw new UiError("UI_INVALID_FIELD", "Duration defaultValue must be whole seconds satisfying its bounds, or empty", `${path}.state.defaultValue`)
+      state[binding.key] = projection.canonical
+      const drafts = context.numericDrafts as Record<string, NumericDraft>
+      drafts[binding.key] = draft
+      return
+    }
     case "NonNegativeIntegerField": {
       const binding = resolveStateBinding(node.state, context, `${path}.state`, true, node.element)
       if (binding.defaultValue === undefined) throw new UiError("UI_INVALID_FIELD", "Integer field defaultValue was not resolved", `${path}.state.defaultValue`)
@@ -395,6 +419,7 @@ function nodeCanExposeInitialState(ui: UiDocument, nodeName: string, stack: read
     case "DocumentHashField":
     case "TextField":
     case "AmountField":
+    case "DurationField":
     case "NonNegativeIntegerField":
       return true
     case "Screen":
@@ -418,6 +443,7 @@ function nodeBodyCanExposeInitialState(node: UiNode, stack: readonly string[]): 
     case "DocumentHashField":
     case "TextField":
     case "AmountField":
+    case "DurationField":
     case "NonNegativeIntegerField":
       return true
     case "Screen":
@@ -442,7 +468,7 @@ function resolveStateBinding(
   context: UiRuntimeContext,
   path: string,
   includeDefault: boolean,
-  element: "TextField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField",
+  element: "TextField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField",
 ): {
   readonly key: string
   readonly defaultValue?: string

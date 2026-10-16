@@ -114,6 +114,53 @@ test("terminal integer controls preserve lexical text, exact bounds, unavailable
   assert.ok(output.includes("Disabled counter (disabled): 42\n"))
 })
 
+test("terminal duration shows all parts, exact summary and seconds bounds, and edits one named part", () => {
+  const output = statusTerminalOutput([
+    { element: "DurationField", props: { label: "Wait", min: "1", max: "86400" }, state: { key: "wait" },
+      draft: { parts: { days: { text: "", status: "empty" }, hours: { text: "", status: "empty" }, minutes: { text: "0002", status: "valid" }, seconds: { text: "90", status: "valid" } }, status: "valid" },
+      formattedValue: "3 minutes, 30 seconds (210 seconds)", children: [] },
+  ], undefined, "duration wait minutes 0002\nduration wait seconds\nduration wait weeks 2\nquit\n")
+  assert.ok(output.includes("minutes: 0002"))
+  assert.ok(output.includes("Total: 3 minutes, 30 seconds (210 seconds)"))
+  assert.ok(output.includes("Minimum seconds: 1"))
+  assert.ok(output.includes("Maximum seconds: 86400"))
+  assert.ok(output.includes('DURATION_EDIT ["wait","minutes","0002"]'))
+  assert.ok(output.includes('DURATION_EDIT ["wait","seconds",""]'))
+  assert.ok(output.includes("usage: duration"))
+})
+
+test("terminal duration commands edit a real viewer session without normalizing its part drafts", () => {
+  const backend = new URL("../backends/index.ts", import.meta.url)
+  const terminal = new URL("../terminal-session.ts", import.meta.url)
+  const viewer = new URL("../../../packages/cam-viewer/dist/index.js", import.meta.url)
+  const fixtures = new URL("../../../../tests/fixtures/cam/", import.meta.url)
+  const script = `
+    import { mock } from 'node:test';
+    import { createHash } from 'node:crypto';
+    import { createCamViewerSession } from ${JSON.stringify(viewer.href)};
+    import { bikeResourceBytes, createMockCamPublicClient, createMockResourceLoader, encodeJson } from ${JSON.stringify(new URL("mock.mts", fixtures).href)};
+    import { BIKE_CAM_URI, BIKE_UI_URI, BIKE_ACCOUNT_ADDRESS, BIKE_SERIAL_NUMBER, bikeHost, bikeContractAddresses, bikeRouteResults } from ${JSON.stringify(new URL("bike.mts", fixtures).href)};
+    const digest = bytes => '0x'+createHash('sha256').update(bytes).digest('hex');
+    const resources = bikeResourceBytes({});
+    const uiBytes = encodeJson({ui:'1.0.0',nodes:{app:{requires:['view'],element:'DurationField',props:{label:'Wait',min:'1',max:'86400'},state:{key:'wait',defaultValue:''}}}});
+    const cam = JSON.parse(new TextDecoder().decode(resources[BIKE_CAM_URI]));
+    cam.namespaces.ui.integrity = 'sha256:0x'+createHash('sha256').update(uiBytes).digest('hex');
+    const camBytes = encodeJson(cam);
+    const session = createCamViewerSession({host:bikeHost, account:{address:BIKE_ACCOUNT_ADDRESS}, inputs:{},
+      publicClient:createMockCamPublicClient({chainId:31337,camURI:BIKE_CAM_URI,camHash:digest(camBytes),supportsCamInterface:true,addresses:bikeContractAddresses,routeResults:bikeRouteResults(BIKE_SERIAL_NUMBER,BIKE_ACCOUNT_ADDRESS,'active')}),
+      loadResource:createMockResourceLoader(bikeResourceBytes({[BIKE_CAM_URI]:camBytes,[BIKE_UI_URI]:uiBytes}))});
+    mock.module(${JSON.stringify(backend.href)}, {namedExports:{createTerminalBackendFromEnv:async()=>({name:'duration-fixture',description:'duration input',hostLabel:'fixture',createSession:()=>session})}});
+    await import(${JSON.stringify(terminal.href)});
+  `
+  const output = execFileSync(process.execPath, ["--experimental-test-module-mocks", "--experimental-strip-types", "--input-type=module", "-e", script], {
+    input: "duration wait minutes 90\nduration wait seconds 1.5\nquit\n", encoding: "utf8", timeout: 10_000, maxBuffer: 512_000,
+  })
+  assert.ok(output.includes("minutes: 90"))
+  assert.ok(output.includes("Total: 1 hour, 30 minutes (5,400 seconds)"))
+  assert.ok(output.includes("seconds: 1.5"))
+  assert.ok(output.includes("Duration invalid; no duration is available."))
+})
+
 test("terminal integer commands preserve raw text and forward explicit clearing through the session API", () => {
   const output = statusTerminalOutput([], undefined, "integer counter 00042\ninteger counter 9007199254740993\ninteger counter 1.5\ninteger counter\nquit\n")
   for (const value of ["00042", "9007199254740993", "1.5", ""]) assert.ok(output.includes("INTEGER_EDIT " + JSON.stringify(["counter", value]) + "\n"))
@@ -187,6 +234,7 @@ function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][],
           back: unsupported, navigate: unsupported, setAccount: unsupported,
           updateState: unsupported, dispatchAction: unsupported,
           editAmount: (name, representation, text) => { process.stdout.write('AMOUNT_EDIT '+JSON.stringify([name,representation,text])+'\\n'); return snapshot; },
+          editDuration: (name, part, text) => { process.stdout.write('DURATION_EDIT '+JSON.stringify([name,part,text])+'\\n'); return snapshot; },
           editInteger: (name, text) => { process.stdout.write('INTEGER_EDIT '+JSON.stringify([name,text])+'\\n'); return snapshot; } })
       })
     }});

@@ -450,9 +450,9 @@
           }
         },
         {
-          "element": "NonNegativeIntegerField",
+          "element": "DurationField",
           "props": {
-            "label": "Withdrawal wait for new channel (seconds)"
+            "label": "Withdrawal wait for new channel"
           },
           "state": {
             "key": "newClaimPeriod",

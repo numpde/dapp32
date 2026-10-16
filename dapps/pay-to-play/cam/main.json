@@ -2,7 +2,7 @@
   "cam": "1.2.0",
   "protocol": {
     "uri": "./protocol.html",
-    "integrity": "sha256:0x94e5b886d650cf140ddf06ae400acd96bf8abc8e01fd50cd298dd76a6200e56e"
+    "integrity": "sha256:0x059e61f6f8c5578e3ba11a03ebb2ab6c579710e4e50956974901d65e53d154cb"
   },
   "entry": "home",
   "namespaces": {
@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x472dc03c4cf993e2363ce2a0f1f490ff25edee028a66dbca8992177200f2a175"
+      "integrity": "sha256:0x447e5ea39befcf44924005f3b9030d611bd6bd12776f36139ca40d6be70e3b7a"
     }
   },
   "routes": {

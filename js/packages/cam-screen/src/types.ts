@@ -13,6 +13,7 @@ export type UiNode =
   | DocumentHashFieldNode
   | AmountFieldNode
   | NonNegativeIntegerFieldNode
+  | DurationFieldNode
   | AddressNode
   | StatusNode
   | NftNode
@@ -74,7 +75,14 @@ export type NumericTextDraft = {
 }
 
 export type IntegerDraft = NumericTextDraft & { readonly kind: "integer" }
-export type NumericDraft = AmountDraft | IntegerDraft
+export type DurationPart = "days" | "hours" | "minutes" | "seconds"
+export type DurationDraft = { readonly kind: "duration"; readonly parts: Readonly<Record<DurationPart, NumericTextDraft>> }
+export type DurationPresentation = {
+  readonly parts: Readonly<Record<DurationPart, IntegerPresentation>>
+  readonly status: IntegerPresentation["status"]
+  readonly issue?: IntegerPresentation["issue"]
+}
+export type NumericDraft = AmountDraft | IntegerDraft | DurationDraft
 
 export type AmountDraft = NumericTextDraft & {
   readonly kind: "amount"
@@ -102,6 +110,23 @@ export type ResolvedNonNegativeIntegerFieldNode = {
   readonly props: { readonly label: string; readonly min?: string; readonly max?: string }
   readonly state: ResolvedUiStateBinding
   readonly draft: IntegerPresentation
+  readonly children: readonly []
+}
+
+export type DurationFieldNode = UiNodeBase & {
+  readonly element: "DurationField"
+  readonly enabledWhen?: UiMembership
+  readonly props: InertRecord
+  readonly state: UiStateBinding
+}
+
+export type ResolvedDurationFieldNode = {
+  readonly element: "DurationField"
+  readonly disabled?: boolean
+  readonly props: { readonly label: string; readonly min?: string; readonly max?: string }
+  readonly state: ResolvedUiStateBinding
+  readonly draft: DurationPresentation
+  readonly formattedValue?: string
   readonly children: readonly []
 }
 
@@ -188,6 +213,7 @@ export type ResolvedElementNode =
   | ResolvedStatusNode
   | ResolvedAmountFieldNode
   | ResolvedNonNegativeIntegerFieldNode
+  | ResolvedDurationFieldNode
 
 export type ResolvedContainerNode = {
   readonly element: Extract<UiNode["element"], "Screen" | "Fragment">
@@ -196,7 +222,7 @@ export type ResolvedContainerNode = {
 }
 
 export type ResolvedLeafElementNode = {
-  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "Status">
+  readonly element: Exclude<UiNode["element"], "Include" | "Button" | "Screen" | "Fragment" | "TextField" | "DocumentHashField" | "AmountField" | "NonNegativeIntegerField" | "DurationField" | "Status">
   readonly props: InertRecord
   readonly children: readonly []
 }

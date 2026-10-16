@@ -486,6 +486,17 @@ export function App(): ReactElement {
     }
   }
 
+  function updateDuration(name: string, part: import("@cam/screen").DurationPart, text: string, options?: { readonly composing?: boolean }): void {
+    if (sendingRef.current || viewInteractionBlocked()) return
+    const ready = requireReadyState(loadState)
+    try {
+      invalidatePreparedInteraction()
+      setLoadState({ ...ready, snapshot: ready.runtime.session.editDuration(name, part, text, options) })
+    } catch (error) {
+      showError(errorMessage(error), true)
+    }
+  }
+
   function updateInteger(name: string, text: string, options?: { readonly composing?: boolean }): void {
     if (sendingRef.current || viewInteractionBlocked()) return
     const ready = requireReadyState(loadState)
@@ -698,6 +709,7 @@ export function App(): ReactElement {
           onInput={updateInput}
           onAmount={updateAmount}
           onInteger={updateInteger}
+          onDuration={updateDuration}
           onDocumentHash={calculateDocumentHash}
           onCancelDocumentHash={cancelDocumentHash}
         />

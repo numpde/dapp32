@@ -242,7 +242,7 @@ async function setupDraft(ref) {
   await fill('contractor', accounts.contractor.address)
   await fill('arbitrator', accounts.arbitrator.address)
   await fill('amount', String(MAX_VALUE))
-  for (const name of ['acceptanceDuration', 'workDuration', 'reviewDuration', 'arbitrationDuration']) await fill(name, '600')
+  for (const name of ['acceptanceDuration.seconds', 'workDuration.seconds', 'reviewDuration.seconds', 'arbitrationDuration.seconds']) await fill(name, '600')
   await fill('termsUri', 'https://example.test/terms')
   await fill('termsDigest', `0x${'11'.repeat(32)}`)
   await prepare('Prepare creation transaction')

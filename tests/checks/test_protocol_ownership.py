@@ -93,6 +93,8 @@ class ProtocolOwnershipTest(unittest.TestCase):
             # Status uses private exact arithmetic and publishes only inert raw
             # values plus formatted strings, never runtime integers in snapshots.
             repo_path("js/packages/cam-screen/src/status-format.ts"),
+            # Duration editing converts bounded parts to inert whole seconds.
+            repo_path("js/packages/cam-screen/src/duration.ts"),
         }
         failures: list[str] = []
 

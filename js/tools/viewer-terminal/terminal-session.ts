@@ -10,6 +10,7 @@ import {
 } from "../../packages/cam-protocol/dist/index.js"
 import {
   resolvedUiButtons,
+  DURATION_PARTS,
 } from "../../packages/cam-screen/dist/index.js"
 import type {
   ResolvedButtonNode,
@@ -117,6 +118,13 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
         const [name, representation, ...parts] = args
         if (name === undefined || representation !== "base" && representation !== "display") throw new Error("usage: amount <name> <base|display> [value]; omit value to clear")
         context.session.editAmount(name, representation, parts.join(" "))
+        render(context.session.snapshot())
+        break
+      }
+      case "duration": {
+        const [name, part, ...parts] = args
+        if (name === undefined || !(DURATION_PARTS as readonly unknown[]).includes(part)) throw new Error("usage: duration <name> <days|hours|minutes|seconds> [value]; omit value to clear that part")
+        context.session.editDuration(name, part as typeof DURATION_PARTS[number], parts.join(" "))
         render(context.session.snapshot())
         break
       }
@@ -257,6 +265,15 @@ function renderNode(
       output.write(`  ${formatValue(node.unit.displayLabel)}: ${formatValue(node.draft.displayText)}\n`)
       output.write(`  Edit with amount ${formatValue(node.state.key)} <base|display> [value].\n`)
       if (node.draft.status !== "valid") output.write(`  Amount ${node.draft.status}${node.draft.issue === undefined ? "" : `: ${node.draft.issue}`}; no amount is available to prepare.\n`)
+      return
+    case "DurationField":
+      output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}\n`)
+      for (const part of DURATION_PARTS) output.write(`  ${part}: ${formatValue(node.draft.parts[part].text)}\n`)
+      output.write(`  Edit with duration ${formatValue(node.state.key)} <days|hours|minutes|seconds> [value]. Blank parts count as 0 once a value is entered.\n`)
+      if (node.props.min !== undefined) output.write(`  Minimum seconds: ${formatValue(node.props.min)}\n`)
+      if (node.props.max !== undefined) output.write(`  Maximum seconds: ${formatValue(node.props.max)}\n`)
+      if (node.formattedValue !== undefined) output.write(`  Total: ${formatValue(node.formattedValue)}\n`)
+      else output.write(`  Duration ${node.draft.status}${node.draft.issue === undefined ? "" : `: ${node.draft.issue}`}; no duration is available.\n`)
       return
     case "NonNegativeIntegerField":
       output.write(`${formatValue(node.props.label)}${node.disabled === true ? " (disabled)" : ""}: ${formatValue(node.draft.text)}\n`)
@@ -406,6 +423,7 @@ function printHelp(): void {
     "  restart               Reset the backend session and reload the entry route.",
     "  set <name> <value>    Update local UI state and re-resolve actions.",
     "  amount <name> <base|display> [value]  Edit either amount unit; omit value to clear.",
+    "  duration <name> <days|hours|minutes|seconds> [value]  Edit one duration part; omit value to clear it.",
     "  integer <name> [value]              Edit a whole number; omit value to clear.",
     "  press <n>             Dispatch a resolved button action.",
     "  help                  Print this help.",

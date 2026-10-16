@@ -399,6 +399,7 @@ test("declared integer presentation retains every digit of long values", () => {
   assert.equal(groups.join(""), value)
   assert.equal(groups.length, 1001)
   assert.ok(groups.slice(1).every((group) => group.length === 3))
+  assert.ok(resolved.element === "Status")
   assert.equal(resolved.props.value, value)
 })
 
@@ -1191,3 +1192,23 @@ test("resolveUiNode fails closed on missing required arguments and non-string ac
 function inertRecord(value: unknown): InertRecord {
   return toInertValue(value) as InertRecord
 }
+
+
+test("DurationField defaults and current state remain canonical seconds with explicit declared bounds", () => {
+  for (const value of ["", "0", "00090061", "9007199254740993"]) {
+    const ui = parseUi({ ui: UI_VERSION, nodes: { wait: {
+      requires: [], element: "DurationField", props: { label: "Wait", min: "0" },
+      state: { key: "wait", defaultValue: value },
+    } } })
+    const initial = resolveInitialUiNode(ui, "wait", {}, { ...context, state: {} })
+    assert.equal(initial.state.wait, value === "" ? null : BigInt(value).toString())
+    assert.equal(initial.resolvedUi.element, "DurationField")
+    assert.deepEqual(resolvedUiInputNames(initial.resolvedUi), ["wait"])
+  }
+  for (const defaultValue of ["-1", "1.5", "1e3"]) {
+    const ui = parseUi({ ui: UI_VERSION, nodes: { wait: {
+      requires: [], element: "DurationField", props: { label: "Wait" }, state: { key: "wait", defaultValue },
+    } } })
+    assert.throws(() => resolveInitialUiNode(ui, "wait", {}, { ...context, state: {} }), UiError)
+  }
+})
