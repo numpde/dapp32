@@ -610,7 +610,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "My wallet position follows the selected wallet. Switching wallet accounts opens this channel for the new account and clears unfinished inputs."
+            "text": "This view follows the selected account. Connecting or switching a wallet opens this channel for that account and clears unfinished inputs."
           }
         },
         {
