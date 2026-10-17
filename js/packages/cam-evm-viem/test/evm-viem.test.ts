@@ -111,6 +111,24 @@ test("uses the Solidity ICamApp interface id", () => {
   assert.equal(ICAM_APP_INTERFACE_ID, xorSelectors(["camManifest()", "contractAddress(string)"]))
 })
 
+test("rejected host URIs retain their reason without disclosing credentials or loading bytes", async () => {
+  let loads = 0
+  await assert.rejects(() => loadCamFromHost({
+    publicClient: createPublicClient(publicClientFixtureOptions({ camURI: "https://fixture-user:fixture-password@example.test/main.json" })),
+    host,
+    async loadResource() { loads += 1; return encodeJson(camJson) },
+  }), error => {
+    assert(error instanceof CamEvmError)
+    assert.equal(error.code, "CAM_DOCUMENT_INVALID")
+    assert(error.cause instanceof Error)
+    assert.match(error.cause.message, /credentials are not allowed/)
+    assert.match(error.message, /camManifest.uri.*not loadable/)
+    assert.doesNotMatch(error.message, /fixture-user|fixture-password/)
+    return true
+  })
+  assert.equal(loads, 0)
+})
+
 test("loadCamFromHost reads root metadata, parses namespaced CAMs, and rejects hash mismatches", async () => {
   const camBytes = encodeJson(camJson)
   const publicClient = createPublicClient(publicClientFixtureOptions({

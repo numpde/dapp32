@@ -242,7 +242,7 @@ test("collects ordered CAM fact diagnostics without conformance policy", () => {
     diagnostic.path,
     diagnostic.message,
   ]), [
-    ["CAM_FACT_RESOURCE_URI_POLICY_INVALID", "namespaces.contracts.App.abiURI", "namespaces.contracts.App.abiURI: CAM resource URI must be local ./... or ipfs://<CID>[...]: ../bad.json"],
+    ["CAM_FACT_RESOURCE_URI_POLICY_INVALID", "namespaces.contracts.App.abiURI", "namespaces.contracts.App.abiURI: CAM resource URI must be local ./... or ipfs://<CID>[...]"],
     ["CAM_FACT_RESOURCE_INTEGRITY_INVALID", "namespaces.ui.integrity", "CAM resource integrity must be a non-empty string: ui"],
   ])
 })
@@ -1151,6 +1151,15 @@ test("validates HTTP resource boundaries and bounded response bytes", async () =
     }, "https://example.test/x"),
     /empty chunk/,
   )
+})
+
+test("rejected secondary resource URIs explain the allowed forms without disclosing credentials", () => {
+  assert.throws(() => assertCamSecondaryResourceURI("https://fixture-user:fixture-password@example.test/ui.json", "UI resource"), error => {
+    assert(error instanceof Error)
+    assert.match(error.message, /UI resource.*local .*ipfs/)
+    assert.doesNotMatch(error.message, /fixture-user|fixture-password/)
+    return true
+  })
 })
 
 test("validates secondary CAM resource URI policy", () => {

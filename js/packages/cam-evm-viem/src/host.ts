@@ -36,7 +36,7 @@ export async function loadCamFromHost({
   try {
     assertLoadableCamRootURI(camURI, "CAM host camManifest.uri")
   } catch (cause) {
-    throw new CamEvmError("CAM_DOCUMENT_INVALID", `CAM host camManifest.uri is not loadable: ${camURI}`, cause)
+    throw new CamEvmError("CAM_DOCUMENT_INVALID", "CAM host camManifest.uri is not loadable", cause)
   }
 
   const camBytes = await loadResourceBytes(

@@ -142,7 +142,7 @@ export function createSameOriginHttpResourceLoader(options: {
 export function assertCamSecondaryResourceURI(uri: string, label: string): void {
   if (isLocalCamSecondaryResourceURI(uri) || isIpfsCamSecondaryResourceURI(uri)) return
 
-  throw new Error(`${label}: CAM resource URI must be local ./... or ipfs://<CID>[...]: ${uri}`)
+  throw new Error(`${label}: CAM resource URI must be local ./... or ipfs://<CID>[...]`)
 }
 
 export function assertLoadableCamRootURI(uri: string, label: string): void {
