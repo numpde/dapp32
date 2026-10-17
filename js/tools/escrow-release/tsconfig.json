@@ -3,6 +3,7 @@
   "include": [
     "**/*.ts",
     "../release-cam-bundle.test.ts",
-    "../release-files.test.ts"
+    "../release-files.test.ts",
+    "../release-values.test.ts"
   ]
 }

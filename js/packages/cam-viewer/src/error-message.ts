@@ -2,8 +2,9 @@ const MAX_ERROR_TEXT_LENGTH = 500
 const MAX_ERROR_MESSAGE_LENGTH = 2_000
 const MAX_ERROR_CAUSES = 32
 
-export function viewerErrorMessage(error: unknown): string {
+export function viewerErrorMessage(error: unknown, options?: { readonly includeStack?: boolean }): string {
   const parts: string[] = []
+  const stacks: string[] = []
   const seen = new Set<object>()
   let current = error
   for (let depth = 0; current !== undefined && depth < MAX_ERROR_CAUSES; depth += 1) {
@@ -19,10 +20,12 @@ export function viewerErrorMessage(error: unknown): string {
     appendDiagnostic(parts, errorCustomRevert(current))
     appendDiagnostic(parts, readableErrorString(current, "reason"))
     appendDiagnostic(parts, readableErrorString(current, "details"))
+    if (options?.includeStack === true) appendDiagnostic(stacks, errorStackTail(current))
     current = errorCause(current)
     if (depth === MAX_ERROR_CAUSES - 1 && current !== undefined) appendDiagnostic(parts, "Cause chain truncated.")
   }
-  const message = parts.length === 0 ? diagnosticText(safeString(error, "unprintable error")) : parts.join(": ")
+  const diagnostic = parts.length === 0 ? diagnosticText(safeString(error, "unprintable error")) : parts.join(": ")
+  const message = stacks.length === 0 ? diagnostic : `${diagnostic}\nStack:\n${stacks.join("\n")}`
   return message.length <= MAX_ERROR_MESSAGE_LENGTH ? message : `${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}...`
 }
 
@@ -31,7 +34,11 @@ function appendDiagnostic(parts: string[], text: string | undefined): void {
 }
 
 function diagnosticText(value: string): string {
-  const redacted = value
+  return escapeDiagnosticText(redactDiagnosticText(value))
+}
+
+function redactDiagnosticText(value: string): string {
+  return value
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/?#]*@/giu, "$1[redacted]@")
     .replace(/([?&])([^=&#\s]+)=([^&#\s]*)/gu, (field, separator: string, key: string) => {
       const decodedKey = new URLSearchParams(`${key}=`).keys().next().value
@@ -40,8 +47,24 @@ function diagnosticText(value: string): string {
         : field
     })
     .replace(/(authorization\s*:\s*(?:bearer|basic)\s+)[^\s]+/giu, "$1[redacted]")
-  const escaped = redacted.replace(/[\u0000-\u001f\u007f]/gu, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`)
+}
+
+function escapeDiagnosticText(value: string): string {
+  const escaped = value.replace(/[\u0000-\u001f\u007f]/gu, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`)
   return escaped.length <= MAX_ERROR_TEXT_LENGTH ? escaped : `${escaped.slice(0, MAX_ERROR_TEXT_LENGTH)}...`
+}
+
+function errorStackTail(error: unknown): string | undefined {
+  const name = errorProperty(error, "name")
+  const message = errorProperty(error, "message")
+  const stack = errorProperty(error, "stack")
+  if (typeof name !== "string" || typeof message !== "string" || typeof stack !== "string") return undefined
+  const prefix = `${name}: ${message}\n`
+  if (!stack.startsWith(prefix)) return undefined
+  const frames = redactDiagnosticText(stack.slice(prefix.length)).split("\n").filter(line => /^ +at /.test(line))
+  if (frames.length === 0) return undefined
+  const tail = frames.map(escapeDiagnosticText).join("\n")
+  return tail.length <= MAX_ERROR_TEXT_LENGTH ? tail : `${tail.slice(0, MAX_ERROR_TEXT_LENGTH)}...`
 }
 
 function errorCause(error: unknown): unknown {

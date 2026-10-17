@@ -34,7 +34,8 @@ ROOT_WORKSPACE_SCRIPTS = {
     "build:workspace": "npm run build --workspaces --if-present",
     "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/conformance",
     "test:cam-conformance": "npm run build:cam-conformance && npm test -w @cam/conformance",
-    "test:workspace": "npm run build:workspace && npm test --workspaces --if-present",
+    "test:workspace": "npm run build:workspace && npm test --workspaces --if-present && npm run test:scenario-tools",
+    "test:scenario-tools": "tsc -p tools/pay-to-play-local-scenario/tsconfig.json && tsc -p tools/escrow-local-scenario/tsconfig.json && node --test --experimental-strip-types tools/pay-to-play-local-scenario/runner.test.ts tools/escrow-local-scenario/runner.test.ts",
 }
 LIBRARY_PACKAGE_SCRIPTS = {
     "build": "tsc -p tsconfig.json",

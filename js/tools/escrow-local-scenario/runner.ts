@@ -26,6 +26,7 @@ import type {
 } from "../../packages/cam-evm-viem/dist/index.js"
 import {
   createCamViewerSession,
+  viewerErrorMessage,
 } from "../../packages/cam-viewer/dist/index.js"
 import type {
   CamViewerLoadedSnapshot,
@@ -630,16 +631,6 @@ function requiredPrivateKey(name: string): Hex {
 }
 
 main().catch((error: unknown) => {
-  let message: string
-  if (error instanceof Error) {
-    if (error.stack === undefined) {
-      message = error.message
-    } else {
-      message = error.stack
-    }
-  } else {
-    message = String(error)
-  }
-  process.stderr.write(`${message}\n`)
+  process.stderr.write(`Escrow scenario failed: ${viewerErrorMessage(error, { includeStack: true })}\n`)
   process.exitCode = 1
 })

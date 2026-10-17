@@ -1,3 +1,4 @@
+import { viewerErrorMessage } from "../packages/cam-viewer/dist/index.js"
 import { requireEvmAddress } from "../packages/cam-evm-viem/dist/index.js"
 import type { CamHost } from "../packages/cam-evm-viem/dist/index.js"
 import { isRecordObject, parseJsonBytes } from "../packages/cam-protocol/dist/index.js"
@@ -129,10 +130,7 @@ export function requireDistinctHexValues(values: readonly `0x${string}`[], label
 
 export function runReleaseTool(main: () => Promise<void>): void {
   main().catch((error: unknown) => {
-    const message = error instanceof Error && error.stack !== undefined && error.stack.length > 0
-      ? error.stack
-      : error instanceof Error ? error.message : String(error)
-    process.stderr.write(`${message}\n`)
+    process.stderr.write(`${viewerErrorMessage(error, { includeStack: true })}\n`)
     process.exitCode = 1
   })
 }

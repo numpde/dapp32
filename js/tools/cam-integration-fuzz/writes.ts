@@ -107,7 +107,7 @@ export async function handlePreparedWrite({
       error: message,
     })
     if (writeContext.kind === "local-fixture") {
-      throw new Error(`presented write button failed simulation: ${call.route}: ${message}`)
+      throw new Error(`presented write button failed simulation: ${call.route}`, { cause })
     }
     return
   }
@@ -140,7 +140,7 @@ export async function handlePreparedWrite({
     })
   } catch (cause) {
     throw new Error(
-      `write transaction receipt was not observed within ${RECEIPT_WAIT_TIMEOUT_MS / 1000}s for route ${call.route}: ${hash}`,
+      `write transaction was submitted, but receipt checking failed for route ${call.route}: ${hash}`,
       { cause },
     )
   }

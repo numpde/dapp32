@@ -6,8 +6,10 @@ import { errorMessage } from "./events.ts"
 test("errorMessage bounds integration fuzz event errors", () => {
   const long = "x".repeat(1_500)
 
-  assert.equal(errorMessage(new Error(long)), `${"x".repeat(1_000)}...`)
-  assert.equal(errorMessage(long), `${"x".repeat(1_000)}...`)
+  assert.match(errorMessage(new Error(long)), /^x+\.\.\.$/)
+  assert.match(errorMessage(long), /^x+\.\.\.$/)
+  assert(errorMessage(new Error(long)).length <= 1_003)
+  assert(errorMessage(long).length <= 1_003)
 })
 
 test("errorMessage survives hostile thrown values", () => {
@@ -17,5 +19,12 @@ test("errorMessage survives hostile thrown values", () => {
     },
   }
 
-  assert.equal(errorMessage(hostile), "[unprintable error]")
+  assert.match(errorMessage(hostile), /unprintable/)
+})
+
+test("fuzz errors retain causal diagnostics rather than only the wrapper", () => {
+  const cause = Object.assign(new Error("execution reverted"), { data: { errorName: "UnknownResource", args: [42n] } })
+  const visible = errorMessage(new Error("read failed", { cause }))
+  assert.match(visible, /read failed/)
+  assert.match(visible, /UnknownResource\(42\)/)
 })

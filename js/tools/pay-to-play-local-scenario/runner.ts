@@ -1,11 +1,10 @@
 import assert from "node:assert/strict"
-import { AssertionError } from "node:assert"
 import { readFileSync } from "node:fs"
 import { createPublicClient, createWalletClient, hashTypedData, http } from "viem"
 import type { Address, Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "../../packages/cam-evm-viem/dist/index.js"
-import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
+import { createCamViewerSession, viewerErrorMessage } from "../../packages/cam-viewer/dist/index.js"
 import type { CamViewerLoadedSnapshot } from "../../packages/cam-viewer/dist/index.js"
 import { resolvedUiButtons } from "../../packages/cam-screen/dist/index.js"
 import { createSameOriginHttpResourceLoader, isRecordObject, parseJsonBytes, toInertValue } from "../../packages/cam-protocol/dist/index.js"
@@ -266,10 +265,6 @@ async function localRpc(url: string, method: string, params: unknown[]) {
 }
 
 main().catch((error: unknown) => {
-  // RPC errors can embed voucher signatures in calldata. Keep diagnostics safe;
-  // the last write_ok route identifies the failing workflow step.
-  process.stderr.write(error instanceof AssertionError
-    ? `Payment-channel scenario assertion failed: ${error.message}\n`
-    : "Payment-channel scenario failed; inspect the last completed CAM route and fixture service logs.\n")
+  process.stderr.write(`Payment-channel scenario failed: ${viewerErrorMessage(error)}\n`)
   process.exitCode = 1
 })

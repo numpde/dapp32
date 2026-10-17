@@ -1,3 +1,5 @@
+import { viewerErrorMessage } from "../../packages/cam-viewer/dist/index.js"
+
 export type JsonObject = {
   readonly [key: string]: unknown
 }
@@ -12,14 +14,7 @@ export function emit(event: JsonObject): void {
 }
 
 export function errorMessage(error: unknown): string {
-  // The runner emits JSON events consumed by humans and CI logs. Keep failures
-  // replay-focused and bounded instead of flooding logs with provider payloads.
-  let message: string
-  try {
-    message = error instanceof Error ? error.message : String(error)
-  } catch {
-    message = "[unprintable error]"
-  }
+  const message = viewerErrorMessage(error)
   return message.length <= MAX_EVENT_ERROR_LENGTH
     ? message
     : `${message.slice(0, MAX_EVENT_ERROR_LENGTH)}...`
