@@ -43,7 +43,7 @@ PYTHON_ALPINE_IMAGE = "docker.io/library/python:3.13-alpine@sha256:420cd0bf0f399
 PACKAGE_WORKSPACE_TMPFS = "/work/js:rw,exec,nosuid,nodev,size=512m,uid=1000,gid=1000,mode=1777"
 ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000"
 VIEWER_TERMINAL_CONTAINER_NAME = "dapps-viewer-terminal-session"
-BIKE_MOCK_CAM_MOUNT = "/work/cam/bike-nft"
+BIKE_MOCK_CAM_MOUNT = "/work/dapps/bike-nft/cam"
 BIKE_NFT_BROADCAST_DIR = "/foundry-broadcast"
 BIKE_NFT_BROADCAST_PATH = f"{BIKE_NFT_BROADCAST_DIR}/DeployBikeNftLocal.s.sol/31337/run-latest.json"
 REQUIRED_COMPOSE_ENV_RE = re.compile(r"\$\{(?P<name>[A-Za-z_][A-Za-z0-9_]*):\?[^}]+\}")

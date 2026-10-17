@@ -43,7 +43,7 @@ type MockAddress = CamHost["address"]
 const BIKE_MOCK_CAM_ORIGIN = "http://bike-nft.mock.local"
 const BIKE_MOCK_CAM_BASE_URI = `${BIKE_MOCK_CAM_ORIGIN}/`
 const BIKE_MOCK_CAM_URI = new URL("main.json", BIKE_MOCK_CAM_BASE_URI).href
-const BIKE_MOCK_CAM_BASE_PATH = "/work/cam/bike-nft"
+const BIKE_MOCK_CAM_BASE_PATH = "/work/dapps/bike-nft/cam"
 
 export type BikeMockBackendOptions = TerminalBackendOptions & {
   readonly componentStatus: BikeComponentFixtureStatus
