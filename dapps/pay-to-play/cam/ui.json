@@ -23,6 +23,13 @@
         {
           "element": "Status",
           "props": {
+            "label": "Permanent voucher key (zero means unregistered)",
+            "value": "$view.voucherKey"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
             "label": "This channel’s withdrawal wait",
             "value": "$view.claimPeriod",
             "format": "durationSeconds"
@@ -282,6 +289,50 @@
         {
           "element": "Text",
           "props": {
+            "text": "Register a permanent voucher key"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Register the address of a signing key you control, never its private key. This choice cannot be changed or cancelled, even after withdrawing all funds. Changing wallet owners or wallet software does not revoke it. The key authorizes voucher payments only; it does not gain control of withdrawals. Keep it secure."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Voucher signing key address"
+          },
+          "state": {
+            "key": "newVoucherKey",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "registerVoucherKey",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Review permanent voucher key"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "registerVoucherKey",
+            "args": {
+              "channelId": "$view.channelId",
+              "voucherKey": "$state.newVoucherKey"
+            }
+          },
+          "enabledWhen": {
+            "member": "registerVoucherKey",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
             "text": "Pay using a signed voucher"
           }
         },
@@ -327,7 +378,7 @@
         {
           "element": "TextField",
           "props": {
-            "label": "Balance owner’s voucher signature"
+            "label": "Registered key’s voucher signature"
           },
           "state": {
             "key": "signature",
@@ -361,7 +412,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "Anyone can submit the owner’s valid voucher for this channel. Get its signature from an external EIP-712 signer and enter the signed total with it. Signing details show a comparison hash; this app does not create signatures."
+            "text": "Anyone can submit a voucher signed by the registered key for this balance owner and channel. Use that key in an external EIP-712 signer and enter the signed total with its signature. Signing details show a comparison hash; this app does not create signatures."
           }
         },
         {
@@ -468,7 +519,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "This hash is for comparison, not a signature. Sign the full EIP-712 Voucher in another tool, not a personal message. Domain: name PayToPlay, version 1, this chain ID, and the deployed PayToPlay contract address as verifyingContract. The CAM host address is not the payment contract. The guide contains the full schema and local signing command."
+            "text": "This hash is for comparison, not a signature. Sign the full EIP-712 Voucher in another tool, not a personal message. Domain: name PayToPlay, version 1, this chain ID, and the deployed PayToPlay contract address as verifyingContract. The CAM host address is not the payment contract. The guide contains the full schema and local signing command. Use the permanent voucher key shown on the balance page, not the owner’s current wallet signature policy."
           }
         },
         {
@@ -525,7 +576,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, request and move require this owner’s account. Any account can submit a valid voucher (except in channel 0) or a ready withdrawal back to the owner. Connecting or changing wallet accounts clears form entries."
+            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, key registration, request and move require this owner’s account. Any account can submit a valid voucher (except in channel 0) or a ready withdrawal back to the owner. Connecting or changing wallet accounts clears form entries."
           }
         },
         {

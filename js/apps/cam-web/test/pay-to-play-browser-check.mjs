@@ -4,6 +4,7 @@ import { checkActionStyles } from './action-style-browser-check.mjs'
 import assert from 'node:assert/strict'
 import { AssertionError } from 'node:assert'
 import { createPublicClient, createWalletClient, decodeEventLog, http, parseAbi, sha256, toFunctionSelector } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
 import { createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import { fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
@@ -69,9 +70,11 @@ const payments = await publicClient.readContract({ address: root, abi: rootABI, 
 assert(!/^0x0+$/.test(payments), 'PayToPlay binding must exist')
 assert.notEqual(await rpc('eth_getCode', [payments, 'latest']), '0x')
 const accounts = fixtureWalletAccounts(walletConfig.accounts)
+// Public, unfunded voucher-only key for this disposable local fixture, never a live key.
+const voucherSigner = privateKeyToAccount(`0x${'55'.repeat(32)}`)
 assert.equal(viewer.searchParams.get('account').toLowerCase(), accounts.admin.address.toLowerCase())
 assert.equal((await publicClient.readContract({ address: payments, abi, functionName: 'owner' })).toLowerCase(), accounts.admin.address.toLowerCase())
-const allowed = new Set(['createChannel', 'fund', 'requestWithdrawal', 'setWithdrawal', 'collect'])
+const allowed = new Set(['createChannel', 'registerVoucherKey', 'fund', 'requestWithdrawal', 'setWithdrawal', 'collect'])
 const selectors = new Set(abi.filter(item => item.type === 'function' && allowed.has(item.name)).map(toFunctionSelector))
 assert.equal(selectors.size, allowed.size)
 const wallets = Object.fromEntries(Object.entries(accounts).map(([role, account]) => [role, createWalletClient({ account, chain, transport: http(rpcURL.href, { timeout: 10_000, retryCount: 0 }) })]))
@@ -231,8 +234,14 @@ try {
   const created = decodeEventLog({ abi, eventName: 'ChannelCreated', ...creationLogs[0] })
   const id = String(created.args.channelId)
   await inspect(accounts.customer.address, id)
+  disabled(await evaluate(snapshot), 'Review permanent voucher key')
   await role('customer')
   await wait(state => state.buttons.some(button => button.name === 'Review deposit' && !button.disabled), 'customer funding capability')
+  disabled(await evaluate(snapshot), 'Review voucher payment')
+  await fill('newVoucherKey', voucherSigner.address)
+  await send('Review permanent voucher key')
+  const registered = await wait(state => state.values['Permanent voucher key (zero means unregistered)']?.toLowerCase() === voucherSigner.address.toLowerCase(), 'registered voucher key')
+  disabled(registered, 'Review permanent voucher key')
   await fill('fundAmount', '100')
   await send('Review deposit')
   await wait(state => state.values['Current balance (wei)'] === '100', 'funded balance')
@@ -283,7 +292,7 @@ try {
   assert.equal(state.width, 320)
   assert(!state.overflow, 'payment-channel form must fit a 320px viewport')
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
-  const signature = await accounts.customer.signTypedData({
+  const signature = await voucherSigner.signTypedData({
     domain: { name: 'PayToPlay', version: '1', chainId: 31337, verifyingContract: payments },
     types: { Voucher: [{ name: 'customer', type: 'address' }, { name: 'channelId', type: 'uint256' }, { name: 'cumulativeTotal', type: 'uint256' }] },
     primaryType: 'Voucher', message: { customer: accounts.customer.address, channelId: BigInt(id), cumulativeTotal: 60n },

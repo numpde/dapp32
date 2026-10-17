@@ -9,7 +9,7 @@
     "contracts.PayToPlay": {
       "type": "contract",
       "abiURI": "./abi/PayToPlay.json",
-      "integrity": "sha256:0x572eef069a5d9fe12e75d931eda1940f170eeaafc4fc1a2148f8d9dd684c5acf"
+      "integrity": "sha256:0x055ce9dea7afc844a7b5f4ab9b7cec0ad26166057f49ad4991870b3c78bd1534"
     },
     "routes": {
       "type": "routes"
@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xdb227a0614b412ade0f61a2b631889b864208a6f0e8acc189ecf7bc88649e7cf"
+      "integrity": "sha256:0x673db2353ef6f62591bbe493e488a89f1d1b13c7fd02a338ccd5ca4855c370dd"
     }
   },
   "routes": {
@@ -109,6 +109,29 @@
         "function": "position",
         "args": {
           "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "registerVoucherKey": {
+      "kind": "write",
+      "inputs": [
+        "channelId",
+        "voucherKey"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "registerVoucherKey",
+        "args": {
+          "channelId": "$inputs.channelId",
+          "voucherKey": "$inputs.voucherKey"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "position",
+        "args": {
+          "customer": "$account.address",
           "channelId": "$inputs.channelId"
         }
       }

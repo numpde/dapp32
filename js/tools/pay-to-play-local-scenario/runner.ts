@@ -32,6 +32,8 @@ async function main(): Promise<void> {
     assert.match(key, /^0x[0-9a-fA-F]{64}$/, "fixture key must have 32 bytes")
     return [role, privateKeyToAccount(key as Hex)]
   })) as Record<Role, ReturnType<typeof privateKeyToAccount>>
+  // Public, unfunded voucher-only key for this disposable local fixture, never a live key.
+  const voucherSigner = privateKeyToAccount(`0x${"55".repeat(32)}`)
   const chain = {
     id: 31337,
     name: "Payment channels local fixture",
@@ -77,7 +79,7 @@ async function main(): Promise<void> {
     if (route !== "createChannel") await session.navigate("position", inert({ customer: inspected.customer, channelId: inspected.channelId }))
     session.updateState(inert(state))
     const rendered = action(route, false)
-    if (["fund", "requestWithdrawal", "setWithdrawal", "move"].includes(route)) {
+    if (["registerVoucherKey", "fund", "requestWithdrawal", "setWithdrawal", "move"].includes(route)) {
       await assert.rejects(() => session.dispatchAction({ ...rendered, call: { ...rendered.call, args: inert({ ...rendered.call.args, customer: accounts.relayer.address }) } }), "sender-owned actions must reject an injected customer input")
     }
     const prepared = await session.dispatchAction(rendered)
@@ -87,7 +89,7 @@ async function main(): Promise<void> {
     if (route === "createChannel") {
       await assert.rejects(() => simulateCamContractCall({ publicClient, account: accounts.relayer.address, call: prepared.call }), "non-admin must fail even with the rendered admin call")
     }
-    if (["fund", "requestWithdrawal", "setWithdrawal", "move"].includes(route)) {
+    if (["registerVoucherKey", "fund", "requestWithdrawal", "setWithdrawal", "move"].includes(route)) {
       assert.deepEqual(prepared.call.then.args, inert({ customer: accounts[role].address, channelId: inspected.channelId }), "sender continuation captures the actor and affected channel")
       await session.setAccount({ address: accounts.relayer.address })
       assert.deepEqual(prepared.call.then.args, inert({ customer: accounts[role].address, channelId: inspected.channelId }), "later account changes must not rewrite a prepared continuation")
@@ -110,6 +112,7 @@ async function main(): Promise<void> {
     await session.refresh()
   }
   async function voucher(total: bigint) {
+    assert.equal(String(view().voucherKey).toLowerCase(), voucherSigner.address.toLowerCase())
     const typed = {
       domain: { name: "PayToPlay", version: "1", chainId: 31337, verifyingContract: payments },
       types: { Voucher: [
@@ -120,7 +123,7 @@ async function main(): Promise<void> {
       primaryType: "Voucher" as const,
       message: { customer: accounts.customer.address, channelId: 1n, cumulativeTotal: total },
     }
-    const signature = await accounts.customer.signTypedData(typed)
+    const signature = await voucherSigner.signTypedData(typed)
     session.updateState(inert({ cumulativeTotal: total.toString() }))
     const read = await session.dispatchAction(action("voucherDigest", false))
     assert.equal(read.type, "navigated")
@@ -140,11 +143,17 @@ async function main(): Promise<void> {
   action("createChannel", true)
   action("setPayee", true)
   action("withdraw", true)
+  action("collect", true)
+  action("registerVoucherKey", false)
+  await write("customer", "registerVoucherKey", { newVoucherKey: voucherSigner.address })
+  assert.equal(String(view().voucherKey).toLowerCase(), voucherSigner.address.toLowerCase())
+  action("registerVoucherKey", true)
+  action("collect", false)
   await write("customer", "fund", { fundAmount: "100" })
   assert.equal(view().effectiveBalance, "100")
   // Y assigns cumulative totals for two purchases (API A: 60, API B: 40).
   // Signing these assigned totals does not implement Y's durable purchase ledger.
-  const signatures = await Promise.all([60n, 100n].map((total) => accounts.customer.signTypedData({
+  const signatures = await Promise.all([60n, 100n].map((total) => voucherSigner.signTypedData({
     domain: { name: "PayToPlay", version: "1", chainId: 31337, verifyingContract: payments },
     types: { Voucher: [{ name: "customer", type: "address" }, { name: "channelId", type: "uint256" }, { name: "cumulativeTotal", type: "uint256" }] },
     primaryType: "Voucher",
@@ -235,6 +244,8 @@ async function main(): Promise<void> {
   assert.equal(view().requestedAmount, "0", "zero-payment mature withdrawal consumes the request")
   assert.equal(view().readyAt, "0")
   assert.equal(view().voucherPaid, "230")
+  assert.equal(String(view().voucherKey).toLowerCase(), voucherSigner.address.toLowerCase(), "emptying a position never resets its key")
+  action("registerVoucherKey", true)
   assert.equal(await publicClient.getBalance({ address: payments }), 0n)
   await assert.rejects(() => session.navigate("position", inert({ customer: accounts.customer.address, channelId: "999" })), "undefined channel must fail")
   process.stdout.write(`${JSON.stringify({ event: "ok", host, payments, voucherPaid: "230", contractBalance: "0" })}\n`)

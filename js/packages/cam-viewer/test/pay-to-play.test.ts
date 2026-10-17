@@ -14,6 +14,8 @@ const customer: Address = "0x0000000000000000000000000000000000000011"
 const other: Address = "0x0000000000000000000000000000000000000022"
 const contract: Address = "0x0000000000000000000000000000000000000033"
 const host = { chainId: "eip155:31337", address: "0x0000000000000000000000000000000000000044" as Address }
+const voucherKey: Address = "0x0000000000000000000000000000000000000055"
+const zero: Address = "0x0000000000000000000000000000000000000000"
 const directory = new URL("../../../../dapps/pay-to-play/cam/", import.meta.url)
 const uri = "https://example.test/pay-to-play/main.json"
 
@@ -21,7 +23,7 @@ async function fixture() {
   const root = new Uint8Array(await readFile(new URL("main.json", directory)))
   const cam = parseCam(parseJsonBytes(root))
   const abi = parseJsonBytes(new Uint8Array(await readFile(new URL("abi/PayToPlay.json", directory)))) as Abi
-  const chainState = { channelCount: 3n, payee: other, mature: false }
+  const chainState = { channelCount: 3n, payee: other, mature: false, voucherKey }
   const publicClient: CamPublicClient = {
     getChainId: async () => 31337,
     readContract: async request => {
@@ -32,7 +34,20 @@ async function fixture() {
       if (request.functionName === "voucherDigest") return `0x${"12".repeat(32)}`
       if (request.functionName === "viewPosition") {
         const [viewedCustomer, channelId, actor] = request.args!
-        return { customer: viewedCustomer, channelId: BigInt(String(channelId)), payee: chainState.payee, claimPeriod: 60n, channelCount: chainState.channelCount, admin: other, balance: 100n, voucherPaid: 0n, requestedAmount: 0n, readyAt: 0n, effectiveBalance: 100n, actions: [...(actor === other ? ["createChannel", "setPayee"] : []), ...(actor === viewedCustomer ? ["fund", "requestWithdrawal", "setWithdrawal", "collect", ...(chainState.mature ? ["withdraw", "move"] : [])] : ["collect"])] }
+        const id = BigInt(String(channelId))
+        const key = id === 0n ? zero : chainState.voucherKey
+        const ownPosition = actor === viewedCustomer && actor !== zero
+        const voucherActions = id === 0n ? [] : key !== zero ? ["collect"] : ownPosition ? ["registerVoucherKey"] : []
+        return {
+          customer: viewedCustomer, channelId: id, payee: chainState.payee, claimPeriod: 60n,
+          channelCount: chainState.channelCount, admin: other, balance: 100n, voucherPaid: 0n,
+          requestedAmount: 0n, readyAt: 0n, effectiveBalance: 100n, voucherKey: key,
+          actions: [
+            ...(actor === other ? ["createChannel", ...(id !== 0n ? ["setPayee"] : [])] : []),
+            ...(ownPosition ? ["fund", "requestWithdrawal", "setWithdrawal", ...(chainState.mature ? ["withdraw", "move"] : [])] : []),
+            ...voucherActions,
+          ],
+        }
       }
       throw new Error(`Unexpected fixture read: ${request.functionName}`)
     },
@@ -46,9 +61,11 @@ async function fixture() {
 
 test("sender-owned payment writes always continue to the acting wallet's position", async () => {
   const { cam, abi } = await fixture()
-  for (const route of ["fund", "requestWithdrawal", "setWithdrawal", "move"]) {
+  for (const route of ["registerVoucherKey", "fund", "requestWithdrawal", "setWithdrawal", "move"]) {
     assert(!cam.routes[route]!.inputs.includes("customer"), `${route} must not request a fictional customer`)
-    const inputs: InertRecord = route === "move" ? { channelId: "1", targetId: "0" } : { channelId: "1", amount: "20" }
+    const inputs: InertRecord = route === "registerVoucherKey"
+      ? { channelId: "1", voucherKey }
+      : route === "move" ? { channelId: "1", targetId: "0" } : { channelId: "1", amount: "20" }
     const options = { cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route }
     assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...inputs, customer: other } }))
     const call = prepareViewerContractCall({ ...options, inputs })
@@ -118,6 +135,7 @@ test("opened balances stay pinned across wallet changes and chooser round trips"
 test("every write captures its explicit affected balance when prepared", async () => {
   const { cam, abi, session } = await fixture()
   for (const [route, inputs] of Object.entries({
+    registerVoucherKey: { channelId: "1", voucherKey },
     fund: { channelId: "1", amount: "20" }, requestWithdrawal: { channelId: "1", amount: "20" },
     setWithdrawal: { channelId: "1", amount: "20" }, move: { channelId: "1", targetId: "0" },
     withdraw: { customer: other, channelId: "1" }, collect: { customer: other, channelId: "1", cumulativeTotal: "20", signature: "0x" },
@@ -192,4 +210,37 @@ test("position refresh updates external recipient and maturity actions while ret
   assert.equal((refreshed.values[0] as Record<string, unknown>).payee, customer)
   assert.equal(refreshed.state.fundAmount, "23")
   assert.equal(resolvedUiButtons(refreshed.resolvedUi).find(button => button.call.function === "withdraw")?.disabled, false)
+})
+
+
+test("registration is owner-only and collection follows the registered key on refresh", async () => {
+  const { session, chainState } = await fixture()
+  chainState.voucherKey = zero
+  await session.load()
+  let opened = await session.navigate("position", { customer, channelId: "1" })
+  let buttons = resolvedUiButtons(opened.resolvedUi)
+  assert.equal((opened.values[0] as Record<string, unknown>).voucherKey, zero)
+  assert.equal(buttons.find(button => button.call.function === "registerVoucherKey")?.disabled, false)
+  assert.equal(buttons.find(button => button.call.function === "collect")?.disabled, true)
+  assert.equal(buttons.find(button => button.call.function === "voucherDigest")?.disabled, true)
+  const edited = session.updateState({ newVoucherKey: voucherKey })
+  const registration = resolvedUiButtons(edited.resolvedUi).find(button => button.call.function === "registerVoucherKey")!
+  assert.deepEqual(registration.call.args, toInertValue({ channelId: "1", voucherKey }))
+  opened = await session.setAccount({ address: other })
+  buttons = resolvedUiButtons(opened.resolvedUi)
+  assert.equal(buttons.find(button => button.call.function === "registerVoucherKey")?.disabled, true)
+  assert.equal(buttons.find(button => button.call.function === "collect")?.disabled, true)
+  assert.equal(opened.state.newVoucherKey, "", "changing wallets clears an unfinished registration")
+  chainState.voucherKey = voucherKey
+  opened = await session.refresh()
+  buttons = resolvedUiButtons(opened.resolvedUi)
+  assert.equal((opened.values[0] as Record<string, unknown>).voucherKey, voucherKey)
+  assert.equal(buttons.find(button => button.call.function === "registerVoucherKey")?.disabled, true)
+  assert.equal(buttons.find(button => button.call.function === "collect")?.disabled, false)
+  opened = await session.setAccount({ address: customer })
+  assert.equal(resolvedUiButtons(opened.resolvedUi).find(button => button.call.function === "registerVoucherKey")?.disabled, true)
+  opened = await session.navigate("position", { customer, channelId: "0" })
+  buttons = resolvedUiButtons(opened.resolvedUi)
+  assert.equal(buttons.find(button => button.call.function === "registerVoucherKey")?.disabled, true)
+  assert.equal(buttons.find(button => button.call.function === "collect")?.disabled, true)
 })
