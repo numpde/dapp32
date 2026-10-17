@@ -12,24 +12,45 @@ export function formatStatusValue(value: InertValue, format: InertValue, path: s
   if (format !== "bytes" && format !== "durationSeconds" && format !== "timestampSeconds") {
     throw new UiError("UI_INVALID_FIELD", "Cannot display Status: format must be bytes, durationSeconds, timestampSeconds, or stringList.", `${path}.format`)
   }
-  if (!(typeof value === "string" && /^\d+$/.test(value))
-    && !(typeof value === "number" && Number.isSafeInteger(value) && value >= 0)) {
-    throw new UiError("UI_INVALID_FIELD", "Cannot display Status with units: its value must be a non-negative decimal integer string or safe integer.", `${path}.value`)
-  }
-  const amount = BigInt(value as string | number)
+  const amount = statusInteger(value, path)
   if (format === "timestampSeconds") {
-    if (zeroText !== undefined && (typeof zeroText !== "string" || zeroText.trim().length === 0)) {
-      throw new UiError("UI_INVALID_FIELD", "Cannot display Status absence: zeroText must resolve to a nonempty string.", `${path}.zeroText`)
-    }
-    if (amount === 0n && typeof zeroText === "string") return zeroText
+    const absence = timestampAbsence(amount, zeroText, path)
+    if (absence !== undefined) return absence
     const exact = `${groupedInteger(amount)} Unix seconds`
     if (amount > 8640000000000n) return `Outside UTC calendar range (${exact})`
     const utc = new Date(Number(amount * 1000n)).toISOString().replace("T", " ").replace(".000Z", " UTC")
     return `${utc} (${exact})`
   }
   if (format === "bytes") return `${groupedInteger(amount)} ${amount === 1n ? "byte" : "bytes"}`
-  if (amount < 60n) return `${amount} ${amount === 1n ? "second" : "seconds"}`
+  const words = durationWords(amount)
+  return amount < 60n ? words : `${words} (${groupedInteger(amount)} seconds)`
+}
 
+export function formatRelativeTimestamp(value: InertValue, nowSeconds: number, path: string, zeroText?: InertValue): string | undefined {
+  const amount = statusInteger(value, path)
+  if (timestampAbsence(amount, zeroText, path) !== undefined) return undefined
+  const difference = amount - BigInt(nowSeconds)
+  if (difference === 0n) return "Now"
+  return difference > 0n ? `In ${durationWords(difference)}` : `${durationWords(-difference)} ago`
+}
+
+function statusInteger(value: InertValue, path: string): bigint {
+  if (!(typeof value === "string" && /^\d+$/.test(value))
+    && !(typeof value === "number" && Number.isSafeInteger(value) && value >= 0)) {
+    throw new UiError("UI_INVALID_FIELD", "Cannot display Status with units: its value must be a non-negative decimal integer string or safe integer.", `${path}.value`)
+  }
+  return BigInt(value as string | number)
+}
+
+function timestampAbsence(amount: bigint, zeroText: InertValue | undefined, path: string): string | undefined {
+  if (zeroText !== undefined && (typeof zeroText !== "string" || zeroText.trim().length === 0)) {
+    throw new UiError("UI_INVALID_FIELD", "Cannot display Status absence: zeroText must resolve to a nonempty string.", `${path}.zeroText`)
+  }
+  return amount === 0n && typeof zeroText === "string" ? zeroText : undefined
+}
+
+function durationWords(amount: bigint): string {
+  if (amount < 60n) return `${amount} ${amount === 1n ? "second" : "seconds"}`
   let remainder = amount
   const parts: string[] = []
   for (const [seconds, unit] of [[86400n, "day"], [3600n, "hour"], [60n, "minute"], [1n, "second"]] as const) {
@@ -37,7 +58,7 @@ export function formatStatusValue(value: InertValue, format: InertValue, path: s
     remainder %= seconds
     if (count > 0n) parts.push(`${groupedInteger(count)} ${unit}${count === 1n ? "" : "s"}`)
   }
-  return `${parts.join(", ")} (${groupedInteger(amount)} seconds)`
+  return parts.join(", ")
 }
 
 function groupedInteger(value: bigint): string {

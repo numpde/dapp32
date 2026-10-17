@@ -1,11 +1,12 @@
-import { useId, useLayoutEffect, useRef } from "react"
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react"
 import type { ReactElement, Ref } from "react"
 
 import type { InertValue } from "@cam/protocol"
 import { isDocumentHashDigest } from "@cam/protocol"
-import { DURATION_PARTS, MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "@cam/screen"
+import { formatRelativeTimestamp, DURATION_PARTS, MAX_NUMERIC_TEXT_LENGTH, MAX_NUMERIC_DIGITS } from "@cam/screen"
 import type {
   ResolvedButtonNode,
+  ResolvedStatusNode,
   ResolvedAmountFieldNode,
   ResolvedNonNegativeIntegerFieldNode,
   ResolvedDurationFieldNode,
@@ -222,6 +223,7 @@ function UiNodeView({
     case "DocumentHashField":
       return <DocumentHashFieldView node={node} value={stateString(state, node.state.key)} status={documentHashes[node.state.key]} onInput={onInput} onCalculate={onDocumentHash} onCancel={onCancelDocumentHash} />
     case "Status":
+      if (node.props.format === "timestampSeconds") return <TimestampStatusView key={JSON.stringify([node.props.label, node.props.zeroText])} node={node} />
       return <KeyValue label={stringProp(node.props, "label")} value={node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue} mono={false} />
     case "Nft":
       return (
@@ -246,6 +248,30 @@ function UiNodeView({
   }
 
   return unreachableUiNode(node)
+}
+
+function TimestampStatusView({ node }: { readonly node: ResolvedStatusNode }): ReactElement {
+  const [relative, setRelative] = useState(false)
+  const [nowSeconds, setNowSeconds] = useState(() => Math.floor(Date.now() / 1000))
+  const clockHint = useId()
+  const relativeText = formatRelativeTimestamp(node.props.value, nowSeconds, "Status.props", node.props.zeroText)
+  const hasTimestamp = relativeText !== undefined
+  useEffect(() => {
+    if (!relative || !hasTimestamp) return
+    const timer = setInterval(() => setNowSeconds(Math.floor(Date.now() / 1000)), 1000)
+    return () => clearInterval(timer)
+  }, [relative, hasTimestamp])
+  const label = stringProp(node.props, "label")
+  const dateText = node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue
+  if (!hasTimestamp) return <KeyValue label={label} value={dateText} mono={false} />
+  return <div className="timestamp-status">
+    <KeyValue label={label} value={relative ? relativeText : dateText} mono={false} />
+    <div className="timestamp-options" role="group" aria-label={`${label} display`} aria-describedby={relative ? clockHint : undefined}>
+      <button type="button" aria-pressed={!relative} onClick={() => setRelative(false)}>Date</button>
+      <button type="button" aria-pressed={relative} onClick={() => { setNowSeconds(Math.floor(Date.now() / 1000)); setRelative(true) }}>Relative</button>
+    </div>
+    {relative ? <p id={clockHint} className="field-hint">Relative to your device clock.</p> : null}
+  </div>
 }
 
 type AmountEdit = (name: string, representation: "base" | "display", text: string, options?: { readonly composing?: boolean }) => void
