@@ -183,9 +183,11 @@ async function send(label) {
   await wait(state => sent === before + 1 && state.transaction?.includes(lastHash) && state.transaction.includes('Transaction confirmed in block'), `${label} confirmation`)
 }
 async function inspect(customer, channelId) {
+  if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Change account or channel')`)) await click('Change account or channel')
+  await wait(state => state.buttons.some(button => button.name === 'Open balance'), 'balance chooser')
   await fill('lookupCustomer', customer)
   await fill('lookupChannelId', channelId)
-  await click('View balance')
+  await click('Open balance')
   await wait(state => state.values['Balance owner']?.toLowerCase() === customer.toLowerCase() && state.values['Channel ID'] === channelId, 'position lookup')
 }
 async function role(name) {
@@ -218,7 +220,7 @@ try {
   await fill('newPayee', accounts.recipient.address)
   await fill('newClaimPeriod.seconds', '60')
   await send('Review new channel')
-  await wait(state => state.text.includes('Look up a balance'), 'creation lookup')
+  await wait(state => state.text.includes('Choose an account and channel'), 'creation lookup')
   assert(await evaluate(`document.querySelector('input[name="lookupCustomer"]').value.toLowerCase() === ${JSON.stringify(accounts.admin.address.toLowerCase())} && document.querySelector('input[name="lookupChannelId"]').value === ""`), 'creation lookup prefills the wallet and leaves channel choice explicit')
   const receipt = await publicClient.getTransactionReceipt({ hash: lastHash })
   const creationLogs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
@@ -265,7 +267,7 @@ try {
   await wait(state => state.text.includes('No active withdrawal request'), 'timestamp becomes absent')
   assert(await evaluate(`document.querySelector('.timestamp-options')===null&&window.__timestampTimers.active.size===0`), 'absence removes display controls and releases its timer')
   await inspect(accounts.customer.address, id)
-  await wait(state => state.timestampMode === 'true', 'timestamp returns')
+  await wait(state => state.timestampMode === 'false', 'timestamp returns on newly opened balance')
   await timestampMode(false)
   await evaluate(`(()=>{const t=window.__timestampTimers;window.setInterval=t.originalSet;window.clearInterval=t.originalClear;delete window.__timestampTimers})()`)
   let state = await evaluate(snapshot)

@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x447e5ea39befcf44924005f3b9030d611bd6bd12776f36139ca40d6be70e3b7a"
+      "integrity": "sha256:0x47b1e9281edb2fbf0b73ab92214fc1d403f33300a89d6a3fd532e1bbe1b64eda"
     }
   },
   "routes": {
@@ -35,9 +35,14 @@
       },
       "then": {
         "namespace": "ui",
-        "function": "myPosition",
+        "function": "chooseBalance",
         "args": {
-          "view": "$outputs.0"
+          "view": {
+            "customer": "$outputs.0.customer",
+            "channelId": "0",
+            "channelCount": "$outputs.0.channelCount",
+            "actions": "$outputs.0.actions"
+          }
         }
       }
     },
@@ -124,8 +129,9 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "myPosition",
+        "function": "position",
         "args": {
+          "customer": "$account.address",
           "channelId": "$inputs.channelId"
         }
       }
@@ -146,8 +152,9 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "myPosition",
+        "function": "position",
         "args": {
+          "customer": "$account.address",
           "channelId": "$inputs.channelId"
         }
       }
@@ -168,8 +175,9 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "myPosition",
+        "function": "position",
         "args": {
+          "customer": "$account.address",
           "channelId": "$inputs.channelId"
         }
       }
@@ -213,8 +221,9 @@
       },
       "then": {
         "namespace": "routes",
-        "function": "myPosition",
+        "function": "position",
         "args": {
+          "customer": "$account.address",
           "channelId": "$inputs.channelId"
         }
       }
@@ -276,43 +285,55 @@
         }
       }
     },
-    "myPosition": {
-      "kind": "read",
-      "inputs": [
-        "channelId"
-      ],
-      "call": {
-        "namespace": "contracts.PayToPlay",
-        "function": "viewPosition",
-        "args": {
-          "customer": "$account.address",
-          "channelId": "$inputs.channelId",
-          "actor": "$account.address"
-        }
-      },
-      "then": {
-        "namespace": "ui",
-        "function": "myPosition",
-        "args": {
-          "view": "$outputs.0"
-        }
-      }
-    },
     "channelLookup": {
       "kind": "read",
       "inputs": [],
       "call": {
         "namespace": "contracts.PayToPlay",
-        "function": "channelCount",
-        "args": {}
+        "function": "viewPosition",
+        "args": {
+          "customer": "$account.address",
+          "channelId": "0",
+          "actor": "$account.address"
+        }
       },
       "then": {
         "namespace": "ui",
         "function": "channelLookup",
         "args": {
           "view": {
-            "channelCount": "$outputs.0",
-            "customer": "$account.address"
+            "customer": "$outputs.0.customer",
+            "channelId": "",
+            "channelCount": "$outputs.0.channelCount",
+            "actions": "$outputs.0.actions"
+          }
+        }
+      }
+    },
+    "choosePosition": {
+      "kind": "read",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "chooseBalance",
+        "args": {
+          "view": {
+            "customer": "$outputs.0.customer",
+            "channelId": "$inputs.channelId",
+            "channelCount": "$outputs.0.channelCount",
+            "actions": "$outputs.0.actions"
           }
         }
       }

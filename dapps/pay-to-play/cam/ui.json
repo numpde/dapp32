@@ -108,60 +108,15 @@
         {
           "element": "Button",
           "props": {
-            "label": "View selected account’s balance"
+            "label": "Change account or channel"
           },
           "call": {
             "namespace": "routes",
-            "function": "myPosition",
+            "function": "choosePosition",
             "args": {
+              "customer": "$view.customer",
               "channelId": "$view.channelId"
             }
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Look up a balance"
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Balance owner address"
-          },
-          "state": {
-            "key": "lookupCustomer",
-            "defaultValue": "$view.customer"
-          }
-        },
-        {
-          "element": "NonNegativeIntegerField",
-          "props": {
-            "label": "Channel ID"
-          },
-          "state": {
-            "key": "lookupChannelId",
-            "defaultValue": "$view.channelId"
-          }
-        },
-        {
-          "element": "Button",
-          "props": {
-            "label": "View balance"
-          },
-          "call": {
-            "namespace": "routes",
-            "function": "position",
-            "args": {
-              "customer": "$state.lookupCustomer",
-              "channelId": "$state.lookupChannelId"
-            }
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Viewing a balance only reads it; it creates nothing and sends no transaction. Enter its owner address and an existing channel ID. Deposits, requests and moves always use the sending account’s own balance."
           }
         },
         {
@@ -430,61 +385,13 @@
           }
         },
         {
-          "element": "Text",
-          "props": {
-            "text": "Manage channels (admin only)"
-          }
-        },
-        {
-          "element": "TextField",
-          "props": {
-            "label": "Payment recipient for new channel"
-          },
-          "state": {
-            "key": "newPayee",
-            "defaultValue": ""
-          },
-          "enabledWhen": {
-            "member": "createChannel",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "DurationField",
-          "props": {
-            "label": "Withdrawal wait for new channel"
-          },
-          "state": {
-            "key": "newClaimPeriod",
-            "defaultValue": ""
-          },
-          "enabledWhen": {
-            "member": "createChannel",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Button",
-          "props": {
-            "label": "Review new channel"
-          },
+          "element": "Include",
           "call": {
-            "namespace": "routes",
-            "function": "createChannel",
+            "namespace": "ui",
+            "function": "createChannelFields",
             "args": {
-              "payee": "$state.newPayee",
-              "claimPeriod": "$state.newClaimPeriod"
+              "view": "$view"
             }
-          },
-          "enabledWhen": {
-            "member": "createChannel",
-            "in": "$view.actions"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "A channel’s withdrawal wait cannot change. After creation, find its ID in the ChannelCreated event in your transaction receipt. This viewer shows the transaction hash, but does not decode that event. The lookup lets you enter the ID once you have it."
           }
         },
         {
@@ -600,39 +507,6 @@
         }
       ]
     },
-    "myPosition": {
-      "requires": [
-        "view"
-      ],
-      "element": "Screen",
-      "props": {
-        "title": "Pay-to-Play"
-      },
-      "children": [
-        {
-          "element": "Text",
-          "props": {
-            "text": "Selected account’s balance"
-          }
-        },
-        {
-          "element": "Text",
-          "props": {
-            "text": "Connecting a wallet or changing its account shows that wallet account’s balance in this channel. All entered form values are reset."
-          }
-        },
-        {
-          "element": "Include",
-          "call": {
-            "namespace": "ui",
-            "function": "positionFields",
-            "args": {
-              "view": "$view"
-            }
-          }
-        }
-      ]
-    },
     "position": {
       "requires": [
         "view"
@@ -645,13 +519,13 @@
         {
           "element": "Text",
           "props": {
-            "text": "Looked-up balance (owner stays fixed)"
+            "text": "Account balance"
           }
         },
         {
           "element": "Text",
           "props": {
-            "text": "The owner and channel below stay fixed when you connect or change wallet accounts. Deposit, request and move are disabled if the selected account is not this owner. Other accounts can submit valid vouchers (except in channel 0) or ready withdrawals back to the owner. Connecting or changing wallet accounts resets form entries."
+            "text": "This owner and channel stay open when you connect or change wallet accounts. Deposit, request and move require this owner’s account. Any account can submit a valid voucher (except in channel 0) or a ready withdrawal back to the owner. Connecting or changing wallet accounts clears form entries."
           }
         },
         {
@@ -678,20 +552,115 @@
         {
           "element": "Text",
           "props": {
-            "text": "Look up a balance"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Channels created (including channel 0)",
-            "value": "$view.channelCount"
+            "text": "Find a channel ID"
           }
         },
         {
           "element": "Text",
           "props": {
-            "text": "Enter the balance owner and an existing channel ID. This only reads a balance. After creating a channel, get its exact ID from the ChannelCreated event in your transaction receipt. This viewer does not decode the event; the displayed count alone cannot identify your new channel."
+            "text": "Find the new channel’s exact ID in the ChannelCreated event in your transaction receipt. This viewer shows the transaction hash, but does not decode that event. The channel count alone cannot identify your new channel."
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "balanceChooserFields",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "createChannelFields": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Manage channels (admin only)"
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "Payment recipient for new channel"
+          },
+          "state": {
+            "key": "newPayee",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "createChannel",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "DurationField",
+          "props": {
+            "label": "Withdrawal wait for new channel"
+          },
+          "state": {
+            "key": "newClaimPeriod",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "createChannel",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Review new channel"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "createChannel",
+            "args": {
+              "payee": "$state.newPayee",
+              "claimPeriod": "$state.newClaimPeriod"
+            }
+          },
+          "enabledWhen": {
+            "member": "createChannel",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "A channel’s withdrawal wait cannot change. After creation, find its ID in the ChannelCreated event in your transaction receipt. This viewer shows the transaction hash, but does not decode that event. The lookup lets you enter the ID once you have it."
+          }
+        }
+      ]
+    },
+    "balanceChooserFields": {
+      "requires": [
+        "view"
+      ],
+      "element": "Fragment",
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Choose an account and channel"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Enter the balance owner and an existing channel ID, then open that balance. This only reads it; no transaction is sent. The opened owner and channel stay fixed when wallet accounts change."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Channel 0 holds deposits that vouchers cannot spend. Choose another existing channel for voucher payments."
           }
         },
         {
@@ -711,13 +680,13 @@
           },
           "state": {
             "key": "lookupChannelId",
-            "defaultValue": ""
+            "defaultValue": "$view.channelId"
           }
         },
         {
           "element": "Button",
           "props": {
-            "label": "View balance"
+            "label": "Open balance"
           },
           "call": {
             "namespace": "routes",
@@ -725,6 +694,44 @@
             "args": {
               "customer": "$state.lookupCustomer",
               "channelId": "$state.lookupChannelId"
+            }
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channels created (including channel 0)",
+            "value": "$view.channelCount"
+          }
+        },
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "createChannelFields",
+            "args": {
+              "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "chooseBalance": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Pay-to-Play"
+      },
+      "children": [
+        {
+          "element": "Include",
+          "call": {
+            "namespace": "ui",
+            "function": "balanceChooserFields",
+            "args": {
+              "view": "$view"
             }
           }
         }

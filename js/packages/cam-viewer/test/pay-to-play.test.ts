@@ -32,7 +32,7 @@ async function fixture() {
       if (request.functionName === "voucherDigest") return `0x${"12".repeat(32)}`
       if (request.functionName === "viewPosition") {
         const [viewedCustomer, channelId, actor] = request.args!
-        return { customer: viewedCustomer, channelId: BigInt(String(channelId)), payee: chainState.payee, claimPeriod: 60n, channelCount: chainState.channelCount, admin: other, balance: 100n, voucherPaid: 0n, requestedAmount: 0n, readyAt: 0n, effectiveBalance: 100n, actions: actor === viewedCustomer ? ["fund", "requestWithdrawal", "setWithdrawal", "collect", ...(chainState.mature ? ["withdraw", "move"] : [])] : ["collect"] }
+        return { customer: viewedCustomer, channelId: BigInt(String(channelId)), payee: chainState.payee, claimPeriod: 60n, channelCount: chainState.channelCount, admin: other, balance: 100n, voucherPaid: 0n, requestedAmount: 0n, readyAt: 0n, effectiveBalance: 100n, actions: [...(actor === other ? ["createChannel", "setPayee"] : []), ...(actor === viewedCustomer ? ["fund", "requestWithdrawal", "setWithdrawal", "collect", ...(chainState.mature ? ["withdraw", "move"] : [])] : ["collect"])] }
       }
       throw new Error(`Unexpected fixture read: ${request.functionName}`)
     },
@@ -52,27 +52,68 @@ test("sender-owned payment writes always continue to the acting wallet's positio
     const options = { cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route }
     assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...inputs, customer: other } }))
     const call = prepareViewerContractCall({ ...options, inputs })
-    assert.deepEqual(call.then, toInertValue({ namespace: "routes", function: "myPosition", args: { channelId: "1" } }))
+    assert.deepEqual(call.then, toInertValue({ namespace: "routes", function: "position", args: { customer, channelId: "1" } }))
   }
 })
 
-test("wallet positions follow account changes while inspected customer positions stay fixed", async () => {
+test("entry chooses an explicit balance before displaying money or business writes", async () => {
+  const { session, cam } = await fixture()
+  assert.equal(cam.routes.myPosition, undefined)
+  const entry = await session.load()
+  assert.equal(entry.state.lookupCustomer, customer)
+  assert.equal(entry.state.lookupChannelId, "0")
+  assert.equal(entry.state.fundAmount, undefined)
+  assert.deepEqual(resolvedUiButtons(entry.resolvedUi).map(button => button.call.function).sort(), ["createChannel", "position"])
+  assert.equal(resolvedUiButtons(entry.resolvedUi).find(button => button.call.function === "createChannel")?.disabled, true)
+  const connected = await session.setAccount({ address: other })
+  assert.equal(connected.state.lookupCustomer, other)
+  assert.equal(resolvedUiButtons(connected.resolvedUi).find(button => button.call.function === "createChannel")?.disabled, false)
+  session.editInteger("lookupChannelId", "1")
+  await session.dispatchAction(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "position")!)
+  assert.equal(session.snapshot().route, "position")
+  assert.deepEqual(session.snapshot().inputs, toInertValue({ customer: other, channelId: "1" }))
+})
+
+test("opened balances stay pinned across wallet changes and chooser round trips", async () => {
   const { session } = await fixture()
   await session.load()
-  await session.navigate("myPosition", { channelId: "1" })
-  const followed = await session.setAccount({ address: other })
-  assert.equal((followed.values[0] as Record<string, unknown>).customer, other)
-  assert.equal(followed.state.lookupCustomer, other)
   await session.navigate("position", { customer, channelId: "1" })
-  const pinned = await session.setAccount({ address: customer })
-  assert.equal((pinned.values[0] as Record<string, unknown>).customer, customer)
+  session.editAmount("fundAmount", "base", "23")
   const changed = await session.setAccount({ address: other })
   assert.equal((changed.values[0] as Record<string, unknown>).customer, customer)
-  assert.equal(changed.state.lookupCustomer, customer)
-  const deposit = resolvedUiButtons(changed.resolvedUi).find(button => button.call.function === "fund")
-  assert.equal(deposit?.disabled, true, "A foreign selected account cannot deposit on the looked-up owner’s screen")
-  const own = resolvedUiButtons(changed.resolvedUi).find(button => button.call.function === "myPosition")
-  assert(own, "An inspected position needs an explicit path to the selected wallet's position")
+  assert.deepEqual(changed.inputs, toInertValue({ customer, channelId: "1" }))
+  assert.equal(changed.state.fundAmount, null)
+  assert.equal(changed.state.lookupCustomer, undefined)
+  assert.equal(resolvedUiButtons(changed.resolvedUi).find(button => button.call.function === "fund")?.disabled, true)
+  const choose = resolvedUiButtons(changed.resolvedUi).find(button => button.call.function === "choosePosition")!
+  assert(choose)
+  await session.dispatchAction(choose)
+  assert.equal(session.snapshot().state?.lookupCustomer, customer)
+  assert.equal(session.snapshot().state?.lookupChannelId, "1")
+  const seeded = await session.setAccount({ address: contract })
+  assert.equal(seeded.state.lookupCustomer, customer, "a seeded chooser must not replace the owner with a newly selected account")
+  assert.equal(seeded.state.lookupChannelId, "1")
+  const switched = await session.setAccount({ address: customer })
+  await session.dispatchAction(resolvedUiButtons(switched.resolvedUi).find(button => button.call.function === "position")!)
+  assert.equal(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "fund")?.disabled, false)
+})
+
+test("every write captures its explicit affected balance when prepared", async () => {
+  const { cam, abi, session } = await fixture()
+  for (const [route, inputs] of Object.entries({
+    fund: { channelId: "1", amount: "20" }, requestWithdrawal: { channelId: "1", amount: "20" },
+    setWithdrawal: { channelId: "1", amount: "20" }, move: { channelId: "1", targetId: "0" },
+    withdraw: { customer: other, channelId: "1" }, collect: { customer: other, channelId: "1", cumulativeTotal: "20", signature: "0x" },
+    setPayee: { customer: other, channelId: "1", payee: customer },
+  })) {
+    const prepared = prepareViewerContractCall({ cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route, inputs: toInertValue(inputs) as InertRecord })
+    await session.load()
+    await session.setAccount({ address: other })
+    assert.deepEqual(prepared.then, toInertValue({ namespace: "routes", function: "position", args: { customer: ["withdraw", "collect", "setPayee"].includes(route) ? other : customer, channelId: "1" } }))
+    await session.navigate(prepared.then.function, prepared.then.args)
+    const changed = await session.setAccount({ address: customer })
+    assert.deepEqual(changed.inputs, prepared.then.args)
+  }
 })
 
 
@@ -83,7 +124,11 @@ test("channel creation continues to a current lookup without predicting a create
   await session.load()
   chainState.channelCount = 5n
   const lookup = await session.navigate(prepared.then.function, prepared.then.args)
-  assert.equal(lookup.values[0], "5")
+  assert.equal((lookup.values[0] as Record<string, unknown>).channelCount, "5")
+  assert.equal(lookup.state.fundAmount, undefined)
+  const admin = await session.setAccount({ address: other })
+  assert.equal(resolvedUiButtons(admin.resolvedUi).find(button => button.call.function === "createChannel")?.disabled, false)
+  await session.setAccount({ address: customer })
   assert.equal(lookup.state.lookupCustomer, customer)
   assert.equal(lookup.state.lookupChannelId, null)
   const blank = resolvedUiButtons(lookup.resolvedUi).find(button => button.call.function === "position")!

@@ -75,14 +75,24 @@ async function main(): Promise<void> {
   async function write(role: Role, route: string, state: Record<string, unknown>) {
     const inspected = view()
     await session.setAccount({ address: accounts[role].address })
-    await session.navigate("position", inert({ customer: inspected.customer, channelId: inspected.channelId }))
+    if (route !== "createChannel") await session.navigate("position", inert({ customer: inspected.customer, channelId: inspected.channelId }))
     session.updateState(inert(state))
-    const prepared = await session.dispatchAction(action(route, false))
+    const rendered = action(route, false)
+    if (["fund", "requestWithdrawal", "setWithdrawal", "move"].includes(route)) {
+      await assert.rejects(() => session.dispatchAction({ ...rendered, call: { ...rendered.call, args: inert({ ...rendered.call.args, customer: accounts.relayer.address }) } }), "sender-owned actions must reject an injected customer input")
+    }
+    const prepared = await session.dispatchAction(rendered)
     assert.equal(prepared.type, "contractCall")
     if (prepared.type !== "contractCall") throw new Error(`Cannot execute ${route}: CAM did not prepare a contract call`)
     assert.equal(prepared.call.address.toLowerCase(), payments.toLowerCase(), "CAM binding must select the deployed payment contract")
     if (route === "createChannel") {
       await assert.rejects(() => simulateCamContractCall({ publicClient, account: accounts.relayer.address, call: prepared.call }), "non-admin must fail even with the rendered admin call")
+    }
+    if (["fund", "requestWithdrawal", "setWithdrawal", "move"].includes(route)) {
+      assert.deepEqual(prepared.call.then.args, inert({ customer: accounts[role].address, channelId: inspected.channelId }), "sender continuation captures the actor and affected channel")
+      await session.setAccount({ address: accounts.relayer.address })
+      assert.deepEqual(prepared.call.then.args, inert({ customer: accounts[role].address, channelId: inspected.channelId }), "later account changes must not rewrite a prepared continuation")
+      await session.setAccount({ address: accounts[role].address })
     }
     await simulateCamContractCall({ publicClient, account: accounts[role].address, call: prepared.call })
     const walletClient = createWalletClient({ account: accounts[role], chain, transport: http(rpcURL) })
@@ -124,7 +134,7 @@ async function main(): Promise<void> {
   }
 
   action("createChannel", false)
-  action("collect", true)
+  assert.equal(loaded().state.fundAmount, undefined, "entry chooser must not display a balance form")
   await write("admin", "createChannel", { newPayee: accounts.payee.address, newClaimPeriod: "60" })
   await position("customer", "1")
   assert.equal(String(view().payee).toLowerCase(), accounts.payee.address.toLowerCase())
