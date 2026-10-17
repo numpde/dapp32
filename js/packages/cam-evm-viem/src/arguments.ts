@@ -98,20 +98,21 @@ function normalizeAbiArg(
     return value
   }
 
+  let integerType: AbiIntegerType | undefined
   try {
-    const integerType = parseAbiIntegerType(type)
-    if (integerType !== undefined) {
-      return normalizeInteger(value, errorCode, path, integerType)
-    }
+    integerType = parseAbiIntegerType(type)
   } catch (cause) {
-    throw invalidArg(errorCode, path, "", cause instanceof Error ? cause.message : String(cause))
+    throw invalidArg(errorCode, path, "", cause instanceof Error ? cause.message : String(cause), cause)
+  }
+  if (integerType !== undefined) {
+    return normalizeInteger(value, errorCode, path, integerType)
   }
 
   let fixedBytesLength: number | undefined
   try {
     fixedBytesLength = parseAbiFixedBytesLength(type)
   } catch (cause) {
-    throw invalidArg(errorCode, path, "", cause instanceof Error ? cause.message : String(cause))
+    throw invalidArg(errorCode, path, "", cause instanceof Error ? cause.message : String(cause), cause)
   }
   if (type === "bytes" || fixedBytesLength !== undefined) {
     if (!isAbiBytesValue(value, fixedBytesLength)) throw invalidArg(errorCode, path, "", `expected hex bytes for ${type}`)
@@ -152,7 +153,11 @@ function normalizeAbiArg(
 }
 
 function normalizeInteger(value: InertValue, errorCode: ArgumentErrorCode, path: string, type: AbiIntegerType): bigint {
-  if (!isAbiIntegerValue(value, type)) throw invalidArg(errorCode, path, "", "expected integer")
+  if (!isAbiIntegerValue(value, type)) {
+    const domain = type.signed ? `int${type.bits}` : `uint${type.bits}`
+    const requirement = type.signed ? "a whole number" : "a non-negative whole number"
+    throw invalidArg(errorCode, path, "", `expected ${requirement} in the ${domain} range, supplied as decimal text or a safe integer number`)
+  }
   return BigInt(value)
 }
 
@@ -201,7 +206,8 @@ function invalidArg(
   path: string,
   name: string,
   message: string,
+  cause?: unknown,
 ): CamEvmError {
   const suffix = name === "" ? "" : `.${name}`
-  return new CamEvmError(code, `CAM ABI argument ${path}${suffix}: ${message}`)
+  return new CamEvmError(code, `CAM ABI argument ${path}${suffix}: ${message}`, cause)
 }

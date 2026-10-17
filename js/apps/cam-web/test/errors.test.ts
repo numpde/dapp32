@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { CamEvmError, validateCamContractCall } from "@cam/evm-viem"
 
 import { actionErrorMessage, errorMessage } from "../src/errors.ts"
 
@@ -157,4 +158,21 @@ test("action failure labels use existing text bounds without coercing unsafe val
   }
   assert.equal(actionErrorMessage(error, "x".repeat(1000)), `${"x".repeat(500)}... failed: argument rejected`)
   assert.equal(actionErrorMessage(error, "  Open balance  "), "Open balance failed: argument rejected")
+})
+
+test("a real rejected amount renders its action, one ABI path and correction without hiding the diagnostic", () => {
+  assert.throws(() => validateCamContractCall({
+    address: "0x0000000000000000000000000000000000000001",
+    abi: [{ type: "function", name: "setWithdrawal", stateMutability: "nonpayable", inputs: [{ name: "amount", type: "uint256" }], outputs: [] }],
+    function: "setWithdrawal", args: { amount: null },
+  }), error => {
+    assert(error instanceof CamEvmError)
+    const visible = actionErrorMessage(error, "Review replacement request")
+    assert(visible.startsWith("Review replacement request failed: "))
+    assert(visible.includes(error.message), "the renderer preserves the substantive producer diagnostic")
+    assert.equal(visible.split("setWithdrawal.amount").length - 1, 1)
+    assert.match(visible, /whole number/)
+    assert.match(visible, /uint256/)
+    return true
+  })
 })

@@ -893,6 +893,70 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
   )
 })
 
+test("invalid integer writes identify their ABI argument once and never reach the wallet", async () => {
+  const walletClient = createWalletClient()
+  const abi = [{ type: "function", name: "setWithdrawal", stateMutability: "nonpayable", inputs: [{ name: "amount", type: "uint256" }], outputs: [] }] as const satisfies Abi
+  for (const amount of [null, "1.5", "-1", (2n ** 256n).toString()]) {
+    await assert.rejects(() => sendCamContractCall({ walletClient, chain: testChain, call: { address: managerAddress, abi, function: "setWithdrawal", args: { amount } } }), error => {
+      assert(error instanceof CamEvmError)
+      assert.equal(error.code, "CAM_WRITE_INVALID_ARGUMENT")
+      assert.equal(error.message.split("setWithdrawal.amount").length - 1, 1, "the producing argument path appears once")
+      assert.match(error.message, /whole number/)
+      assert.match(error.message, /uint256/)
+      return true
+    })
+  }
+  assert.equal(walletClient.calls.length, 0)
+  for (const amount of ["0", (2n ** 256n - 1n).toString()]) {
+    await sendCamContractCall({ walletClient, chain: testChain, call: { address: managerAddress, abi, function: "setWithdrawal", args: { amount } } })
+  }
+  assert.deepEqual(walletClient.calls.map(call => call.args), [[0n], [2n ** 256n - 1n]])
+})
+
+test("signed integer boundaries and nested argument paths retain their actual domain", async () => {
+  const walletClient = createWalletClient()
+  const abi = [{ type: "function", name: "adjust", stateMutability: "nonpayable", inputs: [{ name: "changes", type: "int8[]" }], outputs: [] }] as const satisfies Abi
+  await sendCamContractCall({ walletClient, chain: testChain, call: { address: managerAddress, abi, function: "adjust", args: { changes: ["-128", "127"] } } })
+  assert.deepEqual(walletClient.calls[0]?.args, [[-128n, 127n]])
+  for (const value of ["-129", "128"]) {
+    assert.throws(() => validateCamContractCall({ address: managerAddress, abi, function: "adjust", args: { changes: ["0", value] } }), error => {
+      assert(error instanceof CamEvmError)
+      assert.equal(error.code, "CAM_WRITE_INVALID_ARGUMENT")
+      assert.equal(error.message.split("adjust.changes.1").length - 1, 1)
+      assert.match(error.message, /\bint8\b/)
+      assert(!error.message.includes("non-negative"), "signed amounts must not be described as unsigned")
+      return true
+    })
+  }
+  assert.equal(walletClient.calls.length, 1)
+})
+
+test("integer result and ABI declaration failures keep one path and their original cause", async () => {
+  const route = "integerRoute", functionName = "viewInteger"
+  for (const routeResult of ["1", 256n]) {
+    await assert.rejects(() => callSyntheticReadRoute({ route, functionName, abi: readAbi(functionName, [{ name: "value", type: "uint8" }]), routeResult }), error => {
+      assert(error instanceof CamEvmError)
+      assert.equal(error.code, "CAM_ROUTE_INVALID_RESULT")
+      assert.equal(error.message.split(`${route}.0`).length - 1, 1)
+      return true
+    })
+  }
+  await assert.rejects(() => callSyntheticReadRoute({ route, functionName, abi: readAbi(functionName, [{ name: "value", type: "uint7" }]), routeResult: 1n }), error => {
+    assert(error instanceof CamEvmError)
+    assert.equal(error.code, "CAM_ROUTE_INVALID_RESULT")
+    assert(error.cause instanceof Error)
+    assert.match(error.cause.message, /unsupported ABI integer type: uint7/)
+    return true
+  })
+  assert.throws(() => validateCamContractCall({ address: managerAddress, abi: [{ type: "function", name: "adjust", stateMutability: "nonpayable", inputs: [{ name: "amount", type: "uint7" }], outputs: [] }], function: "adjust", args: { amount: "1" } }), error => {
+    assert(error instanceof CamEvmError)
+    assert.equal(error.code, "CAM_WRITE_INVALID_ARGUMENT")
+    assert(error.cause instanceof Error)
+    assert.match(error.cause.message, /unsupported ABI integer type: uint7/)
+    return true
+  })
+})
+
 test("invalid ABI addresses explain their structural format before contract reads or write preparation", async () => {
   const writeAbi = [{ type: "function", name: "setOwner", stateMutability: "nonpayable", inputs: [{ name: "owner", type: "address" }], outputs: [] }] as const satisfies Abi
   for (const badAddress of ["not-an-address", "0x1234", `0x${"g".repeat(40)}`]) {

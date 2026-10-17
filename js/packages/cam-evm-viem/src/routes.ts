@@ -197,16 +197,19 @@ function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string
     return value
   }
 
+  let integerType: AbiIntegerType | undefined
   try {
-    const integerType = parseAbiIntegerType(type)
-    if (integerType !== undefined) {
-      return normalizeIntegerOutput(value, integerType, path)
-    }
+    integerType = parseAbiIntegerType(type)
   } catch (cause) {
     throw new CamEvmError(
       "CAM_ROUTE_INVALID_RESULT",
       `CAM route output ${cause instanceof Error ? cause.message : String(cause)} at ${path}`,
+      cause,
     )
+  }
+
+  if (integerType !== undefined) {
+    return normalizeIntegerOutput(value, integerType, path)
   }
 
   let fixedBytesLength: number | undefined
@@ -216,6 +219,7 @@ function normalizeAbiValue(value: unknown, parameter: AbiParameter, path: string
     throw new CamEvmError(
       "CAM_ROUTE_INVALID_RESULT",
       `CAM route output ${cause instanceof Error ? cause.message : String(cause)} at ${path}`,
+      cause,
     )
   }
   if (type === "bytes" || fixedBytesLength !== undefined) {
