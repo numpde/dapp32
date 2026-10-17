@@ -15,7 +15,7 @@ Experimental protocol reference: [CAM 1.2.0 and UI 1.0.0](docs/reference/cam/1.2
 
 ## Start here
 
-- [Pay-to-Play](dapps/pay-to-play/README.html): deposit native coins, authorize
+- [Pay-to-Play](dapps/pay-to-play/README.md): deposit native coins, authorize
   cumulative voucher payments, and recover funds after a withdrawal wait.
   Explains balance ownership, service integration, and the local demo.
 - [Escrow](dapps/escrow/README.md): create and fund an agreement, review work,
