@@ -131,7 +131,10 @@ async function assertExistingPath(path: string, label: string): Promise<FileStat
   try {
     return await lstat(path)
   } catch (cause) {
-    throw new Error(`${label} does not exist: ${path}`, { cause })
+    const code = cause instanceof Error && "code" in cause ? cause.code : undefined
+    if (code === "ENOENT") throw new Error(`${label} does not exist: ${path}`, { cause })
+    const detail = typeof code === "string" ? ` (${code})` : ""
+    throw new Error(`Cannot inspect ${label}${detail}: ${path}`, { cause })
   }
 }
 

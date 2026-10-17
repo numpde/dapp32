@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+import errno
+import io
 import os
+import runpy
 import tempfile
 import unittest
 from unittest import mock
@@ -84,6 +87,31 @@ class RpcProxyTest(unittest.TestCase):
             with self.assertRaisesRegex(self.proxy.UpstreamRejected, "non-global address"):
                 self.proxy.resolve_global_ip("example.com", 443)
 
+    def test_proxy_failures_preserve_operation_and_reason_without_blaming_upstream(self) -> None:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as upstream:
+            upstream.write("https://example.com/rpc")
+            upstream.flush()
+            for phase, code, reason in [("bind", errno.EADDRINUSE, "Address already in use"), ("serve", errno.EIO, "Input/output error")]:
+                with self.subTest(phase=phase):
+                    stderr = io.StringIO()
+                    failure = OSError(code, reason)
+                    with mock.patch.dict(os.environ, proxy_environment(upstream.name)), \
+                            mock.patch("http.server.HTTPServer") as server, \
+                            mock.patch("sys.stderr", stderr):
+                        if phase == "bind":
+                            server.side_effect = failure
+                        else:
+                            server.return_value.serve_forever.side_effect = failure
+                        with self.assertRaises(SystemExit) as exited:
+                            runpy.run_path(str(repo_path("containers/rpc-proxy/rpc_proxy.py")), run_name="__main__")
+                    self.assertEqual(exited.exception.code, 2)
+                    self.assertIs(exited.exception.__cause__, failure)
+                    server.assert_called_once()
+                    self.assertIn("could not run RPC proxy", stderr.getvalue())
+                    self.assertIn("127.0.0.1:8080", stderr.getvalue())
+                    self.assertIn(reason, stderr.getvalue())
+                    self.assertNotIn("invalid upstream", stderr.getvalue())
+
     @contextmanager
     def upstream_url(self, value: str):
         with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
@@ -97,17 +125,21 @@ def load_rpc_proxy_module():
     return import_python_module_with_env(
         "rpc_proxy_under_test",
         repo_path("containers/rpc-proxy/rpc_proxy.py"),
-        {
-            "RPC_PROXY_HOST": "127.0.0.1",
-            "RPC_PROXY_PORT": "8080",
-            "RPC_UPSTREAM_FILE": "/tmp/rpc-url",
-            "RPC_PROXY_MAX_REQUEST_BYTES": "1024",
-            "RPC_PROXY_MAX_RESPONSE_BYTES": "1024",
-            "RPC_PROXY_MAX_UPSTREAM_URL_BYTES": "1024",
-            "RPC_PROXY_CONNECT_TIMEOUT_SECONDS": "1",
-            "RPC_ALLOWED_METHODS": "eth_blockNumber",
-        },
+        proxy_environment("/tmp/rpc-url"),
     )
+
+
+def proxy_environment(upstream_path: str):
+    return {
+        "RPC_PROXY_HOST": "127.0.0.1",
+        "RPC_PROXY_PORT": "8080",
+        "RPC_UPSTREAM_FILE": upstream_path,
+        "RPC_PROXY_MAX_REQUEST_BYTES": "1024",
+        "RPC_PROXY_MAX_RESPONSE_BYTES": "1024",
+        "RPC_PROXY_MAX_UPSTREAM_URL_BYTES": "1024",
+        "RPC_PROXY_CONNECT_TIMEOUT_SECONDS": "1",
+        "RPC_ALLOWED_METHODS": "eth_blockNumber",
+    }
 
 
 if __name__ == "__main__":

@@ -332,5 +332,5 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception as exc:
-        print(f"rpc-proxy: invalid upstream: {exc}", file=sys.stderr)
+        print(f"rpc-proxy: could not run RPC proxy on {LISTEN_HOST}:{LISTEN_PORT}: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
