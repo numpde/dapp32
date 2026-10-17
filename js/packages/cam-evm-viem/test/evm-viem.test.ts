@@ -23,6 +23,7 @@ import {
   resolveCamContracts,
   sendCamContractCall,
   simulateCamContractCall,
+  validateCamContractCall,
 } from "../src/index.ts"
 import { ICAM_APP_INTERFACE_ID } from "../src/abi.ts"
 import type { CamHost, CamSimulationClient, CamWalletClient } from "../src/index.ts"
@@ -890,6 +891,31 @@ test("callCamRoute rejects mutable route functions and invalid named args", asyn
     }),
     (error) => error instanceof CamEvmError && error.code === "CAM_ROUTE_INVALID_RESULT",
   )
+})
+
+test("invalid ABI addresses explain their structural format before contract reads or write preparation", async () => {
+  const writeAbi = [{ type: "function", name: "setOwner", stateMutability: "nonpayable", inputs: [{ name: "owner", type: "address" }], outputs: [] }] as const satisfies Abi
+  for (const badAddress of ["not-an-address", "0x1234", `0x${"g".repeat(40)}`]) {
+    function rejected(code: string) {
+      return (error: unknown): boolean => {
+        assert(error instanceof CamEvmError)
+        assert.equal(error.code, code)
+        assert.match(error.message, /0x followed by 40 hexadecimal characters/)
+        assert(!error.message.includes(badAddress), "do not echo the supplied bad address")
+        return true
+      }
+    }
+    const publicClient = createPublicClient(publicClientFixtureOptions({}))
+    await assert.rejects(() => callCamRoute({
+      publicClient,
+      cam: parseCam(camJson),
+      contracts: { [BIKE_UI_NAMESPACE]: { address: uiAddress, abi: uiAbi } },
+      route: BIKE_ROUTE_ENTRY,
+      context: { host, account: { address: badAddress }, inputs: {}, outputs: [] },
+    }), rejected("CAM_ROUTE_INVALID_ARGUMENT"))
+    assert.equal(publicClient.calls.length, 0, "bad ABI arguments must not reach the contract")
+    assert.throws(() => validateCamContractCall({ address: managerAddress, abi: writeAbi, function: "setOwner", args: { owner: badAddress } }), rejected("CAM_WRITE_INVALID_ARGUMENT"))
+  }
 })
 
 test("sendCamContractCall and simulateCamContractCall validate named write args", async () => {

@@ -8,6 +8,13 @@ export function errorMessage(error: unknown): string {
   return detail === undefined || summary.includes(detail) ? summary : `${summary}: ${detail}`
 }
 
+export function actionErrorMessage(error: unknown, label: unknown): string {
+  const diagnostic = errorMessage(error)
+  return typeof label === "string" && isReadableErrorText(label)
+    ? `${boundedErrorText(label.trim())} failed: ${diagnostic}`
+    : diagnostic
+}
+
 function errorSummary(error: unknown): string {
   const shortMessage = readableErrorString(error, "shortMessage")
   if (shortMessage !== undefined) {

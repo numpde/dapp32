@@ -35,7 +35,7 @@ import {
 } from "./wallet.ts"
 import type { WalletState } from "./wallet.ts"
 import { createInjectedWalletBinding } from "./wallet-binding.ts"
-import { errorMessage } from "./errors.ts"
+import { actionErrorMessage, errorMessage } from "./errors.ts"
 import { calculateDocumentHashFromFile, calculateDocumentHashFromURL } from "./document-hash.ts"
 import {
   assertHostHasCode,
@@ -298,7 +298,7 @@ export function App(): ReactElement {
       arriveAtFeedback("prepared")
     } catch (error) {
       if (!isCurrentInteraction(revision)) return
-      showError(errorMessage(error), true)
+      showError(actionErrorMessage(error, action.props.label), true)
     }
   }
 

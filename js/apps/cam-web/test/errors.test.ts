@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { errorMessage } from "../src/errors.ts"
+import { actionErrorMessage, errorMessage } from "../src/errors.ts"
 
 test("errorMessage stops at cyclic cause chains", () => {
   const error = new Error("top")
@@ -137,4 +137,24 @@ test("errorMessage bounds untrusted provider text", () => {
     })),
     `transaction failed: ${`ManyArgs(${Array.from({ length: 200 }, (_, index) => index).join(", ")})`.slice(0, 500)}...`,
   )
+})
+
+test("action failures name the visible operation and retain the existing diagnostic once", () => {
+  const cause = { data: { errorName: "ChannelNotFound", args: [999999n] } }
+  const error = Object.assign(new Error("failed to call CAM route: position", { cause }), { code: "CAM_ROUTE_CALL_FAILED" })
+  const diagnostic = errorMessage(error)
+  assert.equal(actionErrorMessage(error, "Open balance"), `Open balance failed: ${diagnostic}`)
+  assert.equal(actionErrorMessage(error, "Open balance").match(/ChannelNotFound\(999999\)/g)?.length, 1)
+  assert.equal(error.cause, cause)
+  assert.equal(error.code, "CAM_ROUTE_CALL_FAILED")
+})
+
+test("action failure labels use existing text bounds without coercing unsafe values", () => {
+  const error = new Error("argument rejected")
+  const hostile = { toString() { throw new Error("Do not stringify a label") } }
+  for (const label of [undefined, null, hostile, "", "\u0000Open balance", "Open\n balance"]) {
+    assert.equal(actionErrorMessage(error, label), "argument rejected")
+  }
+  assert.equal(actionErrorMessage(error, "x".repeat(1000)), `${"x".repeat(500)}... failed: argument rejected`)
+  assert.equal(actionErrorMessage(error, "  Open balance  "), "Open balance failed: argument rejected")
 })

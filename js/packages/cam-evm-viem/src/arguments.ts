@@ -89,7 +89,7 @@ function normalizeAbiArg(
   }
 
   if (type === "address") {
-    if (!isAbiAddressValue(value)) throw invalidArg(errorCode, path, "", "expected address")
+    if (!isAbiAddressValue(value)) throw invalidArg(errorCode, path, "", "address must be 0x followed by 40 hexadecimal characters")
     return value.toLowerCase()
   }
 
