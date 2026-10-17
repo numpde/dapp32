@@ -26,6 +26,10 @@ contract NativeCustomer {
         return validSignature ? bytes4(0x1626ba7e) : bytes4(0xffffffff);
     }
 
+    function registerVoucherKey(address voucherKey) external {
+        payments.registerVoucherKey(channel, voucherKey);
+    }
+
     function fund(uint256 amount) external {
         payments.fund{value: amount}(channel);
     }
@@ -207,12 +211,16 @@ contract PayToPlayTest is PayToPlayTestBase {
     function testVoucherCannotReplayAcrossCustomerChannelContractOrChain() public {
         _fund(customer, channel, 100);
         bytes memory signature = _sign(customer, channel, 50);
+        vm.prank(relayer);
+        payments.registerVoucherKey(channel, vm.addr(VOUCHER_KEY));
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
         payments.collect(relayer, channel, 50, signature);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
         payments.collect(customer, otherChannel, 50, signature);
         PayToPlay other = new PayToPlay(address(this), PERIOD);
         other.createChannel(payee, PERIOD);
+        vm.prank(customer);
+        other.registerVoucherKey(channel, vm.addr(VOUCHER_KEY));
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
         other.collect(customer, channel, 50, signature);
         vm.chainId(block.chainid + 1);
@@ -220,15 +228,21 @@ contract PayToPlayTest is PayToPlayTestBase {
         payments.collect(customer, channel, 50, signature);
     }
 
-    function testContractWalletValidityIsCheckedEvenForPaidVoucher() public {
+    function testContractWalletPolicyCannotRevokeRegisteredKeyVouchers() public {
         NativeCustomer wallet = new NativeCustomer();
+        wallet.configure(payments, channel, false, false);
+        wallet.registerVoucherKey(vm.addr(VOUCHER_KEY));
         _fund(address(wallet), channel, 50);
-        assertEq(payments.collect(address(wallet), channel, 50, hex"abcd"), 50);
+        bytes memory signature = _sign(address(wallet), channel, 100);
         wallet.setSignatureValidity(false);
-        vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(address(wallet), channel, 50, hex"abcd");
+        assertEq(payments.collect(address(wallet), channel, 100, signature), 50);
         wallet.setSignatureValidity(true);
-        assertEq(payments.collect(address(wallet), channel, 50, hex"abcd"), 0);
+        vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
+        payments.collect(address(wallet), channel, 100, hex"abcd");
+        wallet.setSignatureValidity(false);
+        _fund(address(wallet), channel, 50);
+        assertEq(payments.collect(address(wallet), channel, 100, signature), 50);
+        assertEq(payments.collect(address(wallet), channel, 100, signature), 0);
     }
 
     function testNativeRejectionRollsBackPaidAndWithdrawalRequest() public {

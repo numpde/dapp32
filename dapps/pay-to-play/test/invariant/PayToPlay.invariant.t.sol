@@ -4,10 +4,12 @@ import {Test} from "forge-std-1.12.0/src/Test.sol";
 
 import {PayToPlay} from "../../src/PayToPlay.sol";
 
-// This deliberately permissive ERC-1271 customer authorizes the generated
-// cumulative totals so the campaign exercises accounting, not signature fixtures.
+// A contract customer registers a fixed fixture key and signs generated totals.
+// Authorization is independent of the customer contract's signature policy.
 contract PayToPlayHandler is Test {
+    uint256 private constant VOUCHER_KEY = uint256(keccak256("pay-to-play invariant voucher key"));
     PayToPlay public payments;
+    address public immutable voucherKey;
     uint256 public totalFunded;
     uint256 public totalWithdrawn;
     uint256 public totalCollected;
@@ -15,10 +17,9 @@ contract PayToPlayHandler is Test {
 
     constructor(PayToPlay app) {
         payments = app;
-    }
-
-    function isValidSignature(bytes32, bytes calldata) external pure returns (bytes4) {
-        return 0x1626ba7e;
+        voucherKey = vm.addr(VOUCHER_KEY);
+        payments.registerVoucherKey(1, voucherKey);
+        payments.registerVoucherKey(2, voucherKey);
     }
 
     receive() external payable {}
@@ -41,7 +42,8 @@ contract PayToPlayHandler is Test {
     function collect(uint8 rawChannel, uint96 total) external {
         uint256 id = 1 + rawChannel % 2;
         uint256 beforePaid = payments.viewPosition(address(this), id, address(this)).voucherPaid;
-        uint256 amount = payments.collect(address(this), id, total, "");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(VOUCHER_KEY, payments.voucherDigest(address(this), id, total));
+        uint256 amount = payments.collect(address(this), id, total, abi.encodePacked(r, s, v));
         totalCollected += amount;
         assertEq(payments.viewPosition(address(this), id, address(this)).voucherPaid, beforePaid + amount);
     }
@@ -101,6 +103,7 @@ contract PayToPlayInvariantTest is Test {
         uint256 paid;
         for (uint256 id = 0; id < 3; id++) {
             PayToPlay.PositionView memory position = payments.viewPosition(address(handler), id, address(handler));
+            assertEq(position.voucherKey, id == 0 ? address(0) : handler.voucherKey());
             credited += position.balance;
             paid += position.voucherPaid;
             assertEq(
