@@ -88,7 +88,6 @@ test("bike availability keeps component writes and their fields visible across a
     for (const action of ["updateComponentMetadata", "markComponentMissing", "clearComponentMissing", "retireComponent"]) {
       const button = buttons.find(node => node.call.function === action)
       assert.ok(button, `${scenario.name}: ${action} must remain visible`)
-      assert.equal(session.actionKind({ ...button, props: { ...button.props, label: "Open details" } }), "contractCall", "route kind outranks a misleading label, including disabled writes")
       assert.equal(button.disabled === true, !actions.includes(action), `${scenario.name}: ${action} availability`)
       if (button.disabled === true) await assert.rejects(() => session.dispatchAction(button))
     }
@@ -577,7 +576,7 @@ test("invalid projected presentation preserves the current view, drafts and navi
   assert.equal(session.snapshot().canGoBack, false)
 })
 
-test("action presentation follows dynamic route kinds without rejecting unfinished destinations", async () => {
+test("dynamic action destinations remain editable and are checked on dispatch", async () => {
   const resources = bikeResourceBytes(NO_RESOURCE_OVERRIDES)
   const ui = mutableRecord(JSON.parse(new TextDecoder().decode(resources[BIKE_UI_URI])))
   mutableRecord(ui.nodes).app = { requires: ["view"], element: "Screen", props: { title: "Actions" }, children: [
@@ -591,22 +590,13 @@ test("action presentation follows dynamic route kinds without rejecting unfinish
   const session = createSession(sessionFixtureOptions({ publicClient, loadResource: createResourceLoader(bikeResourceBytes({ [camURI]: encodeJson(cam), [BIKE_UI_URI]: bytes })) }))
   const loaded = await session.load()
   const read = resolvedUiButtons(loaded.resolvedUi)[0]!
-  const before = session.snapshot()
-  assert.equal(session.actionKind(read), "navigate")
-  assert.equal(session.actionKind({ ...read, disabled: true }), "navigate")
-  assert.deepEqual(session.snapshot(), before, "classification is read-only")
   assert.equal((await session.dispatchAction(read)).type, "navigated", "a read never prepares a transaction despite its label")
   const edited = session.updateState({ destination: "unfinished-route" })
   const unsupported = resolvedUiButtons(edited.resolvedUi)[0]!
-  assert.equal(session.actionKind(unsupported), "unsupported")
   assert.equal(edited.state.destination, "unfinished-route")
   assert.equal(unsupported.disabled, undefined, "unknown actions remain visible and retain availability")
   await assert.rejects(() => session.dispatchAction(unsupported), (error: unknown) => error instanceof CamViewerError && error.code === "CAM_VIEWER_ACTION_UNSUPPORTED")
   assert.deepEqual(session.snapshot(), edited)
-  const write = resolvedUiButtons(session.updateState({ destination: "setAccountInfo" }).resolvedUi)[0]!
-  assert.equal(session.actionKind(write), "contractCall")
-  assert.equal(session.actionKind({ ...write, disabled: true }), "contractCall")
-  assert.equal(session.actionKind({ ...read, call: { ...read.call, namespace: "ui" } }), "unsupported")
 })
 
 test("write preparation rejects invalid ABI arguments before returning an actionable call", async (t) => {

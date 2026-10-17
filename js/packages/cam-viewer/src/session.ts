@@ -44,7 +44,6 @@ import {
   assertActionIsRendered,
   assertStatePatchTargets,
   interpretRenderedAction,
-  classifyRenderedAction,
 } from "./interactions.ts"
 import {
   resolveViewerCurrentUi,
@@ -512,7 +511,6 @@ export function createCamViewerSession({
     editAmount,
     editInteger,
     editDuration,
-    actionKind: (action) => classifyRenderedAction(assertLoaded().cam, action).type,
     dispatchAction,
   }
 }

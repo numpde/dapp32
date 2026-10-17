@@ -16,7 +16,6 @@ import type {
 } from "@cam/screen"
 import type {
   CamViewerLoadedSnapshot,
-  CamViewerSession,
   CamViewerPreparedContractCall,
   CamViewerDocumentHashStatus,
 } from "@cam/viewer"
@@ -73,7 +72,6 @@ export function UiView({
   onBack,
   onRefresh,
   onAction,
-  actionKind,
   onInput,
   onAmount,
   onInteger,
@@ -87,7 +85,6 @@ export function UiView({
   readonly sending: boolean
   readonly onBack: () => Promise<void>
   readonly onRefresh: () => Promise<void>
-  readonly actionKind: CamViewerSession["actionKind"]
   readonly onAction: (action: ResolvedButtonNode) => Promise<void>
   readonly onInput: (name: string, value: string) => void
   readonly onAmount: AmountEdit
@@ -99,10 +96,10 @@ export function UiView({
   return (
     <section className="ui" ref={viewRef} tabIndex={-1} aria-label="Current view">
       <div className="ui-meta">
-        <button type="button" disabled={changingView || sending || !snapshot.canGoBack} onClick={() => { void onBack() }}>
+        <button className="button-quiet" type="button" disabled={changingView || sending || !snapshot.canGoBack} onClick={() => { void onBack() }}>
           Back
         </button>
-        <button type="button" disabled={changingView || sending} onClick={() => { void onRefresh() }}>
+        <button className="button-quiet" type="button" disabled={changingView || sending} onClick={() => { void onRefresh() }}>
           Refresh
         </button>
         <details>
@@ -112,7 +109,7 @@ export function UiView({
         </details>
       </div>
       <fieldset className="elements" disabled={changingView || sending} aria-label="Current view">
-        <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} actionKind={actionKind} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+        <UiNodeView node={snapshot.resolvedUi} state={snapshot.state} documentHashes={snapshot.documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
       </fieldset>
     </section>
   )
@@ -156,7 +153,7 @@ export function PreparedCallView({
       >
         {sending ? "Sending..." : "Send with wallet"}
       </button>
-      <button type="button" disabled={!canDiscard} onClick={onDiscard}>
+      <button className="button-quiet" type="button" disabled={!canDiscard} onClick={onDiscard}>
         Discard transaction
       </button>
     </section>
@@ -168,7 +165,6 @@ function UiNodeView({
   state,
   documentHashes,
   onAction,
-  actionKind,
   onInput,
   onAmount,
   onInteger,
@@ -179,7 +175,6 @@ function UiNodeView({
   readonly node: ResolvedUiNode
   readonly state: Record<string, InertValue>
   readonly documentHashes: Readonly<Record<string, CamViewerDocumentHashStatus>>
-  readonly actionKind: CamViewerSession["actionKind"]
   readonly onAction: (action: ResolvedButtonNode) => Promise<void>
   readonly onInput: (name: string, value: string) => void
   readonly onAmount: AmountEdit
@@ -194,7 +189,7 @@ function UiNodeView({
       return (
         <>
           {node.children.map((child, index) => (
-            <UiNodeView key={index} node={child} state={state} documentHashes={documentHashes} onAction={onAction} actionKind={actionKind} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
+            <UiNodeView key={index} node={child} state={state} documentHashes={documentHashes} onAction={onAction} onInput={onInput} onAmount={onAmount} onInteger={onInteger} onDuration={onDuration} onDocumentHash={onDocumentHash} onCancelDocumentHash={onCancelDocumentHash} />
           ))}
         </>
       )
@@ -238,11 +233,10 @@ function UiNodeView({
         </div>
       )
     case "Button": {
-      const kind = actionKind(node)
       const label = displayText(stringProp(node.props, "label"))
       return (
         <button
-          className={`action-button action-${kind}`}
+          className="action-button"
           aria-label={label}
           type="button"
           disabled={node.disabled === true}
@@ -251,7 +245,6 @@ function UiNodeView({
           }}
         >
           {label}
-          {kind === "navigate" ? <span aria-hidden="true"> →</span> : null}
         </button>
       )
     }
@@ -330,7 +323,7 @@ function DocumentHashFieldView({ node, value, status, onInput, onCalculate, onCa
       if (file !== undefined) void onCalculate(node.state.key, "file", file)
     }} />
     {node.props.sourceURI === undefined ? null : <button type="button" disabled={node.props.sourceURI === ""} onClick={() => { void onCalculate(node.state.key, "url") }}>Calculate from URL</button>}
-    {pending ? <button type="button" onClick={() => onCancel(node.state.key)}>Cancel calculation</button> : null}
+    {pending ? <button className="button-quiet" type="button" onClick={() => onCancel(node.state.key)}>Cancel calculation</button> : null}
     {status === undefined ? null : <p className="field-hint" role={status.status === "failed" ? "alert" : "status"}>
       {pending ? "Calculating SHA-256… Your current digest is kept until calculation succeeds."
         : status.status === "failed" ? status.message

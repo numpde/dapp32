@@ -80,7 +80,6 @@ export type CamViewerSession = {
   readonly editAmount: (name: string, representation: "base" | "display", text: string, options?: { readonly composing?: boolean }) => CamViewerLoadedSnapshot
   readonly editDuration: (name: string, part: import("@cam/screen").DurationPart, text: string, options?: { readonly composing?: boolean }) => CamViewerLoadedSnapshot
   readonly editInteger: (name: string, text: string, options?: { readonly composing?: boolean }) => CamViewerLoadedSnapshot
-  readonly actionKind: (action: ResolvedButtonNode) => import("./interactions.ts").RenderedActionClassification["type"]
   readonly dispatchAction: (action: ResolvedButtonNode) => Promise<CamViewerActionResult>
 }
 

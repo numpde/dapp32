@@ -706,7 +706,6 @@ export function App(): ReactElement {
           onBack={goBack}
           onRefresh={refreshView}
           onAction={dispatch}
-          actionKind={loadState.runtime.session.actionKind}
           onInput={updateInput}
           onAmount={updateAmount}
           onInteger={updateInteger}

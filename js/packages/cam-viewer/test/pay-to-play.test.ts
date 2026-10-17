@@ -77,7 +77,6 @@ test("entry chooses an explicit balance before displaying money or business writ
   const { session, cam } = await fixture()
   assert.equal(cam.routes.myPosition, undefined)
   const entry = await session.load()
-  for (const button of resolvedUiButtons(entry.resolvedUi)) assert.equal(session.actionKind(button), button.call.function === "position" ? "navigate" : "contractCall")
   assert.equal(entry.state.lookupCustomer, customer)
   assert.equal(entry.state.lookupChannelId, "0")
   assert.equal(entry.state.fundAmount, undefined)

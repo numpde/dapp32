@@ -30,8 +30,6 @@ for (const [name, amountA, amountB] of [
     const { session, reads } = await escrowSession(amountA, amountB)
     const creation = await session.load()
     const openCredit = requiredButton(creation, "accountCredit")
-    assert.equal(session.actionKind(openCredit), "navigate")
-    assert.equal(session.actionKind(requiredButton(creation, "createAgreement")), "contractCall")
     assert.deepEqual(openCredit.call.args, toInertValue({}))
     const opened = await session.dispatchAction(openCredit)
     assert.equal(opened.type, "navigated")

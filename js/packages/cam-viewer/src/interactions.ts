@@ -28,28 +28,15 @@ export type RenderedActionInterpretation =
     readonly inputs: InertRecord
   }
 
-export type RenderedActionClassification = RenderedActionInterpretation | {
-  readonly type: "unsupported"
-  readonly reason: string
-}
-
 export function interpretRenderedAction(cam: CamDocument, action: ResolvedButtonNode): RenderedActionInterpretation {
-  const interpretation = classifyRenderedAction(cam, action)
-  if (interpretation.type === "unsupported") {
-    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", interpretation.reason)
-  }
-  return interpretation
-}
-
-export function classifyRenderedAction(cam: CamDocument, action: ResolvedButtonNode): RenderedActionClassification {
   if (action.call.namespace !== UI_CALL_NAMESPACE_BY_ELEMENT.Button) {
-    return { type: "unsupported", reason: `CAM action must call routes namespace: ${action.call.namespace}` }
+    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action must call routes namespace: ${action.call.namespace}`)
   }
 
   const route = action.call.function
   const camRoute = cam.routes[route]
   if (camRoute === undefined) {
-    return { type: "unsupported", reason: `CAM action references unknown route: ${route}` }
+    throw new CamViewerError("CAM_VIEWER_ACTION_UNSUPPORTED", `CAM action references unknown route: ${route}`)
   }
 
   switch (camRoute.kind) {
