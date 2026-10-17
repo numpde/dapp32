@@ -193,7 +193,23 @@ Use Docker with Compose and Make. Materialize locked dependencies first if neede
 make pay-to-play/local/demo/gui/up
 ```
 
-Keep this foreground command running and open its printed loopback URL on port 5175. A fresh chain has only channel 0 and uses chain ID 31337. Connect a compatible wallet or attach the maintained [local test-wallet selector](../../js/tools/browser-fixture-wallet.html) to your existing tab. The selector is a local fixture, not a wallet extension. Its named accounts are public test accounts; names confer no contract permissions.
+Keep this foreground command running and open its printed loopback URL on port 5175. A fresh chain has only channel 0 and uses chain ID 31337. Connect a compatible wallet or attach the local test wallet below. Its named accounts are public test accounts; names confer no contract permissions.
+
+### Connect the local test wallet
+
+With the browser’s CDP endpoint already running, find your existing app tab’s ID at that endpoint’s `/json/list`. In a separate terminal, run:
+
+```bash
+make viewer/local/fixture-wallet/attach \
+  FIXTURE_WALLET_APP=pay-to-play CDP_TARGET_ID='<existing-tab-id>' \
+  CDP_ORIGIN=http://127.0.0.1:9222 VIEWER_URL='<printed viewer URL>' \
+  EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json \
+  EXPECTED_CAM_HASH=0x... EXPECTED_CONTRACT_ADDRESS=0x...
+```
+
+Use the exact manifest SHA-256 with a `0x` prefix and the payment contract address from the verified deployment or binding. The tool checks the tab, loopback origin, host, chain, manifest and contract pins; it refuses an existing wallet. It starts no browser or chain. Keep it running, then choose **Connect wallet** in the app. The selector changes the active account; transaction confirmation submits immediately. Reloading resets the initial account and requires reconnecting. Ctrl-C removes the selector and wallet but leaves the tab open.
+
+### Try a payment
 
 1. Choose the fixture admin and connect it to create a payment channel. Retrieve the exact ID from the creation receipt.
 2. Choose the fixture customer and connect it. Open that customer’s balance in the new channel, then deposit.
@@ -205,7 +221,7 @@ make pay-to-play/local/voucher/sign \
   PAY_TO_PLAY_ADDRESS=0x... PAY_TO_PLAY_CHANNEL_ID=1 PAY_TO_PLAY_TOTAL=100
 ```
 
-Use the actual local payment contract address and channel ID. This command signs only for the fixed fixture customer on chain 31337. It prints a voucher signature for pasting into the app; keep that output out of logs and commits. The selector’s transaction confirmation signs and submits immediately after confirmation; it does not sign vouchers. Reloading resets the selector to its configured initial account and requires connecting again.
+Use the actual local payment contract address and channel ID. This command signs only for the fixed fixture customer on chain 31337. It prints a voucher signature for pasting into the app; keep that output out of logs and commits. The selector’s transaction confirmation signs and submits immediately after confirmation; it does not sign vouchers.
 
 **The chain is temporary.** Stopping the foreground GUI command, or restarting its supervised frontend or gateway, tears down the fixture and loses in-memory chain state. Viewer JavaScript is staged at startup; do not restart a live service to update code while expecting to preserve that chain. A normal new code session starts fresh. Stop the demo with:
 
