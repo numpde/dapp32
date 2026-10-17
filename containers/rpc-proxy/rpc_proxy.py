@@ -288,7 +288,23 @@ class Handler(http.server.BaseHTTPRequestHandler):
         except UpstreamRejected as exc:
             self.send_error(502, str(exc))
             return
-        except Exception:
+        except Exception as exc:
+            diagnostic = type(exc).__name__
+            if isinstance(exc, ssl.SSLCertVerificationError):
+                if hasattr(exc, "verify_code"):
+                    diagnostic += f" verify_code={exc.verify_code}"
+                if hasattr(exc, "verify_message") and isinstance(exc.verify_message, str):
+                    diagnostic += f" reason={ascii(exc.verify_message[:300])}"
+            elif isinstance(exc, ssl.SSLError):
+                if hasattr(exc, "reason") and isinstance(exc.reason, str):
+                    diagnostic += f" reason={ascii(exc.reason[:300])}"
+            elif isinstance(exc, TimeoutError):
+                diagnostic += ": timed out"
+            elif isinstance(exc, OSError) and isinstance(exc.errno, int):
+                diagnostic += f" errno={exc.errno}: {os.strerror(exc.errno)}"
+            # Transport messages can contain the credential-bearing upstream
+            # path or request contents; report only standard failure fields.
+            print(f"rpc-proxy: RPC upstream request failed: {diagnostic[:500]}", file=sys.stderr)
             self.send_error(502, "RPC upstream request failed")
             return
         finally:

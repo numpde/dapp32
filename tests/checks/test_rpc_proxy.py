@@ -5,6 +5,7 @@ import errno
 import io
 import os
 import runpy
+import ssl
 import tempfile
 import unittest
 from unittest import mock
@@ -111,6 +112,41 @@ class RpcProxyTest(unittest.TestCase):
                     self.assertIn("127.0.0.1:8080", stderr.getvalue())
                     self.assertIn(reason, stderr.getvalue())
                     self.assertNotIn("invalid upstream", stderr.getvalue())
+
+    def test_request_transport_failures_keep_public_response_generic_and_operator_cause_useful(self) -> None:
+        tls_failure = ssl.SSLCertVerificationError(1, "opaque transport message fixture-secret")
+        tls_failure.verify_code = 10
+        tls_failure.verify_message = "certificate has expired"
+        failures = [
+            (ConnectionRefusedError(errno.ECONNREFUSED, os.strerror(errno.ECONNREFUSED), "https://example.com/private?token=fixture-secret"), "ConnectionRefusedError", "Connection refused"),
+            (TimeoutError("opaque transport message fixture-secret"), "TimeoutError", "timed out"),
+            (tls_failure, "SSLCertVerificationError", "certificate has expired"),
+        ]
+        body = b'{"jsonrpc":"2.0","method":"eth_blockNumber","id":"fixture-body-secret"}'
+        request = b"POST / HTTP/1.0\r\nContent-Length: " + str(len(body)).encode() + b"\r\nAuthorization: Bearer fixture-header-secret\r\n\r\n" + body
+        for failure, kind, reason in failures:
+            with self.subTest(kind=kind):
+                stderr = io.StringIO()
+                connection = mock.Mock()
+                connection.makefile.return_value = io.BytesIO(request)
+                with self.upstream_url("https://example.com/private?token=fixture-secret"), \
+                        mock.patch.object(self.proxy, "resolve_global_ip", return_value="93.184.216.34"), \
+                        mock.patch.object(self.proxy, "FixedIpHttpsConnection") as transport, \
+                        mock.patch("sys.stderr", stderr):
+                    transport.return_value.request.side_effect = failure
+                    self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock())
+                response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
+                self.assertIn("502", response)
+                self.assertIn("RPC upstream request failed", response)
+                self.assertNotIn(kind, response)
+                diagnostic = stderr.getvalue()
+                self.assertIn("RPC upstream request failed", diagnostic)
+                self.assertIn(kind, diagnostic)
+                self.assertIn(reason, diagnostic)
+                self.assertEqual(len(diagnostic.splitlines()), 1)
+                for secret in ["fixture-secret", "fixture-body-secret", "fixture-header-secret", "/private", "token="]:
+                    self.assertNotIn(secret, response + diagnostic)
+                transport.return_value.close.assert_called_once()
 
     @contextmanager
     def upstream_url(self, value: str):
