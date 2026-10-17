@@ -199,6 +199,23 @@ test("formatValue survives unprintable terminal values", () => {
   assert.equal(formatValue(undefined), "undefined")
 })
 
+test("terminal error rendering retains string causes without credentials or terminal controls", () => {
+  const visible = formatError(new Error("outer operation failed", { cause: "network disconnected\nhttps://example.test/rpc?token=fixture-string-token" }))
+  assert.match(visible, /network disconnected/)
+  assert.match(visible, /example.test\/rpc/)
+  assert.doesNotMatch(visible, /fixture-string-token|\u001b/)
+  assert.equal(visible.split("\n").length, 2, "only the terminal-owned line ending is emitted")
+})
+
+test("terminal press retains the route rejection and meaningful custom revert once", () => {
+  const output = statusTerminalOutput([
+    { element: "Button", props: { label: "Open resource" }, call: { namespace: "routes", function: "open", args: {} } },
+  ], undefined, "press 1\nquit\n", true)
+  assert.match(output, /failed to call CAM route: open/)
+  assert.match(output, /ChannelNotFound\(999999\)/)
+  assert.equal(output.split("ChannelNotFound(999999)").length - 1, 1)
+})
+
 test("formatError survives hostile thrown values", () => {
   const hostile = {
     toJSON() {
@@ -210,10 +227,10 @@ test("formatError survives hostile thrown values", () => {
   }
 
   assert.equal(formatError(new Error("failed")), "Error: failed\n")
-  assert.equal(formatError(hostile), "Error: [unprintable value]\n")
+  assert.match(formatError(hostile), /^Error: .*unprintable.*\n$/)
 })
 
-function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][], title?: string, commands?: string): string {
+function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][], title?: string, commands?: string, rejectAction?: boolean): string {
   const snapshot: CamViewerLoadedSnapshot = {
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",
     documentHashes: {},
@@ -227,12 +244,15 @@ function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][],
     import { mock } from 'node:test';
     const snapshot = ${JSON.stringify(snapshot)};
     const unsupported = () => { throw new Error('The display fixture supports load and snapshot only'); };
+    const dispatchAction = ${rejectAction === true} ? async () => {
+      throw new Error('failed to call CAM route: open', { cause: { data: { errorName: 'ChannelNotFound', args: [999999n] } } });
+    } : unsupported;
     mock.module(${JSON.stringify(backend.href)}, { namedExports: {
       createTerminalBackendFromEnv: async () => ({
         name: 'display-fixture', description: 'resolved Status display', hostLabel: 'fixture',
         createSession: () => ({ snapshot: () => snapshot, load: async () => snapshot,
           back: unsupported, navigate: unsupported, setAccount: unsupported,
-          updateState: unsupported, dispatchAction: unsupported,
+          updateState: unsupported, dispatchAction,
           editAmount: (name, representation, text) => { process.stdout.write('AMOUNT_EDIT '+JSON.stringify([name,representation,text])+'\\n'); return snapshot; },
           editDuration: (name, part, text) => { process.stdout.write('DURATION_EDIT '+JSON.stringify([name,part,text])+'\\n'); return snapshot; },
           editInteger: (name, text) => { process.stdout.write('INTEGER_EDIT '+JSON.stringify([name,text])+'\\n'); return snapshot; } })

@@ -78,7 +78,7 @@ test("creation distinguishes client-reference lookup from independent ID lookup 
   assert.match(String(requiredButton(resolvedUi, "lookupAgreement").props.label), /client and reference/i)
   assert.deepEqual(plain(requiredButton(resolvedUi, "lookupAgreement").call.args), { client: ACCOUNT, agreementRef: "" })
   assert.match(String(requiredButton(resolvedUi, "agreement").props.label), /by ID/)
-  assert.match(String(requiredButton(resolvedUi, "createAgreement").props.label), /Prepare/)
+  assert.match(String(requiredButton(resolvedUi, "createAgreement").props.label), /^Review /)
   assert.ok(texts.some((text) => text.includes("submit it separately") && text.includes("confirmed transaction")))
 })
 

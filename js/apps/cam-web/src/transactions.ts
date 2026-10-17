@@ -151,7 +151,7 @@ export async function waitForSubmittedTransactionReceipt<TReceipt>({
     }
     throw new Error(
       [
-        `Transaction was sent, but the viewer did not see a receipt on ${rpcEndpoint} within ${timeoutMs / 1000}s.`,
+        `Transaction was sent, but receipt checking on ${rpcEndpoint} failed.`,
         advice,
       ].join(" "),
       { cause },

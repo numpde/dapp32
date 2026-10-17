@@ -13,3 +13,5 @@ export { CamViewerError } from "./errors.ts"
 export type { CamViewerErrorCode } from "./errors.ts"
 
 export { createCamViewerSession } from "./session.ts"
+
+export { viewerErrorMessage } from "./error-message.ts"

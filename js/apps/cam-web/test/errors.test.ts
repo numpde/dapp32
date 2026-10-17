@@ -1,5 +1,11 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { HttpRequestError, sha256 } from "viem"
+import { isRecordObject } from "@cam/protocol"
+import { createCamViewerSession } from "@cam/viewer"
+import { BIKE_ACCOUNT_ADDRESS, BIKE_CAM_URI, BIKE_UI_URI, bikeHost, bikeContractAddresses } from "../../../../tests/fixtures/cam/bike.mts"
+import { bikeCamJson } from "../../../../tests/fixtures/cam/bike-resources.mts"
+import { bikeResourceBytes, createMockCamPublicClient, createMockResourceLoader, encodeJson } from "../../../../tests/fixtures/cam/mock.mts"
 import { CamEvmError, validateCamContractCall } from "@cam/evm-viem"
 
 import { actionErrorMessage, errorMessage } from "../src/errors.ts"
@@ -27,30 +33,83 @@ test("errorMessage still includes useful nested revert details", () => {
   )
 })
 
-test("errorMessage includes known browser fetch causes without exposing arbitrary cause text", () => {
-  const url = "https://example.test/cam/main.json"
-  const failure = Object.assign(new Error(`failed to load CAM resource ${url}`, {
-    cause: new TypeError("Failed to execute 'fetch' on 'Window': Illegal invocation"),
-  }), { code: "CAM_RESOURCE_LOAD_FAILED" })
+test("resource errors retain network reasons while redacting recognizable credentials", () => {
+  const cause = new TypeError("DNS lookup failed for https://fixture-user:fixture-password@private.example/rpc?token=fixture-token&chain=31337\nAuthorization: Bearer fixture-bearer")
+  const failure = Object.assign(new Error("failed to load CAM resource", { cause }), { code: "CAM_RESOURCE_LOAD_FAILED" })
+  const visible = errorMessage(failure)
+  assert.match(visible, /DNS lookup failed/)
+  assert.match(visible, /private.example\/rpc/)
+  assert.match(visible, /chain=31337/)
+  assert.doesNotMatch(visible, /fixture-user|fixture-password|fixture-token|fixture-bearer/)
+  assert.doesNotMatch(visible, /[\u0000-\u001f\u007f]/)
+})
 
-  assert.equal(errorMessage(failure), `failed to load CAM resource ${url}: Failed to execute 'fetch' on 'Window': Illegal invocation`)
-  assert.equal(
-    errorMessage(Object.assign(new Error(`failed to load CAM resource ${url}`, {
-      cause: new TypeError("Failed to fetch"),
-    }), { code: "CAM_RESOURCE_LOAD_FAILED" })),
-    `failed to load CAM resource ${url}: Failed to fetch`,
-  )
-  const privateCause = Object.assign(new TypeError("fetch failed for https://private.example/?token=secret"), {
-    reason: "https://private.example/?token=secret",
-    details: "https://private.example/?token=secret",
-    shortMessage: "https://private.example/?token=secret",
+test("string causes remain visible with the same credential and control safeguards", () => {
+  const visible = errorMessage(new Error("outer operation failed", { cause: "network disconnected\nhttps://example.test/rpc?token=fixture-string-token" }))
+  assert.match(visible, /network disconnected/)
+  assert.match(visible, /example.test\/rpc/)
+  assert.doesNotMatch(visible, /fixture-string-token|[\u0000-\u001f\u007f]/)
+})
+
+test("URL evidence survives ordinary query addresses while encoded credential values are redacted", () => {
+  const visible = errorMessage(new Error("request failed for https://example.test?email=user@example.test&%74oken=fixture-encoded-token"))
+  assert.match(visible, /https:\/\/example.test\?email=user@example.test/)
+  assert.doesNotMatch(visible, /fixture-encoded-token/)
+})
+
+test("hostile custom-revert argument access cannot replace the original failure", () => {
+  const args = ["ordinary"]
+  Object.defineProperty(args, "0", { get() { throw new Error("hostile argument getter") } })
+  const visible = errorMessage(new Error("transaction failed", { cause: { data: { errorName: "BadArgs", args } } }))
+  assert.match(visible, /transaction failed/)
+  assert.match(visible, /BadArgs\(/)
+  assert.match(visible, /unprintable/i)
+  assert.doesNotMatch(visible, /hostile argument getter/)
+})
+
+test("a real failed UI load exposes its parse cause through the web consumer", async () => {
+  const bytes = encodeJson({ ui: "1.0.0", nodes: { app: { element: "UnsupportedFixtureElement" } } })
+  const cam = structuredClone(bikeCamJson)
+  assert(isRecordObject(cam.namespaces))
+  assert(isRecordObject(cam.namespaces.ui))
+  cam.namespaces.ui.integrity = `sha256:${sha256(bytes)}`
+  const camBytes = encodeJson(cam)
+  const session = createCamViewerSession({
+    host: bikeHost, account: { address: BIKE_ACCOUNT_ADDRESS }, inputs: {},
+    publicClient: createMockCamPublicClient({ chainId: 31337, camURI: BIKE_CAM_URI, camHash: sha256(camBytes), supportsCamInterface: true, addresses: bikeContractAddresses, routeResults: {} }),
+    loadResource: createMockResourceLoader(bikeResourceBytes({ [BIKE_CAM_URI]: camBytes, [BIKE_UI_URI]: bytes })),
   })
-  assert.equal(
-    errorMessage(Object.assign(new Error(`failed to load CAM resource ${url}`, {
-      cause: privateCause,
-    }), { code: "CAM_RESOURCE_LOAD_FAILED" })),
-    `failed to load CAM resource ${url}`,
-  )
+  await assert.rejects(() => session.load(), error => {
+    const visible = errorMessage(error)
+    assert.match(visible, /failed to parse CAM UI resource/)
+    assert.match(visible, /UnsupportedFixtureElement/)
+    assert.match(visible, /nodes.app.element/)
+    assert.equal(visible.split("UnsupportedFixtureElement").length - 1, 1)
+    return true
+  })
+})
+
+test("structured SDK diagnostics preserve the reason without exposing flattened request bodies", () => {
+  const cause = new HttpRequestError({ url: "https://example.test/rpc?api_key=fixture-api-key", body: { method: "eth_sendRawTransaction", params: ["fixture-private-signature"] }, details: "upstream DNS resolution failed" })
+  const visible = errorMessage(new Error("receipt checking failed", { cause }))
+  assert.match(visible, /HTTP request failed/)
+  assert.match(visible, /upstream DNS resolution failed/)
+  assert.doesNotMatch(visible, /fixture-private-signature|fixture-api-key|Request body/)
+})
+
+test("fresh-object cause chains and combined diagnostics are bounded", () => {
+  let reads = 0
+  const fresh: object = { message: "nested diagnostic", get cause(): object | undefined { reads += 1; return reads < 128 ? Object.create(fresh) : undefined } }
+  const visible = errorMessage(new Error("top", { cause: fresh }))
+  assert.match(visible, /nested diagnostic/)
+  assert(visible.length < 2100)
+  assert(reads <= 32, "a fresh object per cause must not evade the chain bound")
+  assert.match(errorMessage(new Error("top", { cause: new Error("x".repeat(3000)) })), /truncat|\.\.\./)
+  let chain: unknown
+  for (let index = 0; index < 10; index += 1) chain = new Error(`${index}: ${"x".repeat(400)}`, { cause: chain })
+  const combined = errorMessage(chain)
+  assert(combined.length < 2100, "distinct individually bounded causes must also have a total display bound")
+  assert(combined.endsWith("..."))
 })
 
 test("errorMessage ignores provider objects with hostile property access", () => {

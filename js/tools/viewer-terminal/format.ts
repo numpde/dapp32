@@ -1,3 +1,5 @@
+import { viewerErrorMessage } from "../../packages/cam-viewer/dist/index.js"
+
 const MAX_FORMAT_VALUE_LENGTH = 2_000
 
 export function formatValue(value: unknown): string {
@@ -20,11 +22,7 @@ export function formatValue(value: unknown): string {
 }
 
 export function formatError(error: unknown): string {
-  if (error instanceof Error) {
-    return `Error: ${formatDisplayText(error.message)}\n`
-  }
-
-  return `Error: ${formatValue(error)}\n`
+  return `Error: ${formatDisplayText(viewerErrorMessage(error))}\n`
 }
 
 export function formatDisplayText(value: string): string {

@@ -1,111 +1,14 @@
+import { viewerErrorMessage } from "@cam/viewer"
+
+export { viewerErrorMessage as errorMessage } from "@cam/viewer"
+
 const MAX_ERROR_TEXT_LENGTH = 500
 
-export function errorMessage(error: unknown): string {
-  const chain = errorChain(error)
-  const summary = errorSummary(firstErrorInChain(chain, error))
-  const detail = errorDetail(chain)
-
-  return detail === undefined || summary.includes(detail) ? summary : `${summary}: ${detail}`
-}
-
 export function actionErrorMessage(error: unknown, label: unknown): string {
-  const diagnostic = errorMessage(error)
+  const diagnostic = viewerErrorMessage(error)
   return typeof label === "string" && isReadableErrorText(label)
     ? `${boundedErrorText(label.trim())} failed: ${diagnostic}`
     : diagnostic
-}
-
-function errorSummary(error: unknown): string {
-  const shortMessage = readableErrorString(error, "shortMessage")
-  if (shortMessage !== undefined) {
-    return shortMessage
-  }
-
-  if (error instanceof Error) {
-    return boundedErrorText(error.message)
-  }
-
-  return boundedErrorText(safeString(error, "unprintable error"))
-}
-
-function errorDetail(chain: readonly unknown[]): string | undefined {
-  if (errorProperty(chain[0], "code") === "CAM_RESOURCE_LOAD_FAILED") {
-    const cause = chain[1]
-    if (!(cause instanceof TypeError)) return undefined
-    const message = readableErrorString(cause, "message")
-    return message !== undefined && BROWSER_FETCH_ERRORS.has(message) ? message : undefined
-  }
-
-  for (const item of chain) {
-    const customError = errorCustomRevert(item)
-    if (customError !== undefined) return customError
-  }
-
-  for (const item of chain.slice(1)) {
-    const detail = firstReadableErrorString(item, "reason", "details", "shortMessage")
-    if (detail !== undefined) return detail
-  }
-
-  return undefined
-}
-
-const BROWSER_FETCH_ERRORS = new Set([
-  "Failed to fetch",
-  "Failed to execute 'fetch' on 'Window': Illegal invocation",
-])
-
-function errorChain(error: unknown): readonly unknown[] {
-  const chain: unknown[] = []
-  const seen = new Set<object>()
-  for (let current: unknown = error; current !== undefined; current = errorCause(current)) {
-    if (typeof current === "object" && current !== null) {
-      if (seen.has(current)) break
-      seen.add(current)
-    }
-    chain.push(current)
-  }
-  return chain
-}
-
-function firstErrorInChain(chain: readonly unknown[], originalError: unknown): unknown {
-  if (chain.length === 0) {
-    return originalError
-  }
-
-  return chain[0]
-}
-
-function firstReadableErrorString(error: unknown, ...keys: readonly string[]): string | undefined {
-  for (const key of keys) {
-    const value = readableErrorString(error, key)
-    if (value !== undefined) {
-      return value
-    }
-  }
-
-  return undefined
-}
-
-function errorCause(error: unknown): unknown {
-  const cause = errorProperty(error, "cause")
-  return cause === null ? undefined : cause
-}
-
-function errorCustomRevert(error: unknown): string | undefined {
-  const data = errorProperty(error, "data")
-  const errorName = readableErrorString(data, "errorName")
-  if (errorName === undefined) return undefined
-
-  const args = errorProperty(data, "args")
-  const customError = Array.isArray(args)
-    ? `${errorName}(${args.map(formatErrorArgument).join(", ")})`
-    : `${errorName}()`
-  return boundedErrorText(customError)
-}
-
-function readableErrorString(error: unknown, key: string): string | undefined {
-  const value = errorProperty(error, key)
-  return typeof value === "string" && isReadableErrorText(value) ? boundedErrorText(value) : undefined
 }
 
 function isReadableErrorText(value: string): boolean {
@@ -115,50 +18,8 @@ function isReadableErrorText(value: string): boolean {
     && !/[\u0000-\u001F\u007F]/u.test(text)
 }
 
-function errorProperty(error: unknown, key: string): unknown {
-  if (typeof error !== "object" || error === null) {
-    return undefined
-  }
-
-  let value: unknown
-  try {
-    if (key in error) {
-      value = (error as Record<string, unknown>)[key]
-    }
-  } catch {
-    // Wallet/RPC providers can surface arbitrary objects. Error rendering must
-    // never replace the original failure with a getter/proxy diagnostic.
-  }
-  return value
-}
-
-function formatErrorArgument(value: unknown): string {
-  if (typeof value === "bigint") return value.toString()
-  if (typeof value === "string") return boundedErrorText(JSON.stringify(value))
-  if (typeof value === "number" || typeof value === "boolean" || value === null) return String(value)
-  try {
-    const json = JSON.stringify(value, (_, item: unknown) => typeof item === "bigint" ? item.toString() : item)
-    if (json !== undefined) {
-      return boundedErrorText(json)
-    }
-  } catch {
-    // Keep custom error names useful even when provider-supplied args are
-    // cyclic or otherwise not JSON-serializable.
-  }
-
-  return boundedErrorText(safeString(value, "unprintable value"))
-}
-
 function boundedErrorText(value: string): string {
   return value.length <= MAX_ERROR_TEXT_LENGTH
     ? value
     : `${value.slice(0, MAX_ERROR_TEXT_LENGTH)}...`
-}
-
-function safeString(value: unknown, fallback: string): string {
-  try {
-    return String(value)
-  } catch {
-    return fallback
-  }
 }

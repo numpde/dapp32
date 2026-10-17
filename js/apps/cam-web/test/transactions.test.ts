@@ -401,7 +401,19 @@ test("submitted transaction diagnosis distinguishes mined and pending transactio
   )
 })
 
-test("receipt timeout includes submitted transaction diagnosis", async () => {
+test("receipt inspection failures retain their cause without claiming a timeout or a failed send", async () => {
+  const cause = new Error("RPC authentication rejected")
+  await assert.rejects(() => waitForSubmittedTransactionReceipt({ client: reader({ receiptError: cause }), txHash, rpcEndpoint: "localhost:8545", pollingIntervalMs: 500, timeoutMs: 20_000 }), error => {
+    assert(error instanceof Error)
+    assert.equal(error.cause, cause)
+    assert.match(error.message, /Transaction was sent/)
+    assert.match(error.message, /receipt.*failed/i)
+    assert.doesNotMatch(error.message, /within 20s|timed? ?out/i)
+    return true
+  })
+})
+
+test("receipt checking failure includes submitted transaction diagnosis", async () => {
   await assert.rejects(
     () => waitForSubmittedTransactionReceipt({
       client: reader({ receiptError: new Error("timeout") }),
@@ -410,11 +422,11 @@ test("receipt timeout includes submitted transaction diagnosis", async () => {
       pollingIntervalMs: 500,
       timeoutMs: 20_000,
     }),
-    /Transaction was sent, but the viewer did not see a receipt on localhost:8545 within 20s\. The transaction is queued behind a nonce gap/,
+    /Transaction was sent, but receipt checking on localhost:8545 failed\. The transaction is queued behind a nonce gap/,
   )
 })
 
-test("receipt timeout preserves context when follow-up diagnosis fails", async () => {
+test("receipt checking failure preserves context when follow-up diagnosis fails", async () => {
   await assert.rejects(
     () => waitForSubmittedTransactionReceipt({
       client: reader({
@@ -426,11 +438,11 @@ test("receipt timeout preserves context when follow-up diagnosis fails", async (
       pollingIntervalMs: 500,
       timeoutMs: 20_000,
     }),
-    /Transaction was sent, but the viewer did not see a receipt on localhost:8545 within 20s\. The viewer also could not inspect the submitted transaction/,
+    /Transaction was sent, but receipt checking on localhost:8545 failed\. The viewer also could not inspect the submitted transaction/,
   )
 })
 
-test("receipt timeout bounds follow-up diagnosis errors", async () => {
+test("receipt checking failure bounds follow-up diagnosis errors", async () => {
   const long = "x".repeat(1_000)
   await assert.rejects(
     () => waitForSubmittedTransactionReceipt({
@@ -449,7 +461,7 @@ test("receipt timeout bounds follow-up diagnosis errors", async () => {
   )
 })
 
-test("receipt timeout survives hostile follow-up diagnosis errors", async () => {
+test("receipt checking failure survives hostile follow-up diagnosis errors", async () => {
   const hostile = {
     toString() {
       throw new Error("hostile toString")
