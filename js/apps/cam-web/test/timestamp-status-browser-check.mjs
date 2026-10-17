@@ -13,7 +13,8 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
   }
   async function keyboard(label, key, code, keyCode) {
     assert(await evaluate(`(()=>{const b=[...document.querySelectorAll('.timestamp-options button')].find(b=>b.textContent===${JSON.stringify(label)});if(!b)return false;b.focus();return true})()`))
-    await call('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: keyCode })
+    const text = key === 'Enter' ? '\r' : key
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: keyCode, text, unmodifiedText: text })
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode })
   }
   try {
