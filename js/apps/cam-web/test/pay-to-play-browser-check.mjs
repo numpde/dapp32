@@ -154,7 +154,7 @@ const provider = fixtureWalletSource({
   accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])),
   initialRole: 'admin', origin: viewer.origin, host: root, confirmTransactions: false,
 })
-const snapshot = `({text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(x=>[x.firstElementChild?.textContent,x.lastElementChild?.textContent])),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
+const snapshot = `({timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(x=>[x.firstElementChild?.textContent,x.lastElementChild?.textContent])),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
 async function wait(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30_000)
   while (Date.now() < until) {
@@ -163,6 +163,10 @@ async function wait(predicate, label) {
     await new Promise(resolve => setTimeout(resolve, 100))
   }
   throw new Error(`Payment-channel browser timed out during ${label}`)
+}
+async function timestampMode(relative) {
+  assert(await evaluate(`(()=>{const b=document.querySelector('button.timestamp-options');if(!b)return false;if(b.getAttribute('aria-pressed')!==${JSON.stringify(String(relative))})b.click();return true})()`), 'timestamp pill remains usable')
+  await wait(state => state.timestampMode === String(relative), 'timestamp display mode')
 }
 async function click(label) {
   assert(await evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===${JSON.stringify(label)});if(!b||b.matches(':disabled'))return false;b.click();return true})()`), `button must be usable: ${label}`)
@@ -239,30 +243,30 @@ try {
   await wait(state => state.values['Balance minus withdrawal request (wei)'] === '60', 'request effective balance')
   phase = 'timestamp display preference'
   await evaluate(`(()=>{const originalSet=window.setInterval,originalClear=window.clearInterval,active=new Set();window.__timestampTimers={originalSet,originalClear,active};window.setInterval=(...args)=>{const id=originalSet.apply(window,args);active.add(id);return id};window.clearInterval=id=>{active.delete(id);return originalClear.call(window,id)}})()`)
-  assert(await evaluate(`document.querySelector('.timestamp-options button[aria-pressed="true"]').textContent==='Date'`), 'timestamps default to Date')
-  await click('Relative')
-  await wait(state => state.text.includes('Relative to your device clock.'), 'relative timestamp display')
+  assert(await evaluate(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')==='false'`), 'timestamps default to Date')
+  await timestampMode(true)
+  await wait(state => state.timestampMode === 'true', 'relative timestamp display')
   assert(await evaluate(`window.__timestampTimers.active.size===1`), 'relative display owns one timer')
   await fill('withdrawAmount', '80')
   await send('Review replacement request')
   await wait(state => state.values['Balance minus withdrawal request (wei)'] === '20' && state.values['Withdrawal requested (wei)'] === '80', 'renewed effective balance')
-  assert(await evaluate(`document.querySelector('.timestamp-options button[aria-pressed="true"]').textContent==='Relative'`), 'same-field timestamp updates retain the display preference')
+  assert(await evaluate(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')==='true'`), 'same-field timestamp updates retain the display preference')
   await fill('fundAmount', '23')
   await click('Review deposit')
   await wait(state => state.prepared, 'prepared transaction before display switch')
-  await click('Date')
+  await timestampMode(false)
   assert(await evaluate(`window.__timestampTimers.active.size===0`), 'Date display releases its timer')
   assert(await evaluate(`document.querySelector('.prepared-call')!==null&&document.querySelector('input[name="fundAmount"]').value==='23'`), 'timestamp display does not edit drafts or discard a reviewed transaction')
-  await click('Relative')
+  await timestampMode(true)
   await click('Refresh')
   await wait(state => !state.prepared && state.buttons.some(button => button.name === 'Refresh' && !button.disabled), 'relative display survives reread')
-  assert(await evaluate(`document.querySelector('.timestamp-options button[aria-pressed="true"]').textContent==='Relative'&&window.__timestampTimers.active.size===1`), 'refresh retains the display choice without multiplying timers')
+  assert(await evaluate(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')==='true'&&window.__timestampTimers.active.size===1`), 'refresh retains the display choice without multiplying timers')
   await inspect(accounts.customer.address, '0')
   await wait(state => state.text.includes('No active withdrawal request'), 'timestamp becomes absent')
   assert(await evaluate(`document.querySelector('.timestamp-options')===null&&window.__timestampTimers.active.size===0`), 'absence removes display controls and releases its timer')
   await inspect(accounts.customer.address, id)
-  await wait(state => state.text.includes('Relative to your device clock.'), 'timestamp returns')
-  await click('Date')
+  await wait(state => state.timestampMode === 'true', 'timestamp returns')
+  await timestampMode(false)
   await evaluate(`(()=>{const t=window.__timestampTimers;window.setInterval=t.originalSet;window.clearInterval=t.originalClear;delete window.__timestampTimers})()`)
   let state = await evaluate(snapshot)
   disabled(state, 'Review withdrawal to balance owner')

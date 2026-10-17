@@ -11,30 +11,44 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
     }
     throw new Error(`Timestamp fixture did not reach: ${expression}`)
   }
-  async function keyboard(label, key, code, keyCode) {
-    assert(await evaluate(`(()=>{const b=[...document.querySelectorAll('.timestamp-options button')].find(b=>b.textContent===${JSON.stringify(label)});if(!b)return false;b.focus();return true})()`))
+  async function checkLayout(narrow) {
+    const layout = await evaluate(`(()=>{const row=document.querySelector('.timestamp-status'),label=row.querySelector('.key-label'),control=row.querySelector('.timestamp-options'),parts=[...control.querySelectorAll('[data-mode]')],value=row.lastElementChild;const r=row.getBoundingClientRect(),l=label.getBoundingClientRect(),c=control.getBoundingClientRect(),v=value.getBoundingClientRect(),p=parts.map(x=>x.getBoundingClientRect());return {sameRow:l.top<c.bottom&&c.top<l.bottom,joined:p.length===2&&Math.abs(p[0].right-p[1].left)<=2,target:c.width>=56&&c.height>=28,valueWidth:v.width,rowWidth:r.width,valueBelow:v.top>=c.bottom-1,overflow:document.documentElement.scrollWidth>innerWidth,description:control.getAttribute('aria-describedby'),focusNotClipped:getComputedStyle(control).overflowX!=='hidden'&&getComputedStyle(control).overflowY!=='hidden'};})()`)
+    assert(layout.sameRow, 'timestamp display control stays beside its field label')
+    assert(layout.joined && layout.target, 'timestamp icons share one usable pill target')
+    assert(layout.description && layout.focusNotClipped && !layout.overflow, 'timestamp description and focus remain available without overflow')
+    if (narrow) assert(layout.valueBelow && layout.valueWidth >= layout.rowWidth - 2, 'narrow timestamps use the full row beneath the label and switch')
+  }
+  async function keyboard(key, code, keyCode) {
+    assert(await evaluate(`(()=>{const b=document.querySelector('button.timestamp-options');if(!b)return false;b.focus();return true})()`))
     const text = key === 'Enter' ? '\r' : key
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: keyCode, text, unmodifiedText: text })
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode })
   }
   try {
     await call('Page.navigate', { url: fixtureURL.href })
-    await wait(`document.querySelector('.timestamp-options button[aria-pressed="true"]')?.textContent==='Date'`)
+    await wait(`!!document.querySelector('.timestamp-options')`)
+    assert(await evaluate(`(()=>{const b=document.querySelector('.timestamp-options');return b.tagName==='BUTTON'&&!b.querySelector('button,input,a')&&b.getAttribute('aria-label')==='Relative time for Deadline'&&b.getAttribute('aria-pressed')==='false'})()`), 'one native button owns the entire timestamp pill')
     assert(await evaluate(`window.timestampFixture.activeTimers()===0`))
-    await keyboard('Relative', 'Enter', 'Enter', 13)
+    await checkLayout(false)
+    for (const [selector, pressed] of [['[data-mode="date"]', 'true'], ['[data-mode="relative"]', 'false'], [null, 'true'], [null, 'false']]) {
+      await evaluate(`(()=>{const button=document.querySelector('.timestamp-options');const target=${selector === null ? 'button' : `button.querySelector(${JSON.stringify(selector)})`};target.click()})()`)
+      await wait(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')===${JSON.stringify(pressed)}`)
+    }
+    await keyboard('Enter', 'Enter', 13)
     await wait(`document.body.innerText.includes('In 20 seconds')&&window.timestampFixture.activeTimers()===1`)
-    assert(await evaluate(`document.querySelector('.timestamp-options').getAttribute('role')==='group'&&document.querySelector('.timestamp-options').getAttribute('aria-label')==='Deadline display'&&!document.querySelector('.timestamp-status [aria-live],.timestamp-status [role="status"]')`))
+    assert(await evaluate(`(()=>{const b=document.querySelector('.timestamp-options');return b.getAttribute('aria-label')==='Relative time for Deadline'&&[...b.querySelectorAll('[data-mode]')].every(s=>s.getAttribute('aria-hidden')==='true'&&s.title&&s.querySelector('svg'))&&!document.querySelector('.timestamp-status [aria-live],.timestamp-status [role="status"]')})()`))
+    assert(await evaluate(`(()=>{const row=document.querySelector('.timestamp-status'),control=row.querySelector('.timestamp-options'),value=row.lastElementChild,id=control.getAttribute('aria-describedby'),hint=document.getElementById(id),r=hint?.getBoundingClientRect();return value.getAttribute('aria-describedby')===id&&hint.textContent==='Relative to your device clock.'&&r.width<=1&&r.height<=1})()`), 'relative clock help describes the value and control without a visible paragraph')
     await evaluate(`window.timestampFixture.setClock(121)`)
     await wait(`document.body.innerText.includes('1 second ago')`)
     await evaluate(`window.timestampFixture.show('140','Deadline','No deadline')`)
     await wait(`document.body.innerText.includes('In 19 seconds')&&window.timestampFixture.activeTimers()===1`)
     await evaluate(`window.timestampFixture.show('140','Other deadline','No deadline')`)
-    await wait(`document.querySelector('.timestamp-options button[aria-pressed="true"]')?.textContent==='Date'&&window.timestampFixture.activeTimers()===0`)
-    await keyboard('Relative', 'Enter', 'Enter', 13)
+    await wait(`document.querySelector('.timestamp-options')?.getAttribute('aria-pressed')==='false'&&window.timestampFixture.activeTimers()===0`)
+    await keyboard('Enter', 'Enter', 13)
     await wait(`window.timestampFixture.activeTimers()===1`)
-    await keyboard('Date', ' ', 'Space', 32)
+    await keyboard(' ', 'Space', 32)
     await wait(`window.timestampFixture.activeTimers()===0`)
-    await keyboard('Relative', 'Enter', 'Enter', 13)
+    await keyboard('Enter', 'Enter', 13)
     await wait(`window.timestampFixture.activeTimers()===1`)
     await evaluate(`window.timestampFixture.show('0','Other deadline','No deadline')`)
     await wait(`document.body.innerText.includes('No deadline')&&!document.querySelector('.timestamp-options')&&window.timestampFixture.activeTimers()===0`)
@@ -46,11 +60,12 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
     await wait(`document.body.innerText.includes('1970-01-01')&&!!document.querySelector('.timestamp-options')`)
     await evaluate(`window.timestampFixture.show('9007199254740993','Large timestamp',undefined)`)
     await wait(`document.body.innerText.includes('9,007,199,254,740,993 Unix seconds')`)
-    await keyboard('Relative', 'Enter', 'Enter', 13)
+    await keyboard('Enter', 'Enter', 13)
     await wait(`document.body.innerText.includes('In 104,249,991,374 days')`)
     await call('Emulation.setDeviceMetricsOverride', { width: 320, height: 740, deviceScaleFactor: 1, mobile: true })
+    await checkLayout(true)
     assert(await evaluate(`innerWidth===320&&document.documentElement.scrollWidth<=innerWidth&&document.querySelector('input[name="draft"]').value==='unchanged'`))
-    return { clockUpdates: true, valueUpdateRetainsMode: true, identityChangeResetsMode: true, absenceAndUnmountCleanup: true, keyboard: true, width: 320 }
+    return { wholePillToggles: true, clockUpdates: true, valueUpdateRetainsMode: true, identityChangeResetsMode: true, absenceAndUnmountCleanup: true, keyboard: true, width: 320 }
   } finally {
     await call('Emulation.clearDeviceMetricsOverride', {})
     await call('Page.navigate', { url: viewerURL })
