@@ -12,11 +12,26 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
     throw new Error(`Timestamp fixture did not reach: ${expression}`)
   }
   async function checkLayout(narrow) {
-    const layout = await evaluate(`(()=>{const row=document.querySelector('.timestamp-status'),label=row.querySelector('.key-label'),control=row.querySelector('.timestamp-options'),parts=[...control.querySelectorAll('[data-mode]')],value=row.lastElementChild;const r=row.getBoundingClientRect(),l=label.getBoundingClientRect(),c=control.getBoundingClientRect(),v=value.getBoundingClientRect(),p=parts.map(x=>x.getBoundingClientRect());return {sameRow:l.top<c.bottom&&c.top<l.bottom,joined:p.length===2&&Math.abs(p[0].right-p[1].left)<=2,target:c.width>=56&&c.height>=28,valueWidth:v.width,rowWidth:r.width,valueBelow:v.top>=c.bottom-1,overflow:document.documentElement.scrollWidth>innerWidth,description:control.getAttribute('aria-describedby'),focusNotClipped:getComputedStyle(control).overflowX!=='hidden'&&getComputedStyle(control).overflowY!=='hidden'};})()`)
-    assert(layout.sameRow, 'timestamp display control stays beside its field label')
-    assert(layout.joined && layout.target, 'timestamp icons share one usable pill target')
-    assert(layout.description && layout.focusNotClipped && !layout.overflow, 'timestamp description and focus remain available without overflow')
-    if (narrow) assert(layout.valueBelow && layout.valueWidth >= layout.rowWidth - 2, 'narrow timestamps use the full row beneath the label and switch')
+    const layout = await evaluate(`(()=>{const rows=[...document.querySelectorAll('.elements > .key-value')],values=rows.map(row=>row.lastElementChild.getBoundingClientRect()),row=rows[1],control=row?.querySelector('.timestamp-options');let pill=true;if(control){const parts=[...control.querySelectorAll('[data-mode]')].map(p=>p.getBoundingClientRect()),r=control.getBoundingClientRect();pill=parts.length===2&&Math.abs(parts[0].right-parts[1].left)<=2&&r.width>=56&&r.height>=28&&!!control.getAttribute('aria-describedby')&&getComputedStyle(control).overflowX!=='hidden'&&getComputedStyle(control).overflowY!=='hidden'}return {count:rows.length,aligned:values.every(v=>Math.abs(v.left-values[0].left)<1),fullWidth:values.every((v,i)=>v.width>=rows[i].getBoundingClientRect().width-2),pill,overflow:document.documentElement.scrollWidth>innerWidth}})()`)
+    assert.equal(layout.count, 3, 'timestamp layout is measured between ordinary Status rows')
+    assert(layout.aligned, 'timestamp values align with the neighboring Status values')
+    assert(layout.pill && !layout.overflow, 'timestamp control remains usable without clipping or overflow')
+    if (narrow) assert(layout.fullWidth, 'stacked values share the full row width')
+  }
+  async function checkNeighborAlignment() {
+    for (const width of [1280, 761, 760, 320]) {
+      await call('Emulation.setDeviceMetricsOverride', { width, height: 740, deviceScaleFactor: 1, mobile: width === 320 })
+      for (const [value, label, absent] of [['120', 'At', false], ['120', 'A longer timestamp field label that must wrap within its own cell', false], ['0', 'No active request', true]]) {
+        await evaluate(`window.timestampFixture.show(${JSON.stringify(value)},${JSON.stringify(label)},'No deadline')`)
+        await wait(`document.querySelectorAll('.elements > .key-value').length===3&&[...document.querySelectorAll('.elements .key-label')].some(l=>l.textContent===${JSON.stringify(label)})`)
+        await checkLayout(width <= 760)
+        if (!absent) {
+          await evaluate(`document.querySelector('button.timestamp-options').click()`)
+          await wait(`document.querySelector('button.timestamp-options').getAttribute('aria-pressed')==='true'`)
+          await checkLayout(width <= 760)
+        }
+      }
+    }
   }
   async function keyboard(key, code, keyCode) {
     assert(await evaluate(`(()=>{const b=document.querySelector('button.timestamp-options');if(!b)return false;b.focus();return true})()`))
@@ -29,7 +44,10 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
     await wait(`!!document.querySelector('.timestamp-options')`)
     assert(await evaluate(`(()=>{const b=document.querySelector('.timestamp-options');return b.tagName==='BUTTON'&&!b.querySelector('button,input,a')&&b.getAttribute('aria-label')==='Relative time for Deadline'&&b.getAttribute('aria-pressed')==='false'})()`), 'one native button owns the entire timestamp pill')
     assert(await evaluate(`window.timestampFixture.activeTimers()===0`))
-    await checkLayout(false)
+    await checkNeighborAlignment()
+    await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+    await evaluate(`window.timestampFixture.show('120','Deadline','No deadline')`)
+    await wait(`document.querySelector('button.timestamp-options')?.getAttribute('aria-pressed')==='false'`)
     for (const [selector, pressed] of [['[data-mode="date"]', 'true'], ['[data-mode="relative"]', 'false'], [null, 'true'], [null, 'false']]) {
       await evaluate(`(()=>{const button=document.querySelector('.timestamp-options');const target=${selector === null ? 'button' : `button.querySelector(${JSON.stringify(selector)})`};target.click()})()`)
       await wait(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')===${JSON.stringify(pressed)}`)

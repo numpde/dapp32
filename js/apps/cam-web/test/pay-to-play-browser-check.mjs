@@ -154,7 +154,7 @@ const provider = fixtureWalletSource({
   accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])),
   initialRole: 'admin', origin: viewer.origin, host: root, confirmTransactions: false,
 })
-const snapshot = `({timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(x=>[x.firstElementChild?.textContent,x.lastElementChild?.textContent])),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
+const snapshot = `({timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(x=>[x.querySelector('.key-label')?.textContent,x.lastElementChild?.textContent])),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
 async function wait(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30_000)
   while (Date.now() < until) {

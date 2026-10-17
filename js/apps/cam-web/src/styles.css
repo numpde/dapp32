@@ -235,7 +235,7 @@ button:focus-visible {
   border-top: 0;
 }
 
-.timestamp-status { grid-template-columns: fit-content(240px) max-content minmax(0, 1fr); align-items: center; gap: 4px 8px; }
+.timestamp-label { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; min-width: 0; }
 .timestamp-options { display: inline-flex; padding: 1px; border: 1px solid var(--line); border-radius: 999px; background: #edf2f6; cursor: pointer; }
 .timestamp-segment { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; color: var(--muted); }
 .timestamp-segment[data-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 3px #18223020; }
@@ -274,9 +274,6 @@ button:focus-visible {
   .key-value {
     grid-template-columns: 1fr;
   }
-
-  .timestamp-status { grid-template-columns: minmax(0, 1fr) max-content; }
-  .timestamp-value { grid-column: 1 / -1; }
 
   .topbar {
     display: grid;

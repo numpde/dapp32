@@ -265,21 +265,23 @@ function TimestampStatusView({ node }: { readonly node: ResolvedStatusNode }): R
   const dateText = node.formattedValue === undefined ? formatInertValue(node.props.value) : node.formattedValue
   if (!hasTimestamp) return <KeyValue label={label} value={dateText} mono={false} />
   return <div className="key-value timestamp-status">
-    <span className="key-label">{displayText(label)}</span>
-    <button className="timestamp-options" type="button" aria-label={`Relative time for ${label}`} aria-pressed={relative} aria-describedby={clockHint} title="Date / Relative time"
-      onClick={() => { setNowSeconds(Math.floor(Date.now() / 1000)); setRelative(value => !value) }}>
-      <span className="timestamp-segment" data-mode="date" data-selected={!relative} aria-hidden="true" title="Date">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" focusable="false">
-          <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" />
-        </svg>
-      </span>
-      <span className="timestamp-segment" data-mode="relative" data-selected={relative} aria-hidden="true" title="Relative">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" focusable="false">
-          <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-        </svg>
-      </span>
-      <span id={clockHint} className="visually-hidden">Relative to your device clock.</span>
-    </button>
+    <div className="timestamp-label">
+      <span className="key-label">{displayText(label)}</span>
+      <button className="timestamp-options" type="button" aria-label={`Relative time for ${label}`} aria-pressed={relative} aria-describedby={clockHint} title="Date / Relative time"
+        onClick={() => { setNowSeconds(Math.floor(Date.now() / 1000)); setRelative(value => !value) }}>
+        <span className="timestamp-segment" data-mode="date" data-selected={!relative} aria-hidden="true" title="Date">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" focusable="false">
+            <rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18" />
+          </svg>
+        </span>
+        <span className="timestamp-segment" data-mode="relative" data-selected={relative} aria-hidden="true" title="Relative">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" focusable="false">
+            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+          </svg>
+        </span>
+        <span id={clockHint} className="visually-hidden">Relative to your device clock.</span>
+      </button>
+    </div>
     <span className="timestamp-value" aria-describedby={relative ? clockHint : undefined}>{displayText(relative ? relativeText : dateText)}</span>
   </div>
 }

@@ -26,7 +26,9 @@ function render(timestamp: ResolvedUiNode | undefined): void {
     snapshot: { canGoBack: false, route: "fixture", inputs: {}, state: { draft: "unchanged" }, values: [], uiURI: "fixture", documentHashes: {},
       resolvedUi: { element: "Fragment", props: {}, children: [
         { element: "TextField", props: { label: "Draft" }, state: { key: "draft" }, children: [] },
+        { element: "Status", props: { label: "Value before timestamp", value: "Before" }, children: [] },
         ...(timestamp === undefined ? [] : [timestamp]),
+        { element: "Status", props: { label: "Value after timestamp", value: "After" }, children: [] },
       ] } },
     viewRef: null, changingView: false, sending: false,
     onBack: async () => {}, onRefresh: async () => {}, onAction: async () => {}, onInput: () => {},
