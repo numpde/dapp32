@@ -16,20 +16,6 @@
         {
           "element": "Status",
           "props": {
-            "label": "Balance owner",
-            "value": "$view.customer"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
-            "label": "Channel ID",
-            "value": "$view.channelId"
-          }
-        },
-        {
-          "element": "Status",
-          "props": {
             "label": "Payment recipient (unused in channel 0)",
             "value": "$view.payee"
           }
@@ -520,6 +506,20 @@
           "element": "Text",
           "props": {
             "text": "Account balance"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Balance owner",
+            "value": "$view.customer"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
           }
         },
         {

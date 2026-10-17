@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises"
 import test from "node:test"
 import { parseCam } from "@cam/core"
 import { parseJsonBytes, toInertValue, type InertRecord } from "@cam/protocol"
-import { resolvedUiButtons } from "@cam/screen"
+import { resolvedUiButtons, type ResolvedUiNode } from "@cam/screen"
 import type { CamPublicClient } from "@cam/evm-viem"
 import type { Abi, Address, Hex } from "viem"
 import { createCamViewerSession } from "../src/index.ts"
@@ -54,6 +54,23 @@ test("sender-owned payment writes always continue to the acting wallet's positio
     const call = prepareViewerContractCall({ ...options, inputs })
     assert.deepEqual(call.then, toInertValue({ namespace: "routes", function: "position", args: { customer, channelId: "1" } }))
   }
+})
+
+test("opened balance identity precedes explanatory text and controls", async () => {
+  const { session } = await fixture()
+  await session.load()
+  const opened = await session.navigate("position", { customer, channelId: "1" })
+  const content: ResolvedUiNode[] = []
+  function visit(node: ResolvedUiNode): void {
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(visit)
+    else content.push(node)
+  }
+  visit(opened.resolvedUi)
+  assert.equal(content[0]?.element, "Text", "the balance view label comes first")
+  assert.deepEqual(content.slice(1, 3).map(node => node.element === "Status" ? [node.element, node.props.label, node.props.value] : [node.element]), [
+    ["Status", "Balance owner", customer],
+    ["Status", "Channel ID", "1"],
+  ], "identify the opened resource before help text or operations")
 })
 
 test("entry chooses an explicit balance before displaying money or business writes", async () => {
