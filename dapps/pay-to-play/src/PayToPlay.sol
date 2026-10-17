@@ -3,7 +3,7 @@ pragma solidity 0.8.35;
 import {Ownable} from "@openzeppelin-contracts-5.6.1/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin-contracts-5.6.1/access/Ownable2Step.sol";
 import {EIP712} from "@openzeppelin-contracts-5.6.1/utils/cryptography/EIP712.sol";
-import {SignatureChecker} from "@openzeppelin-contracts-5.6.1/utils/cryptography/SignatureChecker.sol";
+import {ECDSA} from "@openzeppelin-contracts-5.6.1/utils/cryptography/ECDSA.sol";
 import {ReentrancyGuard} from "@openzeppelin-contracts-5.6.1/utils/ReentrancyGuard.sol";
 
 /// @notice Native-currency channels with persistent cumulative vouchers and one-shot delayed withdrawals.
@@ -18,6 +18,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         uint256 voucherPaid;
         uint256 requestedAmount;
         uint256 readyAt;
+        address voucherKey;
     }
 
     struct PositionView {
@@ -32,6 +33,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         uint256 requestedAmount;
         uint256 readyAt;
         uint256 effectiveBalance;
+        address voucherKey;
         string[] actions;
     }
 
@@ -47,6 +49,9 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
     error InvalidPayee();
     error NullChannelCannotCollect();
     error InvalidVoucherSignature();
+    error InvalidVoucherKey();
+    error VoucherKeyAlreadyRegistered();
+    error VoucherKeyNotRegistered();
     error InvalidWithdrawalAmount(uint256 requested, uint256 balance);
     error WithdrawalNotRequested();
     error WithdrawalNotReady(uint256 readyAt);
@@ -55,6 +60,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
 
     event ChannelCreated(uint256 indexed channelId, address payee, uint64 claimPeriod);
     event PayeeChanged(uint256 indexed channelId, address previousPayee, address payee);
+    event VoucherKeyRegistered(address indexed customer, uint256 indexed channelId, address indexed voucherKey);
     event Funded(address indexed customer, uint256 indexed channelId, uint256 amount);
     event VoucherCollected(
         address indexed customer, uint256 indexed channelId, address indexed payee, uint256 amount, uint256 voucherPaid
@@ -91,6 +97,18 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
 
     function channel(uint256 channelId) external view returns (Channel memory) {
         return _channel(channelId);
+    }
+
+    /// @notice Permanently authorize one ECDSA key for the caller's position; no rotation or revocation.
+    /// @dev Wallet code is never consulted. Funding, withdrawals and moves do not reset this key.
+    function registerVoucherKey(uint256 channelId, address voucherKey) external nonReentrant {
+        _channel(channelId);
+        if (channelId == 0) revert NullChannelCannotCollect();
+        if (voucherKey == address(0)) revert InvalidVoucherKey();
+        Position storage position = _positions[msg.sender][channelId];
+        if (position.voucherKey != address(0)) revert VoucherKeyAlreadyRegistered();
+        position.voucherKey = voucherKey;
+        emit VoucherKeyRegistered(msg.sender, channelId, voucherKey);
     }
 
     function fund(uint256 channelId) external payable nonReentrant {
@@ -135,12 +153,12 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
     {
         Channel storage definition = _channel(channelId);
         if (channelId == 0) revert NullChannelCannotCollect();
-        if (!SignatureChecker.isValidSignatureNow(
-                customer, voucherDigest(customer, channelId, cumulativeTotal), signature
-            )) {
-            revert InvalidVoucherSignature();
-        }
         Position storage position = _positions[customer][channelId];
+        address voucherKey = position.voucherKey;
+        if (voucherKey == address(0)) revert VoucherKeyNotRegistered();
+        (address recovered, ECDSA.RecoverError err,) =
+            ECDSA.tryRecover(voucherDigest(customer, channelId, cumulativeTotal), signature);
+        if (err != ECDSA.RecoverError.NoError || recovered != voucherKey) revert InvalidVoucherSignature();
         if (cumulativeTotal <= position.voucherPaid) return 0;
         amount = _min(cumulativeTotal - position.voucherPaid, position.balance);
         if (amount == 0) return 0;
@@ -171,6 +189,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         view_.admin = owner();
         view_.balance = position.balance;
         view_.voucherPaid = position.voucherPaid;
+        view_.voucherKey = position.voucherKey;
         view_.requestedAmount = position.requestedAmount;
         view_.readyAt = position.readyAt;
         view_.effectiveBalance =
@@ -196,7 +215,10 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
             available[count++] = "withdraw";
             if (ownPosition && channelCount > 1) available[count++] = "move";
         }
-        if (channelId != 0) available[count++] = "collect";
+        if (channelId != 0) {
+            if (position.voucherKey != address(0)) available[count++] = "collect";
+            else if (ownPosition) available[count++] = "registerVoucherKey";
+        }
         if (actor == owner() && actor != address(0)) {
             available[count++] = "createChannel";
             if (channelId != 0) available[count++] = "setPayee";
