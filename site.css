@@ -426,3 +426,13 @@ a:focus-visible {outline:3px solid var(--green);outline-offset:3px}.skip-link {p
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.theme-toggle::before{transition:none}}
 /* Long protocol names wrap in prose; code examples retain horizontal scrolling. */
 code {overflow-wrap:anywhere}pre code {overflow-wrap:normal}
+
+/* Homepage navigation separates site destinations from the app guide collection. */
+.home-topbar .shell {display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center}
+.home-topbar nav {justify-self:end;align-items:center}
+.home-topbar nav a {display:inline-flex;align-items:center;min-height:32px}
+@media(max-width:860px){
+  .home-topbar .shell {grid-template-columns:minmax(0,1fr) auto;gap:12px 18px}
+  .home-topbar nav {grid-column:1/-1;grid-row:2;justify-self:start}
+  .home-topbar .theme-toggle {grid-column:2;grid-row:1}
+}

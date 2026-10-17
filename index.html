@@ -21,27 +21,18 @@
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
-  <div class="topbar">
+  <div class="topbar home-topbar">
     <div class="shell">
-      <a class="brand" href="#">dapp32</a>
-      <div class="topbar-actions">
-        <nav aria-label="Primary">
-          <a href="#approach">Approach</a>
-          <a href="#status">Evidence</a>
-          <a href="#try">Local demo</a>
-          <a href="bike-nft/">Bike NFT</a>
-          <a href="escrow/">Escrow</a>
-          <a href="pay-to-play/">Pay-to-Play</a>
-          <a href="authoring/">Authoring</a>
-          <a href="reference/cam/">Reference</a>
-          <a href="#related">Related</a>
-          <a href="#archive">Archive</a>
-        </nav>
-        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
-          <span class="theme-sun" aria-hidden="true">☀</span>
-          <span class="theme-moon" aria-hidden="true">☾</span>
-        </button>
-      </div>
+      <a class="brand" href="./">dapp32</a>
+      <nav aria-label="Primary">
+        <a href="authoring/">Authoring</a>
+        <a href="reference/cam/">CAM reference</a>
+        <a href="https://github.com/numpde/dapp32/tree/main">Source</a>
+      </nav>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle color theme" aria-live="polite">
+        <span class="theme-sun" aria-hidden="true">☀</span>
+        <span class="theme-moon" aria-hidden="true">☾</span>
+      </button>
     </div>
   </div>
 
@@ -60,9 +51,8 @@
           whole custom frontend.
         </p>
         <div class="actions">
-          <a class="button primary" href="https://github.com/numpde/dapp32/tree/main">Source</a>
-          <a class="button" href="#try">Local demo</a>
-          <a class="button" href="https://github.com/numpde/dapp32/tree/poc">Historical PoC</a>
+          <a class="button primary" href="#apps">App guides</a>
+          <a class="button" href="#try">Run locally</a>
         </div>
       </div>
 
@@ -103,6 +93,25 @@
   </header>
 
   <main id="main" class="shell">
+    <section id="apps" aria-labelledby="apps-heading">
+      <h2 id="apps-heading">App guides</h2>
+      <p>Choose a guide to understand an app and run its local demo. These pages are instructions, not hosted apps.</p>
+      <div class="grid">
+        <article class="card">
+          <h3><a href="bike-nft/">Bike NFT</a></h3>
+          <p>Register bicycle components and manage ownership, metadata, reports and delegation.</p>
+        </article>
+        <article class="card">
+          <h3><a href="escrow/">Escrow</a></h3>
+          <p>Fund a contractor milestone, review work, resolve disputes and withdraw settlement credit.</p>
+        </article>
+        <article class="card">
+          <h3><a href="pay-to-play/">Pay-to-Play</a></h3>
+          <p>Deposit native coins, authorize cumulative voucher payments and recover funds after a withdrawal wait.</p>
+        </article>
+      </div>
+    </section>
+
     <section id="problem" class="narrow">
       <h2>Why this matters</h2>
       <p>
@@ -197,7 +206,7 @@ make bike-nft/local/demo/gui/up
 
     <section>
       <h2>What is in the repo</h2>
-      <div class="grid">
+      <div class="grid two">
         <article class="card">
           <h3>Protocol packages</h3>
           <p>
@@ -213,14 +222,6 @@ make bike-nft/local/demo/gui/up
             <code>cam-web</code> is a thin renderer around the headless viewer.
             The browser owns DOM and wallet interaction; protocol logic stays in
             reusable packages.
-          </p>
-        </article>
-        <article class="card">
-          <h3>Example dapps</h3>
-          <p>
-            <a href="bike-nft/"><code>dapps/bike-nft</code></a> exercises
-            registration, lookup, metadata updates, a missing report lifecycle,
-            retirement, local deployment, and CAM UI projection. <a href="escrow/">Escrow</a> adds funding, timed work review, arbitration, and separate credit withdrawal. <a href="pay-to-play/">Pay-to-Play</a> adds customer deposits, cumulative voucher payments and delayed withdrawals.
           </p>
         </article>
       </div>

@@ -205,9 +205,17 @@ class PageParser(HTMLParser):
         self.examples: list[tuple[str, str]] = []
         self.example_owner: str | None = None
         self.example_text: list[str] = []
+        self.primary_links: list[str] = []
+        self.app_guide_links: list[str] = []
+        self.in_primary_nav = False
+        self.in_app_guides = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = dict(attrs)
+        if tag == "nav" and attributes.get("aria-label") == "Primary":
+            self.in_primary_nav = True
+        if tag == "section" and attributes.get("id") == "apps":
+            self.in_app_guides = True
         if attributes.get("id"):
             identifier = attributes["id"]
             if identifier in self.ids:
@@ -215,6 +223,10 @@ class PageParser(HTMLParser):
             self.ids.add(identifier)
         if tag == "a" and attributes.get("href"):
             self.links.append(attributes["href"])
+            if self.in_primary_nav:
+                self.primary_links.append(attributes["href"])
+            if self.in_app_guides:
+                self.app_guide_links.append(attributes["href"])
         if tag == "link" and attributes.get("href"):
             self.links.append(attributes["href"])
         if tag == "pre":
@@ -228,6 +240,10 @@ class PageParser(HTMLParser):
             self.example_text.append(text)
 
     def handle_endtag(self, tag: str) -> None:
+        if tag == "nav":
+            self.in_primary_nav = False
+        if tag == "section":
+            self.in_app_guides = False
         if tag == "pre" and self.example_owner:
             self.examples.append((self.example_owner, "".join(self.example_text)))
             self.example_owner = None
@@ -243,6 +259,17 @@ def check_local_links_and_examples(root: Path, repo_root: Path) -> None:
         if "main" not in parser.ids:
             raise AssertionError(f"missing skip-link destination: {page}")
         pages[page.resolve()] = parser
+
+    homepage = pages[(root / "index.html").resolve()]
+    if any(href.startswith("#") for href in homepage.primary_links):
+        raise AssertionError("homepage primary navigation must link site destinations, not page sections")
+    published_apps = {
+        f"{manifest.parent.parent.name}/"
+        for manifest in repo_root.glob("dapps/*/cam/main.json")
+        if (root / manifest.parent.parent.name / "index.html").is_file()
+    }
+    if not published_apps.issubset(homepage.app_guide_links):
+        raise AssertionError("homepage app guide collection must link every published CAM app guide")
 
     for page, parser in pages.items():
         for href in parser.links:
