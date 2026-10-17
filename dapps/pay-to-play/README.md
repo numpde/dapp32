@@ -1,19 +1,20 @@
 # Pay-to-Play
 
-Deposit native coins into a contract, authorize payments with signed vouchers, and recover unspent funds after a withdrawal wait. You can make many offchain purchase authorizations before someone submits a voucher for onchain payment.
+Deposit native coins into a contract, register a permanent voucher-signing key, authorize payments with that key, and recover unspent funds after a withdrawal wait. You can make many offchain purchase authorizations before someone submits a voucher for onchain payment.
 
 This repository implements the settlement contract and its user interface. It does **not** implement a service that sells API access, tracks purchase credits, provisions work or issues delivery refunds. Those responsibilities belong to a separate service integrating this contract.
 
-[How it works](#from-deposit-to-payment) · [Whose balance?](#a-channel-is-shared-each-accounts-balance-is-separate) · [Use the app](#use-the-app) · [Vouchers](#a-voucher-authorizes-a-cumulative-total-not-a-new-charge) · [Withdrawals](#recover-or-move-funds-after-a-request) · [Channels and admin](#channel-0-and-channel-administration) · [Integration reference](#integration-reference) · [Local demo](#run-the-disposable-local-demo)
+[How it works](#from-deposit-to-payment) · [Whose balance?](#a-channel-is-shared-each-accounts-balance-is-separate) · [Use the app](#use-the-app) · [Voucher key](#register-a-permanent-voucher-key) · [Vouchers](#a-voucher-authorizes-a-cumulative-total-not-a-new-charge) · [Withdrawals](#recover-or-move-funds-after-a-request) · [Channels and admin](#channel-0-and-channel-administration) · [Integration reference](#integration-reference) · [Local demo](#run-the-disposable-local-demo)
 
 ## From deposit to payment
 
 Suppose Alice buys API access from Bob’s service. The admin has created channel 7 with Bob’s payment address as its recipient. For this small accounting example, all amounts are in **wei**, not whole native coins; transaction fees are separate.
 
 1. **Alice deposits 100 wei into channel 7.** The contract holds the coins. It records a balance of 100 wei for Alice in that channel; Bob has not been paid.
-2. **Alice authorizes a total of 30 wei.** She signs a voucher for her address, channel 7 and cumulative total 30. Signing does not send a transaction or transfer coins. Bob’s service must separately decide when to grant the purchased access.
-3. **Someone submits the voucher.** Alice, Bob or a relayer can do this. The contract checks Alice’s signature and transfers 30 wei to the channel’s current recipient. Alice’s balance becomes 70; her lifetime total paid by vouchers becomes 30.
-4. **A later purchase raises the authorized total to 50 wei.** A valid voucher for 50 can now pay another 20, not another 50, if Alice still has enough balance.
+2. **Alice registers a permanent signing key for her channel-7 position.** Her wallet calls `registerVoucherKey(7, keyAddress)`. This onchain choice is irreversible and may also be made before depositing. The key can differ from Alice’s wallet address.
+3. **Alice authorizes a total of 30 wei.** Her registered key signs a voucher for Alice’s balance-owner address, channel 7 and cumulative total 30. Signing does not send a transaction or transfer coins. Bob’s service must separately decide when to grant the purchased access.
+4. **Someone submits the voucher.** Alice, Bob or a relayer can do this. The contract verifies the signature against the registered key and transfers 30 wei to the channel’s current recipient. Alice’s balance becomes 70; her lifetime total paid by vouchers becomes 30.
+5. **A later purchase raises the authorized total to 50 wei.** A valid voucher for 50 can now pay another 20, not another 50, if Alice still has enough balance.
 
 Funding alone authorizes no voucher payment. A signature authorizes payment but does not prove a purchase was delivered. The separate service must retain purchase records, reconcile actual collections and handle retries and refunds.
 
@@ -21,15 +22,16 @@ Funding alone authorizes no voucher payment. A signature authorizes payment but 
 
 A **channel** is a numbered payment arrangement shared by all customers. It defines one current payment recipient and one fixed withdrawal waiting period. A channel does not belong to a single customer.
 
-A **balance owner**, called `customer` in the contract, is the account whose deposited coins and authorizations are being tracked. Every pair **(balance owner, channel ID)** has its own current balance, lifetime voucher-paid total and optional withdrawal request. The contract calls this a *position*; it is accounting inside the same contract, not a separate wallet or deployment.
+A **balance owner**, called `customer` in the contract, is the account whose deposited coins and authorizations are being tracked. Every pair **(balance owner, channel ID)** has its own current balance, lifetime voucher-paid total, optional withdrawal request and permanent voucher key once registered. The contract calls this a *position*; it is accounting inside the same contract, not a separate wallet or deployment.
 
 Alice’s balance in channel 7 is independent of her balance in channel 8 and Bob’s balance in channel 7. Bob being channel 7’s recipient does not make him the owner of Alice’s deposit. When a voucher is collected, the coins go to Bob’s recipient address, not to Bob’s deposited balance in the contract.
 
-**Four identities to check before acting**
+**Five identities to check before acting**
 
 | Identity | What it controls |
 | --- | --- |
-| **Balance owner** | Whose balance you opened; whose signature authorizes vouchers; who may request withdrawals or move those funds. |
+| **Balance owner** | Whose balance you opened; who registers its voucher key and may request withdrawals or move those funds. |
+| **Permanent voucher key** | The key whose ECDSA signatures authorize payments for this owner/channel. It has no withdrawal authority over the owner’s position. |
 | **Current payment recipient** (`payee`) | Where collected vouchers pay. The admin can change this address for the entire channel. |
 | **Connected wallet** | The account that signs and sends a transaction after you confirm. It may differ from the balance owner or recipient. |
 | **Channel admin** | The contract owner, who creates channels and changes recipients. Admin status does not authorize spending another account’s balance. |
@@ -41,8 +43,9 @@ The viewer’s **Selected account** is used to calculate available actions. Befo
 | Operation | Required authority and destination |
 | --- | --- |
 | Deposit | The sending account funds its *own* balance in the chosen channel. In the app, open that account’s balance and connect its wallet. |
-| Sign a voucher | The balance owner signs externally. The app displays signing details but does not create this signature. |
-| Submit a voucher | Anyone, with a valid owner signature. Payment goes only to the channel’s current recipient. Unavailable in channel 0. |
+| Register a voucher key | Only the balance owner, once per nonzero-channel position. The key must be nonzero and cannot later be replaced. |
+| Sign a voucher | The registered key signs externally. The app displays signing details but does not create this signature. |
+| Submit a voucher | Anyone, with a valid registered-key signature. Payment goes only to the channel’s current recipient. Unavailable in channel 0. |
 | Request or replace a withdrawal | Only the balance owner. A new or replacement amount must be positive and no greater than the current balance. |
 | Complete a ready withdrawal | Anyone. Payment goes only to the balance owner. |
 | Move a ready withdrawal | Only the balance owner. The destination is another channel balance for that same owner. |
@@ -51,7 +54,7 @@ The viewer’s **Selected account** is used to calculate available actions. Befo
 ## Use the app
 
 1. **Choose the balance owner and channel, then Open balance.** This is a read, not a transaction. The initial chooser defaults to the selected account and channel 0. Connecting a wallet on that initial chooser updates the account default. Channel 0 is explained below.
-2. **Check Balance owner and Channel ID on the opened page.** They stay fixed when you connect or change wallet accounts. For example, opening Alice/channel 7 and switching to Bob’s wallet still shows Alice/channel 7. Owner-only actions are disabled; Bob may still submit Alice’s valid voucher or a ready withdrawal to Alice.
+2. **Check Balance owner and Channel ID on the opened page.** They stay fixed when you connect or change wallet accounts. For example, opening Alice/channel 7 and switching to Bob’s wallet still shows Alice/channel 7. Owner-only actions are disabled; Bob may still submit a valid voucher from Alice’s registered key or a ready withdrawal to Alice.
 3. **Connect the wallet needed for your action.** Use Change account or channel to open a different balance; its chooser starts with the owner and channel already open. To deposit as Bob, open Bob’s balance, rather than trying to deposit into Alice’s displayed balance.
 4. **Enter the inputs and choose Review.** The app prepares and simulates a transaction; no coins have moved. Inspect the contract, function, arguments and native amount to send.
 5. **Choose Send with wallet and confirm.** This submits the transaction. Wait for a successful receipt before treating its effects as completed. A simulation can become stale before the transaction executes.
@@ -64,6 +67,18 @@ Amount fields offer linked whole-wei and decimal-native-coin inputs. One native 
 
 **Back** re-reads the previous view and restores compatible earlier inputs when this session has history. The balance link in voucher signing details opens fresh inputs. Reloading clears history and unfinished inputs; connecting or changing wallet accounts also clears unfinished inputs and recalculates permissions while keeping an opened balance’s owner and channel fixed.
 
+## Register a permanent voucher key
+
+Open your balance in a nonzero channel and connect the balance-owner wallet. Enter the **address** of the ECDSA signing key in **Voucher signing key address**, choose **Review permanent voucher key**, and confirm the transaction. Never enter a private key. Check the displayed **Permanent voucher key** after confirmation; the zero address means that no key is registered.
+
+The address must correspond to a private key you can actually use for ECDSA signing. Verify that access before registration. The contract rejects zero, but does not prove that you possess the selected key. Registration can precede or follow funding and leaves balances, paid totals and withdrawal deadlines unchanged. Collection is unavailable until registration succeeds. Channel 0 accepts neither registration nor collection.
+
+**Registration is permanent.** No caller, including the balance owner or admin, can replace, revoke or clear the key. Even registering the same key again reverts. Emptying the balance, withdrawing, moving funds, changing wallet owners or changing wallet software does not reset it. A move does not copy the source key into the destination position.
+
+A smart wallet can own the deposit and register an external signing key. Collection verifies that key’s signature directly and never calls ERC-1271 wallet policy. The balance owner remains the `customer` in every voucher, even when the signer is a different address. The registered key grants only voucher-payment authority for that position; it does not grant authority to withdraw the owner’s funds, change the payee or spend from the owner’s external wallet.
+
+If the key is lost or compromised, there is no replacement or emergency revocation operation. Unspent funds can still be requested and recovered under the ordinary withdrawal rules, subject to valid voucher collections. Stop using that position for future funding if its key is unsafe; old unpaid authorizations remain usable against any later backing. A different customer/channel position can register a different key and has its own cumulative accounting.
+
 ## A voucher authorizes a cumulative total, not a new charge
 
 For one owner and channel, the next collection is:
@@ -72,7 +87,7 @@ For one owner and channel, the next collection is:
 payment = min(max(authorized total − lifetime actually paid, 0), current balance)
 ```
 
-The signature must be valid even when this formula yields zero. The lifetime paid total increases only by coins actually transferred through voucher collection. Deposits, withdrawals and moves do not reset it.
+A key must be registered and the signature must verify against it even when this formula yields zero. The lifetime paid total increases only by coins actually transferred through voucher collection. Deposits, withdrawals and moves do not reset it.
 
 **Partial collection and refill: one valid voucher for 100 wei, starting with zero lifetime paid**
 
@@ -84,7 +99,7 @@ The signature must be valid even when this formula yields zero. The lifetime pai
 
 That voucher can still collect up to 50 more wei from later funding. There is no voucher expiry or cancellation operation. Withdrawing or moving the balance does not revoke unpaid authorization: it can collect from later deposits or funds moved back into the same owner/channel. An older voucher can still pay if its total exceeds actual lifetime payments, even when a newer voucher exists. A higher signed total does not invalidate lower ones.
 
-The signature binds the owner, channel, total, chain and payment contract. It **does not bind the recipient**: changing the channel’s recipient redirects unpaid amounts from vouchers already signed. Contract-wallet authorization is checked when collection executes, so its validity can change.
+The signature binds the owner, channel, total, chain and payment contract. It **does not bind the recipient**: changing the channel’s recipient redirects unpaid amounts from vouchers already signed. Signature verification uses the permanent key, not the customer’s or key address’s current wallet code. Installing or changing wallet code cannot invalidate an already-signed voucher.
 
 ## Recover or move funds after a request
 
@@ -106,9 +121,9 @@ A ready withdrawal and voucher collection have no priority over each other: exec
 
 ## Channel 0 and channel administration
 
-**Channel 0** holds deposits that vouchers cannot spend. It has no payment recipient. Its withdrawal wait is fixed at deployment; moving its funds to a payment channel requires a request and that wait, just like withdrawing. Deposits directly into a payment channel do not require moving through channel 0 first.
+**Channel 0** holds deposits that vouchers cannot spend. It has no payment recipient or voucher key. Its withdrawal wait is fixed at deployment; moving its funds to a payment channel requires a request and that wait, just like withdrawing. Deposits directly into a payment channel do not require moving through channel 0 first.
 
-The admin creates other channels with a nonzero recipient and a fixed wait, which may be zero. Channels are shared across customers, are not deleted and keep their IDs. The admin can change a payment channel’s recipient but cannot change its wait, edit customer balances or sign for a customer.
+The admin creates other channels with a nonzero recipient and a fixed wait, which may be zero. Channels are shared across customers, are not deleted and keep their IDs. The admin can change a payment channel’s recipient but cannot change its wait, edit customer balances, replace voucher keys or fabricate voucher signatures.
 
 Connect the admin wallet to create a channel from the chooser or an opened balance. Enter whole Days, Hours, Minutes and Seconds; the total is stored as seconds. Once any part is entered, blank parts mean zero. Recipient changes affect **all customers** in the channel and existing unpaid vouchers. Customers and services must trust the admin with this redirection power.
 
@@ -124,7 +139,7 @@ Read `camManifest()` on the CAM host for its manifest URI and hash, and `contrac
 
 ### Sign a voucher outside the viewer
 
-Use an EIP-712 typed-data signer. Replace the deployment and message placeholders below; amounts and IDs are whole decimal integers. Use the deployment’s chain ID, not the local demo ID unless signing for that demo.
+Read the confirmed `viewPosition(customer, channelId, actor).voucherKey` and use that key in an EIP-712 typed-data signer. Keep the balance owner, not the signing-key address, in `message.customer`. Replace the deployment and message placeholders below; amounts and IDs are whole decimal integers. Use the deployment’s chain ID, not the local demo ID unless signing for that demo.
 
 ```json
 {
@@ -156,7 +171,7 @@ Use an EIP-712 typed-data signer. Replace the deployment and message placeholder
 }
 ```
 
-Compare the resulting EIP-712 digest with `voucherDigest` or the app’s signing-details screen. That screen supplies a digest, not a signature or the full domain address. Do not sign the digest as a personal message. Externally owned accounts and ERC-1271 contract wallets are supported through signature validation at collection time.
+Compare the resulting EIP-712 digest with `voucherDigest` or the app’s signing-details screen. That screen supplies a digest, not a signature or the full domain address. Do not sign the digest as a personal message. Submit a canonical 65-byte ECDSA signature (`r`, `s`, `v`, with low `s` and `v` equal to 27 or 28). The payment contract uses direct ECDSA recovery against the registered key, not ERC-1271. Contract wallets are supported as balance owners by registering an external ECDSA key.
 
 ### Contract API
 
@@ -165,25 +180,34 @@ All amounts and channel IDs below are `uint256`; waits are `uint64` seconds. Rea
 | Function | Behavior |
 | --- | --- |
 | `channelCount()` / `channel(channelId)` | Read the count including channel 0, or a channel’s `payee` and `claimPeriod`. Valid IDs run from 0 through count minus 1. |
-| `viewPosition(customer, channelId, actor)` | Read channel terms, admin, balances, request, effective balance and action route IDs for that actor. Supplying an actor does not authorize a transaction. |
+| `viewPosition(customer, channelId, actor)` | Read channel terms, admin, balances, request, effective balance, permanent `voucherKey` and action route IDs for that actor. Supplying an actor does not authorize a transaction. |
 | `voucherDigest(customer, channelId, cumulativeTotal)` | Read the EIP-712 digest; this does not validate a signature or prove collectibility. |
+| `registerVoucherKey(channelId, voucherKey)` | Permanently register a nonzero ECDSA key for the sender’s position. Existing keys and channel 0 are rejected; no funding is required. |
 | `fund(channelId)` payable | Credit `msg.value` to the sender in that channel. Zero value is a no-op. |
-| `collect(customer, channelId, cumulativeTotal, signature)` | Validate the customer’s voucher and pay the collectible delta to the current recipient. Return actual payment, possibly zero. |
+| `collect(customer, channelId, cumulativeTotal, signature)` | Verify the voucher against the position’s registered key and pay the collectible delta to the current recipient. Return actual payment, possibly zero. |
 | `requestWithdrawal(channelId, amount)` | Start the sender’s request if none exists. If a request already exists, return without validating the new amount or changing the request. |
 | `setWithdrawal(channelId, amount)` | Create or replace the sender’s request and restart the full wait. |
 | `withdraw(customer, channelId)` | Consume a ready request and send the actual amount to that customer. Any sender; return actual amount. |
 | `move(sourceId, targetId)` | Consume the sender’s ready source request and credit their target-channel balance. Distinct existing channels required; return actual amount. |
 | `createChannel(payee, claimPeriod)` / `setPayee(channelId, payee)` | Admin-only channel creation or recipient replacement. Creation returns the new ID and emits `ChannelCreated`. |
 
-Events expose actual effects: `Funded`, `VoucherCollected`, `WithdrawalRequested`, `Withdrawn`, `Moved`, `ChannelCreated` and `PayeeChanged`. The ABI also includes the EIP-712 and two-step ownership interfaces inherited by the contract.
+Events expose actual effects: `VoucherKeyRegistered`, `Funded`, `VoucherCollected`, `WithdrawalRequested`, `Withdrawn`, `Moved`, `ChannelCreated` and `PayeeChanged`. The ABI also includes the EIP-712 and two-step ownership interfaces inherited by the contract.
 
 ### CAM routes and agent behavior
 
 `home` opens the chooser; `choosePosition(customer, channelId)` seeds it from an existing balance. `position(customer, channelId)` reads a pinned balance, and `voucherDigest` reads signing details. After creation, `channelLookup` offers a blank channel-ID lookup. Write routes use the contract names above, except `move` takes route inputs `channelId` and `targetId`, and `fund` takes `amount` as native transaction value. Consult the manifest for each exact input and continuation.
 
-Agents must distinguish reads, prepared calls, simulation results, submission hashes and successful receipts. A prepared write continuation captures the acting account at preparation. Sender-owned writes return to that sender’s explicit balance; submitting a voucher or withdrawal returns to the specified customer’s balance. Neither simulated return values nor a refreshed count identify a channel actually created by a mined transaction; inspect its receipt event.
+Agents must distinguish reads, prepared calls, simulation results, submission hashes and successful receipts. A prepared write continuation captures the acting account at preparation. Sender-owned writes, including key registration, return to that sender’s explicit balance; submitting a voucher or withdrawal returns to the specified customer’s balance. Neither simulated return values nor a refreshed count identify a channel actually created by a mined transaction; inspect its receipt event.
+
+Before accepting a purchase, confirm registration under the service’s chain-confirmation policy, read the nonzero permanent key and recover the voucher signer against that key. Do not accept a currently valid ERC-1271 signature as a substitute, or require the owner/key address to remain code-free.
 
 A service integration must maintain durable purchase IDs, cumulative authorizations, outstanding uncollected purchases and credit/provisioning records. The contract does not know every signed voucher or API liability. Budgeting from its displayed balance alone cannot account for these obligations, transaction races or service delivery.
+
+### Deployment compatibility
+
+This changes the contract interface and authorization policy. Existing PayToPlay deployments are not upgradeable: replacing the ABI, UI or manifest does not change their signature rules. Deploy a new payment contract, publish matching CAM resources and bind the new address before using this workflow. Existing deposits and vouchers stay with their original deployment; there is no automatic state or voucher migration.
+
+The voucher fields and EIP-712 domain name/version remain `PayToPlay` / `1`. The verifying-contract address separates deployments. Each customer must register its chosen key in the new deployment, and integrations must use the new `viewPosition` tuple layout containing `voucherKey`.
 
 ## Run the disposable local demo
 
@@ -212,7 +236,7 @@ Use the exact manifest SHA-256 with a `0x` prefix and the payment contract addre
 ### Try a payment
 
 1. Choose the fixture admin and connect it to create a payment channel. Retrieve the exact ID from the creation receipt.
-2. Choose the fixture customer and connect it. Open that customer’s balance in the new channel, then deposit.
+2. Choose the fixture customer and connect it. Open that customer’s balance in the new channel. For the manual signing command below, register this fixture customer’s own address as its permanent voucher key using **Review permanent voucher key**, then deposit.
 3. Sign a voucher externally. The fixed local customer can use the offline command below. A relayer can submit it; the recipient receives the payment.
 4. Connect the customer to request funds back; after the chain reaches the ready time, complete the withdrawal or move.
 
@@ -221,7 +245,7 @@ make pay-to-play/local/voucher/sign \
   PAY_TO_PLAY_ADDRESS=0x... PAY_TO_PLAY_CHANNEL_ID=1 PAY_TO_PLAY_TOTAL=100
 ```
 
-Use the actual local payment contract address and channel ID. This command signs only for the fixed fixture customer on chain 31337. It prints a voucher signature for pasting into the app; keep that output out of logs and commits. The selector’s transaction confirmation signs and submits immediately after confirmation; it does not sign vouchers.
+Use the actual local payment contract address and channel ID. This command signs with the fixed fixture customer’s key on chain 31337; it works only when that same address was registered for the inspected position. It does not register a key. A position registered to a different key needs a signature from that key instead. It prints a voucher signature for pasting into the app; keep that output out of logs and commits. The selector’s transaction confirmation signs and submits immediately after confirmation; it does not sign vouchers.
 
 **The chain is temporary.** Stopping the foreground GUI command, or restarting its supervised frontend or gateway, tears down the fixture and loses in-memory chain state. Viewer JavaScript is staged at startup; do not restart a live service to update code while expecting to preserve that chain. A normal new code session starts fresh. Stop the demo with:
 
@@ -237,7 +261,7 @@ The demo exposes its gateway only on loopback, uses read-only source mounts and 
 make pay-to-play/local/scenario/run
 ```
 
-This maintained real-RPC test deploys its own disposable chain and drives published CAM actions for deposits, cumulative payments, partial retries, recipient changes, withdrawal replacement/completion and moves through channel 0. It signs externally and advances fixture time through RPC. It is included in `make tests`. Solidity tests cover further accounting, signature, permission and payment-failure cases; neither suite implements the service API or ledger.
+This maintained real-RPC test deploys its own disposable chain and drives published CAM actions for permanent key registration, deposits, cumulative payments, partial retries, recipient changes, withdrawal replacement/completion and moves through channel 0. It registers a separate, unfunded voucher-only fixture key, signs with that key externally and advances fixture time through RPC. The browser check also uses a distinct voucher key, unlike the manual customer-key signing example above. It is included in `make tests`. Solidity tests cover further accounting, signature, permission and payment-failure cases; neither suite implements the service API or ledger.
 
 The optional browser check needs an already-running local GUI and browser CDP endpoint. It opens a test tab in that existing browser and sends bounded fixture transactions; it starts neither the GUI nor a browser window:
 

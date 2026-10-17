@@ -1,7 +1,7 @@
 Service payment channels
 ========================
 
-Design record, 2026-10-15; local implementation verified 2026-10-16.
+Design record, 2026-10-15; immutable voucher-key revision, 2026-10-17.
 The PayToPlay contract and generic CAM bundle implement the selected design.
 The maintained private-Anvil CAM scenario and browser fixture exercise the local
 workflow; no production deployment or settlement-service API server is implied.
@@ -13,7 +13,9 @@ Actors and authority
 --------------------
 
 E is the deposit/settlement contract. D is its deployer/admin. C is the customer
-and agent: C's account signs. Y describes the offchain settlement service using
+and balance owner. C registers one permanent ECDSA voucher key K per nonzero
+channel position; K signs payment vouchers. C may be a contract wallet and K
+may be a separate key. Y describes the offchain settlement service using
 a channel, not another stored address or authorization identity. A is the
 channel's current payment recipient, a wallet or contract. R is any
 submitter/relayer; submitting gives R no right to choose where customer funds go.
@@ -22,42 +24,69 @@ D assigns each channel one stable, never-reused channel ID and fixes its
 claim-period duration irreversibly. A is its only changeable term: existing
 vouchers always pay current A, not a historical recipient. This redirection
 power is an explicit trust assumption. D cannot change the wait, identity,
-customer balances or paid totals, or fabricate C's authorization. The channel
-directory is permanent and add-only.
+customer balances, paid totals or registered keys, or fabricate K's signature.
+The channel directory is permanent and add-only.
 
 A channel definition is separate from each C's position. Backing for different
 channel positions is separate. APIs using Y share that position's backing and
 trust Y's ledger and onward payouts; their credits are not claims against E.
 E needs no per-API catalog or allocations. Reserved null channel 0 has no consumer and
-cannot pay Y vouchers. It uses the same funding, balance, movement and waiting
-rules, with an admin-chosen immutable period set through ordinary definition.
+cannot register voucher keys or pay Y vouchers. It uses the same funding,
+balance, movement and waiting rules, with an admin-chosen immutable period set
+through ordinary definition.
 
 One balance, two ways to consume it
 ----------------------------------
 
 Each customer/channel position needs its available balance, lifetime paid total
-for Y vouchers, and an optional withdrawal request containing only requested
-amount and ready time. Zero requested amount denotes no active request. These
-are logical facts, not a selected storage layout. Funding/top-ups credit the
-balance in native base units. Internal movements debit one of C's positions
+for Y vouchers, a permanent voucher key once registered, and an optional
+withdrawal request containing only requested amount and ready time. Zero
+requested amount denotes no active request. These are logical facts, not a
+selected storage layout. Funding/top-ups credit the balance in native base
+units. Internal movements debit one of C's positions
 and credit another.
 
 Effective balance is derived as max(current balance - requested amount, 0).
 With no request it equals current balance. At most one request is active, and
 effective balance needs no separate stored counter or queue.
 
+C registers K through registerVoucherKey(channelId, voucherKey), which operates
+only on msg.sender's position. K must be nonzero and the channel must exist and
+not be null. No funding is required. Registration changes only K and emits
+VoucherKeyRegistered. A second registration reverts, even for the same key.
+There is no replacement, revocation or reset, including when the position is
+empty. Funding, withdrawal, movement and admin changes leave K unchanged;
+a movement never transfers the source key to its destination.
+
 Voucher collection uses standard EIP-712 authorization binding C, the channel
 and cumulative total, with chain ID and E deployment in the signing domain.
-It does not bind A. Authorization must be valid when collection executes,
-including for ERC-1271 customer accounts. The implementation choice is the
-existing OpenZeppelin SignatureChecker support for EOAs and contract wallets.
+It does not bind A. The voucher schema and domain name/version PayToPlay/1 are
+unchanged. K is resolved from the permanently registered position, not supplied
+by the submitter. An unregistered position cannot collect, even for zero value.
+
+Collection uses OpenZeppelin ECDSA.tryRecover and requires successful recovery
+to K. It accepts canonical 65-byte r,s,v signatures. Malformed, high-s or
+wrong-key signatures become InvalidVoucherSignature before any accounting or
+zero-payment return. Neither C's nor K's code is consulted, and neither address
+is required to be code-free. Installing delegation or changing wallet policy
+therefore cannot invalidate a valid signature already issued by K.
+
+This replaces the earlier execution-time ERC-1271/SignatureChecker policy.
+Revocable wallet approval is incompatible with treating an accepted offchain
+voucher as durable authority: a withdrawal wait cannot repair revoked approval.
+Contract wallets remain eligible deposit owners by registering an ECDSA key.
+The trade-off is explicit: changing C's owners does not revoke K. If K is lost
+or compromised, C can use the ordinary delayed recovery of unspent funds but
+cannot cancel valid voucher claims or repurpose the same position with a new
+key. Registration checks the address, not possession of its private key; C must
+verify signing access before making this irreversible choice.
 
 Anyone may submit a valid voucher. If its authorized total exceeds the lifetime
 paid total, pay min(authorized total - paid total, current balance) to current
 A. Advance paid only by the amount transferred. Valid repeated/older vouchers
 succeed without payment; zero payments change no state. Paid never resets.
 Vouchers have no protocol expiry: an old unpaid voucher can collect after a
-withdrawal and later funding, subject to current signature validity.
+withdrawal and later funding using the same permanently registered key.
 
 Withdrawals use an onchain waiting entitlement instead of a second signed
 voucher. The following rules also govern the source of an internal movement:
@@ -91,12 +120,18 @@ and callbacks cannot consume the same entitlement twice.
 What C and Y see and do
 ----------------------
 
-C chooses a channel, directly funds/top-ups its position, signs vouchers and
-can inspect balance, paid total and withdrawal progress. Funding alone does
-not authorize charges. E exposes state/events for these onchain facts, not all
-signed vouchers, purchase reservations or API liabilities. C and Y must retain
+C chooses a channel, registers K, directly funds/top-ups its position and has K
+sign vouchers. C can inspect balance, key, paid total and withdrawal progress.
+Funding alone does not authorize charges. E exposes state/events for these
+onchain facts, not all signed vouchers, purchase reservations or API liabilities. C and Y must retain
 that offchain history to show spendable funds and outstanding authorization
 accurately.
+
+Y confirms registration under its chain-confirmation policy and verifies each
+voucher by direct ECDSA recovery against the stored nonzero K, not by consulting
+C's wallet policy. Requiring current code absence would reintroduce a revocation
+path and is not part of this verification policy. Signatures bind C's balance
+identity even when K differs from C.
 
 Y maintains one durable cumulative authorization stream per C/channel and
 retry-safe purchases identified by request/purchase IDs. Concurrent API work
@@ -122,9 +157,9 @@ exactly-once external effect is promised.
 Worked cases and proof obligations
 ----------------------------------
 
-With balance 30, paid 0 and a voucher for total 100, collection pays 30 and
-records paid 30. Funding another 20 lets the same voucher collect 20, recording
-paid 50. Repeating any valid total <= 50 succeeds with no payment. Withdrawing
+With K registered, balance 30, paid 0 and a voucher for total 100 signed by K,
+collection pays 30 and records paid 30. Funding another 20 lets the same voucher
+collect 20, recording paid 50. Repeating any valid total <= 50 succeeds with no payment. Withdrawing
 funds does not forgive the unpaid authorization.
 
 With balance 100 and a request for 80, a collection of 60 leaves balance 40
@@ -139,11 +174,20 @@ purchase for 50, then C explicitly renews for 100. The full wait starts again.
 Y collects 50 during that wait, leaving balance 50 and effective balance zero.
 At maturity withdrawal is capped to 50 and clears the request.
 
-The contract tests cover these accounting and authorization obligations:
+The contract tests exercise these accounting and authorization obligations:
 - Voucher partial collection, idempotent retry and unpaid collection after
   withdrawal/redeposit; lifetime paid changes only by actual voucher payments.
-- Signature replay rejection across chains, E deployments, customers and
-  channels, with contract-wallet validity checked at execution.
+- Caller-scoped registration, nonzero keys, null/undefined channel rejection,
+  immutable keys even at zero balance, unchanged accounting and withdrawal
+  deadlines at registration, and no key transfer/reset during movement.
+- Signature replay rejection across chains, E deployments, customers, channels
+  and totals, including positions that deliberately share the same K.
+- Customer signatures cannot substitute for a distinct K; wallet-policy and
+  account-code changes do not invalidate K's signatures. Code-bearing K is
+  permitted. Malformed/high-s signatures fail even when payment would be zero.
+- A contract customer registers a real ECDSA key in the invariant campaign;
+  generated vouchers use vm.sign rather than an always-valid ERC-1271 bypass.
+  Position keys are asserted unchanged alongside the accounting invariant.
 - Rejection before ready time and acceptance exactly at it; every successful
   mature withdrawal/movement clears the request, including partial and zero
   payouts. Subsequent funding requires a fresh request and full wait.
@@ -165,6 +209,16 @@ The contract tests cover these accounting and authorization obligations:
   is rejected.
 - Funding/movement/payment conservation, no cross-position overdraft, and full
   rollback on reverting native calls or attempted callback double consumption.
+
+Deployment boundary
+-------------------
+
+This is a new-deployment interface and policy change, not an upgrade of existing
+PayToPlay contracts. Existing deployments keep their code, balances and voucher
+rules. Publish the matching ABI/UI/manifest and bind a newly deployed payment
+contract; replacing publication bytes alone cannot fix an old contract. The new
+verifying-contract address separates voucher domains, and customers register
+keys anew. No state migration, key rotation or settlement-closing epoch is added.
 
 Contract precedents and related patterns
 ---------------------------------------
