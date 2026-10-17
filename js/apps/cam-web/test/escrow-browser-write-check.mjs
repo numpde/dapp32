@@ -179,7 +179,7 @@ function providerSource() {
     };
   })()`
 }
-const snapshotExpression = `({href:location.href,chainSwitches:window.__fixtureChainSwitches,readReached:window.__fixtureReadReached,text:document.body.innerText, submissionMethods:window.__fixtureSubmissionMethods, account:[...document.querySelectorAll('.connection dt')].find(x=>x.textContent==='Selected account')?.nextElementSibling?.textContent, receiptReached:window.__fixtureReceiptReached, notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText), transaction:document.querySelector('.transaction-feedback')?.innerText, prepared:!!document.querySelector('.prepared-call'), buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})), inputs:[...document.querySelectorAll('input')].map(x=>({name:x.name,value:x.value,disabled:x.matches(':disabled')}))})`
+const snapshotExpression = `({href:location.href,chainSwitches:window.__fixtureChainSwitches,readReached:window.__fixtureReadReached,text:document.body.innerText, submissionMethods:window.__fixtureSubmissionMethods, account:[...document.querySelectorAll('.connection dt')].find(x=>x.textContent==='Selected account')?.nextElementSibling?.textContent, receiptReached:window.__fixtureReceiptReached, notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText), transaction:document.querySelector('.transaction-feedback')?.innerText, prepared:!!document.querySelector('.prepared-call'), buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim(),disabled:x.matches(':disabled')})), inputs:[...document.querySelectorAll('input')].map(x=>({name:x.name,value:x.value,disabled:x.matches(':disabled')}))})`
 async function waitFor(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30000)
   let state
@@ -197,7 +197,7 @@ function showingActor(state, role) {
     && state.buttons.some(button => button.name === 'Reconnect wallet' && !button.disabled)
 }
 async function click(label) {
-  assert(await evaluate(`(() => {const button=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===${JSON.stringify(label)});if(!button||button.matches(':disabled'))return false;button.click();return true})()`), `Button unavailable: ${label}`)
+  assert(await evaluate(`(() => {const button=[...document.querySelectorAll('button')].find(x=>(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim()===${JSON.stringify(label)});if(!button||button.matches(':disabled'))return false;button.click();return true})()`), `Button unavailable: ${label}`)
 }
 async function fill(name, value) {
   assert(await evaluate(`(() => {const input=[...document.querySelectorAll('input')].find(x=>x.name===${JSON.stringify(name)});if(!input||input.matches(':disabled'))return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event('input',{bubbles:true}));return true})()`), `Input unavailable: ${name}`)
@@ -209,8 +209,8 @@ async function prepare(label) {
 async function assertEvidenceAvailability(expected) {
   const state = await evaluate(snapshotExpression)
   for (const [label, fields] of [
-    ['Submit work evidence', ['submissionUri', 'submissionDigest']],
-    ['Dispute submission', ['disputeUri', 'disputeDigest']],
+    ['Review work evidence submission', ['submissionUri', 'submissionDigest']],
+    ['Review submission dispute', ['disputeUri', 'disputeDigest']],
   ]) {
     const enabled = expected.includes(label)
     const button = state.buttons.find(control => control.name === label)
@@ -223,12 +223,12 @@ async function assertEvidenceAvailability(expected) {
     }
     if (!enabled) {
       assert(await evaluate(`(() => {
-        const disabled=[...document.querySelectorAll('.action-button')].find(x=>x.textContent.trim()===${JSON.stringify(label)});
+        const disabled=[...document.querySelectorAll('.action-button')].find(x=>(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim()===${JSON.stringify(label)});
         const enabled=document.querySelector('.action-button:not(:disabled)');
         const appearance=node=>{const style=getComputedStyle(node);return [style.color,style.backgroundColor,style.opacity].join('|')};
         return !!enabled && appearance(disabled)!==appearance(enabled);
       })()`), 'disabled actions must look distinct from enabled actions')
-      await evaluate(`(() => {const button=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===${JSON.stringify(label)});button.click();return true})()`)
+      await evaluate(`(() => {const button=[...document.querySelectorAll('button')].find(x=>(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim()===${JSON.stringify(label)});button.click();return true})()`)
       const after = await evaluate(snapshotExpression)
       assert.equal(after.prepared, state.prepared, 'disabled action must not start preparation')
       assert.deepEqual(after.inputs, state.inputs, 'disabled activation must preserve drafts')
@@ -245,7 +245,7 @@ async function setupDraft(ref) {
   for (const name of ['acceptanceDuration.seconds', 'workDuration.seconds', 'reviewDuration.seconds', 'arbitrationDuration.seconds']) await fill(name, '600')
   await fill('termsUri', 'https://example.test/terms')
   await fill('termsDigest', `0x${'11'.repeat(32)}`)
-  await prepare('Prepare creation transaction')
+  await prepare('Review agreement creation')
 }
 function assertFrozen(state) {
   assert(state.prepared, 'in-flight submission must retain its review')
@@ -270,7 +270,7 @@ async function withCase(mode, test) {
     await call('Runtime.addBinding', { name: 'fixtureWalletBridge' }, sessionId)
     await call('Page.addScriptToEvaluateOnNewDocument', { source: providerSource() }, sessionId)
     await call('Page.navigate', { url: viewer.href }, sessionId)
-    await waitFor(state => state.buttons.some(button => button.name === 'Prepare creation transaction'), 'create view')
+    await waitFor(state => state.buttons.some(button => button.name === 'Review agreement creation'), 'create view')
     await test(owner, release)
     assert(owner.sendRequests <= owner.sendLimit, `${mode}: unexpected repeated wallet submission`)
     assert.equal(owner.exceptions, 0, `${mode}: unexpected browser exception`)
@@ -328,22 +328,22 @@ try {
     const before = await nonce()
     const prepared = await evaluate(snapshotExpression)
     assert(await evaluate(`(() => {
-      const send=[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Send with wallet');
+      const send=[...document.querySelectorAll('button')].find(button=>(button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim()==='Send with wallet');
       if(!send||send.disabled)return false;
       window.__fixtureSetChain('0x1');send.click();return true;
     })()`), 'capture enabled Send before same-tick chain change')
     const wrongChain = await waitFor(state => !state.prepared && !state.buttons.some(button => button.name === 'Send with wallet' && !button.disabled), 'chain change revokes prepared send')
     assert.equal(wrongChain.account, prepared.account, 'chain mismatch must retain readonly viewer account')
-    assert(wrongChain.buttons.some(button => button.name === 'Prepare creation transaction'), 'chain mismatch must retain readable view')
+    assert(wrongChain.buttons.some(button => button.name === 'Review agreement creation'), 'chain mismatch must retain readable view')
     assert.equal(wrongChain.chainSwitches, prepared.chainSwitches, 'stale Send must not request a chain switch')
     assert.deepEqual(wrongChain.submissionMethods, [], 'stale Send must not reach the provider')
     await evaluate("window.__fixtureSetChain('0x7a69');true")
-    await prepare('Prepare creation transaction')
+    await prepare('Review agreement creation')
     const retained = await evaluate(snapshotExpression)
     await evaluate('window.__fixtureEmptyAccounts();true')
     const empty = await waitFor(state => !state.prepared && state.buttons.some(button => button.name === 'Connect wallet' && !button.disabled), 'empty accounts revoke signer')
     assert.equal(empty.account, retained.account, 'empty wallet accounts must retain readonly viewer account')
-    assert(empty.buttons.some(button => button.name === 'Prepare creation transaction'), 'empty wallet accounts must retain readable view')
+    assert(empty.buttons.some(button => button.name === 'Review agreement creation'), 'empty wallet accounts must retain readable view')
     assert.deepEqual(empty.submissionMethods, [])
     assert.equal(owner.sendRequests, 0)
     assert.equal(await nonce(), before, 'wallet events must not broadcast')
@@ -374,7 +374,7 @@ try {
         : 'window.__fixtureEmptyAccounts();window.__fixtureReleaseRead();true')
       if (mode.endsWith('failed-navigation')) {
         const restored = await waitFor(state => new URLSearchParams(new URL(state.href).hash.slice(1)).get('route') === 'createAgreementForm', 'failed hash navigation restores committed URL after wallet event')
-        assert(restored.buttons.some(button => button.name === 'Prepare creation transaction'), 'failed navigation must retain previous visible view')
+        assert(restored.buttons.some(button => button.name === 'Review agreement creation'), 'failed navigation must retain previous visible view')
         assert.equal(restored.account, initial.account)
         assert.deepEqual(restored.submissionMethods, [])
         assert.equal(owner.sendRequests, 0)
@@ -388,7 +388,7 @@ try {
       assert(!credit.buttons.some(button => button.name === 'Send with wallet' && !button.disabled))
       assert.deepEqual(credit.submissionMethods, [])
       await click('Back')
-      const restored = await waitFor(state => state.buttons.some(button => button.name === 'Prepare creation transaction'), 'session history returns from committed credit view')
+      const restored = await waitFor(state => state.buttons.some(button => button.name === 'Review agreement creation'), 'session history returns from committed credit view')
       assert.equal(new URLSearchParams(new URL(restored.href).hash.slice(1)).get('route'), 'createAgreementForm', 'URL and session history must agree')
       assert.equal(owner.sendRequests, 0)
     })
@@ -479,26 +479,26 @@ try {
     }
     await setupDraft(ref)
     await click('Send with wallet')
-    await waitFor(state => state.transaction?.includes('Transaction confirmed in block') && state.text.includes(ref) && !state.buttons.some(button => button.name === 'Prepare creation transaction'), 'created agreement')
+    await waitFor(state => state.transaction?.includes('Transaction confirmed in block') && state.text.includes(ref) && !state.buttons.some(button => button.name === 'Review agreement creation'), 'created agreement')
     await assertEvidenceAvailability([])
-    await actor('contractor', 'Accept agreement')
+    await actor('contractor', 'Review acceptance')
     await assertEvidenceAvailability([])
-    await send('Accept agreement')
-    await waitFor(state => state.buttons.some(button => button.name === 'Submit work evidence' && !button.disabled), 'accepted agreement')
-    await assertEvidenceAvailability(['Submit work evidence'])
+    await send('Review acceptance')
+    await waitFor(state => state.buttons.some(button => button.name === 'Review work evidence submission' && !button.disabled), 'accepted agreement')
+    await assertEvidenceAvailability(['Review work evidence submission'])
     await fill('submissionUri', 'https://example.test/submission')
     await fill('submissionDigest', `0x${'22'.repeat(32)}`)
-    await send('Submit work evidence')
+    await send('Review work evidence submission')
     await waitFor(state => /submitted/i.test(state.text), 'submitted agreement')
-    await actor('client', 'Dispute submission')
-    await assertEvidenceAvailability(['Dispute submission'])
+    await actor('client', 'Review submission dispute')
+    await assertEvidenceAvailability(['Review submission dispute'])
     await fill('disputeUri', 'https://example.test/dispute')
     await fill('disputeDigest', `0x${'33'.repeat(32)}`)
-    await send('Dispute submission')
+    await send('Review submission dispute')
     await waitFor(state => /disputed/i.test(state.text), 'disputed agreement')
-    await actor('arbitrator', 'Resolve dispute for contractor')
+    await actor('arbitrator', 'Review dispute resolution for contractor')
     await assertEvidenceAvailability([])
-    await send('Resolve dispute for contractor')
+    await send('Review dispute resolution for contractor')
     await waitFor(state => /\bState\s+released\.arbitratorToContractor\b/.test(state.text) && state.buttons.some(button => button.name === 'View account credit' && !button.disabled), 'resolved agreement')
     await assertEvidenceAvailability([])
     await evaluate("window.__fixtureSetRole('contractor');true")
@@ -509,7 +509,7 @@ try {
     assert(match && BigInt(match[1]) >= MAX_VALUE, 'resolution must credit contractor')
     const before = BigInt(await rpc('eth_getBalance', [accounts.contractor.address, 'latest']))
     await fill('recipient', accounts.contractor.address)
-    await send('Prepare withdrawal transaction')
+    await send('Review withdrawal')
     await waitFor(state => /Total withdrawable credit for this account \(wei\)\s+0\b/.test(state.text), 'withdrawn credit')
     const receipt = await publicClient.getTransactionReceipt({ hash: owner.sent[5].hash })
     const after = BigInt(await rpc('eth_getBalance', [accounts.contractor.address, 'latest']))

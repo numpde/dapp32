@@ -629,7 +629,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Prepare registration"
+        "label": "Review registration"
       },
       "call": {
         "namespace": "routes",
@@ -651,7 +651,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Prepare account info update"
+        "label": "Review account info update"
       },
       "call": {
         "namespace": "routes",
@@ -671,7 +671,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Prepare metadata update"
+        "label": "Review metadata update"
       },
       "call": {
         "namespace": "routes",
@@ -692,7 +692,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Prepare missing report"
+        "label": "Review missing report"
       },
       "call": {
         "namespace": "routes",
@@ -713,7 +713,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Prepare missing-report resolution"
+        "label": "Review missing-report resolution"
       },
       "call": {
         "namespace": "routes",
@@ -734,7 +734,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Prepare permanent retirement"
+        "label": "Review permanent retirement"
       },
       "call": {
         "namespace": "routes",

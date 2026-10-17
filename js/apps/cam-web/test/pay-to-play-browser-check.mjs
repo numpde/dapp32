@@ -1,4 +1,5 @@
 import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
+import { checkActionStyles } from './action-style-browser-check.mjs'
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
 import { AssertionError } from 'node:assert'
@@ -154,7 +155,7 @@ const provider = fixtureWalletSource({
   accounts: Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, account.address])),
   initialRole: 'admin', origin: viewer.origin, host: root, confirmTransactions: false,
 })
-const snapshot = `({timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,buttons:[...document.querySelectorAll('button')].map(x=>({name:x.textContent.trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(x=>[x.querySelector('.key-label')?.textContent,x.lastElementChild?.textContent])),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
+const snapshot = `({timestampMode:document.querySelector('.timestamp-options')?.getAttribute('aria-pressed'),text:document.body.innerText,prepared:!!document.querySelector('.prepared-call'),notices:[...document.querySelectorAll('.notice')].map(x=>x.innerText),transaction:document.querySelector('.transaction-feedback')?.innerText,buttons:[...document.querySelectorAll('button')].map(x=>({name:(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim(),disabled:x.matches(':disabled')})),values:Object.fromEntries([...document.querySelectorAll('.key-value')].map(x=>[x.querySelector('.key-label')?.textContent,x.lastElementChild?.textContent])),width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth})`
 async function wait(predicate, label) {
   const until = Math.min(deadline, Date.now() + 30_000)
   while (Date.now() < until) {
@@ -169,7 +170,7 @@ async function timestampMode(relative) {
   await wait(state => state.timestampMode === String(relative), 'timestamp display mode')
 }
 async function click(label) {
-  assert(await evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>x.textContent.trim()===${JSON.stringify(label)});if(!b||b.matches(':disabled'))return false;b.click();return true})()`), `button must be usable: ${label}`)
+  assert(await evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(x=>(x.hasAttribute('aria-label') ? x.getAttribute('aria-label') : x.textContent).trim()===${JSON.stringify(label)});if(!b||b.matches(':disabled'))return false;b.click();return true})()`), `button must be usable: ${label}`)
 }
 async function fill(name, value) {
   assert(await evaluate(`(()=>{const e=[...document.querySelectorAll('input')].find(x=>x.name===${JSON.stringify(name)});if(!e||e.matches(':disabled'))return false;Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,${JSON.stringify(value)});e.dispatchEvent(new Event('input',{bubbles:true}));return true})()`), `field must be usable: ${name}`)
@@ -183,7 +184,7 @@ async function send(label) {
   await wait(state => sent === before + 1 && state.transaction?.includes(lastHash) && state.transaction.includes('Transaction confirmed in block'), `${label} confirmation`)
 }
 async function inspect(customer, channelId) {
-  if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>b.textContent.trim()==='Change account or channel')`)) await click('Change account or channel')
+  if (await evaluate(`!![...document.querySelectorAll('button')].find(b=>(b.hasAttribute('aria-label') ? b.getAttribute('aria-label') : b.textContent).trim()==='Change account or channel')`)) await click('Change account or channel')
   await wait(state => state.buttons.some(button => button.name === 'Open balance'), 'balance chooser')
   await fill('lookupCustomer', customer)
   await fill('lookupChannelId', channelId)
@@ -211,6 +212,8 @@ try {
   await call('Runtime.addBinding', { name: 'fixtureWalletBridge' })
   await call('Page.addScriptToEvaluateOnNewDocument', { source: provider })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+  phase = 'action presentation fixture'
+  await checkActionStyles({ call, evaluate, viewerURL: viewer.href })
   phase = 'timestamp display lifecycle fixture'
   await checkTimestampStatus({ call, evaluate, viewerURL: viewer.href })
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })

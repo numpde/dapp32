@@ -203,16 +203,16 @@ async function enter(name, value) {
   await waitFor(async state => (await field(name)) === value, `${name} edit`)
 }
 async function clickButton(label) {
-  if (label !== 'Prepare creation transaction') {
-    const clicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return false; button.click(); return true })()`)
+  if (label !== 'Review agreement creation') {
+    const clicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return false; button.click(); return true })()`)
     assert(clicked, `${label} button is absent or disabled`)
     return
   }
   // Scrolling only positions the button; the assertion below requires native
   // pointer activation on the visible button before product feedback is checked.
-  const point = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return null; button.scrollIntoView({block:'center'}); const r = button.getBoundingClientRect(); const x=r.left+r.width/2,y=r.top+r.height/2; return {x,y,width:innerWidth,height:innerHeight,hit:document.elementFromPoint(x,y)?.textContent?.trim()} })()`)
+  const point = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return null; button.scrollIntoView({block:'center'}); const r = button.getBoundingClientRect(); const x=r.left+r.width/2,y=r.top+r.height/2; return {x,y,width:innerWidth,height:innerHeight,hit:document.elementFromPoint(x,y)?.textContent?.trim()} })()`)
   assert(point && point.x >= 0 && point.x < point.width && point.y >= 0 && point.y < point.height && point.hit === label, `${label} is not the pointer target in the viewport`)
-  await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => button.textContent.trim() === ${JSON.stringify(label)}); window.__browserCheckEvents = []; button.addEventListener('click', () => window.__browserCheckEvents.push('click'), {capture:true, once:true}) })()`)
+  await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === ${JSON.stringify(label)}); window.__browserCheckEvents = []; button.addEventListener('click', () => window.__browserCheckEvents.push('click'), {capture:true, once:true}) })()`)
   await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: point.x, y: point.y, button: 'none', buttons: 0 }, sessionId)
   await call('Input.dispatchMouseEvent', { type: 'mousePressed', x: point.x, y: point.y, button: 'left', buttons: 1, clickCount: 1 }, sessionId)
   await call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: point.x, y: point.y, button: 'left', buttons: 0, clickCount: 1 }, sessionId)
@@ -233,7 +233,7 @@ async function waitFor(predicate, label, failOnViewerError) {
     }
     await new Promise(resolve => setTimeout(resolve, 250))
   }
-  const details = await evaluate(`({notices:[...document.querySelectorAll('.notice')].map(node=>node.innerText), agreementId:document.querySelector('input[name=agreementId]')?.value, agreementRef:document.querySelector('input[name=agreementRef]')?.value, buttons:[...document.querySelectorAll('button')].map(node=>[node.textContent.trim(),node.disabled])})`)
+  const details = await evaluate(`({notices:[...document.querySelectorAll('.notice')].map(node=>node.innerText), agreementId:document.querySelector('input[name=agreementId]')?.value, agreementRef:document.querySelector('input[name=agreementRef]')?.value, buttons:[...document.querySelectorAll('button')].map(node=>[(node.hasAttribute('aria-label') ? node.getAttribute('aria-label') : node.textContent).trim(),node.disabled])})`)
   throw new Error(`timed out waiting for ${label}; ${JSON.stringify(details)}; last view: ${JSON.stringify(lastState?.text?.slice(-400))}`)
 }
 async function assertNarrowUi(label, width) {
@@ -384,7 +384,7 @@ try {
       await assertWorkingSurface(`account credit at ${width}px`)
     }
     assert.equal(await evaluate("document.querySelector('input[name=recipient]')?.matches(':disabled')"), true, 'empty credit recipient must remain visible and disabled')
-    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='Prepare withdrawal transaction')?.disabled"), true, 'empty credit withdrawal must remain visible and disabled')
+    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button=>(button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim()==='Review withdrawal')?.disabled"), true, 'empty credit withdrawal must remain visible and disabled')
   })
 
   await browserCase('known agreement ID without create inputs', async () => {
@@ -408,7 +408,7 @@ try {
       await enter('agreementId', id)
       await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
       await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
-      assert.equal(await evaluate('document.activeElement?.textContent.trim()'), 'Open agreement by ID', 'Tab did not reach the lookup action')
+      assert.equal(await evaluate('(document.activeElement?.hasAttribute("aria-label") ? document.activeElement.getAttribute("aria-label") : document.activeElement?.textContent)?.trim()'), 'Open agreement by ID', 'Tab did not reach the lookup action')
       await evaluate(`(() => { window.__lookupKeyboardClick = false; document.activeElement.addEventListener('click', event => { window.__lookupKeyboardClick = event.isTrusted }, {once:true}) })()`)
       await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' }, sessionId)
       await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId)
@@ -424,7 +424,7 @@ try {
     await waitFor(async state => state.text.includes('Total withdrawable credit for this account (wei)') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'contextual navigation arrival focus')
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 }, sessionId)
-    assert.equal(await evaluate('document.activeElement?.textContent.trim()'), 'Back', 'arrival focus did not make Back the next keyboard control')
+    assert.equal(await evaluate('(document.activeElement?.hasAttribute("aria-label") ? document.activeElement.getAttribute("aria-label") : document.activeElement?.textContent)?.trim()'), 'Back', 'arrival focus did not make Back the next keyboard control')
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' }, sessionId)
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId)
     await waitFor(async state => state.text.includes('No agreement is stored for this ID in this escrow contract.') && await evaluate(`document.activeElement === document.querySelector('section.ui[aria-label="Current view"]')`), 'Back arrival focus')
@@ -439,7 +439,7 @@ try {
     await waitFor(state => state.text.includes('No agreement is stored for this ID in this escrow contract.'), 'initial linked agreement', true)
     assert.equal(await field('agreementId'), id, 'selected ID was not supplied to the lookup draft')
     assert.equal(await field('agreementRef'), undefined, 'initial read link rendered a creation draft')
-    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button => button.textContent.trim() === 'Back')?.disabled"), true, 'initial direct link created phantom history')
+    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === 'Back')?.disabled"), true, 'initial direct link created phantom history')
     const committed = await evaluate('location.href')
     const loader = (await call('Page.getFrameTree', {}, sessionId)).frameTree.frame.loaderId
     await call('Page.reload', {}, sessionId)
@@ -719,14 +719,14 @@ try {
   await browserCase('duration preparation uses canonical values while preserving active lexical spelling', async () => {
     await fillDraft()
     await enter('acceptanceDuration.seconds','0003600')
-    await clickButton('Prepare creation transaction')
+    await clickButton('Review agreement creation')
     await waitFor(async ()=>Boolean((await feedback('prepared'))?.text?.includes('Review transaction')),'integer prepared review')
     const review=await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
     assert.equal(JSON.parse(review['Function inputs']).params.acceptanceDuration,'3600')
     assert.equal(await field('acceptanceDuration.seconds'),'0003600')
     await enter('acceptanceDuration.seconds','1.5')
     assert(await evaluate(`document.querySelector('.prepared-call')===null`),'invalid integer retained an already prepared call')
-    await clickButton('Prepare creation transaction')
+    await clickButton('Review agreement creation')
     await waitFor(async ()=>Boolean((await feedback('notice'))?.text),'invalid integer preparation rejection')
     assert(await evaluate(`document.querySelector('.prepared-call')===null`),'invalid integer produced a new prepared call')
     assert.equal(transactionRequests.length,0,'integer preparation sent a transaction')
@@ -748,7 +748,7 @@ try {
   await browserCase('prepare rejection feedback', async () => {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')
-    await clickButton('Prepare creation transaction')
+    await clickButton('Review agreement creation')
     await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.text || ''), 'decoded prepare rejection')
     const rejected = await feedback('notice')
     assert(rejected.role === 'alert' || rejected.role === 'status', 'prepare rejection is not announced')
@@ -781,18 +781,18 @@ try {
   await browserCase('repeated rejection and ordinary editing focus', async () => {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')
-    await clickButton('Prepare creation transaction')
+    await clickButton('Review agreement creation')
     await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.text || ''), 'first rejection')
     await enter('amount', '43')
     assert.equal(await evaluate("document.activeElement?.getAttribute('name')"), 'amount', 'editing stole focus from amount')
-    await clickButton('Prepare creation transaction')
+    await clickButton('Review agreement creation')
     await waitFor(async () => (await feedback('notice'))?.focus === true, 'repeat rejection focus')
     assert.equal(await field('amount'), '43', 'repeat rejection discarded edit')
   })
 
   await browserCase('prepared review feedback', async () => {
     await fillDraft()
-    await clickButton('Prepare creation transaction')
+    await clickButton('Review agreement creation')
     await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'prepared review')
     const prepared = await feedback('prepared')
     assert(prepared.top >= 0 && prepared.top < prepared.height && prepared.bottom > 0, 'prepared review is outside the viewport')
@@ -805,7 +805,7 @@ try {
       await fillDraft()
       await amountInput('display',display)
       await waitFor(async () => (await field('amount')) === base, 'canonical amount before preparation')
-      await clickButton('Prepare creation transaction')
+      await clickButton('Review agreement creation')
       await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'exact amount prepared review')
       const review = await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
       assert.equal(JSON.parse(review['Function inputs']).params.amount, base, 'prepared tuple amount changed precision')
@@ -820,7 +820,7 @@ try {
     intercept = 'hold'
     await call('Fetch.enable', {patterns:[{urlPattern:rpc.href,requestStage:'Request'}]}, sessionId)
     try {
-      await clickButton('Prepare creation transaction')
+      await clickButton('Review agreement creation')
       await waitFor(() => heldRequests.length > 0, 'paused preparation simulation')
       const simulationRequests = heldRequests.map(requestId => {
         const networkId = heldNetworkRequests.get(requestId)
@@ -846,7 +846,7 @@ try {
 
   await browserCase('discard prepared review preserves draft', async () => {
     await fillDraft()
-    await clickButton('Prepare creation transaction')
+    await clickButton('Review agreement creation')
     await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'review before discard')
     await clickButton('Discard transaction')
     await waitFor(async () => await evaluate("document.querySelector('.prepared-call') === null && document.activeElement === document.querySelector('.ui')"), 'discarded review and current-view focus')

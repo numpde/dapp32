@@ -179,7 +179,6 @@ dd,
 }
 
 .send-button:disabled,
-.action-button:disabled,
 input:disabled {
   color: var(--muted);
   border-color: var(--line);
@@ -255,17 +254,48 @@ button:focus-visible {
 
 .action-button {
   justify-self: start;
+  max-inline-size: 100%;
   min-height: 40px;
   padding: 0 14px;
-  color: #ffffff;
-  border: 1px solid var(--accent);
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  border: 1px solid var(--control-border);
   border-radius: 6px;
-  background: var(--accent);
+  background: var(--panel);
   cursor: pointer;
 }
 
-.action-button:hover {
-  filter: brightness(0.96);
+.action-contractCall {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.action-navigate {
+  padding-inline: 0;
+  color: var(--accent);
+  border-color: transparent;
+  background: transparent;
+  text-align: start;
+}
+
+.action-navigate:not(:disabled):hover {
+  text-decoration: underline;
+}
+
+.action-contractCall:not(:disabled):hover {
+  background: color-mix(in srgb, var(--accent), transparent 95%);
+}
+
+.action-button:disabled {
+  color: var(--muted);
+  border-color: var(--line);
+  background: #edf2f6;
+  cursor: not-allowed;
+}
+
+.action-navigate:disabled {
+  border-color: transparent;
+  background: transparent;
 }
 
 @media (max-width: 760px) {

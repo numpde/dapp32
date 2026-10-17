@@ -31,6 +31,7 @@ function render(timestamp: ResolvedUiNode | undefined): void {
         { element: "Status", props: { label: "Value after timestamp", value: "After" }, children: [] },
       ] } },
     viewRef: null, changingView: false, sending: false,
+    actionKind: () => { throw new Error("Timestamp fixture has no CAM actions") },
     onBack: async () => {}, onRefresh: async () => {}, onAction: async () => {}, onInput: () => {},
     onAmount: () => {}, onInteger: () => {}, onDuration: () => {}, onDocumentHash: async () => {}, onCancelDocumentHash: () => {},
   }))
