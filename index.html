@@ -31,6 +31,7 @@
           <a href="#try">Local demo</a>
           <a href="bike-nft/">Bike NFT</a>
           <a href="escrow/">Escrow</a>
+          <a href="pay-to-play/">Pay-to-Play</a>
           <a href="authoring/">Authoring</a>
           <a href="reference/cam/">Reference</a>
           <a href="#related">Related</a>
@@ -72,7 +73,7 @@
             <span>1</span>
             <div>
               <strong>Host contract</strong>
-              <p>Publishes the manifest's location (<code>camURI</code>) and byte hash (<code>camHash</code>).</p>
+              <p>Publishes the manifest URI and hash through <code>camManifest()</code>, and resolves named contracts through <code>contractAddress(name)</code>.</p>
             </div>
           </div>
           <div class="rail-row">
@@ -156,7 +157,7 @@
     <section id="status">
       <h2>Current evidence</h2>
       <ul class="status-list">
-        <li>Bike NFT and native-asset escrow both have local real-RPC fixtures, CAM bundles, and generic viewer workflows.</li>
+        <li>Bike NFT, native-asset escrow and Pay-to-Play have local real-RPC fixtures, CAM bundles, and generic viewer workflows.</li>
         <li>Runtime packages load the host contract's publication, verify resources, resolve contract names to addresses, read routes, and prepare writes.</li>
         <li><code>@cam/viewer</code> tracks the current workflow view and prepares actions through a library that a terminal, web app, wallet, or agent can drive.</li>
         <li><code>@cam/conformance</code> catches authoring errors across manifests, ABI usage, resources, routes, UI, and typeflow.</li>
@@ -170,7 +171,7 @@
         <h2>Local demo</h2>
         <p>
           The current path is Docker-backed through the Makefile. Dependency
-          installation is explicit and may take time. Choose Bike NFT below or follow the <a href="escrow/">escrow guide</a>. Each GUI target starts a
+          installation is explicit and may take time. Choose Bike NFT below or follow the <a href="escrow/">escrow guide</a> or <a href="pay-to-play/#local">Pay-to-Play guide</a>. Each GUI target starts a
           local Anvil chain, deploys its app fixture, serves CAM resources,
           and launches the React viewer through a local gateway. The target
           prints the URL to open in your browser.
@@ -180,7 +181,8 @@
           the browser tab does not stop the GUI. Successful cleanup removes the
           fixture state. If interruption or cleanup failure leaves a demo running,
           use <code>make bike-nft/local/demo/gui/down</code> or
-          <code>make escrow/local/demo/gui/down</code> for the matching demo,
+          <code>make escrow/local/demo/gui/down</code> or
+          <code>make pay-to-play/local/demo/gui/down</code> for the matching demo,
           then check that it has stopped.
         </p>
       </div>
@@ -218,13 +220,13 @@ make bike-nft/local/demo/gui/up
           <p>
             <a href="bike-nft/"><code>dapps/bike-nft</code></a> exercises
             registration, lookup, metadata updates, a missing report lifecycle,
-            retirement, local deployment, and CAM UI projection. <a href="escrow/">Escrow</a> adds funding, timed work review, arbitration, and separate credit withdrawal.
+            retirement, local deployment, and CAM UI projection. <a href="escrow/">Escrow</a> adds funding, timed work review, arbitration, and separate credit withdrawal. <a href="pay-to-play/">Pay-to-Play</a> adds customer deposits, cumulative voucher payments and delayed withdrawals.
           </p>
         </article>
       </div>
     </section>
 
-    <section id="roadmap" class="narrow"><h2>Build on the current model</h2><p>Escrow uses CAM 1.1.0; Bike NFT uses CAM 1.0.0. Both use UI 1.0.0. Read the <a href="authoring/">authoring guide</a> to connect a host, manifest, ABI resources, routes, and a declarative UI.</p><p>Start with the existing examples and validation lanes. A manifest describes the workflow; the onchain contracts enforce permissions, amounts, and deadlines.</p></section>
+    <section id="roadmap" class="narrow"><h2>Build on the current model</h2><p>Bike NFT, Escrow and Pay-to-Play use <a href="reference/cam/1.2.0/">CAM 1.2.0 and UI 1.0.0</a>. Read the <a href="authoring/">authoring guide</a> to connect a host, manifest, ABI resources, routes, and a declarative UI.</p><p>Start with the existing examples and validation lanes. A manifest describes the workflow; the onchain contracts enforce permissions, amounts, and deadlines.</p></section>
 
     <section id="related" class="narrow"><h2>Related specifications and projects</h2><p>Primary references for readers comparing resource discovery, wallet interfaces, signatures, and app distribution:</p><ul><li><a href="https://eips.ethereum.org/EIPS/eip-5169">TokenScript / ERC-5169</a></li>
 <li><a href="https://eips.ethereum.org/EIPS/eip-4804">ERC-4804 <code>web3://</code></a></li>
