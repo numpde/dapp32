@@ -2,7 +2,7 @@ Service payment channels
 ========================
 
 Design record: 2026-10-15; permanent voucher keys: 2026-10-17;
-annual recovery and channel retirement: 2026-10-18.
+annual recovery, channel retirement and invoice-bearing vouchers: 2026-10-18.
 
 Scope and actors
 ----------------
@@ -10,21 +10,29 @@ Scope and actors
 E is the native-currency settlement contract. D is its owner/admin. C is a
 balance owner, including a smart wallet. K is the permanent ECDSA key C registers
 for one customer/channel position. A is the channel's current payee. Y is an
-offchain settlement service; downstream APIs use Y's ledger, not separate E
-allocations. R is any transaction submitter. E does not implement purchase
-sequencing, delivery, API credit, onward payouts or delivery refunds.
+offchain P2P settlement service; downstream APIs use Y's ledger, not separate E
+allocations. R is any transaction submitter. Y handles invoices, durable purchase
+acceptance, sequencing, allocation, fulfillment, collection and commercial refunds.
+E enforces signed cumulative authorization and balances, not those service facts.
 
 A channel is shared among customers and has a stable, never-reused ID. Each
 (C, channel) position has separate backing and accounting. Channel 0 has no
 payee, cannot register voucher keys and cannot collect vouchers. It otherwise
 supports native funding, ordinary withdrawals, moves and full recovery.
 
+For direct merchant settlement, each merchant uses a channel whose A receives
+collections into its external wallet. Spending these receipts through another
+channel requires a separate deposit. No automatic onward credit or single shared
+spending balance is introduced. This is distinct from Y's internal allocations
+when several downstream APIs share a service channel.
+
 D creates channels and fixes G, their claim period, irreversibly. G is between
 zero and 30 days inclusive, including for channel 0 at deployment. D may change
 A before permanent channel closure becomes effective, including during final
 settlement. Existing unpaid vouchers pay current A. This redirection authority
 is trusted and does not expire an authorization. D cannot fabricate K's
-signature or choose C's full-refund recipient.
+signature or choose C's full-refund recipient. Invoice references do not constrain
+D to the merchant named in an invoice; payee policy is unchanged by this revision.
 
 Stored facts
 ------------
@@ -35,6 +43,9 @@ escrowTotal (sum of credited position balances in that channel).
 Position: balance, voucherPaid (lifetime actually collected), requestedAmount
 and readyAt for one ordinary withdrawal, voucherKey, refundAt for the current
 funding cycle, and optional refundRecipient (zero means C).
+
+No invoice reference, per-invoice paid counter, allocation, expiry or consumption
+flag is stored. invoiceHash is a signed call argument and collection-event field.
 
 PositionView returns these facts and derived effectiveBalance, effective
 refundAt, settleAt, phase and action route IDs. scheduledRefundAt exposes the
@@ -55,11 +66,21 @@ account code is consulted; code-bearing addresses are not rejected. Thus wallet
 owner/policy or EIP-7702 delegation changes cannot revoke an already-issued K
 signature. Arbitrary current ERC-1271 approval is not an alternative.
 
-The signed EIP-712 Voucher binds customer C, channelId and cumulativeTotal.
-Domain name/version remain PayToPlay/1; chainId and E address supply deployment
-separation. The payee is not in the signed struct. K is resolved from permanent
-position state, never selected by R. The customer field identifies the owner,
-not necessarily the signer.
+The signed EIP-712 type is:
+
+    Voucher(address customer,uint256 channelId,uint256 cumulativeTotal,bytes32 invoiceHash)
+
+Domain name/version are PayToPlay/2; chainId and E address supply deployment
+separation. The old three-field schema, version-1 domain and old function
+selectors are not supported by this deployment. The channel's current payee is
+not in the signed struct. K is resolved from permanent position state, never
+selected by R. The customer field identifies the owner, not necessarily K.
+
+invoiceHash authenticates an opaque invoice reference. E does not read the
+invoice, verify which authorization increase it represents, or allocate the
+collected amount. Changing the hash without resigning invalidates the signature,
+even when a valid collection would pay zero. Every bytes32 value, including
+zero, is accepted as a reference; this does not establish invoice validity.
 
 K cannot be replaced, revoked or reset by anyone. Full refunds, zero balances,
 ordinary withdrawals, movement and administrative changes do not reset K or
@@ -70,9 +91,13 @@ policy changes cancel payment authority. A separate position can use a new K.
 Collection and conservation
 ---------------------------
 
-Before the effective refund deadline, anyone may submit a valid voucher. An
-unregistered position cannot collect. Invalid signatures fail even when the
-payment would be zero. Given total T, actual paid P and balance B:
+Before the effective refund deadline, anyone may submit a valid voucher using:
+
+    collect(C, channelId, cumulativeTotal, invoiceHash, signature)
+
+voucherDigest takes the same first four arguments. An unregistered position
+cannot collect. Invalid signatures fail even when payment would be zero. Given
+total T, actual paid P and balance B:
 
     payment = min(max(T - P, 0), B)
 
@@ -80,6 +105,18 @@ Deduct only that payment from B and channel.escrowTotal, increase P by it, and
 pay current A. A reverting transfer rolls back all effects. Repeating valid
 older totals at or below P pays zero. Funding, movement, withdrawals and refunds
 never reset P. No cross-position overdraft or unbacked credit is permitted.
+
+VoucherCollected emits C, channelId, current A, actual payment, resulting P and
+the submitted invoiceHash. C, channelId and A remain indexed; invoiceHash is not.
+Zero collections emit no collection event. A successful receipt alone does not
+prove payment of any particular invoice.
+
+If invoices A and B reserve 0 -> 30 and 30 -> 70, submitting B's voucher when
+P = 0 and B = 50 pays 50 and emits B's reference. An authorization-order allocation
+would assign 30 to invoice A and 20 to invoice B. Funding another 20 allows the
+same voucher to collect 20. Distinct hashes at total 70 never authorize 140.
+A later voucher does not commit to the history of earlier invoice documents;
+Y must retain those records. Reference reuse is not prohibited onchain.
 
 For every channel, escrowTotal equals the sum of its credited balances.
 Fund increases it, collect/withdraw/refund decrease it, and positive move debits
@@ -190,22 +227,45 @@ preselected recipient; a timeout cannot restore control of an inaccessible key.
 
 A full zero refund can end an empty expired cycle and clear a stale request.
 In an open channel, C can then fund a new operating cycle. K and P stay unchanged:
-old unpaid vouchers can apply to the new backing. A cycle refund is not an
-extinguishment of outstanding voucher authority. No epoch or counter reset is
-introduced. In a retired channel, new funding and collection remain permanently
+old unpaid invoice-bearing vouchers can apply to new backing. A cycle refund is
+not an extinguishment of outstanding voucher authority. No epoch or counter reset
+is introduced. In a retired channel, new funding and collection remain permanently
 prohibited, including after every balance is refunded.
 
 Service and worker obligations
 ------------------------------
 
 Y confirms registered K and verifies direct ECDSA, then maintains one durable
-cumulative stream per C/channel, retry-safe purchase IDs and delivery records.
+cumulative stream per chain, E, C and channel, with retry-safe purchase IDs,
+immutable invoice documents and delivery records. Reserve disjoint cumulative
+increases under the service's transaction/locking rules; retries recover the
+original purchase and voucher. Two purchases of 10 cannot both advance 100 -> 110
+and be treated as 20 of independently collectible authority.
+
+The deterministic invoice codec and client helpers are specified in
+js/tools/pay-to-play-vouchers/README.md and implemented by protocol.ts there.
+The reference commits to an immutable versioned document, not mutable payment,
+fulfillment or refund status. The signing client must verify and display the
+invoice, selected merchant, settlement context and authorization increase.
+The helper checks new acceptance against caller-supplied context and sequence
+facts; it does not implement persistence, invoice-issuer authentication, backing
+checks, confirmation policy or fulfillment.
+
+Retain every valid disclosed voucher even when commercial admission is rejected.
+Invoice offer expiry only ends new acceptance; it does not cancel issued payment
+authority. Cancellation, fulfillment failure and commercial refunds do not reduce
+P, rewind the authorization sequence or erase potential collection exposure.
+Track the greatest known signed total independently of invoice status and count
+outstanding reservations when admitting concurrent work.
+
 Effective balance is max(B - requestedAmount, 0), not a reservation. Additional
-work x must account for already-accepted uncollected value max(AcceptedTotal-P,0),
-not just x. Y should accept no new work during settlement, and must collect its
-accepted claims before F while respecting earlier visible withdrawal exits and
-its confirmation/inclusion policy. Signed authority proves neither backing nor
-delivery, and the contract cannot pay an offchain claim nobody submits.
+work x must account for outstanding signed/reserved authority max(A-P,0), not just
+x or the subset of invoices still commercially payable. Y should accept no new
+work during settlement, and must collect claims before F while respecting earlier
+visible withdrawal exits and its confirmation/inclusion policy. Signed authority
+proves neither backing nor delivery, and E cannot pay a claim nobody submits.
+Actual collection events update the service's cumulative paid frontier; invoice
+allocation and commercial refund accounting remain in Y, not E.
 
 A bounded permissionless worker discovers C from Funded and incoming Moved events
 for one pinned channel, rereads live position state, and independently refunds
@@ -230,29 +290,42 @@ The CAM bundle exposes a dedicated recovery screen using the same contract-owned
 PositionView/action snapshot. It distinguishes owner-only renewal/destination
 writes from explicit-customer closure/refund calls. Prepared continuations
 capture their affected identity; wallet changes cannot redirect them. Channel
-retirement is prominently labeled channel-wide and irreversible. The ABI contains
-the new Channel/PositionView tuple fields, functions, errors and events; resource
-hashes must match exact bytes and compiler ABI export before deployment.
+retirement is prominently labeled channel-wide and irreversible.
+
+Collection and digest routes require invoiceHash, propagate it from the form and
+show it in signing details. They do not accept an invoice-less fallback. The ABI
+includes the new argument and non-indexed collection-event field; resource hashes
+must match exact bytes and compiler ABI export before deployment. The offline
+fixture signer requires PAY_TO_PLAY_INVOICE_HASH and uses domain version 2.
 
 Solidity unit/fuzz/multi-customer invariant tests target exact boundary times,
 no clock extension by duplicate/unauthorized calls, existing withdrawal rights,
 persistent keys/counters, per-channel conservation, failed-recipient rollback,
-independent refunds, zero-cycle reset and permanent channel retirement. JS tests
-target route/ABI/UI conformance, actor scoping, account changes and phase actions.
-The added disposable scenario exercises CAM recovery and the actual bounded
-CLI with file-backed signing, a one-transaction grant, restart and its receipt
-journal. These tests are local verification obligations, not proof of a live
-deployment or complete service ledger.
+independent refunds, zero-cycle reset and permanent channel retirement. Invoice
+tests cover hash substitution, equal-total/different-hash vouchers, later-invoice
+partial collection, opaque references, old schema/domain rejection, expiry and
+refund/refill exposure. JS tests target the canonical codec, signature recovery,
+acceptance context, route/ABI/UI conformance, pinned actors and invoice drafts.
+
+The payment RPC scenario verifies invoice digest parity and actual event fields,
+collection spanning invoices and external merchant receipts. The recovery
+scenario also exercises outstanding invoice vouchers through refund/refill and
+the bounded CLI with file-backed signing, a one-transaction grant, restart and
+its receipt journal. The existing-browser fixture covers invoice entry, digest
+and event fields alongside its recovery walkthrough. These are local verification
+obligations, not proof of a live deployment or a complete service ledger.
 
 Deployment boundary
 -------------------
 
-This is a new-deployment interface/policy change. Existing PayToPlay deployments
-are not upgradeable and retain their code, deposits and voucher rules. Publish
-matching ABI/UI/manifest resources and bind a newly deployed payment contract.
-Its address supplies EIP-712 domain separation; customers register keys anew.
-No automatic state migration, voucher migration, key rotation or refund epoch
-is provided. Do not pair a new ABI with an old contract.
+This v2 interface and authorization change requires a new deployment. Existing
+PayToPlay deployments are not upgradeable and retain their code, deposits and
+voucher rules. Publish matching ABI/UI/manifest resources and bind the new E.
+PayToPlay/2 and the new E address separate its four-field vouchers from v1;
+customers register keys anew. Update signing clients, event consumers and
+refund-worker deployment/runtime-code pins deliberately. No automatic state or
+voucher migration, key rotation or refund epoch is provided. Do not pair a new
+ABI with an old contract or discard that deployment's unpaid authorizations.
 
 Related precedents
 ------------------
