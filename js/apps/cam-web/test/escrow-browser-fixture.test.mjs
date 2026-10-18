@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createWalletClient, custom } from 'viem'
+import { createWalletClient, custom, HttpRequestError } from 'viem'
 import { createCdpCommands, fixtureAccount, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import * as fixture from './escrow-browser-fixture.mjs'
+import { checkActionStyles } from './action-style-browser-check.mjs'
+import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 
 for (const failure of ['lost broadcast reply', 'transport exception']) {
   test(`${failure} must not ask the actual wallet SDK to submit again through another method`, async () => {
@@ -87,5 +90,103 @@ test('expired run can close only its owned target under a separate cleanup budge
     assert.throws(() => commands.call('Target.createTarget', { url: 'about:blank' }, undefined, 'cleanup'), /cleanup/)
     clock += 60001
     assert.throws(() => commands.call('Runtime.evaluate', { expression: 'release held receipt' }, 'owned-session', 'cleanup'), /deadline/)
+  } finally { commands.close() }
+})
+
+const viewerURL = 'http://127.0.0.1:5186/?chainId=eip155:31337'
+for (const check of [checkActionStyles, checkTimestampStatus]) {
+  test(`${check.name} restores a committed, complete viewer before returning its original failure`, async () => {
+    const primary = new Error('fixture operation failed')
+    let release
+    let settled = false
+    let reads = 0
+    const observed = []
+    const observations = [0, 1].map(index => new Promise(resolve => { observed[index] = resolve }))
+    const ready = new Promise(resolve => { release = resolve })
+    const pending = check({
+      viewerURL,
+      call: async (method, params) => {
+        if (method === 'Page.navigate' && params.url !== viewerURL) throw primary
+        return { loaderId: 'restored-viewer' }
+      },
+      evaluate: async () => {
+        const index = reads++
+        if (index === 0) { observed[0](); return { href: 'http://127.0.0.1:5186/test/old-fixture.html', readyState: 'complete' } }
+        if (index === 1) { observed[1](); return { href: viewerURL, readyState: 'loading' } }
+        return ready
+      },
+    }).then(() => { settled = true }, error => { settled = true; return error })
+    try {
+      for (const observation of observations) {
+        await Promise.race([observation, pending.then(() => assert.fail('restoration returned before reading the complete expected document'))])
+        await new Promise(resolve => setImmediate(resolve))
+        assert(!settled, 'an old complete document or a new loading document must not finish restoration')
+      }
+    } finally {
+      release({ href: `${new URL(viewerURL).origin}/?chainId=eip155%3A31337#route=home`, readyState: 'complete' })
+    }
+    assert.equal(await pending, primary, 'successful cleanup preserves the original error object')
+  })
+
+  test(`${check.name} retains the primary and independent cleanup failures`, async () => {
+    const primary = new Error('fixture operation failed')
+    const metrics = new Error('viewport restoration failed')
+    const navigation = new Error('viewer restoration failed')
+    const calls = []
+    await assert.rejects(check({
+      viewerURL,
+      call: async (method, params) => {
+        calls.push(method)
+        if (method === 'Emulation.clearDeviceMetricsOverride') throw metrics
+        if (method === 'Page.navigate') throw params.url === viewerURL ? navigation : primary
+      },
+      evaluate: async () => ({ href: viewerURL, readyState: 'complete' }),
+    }), error => error instanceof AggregateError && error.errors[0] === primary
+      && error.errors.includes(metrics) && error.errors.includes(navigation))
+    assert.equal(calls.filter(method => method === 'Page.navigate').length, 2, 'viewport failure must not skip viewer restoration')
+  })
+}
+
+test('timestamp keyboard focus is released even when enabling it has an uncertain outcome', async () => {
+  const uncertain = new Error('focus acknowledgement lost')
+  const calls = []
+  await assert.rejects(checkTimestampStatus({
+    viewerURL,
+    call: async (method, params) => {
+      calls.push([method, params])
+      if (method === 'Emulation.setFocusEmulationEnabled' && params.enabled) throw uncertain
+    },
+    evaluate: async expression => expression.includes('count:rows.length')
+      ? { count: 3, aligned: true, fullWidth: true, pill: true, overflow: false }
+      : expression.includes('location.href') ? { href: viewerURL, readyState: 'complete' } : true,
+  }), error => error === uncertain)
+  assert.deepEqual(calls.filter(([method]) => method === 'Emulation.setFocusEmulationEnabled').map(([, params]) => params.enabled), [true, false])
+  assert(!calls.some(([method]) => method === 'Input.dispatchKeyEvent'), 'uncertain focus must not proceed to keyboard dispatch')
+  const release = calls.findIndex(([method, params]) => method === 'Emulation.setFocusEmulationEnabled' && !params.enabled)
+  const restore = calls.findLastIndex(([method]) => method === 'Page.navigate')
+  assert(release < restore, 'release focus before returning to the app')
+})
+
+test('browser reporting exposes owned command failures without exposing provider bodies', async () => {
+  assert.equal(typeof fixture.browserFixtureFailureDetails, 'function')
+  const marker = 'SIGNATURE_BODY_MUST_NOT_BE_PRINTED'
+  const provider = new HttpRequestError({ url: 'http://fixture.invalid/rpc', body: { method: 'eth_sendRawTransaction', params: [marker] } })
+  assert(provider.message.includes(marker), 'the actual SDK diagnostic embeds the request body')
+  assert.equal(fixture.browserFixtureFailureDetails(provider), '')
+  let commands
+  commands = createCdpCommands({
+    runDeadline: Date.now() + 1000,
+    now: Date.now,
+    socket: { send: text => {
+      const request = JSON.parse(text)
+      queueMicrotask(() => commands.receive({ id: request.id, error: { message: marker } }))
+    } },
+  })
+  try {
+    let failure
+    try { await commands.call('Page.navigate', { url: viewerURL }) } catch (error) { failure = error }
+    const details = fixture.browserFixtureFailureDetails(new AggregateError([failure, provider], 'browser fixture failed'))
+    assert.match(details, /Page\.navigate/)
+    assert(!details.includes(marker), 'provider bodies and CDP payloads stay out of stderr')
   } finally { commands.close() }
 })

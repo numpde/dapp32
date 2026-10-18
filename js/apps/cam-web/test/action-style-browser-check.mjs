@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
 
 export async function checkActionStyles({ call, evaluate, viewerURL }) {
   const fixture = new URL('/test/action-style-fixture.html', viewerURL)
@@ -9,8 +10,9 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       if (await evaluate(expression)) return
       await new Promise(resolve => setTimeout(resolve, 50))
     }
-    throw new Error(`Action fixture did not reach: ${expression}`)
+    assert.fail(`Action fixture did not reach: ${expression}`)
   }
+  const failures = []
   try {
     await call('Page.navigate', { url: fixture.href })
     await wait(`!!window.actionFixture&&document.querySelectorAll('.elements .action-button').length===6`)
@@ -122,8 +124,9 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       assert.equal(layout.sends, 0)
     }
     return { widths: [1280, 320], commandsConsistent: true, supportingQuiet: true, sendFilled: true, disabledAndBusyPreserved: true, nativeKeyboardUnverified: true }
+  } catch (error) {
+    failures.push(error)
   } finally {
-    await call('Emulation.clearDeviceMetricsOverride', {})
-    await call('Page.navigate', { url: viewerURL })
+    await finishDisplayFixture({ call, evaluate, viewerURL, failures })
   }
 }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { finishDisplayFixture } from './escrow-browser-fixture.mjs'
 
 export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
   const fixtureURL = new URL('/test/timestamp-status-fixture.html', viewerURL)
@@ -9,7 +10,7 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
       if (await evaluate(expression)) return
       await new Promise(resolve => setTimeout(resolve, 50))
     }
-    throw new Error(`Timestamp fixture did not reach: ${expression}`)
+    assert.fail(`Timestamp fixture did not reach: ${expression}`)
   }
   async function checkLayout(narrow) {
     const layout = await evaluate(`(()=>{const rows=[...document.querySelectorAll('.elements > .key-value')],values=rows.map(row=>row.lastElementChild.getBoundingClientRect()),row=rows[1],control=row?.querySelector('.timestamp-options');let pill=true;if(control){const parts=[...control.querySelectorAll('[data-mode]')].map(p=>p.getBoundingClientRect()),r=control.getBoundingClientRect();pill=parts.length===2&&Math.abs(parts[0].right-parts[1].left)<=2&&r.width>=56&&r.height>=28&&!!control.getAttribute('aria-describedby')&&getComputedStyle(control).overflowX!=='hidden'&&getComputedStyle(control).overflowY!=='hidden'}return {count:rows.length,aligned:values.every(v=>Math.abs(v.left-values[0].left)<1),fullWidth:values.every((v,i)=>v.width>=rows[i].getBoundingClientRect().width-2),pill,overflow:document.documentElement.scrollWidth>innerWidth}})()`)
@@ -39,6 +40,8 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode: keyCode, text, unmodifiedText: text })
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode: keyCode })
   }
+  const failures = []
+  let focusAttempted = false
   try {
     await call('Page.navigate', { url: fixtureURL.href })
     await wait(`!!document.querySelector('.timestamp-options')`)
@@ -52,6 +55,8 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
       await evaluate(`(()=>{const button=document.querySelector('.timestamp-options');const target=${selector === null ? 'button' : `button.querySelector(${JSON.stringify(selector)})`};target.click()})()`)
       await wait(`document.querySelector('.timestamp-options').getAttribute('aria-pressed')===${JSON.stringify(pressed)}`)
     }
+    focusAttempted = true
+    await call('Emulation.setFocusEmulationEnabled', { enabled: true })
     await keyboard('Enter', 'Enter', 13)
     await wait(`document.body.innerText.includes('In 20 seconds')&&window.timestampFixture.activeTimers()===1`)
     assert(await evaluate(`(()=>{const b=document.querySelector('.timestamp-options');return b.getAttribute('aria-label')==='Relative time for Deadline'&&[...b.querySelectorAll('[data-mode]')].every(s=>s.getAttribute('aria-hidden')==='true'&&s.title&&s.querySelector('svg'))&&!document.querySelector('.timestamp-status [aria-live],.timestamp-status [role="status"]')})()`))
@@ -84,8 +89,12 @@ export async function checkTimestampStatus({ call, evaluate, viewerURL }) {
     await checkLayout(true)
     assert(await evaluate(`innerWidth===320&&document.documentElement.scrollWidth<=innerWidth&&document.querySelector('input[name="draft"]').value==='unchanged'`))
     return { wholePillToggles: true, clockUpdates: true, valueUpdateRetainsMode: true, identityChangeResetsMode: true, absenceAndUnmountCleanup: true, keyboard: true, width: 320 }
+  } catch (error) {
+    failures.push(error)
   } finally {
-    await call('Emulation.clearDeviceMetricsOverride', {})
-    await call('Page.navigate', { url: viewerURL })
+    if (focusAttempted) {
+      try { await call('Emulation.setFocusEmulationEnabled', { enabled: false }) } catch (error) { failures.push(error) }
+    }
+    await finishDisplayFixture({ call, evaluate, viewerURL, failures })
   }
 }

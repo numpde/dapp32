@@ -2,11 +2,10 @@ import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 import { checkActionStyles } from './action-style-browser-check.mjs'
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
-import { AssertionError } from 'node:assert'
 import { createPublicClient, createWalletClient, decodeEventLog, http, parseAbi, sha256, toFunctionSelector } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
-import { createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
+import { browserFixtureFailureDetails, createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import { fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import walletConfig from './pay-to-play-fixture-wallet.mjs'
 
@@ -166,7 +165,7 @@ async function wait(predicate, label) {
     if (predicate(state)) return state
     await new Promise(resolve => setTimeout(resolve, 100))
   }
-  throw new Error(`Payment-channel browser timed out during ${label}`)
+  assert.fail(`Payment-channel browser timed out during ${label}`)
 }
 async function timestampMode(relative) {
   assert(await evaluate(`(()=>{const b=document.querySelector('button.timestamp-options');if(!b)return false;if(b.getAttribute('aria-pressed')!==${JSON.stringify(String(relative))})b.click();return true})()`), 'timestamp pill remains usable')
@@ -292,6 +291,7 @@ try {
   assert.equal(state.width, 320)
   assert(!state.overflow, 'payment-channel form must fit a 320px viewport')
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+  phase = 'prepare relayed voucher'
   const signature = await voucherSigner.signTypedData({
     domain: { name: 'PayToPlay', version: '1', chainId: 31337, verifyingContract: payments },
     types: { Voucher: [{ name: 'customer', type: 'address' }, { name: 'channelId', type: 'uint256' }, { name: 'cumulativeTotal', type: 'uint256' }] },
@@ -304,10 +304,16 @@ try {
   disabled(state, 'Review replacement request')
   await fill('cumulativeTotal', '60')
   await fill('signature', signature)
+  phase = 'voucher signing details'
   await click('View signing details')
   await wait(state => state.text.includes('Voucher signing details'), 'voucher digest')
+  phase = 'voucher draft return'
   await click('Back')
-  await wait(state => state.values['Balance owner']?.toLowerCase() === accounts.customer.address.toLowerCase(), 'draft return')
+  await wait(state => state.values['Read route'] === 'position'
+    && state.values['Balance owner']?.toLowerCase() === accounts.customer.address.toLowerCase()
+    && state.values['Channel ID'] === id
+    && state.buttons.some(button => button.name === 'Review voucher payment' && !button.disabled), 'draft return')
+  assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]')!==null&&document.querySelector('input[name="signature"]')!==null`), 'returned position must expose the voucher fields')
   assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]').value === "60" && document.querySelector('input[name="signature"]').value === ${JSON.stringify(signature)}`), 'Back restores the voucher inputs')
   await send('Review voucher payment')
   await wait(state => state.values['Current balance (wei)'] === '40' && state.values['Total paid by vouchers (wei)'] === '60', 'relayed voucher payment')
@@ -320,9 +326,8 @@ try {
   assert.equal(sent, beforeTamper, 'integrity rejection must never submit a transaction')
   process.stdout.write(`${JSON.stringify({ event: 'ok', test: 'pay-to-play browser E2E', transactions: sent, widths: [1280, 320], fixtureChain: 31337 })}\n`)
 } catch (error) {
-  // SDK errors may embed signature-bearing calldata. Only owned assertion text
-  // and the current phase are safe to report from this acceptance runner.
-  process.stderr.write(`Payment-channel browser check failed during ${phase}${error instanceof AssertionError ? `: ${error.message}` : ''}.\n`)
+  const details = browserFixtureFailureDetails(error)
+  process.stderr.write(`Payment-channel browser check failed during ${phase}${details === '' ? '' : `: ${details}`}.\n`)
   process.exitCode = 1
 } finally {
   open = false
