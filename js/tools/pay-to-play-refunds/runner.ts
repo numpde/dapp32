@@ -3,7 +3,7 @@ import { createPublicClient, createWalletClient, encodeFunctionData, http, kecca
 import { privateKeyToAccount } from "viem/accounts"
 import { isRecordObject, parseJsonBytes, readBoundedResponseBytes, requireHttpURL } from "@cam/protocol"
 import { requireEvmAddress } from "@cam/evm-viem"
-import { discoverCustomers, runRefundBatch, type Hex, type Position, type Report, type SendResult } from "./core.ts"
+import { discoverCustomers, runRefundBatch, type Address, type Hex, type Position, type Report, type SendResult } from "./core.ts"
 import { parseConfig } from "./config.ts"
 import { openJournal, readProtectedFile } from "./journal.ts"
 
@@ -29,9 +29,11 @@ function position(value: unknown): Position {
 }
 
 async function main() {
-  const config = parseConfig(JSON.parse(readProtectedFile(required("REFUND_CONFIG_FILE"))))
+  const config = parseConfig(JSON.parse(readProtectedFile(required("REFUND_CONFIG_FILE"), 16_384)))
   const rpcURL = requireHttpURL(readProtectedFile(required("RPC_URL_FILE"), 8192).trim(), "RPC_URL_FILE").href
-  const mode = process.env.REFUND_EXECUTE ?? "NO"
+  // Intentional policy: absence of an execution grant selects a read-only plan.
+  let mode = process.env.REFUND_EXECUTE
+  if (mode === undefined) mode = "NO"
   if (mode !== "YES" && mode !== "NO") throw new Error("REFUND_EXECUTE must be YES or NO")
   const execute = mode === "YES"
   const abi = parseJsonBytes(new Uint8Array(readFileSync(new URL("../../../dapps/pay-to-play/cam/abi/PayToPlay.json", import.meta.url)))) as Abi
@@ -107,7 +109,10 @@ async function main() {
     const summary = await runRefundBatch(customers, {
       readPosition: async customer => {
         phase = "position read"
-        return position(await client.readContract({ address: config.payment, abi, functionName: "viewPosition", args: [customer, config.channelId, account?.address ?? "0x0000000000000000000000000000000000000000"] }))
+        // A plan has no signing wallet; zero represents its read-only actor.
+        let actor: Address = "0x0000000000000000000000000000000000000000"
+        if (account !== undefined) actor = account.address
+        return position(await client.readContract({ address: config.payment, abi, functionName: "viewPosition", args: [customer, config.channelId, actor] }))
       },
       sendRefund: async customer => {
         if (!wallet || !account || !journal) throw new Error("Signing not authorized")

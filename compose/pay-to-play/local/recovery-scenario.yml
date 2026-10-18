@@ -2,6 +2,8 @@
 # deployment dependencies, read-only mounts and public fixture-account grants.
 services:
   pay-to-play-local-scenario:
+    volumes:
+      - ../../../dapps/pay-to-play/cam/abi:/work/dapps/pay-to-play/cam/abi:ro
     command:
       - run-js-workspace
       - sh
@@ -10,5 +12,6 @@ services:
       - |
         npm run build -w @cam/protocol -w @cam/core -w @cam/evm-viem -w @cam/screen -w @cam/viewer
         ./node_modules/.bin/tsc -p tools/pay-to-play-local-scenario/tsconfig.json
+        ./node_modules/.bin/tsc -p tools/pay-to-play-refunds/tsconfig.json
         node --experimental-strip-types tools/pay-to-play-local-scenario/runner.ts
         node --experimental-strip-types tools/pay-to-play-local-scenario/recovery.ts

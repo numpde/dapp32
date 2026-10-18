@@ -19,7 +19,8 @@ export function parseConfig(value: unknown): Config {
   const input = value as Record<string, unknown>
   const names = ["chainId", "payment", "codeHash", "channelId", "fromBlock", "toBlock", "confirmations", "blockChunk", "maxCustomers", "maxTransactions", "gasLimit", "maxFeePerGas", "maxPriorityFeePerGas"]
   if (Object.keys(input).length !== names.length || names.some(name => !Object.hasOwn(input, name))) throw new Error("Unexpected or missing configuration fields")
-  function uint(name: string, max = (1n << 256n) - 1n): bigint {
+  const maxUint256 = (1n << 256n) - 1n
+  function uint(name: string, max: bigint): bigint {
     const raw = input[name]
     if (typeof raw !== "string" || !/^(0|[1-9][0-9]*)$/.test(raw)) throw new Error(`Invalid unsigned decimal: ${name}`)
     const n = BigInt(raw)
@@ -35,9 +36,9 @@ export function parseConfig(value: unknown): Config {
   if (typeof input.codeHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(input.codeHash)) throw new Error("Invalid runtime-code hash")
   const config: Config = {
     chainId: Number(uint("chainId", BigInt(Number.MAX_SAFE_INTEGER))), payment: input.payment.toLowerCase() as Address, codeHash: input.codeHash.toLowerCase() as Hex,
-    channelId: uint("channelId"), fromBlock: uint("fromBlock"), toBlock: uint("toBlock"),
+    channelId: uint("channelId", maxUint256), fromBlock: uint("fromBlock", maxUint256), toBlock: uint("toBlock", maxUint256),
     confirmations: count("confirmations", 1000), blockChunk: count("blockChunk", 10_000), maxCustomers: count("maxCustomers", 1000), maxTransactions: count("maxTransactions", 100),
-    gasLimit: uint("gasLimit", 2_000_000n), maxFeePerGas: uint("maxFeePerGas"), maxPriorityFeePerGas: uint("maxPriorityFeePerGas"),
+    gasLimit: uint("gasLimit", 2_000_000n), maxFeePerGas: uint("maxFeePerGas", maxUint256), maxPriorityFeePerGas: uint("maxPriorityFeePerGas", maxUint256),
   }
   if (config.chainId === 0 || config.gasLimit < 21_000n || config.maxFeePerGas === 0n || config.maxPriorityFeePerGas > config.maxFeePerGas) throw new Error("Invalid chain or gas budget")
   if (config.toBlock < config.fromBlock || config.toBlock - config.fromBlock >= 100_000n) throw new Error("Discovery must cover 1 to 100000 blocks")

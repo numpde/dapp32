@@ -1,245 +1,268 @@
 Service payment channels
 ========================
 
-Design record, 2026-10-15; immutable voucher-key revision, 2026-10-17.
-The PayToPlay contract and generic CAM bundle implement the selected design.
-The maintained private-Anvil CAM scenario and browser fixture exercise the local
-workflow; no production deployment or settlement-service API server is implied.
-Customers directly fund native-currency positions in channels for settlement services. Offchain vouchers authorize cumulative
-payments; API work need not wait for onchain collection. The deployment chain
-and actual per-channel waiting periods remain deployment choices.
+Design record: 2026-10-15; permanent voucher keys: 2026-10-17;
+annual recovery and channel retirement: 2026-10-18.
 
-Actors and authority
---------------------
+Scope and actors
+----------------
 
-E is the deposit/settlement contract. D is its deployer/admin. C is the customer
-and balance owner. C registers one permanent ECDSA voucher key K per nonzero
-channel position; K signs payment vouchers. C may be a contract wallet and K
-may be a separate key. Y describes the offchain settlement service using
-a channel, not another stored address or authorization identity. A is the
-channel's current payment recipient, a wallet or contract. R is any
-submitter/relayer; submitting gives R no right to choose where customer funds go.
+E is the native-currency settlement contract. D is its owner/admin. C is a
+balance owner, including a smart wallet. K is the permanent ECDSA key C registers
+for one customer/channel position. A is the channel's current payee. Y is an
+offchain settlement service; downstream APIs use Y's ledger, not separate E
+allocations. R is any transaction submitter. E does not implement purchase
+sequencing, delivery, API credit, onward payouts or delivery refunds.
 
-D assigns each channel one stable, never-reused channel ID and fixes its
-claim-period duration irreversibly. A is its only changeable term: existing
-vouchers always pay current A, not a historical recipient. This redirection
-power is an explicit trust assumption. D cannot change the wait, identity,
-customer balances, paid totals or registered keys, or fabricate K's signature.
-The channel directory is permanent and add-only.
+A channel is shared among customers and has a stable, never-reused ID. Each
+(C, channel) position has separate backing and accounting. Channel 0 has no
+payee, cannot register voucher keys and cannot collect vouchers. It otherwise
+supports native funding, ordinary withdrawals, moves and full recovery.
 
-A channel definition is separate from each C's position. Backing for different
-channel positions is separate. APIs using Y share that position's backing and
-trust Y's ledger and onward payouts; their credits are not claims against E.
-E needs no per-API catalog or allocations. Reserved null channel 0 has no consumer and
-cannot register voucher keys or pay Y vouchers. It uses the same funding,
-balance, movement and waiting rules, with an admin-chosen immutable period set
-through ordinary definition.
+D creates channels and fixes G, their claim period, irreversibly. G is between
+zero and 30 days inclusive, including for channel 0 at deployment. D may change
+A before permanent channel closure becomes effective, including during final
+settlement. Existing unpaid vouchers pay current A. This redirection authority
+is trusted and does not expire an authorization. D cannot fabricate K's
+signature or choose C's full-refund recipient.
 
-One balance, two ways to consume it
-----------------------------------
+Stored facts
+------------
 
-Each customer/channel position needs its available balance, lifetime paid total
-for Y vouchers, a permanent voucher key once registered, and an optional
-withdrawal request containing only requested amount and ready time. Zero
-requested amount denotes no active request. These are logical facts, not a
-selected storage layout. Funding/top-ups credit the balance in native base
-units. Internal movements debit one of C's positions
-and credit another.
+Channel: payee, fixed claimPeriod, irreversible closeAt (zero while open), and
+escrowTotal (sum of credited position balances in that channel).
 
-Effective balance is derived as max(current balance - requested amount, 0).
-With no request it equals current balance. At most one request is active, and
-effective balance needs no separate stored counter or queue.
+Position: balance, voucherPaid (lifetime actually collected), requestedAmount
+and readyAt for one ordinary withdrawal, voucherKey, refundAt for the current
+funding cycle, and optional refundRecipient (zero means C).
 
-C registers K through registerVoucherKey(channelId, voucherKey), which operates
-only on msg.sender's position. K must be nonzero and the channel must exist and
-not be null. No funding is required. Registration changes only K and emits
-VoucherKeyRegistered. A second registration reverts, even for the same key.
-There is no replacement, revocation or reset, including when the position is
-empty. Funding, withdrawal, movement and admin changes leave K unchanged;
-a movement never transfers the source key to its destination.
+PositionView returns these facts and derived effectiveBalance, effective
+refundAt, settleAt, phase and action route IDs. scheduledRefundAt exposes the
+position's own deadline separately from the deadline after channel closure.
+The actor argument affects the action list only, never transaction authority.
 
-Voucher collection uses standard EIP-712 authorization binding C, the channel
-and cumulative total, with chain ID and E deployment in the signing domain.
-It does not bind A. The voucher schema and domain name/version PayToPlay/1 are
-unchanged. K is resolved from the permanently registered position, not supplied
-by the submitter. An unregistered position cannot collect, even for zero value.
+Permanent voucher authority
+---------------------------
 
-Collection uses OpenZeppelin ECDSA.tryRecover and requires successful recovery
-to K. It accepts canonical 65-byte r,s,v signatures. Malformed, high-s or
-wrong-key signatures become InvalidVoucherSignature before any accounting or
-zero-payment return. Neither C's nor K's code is consulted, and neither address
-is required to be code-free. Installing delegation or changing wallet policy
-therefore cannot invalidate a valid signature already issued by K.
+C registers one nonzero K through registerVoucherKey(channelId, voucherKey).
+Registration is sender-scoped, requires an operating nonzero channel position,
+and requires no funding. A second registration reverts, even for the same key.
+It changes no money, withdrawal request or recovery deadline.
 
-This replaces the earlier execution-time ERC-1271/SignatureChecker policy.
-Revocable wallet approval is incompatible with treating an accepted offchain
-voucher as durable authority: a withdrawal wait cannot repair revoked approval.
-Contract wallets remain eligible deposit owners by registering an ECDSA key.
-The trade-off is explicit: changing C's owners does not revoke K. If K is lost
-or compromised, C can use the ordinary delayed recovery of unspent funds but
-cannot cancel valid voucher claims or repurpose the same position with a new
-key. Registration checks the address, not possession of its private key; C must
-verify signing access before making this irreversible choice.
+E verifies canonical 65-byte low-s ECDSA signatures with v equal to 27 or 28 by
+direct OpenZeppelin ECDSA.tryRecover against the stored K. Neither C's nor K's
+account code is consulted; code-bearing addresses are not rejected. Thus wallet
+owner/policy or EIP-7702 delegation changes cannot revoke an already-issued K
+signature. Arbitrary current ERC-1271 approval is not an alternative.
 
-Anyone may submit a valid voucher. If its authorized total exceeds the lifetime
-paid total, pay min(authorized total - paid total, current balance) to current
-A. Advance paid only by the amount transferred. Valid repeated/older vouchers
-succeed without payment; zero payments change no state. Paid never resets.
-Vouchers have no protocol expiry: an old unpaid voucher can collect after a
-withdrawal and later funding using the same permanently registered key.
+The signed EIP-712 Voucher binds customer C, channelId and cumulativeTotal.
+Domain name/version remain PayToPlay/1; chainId and E address supply deployment
+separation. The payee is not in the signed struct. K is resolved from permanent
+position state, never selected by R. The customer field identifies the owner,
+not necessarily the signer.
 
-Withdrawals use an onchain waiting entitlement instead of a second signed
-voucher. The following rules also govern the source of an internal movement:
+K cannot be replaced, revoked or reset by anyone. Full refunds, zero balances,
+ordinary withdrawals, movement and administrative changes do not reset K or
+voucherPaid. A move never transfers a key between positions. Key compromise
+therefore requires stopping future funding to that position, not assuming wallet
+policy changes cancel payment authority. A separate position can use a new K.
 
-- Only C may request an amount; D and other callers have no request authority.
-  If a request exists, C's ordinary request is a no-op before checking the new
-  amount. Otherwise require 0 < requested amount <= current balance; store it
-  and set ready time to the request timestamp plus the channel's fixed period.
-- Only C may explicitly set/renew: it creates or replaces a request, requires
-  a positive amount no greater than current balance, and starts a full new
-  wait. No cancellation operation is selected.
-- Execution is allowed at timestamp >= ready time. Anyone may withdraw to C;
-  R cannot choose another recipient or an internal destination. Only C may
-  instead move the released funds to another of its own channel positions.
-  Source and destination must be distinct positions.
-- Pay/move min(requested amount, current balance) and debit the actual amount
-  from the balance. Successful mature execution consumes the request even
-  after partial or zero payment/movement. Later funding requires a fresh
-  request and wait before another withdrawal or movement. This differs from
-  Y's persistent unpaid vouchers.
+Collection and conservation
+---------------------------
 
-Collections reduce the shared balance, not the requested amount.
-Top-ups change neither amount nor ready time. A mature withdrawal and a Y
-collection have no hard priority: transaction order determines which consumes
-available funds first. Voucher collection uses actual balance, not effective
-balance. A withdrawal request caps an entitlement; it does not reserve a
-separate pot of coins. Native payments and accounting must be atomic:
-a reverting recipient rolls back the operation, including request consumption,
-and callbacks cannot consume the same entitlement twice.
+Before the effective refund deadline, anyone may submit a valid voucher. An
+unregistered position cannot collect. Invalid signatures fail even when the
+payment would be zero. Given total T, actual paid P and balance B:
 
-What C and Y see and do
+    payment = min(max(T - P, 0), B)
+
+Deduct only that payment from B and channel.escrowTotal, increase P by it, and
+pay current A. A reverting transfer rolls back all effects. Repeating valid
+older totals at or below P pays zero. Funding, movement, withdrawals and refunds
+never reset P. No cross-position overdraft or unbacked credit is permitted.
+
+For every channel, escrowTotal equals the sum of its credited balances.
+Fund increases it, collect/withdraw/refund decrease it, and positive move debits
+source and credits target. Across the contract, credited balances plus actual
+outgoing collected/withdrawn/refunded value equal total funded value, excluding
+uncredited forced native transfers. A forced transfer creates surplus, not
+customer credit or channel escrow. No surplus sweep is introduced.
+
+All position-mutating external functions are nonReentrant. Outgoing accounting
+precedes native calls and a failed call reverts atomically. Callback rejection
+by one customer does not block channel state transitions or another customer.
+
+Ordinary partial withdrawals
+----------------------------
+
+C can create an amount-specific withdrawal while operating. A fresh request
+requires 0 < requestedAmount <= balance and records readyAt = now + G.
+requestWithdrawal is a no-op if a request already exists, before validating the
+proposed replacement amount. setWithdrawal creates/replaces a valid request and
+restarts the full wait, even for an equal/smaller amount. No cancellation exists.
+
+At now >= readyAt, anyone may withdraw to C; only C may instead move to another
+of its own operating positions. Distinct channels are required. Both consume
+min(requestedAmount, balance), clear the entire request and readiness, and retain
+voucher authority. Successful zero execution also consumes the request.
+Incoming positive moves renew the destination funding cycle, not the source.
+
+A request reserves no separate pot. Collections may use full B during and after
+the wait, subject to the recovery cutoff. Deposits and collections do not alter
+its amount/deadline. A mature request can apply to fresh funding before it is
+consumed. After consumption, another ordinary withdrawal needs a new request.
+
+Existing withdrawal/move entitlements survive wind-down at their original
+readiness. New/replacement requests are unavailable while settling/refund-only.
+A permissionless withdrawal can execute before C's planned move and consume
+their shared request; funds still go to C. Ordinary withdrawals never adopt the
+separate full-refund destination. Successful full refund clears the request.
+
+Funding-cycle lifecycle
+-----------------------
+
+H = 365 days. A positive deposit into an operating position sets its scheduled
+refundAt to now + H + G if that is later than its previous value. This starts a
+cycle when none exists. A positive incoming move does the same. Only C can
+renew explicitly; renewPosition requires an already-scheduled operating cycle.
+Zero deposits, collections, relayer calls, registration and destination/payee
+changes never renew a cycle. Renewal changes no ordinary withdrawal rights.
+
+Let F be the earlier nonzero deadline among position.refundAt and channel.closeAt:
+
+    F == 0:             Operating (no active cycle in an open channel)
+    now < F - G:        Operating
+    F - G <= now < F:   Settling
+    F <= now:           RefundOnly
+
+Time alone determines phase; no finalize transaction or offchain keeper is
+needed to activate a deadline. Time does not transfer money: a transaction must
+still execute the refund. A seven-day G yields annual settlement beginning on
+day 365 and refund eligibility on day 372. No onchain inactivity heuristic is
+used because E does not observe offchain purchases when they occur.
+
+Operating permits funding, incoming movement, registration and renewal. Settling
+prohibits all four immediately, and prevents new/replacement ordinary requests.
+Voucher collection remains possible strictly before F. At/after F it is rejected
+before payment, independently of whether a refund transaction has been sent.
+Earlier ordinary withdrawal entitlements remain valid throughout.
+
+Early position wind-down
+------------------------
+
+C, D or current A can call closePosition(C, channel). If the position has no
+scheduled cycle, it is a no-op. Otherwise shorten its deadline to now + G only
+when earlier than F. Repeated calls or concurrent annual/channel settlement
+must never postpone the effective deadline. There is no cancellation or
+renewal during settlement. This is a delayed return of current collateral,
+not permanent exclusion of the customer and not immediate key revocation.
+
+Permanent channel retirement
+----------------------------
+
+D or current A can call closeChannel(channel); only D can retire channel 0.
+The first call fixes closeAt = now + G; subsequent authorized calls are no-ops.
+The channel cannot reopen, reuse its ID, cancel retirement or extend its date.
+Every position sees the channel deadline through the minimum above, without
+iteration or mass state updates. Funding, incoming moves, registration and
+renewal stop across the channel immediately. Existing earlier position or
+ordinary withdrawal deadlines are not postponed.
+
+No native transfer is attempted by channel retirement. Per-customer refunds
+remain independent. D can repair a payee during settlement without extending
+any date; recipient changes are forbidden once channel.closeAt is reached.
+Creating other channels remains possible, including after channel 0 retires.
+
+Full refunds and reuse
 ----------------------
 
-C chooses a channel, registers K, directly funds/top-ups its position and has K
-sign vouchers. C can inspect balance, key, paid total and withdrawal progress.
-Funding alone does not authorize charges. E exposes state/events for these
-onchain facts, not all signed vouchers, purchase reservations or API liabilities. C and Y must retain
-that offchain history to show spendable funds and outstanding authorization
-accurately.
+At now >= F with F nonzero, anyone may call refund(C, channel). Pay all remaining
+B to C's configured refundRecipient, defaulting to C, and set B, requestedAmount,
+readyAt and position.refundAt to zero. Deduct B from channel.escrowTotal. A failed
+payment rolls back that entire operation; the entitlement remains retryable.
+No caller-supplied refund destination or operator confiscation exists.
 
-Y confirms registration under its chain-confirmation policy and verifies each
-voucher by direct ECDSA recovery against the stored nonzero K, not by consulting
-C's wallet policy. Requiring current code absence would reintroduce a revocation
-path and is not part of this verification policy. Signatures bind C's balance
-identity even when K differs from C.
+Only C may setRefundRecipient for its own position, in any phase. Reject zero
+and E itself. This setting persists across cycles, changes no deadline or voucher
+right, and does not change ordinary withdrawal destinations. C can repair a
+rejecting recipient after the deadline. Loss of C's key still needs a usable
+preselected recipient; a timeout cannot restore control of an inaccessible key.
 
-Y maintains one durable cumulative authorization stream per C/channel and
-retry-safe purchases identified by request/purchase IDs. Concurrent API work
-must preserve correct cumulative authorization and reconcile backing and API
-credits. Retries recover the same purchase and recorded result instead of
-silently charging or provisioning twice. Invoice, sequencing and recovery
-mechanisms remain outside E's accounting rules.
+A full zero refund can end an empty expired cycle and clear a stale request.
+In an open channel, C can then fund a new operating cycle. K and P stay unchanged:
+old unpaid vouchers can apply to the new backing. A cycle refund is not an
+extinguishment of outstanding voucher authority. No epoch or counter reset is
+introduced. In a retired channel, new funding and collection remain permanently
+prohibited, including after every balance is refunded.
 
-Y budgets new purchases from effective balance while accounting for accepted,
-uncollected purchases. Effective balance is a snapshot, not reserved funds or
-a permanent guarantee. C may increase a request within current balance by
-explicitly renewing, which starts a full new wait during which Y can collect
-existing vouchers. Top-ups before execution can fund the pending request
-without restarting its wait. Successful execution clears that request, so
-subsequent deposits have no old withdrawal permission. Y monitors balance,
-current payee and requests under its confirmation policy; observation lag
-reduces time before withdrawal becomes executable. Signed authorization does
-not guarantee backing remains until Y collects, prove delivery or settle Y's
-liabilities to APIs. Delivery refunds
-and Y's onward API payouts remain outside E's core rules; no globally
-exactly-once external effect is promised.
+Service and worker obligations
+------------------------------
 
-Worked cases and proof obligations
-----------------------------------
+Y confirms registered K and verifies direct ECDSA, then maintains one durable
+cumulative stream per C/channel, retry-safe purchase IDs and delivery records.
+Effective balance is max(B - requestedAmount, 0), not a reservation. Additional
+work x must account for already-accepted uncollected value max(AcceptedTotal-P,0),
+not just x. Y should accept no new work during settlement, and must collect its
+accepted claims before F while respecting earlier visible withdrawal exits and
+its confirmation/inclusion policy. Signed authority proves neither backing nor
+delivery, and the contract cannot pay an offchain claim nobody submits.
 
-With K registered, balance 30, paid 0 and a voucher for total 100 signed by K,
-collection pays 30 and records paid 30. Funding another 20 lets the same voucher
-collect 20, recording paid 50. Repeating any valid total <= 50 succeeds with no payment. Withdrawing
-funds does not forgive the unpaid authorization.
+A bounded permissionless worker discovers C from Funded and incoming Moved events
+for one pinned channel, rereads live position state, and independently refunds
+due positions. No enumerable onchain customer registry or unbounded loop is
+needed. Complete draining requires scanning the full funding history in bounded
+slices and retrying failed/not-yet-due positions, not merely watching new blocks.
+A closed channel's zero escrowTotal establishes accounted-balance completion.
 
-With balance 100 and a request for 80, a collection of 60 leaves balance 40
-and requested amount 80. At maturity withdrawal pays 40 and clears the request.
-Funding 50 afterwards does not restore withdrawal permission: a fresh request
-and full wait are required. If the balance is zero at a valid mature execution,
-it pays zero and still clears the request. Before execution, C may explicitly
-set/renew within the current balance, starting a full new wait.
+The worker defaults to a read-only plan. Separate guarded execution requires
+file-backed credentials, chain/address/runtime-code pins, confirmations, scan
+bounds, per-transaction gas/fee bounds and a transaction-count grant. It has no
+closure, voucher collection, destination-selection or deployment authority.
+It records a signed hash durably before broadcast, isolates simulation/revert
+failures and stops on uncertain broadcast instead of automatically replacing it.
+A persisted pending hash is reconciled before another signature. Locks and
+pending state are never blindly discarded. See the worker operating guide.
 
-With balance 100 and a request for 40, effective balance is 60. Y accepts a
-purchase for 50, then C explicitly renews for 100. The full wait starts again.
-Y collects 50 during that wait, leaving balance 50 and effective balance zero.
-At maturity withdrawal is capped to 50 and clears the request.
+Publication and verification
+----------------------------
 
-The contract tests exercise these accounting and authorization obligations:
-- Voucher partial collection, idempotent retry and unpaid collection after
-  withdrawal/redeposit; lifetime paid changes only by actual voucher payments.
-- Caller-scoped registration, nonzero keys, null/undefined channel rejection,
-  immutable keys even at zero balance, unchanged accounting and withdrawal
-  deadlines at registration, and no key transfer/reset during movement.
-- Signature replay rejection across chains, E deployments, customers, channels
-  and totals, including positions that deliberately share the same K.
-- Customer signatures cannot substitute for a distinct K; wallet-policy and
-  account-code changes do not invalidate K's signatures. Code-bearing K is
-  permitted. Malformed/high-s signatures fail even when payment would be zero.
-- A contract customer registers a real ECDSA key in the invariant campaign;
-  generated vouchers use vm.sign rather than an always-valid ERC-1271 bypass.
-  Position keys are asserted unchanged alongside the accounting invariant.
-- Rejection before ready time and acceptance exactly at it; every successful
-  mature withdrawal/movement clears the request, including partial and zero
-  payouts. Subsequent funding requires a fresh request and full wait.
-- Ordinary duplicate requests are no-ops, including invalid replacement amounts;
-  only C may initiate or set/renew, including when a request already exists.
-  D and other callers cannot request or renew. C's explicit set/renew works
-  with or without a request, validates its amount and starts a full new wait,
-  including when increasing the amount.
-- Effective balance is derived without underflow:
-  no request returns actual balance, and a request exceeding current balance
-  after collection returns zero. Voucher collection still uses actual balance.
-- Top-ups and voucher payments leave request amount/deadline unchanged until
-  successful mature withdrawal/movement consumes it; null positions follow the
-  same rules.
-- Current A receives old vouchers after D changes A; unprivileged updates and
-  changes to fixed channel terms or customer accounting fail.
-- Both transaction orders for mature withdrawal versus collection; anyone's
-  withdrawal pays only C, only C routes internal moves, and source = destination
-  is rejected.
-- Funding/movement/payment conservation, no cross-position overdraft, and full
-  rollback on reverting native calls or attempted callback double consumption.
+The CAM bundle exposes a dedicated recovery screen using the same contract-owned
+PositionView/action snapshot. It distinguishes owner-only renewal/destination
+writes from explicit-customer closure/refund calls. Prepared continuations
+capture their affected identity; wallet changes cannot redirect them. Channel
+retirement is prominently labeled channel-wide and irreversible. The ABI contains
+the new Channel/PositionView tuple fields, functions, errors and events; resource
+hashes must match exact bytes and compiler ABI export before deployment.
+
+Solidity unit/fuzz/multi-customer invariant tests target exact boundary times,
+no clock extension by duplicate/unauthorized calls, existing withdrawal rights,
+persistent keys/counters, per-channel conservation, failed-recipient rollback,
+independent refunds, zero-cycle reset and permanent channel retirement. JS tests
+target route/ABI/UI conformance, actor scoping, account changes and phase actions.
+The added disposable scenario exercises CAM recovery and the actual bounded
+CLI with file-backed signing, a one-transaction grant, restart and its receipt
+journal. These tests are local verification obligations, not proof of a live
+deployment or complete service ledger.
 
 Deployment boundary
 -------------------
 
-This is a new-deployment interface and policy change, not an upgrade of existing
-PayToPlay contracts. Existing deployments keep their code, balances and voucher
-rules. Publish the matching ABI/UI/manifest and bind a newly deployed payment
-contract; replacing publication bytes alone cannot fix an old contract. The new
-verifying-contract address separates voucher domains, and customers register
-keys anew. No state migration, key rotation or settlement-closing epoch is added.
+This is a new-deployment interface/policy change. Existing PayToPlay deployments
+are not upgradeable and retain their code, deposits and voucher rules. Publish
+matching ABI/UI/manifest resources and bind a newly deployed payment contract.
+Its address supplies EIP-712 domain separation; customers register keys anew.
+No automatic state migration, voucher migration, key rotation or refund epoch
+is provided. Do not pair a new ABI with an old contract.
 
-Contract precedents and related patterns
----------------------------------------
+Related precedents
+------------------
 
-The reading guide at dapps/pay-to-play/references/README.html links the pinned
-source/specification snapshots and provenance. Evaluate these channel kernels
-before writing a new one. Relevant comparisons with the selected design are:
-
-- AbstractStreamChannel uses ERC-20, a fixed 15-minute grace period and full
-  closing withdrawal. A top-up cancels its pending close; here native-currency
-  top-ups preserve the amount-specific withdrawal entitlement and deadline.
-- AbstractStreamChannel and x402 bind the payee/receiver into channel identity.
-  Here the channel ID is stable while D may change A for existing vouchers.
-- x402 finalizeWithdraw and Raiden UserDeposit withdrawHelper cap withdrawal
-  by the requested amount and current available balance, then clear the
-  request even after partial payment. This design follows the same rule:
-  execution consumes the request, including zero payment.
-- x402's signed maxClaimableAmount is a ceiling over server-accounted actual
-  charges, and claim accounting is separate from recipient transfer. Here
-  vouchers authorize a cumulative entitlement collected in partial deltas.
-- microRaiden supports cumulative balance-proof withdrawals while open as well
-  as closing settlement. Its closing lifecycle is not adopted here.
-- Raiden's shared UserDeposit risk is comparable to shared API credits at Y,
-  while this design keeps different channel positions separately backed.
+The pinned sources and provenance remain in
+ dapps/pay-to-play/references/README.html.
+AbstractStreamChannel and x402 bind recipients differently; this design retains
+D's explicit payee-redirection trust. Raiden UserDeposit and x402 withdrawal
+helpers cap by requested amount/current balance and consume the request after
+partial payment, as the ordinary withdrawal path does here. microRaiden and
+Solidity's payment-channel example illustrate final claim windows and return
+of residual collateral. The annual/early/shared-channel lifecycle above is this
+contract's selected policy, not a claim that another implementation is identical.

@@ -13,7 +13,7 @@ export interface JournalState {
 }
 
 // File-backed credentials never enter arguments, environment values or logs.
-export function readProtectedFile(path: string, maxBytes = 16_384): string {
+export function readProtectedFile(path: string, maxBytes: number): string {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW)
   try {
     const stat = fstatSync(fd)
@@ -56,7 +56,7 @@ export function openJournal(directory: string, identity: Identity) {
   let closed = false
   try {
     if (existsSync(filename)) {
-      const parsed = object(JSON.parse(readProtectedFile(filename)))
+      const parsed = object(JSON.parse(readProtectedFile(filename, 16_384)))
       const storedIdentity = object(parsed.identity)
       if (parsed.version !== 1 || Object.keys(storedIdentity).length !== 4
         || Object.entries(identity).some(([key, value]) => storedIdentity[key] !== value)) throw new Error("Journal belongs to a different deployment/channel")

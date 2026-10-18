@@ -1,6 +1,10 @@
 import assert from "node:assert/strict"
-import { readFileSync } from "node:fs"
-import { createPublicClient, createWalletClient, decodeEventLog, http, parseAbiItem, type Address, type Hex } from "viem"
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { execFile } from "node:child_process"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { fileURLToPath } from "node:url"
+import { createPublicClient, createWalletClient, decodeEventLog, http, keccak256, parseAbiItem, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "@cam/evm-viem"
 import { createCamViewerSession } from "@cam/viewer"
@@ -50,22 +54,22 @@ async function main() {
   })
   await session.load()
   function view() { return record(session.snapshot().values?.[0]) }
-  async function open(role: Role, customer: Address, id: string, recovery = false) {
+  async function open(role: Role, customer: Address, id: string, recovery: boolean) {
     await session.setAccount({ address: accounts[role].address })
     await session.navigate(recovery ? "recovery" : "position", inert({ customer, channelId: id }))
     assert.equal(String(view().customer).toLowerCase(), customer.toLowerCase())
     assert.equal(view().channelId, id)
   }
-  function button(route: string, disabled = false) {
+  function button(route: string, disabled: boolean) {
     const found = resolvedUiButtons(session.snapshot().resolvedUi!).filter(value => value.call.function === route)
     assert.equal(found.length, 1, `${route} must be present exactly once`)
     assert.equal(found[0]!.disabled === true, disabled, `${route} availability`)
     return found[0]!
   }
-  async function write(role: Role, route: string, state: Record<string, unknown> = {}) {
+  async function write(role: Role, route: string, state: Record<string, unknown>) {
     phase = route
     session.updateState(inert(state))
-    const result = await session.dispatchAction(button(route))
+    const result = await session.dispatchAction(button(route, false))
     assert.equal(result.type, "contractCall")
     if (result.type !== "contractCall") throw new Error("Expected write")
     assert.equal(result.call.address.toLowerCase(), payments.toLowerCase())
@@ -79,7 +83,7 @@ async function main() {
   }
   const CREATED = parseAbiItem("event ChannelCreated(uint256 indexed channelId,address payee,uint64 claimPeriod)")
   async function create() {
-    await open("admin", accounts.admin.address, "0")
+    await open("admin", accounts.admin.address, "0", false)
     const receipt = await write("admin", "createChannel", { newPayee: accounts.payee.address, newClaimPeriod: "60" })
     const logs = receipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
     assert.equal(logs.length, 1)
@@ -108,14 +112,14 @@ async function main() {
   }
 
   const id = await create()
-  await open("customer", accounts.customer.address, id)
+  await open("customer", accounts.customer.address, id, false)
   await write("customer", "registerVoucherKey", { newVoucherKey: accounts.relayer.address })
   await write("customer", "fund", { fundAmount: "100" })
   const firstDeadline = BigInt(String(view().refundAt))
   assert.equal(firstDeadline - (await client.getBlock()).timestamp, 31536060n)
   await warp((await client.getBlock()).timestamp + 10n)
   await open("customer", accounts.customer.address, id, true)
-  await write("customer", "renewPosition")
+  await write("customer", "renewPosition", {})
   assert(BigInt(String(view().refundAt)) >= firstDeadline + 10n)
   const renewed = view().refundAt
   await write("customer", "setRefundRecipient", { newRefundRecipient: accounts.admin.address })
@@ -126,28 +130,28 @@ async function main() {
   button("closeChannel", true)
   button("setRefundRecipient", true)
   await open("payee", accounts.customer.address, id, true)
-  await write("payee", "closePosition")
+  await write("payee", "closePosition", {})
   assert.equal(Number(view().phase), 1)
   const deadline = BigInt(String(view().refundAt))
   button("renewPosition", true)
   button("refund", true)
-  await open("customer", accounts.customer.address, id)
+  await open("customer", accounts.customer.address, id, false)
   button("fund", true)
   button("setWithdrawal", true)
-  await open("relayer", accounts.customer.address, id)
+  await open("relayer", accounts.customer.address, id, false)
   await write("relayer", "collect", { cumulativeTotal: "30", signature })
   assert.equal(view().balance, "70")
   await warp(deadline)
   button("collect", true)
   await open("relayer", accounts.customer.address, id, true)
   const recipientBefore = await client.getBalance({ address: accounts.admin.address })
-  await write("relayer", "refund")
+  await write("relayer", "refund", {})
   assert.equal(await client.getBalance({ address: accounts.admin.address }), recipientBefore + 70n)
   assert.equal(view().balance, "0")
   assert.equal(view().voucherPaid, "30")
   assert.equal(view().scheduledRefundAt, "0")
   assert.equal(String(view().voucherKey).toLowerCase(), accounts.relayer.address.toLowerCase())
-  await open("customer", accounts.customer.address, id)
+  await open("customer", accounts.customer.address, id, false)
   await write("customer", "fund", { fundAmount: "50" })
   const annual = BigInt(String(view().refundAt))
   await warp(annual - 60n)
@@ -157,28 +161,28 @@ async function main() {
   button("refund", true)
   await warp(annual)
   await open("relayer", accounts.customer.address, id, true)
-  await write("relayer", "refund")
+  await write("relayer", "refund", {})
   assert.equal(view().balance, "0")
 
   // Create two backed positions, one reached ONLY through an incoming move.
   const retired = await create()
-  await open("customer", accounts.customer.address, retired)
+  await open("customer", accounts.customer.address, retired, false)
   await write("customer", "fund", { fundAmount: "80" })
-  await open("relayer", accounts.relayer.address, "0")
+  await open("relayer", accounts.relayer.address, "0", false)
   await write("relayer", "fund", { fundAmount: "40" })
   await write("relayer", "requestWithdrawal", { withdrawAmount: "40" })
   await warp(BigInt(String(view().readyAt)))
   await write("relayer", "move", { targetId: retired })
   await open("admin", accounts.customer.address, retired, true)
-  await write("admin", "closeChannel")
+  await write("admin", "closeChannel", {})
   assert.equal(view().escrowTotal, "120")
   const closing = BigInt(String(view().closeAt))
-  await open("customer", accounts.customer.address, retired)
+  await open("customer", accounts.customer.address, retired, false)
   button("fund", true)
   await warp(closing)
   await open("payee", accounts.customer.address, retired, true)
   button("closeChannel", true)
-  button("refund")
+  button("refund", false)
 
   const FUNDED = parseAbiItem("event Funded(address indexed customer,uint256 indexed channelId,uint256 amount)")
   const MOVED = parseAbiItem("event Moved(address indexed customer,uint256 indexed sourceId,uint256 indexed targetId,uint256 amount)")
@@ -195,23 +199,62 @@ async function main() {
       const v = view()
       return { balance: BigInt(String(v.balance)), scheduledRefundAt: BigInt(String(v.scheduledRefundAt)), requestedAmount: BigInt(String(v.requestedAmount)), refundAt: BigInt(String(v.refundAt)), refundRecipient: requireEvmAddress(String(v.refundRecipient), "refund recipient"), phase: Number(v.phase) }
     },
-    sendRefund: async (customer: Address) => {
-      await open("payee", customer, retired, true)
-      const receipt = await write("payee", "refund")
-      return { status: "confirmed" as const, hash: receipt.transactionHash }
-    },
+    sendRefund: async () => { throw new Error("Core planning must not send") },
   }
   const plan = await runRefundBatch(customers, adapter, { execute: false, maxTransactions: 1, report })
   assert.equal(plan.due, 2)
   assert.equal(plan.submitted, 0)
-  const first = await runRefundBatch(customers, adapter, { execute: true, maxTransactions: 1, report })
-  assert.equal(first.confirmed, 1)
-  assert.equal(first.deferred, 1)
-  const second = await runRefundBatch(customers, adapter, { execute: true, maxTransactions: 1, report })
-  assert.equal(second.confirmed, 1)
-  const third = await runRefundBatch(customers, adapter, { execute: true, maxTransactions: 1, report })
-  assert.equal(third.due, 0)
-  await open("customer", accounts.customer.address, retired)
+  // Exercise the actual file-backed CLI adapter, including its journal and
+  // EIP-1559 broadcast path, using only this disposable chain and fixture key.
+  const directory = mkdtempSync(join(tmpdir(), "recovery-worker-"))
+  try {
+    const configFile = join(directory, "config.json")
+    const rpcFile = join(directory, "rpc")
+    const keyFile = join(directory, "key")
+    const code = await client.getBytecode({ address: payments })
+    assert(code && code !== "0x")
+    writeFileSync(configFile, JSON.stringify({
+      chainId: "31337", payment: payments, codeHash: keccak256(code), channelId: retired,
+      fromBlock: "0", toBlock: (await client.getBlockNumber({ cacheTime: 0 })).toString(),
+      confirmations: 1, blockChunk: 5, maxCustomers: 10, maxTransactions: 1,
+      gasLimit: "300000", maxFeePerGas: "10000000000", maxPriorityFeePerGas: "1000000000",
+    }), { mode: 0o600 })
+    writeFileSync(rpcFile, rpcURL.href, { mode: 0o600 })
+    writeFileSync(keyFile, required("PAY_TO_PLAY_PAYEE_PRIVATE_KEY"), { mode: 0o600 })
+    async function cli(execute: boolean) {
+      phase = "refund CLI"
+      const env: NodeJS.ProcessEnv = { REFUND_CONFIG_FILE: configFile, RPC_URL_FILE: rpcFile, REFUND_EXECUTE: execute ? "YES" : "NO" }
+      if (execute) { env.REFUND_PRIVATE_KEY_FILE = keyFile; env.REFUND_STATE_DIR = directory }
+      const result = await new Promise<{ code: number; stdout: string }>(resolve => {
+        execFile(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("../pay-to-play-refunds/runner.ts", import.meta.url))],
+          { env, timeout: 90_000, maxBuffer: 262_144 }, (error, stdout) => {
+            resolve({ code: error ? (typeof error.code === "number" ? error.code : -1) : 0, stdout })
+          })
+      })
+      const events = result.stdout.trim().split("\n").filter(Boolean).map(line => record(JSON.parse(line)))
+      const batches = events.filter(event => event.event === "batch")
+      assert.equal(batches.length, 1, "CLI must report one bounded batch")
+      return { code: result.code, batch: batches[0]! }
+    }
+    const dry = await cli(false)
+    assert.equal(dry.code, 0)
+    assert.equal(dry.batch.due, 2)
+    assert.equal(dry.batch.submitted, 0)
+    const first = await cli(true)
+    assert.equal(first.code, 2)
+    assert.equal(first.batch.confirmed, 1)
+    assert.equal(first.batch.deferred, 1)
+    const second = await cli(true)
+    assert.equal(second.code, 0)
+    assert.equal(second.batch.confirmed, 1)
+    const third = await cli(true)
+    assert.equal(third.code, 0)
+    assert.equal(third.batch.due, 0)
+    const journal = record(JSON.parse(readFileSync(join(directory, "refunds.json"), "utf8")))
+    assert.equal(journal.pending, null)
+    assert.equal(record(journal.lastReceipt).status, "confirmed")
+  } finally { rmSync(directory, { recursive: true, force: true }) }
+  await open("customer", accounts.customer.address, retired, false)
   assert.equal(view().escrowTotal, "0")
   button("fund", true)
   assert.equal(await client.getBalance({ address: payments }), 0n)

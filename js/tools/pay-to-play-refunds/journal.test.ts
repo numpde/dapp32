@@ -52,11 +52,11 @@ test("protected file reader rejects permissive files, symlinks and oversized inp
   try {
     const file = join(dir, "input")
     writeFileSync(file, "fixture", { mode: 0o600 })
-    assert.equal(readProtectedFile(file), "fixture")
+    assert.equal(readProtectedFile(file, 16_384), "fixture")
     assert.throws(() => readProtectedFile(file, 3))
     symlinkSync(file, join(dir, "link"))
-    assert.throws(() => readProtectedFile(join(dir, "link")))
+    assert.throws(() => readProtectedFile(join(dir, "link"), 16_384))
     chmodSync(file, 0o644)
-    assert.throws(() => readProtectedFile(file), /owner-only/)
+    assert.throws(() => readProtectedFile(file, 16_384), /owner-only/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

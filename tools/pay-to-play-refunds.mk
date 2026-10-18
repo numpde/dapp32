@@ -33,7 +33,7 @@ pay-to-play/refunds/plan:
 
 pay-to-play/refunds/run:
 	@$(refund_input_guards); \
-	if [[ "$${CONFIRM_PAY_TO_PLAY_REFUNDS:-}" != YES ]]; then printf '%s\n' 'Set CONFIRM_PAY_TO_PLAY_REFUNDS=YES after reviewing deployment pins, scope and the gas budget.' >&2; exit 2; fi; \
+	if [[ "$${CONFIRM_PAY_TO_PLAY_REFUNDS:?Set CONFIRM_PAY_TO_PLAY_REFUNDS=YES}" != YES ]]; then printf '%s\n' 'Set CONFIRM_PAY_TO_PLAY_REFUNDS=YES after reviewing deployment pins, scope and the gas budget.' >&2; exit 2; fi; \
 	require_protected_release_file "$${REFUND_PRIVATE_KEY_FILE:?Set REFUND_PRIVATE_KEY_FILE}" REFUND_PRIVATE_KEY_FILE REFUND_PRIVATE_KEY_FILE; \
 	state="$${REFUND_STATE_DIR:?Set REFUND_STATE_DIR}"; \
 	if [[ "$$state" != /* || "$$(realpath -m -- "$$state")" != "$$state" ]]; then printf '%s\n' 'REFUND_STATE_DIR must be a normalized absolute path.' >&2; exit 2; fi; \
