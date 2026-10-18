@@ -15,6 +15,7 @@ const other: Address = "0x0000000000000000000000000000000000000022"
 const contract: Address = "0x0000000000000000000000000000000000000033"
 const host = { chainId: "eip155:31337", address: "0x0000000000000000000000000000000000000044" as Address }
 const voucherKey: Address = "0x0000000000000000000000000000000000000055"
+const invoiceHash: Hex = `0x${"ab".repeat(32)}`
 const zero: Address = "0x0000000000000000000000000000000000000000"
 const directory = new URL("../../../../dapps/pay-to-play/cam/", import.meta.url)
 const uri = "https://example.test/pay-to-play/main.json"
@@ -35,7 +36,11 @@ async function fixture() {
       if (request.functionName === "camManifest") return { uri, sha256Digest: `0x${createHash("sha256").update(root).digest("hex")}` as Hex }
       if (request.functionName === "contractAddress") return contract
       if (request.functionName === "channelCount") return chainState.channelCount
-      if (request.functionName === "voucherDigest") return `0x${"12".repeat(32)}`
+      if (request.functionName === "voucherDigest") {
+        assert.equal(request.args?.length, 4, "digest read includes the invoice reference")
+        assert.match(String(request.args?.[3]), /^0x[0-9a-fA-F]{64}$/)
+        return `0x${"12".repeat(32)}`
+      }
       if (request.functionName === "viewPosition") {
         const [viewedCustomer, channelId, actor] = request.args!
         const id = BigInt(String(channelId))
@@ -151,7 +156,7 @@ test("every write captures its explicit affected balance when prepared", async (
     registerVoucherKey: { channelId: "1", voucherKey },
     fund: { channelId: "1", amount: "20" }, requestWithdrawal: { channelId: "1", amount: "20" },
     setWithdrawal: { channelId: "1", amount: "20" }, move: { channelId: "1", targetId: "0" },
-    withdraw: { customer: other, channelId: "1" }, collect: { customer: other, channelId: "1", cumulativeTotal: "20", signature: "0x" },
+    withdraw: { customer: other, channelId: "1" }, collect: { customer: other, channelId: "1", cumulativeTotal: "20", invoiceHash, signature: "0x" },
     setPayee: { customer: other, channelId: "1", payee: customer },
   })) {
     const prepared = prepareViewerContractCall({ cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route, inputs: toInertValue(inputs) as InertRecord })
@@ -194,21 +199,24 @@ test("voucher details use Back to restore drafts and label direct position navig
   await session.load()
   await session.navigate("position", { customer, channelId: "1" })
   session.editAmount("cumulativeTotal", "base", "20")
-  const draft = session.updateState({ signature: "unfinished signature" })
+  const draft = session.updateState({ invoiceHash, signature: "unfinished signature" })
   const digest = resolvedUiButtons(draft.resolvedUi).find(button => button.call.function === "voucherDigest")!
   await session.dispatchAction(digest)
   const details = session.snapshot()
   assert.equal(details.route, "voucherDigest")
+  assert.equal(details.inputs.invoiceHash, invoiceHash)
   const fresh = resolvedUiButtons(details.resolvedUi!).find(button => button.call.function === "position")!
   assert.equal(fresh.props.label, "View balance with fresh inputs")
   const restored = await session.back()
   assert.equal(restored.state.cumulativeTotal, "20")
   assert.equal(restored.state.signature, "unfinished signature")
-  await session.navigate("voucherDigest", { customer, channelId: "1", cumulativeTotal: "20" })
+  assert.equal(restored.state.invoiceHash, invoiceHash)
+  await session.navigate("voucherDigest", { customer, channelId: "1", cumulativeTotal: "20", invoiceHash })
   const direct = resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "position")!
   await session.dispatchAction(direct)
   assert.equal(session.snapshot().state?.cumulativeTotal, null)
   assert.equal(session.snapshot().state?.signature, "")
+  assert.equal(session.snapshot().state?.invoiceHash, "")
 })
 
 test("position refresh updates external recipient and maturity actions while retaining amount drafts", async () => {
@@ -323,4 +331,62 @@ test("recovery navigation stays pinned and follows contract-returned phase and p
   await session.dispatchAction(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "position")!)
   assert.deepEqual(session.snapshot().inputs, toInertValue({ customer, channelId: "1" }))
   assert.equal(availability().fund, false, "a retired channel never reopens")
+})
+
+
+test("collection preparation requires an exact bytes32 reference and preserves the inspected customer", async () => {
+  const { cam, abi } = await fixture()
+  const options = {
+    cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host,
+    account: { address: other }, route: "collect",
+  }
+  const base = { customer, channelId: "1", cumulativeTotal: "20", signature: "0xabcd" }
+  assert.throws(() => prepareViewerContractCall({ ...options, inputs: base }))
+  for (const invalid of ["", "0x", "0x12", `0x${"ab".repeat(31)}`, `0x${"ab".repeat(33)}`, `0x${"zz".repeat(32)}`]) {
+    assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...base, invoiceHash: invalid } }))
+  }
+  const prepared = prepareViewerContractCall({ ...options, inputs: { ...base, invoiceHash } })
+  assert.equal(prepared.function, "collect")
+  assert.deepEqual(prepared.args, toInertValue({
+    customer, channelId: "1", cumulativeTotal: "20", invoiceHash, signature: "0xabcd",
+  }))
+  assert.deepEqual(prepared.then.args, toInertValue({ customer, channelId: "1" }))
+  assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...base, invoiceHash, payee: other } }))
+})
+
+test("invoice-reference drafts survive refresh but are cleared by wallet changes", async () => {
+  const { session } = await fixture()
+  await session.load()
+  await session.navigate("position", { customer, channelId: "1" })
+  session.editAmount("cumulativeTotal", "base", "20")
+  let loaded = session.updateState({ invoiceHash, signature: "0xabcd" })
+  const button = resolvedUiButtons(loaded.resolvedUi).find(item => item.call.function === "collect")!
+  const result = await session.dispatchAction(button)
+  assert.equal(result.type, "contractCall")
+  if (result.type !== "contractCall") throw new Error("fixture expected a prepared collection")
+  assert.equal(result.call.args.invoiceHash, invoiceHash)
+  loaded = await session.refresh()
+  assert.equal(loaded.state.invoiceHash, invoiceHash)
+  assert.equal(loaded.state.signature, "0xabcd")
+  session.updateState({ invoiceHash: `0x${"cd".repeat(32)}` })
+  assert.equal(result.call.args.invoiceHash, invoiceHash, "later draft edits cannot rewrite the reviewed call")
+  loaded = await session.setAccount({ address: other })
+  assert.equal(loaded.state.invoiceHash, "")
+  assert.equal(loaded.state.signature, "")
+  assert.deepEqual(loaded.inputs, toInertValue({ customer, channelId: "1" }))
+})
+
+test("signing details display the supplied invoice hash and reject an invoice-less read", async () => {
+  const { session } = await fixture()
+  await session.load()
+  await assert.rejects(() => session.navigate("voucherDigest", { customer, channelId: "1", cumulativeTotal: "20" }))
+  const loaded = await session.navigate("voucherDigest", { customer, channelId: "1", cumulativeTotal: "20", invoiceHash })
+  const statuses: Record<string, unknown> = {}
+  function visit(node: ResolvedUiNode): void {
+    if (node.element === "Status") statuses[node.props.label] = node.props.value
+    if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(visit)
+  }
+  visit(loaded.resolvedUi)
+  assert.equal(statuses["Invoice hash (bytes32)"], invoiceHash)
+  assert.equal(statuses["Balance owner"], customer)
 })
