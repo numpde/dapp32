@@ -224,7 +224,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         vm.prank(customer);
         payments.setWithdrawal(channel, 100);
         assertEq(_position(channel).readyAt, block.timestamp + PERIOD);
-        assertEq(_position(channel).effectiveBalance, 0);
+        assertEq(_position(channel).requestedAmount, 100);
         bytes memory signature = _sign(customer, channel, 50);
         payments.collect(customer, channel, 50, signature);
         _fund(customer, channel, 20);
@@ -282,7 +282,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
         payments.collect(relayer, channel, 50, signature);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, otherChannel, 50, signature);
+        payments.collect(customer, channel, otherChannel, signature);
         PayToPlay other = new PayToPlay(address(this), PERIOD);
         other.createChannel(payee, PERIOD);
         vm.prank(customer);
