@@ -357,6 +357,20 @@
           }
         },
         {
+          "element": "TextField",
+          "props": {
+            "label": "Invoice hash (bytes32)"
+          },
+          "state": {
+            "key": "invoiceHash",
+            "defaultValue": ""
+          },
+          "enabledWhen": {
+            "member": "collect",
+            "in": "$view.actions"
+          }
+        },
+        {
           "element": "Button",
           "props": {
             "label": "View signing details"
@@ -367,7 +381,8 @@
             "args": {
               "customer": "$view.customer",
               "channelId": "$view.channelId",
-              "cumulativeTotal": "$state.cumulativeTotal"
+              "cumulativeTotal": "$state.cumulativeTotal",
+              "invoiceHash": "$state.invoiceHash"
             }
           },
           "enabledWhen": {
@@ -401,6 +416,7 @@
               "customer": "$view.customer",
               "channelId": "$view.channelId",
               "cumulativeTotal": "$state.cumulativeTotal",
+              "invoiceHash": "$state.invoiceHash",
               "signature": "$state.signature"
             }
           },
@@ -412,7 +428,13 @@
         {
           "element": "Text",
           "props": {
-            "text": "Anyone can submit a voucher signed by the registered key for this balance owner and channel. Use that key in an external EIP-712 signer and enter the signed total with its signature. Signing details show a comparison hash; this app does not create signatures."
+            "text": "Anyone can submit a voucher signed by the registered key for this balance owner and channel. Use an external EIP-712 signer with domain version 2 and enter the exact signed total, invoice hash and signature. Verify the immutable invoice document and its cumulative increase before signing; this viewer does not fetch the invoice or create signatures."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The invoice hash authenticates the voucher’s reference, not an invoice-specific charge or proof of delivery. One collection can cover several invoices, partially or fully. Different hashes at the same cumulative total do not authorize extra payment. Invoice expiry, cancellation and commercial refunds do not revoke issued vouchers."
           }
         },
         {
@@ -505,6 +527,13 @@
         {
           "element": "Status",
           "props": {
+            "label": "Invoice hash (bytes32)",
+            "value": "$view.invoiceHash"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
             "label": "Chain ID",
             "value": "$view.chainId"
           }
@@ -519,7 +548,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "This hash is for comparison, not a signature. Sign the full EIP-712 Voucher in another tool, not a personal message. Domain: name PayToPlay, version 1, this chain ID, and the deployed PayToPlay contract address as verifyingContract. The CAM host address is not the payment contract. The guide contains the full schema and local signing command. Use the permanent voucher key shown on the balance page, not the owner’s current wallet signature policy."
+            "text": "This hash is for comparison, not a signature. Sign the full EIP-712 Voucher in another tool, not a personal message. Domain: name PayToPlay, version 2, this chain ID, and the deployed PayToPlay contract address as verifyingContract. The CAM host address is not the payment contract. The guide contains the full schema and local signing command. Use the permanent voucher key shown on the balance page, not the owner’s current wallet signature policy. The signed fields are customer, channelId, cumulativeTotal and invoiceHash. The invoice hash does not bind the current payee onchain or allocate a collection among invoices."
           }
         },
         {

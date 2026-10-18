@@ -166,6 +166,11 @@
         "internalType": "uint256"
       },
       {
+        "name": "invoiceHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
         "name": "signature",
         "type": "bytes",
         "internalType": "bytes"
@@ -606,6 +611,11 @@
         "name": "cumulativeTotal",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "invoiceHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -949,6 +959,12 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "invoiceHash",
+        "type": "bytes32",
+        "indexed": false,
+        "internalType": "bytes32"
       }
     ],
     "anonymous": false

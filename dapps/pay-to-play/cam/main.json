@@ -9,7 +9,7 @@
     "contracts.PayToPlay": {
       "type": "contract",
       "abiURI": "./abi/PayToPlay.json",
-      "integrity": "sha256:0xffeacf02af420f80b0b266c3013c2772c1a006574030122a53b749a713d42716"
+      "integrity": "sha256:0x7169fce70e972c2afd9c7586b43735db8832d6ec4bee30d9058a1f08ca84400d"
     },
     "routes": {
       "type": "routes"
@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0xa2e9b4cc12fa86994692d712699a8d515c7dc203a8212ea6d58bd99ca1000c43"
+      "integrity": "sha256:0xfe5efff1e7dad711c5849789835feab01626fdc6490cd406fe37ddc86acc238e"
     }
   },
   "routes": {
@@ -257,6 +257,7 @@
         "customer",
         "channelId",
         "cumulativeTotal",
+        "invoiceHash",
         "signature"
       ],
       "call": {
@@ -266,6 +267,7 @@
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId",
           "cumulativeTotal": "$inputs.cumulativeTotal",
+          "invoiceHash": "$inputs.invoiceHash",
           "signature": "$inputs.signature"
         }
       },
@@ -283,7 +285,8 @@
       "inputs": [
         "customer",
         "channelId",
-        "cumulativeTotal"
+        "cumulativeTotal",
+        "invoiceHash"
       ],
       "call": {
         "namespace": "contracts.PayToPlay",
@@ -291,7 +294,8 @@
         "args": {
           "customer": "$inputs.customer",
           "channelId": "$inputs.channelId",
-          "cumulativeTotal": "$inputs.cumulativeTotal"
+          "cumulativeTotal": "$inputs.cumulativeTotal",
+          "invoiceHash": "$inputs.invoiceHash"
         }
       },
       "then": {
@@ -303,6 +307,7 @@
             "customer": "$inputs.customer",
             "channelId": "$inputs.channelId",
             "cumulativeTotal": "$inputs.cumulativeTotal",
+            "invoiceHash": "$inputs.invoiceHash",
             "chainId": "$host.chainId"
           }
         }
