@@ -4,8 +4,8 @@ import {PayToPlay} from "../../src/PayToPlay.sol";
 import {PayToPlayTestBase} from "../support/PayToPlayTestBase.sol";
 
 contract PayToPlayMoveGasTest is PayToPlayTestBase {
-    // Cold empty-target baseline: 48,293 execution gas; allow about 24% headroom.
-    uint256 private constant MAX_MOVE_EXECUTION_GAS = 60_000;
+    // Recovery accounting cold empty-target baseline: 104,390 gas; allow about 24% headroom.
+    uint256 private constant MAX_MOVE_EXECUTION_GAS = 130_000;
     uint256 private fundedTarget;
 
     function setUp() public override {

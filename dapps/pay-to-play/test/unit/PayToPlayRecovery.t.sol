@@ -359,7 +359,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         vm.stopPrank();
     }
 
-    function testFailingRecipientDoesNotEraseEntitlementOrBlockOtherCustomers() public {
+    function testRecipientFailureDoesNotEraseEntitlementOrBlockOtherCustomers() public {
         RecoveryRecipient rejector = new RecoveryRecipient();
         _fund(customer, channel, 100);
         _fund(relayer, channel, 20);
@@ -425,7 +425,9 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
     function testChannelClosureGasDoesNotScaleWithItsCustomers() public {
         uint256 populated = payments.createChannel(payee, PERIOD);
         uint256 empty = payments.createChannel(payee, PERIOD);
-        for (uint256 i = 1; i <= 32; i++) _fund(address(uint160(1000 + i)), populated, 1);
+        for (uint256 i = 1; i <= 32; i++) {
+            _fund(address(uint160(1000 + i)), populated, 1);
+        }
         uint256 before = gasleft();
         payments.closeChannel(empty);
         uint256 emptyCost = before - gasleft();
@@ -435,5 +437,4 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         assertLt(populatedCost, emptyCost + 15_000);
         assertEq(payments.channel(populated).escrowTotal, 32);
     }
-
 }

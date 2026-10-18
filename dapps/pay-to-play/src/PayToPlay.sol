@@ -348,16 +348,19 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
             if (ownPosition && channelCount > 1) available[count++] = "move";
         }
         if (channelId != 0) {
-            if (position.voucherKey != address(0) && phase != Phase.RefundOnly) available[count++] = "collect";
-            else if (position.voucherKey == address(0) && ownPosition && operating) {
+            if (position.voucherKey != address(0) && phase != Phase.RefundOnly) {
+                available[count++] = "collect";
+            } else if (position.voucherKey == address(0) && ownPosition && operating) {
                 available[count++] = "registerVoucherKey";
             }
         }
         if ((ownPosition || operator) && operating && position.refundAt != 0) {
             available[count++] = "closePosition";
         }
-        if (phase == Phase.RefundOnly
-            && (position.balance != 0 || position.refundAt != 0 || position.requestedAmount != 0)) {
+        if (
+            phase == Phase.RefundOnly
+                && (position.balance != 0 || position.refundAt != 0 || position.requestedAmount != 0)
+        ) {
             available[count++] = "refund";
         }
         if (operator && definition.closeAt == 0) available[count++] = "closeChannel";
