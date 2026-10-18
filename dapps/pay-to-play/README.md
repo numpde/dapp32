@@ -1,18 +1,19 @@
 # Pay-to-Play
 
 Deposit native coins, register a permanent voucher-signing key, and authorize
-cumulative payments offchain. Recover unused coins through an ordinary delayed
-withdrawal or the full-recovery lifecycle. Retire a channel without looping over
-customers or giving an operator authority to take their deposits.
+invoice-referenced cumulative payments offchain. Recover unused coins through an
+ordinary delayed withdrawal or the full-recovery lifecycle. Retire a channel
+without looping over customers or giving an operator authority to take deposits.
 
 [Payments](#from-deposit-to-payment) · [Keys](#register-a-permanent-voucher-key) ·
+[Invoices](#invoice-references-and-service-accounting) ·
 [Withdrawals](#recover-or-move-funds-after-a-request) ·
 [Recovery and retirement](#full-recovery-and-channel-retirement) ·
 [Integration](#integration-reference) · [Local demo](#run-the-disposable-local-demo)
 
 The repository implements settlement and a generic CAM interface, not a service
 that sells API access, provisions work, tracks purchase credit or issues delivery
-refunds. Those responsibilities remain with the integrating service.
+refunds. Those responsibilities remain with the integrating P2P service.
 
 ## From deposit to payment
 
@@ -21,15 +22,18 @@ Bob's payment address and a fixed claim period. Example amounts below are wei,
 not whole native coins; transaction fees are separate.
 
 Alice deposits 100 into her channel-7 position and registers signing key K.
-K signs a voucher with `customer = Alice`, `channelId = 7`, and
-`cumulativeTotal = 30`. Bob verifies both the registered key and available
+K signs a voucher with `customer = Alice`, `channelId = 7`,
+`cumulativeTotal = 30`, and `invoiceHash` committing to the invoice for that
+purchase. Bob verifies the invoice, registered key, signature and available
 backing before deciding to deliver work. Anybody can then submit that voucher:
 the contract pays Bob 30, leaves Alice's balance at 70, and records 30 as actually
-paid. A later voucher for cumulative total 50 can pay another 20, not another 50.
+paid. A later voucher for cumulative total 50 with another invoice hash can pay
+another 20, not another 50.
 
 Funding alone authorizes no charge. A voucher authorizes payment; it does not
 prove delivery. Uncollected vouchers and service obligations are offchain facts
-that the service must retain and reconcile durably.
+that the service must retain and reconcile durably. The contract authenticates
+the invoice reference but does not read the invoice or allocate payment to it.
 
 ## A channel is shared; each account's balance is separate
 
@@ -44,10 +48,17 @@ as are Alice's and Bob's balances in channel 7. The contract holds the coins;
 the balance belongs to the recorded customer address, not to the channel payee
 or the wallet currently viewing it. A wallet is how an account authorizes calls.
 
+For direct merchant settlement, each merchant uses a channel whose payee is its
+receiving wallet. Collected earnings arrive in that external wallet, not in an
+in-contract spending position. Spending those earnings through another channel
+requires a separate deposit. There is no automatic onward credit or single
+shared spending balance. The admin's existing payee-redirection authority is
+unchanged; an invoice naming a merchant does not remove that trust assumption.
+
 | Identity | Authority |
 | --- | --- |
 | Balance owner (`customer`) | Funds its position, registers its key, requests withdrawals, moves funds, renews, closes its funding cycle, and chooses its full-refund recipient. |
-| Permanent voucher key | Signs cumulative payment authority for that position; has no separate withdrawal, refund-destination or administrative authority. |
+| Permanent voucher key | Signs cumulative payment authority and its invoice reference for that position; has no separate withdrawal, refund-destination or administrative authority. |
 | Channel payee | Receives collected payments and may start position wind-down or permanent channel retirement. |
 | Contract admin | Creates channels, changes payees, and may start wind-down/retirement; cannot sign customer vouchers or select customer refund destinations. |
 | Relayer | May collect a supplied valid voucher, complete an authorized mature withdrawal, or execute a due full refund. Receives no right to choose the destination. |
@@ -78,6 +89,12 @@ compatible drafts, and discards a prepared transaction. It does not mine a
 block, advance chain time, reload publication resources or execute a refund.
 **Back** rereads a prior view and restores compatible drafts when session
 history exists. Reloading or changing the connected account clears drafts.
+
+For collection, enter the signed cumulative total, exact 32-byte invoice hash,
+and signature together. Signing details display that same reference and its
+EIP-712 digest. This generic form does not fetch, validate or approve invoice
+contents; the external signing client must verify and display the invoice,
+merchant, settlement context and cumulative increase before authorization.
 
 Open **Manage recovery and channel closure** for the recovery screen. It keeps
 the same owner/channel pinned and displays the phase, effective deadlines,
@@ -130,11 +147,50 @@ After a full refund in an open channel, later funding starts a new operating
 cycle, and old unpaid vouchers can collect again against it. A permanently
 retired channel never accepts funding or resumes collection.
 
-Vouchers bind customer, channel, total, chain ID and payment-contract address,
-not the payee. The admin can redirect unpaid voucher capacity by changing the
-payee, including claims against later backing. That trust remains explicit.
-Payee changes are allowed during channel settlement, but not after its final
-closure deadline, and never change any recovery deadline.
+Vouchers bind customer, channel, total, invoice hash, chain ID and payment-contract
+address, not the channel's current payee. The admin can redirect unpaid voucher
+capacity by changing the payee, including claims against later backing. That
+trust remains explicit. Payee changes are allowed during channel settlement,
+but not after its final closure deadline, and never change any recovery deadline.
+
+## Invoice references and service accounting
+
+`invoiceHash` is an opaque commitment in the signed voucher. Changing only that
+hash without resigning invalidates the signature, even when payment would be
+zero. The contract stores no invoice hash, allocation or consumption flag and
+checks no invoice uniqueness, acceptance expiry or fulfillment. It accepts any
+bytes32 value, including zero; this does not establish that a real invoice exists.
+
+One collection can settle several invoices partially or fully. Suppose invoice
+A assigns the cumulative interval 0 -> 30 and invoice B assigns 30 -> 70. With
+nothing paid yet and a balance of 50, submitting B's voucher collects 50 and
+emits B's hash. Allocating in authorization order would pay 30 toward A and 20
+toward B. **The event does not say that B alone received 50 or was fully paid.**
+Refilling by 20 lets the same B voucher collect the remainder. Different invoice
+hashes at the same cumulative total do not create independent entitlements.
+
+The [invoice/voucher helper guide](../../js/tools/pay-to-play-vouchers/README.md)
+defines a versioned, deterministic invoice encoding, SHA-256 commitment and
+interoperability vector. Its immutable invoice includes purchase identity,
+merchant, customer, settlement context, cumulative interval, acceptance deadline
+and terms commitment. Mutable fulfillment, cancellation and refund status live
+outside that document. A later voucher does not commit to the complete history
+of earlier invoices; retain their documents and authorizations separately.
+
+P2P must durably reserve disjoint cumulative intervals per settlement position.
+Concurrent purchases cannot both reuse the same starting total. A retry recovers
+the original purchase, invoice and voucher rather than allocating another
+increase. The helper validates documents and caller-supplied acceptance context;
+it is not a database-backed acceptance service, invoice-issuer authentication,
+backing reservation or fulfillment system.
+
+**Invoice acceptance expiry does not revoke an issued voucher.** Commercial
+cancellation, rejection, delivery failure or a refund does not reduce onchain
+`voucherPaid`, rewind the service's authorization stream, or erase a disclosed
+signature. Preserve outstanding signed exposure even when the invoice was not
+commercially accepted. Recovering collateral likewise does not extinguish unpaid
+authority against later funding in an open channel. Keep commercial amounts due
+and potential signed payment authority as distinct service facts.
 
 ## Recover or move funds after a request
 
@@ -164,10 +220,10 @@ is permissionless, another caller can execute it before an owner's intended
 internal move and consume their common request.
 
 Moving changes internal balances, not the contract's native-coin balance. The
-cold-storage gas tests measure 104,390 execution gas into a previously unfunded
-channel and 53,349 into a funded channel, including recovery scheduling. Their
-regression ceilings are 130,000 and 67,000 respectively. These are callee
-execution figures before refunds, not full transaction gas charges or fee quotes.
+recovery baselines before the invoice-v2 change were 104,390 execution gas into
+a previously unfunded channel and 53,349 into a funded channel. The regression
+ceilings remain 130,000 and 67,000 respectively. Rerun them for the current build.
+These are callee execution figures before refunds, not transaction fee quotes.
 
 ## Full recovery and channel retirement
 
@@ -256,7 +312,9 @@ independent per position; it never depends on an all-customers transaction.
 
 Sources: [contract](src/PayToPlay.sol), [ABI](cam/abi/PayToPlay.json),
 [CAM routes](cam/main.json), [UI](cam/ui.json),
-[design record](../../notes/020_service_payment_channels.txt), and
+[design record](../../notes/020_service_payment_channels.txt),
+[invoice codec and signing helpers](../../js/tools/pay-to-play-vouchers/README.md),
+[v2 migration record](../../notes/pay_to_play_invoice_v2.md), and
 [CAM protocol](../../docs/reference/cam/1.2.0/index.html).
 
 ### Locate and verify the payment contract
@@ -270,13 +328,15 @@ verified runtime-bytecode hash for that deployment.
 ### Sign a voucher outside the viewer
 
 Read the confirmed, nonzero `viewPosition(...).voucherKey`. K signs this typed
-data; `customer` remains the deposit owner even when K is a different account:
+data; `customer` remains the deposit owner even when K is a different account.
+Compute the invoice hash from the agreed immutable document, rather than hashing
+arbitrary JSON formatting. The helper guide defines the supplied service codec.
 
 ```json
 {
   "domain": {
     "name": "PayToPlay",
-    "version": "1",
+    "version": "2",
     "chainId": "<deployment chain ID>",
     "verifyingContract": "<PayToPlay address>"
   },
@@ -290,36 +350,39 @@ data; `customer` remains the deposit owner even when K is a different account:
     "Voucher": [
       {"name": "customer", "type": "address"},
       {"name": "channelId", "type": "uint256"},
-      {"name": "cumulativeTotal", "type": "uint256"}
+      {"name": "cumulativeTotal", "type": "uint256"},
+      {"name": "invoiceHash", "type": "bytes32"}
     ]
   },
   "primaryType": "Voucher",
   "message": {
     "customer": "<balance owner address>",
     "channelId": "<channel ID>",
-    "cumulativeTotal": "<lifetime authorized total in wei>"
+    "cumulativeTotal": "<lifetime authorized total in wei>",
+    "invoiceHash": "<0x followed by exactly 64 hexadecimal digits>"
   }
 }
 ```
 
 Use a canonical 65-byte `r,s,v` signature with low s and v equal to 27 or 28.
-Compare its EIP-712 digest with `voucherDigest`; do not sign that digest as a
-personal message. The signing-details screen supplies a comparison digest,
-not a signature. Arbitrary current ERC-1271 approval is not accepted instead
-of K's ECDSA signature.
+Compare its EIP-712 digest with `voucherDigest(customer, channelId, total, invoiceHash)`;
+do not sign that digest as a personal message. The signing-details screen supplies
+a comparison digest and invoice reference, not a signature or invoice approval.
+Arbitrary current ERC-1271 approval is not accepted instead of K's ECDSA signature.
 
 ### Contract and route API
 
 All monetary quantities and IDs are uint256; periods are uint64 seconds.
+Invoice references are bytes32; signatures are bytes.
 
 | Function | Authority and effect |
 | --- | --- |
 | `channelCount`, `channel(id)` | Read channel directory, payee, claim period, close deadline and escrow total. |
 | `viewPosition(customer, id, actor)` | Read balances, key, ordinary request, scheduled/effective recovery dates, phase, recipient and contract-derived action IDs. |
-| `voucherDigest(customer, id, total)` | Read EIP-712 digest; does not establish signature validity or collectibility. |
+| `voucherDigest(customer, id, total, invoiceHash)` | Read EIP-712 digest; does not establish signature validity, invoice validity or collectibility. |
 | `registerVoucherKey(id, key)` | Customer permanently registers a nonzero key in an operating, nonzero channel. |
 | `fund(id)` payable | Credit sender; positive funding renews operating cycle. |
-| `collect(customer, id, total, signature)` | Anyone submits K's voucher; pay current channel recipient, only before recovery cutoff. |
+| `collect(customer, id, total, invoiceHash, signature)` | Anyone submits K's voucher; authenticate its reference and pay current channel recipient, only before recovery cutoff. |
 | `requestWithdrawal(id, amount)` | Customer starts an ordinary request only if none exists. |
 | `setWithdrawal(id, amount)` | Customer replaces/starts an ordinary request and wait while operating. |
 | `withdraw(customer, id)` | Anyone consumes a mature request, paying the customer. |
@@ -339,22 +402,29 @@ customer input solely for that continuation; it is not a Solidity argument.
 Other routes use contract names, except `move` maps route `channelId` to source
 and `fund` uses route `amount` as transaction value. Consult the manifest.
 
+`VoucherCollected(customer, channelId, payee, amount, voucherPaid, invoiceHash)`
+reports actual cumulative settlement using the referenced voucher, not an
+invoice-specific allocation. Customer, channel and payee are indexed; invoiceHash
+is non-indexed. A valid zero collection emits no collection event. A successful
+receipt alone therefore does not establish that a purchase was paid.
+
 Recovery events are `PositionRenewed`, `PositionClosing`, `ChannelClosing`,
 `RefundRecipientChanged` and `Refunded`, in addition to payment/withdrawal/key
 and ownership events. Ordinary zero/no-op calls may emit no event. Phase changes
 caused only by time emit no event: monitor deadlines as well as event streams.
 
-A service must maintain durable purchase IDs, cumulative authorization and
-outstanding accepted-but-uncollected value. With balance B, withdrawal request R,
-actual paid P and greatest accepted total A, a conservative admission check for
-additional work x is `max(A-P,0) + x <= max(B-R,0)`. Count outstanding promises,
-not just the new purchase. This is service policy, not an onchain reservation:
-collection can use the actual balance B, including funds under a withdrawal
-request, and it can race withdrawals or other collections.
-Stop accepting new work when settling; collect
-accepted claims before the applicable deadline, accounting for already-pending
-ordinary withdrawals, confirmations, inclusion delay and recipient failures.
-An enabled UI control or a signed voucher alone is not a backing reservation.
+A service must maintain durable purchase IDs, disjoint cumulative reservations,
+and outstanding signed exposure, including disclosed vouchers attached to
+rejected or expired invoices. With balance B, withdrawal request R, actual paid
+P and greatest outstanding signed/reserved total A, a conservative admission
+check for additional work x is `max(A-P,0) + x <= max(B-R,0)`. Count outstanding
+authority and reservations, not just the new purchase. This is service policy,
+not an onchain reservation: collection can use the actual balance B, including
+funds under a withdrawal request, and can race withdrawals or other collections.
+Stop accepting new work when settling; collect claims before the applicable
+deadline, accounting for already-pending ordinary withdrawals, confirmations,
+inclusion delay and recipient failures. An enabled UI control or a signed
+voucher alone is not a backing reservation.
 
 ### Deployment compatibility
 
@@ -362,9 +432,13 @@ These contracts are not upgradeable. Existing deployments retain their old
 code and policy. Deploy a new PayToPlay contract and bind it to a matching CAM
 publication; changing only the ABI or manifest does not change deployed code.
 Use ABI and UI resources exported for the exact deployed contract, including
-its Channel and PositionView tuple layouts. The voucher domain is PayToPlay/1;
-its verifying-contract address separates deployments. There is no automatic
-balance, voucher or key migration.
+its Channel and PositionView tuple layouts. The voucher domain is PayToPlay/2;
+its four-field message and new verifying-contract address separate it from v1.
+The old three-field schema, old function selectors and version-1 domain are not
+accepted by this deployment. There is no automatic balance, voucher or key
+migration. Update signing clients, event consumers and refund-worker deployment
+and runtime-code pins together; old outstanding authorizations stay with their
+original deployment.
 
 ## Run the disposable local demo
 
@@ -411,18 +485,22 @@ tab's ID, inspect `http://127.0.0.1:9222/json/list` in the browser's CDP setup.
 For the manual payment example, use admin to create a nonzero channel and read
 its exact ID from the `ChannelCreated` receipt event (not from an observed
 channel count). Connect the fixture customer, open its position, register its
-own address as K, and deposit. Then sign with the fixed local customer key:
+own address as K, and deposit. Prepare the invoice's exact hash using the agreed
+codec, then sign with the fixed local customer key:
 
 ```sh
 make pay-to-play/local/voucher/sign \
-  PAY_TO_PLAY_ADDRESS=0x... PAY_TO_PLAY_CHANNEL_ID=1 PAY_TO_PLAY_TOTAL=100
+  PAY_TO_PLAY_ADDRESS=0x... PAY_TO_PLAY_CHANNEL_ID=1 PAY_TO_PLAY_TOTAL=100 \
+  PAY_TO_PLAY_INVOICE_HASH=0x...
 ```
 
+Replace the invoice-hash placeholder with exactly 32 bytes, not a URL, an invoice
+ID or the document itself. Enter the same hash and total in the collection form.
 Use the payment contract address, not the host. This offline command does not
-register a key and works only when that fixed signer was registered for the
-position. A different K requires a signature from K. Keep signature output out
-of logs and commits. The original automated scenario uses a separate voucher
-key; the recovery scenario uses a fixture key distinct from its customer.
+register a key or validate an invoice and works only when that fixed signer was
+registered for the position. A different K requires a signature from K. Keep
+signature output out of logs and commits. The payment and recovery scenarios
+both use a voucher key distinct from the deposit owner.
 
 ```sh
 make pay-to-play/local/demo/gui/down
@@ -430,7 +508,12 @@ make pay-to-play/local/demo/gui/down
 
 ### Verify the workflows
 
+Before integration or publication, regenerate the ABI and confirm that it matches
+the checked-in v2 resources:
+
 ```sh
+make cam/abi/export
+git diff -- dapps/pay-to-play/cam
 make tests
 ```
 
@@ -440,21 +523,26 @@ runs the repository's other automatic campaigns and uses network access for
 the dependency-egress check. For focused Pay-to-Play verification:
 
 ```sh
+make js/tests
 make pay-to-play/local/recovery/run
 make pay-to-play/refunds/check
 make cam/conformance/check
 ```
 
-The original scenario remains unchanged. The additional recovery target runs
-it first, then verifies renewal, early closure, exact annual phase transitions,
-recipient selection, permissionless full refund, reuse, multi-customer channel
-retirement, incoming-move discovery, and the actual file-backed refund CLI with
-one-transaction batches and journal persistence. It uses a private disposable
-chain, advances only fixture time, and cleans up through the maintained scenario
-lane. It also checks that a confirmed receipt followed by a journal-write
-failure is fatal, rather than falsely reported as a pending transaction.
-The refund worker's own offline check runs in `make js/ci`; the combined
-real-RPC scenario runs in `make tests`. Neither selects an operator deployment.
+The payment scenario signs canonical invoices, compares v2 digests with the
+contract, rejects substituted references, decodes actual collection events,
+and checks later-invoice-first partial settlement and external merchant receipts.
+The recovery target runs that scenario first, then verifies renewal, early
+closure, exact annual phase transitions, recipient selection, permissionless
+full refund, reuse, and multi-customer channel retirement. It retains checks for
+incoming-move discovery and the file-backed refund CLI with one-transaction
+batches and journal persistence, and exercises unpaid invoice vouchers through
+refund/refill. It uses a private disposable chain, advances only fixture time,
+and cleans up through the maintained scenario lane. It also checks that a
+confirmed receipt followed by a journal-write failure is fatal, rather than
+falsely reported as pending. The refund worker's offline check runs in
+`make js/ci`; the combined real-RPC scenario runs in `make tests`. Neither selects
+an operator deployment. Invoice-helper tests run in `make js/tests`.
 
 The optional browser check uses an existing browser and a disposable local GUI:
 
@@ -465,13 +553,12 @@ make pay-to-play/live/browser/check \
 ```
 
 It creates and closes its own tab in that browser. Its 11 transactions cover
-payment/withdrawal workflows and, in a separate zero-wait channel, choosing a
-refund recipient, starting position wind-down and relaying the full refund.
-It also checks 320px layout, draft restoration, time display and publication
-integrity rejection. It does not exercise every recovery operation in the
-browser; renewal and channel retirement have contract, viewer and real-RPC
-scenario coverage. Point it at a disposable fixture, not a demo whose state
-you need to preserve: it submits transactions.
-Compiler-exported ABI comparison must match the checked-in tuple layouts and
-resources before publishing a deployment. Local fixture success establishes
-local behavior, not a production deployment or delivered API service.
+invoice-bearing payment/withdrawal workflows and, in a separate zero-wait
+channel, choosing a refund recipient, starting wind-down and relaying a refund.
+It checks invoice-hash entry, digest/reference display, restored voucher drafts,
+collection event fields, 320px layout, time display and publication integrity
+rejection. It does not exercise every recovery operation in the browser; renewal
+and channel retirement have contract, viewer and real-RPC scenario coverage.
+Point it at a disposable fixture, not a demo whose state you need to preserve:
+it submits transactions. Local fixture success establishes local behavior,
+not a production deployment or delivered API service.
