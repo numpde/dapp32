@@ -33,6 +33,8 @@ ALLOWED_FORBIDDEN_NAME_LITERALS = (
 
 # These exact historical identifiers belong to the recording note, not product branding.
 ALLOWED_RECORDED_ARTIFACT_PATHS = {
+    # Preserve the exact provenance text in the independently pinned peer vector.
+    repo_path("tests/fixtures/pay-to-play/p2p_invoice_codec_v1.json"): ("dapp" + "32 owner",),
     repo_path("notes/017_escrow_walkthrough_recording.txt"): tuple(
         "/tmp/dapp" + "32-walkthrough-" + suffix
         for suffix in (

@@ -104,6 +104,27 @@ Expected hash:
 The test computes the same digest independently with Node's SHA-256 function.
 These are public test values, not a live invoice or deployment.
 
+### Peer exact-byte vector
+
+`tests/fixtures/pay-to-play/p2p_invoice_codec_v1.json` is an independent,
+synthetic peer envelope pinned from `pay-to-play` commit `73d2698` with artifact
+SHA-256
+`40adc7a3433a95bdfc5f681355df679391028a9b172847c0768f3bb4f3c3191e`. Its
+`invoiceHash` is SHA-256 of `invoicePrefixUtf8` followed by the exact
+`invoiceUtf8` bytes. The shared-vector test checks those original bytes and
+base64 representation, EIP-712 domain and voucher digests, fixture-key address
+and signature recovery, plus the confirmation interval bindings.
+
+That peer envelope is a distinct exact-document-byte codec. It is deliberately
+not accepted by this helper's `readInvoice`, and its invoice hash must not be
+replaced with `hashInvoice` or `voucherForInvoice`: this helper hashes its own
+normalized field-array encoding. The vector tests also show that whitespace-only
+changes preserve decoded JSON while changing the peer exact-byte hash and the
+corresponding signed voucher digest. These fixture checks establish local
+codec/signature interoperability only; they do not assert invoice issuer
+authority, service acceptance, durable reservations, fulfillment, or a valid
+commercial submission.
+
 ## Signing and acceptance
 
 The helpers deliberately separate offer acceptance from voucher reconstruction:

@@ -1,0 +1,97 @@
+{
+  "format": "p2p-invoice-codec-vectors/1",
+  "status": "synthetic unsigned codec and EIP-712 expectations; no deployed-chain proof",
+  "scope": "No deployed contract, signatures, owner proof, live keys, commercial Mail schema, or valid submission package is claimed.",
+  "invoicePrefixUtf8": "P2P-INVOICE-1\n",
+  "invoiceHashAlgorithm": "SHA-256(prefix UTF-8 bytes followed by exact invoiceUtf8 bytes); no trailing newline",
+  "voucherDomain": {
+    "name": "PayToPlay",
+    "version": "2",
+    "chainId": "31337",
+    "verifyingContract": "0x3333333333333333333333333333333333333333"
+  },
+  "voucherType": "Voucher(address customer,uint256 channelId,uint256 cumulativeTotal,bytes32 invoiceHash)",
+  "voucherSignerAddress": "0xe1fae9b4fab2f5726677ecfa912d96b0b683e6a9",
+  "digestOracle": "Expected EIP-712 digests supplied by the dapp32 owner from its offline pinned-viem probe; invoice hash/base64 independently checked. No signature, deployed core or complete Mail purchase was tested.",
+  "probeInputArtifactSha256": "785835d3723f7eff6e4face6d1fca420c957b38af8cc2c2656551f2ca9228fc0",
+  "confirmationScope": "confirmationBinding is unsigned expected content with a synthetic chain observation. Its voucherDigest is the expected EIP-712 digest of this case's voucher. It is not signed purchase evidence.",
+  "exactByteControl": {
+    "sourceCase": "invoice-1",
+    "scope": "Codec-only representation variant, not another accepted invoice or purchase.",
+    "invoiceUtf8": "{\n  \"version\": 1,\n  \"merchantId\": \"00000000-0000-4000-8000-000000000001\",\n  \"merchantKeyId\": \"fixture-mail-key-1\",\n  \"invoiceId\": \"fixture-mailbox-1\",\n  \"chainId\": \"31337\",\n  \"paymentContract\": \"0x3333333333333333333333333333333333333333\",\n  \"channelId\": \"7\",\n  \"customer\": \"0x1111111111111111111111111111111111111111\",\n  \"quotedPayee\": \"0x2222222222222222222222222222222222222222\",\n  \"amount\": \"5\",\n  \"acceptBy\": 2000003600,\n  \"redeemBy\": 2000007200,\n  \"beneficiary\": {\n    \"kind\": \"agent-mail-owner\",\n    \"ownerPublicKey\": {\n      \"kty\": \"OKP\",\n      \"crv\": \"Ed25519\",\n      \"x\": \"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"\n    }\n  },\n  \"serviceTerms\": {\n    \"version\": 1,\n    \"audience\": \"https://mail.example.invalid\",\n    \"kind\": \"mailbox.create\",\n    \"address\": \"fixture-1@mail.example.invalid\",\n    \"quantity\": 1,\n    \"servicePolicy\": {\n      \"fixtureOnly\": true,\n      \"terms\": \"synthetic-codec-example-not-a-commercial-offer\"\n    }\n  }\n}",
+    "invoiceBase64": "ewogICJ2ZXJzaW9uIjogMSwKICAibWVyY2hhbnRJZCI6ICIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMDEiLAogICJtZXJjaGFudEtleUlkIjogImZpeHR1cmUtbWFpbC1rZXktMSIsCiAgImludm9pY2VJZCI6ICJmaXh0dXJlLW1haWxib3gtMSIsCiAgImNoYWluSWQiOiAiMzEzMzciLAogICJwYXltZW50Q29udHJhY3QiOiAiMHgzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzIiwKICAiY2hhbm5lbElkIjogIjciLAogICJjdXN0b21lciI6ICIweDExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTEiLAogICJxdW90ZWRQYXllZSI6ICIweDIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIiLAogICJhbW91bnQiOiAiNSIsCiAgImFjY2VwdEJ5IjogMjAwMDAwMzYwMCwKICAicmVkZWVtQnkiOiAyMDAwMDA3MjAwLAogICJiZW5lZmljaWFyeSI6IHsKICAgICJraW5kIjogImFnZW50LW1haWwtb3duZXIiLAogICAgIm93bmVyUHVibGljS2V5IjogewogICAgICAia3R5IjogIk9LUCIsCiAgICAgICJjcnYiOiAiRWQyNTUxOSIsCiAgICAgICJ4IjogIjExcVlBWUt4Q3JmVlNfN1R5V1FIT2c3aGN2UGFwaU1scndJYWFQY0hVUm8iCiAgICB9CiAgfSwKICAic2VydmljZVRlcm1zIjogewogICAgInZlcnNpb24iOiAxLAogICAgImF1ZGllbmNlIjogImh0dHBzOi8vbWFpbC5leGFtcGxlLmludmFsaWQiLAogICAgImtpbmQiOiAibWFpbGJveC5jcmVhdGUiLAogICAgImFkZHJlc3MiOiAiZml4dHVyZS0xQG1haWwuZXhhbXBsZS5pbnZhbGlkIiwKICAgICJxdWFudGl0eSI6IDEsCiAgICAic2VydmljZVBvbGljeSI6IHsKICAgICAgImZpeHR1cmVPbmx5IjogdHJ1ZSwKICAgICAgInRlcm1zIjogInN5bnRoZXRpYy1jb2RlYy1leGFtcGxlLW5vdC1hLWNvbW1lcmNpYWwtb2ZmZXIiCiAgICB9CiAgfQp9",
+    "invoiceHash": "0xbdc2d70b4859d5be478d3ad3489dd8fda89b81a2dd8127a558a5c9355e282d9d",
+    "expectedDecodedJsonEqual": true,
+    "expectedInvoiceHashEqual": false
+  },
+  "cases": [
+    {
+      "name": "invoice-1",
+      "invoiceUtf8": "{\"version\":1,\"merchantId\":\"00000000-0000-4000-8000-000000000001\",\"merchantKeyId\":\"fixture-mail-key-1\",\"invoiceId\":\"fixture-mailbox-1\",\"chainId\":\"31337\",\"paymentContract\":\"0x3333333333333333333333333333333333333333\",\"channelId\":\"7\",\"customer\":\"0x1111111111111111111111111111111111111111\",\"quotedPayee\":\"0x2222222222222222222222222222222222222222\",\"amount\":\"5\",\"acceptBy\":2000003600,\"redeemBy\":2000007200,\"beneficiary\":{\"kind\":\"agent-mail-owner\",\"ownerPublicKey\":{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}},\"serviceTerms\":{\"version\":1,\"audience\":\"https://mail.example.invalid\",\"kind\":\"mailbox.create\",\"address\":\"fixture-1@mail.example.invalid\",\"quantity\":1,\"servicePolicy\":{\"fixtureOnly\":true,\"terms\":\"synthetic-codec-example-not-a-commercial-offer\"}}}",
+      "invoiceBase64": "eyJ2ZXJzaW9uIjoxLCJtZXJjaGFudElkIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAxIiwibWVyY2hhbnRLZXlJZCI6ImZpeHR1cmUtbWFpbC1rZXktMSIsImludm9pY2VJZCI6ImZpeHR1cmUtbWFpbGJveC0xIiwiY2hhaW5JZCI6IjMxMzM3IiwicGF5bWVudENvbnRyYWN0IjoiMHgzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzIiwiY2hhbm5lbElkIjoiNyIsImN1c3RvbWVyIjoiMHgxMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExIiwicXVvdGVkUGF5ZWUiOiIweDIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIiLCJhbW91bnQiOiI1IiwiYWNjZXB0QnkiOjIwMDAwMDM2MDAsInJlZGVlbUJ5IjoyMDAwMDA3MjAwLCJiZW5lZmljaWFyeSI6eyJraW5kIjoiYWdlbnQtbWFpbC1vd25lciIsIm93bmVyUHVibGljS2V5Ijp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoiMTFxWUFZS3hDcmZWU183VHlXUUhPZzdoY3ZQYXBpTWxyd0lhYVBjSFVSbyJ9fSwic2VydmljZVRlcm1zIjp7InZlcnNpb24iOjEsImF1ZGllbmNlIjoiaHR0cHM6Ly9tYWlsLmV4YW1wbGUuaW52YWxpZCIsImtpbmQiOiJtYWlsYm94LmNyZWF0ZSIsImFkZHJlc3MiOiJmaXh0dXJlLTFAbWFpbC5leGFtcGxlLmludmFsaWQiLCJxdWFudGl0eSI6MSwic2VydmljZVBvbGljeSI6eyJmaXh0dXJlT25seSI6dHJ1ZSwidGVybXMiOiJzeW50aGV0aWMtY29kZWMtZXhhbXBsZS1ub3QtYS1jb21tZXJjaWFsLW9mZmVyIn19fQ==",
+      "invoiceHash": "0x3134afb4be4afd516d156b1180cd756391c9b3a029ad1e3cdeb420717ca18877",
+      "voucher": {
+        "chainId": "31337",
+        "paymentContract": "0x3333333333333333333333333333333333333333",
+        "customer": "0x1111111111111111111111111111111111111111",
+        "channelId": "7",
+        "cumulativeTotal": "5",
+        "invoiceHash": "0x3134afb4be4afd516d156b1180cd756391c9b3a029ad1e3cdeb420717ca18877"
+      },
+      "confirmationBinding": {
+        "version": 1,
+        "confirmationKeyId": "fixture-p2p-key-1",
+        "purchaseId": "00000000-0000-4000-8000-000000000002",
+        "voucherDigest": "0xecc7ad8125563308e3a9facc2f60fca5b546698995c2e5d8812cce9e0c7ec57f",
+        "merchantId": "00000000-0000-4000-8000-000000000001",
+        "invoiceId": "fixture-mailbox-1",
+        "invoiceHash": "0x3134afb4be4afd516d156b1180cd756391c9b3a029ad1e3cdeb420717ca18877",
+        "chainId": "31337",
+        "paymentContract": "0x3333333333333333333333333333333333333333",
+        "channelId": "7",
+        "customer": "0x1111111111111111111111111111111111111111",
+        "intervalStart": "0",
+        "intervalEnd": "5",
+        "amount": "5",
+        "acceptedAt": 2000000000,
+        "observedBlockNumber": "100",
+        "observedBlockHash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+        "observedPayee": "0x2222222222222222222222222222222222222222"
+      }
+    },
+    {
+      "name": "invoice-2",
+      "invoiceUtf8": "{\"version\":1,\"merchantId\":\"00000000-0000-4000-8000-000000000001\",\"merchantKeyId\":\"fixture-mail-key-1\",\"invoiceId\":\"fixture-mailbox-2\",\"chainId\":\"31337\",\"paymentContract\":\"0x3333333333333333333333333333333333333333\",\"channelId\":\"7\",\"customer\":\"0x1111111111111111111111111111111111111111\",\"quotedPayee\":\"0x2222222222222222222222222222222222222222\",\"amount\":\"7\",\"acceptBy\":2000003600,\"redeemBy\":2000007200,\"beneficiary\":{\"kind\":\"agent-mail-owner\",\"ownerPublicKey\":{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"11qYAYKxCrfVS_7TyWQHOg7hcvPapiMlrwIaaPcHURo\"}},\"serviceTerms\":{\"version\":1,\"audience\":\"https://mail.example.invalid\",\"kind\":\"mailbox.create\",\"address\":\"fixture-2@mail.example.invalid\",\"quantity\":1,\"servicePolicy\":{\"fixtureOnly\":true,\"terms\":\"synthetic-codec-example-not-a-commercial-offer\"}}}",
+      "invoiceBase64": "eyJ2ZXJzaW9uIjoxLCJtZXJjaGFudElkIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAxIiwibWVyY2hhbnRLZXlJZCI6ImZpeHR1cmUtbWFpbC1rZXktMSIsImludm9pY2VJZCI6ImZpeHR1cmUtbWFpbGJveC0yIiwiY2hhaW5JZCI6IjMxMzM3IiwicGF5bWVudENvbnRyYWN0IjoiMHgzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzIiwiY2hhbm5lbElkIjoiNyIsImN1c3RvbWVyIjoiMHgxMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTExIiwicXVvdGVkUGF5ZWUiOiIweDIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIiLCJhbW91bnQiOiI3IiwiYWNjZXB0QnkiOjIwMDAwMDM2MDAsInJlZGVlbUJ5IjoyMDAwMDA3MjAwLCJiZW5lZmljaWFyeSI6eyJraW5kIjoiYWdlbnQtbWFpbC1vd25lciIsIm93bmVyUHVibGljS2V5Ijp7Imt0eSI6Ik9LUCIsImNydiI6IkVkMjU1MTkiLCJ4IjoiMTFxWUFZS3hDcmZWU183VHlXUUhPZzdoY3ZQYXBpTWxyd0lhYVBjSFVSbyJ9fSwic2VydmljZVRlcm1zIjp7InZlcnNpb24iOjEsImF1ZGllbmNlIjoiaHR0cHM6Ly9tYWlsLmV4YW1wbGUuaW52YWxpZCIsImtpbmQiOiJtYWlsYm94LmNyZWF0ZSIsImFkZHJlc3MiOiJmaXh0dXJlLTJAbWFpbC5leGFtcGxlLmludmFsaWQiLCJxdWFudGl0eSI6MSwic2VydmljZVBvbGljeSI6eyJmaXh0dXJlT25seSI6dHJ1ZSwidGVybXMiOiJzeW50aGV0aWMtY29kZWMtZXhhbXBsZS1ub3QtYS1jb21tZXJjaWFsLW9mZmVyIn19fQ==",
+      "invoiceHash": "0xc067abc793efdbee5e1d9fa4744cb7a62117c3473005c1060389ffee48be3675",
+      "voucher": {
+        "chainId": "31337",
+        "paymentContract": "0x3333333333333333333333333333333333333333",
+        "customer": "0x1111111111111111111111111111111111111111",
+        "channelId": "7",
+        "cumulativeTotal": "12",
+        "invoiceHash": "0xc067abc793efdbee5e1d9fa4744cb7a62117c3473005c1060389ffee48be3675"
+      },
+      "confirmationBinding": {
+        "version": 1,
+        "confirmationKeyId": "fixture-p2p-key-1",
+        "purchaseId": "00000000-0000-4000-8000-000000000003",
+        "voucherDigest": "0x7f211e7d3cc9135f4819d1885ea14bf5b2db962b10ef6c976cb61f97b2adc867",
+        "merchantId": "00000000-0000-4000-8000-000000000001",
+        "invoiceId": "fixture-mailbox-2",
+        "invoiceHash": "0xc067abc793efdbee5e1d9fa4744cb7a62117c3473005c1060389ffee48be3675",
+        "chainId": "31337",
+        "paymentContract": "0x3333333333333333333333333333333333333333",
+        "channelId": "7",
+        "customer": "0x1111111111111111111111111111111111111111",
+        "intervalStart": "5",
+        "intervalEnd": "12",
+        "amount": "7",
+        "acceptedAt": 2000000000,
+        "observedBlockNumber": "100",
+        "observedBlockHash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+        "observedPayee": "0x2222222222222222222222222222222222222222"
+      }
+    }
+  ]
+}
