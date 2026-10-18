@@ -2,11 +2,12 @@ import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 import { checkActionStyles } from './action-style-browser-check.mjs'
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
-import { createPublicClient, createWalletClient, decodeEventLog, http, parseAbi, sha256, toFunctionSelector } from 'viem'
+import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbi, sha256, stringToBytes, toFunctionSelector } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
 import { browserFixtureFailureDetails, createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
 import { fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from '../../../tools/pay-to-play-vouchers/protocol.ts'
 import walletConfig from './pay-to-play-fixture-wallet.mjs'
 
 function localURL(value, label) {
@@ -292,31 +293,52 @@ try {
   assert(!state.overflow, 'payment-channel form must fit a 320px viewport')
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
   phase = 'prepare relayed voucher'
-  const signature = await voucherSigner.signTypedData({
-    domain: { name: 'PayToPlay', version: '1', chainId: 31337, verifyingContract: payments },
-    types: { Voucher: [{ name: 'customer', type: 'address' }, { name: 'channelId', type: 'uint256' }, { name: 'cumulativeTotal', type: 'uint256' }] },
-    primaryType: 'Voucher', message: { customer: accounts.customer.address, channelId: BigInt(id), cumulativeTotal: 60n },
+  const now = (await publicClient.getBlock()).timestamp
+  const invoice = assertInvoiceAcceptance({
+    version: '1', purchaseId: sha256(stringToBytes('browser fixture purchase')),
+    merchant: accounts.recipient.address, customer: accounts.customer.address,
+    chainId: '31337', paymentContract: payments, channelId: id,
+    previousTotal: '0', cumulativeTotal: '60', acceptBefore: (now + 3600n).toString(),
+    termsHash: sha256(stringToBytes('browser fixture purchase terms')),
+  }, {
+    chainId: 31337n, paymentContract: payments, customer: accounts.customer.address,
+    channelId: BigInt(id), merchant: accounts.recipient.address, previousTotal: 0n, now,
   })
+  const invoiceHash = hashInvoice(invoice)
+  const typed = voucherForInvoice(invoice)
+  const signature = await voucherSigner.signTypedData(typed)
   await inspect(accounts.customer.address, id)
   await role('relayer')
   state = await wait(state => state.buttons.some(button => button.name === 'Review deposit' && button.disabled), 'relayer cannot fund inspected customer')
   disabled(state, 'Review withdrawal request')
   disabled(state, 'Review replacement request')
   await fill('cumulativeTotal', '60')
+  await fill('invoiceHash', invoiceHash)
   await fill('signature', signature)
   phase = 'voucher signing details'
   await click('View signing details')
-  await wait(state => state.text.includes('Voucher signing details'), 'voucher digest')
+  const details = await wait(state => state.text.includes('Voucher signing details'), 'voucher digest')
+  assert.equal(details.values['Invoice hash (bytes32)'], invoiceHash)
+  assert.equal(details.values['Signing hash (EIP-712 digest)'], hashTypedData(typed))
   phase = 'voucher draft return'
   await click('Back')
   await wait(state => state.values['Read route'] === 'position'
     && state.values['Balance owner']?.toLowerCase() === accounts.customer.address.toLowerCase()
     && state.values['Channel ID'] === id
     && state.buttons.some(button => button.name === 'Review voucher payment' && !button.disabled), 'draft return')
-  assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]')!==null&&document.querySelector('input[name="signature"]')!==null`), 'returned position must expose the voucher fields')
-  assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]').value === "60" && document.querySelector('input[name="signature"]').value === ${JSON.stringify(signature)}`), 'Back restores the voucher inputs')
+  assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]')!==null&&document.querySelector('input[name="invoiceHash"]')!==null&&document.querySelector('input[name="signature"]')!==null`), 'returned position must expose the voucher fields')
+  assert(await evaluate(`document.querySelector('input[name="cumulativeTotal"]').value === "60" && document.querySelector('input[name="invoiceHash"]').value === ${JSON.stringify(invoiceHash)} && document.querySelector('input[name="signature"]').value === ${JSON.stringify(signature)}`), 'Back restores the complete invoice voucher')
   await send('Review voucher payment')
   await wait(state => state.values['Current balance (wei)'] === '40' && state.values['Total paid by vouchers (wei)'] === '60', 'relayed voucher payment')
+  const collectionReceipt = await publicClient.getTransactionReceipt({ hash: lastHash })
+  const collectionLogs = collectionReceipt.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
+  assert.equal(collectionLogs.length, 1)
+  const collected = decodeEventLog({ abi, eventName: 'VoucherCollected', ...collectionLogs[0] }).args
+  assert.equal(collected.invoiceHash, invoiceHash)
+  assert.equal(collected.amount, 60n)
+  assert.equal(collected.voucherPaid, 60n)
+  assert.equal(collected.customer.toLowerCase(), accounts.customer.address.toLowerCase())
+  assert.equal(collected.payee.toLowerCase(), accounts.recipient.address.toLowerCase())
   phase = 'zero-wait recovery channel'
   await role('admin')
   await inspect(accounts.admin.address, '0')
