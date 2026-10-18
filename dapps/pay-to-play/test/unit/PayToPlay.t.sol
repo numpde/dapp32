@@ -130,10 +130,10 @@ contract PayToPlayTest is PayToPlayTestBase {
         payments.requestWithdrawal(channel, 100);
         vm.warp(_position(channel).readyAt);
         payments.withdraw(customer, channel);
-        assertEq(payments.collect(customer, channel, 100, signature), 0);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, signature), 0);
         assertEq(_position(channel).voucherPaid, 0);
         _fund(customer, channel, 20);
-        assertEq(payments.collect(customer, channel, 100, signature), 20);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, signature), 20);
     }
 
     function testChannelsArePermanentAndOnlyPayeeChanges() public {
@@ -160,14 +160,14 @@ contract PayToPlayTest is PayToPlayTestBase {
         _fund(customer, channel, 30);
         bytes memory signature = _sign(customer, channel, 100);
         vm.prank(relayer);
-        assertEq(payments.collect(customer, channel, 100, signature), 30);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, signature), 30);
         assertEq(_position(channel).voucherPaid, 30);
         assertEq(payee.balance, 30);
-        assertEq(payments.collect(customer, channel, 100, signature), 0);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, signature), 0);
         _fund(customer, channel, 20);
-        assertEq(payments.collect(customer, channel, 100, signature), 20);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, signature), 20);
         bytes memory oldSignature = _sign(customer, channel, 10);
-        assertEq(payments.collect(customer, channel, 10, oldSignature), 0);
+        assertEq(payments.collect(customer, channel, 10, INVOICE_HASH, oldSignature), 0);
         assertEq(_position(channel).voucherPaid, 50);
     }
 
@@ -178,7 +178,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         payments.requestWithdrawal(channel, 100);
         assertEq(_position(channel).effectiveBalance, 0);
         payments.setPayee(channel, relayer);
-        assertEq(payments.collect(customer, channel, 50, signature), 50);
+        assertEq(payments.collect(customer, channel, 50, INVOICE_HASH, signature), 50);
         assertEq(payee.balance, 0);
         assertEq(relayer.balance, 50);
         assertEq(_position(channel).requestedAmount, 100);
@@ -190,7 +190,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         payments.requestWithdrawal(channel, 80);
         uint256 ready = _position(channel).readyAt;
         bytes memory signature = _sign(customer, channel, 60);
-        payments.collect(customer, channel, 60, signature);
+        payments.collect(customer, channel, 60, INVOICE_HASH, signature);
         assertEq(_position(channel).effectiveBalance, 0);
         vm.warp(ready - 1);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.WithdrawalNotReady.selector, ready));
@@ -205,7 +205,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         vm.prank(customer);
         payments.requestWithdrawal(channel, 50);
         signature = _sign(customer, channel, 110);
-        payments.collect(customer, channel, 110, signature);
+        payments.collect(customer, channel, 110, INVOICE_HASH, signature);
         vm.warp(_position(channel).readyAt);
         assertEq(payments.withdraw(customer, channel), 0);
         assertEq(_position(channel).requestedAmount, 0);
@@ -226,7 +226,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         assertEq(_position(channel).readyAt, block.timestamp + PERIOD);
         assertEq(_position(channel).requestedAmount, 100);
         bytes memory signature = _sign(customer, channel, 50);
-        payments.collect(customer, channel, 50, signature);
+        payments.collect(customer, channel, 50, INVOICE_HASH, signature);
         _fund(customer, channel, 20);
         assertEq(_position(channel).readyAt, block.timestamp + PERIOD);
         assertEq(_position(channel).effectiveBalance, 0);
@@ -271,7 +271,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         assertEq(_position(0).requestedAmount, 0);
         bytes memory signature = _sign(customer, 0, 1);
         vm.expectRevert(PayToPlay.NullChannelCannotCollect.selector);
-        payments.collect(customer, 0, 1, signature);
+        payments.collect(customer, 0, 1, INVOICE_HASH, signature);
     }
 
     function testVoucherCannotReplayAcrossCustomerChannelContractOrChain() public {
@@ -280,18 +280,18 @@ contract PayToPlayTest is PayToPlayTestBase {
         vm.prank(relayer);
         payments.registerVoucherKey(channel, vm.addr(VOUCHER_KEY));
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(relayer, channel, 50, signature);
+        payments.collect(relayer, channel, 50, INVOICE_HASH, signature);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, otherChannel, 50, signature);
+        payments.collect(customer, otherChannel, 50, INVOICE_HASH, signature);
         PayToPlay other = new PayToPlay(address(this), PERIOD);
         other.createChannel(payee, PERIOD);
         vm.prank(customer);
         other.registerVoucherKey(channel, vm.addr(VOUCHER_KEY));
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        other.collect(customer, channel, 50, signature);
+        other.collect(customer, channel, 50, INVOICE_HASH, signature);
         vm.chainId(block.chainid + 1);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 50, signature);
+        payments.collect(customer, channel, 50, INVOICE_HASH, signature);
     }
 
     function testContractWalletPolicyCannotRevokeRegisteredKeyVouchers() public {
@@ -301,14 +301,14 @@ contract PayToPlayTest is PayToPlayTestBase {
         _fund(address(wallet), channel, 50);
         bytes memory signature = _sign(address(wallet), channel, 100);
         wallet.setSignatureValidity(false);
-        assertEq(payments.collect(address(wallet), channel, 100, signature), 50);
+        assertEq(payments.collect(address(wallet), channel, 100, INVOICE_HASH, signature), 50);
         wallet.setSignatureValidity(true);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(address(wallet), channel, 100, hex"abcd");
+        payments.collect(address(wallet), channel, 100, INVOICE_HASH, hex"abcd");
         wallet.setSignatureValidity(false);
         _fund(address(wallet), channel, 50);
-        assertEq(payments.collect(address(wallet), channel, 100, signature), 50);
-        assertEq(payments.collect(address(wallet), channel, 100, signature), 0);
+        assertEq(payments.collect(address(wallet), channel, 100, INVOICE_HASH, signature), 50);
+        assertEq(payments.collect(address(wallet), channel, 100, INVOICE_HASH, signature), 0);
     }
 
     function testNativeRejectionRollsBackPaidAndWithdrawalRequest() public {
@@ -325,7 +325,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         bytes memory signature = _sign(customer, channel, 50);
         _fund(customer, channel, 50);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.NativePaymentFailed.selector, address(wallet), 50));
-        payments.collect(customer, channel, 50, signature);
+        payments.collect(customer, channel, 50, INVOICE_HASH, signature);
         assertEq(_position(channel).voucherPaid, 0);
         assertEq(_position(channel).balance, 50);
     }

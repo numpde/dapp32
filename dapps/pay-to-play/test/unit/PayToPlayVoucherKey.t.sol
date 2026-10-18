@@ -68,7 +68,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         _fund(customer, fresh, 100);
         bytes memory signature = _sign(customer, fresh, 100);
         vm.expectRevert(PayToPlay.VoucherKeyNotRegistered.selector);
-        payments.collect(customer, fresh, 100, signature);
+        payments.collect(customer, fresh, 100, INVOICE_HASH, signature);
         vm.prank(customer);
         payments.requestWithdrawal(fresh, 100);
         vm.warp(_position(fresh).readyAt);
@@ -95,12 +95,13 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
 
     function testCustomerSignatureDoesNotSubstituteForDistinctVoucherKey() public {
         _fund(customer, channel, 100);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(CUSTOMER_KEY, payments.voucherDigest(customer, channel, 100));
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(CUSTOMER_KEY, payments.voucherDigest(customer, channel, 100, INVOICE_HASH));
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, abi.encodePacked(r, s, v));
+        payments.collect(customer, channel, 100, INVOICE_HASH, abi.encodePacked(r, s, v));
         assertEq(_position(channel).balance, 100);
         assertEq(_position(channel).voucherPaid, 0);
-        assertEq(payments.collect(customer, channel, 100, _sign(customer, channel, 100)), 100);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100)), 100);
     }
 
     function testVoucherKeyHasNoAuthorityOverCustomersWithdrawal() public {
@@ -118,7 +119,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         // Model changing account code, including the validation-policy change enabled by EIP-7702.
         vm.etch(customer, address(policy).code);
         vm.etch(vm.addr(VOUCHER_KEY), address(policy).code);
-        assertEq(payments.collect(customer, channel, 100, signature), 100);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, signature), 100);
         assertEq(_position(channel).voucherKey, vm.addr(VOUCHER_KEY));
         assertEq(payee.balance, 100);
     }
@@ -130,7 +131,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         vm.prank(customer);
         payments.registerVoucherKey(fresh, vm.addr(VOUCHER_KEY));
         _fund(customer, fresh, 50);
-        assertEq(payments.collect(customer, fresh, 50, _sign(customer, fresh, 50)), 50);
+        assertEq(payments.collect(customer, fresh, 50, INVOICE_HASH, _sign(customer, fresh, 50)), 50);
     }
 
     function testKeyAndUnpaidVoucherSurviveWithdrawalAndRefill() public {
@@ -145,7 +146,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         payments.registerVoucherKey(channel, customer);
         assertEq(_position(channel).voucherKey, vm.addr(VOUCHER_KEY));
         _fund(customer, channel, 30);
-        assertEq(payments.collect(customer, channel, 100, signature), 30);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, signature), 30);
         assertEq(_position(channel).voucherPaid, 30);
     }
 
@@ -168,29 +169,30 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         payments.move(fresh, channel);
         assertEq(_position(fresh).voucherKey, customer);
         assertEq(_position(channel).voucherKey, vm.addr(VOUCHER_KEY));
-        assertEq(payments.collect(customer, channel, 100, _sign(customer, channel, 100)), 100);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100)), 100);
     }
 
     function testInvalidSignaturesFailEvenWhenPaymentWouldBeZero() public {
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 0, hex"abcd");
+        payments.collect(customer, channel, 0, INVOICE_HASH, hex"abcd");
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, new bytes(65));
-        assertEq(payments.collect(customer, channel, 100, _sign(customer, channel, 100)), 0);
+        payments.collect(customer, channel, 100, INVOICE_HASH, new bytes(65));
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100)), 0);
         _fund(customer, channel, 100);
-        assertEq(payments.collect(customer, channel, 100, _sign(customer, channel, 100)), 100);
+        assertEq(payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100)), 100);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, hex"abcd");
+        payments.collect(customer, channel, 100, INVOICE_HASH, hex"abcd");
         assertEq(_position(channel).voucherPaid, 100);
     }
 
     function testHighSSignatureIsRejectedWithoutStateChange() public {
         _fund(customer, channel, 100);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(VOUCHER_KEY, payments.voucherDigest(customer, channel, 100));
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(VOUCHER_KEY, payments.voucherDigest(customer, channel, 100, INVOICE_HASH));
         uint256 order = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141;
         bytes memory signature = abi.encodePacked(r, bytes32(order - uint256(s)), v == 27 ? uint8(28) : uint8(27));
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, signature);
+        payments.collect(customer, channel, 100, INVOICE_HASH, signature);
         assertEq(_position(channel).balance, 100);
         assertEq(_position(channel).voucherPaid, 0);
     }
@@ -199,7 +201,7 @@ contract PayToPlayVoucherKeyTest is PayToPlayTestBase {
         _fund(customer, channel, 100);
         bytes memory signature = _sign(customer, channel, 50);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, 100, signature);
-        assertEq(payments.collect(customer, channel, 50, signature), 50);
+        payments.collect(customer, channel, 100, INVOICE_HASH, signature);
+        assertEq(payments.collect(customer, channel, 50, INVOICE_HASH, signature), 50);
     }
 }
