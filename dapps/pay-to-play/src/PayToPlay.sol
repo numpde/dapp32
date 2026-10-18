@@ -302,7 +302,9 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         view
         returns (bytes32)
     {
-        return _hashTypedDataV4(keccak256(abi.encode(VOUCHER_TYPEHASH, customer, channelId, cumulativeTotal, invoiceHash)));
+        return _hashTypedDataV4(
+            keccak256(abi.encode(VOUCHER_TYPEHASH, customer, channelId, cumulativeTotal, invoiceHash))
+        );
     }
 
     /// @notice One snapshot owns action availability for the inspected position and acting account.

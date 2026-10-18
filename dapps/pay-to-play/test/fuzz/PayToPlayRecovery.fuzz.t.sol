@@ -8,7 +8,9 @@ contract PayToPlayRecoveryFuzzTest is PayToPlayTestBase {
         uint256 paid = bound(paid_, 0, amount);
         _fund(customer, channel, amount);
         payments.closePosition(customer, channel);
-        assertEq(payments.collect(customer, channel, paid, invoiceHash, _sign(customer, channel, paid, invoiceHash)), paid);
+        assertEq(
+            payments.collect(customer, channel, paid, invoiceHash, _sign(customer, channel, paid, invoiceHash)), paid
+        );
         vm.warp(_position(channel).refundAt);
         assertEq(payments.refund(customer, channel), amount - paid);
         assertEq(payments.channel(channel).escrowTotal, 0);

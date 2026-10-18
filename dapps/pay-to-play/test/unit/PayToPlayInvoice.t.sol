@@ -167,12 +167,10 @@ contract PayToPlayInvoiceTest is PayToPlayTestBase {
 
     function testOldCollectionAndDigestSelectorsAreUnavailable() public {
         bytes memory signature = _sign(customer, channel, 70, INVOICE_B);
-        (bool collected,) = address(payments).call(
-            abi.encodeWithSignature("collect(address,uint256,uint256,bytes)", customer, channel, 70, signature)
-        );
-        (bool read,) = address(payments).staticcall(
-            abi.encodeWithSignature("voucherDigest(address,uint256,uint256)", customer, channel, 70)
-        );
+        (bool collected,) = address(payments)
+            .call(abi.encodeWithSignature("collect(address,uint256,uint256,bytes)", customer, channel, 70, signature));
+        (bool read,) = address(payments)
+            .staticcall(abi.encodeWithSignature("voucherDigest(address,uint256,uint256)", customer, channel, 70));
         assertFalse(collected);
         assertFalse(read);
     }

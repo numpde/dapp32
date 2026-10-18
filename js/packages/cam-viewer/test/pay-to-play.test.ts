@@ -383,7 +383,11 @@ test("signing details display the supplied invoice hash and reject an invoice-le
   const loaded = await session.navigate("voucherDigest", { customer, channelId: "1", cumulativeTotal: "20", invoiceHash })
   const statuses: Record<string, unknown> = {}
   function visit(node: ResolvedUiNode): void {
-    if (node.element === "Status") statuses[node.props.label] = node.props.value
+    if (node.element === "Status") {
+      const label = node.props.label
+      assert(typeof label === "string")
+      statuses[label] = node.props.value
+    }
     if (node.element === "Screen" || node.element === "Fragment") node.children.forEach(visit)
   }
   visit(loaded.resolvedUi)
