@@ -17,6 +17,32 @@
   },
   {
     "type": "function",
+    "name": "MAX_CLAIM_PERIOD",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "RECOVERY_HORIZON",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "VOUCHER_TYPEHASH",
     "inputs": [],
     "outputs": [
@@ -60,6 +86,16 @@
             "name": "claimPeriod",
             "type": "uint64",
             "internalType": "uint64"
+          },
+          {
+            "name": "closeAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "escrowTotal",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -78,6 +114,37 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "closeChannel",
+    "inputs": [
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "closePosition",
+    "inputs": [
+      {
+        "name": "customer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -245,6 +312,30 @@
   },
   {
     "type": "function",
+    "name": "refund",
+    "inputs": [
+      {
+        "name": "customer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "registerVoucherKey",
     "inputs": [
       {
@@ -256,6 +347,19 @@
         "name": "voucherKey",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "renewPosition",
+    "inputs": [
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -297,6 +401,24 @@
       },
       {
         "name": "payee",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setRefundRecipient",
+    "inputs": [
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipient",
         "type": "address",
         "internalType": "address"
       }
@@ -422,6 +544,41 @@
             "internalType": "address"
           },
           {
+            "name": "scheduledRefundAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "refundAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "settleAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "closeAt",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "escrowTotal",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "refundRecipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "phase",
+            "type": "uint8",
+            "internalType": "enum PayToPlay.Phase"
+          },
+          {
             "name": "actions",
             "type": "string[]",
             "internalType": "string[]"
@@ -483,6 +640,25 @@
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "ChannelClosing",
+    "inputs": [
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "closeAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
   },
   {
     "type": "event",
@@ -636,6 +812,112 @@
   },
   {
     "type": "event",
+    "name": "PositionClosing",
+    "inputs": [
+      {
+        "name": "customer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "refundAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PositionRenewed",
+    "inputs": [
+      {
+        "name": "customer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "refundAt",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RefundRecipientChanged",
+    "inputs": [
+      {
+        "name": "customer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "Refunded",
+    "inputs": [
+      {
+        "name": "customer",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "channelId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "VoucherCollected",
     "inputs": [
       {
@@ -759,6 +1041,11 @@
   },
   {
     "type": "error",
+    "name": "ChannelClosed",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ChannelNotFound",
     "inputs": [
       {
@@ -770,7 +1057,28 @@
   },
   {
     "type": "error",
+    "name": "ClaimPeriodTooLong",
+    "inputs": [
+      {
+        "name": "claimPeriod",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ClosureAuthorityRequired",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "InvalidPayee",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidRefundRecipient",
     "inputs": []
   },
   {
@@ -849,8 +1157,29 @@
   },
   {
     "type": "error",
+    "name": "PositionNotOperating",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RecoveryNotScheduled",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "ReentrancyGuardReentrantCall",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RefundNotReady",
+    "inputs": [
+      {
+        "name": "refundAt",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
@@ -865,6 +1194,17 @@
         "name": "str",
         "type": "string",
         "internalType": "string"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "VoucherCollectionEnded",
+    "inputs": [
+      {
+        "name": "refundAt",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ]
   },

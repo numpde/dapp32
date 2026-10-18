@@ -418,7 +418,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "For this owner and channel, the total includes earlier voucher payments. With a signed total of 100 wei and 30 wei already paid, up to 70 wei remains authorized, limited by the current remaining balance. After a partial payment and later deposit, the same voucher can pay again. Authorization does not expire. Payments go to the current recipient."
+            "text": "For this owner and channel, the total includes earlier voucher payments. With a signed total of 100 wei and 30 wei already paid, up to 70 wei remains authorized, limited by the current remaining balance. After a partial payment and later deposit, the same voucher can pay again. Collection stops at the recovery deadline. Old unpaid vouchers can apply again if this position is refunded and later funded in an open channel. Payments go to the current recipient."
           }
         },
         {
@@ -580,6 +580,26 @@
           }
         },
         {
+          "element": "Button",
+          "props": {
+            "label": "Manage recovery and channel closure"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "recovery",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
+            }
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "New funding stops when settlement begins. Use recovery controls to inspect the annual deadline, renew this position, or return a due balance."
+          }
+        },
+        {
           "element": "Include",
           "call": {
             "namespace": "ui",
@@ -685,7 +705,7 @@
         {
           "element": "Text",
           "props": {
-            "text": "A channel’s withdrawal wait cannot change. After creation, find its ID in the ChannelCreated event in your transaction receipt. This viewer shows the transaction hash, but does not decode that event. The lookup lets you enter the ID once you have it."
+            "text": "A channel’s withdrawal wait cannot change and must be at most 30 days. After creation, find its exact ID in the ChannelCreated event in the receipt; the viewer does not decode that event."
           }
         }
       ]
@@ -783,6 +803,268 @@
             "function": "balanceChooserFields",
             "args": {
               "view": "$view"
+            }
+          }
+        }
+      ]
+    },
+    "recovery": {
+      "requires": [
+        "view"
+      ],
+      "element": "Screen",
+      "props": {
+        "title": "Pay-to-Play recovery"
+      },
+      "children": [
+        {
+          "element": "Text",
+          "props": {
+            "text": "Recovery for this account and channel"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Balance owner",
+            "value": "$view.customer"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel ID",
+            "value": "$view.channelId"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Phase (0 operating, 1 settling, 2 refund-only)",
+            "value": "$view.phase"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Current balance (wei)",
+            "value": "$view.balance"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Total channel escrow (wei)",
+            "value": "$view.escrowTotal"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Full-refund recipient",
+            "value": "$view.refundRecipient"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Position’s scheduled refund",
+            "value": "$view.scheduledRefundAt",
+            "format": "timestampSeconds",
+            "zeroText": "No active funding cycle"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Settlement begins",
+            "value": "$view.settleAt",
+            "format": "timestampSeconds",
+            "zeroText": "Not scheduled"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Full refund available at",
+            "value": "$view.refundAt",
+            "format": "timestampSeconds",
+            "zeroText": "Not scheduled"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Channel permanently closes at",
+            "value": "$view.closeAt",
+            "format": "timestampSeconds",
+            "zeroText": "Channel not retiring"
+          }
+        },
+        {
+          "element": "Status",
+          "props": {
+            "label": "Final claim period",
+            "value": "$view.claimPeriod",
+            "format": "durationSeconds"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Each funded position operates for 365 days, then enters this channel’s final claim period. At the refund deadline, voucher collection stops and anyone may return the entire remaining balance. An earlier channel closure takes precedence. Times are chain timestamps, not your device clock."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Review annual renewal"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "renewPosition",
+            "args": {
+              "channelId": "$view.channelId"
+            }
+          },
+          "enabledWhen": {
+            "member": "renewPosition",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Only the balance owner can renew, and only before settlement begins. A positive deposit or incoming move also renews an operating position. Zero deposits, collection, and relayer calls do not postpone recovery. Renewal does not change an ordinary withdrawal request."
+          }
+        },
+        {
+          "element": "TextField",
+          "props": {
+            "label": "New full-refund recipient"
+          },
+          "state": {
+            "key": "newRefundRecipient",
+            "defaultValue": "$view.refundRecipient"
+          },
+          "enabledWhen": {
+            "member": "setRefundRecipient",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Review refund recipient"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "setRefundRecipient",
+            "args": {
+              "channelId": "$view.channelId",
+              "recipient": "$state.newRefundRecipient"
+            }
+          },
+          "enabledWhen": {
+            "member": "setRefundRecipient",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Only the balance owner can choose the full-refund recipient. This does not change ordinary withdrawals, which still pay the owner. It changes no deadline or voucher authority. A failed refund retains the balance and can be retried after the owner corrects the recipient."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Review position wind-down"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "closePosition",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
+            }
+          },
+          "enabledWhen": {
+            "member": "closePosition",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "The balance owner, admin, or current payee can end this funding cycle early. This immediately stops deposits, incoming moves and renewal. The final claim period cannot be restarted or cancelled; an earlier deadline is preserved. Existing withdrawal entitlements are not postponed."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Review full refund"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "refund",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
+            }
+          },
+          "enabledWhen": {
+            "member": "refund",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "A full refund pays only the displayed recipient, never the caller, and clears the withdrawal request and funding cycle. The key and lifetime paid total remain. If the channel is open, later funding starts a new annual cycle and old unpaid vouchers can collect again. Refunding an empty cycle may be necessary before reuse."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Review permanent channel retirement"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "closeChannel",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
+            }
+          },
+          "enabledWhen": {
+            "member": "closeChannel",
+            "in": "$view.actions"
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "CHANNEL-WIDE, IRREVERSIBLE: the admin or current payee can stop this channel for every customer. New funding stops immediately. After the final claim period, remaining balances are individually refundable; one rejecting recipient cannot block others. The channel ID never reopens. Channel 0 can be retired only by the admin."
+          }
+        },
+        {
+          "element": "Text",
+          "props": {
+            "text": "Closing the channel does not send coins or loop over customers. Refund transactions must be submitted separately. Total channel escrow reaches zero only when all accounted customer balances have been collected, withdrawn, moved out, or refunded."
+          }
+        },
+        {
+          "element": "Button",
+          "props": {
+            "label": "Return to account balance"
+          },
+          "call": {
+            "namespace": "routes",
+            "function": "position",
+            "args": {
+              "customer": "$view.customer",
+              "channelId": "$view.channelId"
             }
           }
         }

@@ -23,7 +23,11 @@ async function fixture() {
   const root = new Uint8Array(await readFile(new URL("main.json", directory)))
   const cam = parseCam(parseJsonBytes(root))
   const abi = parseJsonBytes(new Uint8Array(await readFile(new URL("abi/PayToPlay.json", directory)))) as Abi
-  const chainState = { channelCount: 3n, payee: other, mature: false, voucherKey }
+  const chainState = {
+    channelCount: 3n, payee: other, mature: false, voucherKey,
+    phase: 0n, scheduledRefundAt: 31536160n, refundAt: 31536160n,
+    closeAt: 0n, balance: 100n, refundRecipient: customer,
+  }
   const publicClient: CamPublicClient = {
     getChainId: async () => 31337,
     readContract: async request => {
@@ -37,14 +41,23 @@ async function fixture() {
         const id = BigInt(String(channelId))
         const key = id === 0n ? zero : chainState.voucherKey
         const ownPosition = actor === viewedCustomer && actor !== zero
-        const voucherActions = id === 0n ? [] : key !== zero ? ["collect"] : ownPosition ? ["registerVoucherKey"] : []
+        const operating = chainState.phase === 0n
+        const operator = actor !== zero && (actor === other || (id !== 0n && actor === chainState.payee))
+        const voucherActions = id === 0n ? [] : key !== zero && chainState.phase !== 2n ? ["collect"] : key === zero && ownPosition && operating ? ["registerVoucherKey"] : []
         return {
           customer: viewedCustomer, channelId: id, payee: chainState.payee, claimPeriod: 60n,
-          channelCount: chainState.channelCount, admin: other, balance: 100n, voucherPaid: 0n,
-          requestedAmount: 0n, readyAt: 0n, effectiveBalance: 100n, voucherKey: key,
+          channelCount: chainState.channelCount, admin: other, balance: chainState.balance, voucherPaid: 0n,
+          requestedAmount: 0n, readyAt: 0n, effectiveBalance: chainState.balance, voucherKey: key,
+          scheduledRefundAt: chainState.scheduledRefundAt, refundAt: chainState.refundAt,
+          settleAt: chainState.refundAt === 0n ? 0n : chainState.refundAt - 60n,
+          closeAt: chainState.closeAt, escrowTotal: chainState.balance,
+          refundRecipient: chainState.refundRecipient, phase: chainState.phase,
           actions: [
-            ...(actor === other ? ["createChannel", ...(id !== 0n ? ["setPayee"] : [])] : []),
-            ...(ownPosition ? ["fund", "requestWithdrawal", "setWithdrawal", ...(chainState.mature ? ["withdraw", "move"] : [])] : []),
+            ...(actor === other ? ["createChannel", ...(id !== 0n && (chainState.closeAt === 0n || chainState.phase !== 2n) ? ["setPayee"] : [])] : []),
+            ...(ownPosition ? ["setRefundRecipient", ...(operating ? ["fund", "requestWithdrawal", "setWithdrawal", ...(chainState.scheduledRefundAt !== 0n ? ["renewPosition"] : [])] : []), ...(chainState.mature ? ["withdraw", "move"] : [])] : []),
+            ...((ownPosition || operator) && operating && chainState.scheduledRefundAt !== 0n ? ["closePosition"] : []),
+            ...(operator && chainState.closeAt === 0n ? ["closeChannel"] : []),
+            ...(chainState.phase === 2n && (chainState.balance !== 0n || chainState.scheduledRefundAt !== 0n) ? ["refund"] : []),
             ...voucherActions,
           ],
         }
@@ -243,4 +256,71 @@ test("registration is owner-only and collection follows the registered key on re
   buttons = resolvedUiButtons(opened.resolvedUi)
   assert.equal(buttons.find(button => button.call.function === "registerVoucherKey")?.disabled, true)
   assert.equal(buttons.find(button => button.call.function === "collect")?.disabled, true)
+})
+
+test("recovery writes bind the appropriate owner and never accept executor-selected refund destinations", async () => {
+  const { cam, abi } = await fixture()
+  for (const [route, inputs] of Object.entries({
+    renewPosition: { channelId: "1" },
+    setRefundRecipient: { channelId: "1", recipient: voucherKey },
+    closePosition: { customer: other, channelId: "1" },
+    closeChannel: { customer: other, channelId: "1" },
+    refund: { customer: other, channelId: "1" },
+  })) {
+    const options = { cam, contracts: { "contracts.PayToPlay": { address: contract, abi } }, host, account: { address: customer }, route }
+    const prepared = prepareViewerContractCall({ ...options, inputs: toInertValue(inputs) as InertRecord })
+    const senderOwned = route === "renewPosition" || route === "setRefundRecipient"
+    assert.deepEqual(prepared.then, toInertValue({ namespace: "routes", function: "recovery", args: { customer: senderOwned ? customer : other, channelId: "1" } }))
+    if (senderOwned) assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...inputs, customer: other } }))
+    if (route === "refund") assert.throws(() => prepareViewerContractCall({ ...options, inputs: { ...inputs, recipient: voucherKey } }))
+  }
+})
+
+test("recovery navigation stays pinned and follows contract-returned phase and permissions", async () => {
+  const { session, chainState } = await fixture()
+  await session.load()
+  await session.navigate("position", { customer, channelId: "1" })
+  await session.dispatchAction(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "recovery")!)
+  assert.equal(session.snapshot().route, "recovery")
+  assert.deepEqual(session.snapshot().inputs, toInertValue({ customer, channelId: "1" }))
+  const availability = () => Object.fromEntries(resolvedUiButtons(session.snapshot().resolvedUi!).map(button => [button.call.function, !button.disabled]))
+  assert.equal(availability().renewPosition, true)
+  assert.equal(availability().closePosition, true)
+  assert.equal(availability().closeChannel, false)
+  assert.equal(availability().refund, false)
+  session.updateState({ newRefundRecipient: voucherKey })
+  const switched = await session.setAccount({ address: other })
+  assert.deepEqual(switched.inputs, toInertValue({ customer, channelId: "1" }))
+  assert.equal(switched.state.newRefundRecipient, customer, "wallet changes discard the unfinished recipient edit")
+  assert.equal(availability().setRefundRecipient, false)
+  assert.equal(availability().renewPosition, false)
+  assert.equal(availability().closePosition, true)
+  assert.equal(availability().closeChannel, true)
+  chainState.phase = 1n
+  chainState.closeAt = 160n
+  chainState.refundAt = 160n
+  await session.refresh()
+  assert.equal(availability().closeChannel, false)
+  assert.equal(availability().closePosition, false)
+  assert.equal(availability().refund, false)
+  await session.navigate("position", { customer, channelId: "1" })
+  assert.equal(availability().fund, false)
+  assert.equal(availability().collect, true)
+  chainState.phase = 2n
+  await session.refresh()
+  assert.equal(availability().collect, false)
+  await session.navigate("recovery", { customer, channelId: "1" })
+  await session.setAccount({ address: contract })
+  assert.equal(availability().refund, true, "an unrelated relayer may execute the due refund")
+  assert.equal(availability().setRefundRecipient, false)
+  await session.setAccount({ address: customer })
+  assert.equal(availability().setRefundRecipient, true, "owner may repair a recipient after the deadline")
+  chainState.balance = 0n
+  chainState.scheduledRefundAt = 0n
+  await session.refresh()
+  assert.equal(availability().refund, false, "do not offer repeated empty refunds after channel retirement")
+  assert.equal(availability().renewPosition, false)
+  await session.dispatchAction(resolvedUiButtons(session.snapshot().resolvedUi!).find(button => button.call.function === "position")!)
+  assert.deepEqual(session.snapshot().inputs, toInertValue({ customer, channelId: "1" }))
+  assert.equal(availability().fund, false, "a retired channel never reopens")
 })

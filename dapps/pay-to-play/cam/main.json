@@ -9,7 +9,7 @@
     "contracts.PayToPlay": {
       "type": "contract",
       "abiURI": "./abi/PayToPlay.json",
-      "integrity": "sha256:0x055ce9dea7afc844a7b5f4ab9b7cec0ad26166057f49ad4991870b3c78bd1534"
+      "integrity": "sha256:0xffeacf02af420f80b0b266c3013c2772c1a006574030122a53b749a713d42716"
     },
     "routes": {
       "type": "routes"
@@ -17,7 +17,7 @@
     "ui": {
       "type": "ui",
       "uri": "./ui.json",
-      "integrity": "sha256:0x673db2353ef6f62591bbe493e488a89f1d1b13c7fd02a338ccd5ca4855c370dd"
+      "integrity": "sha256:0xa2e9b4cc12fa86994692d712699a8d515c7dc203a8212ea6d58bd99ca1000c43"
     }
   },
   "routes": {
@@ -358,6 +358,141 @@
             "channelCount": "$outputs.0.channelCount",
             "actions": "$outputs.0.actions"
           }
+        }
+      }
+    },
+    "recovery": {
+      "kind": "read",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "viewPosition",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId",
+          "actor": "$account.address"
+        }
+      },
+      "then": {
+        "namespace": "ui",
+        "function": "recovery",
+        "args": {
+          "view": "$outputs.0"
+        }
+      }
+    },
+    "renewPosition": {
+      "kind": "write",
+      "inputs": [
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "renewPosition",
+        "args": {
+          "channelId": "$inputs.channelId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "recovery",
+        "args": {
+          "customer": "$account.address",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "setRefundRecipient": {
+      "kind": "write",
+      "inputs": [
+        "channelId",
+        "recipient"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "setRefundRecipient",
+        "args": {
+          "channelId": "$inputs.channelId",
+          "recipient": "$inputs.recipient"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "recovery",
+        "args": {
+          "customer": "$account.address",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "closePosition": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "closePosition",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "recovery",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "closeChannel": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "closeChannel",
+        "args": {
+          "channelId": "$inputs.channelId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "recovery",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      }
+    },
+    "refund": {
+      "kind": "write",
+      "inputs": [
+        "customer",
+        "channelId"
+      ],
+      "call": {
+        "namespace": "contracts.PayToPlay",
+        "function": "refund",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
+        }
+      },
+      "then": {
+        "namespace": "routes",
+        "function": "recovery",
+        "args": {
+          "customer": "$inputs.customer",
+          "channelId": "$inputs.channelId"
         }
       }
     }
