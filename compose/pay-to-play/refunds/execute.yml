@@ -1,0 +1,21 @@
+# Add only after an explicit bounded signing grant. No customer voucher key is
+# needed: this dedicated relayer key pays gas for permissionless refunds only.
+services:
+  pay-to-play-refunds:
+    environment:
+      REFUND_EXECUTE: "YES"
+      REFUND_PRIVATE_KEY_FILE: /run/secrets/refund-relayer
+      REFUND_STATE_DIR: /state
+    volumes:
+      - type: bind
+        source: "${REFUND_PRIVATE_KEY_FILE:?missing_REFUND_PRIVATE_KEY_FILE}"
+        target: /run/secrets/refund-relayer
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${REFUND_STATE_DIR:?missing_REFUND_STATE_DIR}"
+        target: /state
+        read_only: false
+        bind:
+          create_host_path: false

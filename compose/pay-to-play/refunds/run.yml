@@ -1,0 +1,37 @@
+# Explicit operator RPC lane. Default is a read-only refund plan; the signing
+# grant is in execute.yml and is never loaded by the plan/check targets.
+services:
+  pay-to-play-refunds:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    environment:
+      REFUND_EXECUTE: "NO"
+      REFUND_CONFIG_FILE: /run/secrets/refund-config
+      RPC_URL_FILE: /run/secrets/refund-rpc
+    volumes:
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+      - ../../../dapps/pay-to-play/cam/abi:/work/dapps/pay-to-play/cam/abi:ro
+      - type: bind
+        source: "${REFUND_CONFIG_FILE:?missing_REFUND_CONFIG_FILE}"
+        target: /run/secrets/refund-config
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
+        target: /run/secrets/refund-rpc
+        read_only: true
+        bind:
+          create_host_path: false
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build -w @cam/protocol -w @cam/core -w @cam/evm-viem
+        ./node_modules/.bin/tsc -p tools/pay-to-play-refunds/tsconfig.json
+        node --experimental-strip-types tools/pay-to-play-refunds/runner.ts

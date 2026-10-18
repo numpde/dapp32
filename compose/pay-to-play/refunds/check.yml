@@ -1,0 +1,19 @@
+# Offline verification only: no RPC credentials and no signing key.
+services:
+  pay-to-play-refunds-check:
+    extends:
+      file: ../../fragments/node-workspace.yml
+      service: offline-node-workspace
+    working_dir: /work
+    volumes:
+      - ../../../js:/input/js:ro
+      - ../../../js/node_modules:/work/js/node_modules:ro
+      - ../../../dapps/pay-to-play/cam/abi:/work/dapps/pay-to-play/cam/abi:ro
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build -w @cam/protocol -w @cam/core -w @cam/evm-viem
+        npm run test:refund-tools
