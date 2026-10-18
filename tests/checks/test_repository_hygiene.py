@@ -83,6 +83,7 @@ PACKAGE_CI_PREREQS = (
     "cam/integration/fuzz/check",
     "bike-nft/release/check",
     "escrow/release/check",
+    "pay-to-play/refunds/check",
 )
 FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")
 
@@ -317,7 +318,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         )
         self.assertEqual(
             ("tests/checks", "dapps/tests", "js/ci", "tests/live", "cast/offline/check",
-             "pay-to-play/local/scenario/run", "escrow/local/scenario/run", "bike-nft/local/integration/fuzz/run",
+             "pay-to-play/local/recovery/run", "escrow/local/scenario/run", "bike-nft/local/integration/fuzz/run",
              "bike-nft/local/integration/fuzz/fixture-writes/run"),
             self.make_target_prereqs(makefile, "tests"),
         )

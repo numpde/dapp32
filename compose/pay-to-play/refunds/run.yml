@@ -6,6 +6,8 @@ services:
       file: ../../fragments/node-workspace.yml
       service: hardened-node-workspace
     working_dir: /work
+    networks:
+      - refund_rpc_egress
     environment:
       REFUND_EXECUTE: "NO"
       REFUND_CONFIG_FILE: /run/secrets/refund-config
@@ -35,3 +37,6 @@ services:
         npm run build -w @cam/protocol -w @cam/core -w @cam/evm-viem
         ./node_modules/.bin/tsc -p tools/pay-to-play-refunds/tsconfig.json
         node --experimental-strip-types tools/pay-to-play-refunds/runner.ts
+
+networks:
+  refund_rpc_egress:

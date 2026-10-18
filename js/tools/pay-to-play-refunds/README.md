@@ -15,18 +15,17 @@ channel, scan interval, confirmations, gas, fees and transaction count.
 Run from the repository root after the normal explicit dependency installation:
 
 ```sh
-make -f tools/pay-to-play-refunds.mk help
-make -f tools/pay-to-play-refunds.mk pay-to-play/refunds/check
-make -f tools/pay-to-play-refunds.mk pay-to-play/local/recovery/run
+make help
+make pay-to-play/refunds/check
+make pay-to-play/local/recovery/run
 ```
 
-The supplemental Makefile includes the root Makefile and reuses its non-root,
-source-path and dependency guards. Keep the `-f` argument: these additional
-operator targets are not declared by the root Makefile alone. The recovery
+The root Makefile owns these targets and their non-root, source-path and
+dependency guards. The recovery
 scenario runs the existing disposable scenario first and then the recovery CAM
 scenario, using the same isolated deployment and cleanup. It does not contact
 an operator deployment. The offline `check` target typechecks the entire worker
-and runs its tests. Worker tests are also included in the JS workspace suite.
+and runs its tests as part of `make js/ci`.
 
 ## Configuration
 
@@ -90,7 +89,7 @@ Put the RPC URL in a separate owner-only 0600 file. Do not put RPC credentials
 in command-line values. Supply absolute, non-symlink file paths:
 
 ```sh
-make -f tools/pay-to-play-refunds.mk pay-to-play/refunds/plan \
+make pay-to-play/refunds/plan \
   REFUND_CONFIG_FILE=/secure/refunds/config.json \
   RPC_URL_FILE=/secure/refunds/rpc-url
 ```
@@ -116,7 +115,7 @@ contain one 0x-prefixed 32-byte private key, and be mounted read-only. Never
 commit these files, logs containing credentials, or signed transaction bytes.
 
 ```sh
-make -f tools/pay-to-play-refunds.mk pay-to-play/refunds/run \
+make pay-to-play/refunds/run \
   REFUND_CONFIG_FILE=/secure/refunds/config.json \
   RPC_URL_FILE=/secure/refunds/rpc-url \
   REFUND_PRIVATE_KEY_FILE=/secure/refunds/relayer-key \

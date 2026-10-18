@@ -6,10 +6,10 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { createPublicClient, createWalletClient, decodeEventLog, http, keccak256, parseAbiItem, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
-import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "@cam/evm-viem"
-import { createCamViewerSession } from "@cam/viewer"
-import { resolvedUiButtons } from "@cam/screen"
-import { createSameOriginHttpResourceLoader, isRecordObject, parseJsonBytes, requireHttpURL, toInertValue, type InertRecord } from "@cam/protocol"
+import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "../../packages/cam-evm-viem/dist/index.js"
+import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
+import { resolvedUiButtons } from "../../packages/cam-screen/dist/index.js"
+import { createSameOriginHttpResourceLoader, isRecordObject, parseJsonBytes, requireHttpURL, toInertValue, type InertRecord } from "../../packages/cam-protocol/dist/index.js"
 import { discoverCustomers, runRefundBatch, type Position, type Report } from "../pay-to-play-refunds/core.ts"
 
 let phase = "configuration"
@@ -29,7 +29,7 @@ async function main() {
   // It cannot be pointed at an operator chain or an arbitrary remote RPC.
   const rpcURL = requireHttpURL(required("PAY_TO_PLAY_SCENARIO_RPC_URL"), "fixture RPC")
   assert.equal(rpcURL.protocol, "http:")
-  assert(["pay-to-play-anvil", "127.0.0.1", "localhost", "[::1]"].includes(rpcURL.hostname))
+  assert(["pay-to-play-anvil", "127.0.0.1", "localhost", "[::1]"].includes(new URL(rpcURL.href).hostname))
   const broadcast = record(parseJsonBytes(new Uint8Array(readFileSync(required("PAY_TO_PLAY_SCENARIO_BROADCAST_PATH")))))
   assert(Array.isArray(broadcast.transactions))
   function deployed(name: string): Address {
@@ -95,10 +95,10 @@ async function main() {
     const current = (await client.getBlock()).timestamp
     assert(timestamp > current)
     // Explicit fixture-only method; production worker never calls time controls.
-    const response = await fetch(rpcURL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "evm_setNextBlockTimestamp", params: [Number(timestamp)] }), signal: AbortSignal.timeout(10_000) })
+    const response = await fetch(rpcURL.href, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "evm_setNextBlockTimestamp", params: [Number(timestamp)] }), signal: AbortSignal.timeout(10_000) })
     assert(response.ok)
     assert.equal(record(await response.json()).error, undefined)
-    const mined = await fetch(rpcURL, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "evm_mine", params: [] }), signal: AbortSignal.timeout(10_000) })
+    const mined = await fetch(rpcURL.href, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "evm_mine", params: [] }), signal: AbortSignal.timeout(10_000) })
     assert(mined.ok)
     assert.equal(record(await mined.json()).error, undefined)
     await session.refresh()
@@ -253,6 +253,25 @@ async function main() {
     const journal = record(JSON.parse(readFileSync(join(directory, "refunds.json"), "utf8")))
     assert.equal(journal.pending, null)
     assert.equal(record(journal.lastReceipt).status, "confirmed")
+    // A confirmed receipt plus a failed durable write is fatal, not an unknown receipt.
+    const receipt = record(journal.lastReceipt)
+    writeFileSync(join(directory, "refunds.json"), JSON.stringify({ ...journal, pending: {
+      customer: receipt.customer, hash: receipt.hash, nonce: receipt.nonce,
+    } }), { mode: 0o600 })
+    const fault = join(directory, "receipt-write-fault.mjs")
+    writeFileSync(fault, `import fs from 'node:fs';import {syncBuiltinESMExports} from 'node:module';
+const rename=fs.renameSync;fs.renameSync=(source,target)=>{if(target.endsWith('/refunds.json'))throw Object.assign(new Error('SECRET_FAULT_BODY'),{code:'EACCES',syscall:'rename'});return rename(source,target)};syncBuiltinESMExports();`)
+    const failed = await new Promise<{ code: number; stdout: string; stderr: string }>(resolve => {
+      execFile(process.execPath, ["--import", fault, "--experimental-strip-types", fileURLToPath(new URL("../pay-to-play-refunds/runner.ts", import.meta.url))], {
+        env: { REFUND_CONFIG_FILE: configFile, RPC_URL_FILE: rpcFile, REFUND_EXECUTE: "YES", REFUND_PRIVATE_KEY_FILE: keyFile, REFUND_STATE_DIR: directory },
+        timeout: 90_000, maxBuffer: 262_144,
+      }, (error, stdout, stderr) => resolve({ code: error ? (typeof error.code === "number" ? error.code : -1) : 0, stdout, stderr }))
+    })
+    assert.equal(failed.code, 1, "confirmed receipt persistence failure must be fatal")
+    assert.match(failed.stderr, /rename.*EACCES/)
+    assert(!failed.stderr.includes("SECRET_FAULT_BODY"))
+    assert(!failed.stdout.includes('"event":"pending"'), "known receipt must not be reported as uncertain")
+    assert.equal(record(JSON.parse(readFileSync(join(directory, "refunds.json"), "utf8"))).pending !== null, true)
   } finally { rmSync(directory, { recursive: true, force: true }) }
   await open("customer", accounts.customer.address, retired, false)
   assert.equal(view().escrowTotal, "0")

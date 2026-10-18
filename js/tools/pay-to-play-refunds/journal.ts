@@ -2,6 +2,7 @@ import { constants, closeSync, existsSync, fsyncSync, fstatSync, lstatSync, mkdi
 import { randomUUID } from "node:crypto"
 import { isAbsolute, join, resolve } from "node:path"
 import type { Address, Hex } from "./core.ts"
+import { RefundWorkerError } from "./core.ts"
 
 export interface Identity { chainId: string; payment: Address; codeHash: Hex; channelId: string }
 export interface Pending { customer: Address; hash: Hex; nonce: number }
@@ -18,7 +19,7 @@ export function readProtectedFile(path: string, maxBytes: number): string {
   try {
     const stat = fstatSync(fd)
     if (!stat.isFile() || stat.size > maxBytes || (stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.()) {
-      throw new Error("Expected a bounded, owner-only regular file")
+      throw new RefundWorkerError("Expected a bounded, owner-only regular file")
     }
     const bytes = Buffer.alloc(maxBytes + 1)
     let length = 0
@@ -27,27 +28,27 @@ export function readProtectedFile(path: string, maxBytes: number): string {
       if (count === 0) break
       length += count
     }
-    if (length > maxBytes) throw new Error("File grew past its size limit")
+    if (length > maxBytes) throw new RefundWorkerError("File grew past its size limit")
     return bytes.subarray(0, length).toString("utf8")
   } finally { closeSync(fd) }
 }
 
 function object(value: unknown): Record<string, unknown> {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid journal object")
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new RefundWorkerError("Invalid journal object")
   return value as Record<string, unknown>
 }
 function pending(value: unknown): Pending {
   const p = object(value)
   if (typeof p.customer !== "string" || !/^0x[0-9a-f]{40}$/.test(p.customer)
     || typeof p.hash !== "string" || !/^0x[0-9a-f]{64}$/.test(p.hash)
-    || typeof p.nonce !== "number" || !Number.isSafeInteger(p.nonce) || p.nonce < 0) throw new Error("Invalid pending transaction")
+    || typeof p.nonce !== "number" || !Number.isSafeInteger(p.nonce) || p.nonce < 0) throw new RefundWorkerError("Invalid pending transaction")
   return { customer: p.customer as Address, hash: p.hash as Hex, nonce: p.nonce }
 }
 
 export function openJournal(directory: string, identity: Identity) {
-  if (!isAbsolute(directory) || realpathSync(directory) !== resolve(directory)) throw new Error("State directory must be an absolute non-symlink path")
+  if (!isAbsolute(directory) || realpathSync(directory) !== resolve(directory)) throw new RefundWorkerError("State directory must be an absolute non-symlink path")
   const stat = lstatSync(directory)
-  if (!stat.isDirectory() || (stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.()) throw new Error("State directory must be owner-only")
+  if (!stat.isDirectory() || (stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.()) throw new RefundWorkerError("State directory must be owner-only")
   const lock = join(directory, "refunds.lock")
   // Never remove another process's lock or guess whether its RPC call finished.
   mkdirSync(lock, { mode: 0o700 })
@@ -59,19 +60,19 @@ export function openJournal(directory: string, identity: Identity) {
       const parsed = object(JSON.parse(readProtectedFile(filename, 16_384)))
       const storedIdentity = object(parsed.identity)
       if (parsed.version !== 1 || Object.keys(storedIdentity).length !== 4
-        || Object.entries(identity).some(([key, value]) => storedIdentity[key] !== value)) throw new Error("Journal belongs to a different deployment/channel")
+        || Object.entries(identity).some(([key, value]) => storedIdentity[key] !== value)) throw new RefundWorkerError("Journal belongs to a different deployment/channel")
       state.pending = parsed.pending === null ? null : pending(parsed.pending)
       if (parsed.lastReceipt !== null) {
         const receipt = object(parsed.lastReceipt)
         if ((receipt.status !== "confirmed" && receipt.status !== "reverted") || typeof receipt.blockNumber !== "string"
-          || !/^(0|[1-9][0-9]*)$/.test(receipt.blockNumber) || typeof receipt.blockHash !== "string" || !/^0x[0-9a-f]{64}$/.test(receipt.blockHash)) throw new Error("Invalid last receipt")
+          || !/^(0|[1-9][0-9]*)$/.test(receipt.blockNumber) || typeof receipt.blockHash !== "string" || !/^0x[0-9a-f]{64}$/.test(receipt.blockHash)) throw new RefundWorkerError("Invalid last receipt")
         state.lastReceipt = { ...pending(receipt), status: receipt.status, blockNumber: receipt.blockNumber, blockHash: receipt.blockHash as Hex }
       }
     }
   } catch (error) { rmdirSync(lock); throw error }
 
   function save(next: JournalState) {
-    if (closed) throw new Error("Journal closed")
+    if (closed) throw new RefundWorkerError("Journal closed")
     const temporary = join(directory, `refunds-${randomUUID()}.tmp`)
     const fd = openSync(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600)
     try {
@@ -86,11 +87,11 @@ export function openJournal(directory: string, identity: Identity) {
   return {
     get pending(): Pending | null { return state.pending === null ? null : { ...state.pending } },
     recordPending(transaction: Pending) {
-      if (state.pending !== null) throw new Error("Resolve the pending transaction before signing another")
+      if (state.pending !== null) throw new RefundWorkerError("Resolve the pending transaction before signing another")
       save({ ...state, pending: pending(transaction) })
     },
     recordReceipt(hash: Hex, status: "confirmed" | "reverted", blockNumber: bigint, blockHash: Hex) {
-      if (state.pending === null || state.pending.hash !== hash) throw new Error("Receipt does not match pending transaction")
+      if (state.pending === null || state.pending.hash !== hash) throw new RefundWorkerError("Receipt does not match pending transaction")
       save({ ...state, pending: null, lastReceipt: { ...state.pending, status, blockNumber: blockNumber.toString(), blockHash } })
     },
     close() { if (!closed) { closed = true; rmdirSync(lock) } },

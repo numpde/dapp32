@@ -290,6 +290,9 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "LOCAL_GID": "1000",
                 "LOCAL_UID": "1000",
                 "RPC_URL_FILE": "/tmp/escrow-release-rpc-url",
+                "REFUND_CONFIG_FILE": "/tmp/refund-config",
+                "REFUND_PRIVATE_KEY_FILE": "/tmp/refund-relayer-key",
+                "REFUND_STATE_DIR": "/tmp/refund-state",
                 "VIEWER_URL": "http://127.0.0.1:5174/?chainId=eip155%3A31337&host=0x0000000000000000000000000000000000000001&account=0x0000000000000000000000000000000000000002&rpcUrl=http%3A%2F%2F127.0.0.1%3A5174%2Frpc",
             },
             RENDERED_COMPOSE_FIXTURE_ENV,
@@ -432,6 +435,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             ),
         }
         expected_fixture_keys = {
+            (makefile_compose_unit("REFUND_EXECUTE_COMPOSE_FILES"), "pay-to-play-refunds", "REFUND_PRIVATE_KEY_FILE", "/run/secrets/refund-relayer"),
             ("compose/bike-nft/local/deploy.yml", "deploy-bike-nft-local", "PRIVATE_KEY", ANVIL_DEV_PRIVATE_KEY),
             (
                 makefile_compose_unit("BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES"),
@@ -476,15 +480,16 @@ class RenderedComposePostureTest(unittest.TestCase):
             "PAY_TO_PLAY_RELAYER_PRIVATE_KEY": "0x" + "da" * 32,
             "PAY_TO_PLAY_PAYEE_PRIVATE_KEY": "0x" + "fa" * 32,
         }
-        for unit_name in ("PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES", "PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES"):
+        for unit_name in ("PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES", "PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES", "RECOVERY_SCENARIO_COMPOSE_FILES"):
             compose_unit = makefile_compose_unit(unit_name)
             for name, value in payment_keys.items():
                 expected_fixture_keys.add((compose_unit, "deploy-pay-to-play-local", name, value))
-        for name, value in payment_keys.items():
-            scenario_name = name
-            if name == "PRIVATE_KEY":
-                scenario_name = "PAY_TO_PLAY_ADMIN_PRIVATE_KEY"
-            expected_fixture_keys.add((makefile_compose_unit("PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES"), "pay-to-play-local-scenario", scenario_name, value))
+        for unit_name in ("PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES", "RECOVERY_SCENARIO_COMPOSE_FILES"):
+            for name, value in payment_keys.items():
+                scenario_name = name
+                if name == "PRIVATE_KEY":
+                    scenario_name = "PAY_TO_PLAY_ADMIN_PRIVATE_KEY"
+                expected_fixture_keys.add((makefile_compose_unit(unit_name), "pay-to-play-local-scenario", scenario_name, value))
         actual_ports = set()
         actual_secrets = set()
         actual_fixture_keys = set()
@@ -745,6 +750,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
+            (makefile_compose_unit("REFUND_EXECUTE_COMPOSE_FILES"), "pay-to-play-refunds", "/tmp/refund-state", "/state"),
             ("compose/forge-abi.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
             (
                 "compose/bike-nft/release/deploy.yml",

@@ -336,6 +336,10 @@ help:
 	  '  BIKE_NFT_GUI_BIND_HOST=0.0.0.0 BIKE_NFT_GUI_ORIGIN=http://host:5173 make bike-nft/local/demo/gui/up  Expose the local GUI to another browser host' \
 	  '  make escrow/local/scenario/run      Run all nine escrow terminal paths through the real-RPC CAM viewer' \
 	  '  make pay-to-play/local/scenario/run  Run payment-channel workflows through real-RPC CAM actions' \
+	  '  make pay-to-play/local/recovery/run  Run payment workflows, recovery and refund-batch scenarios once' \
+	  '  make pay-to-play/refunds/check       Offline refund-worker typecheck and tests' \
+	  '  make pay-to-play/refunds/plan REFUND_CONFIG_FILE=... RPC_URL_FILE=...  Preview bounded refunds' \
+	  '  make pay-to-play/refunds/run REFUND_CONFIG_FILE=... RPC_URL_FILE=... REFUND_PRIVATE_KEY_FILE=... REFUND_STATE_DIR=... CONFIRM_PAY_TO_PLAY_REFUNDS=YES  Execute bounded refunds' \
 	  '  make pay-to-play/local/demo/gui/up   Run the generic payment-channel browser viewer on loopback port 5175' \
 	  '  make pay-to-play/local/demo/gui/down Stop the disposable payment-channel browser fixture' \
 	  '  make viewer/local/fixture-wallet/attach FIXTURE_WALLET_APP=... CDP_TARGET_ID=... CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=... EXPECTED_CONTRACT_ADDRESS=...  Attach a local fixture signer to an existing tab' \
@@ -511,7 +515,7 @@ js/build/check:
 js/tests:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check
+js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check pay-to-play/refunds/check
 
 cam/conformance/check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
@@ -796,7 +800,7 @@ dapps/tests/coverage: dapps/deps/verify
 
 dapps/tests: dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant
 
-tests: tests/checks dapps/tests js/ci tests/live cast/offline/check pay-to-play/local/scenario/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run
+tests: tests/checks dapps/tests js/ci tests/live cast/offline/check pay-to-play/local/recovery/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run
 
 ci: dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
 
@@ -1300,3 +1304,40 @@ viewer/local/fixture-wallet/attach:
 	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
 	EXPECTED_CONTRACT_ADDRESS="$${EXPECTED_CONTRACT_ADDRESS:?Set EXPECTED_CONTRACT_ADDRESS}" \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/browser-fixture-wallet.yml run --build --rm --no-deps -T browser-fixture-wallet
+export REFUND_CONFIG_FILE RPC_URL_FILE REFUND_PRIVATE_KEY_FILE REFUND_STATE_DIR
+.PHONY: pay-to-play/local/recovery/run pay-to-play/refunds/check pay-to-play/refunds/plan pay-to-play/refunds/run
+REFUND_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/refunds/check.yml
+REFUND_PLAN_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/refunds/run.yml
+REFUND_EXECUTE_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/refunds/run.yml -f $(COMPOSE_DIR)/pay-to-play/refunds/execute.yml
+
+pay-to-play/refunds/check:
+	@$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(REFUND_CHECK_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds-check
+
+define refund_input_guards
+$(LANE_GUARD); $(PACKAGE_DEPS_GUARD); \
+$(release_host_guard_functions); \
+require_protected_release_file "$${REFUND_CONFIG_FILE:?Set REFUND_CONFIG_FILE}" REFUND_CONFIG_FILE REFUND_CONFIG_FILE; \
+require_protected_release_file "$${RPC_URL_FILE:?Set RPC_URL_FILE}" RPC_URL_FILE RPC_URL_FILE
+endef
+
+pay-to-play/refunds/plan:
+	@$(refund_input_guards); \
+	$(COMPOSE_ENV) env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_PLAN_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
+
+pay-to-play/refunds/run:
+	@$(refund_input_guards); \
+	if [[ "$${CONFIRM_PAY_TO_PLAY_REFUNDS:?Set CONFIRM_PAY_TO_PLAY_REFUNDS=YES}" != YES ]]; then printf '%s\n' 'Set CONFIRM_PAY_TO_PLAY_REFUNDS=YES after reviewing deployment pins, scope and the gas budget.' >&2; exit 2; fi; \
+	require_protected_release_file "$${REFUND_PRIVATE_KEY_FILE:?Set REFUND_PRIVATE_KEY_FILE}" REFUND_PRIVATE_KEY_FILE REFUND_PRIVATE_KEY_FILE; \
+	state="$${REFUND_STATE_DIR:?Set REFUND_STATE_DIR}"; \
+	if [[ "$$state" != /* || "$$(realpath -m -- "$$state")" != "$$state" ]]; then printf '%s\n' 'REFUND_STATE_DIR must be a normalized absolute path.' >&2; exit 2; fi; \
+	reject_release_path_symlinks "$$state" REFUND_STATE_DIR; \
+	if [[ ! -d "$$state" || "$$(stat -c %a -- "$$state")" != 700 || "$$(stat -c %u -- "$$state")" != "$(LOCAL_UID)" ]]; then printf '%s\n' 'Pre-create REFUND_STATE_DIR owned by LOCAL_UID with mode 0700.' >&2; exit 2; fi; \
+	case "$$state" in "$$(pwd -P)"|"$$(pwd -P)"/*) printf '%s\n' 'REFUND_STATE_DIR must be outside the repository.' >&2; exit 2 ;; esac; \
+	$(COMPOSE_ENV) env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(REFUND_EXECUTE_COMPOSE_FILES) run --build --rm --no-deps -T pay-to-play-refunds
+
+# Reuse the maintained fixture lifecycle and its existing account grants. The
+# overlay replaces only the scenario command; no live RPC or signing key mounts.
+RECOVERY_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/local/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/local/http.yml -f $(COMPOSE_DIR)/pay-to-play/local/scenario.yml -f $(COMPOSE_DIR)/pay-to-play/local/recovery-scenario.yml
+pay-to-play/local/recovery/run:
+	@$(MAKE) pay-to-play/local/scenario/run PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES="$(RECOVERY_SCENARIO_COMPOSE_FILES)"

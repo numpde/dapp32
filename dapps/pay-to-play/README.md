@@ -409,8 +409,8 @@ make dapps/tests
 make js/tests
 make cam/conformance/check
 make pay-to-play/local/scenario/run
-make -f tools/pay-to-play-refunds.mk pay-to-play/refunds/check
-make -f tools/pay-to-play-refunds.mk pay-to-play/local/recovery/run
+make pay-to-play/refunds/check
+make pay-to-play/local/recovery/run
 ```
 
 The original scenario remains unchanged. The additional recovery target runs
