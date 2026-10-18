@@ -34,11 +34,15 @@ that the service must retain and reconcile durably.
 ## A channel is shared; each account's balance is separate
 
 A channel defines one current payment recipient and one fixed claim period.
+The claim period is the wait for an ordinary withdrawal and the final window
+for voucher collection during wind-down; it is not a voucher expiry field.
 Each `(customer, channelId)` has a separate position: balance, lifetime amount
 actually paid, permanent voucher key, optional ordinary withdrawal request,
 funding-cycle deadline and optional full-refund recipient. Channels are not
 individual customer wallets. Alice's balances in channels 7 and 8 are separate,
-as are Alice's and Bob's balances in channel 7.
+as are Alice's and Bob's balances in channel 7. The contract holds the coins;
+the balance belongs to the recorded customer address, not to the channel payee
+or the wallet currently viewing it. A wallet is how an account authorizes calls.
 
 | Identity | Authority |
 | --- | --- |
@@ -49,9 +53,11 @@ as are Alice's and Bob's balances in channel 7.
 | Relayer | May collect a supplied valid voucher, complete an authorized mature withdrawal, or execute a due full refund. Receives no right to choose the destination. |
 
 The selected account in the viewer determines displayed actions but does not
-prove signing authority. Before sending, the connected wallet must match the
+prove signing authority. Before a wallet connects, that account comes from the
+link. Before sending, the connected wallet must match the
 acting account used for review. Viewing another customer's balance never grants
-control over that balance.
+control over that balance. Connecting or switching a wallet selects its active
+account; it does not change the owner of an already-opened balance.
 
 ## Use the app
 
@@ -89,8 +95,9 @@ required. Verify signing access before choosing: the contract does not prove
 that you possess the selected private key.
 
 The key cannot be replaced, revoked or reset, including after a full refund.
-Changing wallet owners, software or delegation does not invalidate K's ordinary
-ECDSA signatures. Collection never consults the customer's or key address's
+Changing who controls the balance-owner account, its wallet software or its
+delegations does not revoke K or invalidate its ECDSA signatures.
+Collection never consults the customer's or key address's
 ERC-1271 policy, and neither address is required to remain code-free. A smart
 wallet can own the deposit and register an external ECDSA key.
 
@@ -110,7 +117,8 @@ payment = min(max(authorized total - lifetime actually paid, 0), current balance
 A registered key and valid canonical ECDSA signature are required even for a
 zero payment. Only successful voucher transfers increase `voucherPaid`.
 
-A voucher for 100 can collect 30 from a balance of 30, then another 20 after a
+A position starting with `voucherPaid = 0` and a voucher for 100 can collect 30
+from a balance of 30, then another 20 after a
 20 deposit, leaving 50 of authorization outstanding. Reusing the same voucher
 cannot exceed its unpaid total. A higher voucher does not invalidate lower
 ones whose totals still exceed actual payments. Funding, movement, withdrawals
@@ -155,10 +163,17 @@ when a different full-refund recipient has been configured. Because withdrawal
 is permissionless, another caller can execute it before an owner's intended
 internal move and consume their common request.
 
+Moving changes internal balances, not the contract's native-coin balance. The
+cold-storage gas tests measure 104,390 execution gas into a previously unfunded
+channel and 53,349 into a funded channel, including recovery scheduling. Their
+regression ceilings are 130,000 and 67,000 respectively. These are callee
+execution figures before refunds, not full transaction gas charges or fee quotes.
+
 ## Full recovery and channel retirement
 
 Let H be 365 days and G the channel's fixed claim period (between zero and
-30 days). Positive funding initializes or renews a position's deadline to
+30 days). Here `now` means the timestamp of the block executing the transaction.
+Positive funding initializes or renews a position's deadline to
 `now + H + G`, without shortening a later deadline. Positive incoming moves and
 explicit owner renewal do the same while operating. Zero deposits, collection,
 relayer calls, key registration and recipient changes do not renew it.
@@ -174,10 +189,11 @@ The first positive funding starts it. With G = seven days, annual settlement
 begins on day 365 and full refund becomes available on day 372. No initiating
 transaction is needed for these phase transitions, but a refund transaction
 must still be submitted. No process runs automatically when time passes.
+With a zero claim period, the settling window has zero duration.
 
 ### Early wind-down
 
-The consumer, admin or current channel payee may call
+The balance owner, contract admin or current channel payee may call
 `closePosition(customer, channelId)` at any time for a scheduled funding cycle.
 It shortens the deadline to `now + G` only when that is earlier than the current
 effective deadline. An unscheduled position is a no-op. Repeated calls cannot
@@ -330,8 +346,12 @@ caused only by time emit no event: monitor deadlines as well as event streams.
 
 A service must maintain durable purchase IDs, cumulative authorization and
 outstanding accepted-but-uncollected value. With balance B, withdrawal request R,
-actual paid P and greatest accepted total A, additional work x requires backing
-for `max(A-P,0) + x`, not just x. Stop accepting new work when settling; collect
+actual paid P and greatest accepted total A, a conservative admission check for
+additional work x is `max(A-P,0) + x <= max(B-R,0)`. Count outstanding promises,
+not just the new purchase. This is service policy, not an onchain reservation:
+collection can use the actual balance B, including funds under a withdrawal
+request, and it can race withdrawals or other collections.
+Stop accepting new work when settling; collect
 accepted claims before the applicable deadline, accounting for already-pending
 ordinary withdrawals, confirmations, inclusion delay and recipient failures.
 An enabled UI control or a signed voucher alone is not a backing reservation.
@@ -341,9 +361,10 @@ An enabled UI control or a signed voucher alone is not a backing reservation.
 These contracts are not upgradeable. Existing deployments retain their old
 code and policy. Deploy a new PayToPlay contract and bind it to a matching CAM
 publication; changing only the ABI or manifest does not change deployed code.
-The Channel and PositionView tuple layouts changed. Voucher fields/domain
-name/version remain PayToPlay/1; the new verifying-contract address separates
-deployments. There is no automatic balance, voucher or key migration.
+Use ABI and UI resources exported for the exact deployed contract, including
+its Channel and PositionView tuple layouts. The voucher domain is PayToPlay/1;
+its verifying-contract address separates deployments. There is no automatic
+balance, voucher or key migration.
 
 ## Run the disposable local demo
 
@@ -376,9 +397,16 @@ make viewer/local/fixture-wallet/attach \
 The attachment verifies the tab/origin/host/chain/manifest/contract and refuses
 an existing wallet. It starts no browser or chain. Its account names are public
 fixture identities, not permissions. The existing attachment's transaction
-allowlist covers the payment/ordinary-withdrawal workflow; recovery writes need
-a compatible external wallet. The recovery scenario below uses the fixture
-accounts directly through verified CAM calls and tests the new operations.
+allowlist includes payment, ordinary withdrawal and recovery operations, scoped
+to this local contract. It initially selects the customer. Use its selector to
+change accounts, then let the app update before reviewing a call. Contract
+permissions still apply.
+
+Keep the attachment command running as well as the GUI command. It asks for
+confirmation before sending a local transaction. Reloading resets the selector
+to the customer; connect the wallet again in the app. Stopping the attachment
+removes its provider and selector without closing the tab. To find an existing
+tab's ID, inspect `http://127.0.0.1:9222/json/list` in the browser's CDP setup.
 
 For the manual payment example, use admin to create a nonzero channel and read
 its exact ID from the `ChannelCreated` receipt event (not from an observed
@@ -403,14 +431,18 @@ make pay-to-play/local/demo/gui/down
 ### Verify the workflows
 
 ```sh
-make tests/checks
-make dapps/format/check
-make dapps/tests
-make js/tests
-make cam/conformance/check
-make pay-to-play/local/scenario/run
-make pay-to-play/refunds/check
+make tests
+```
+
+`make tests` includes Solidity unit/scenario, fuzz and invariant campaigns,
+JS and tool checks, and disposable real-RPC payment/recovery scenarios. It also
+runs the repository's other automatic campaigns and uses network access for
+the dependency-egress check. For focused Pay-to-Play verification:
+
+```sh
 make pay-to-play/local/recovery/run
+make pay-to-play/refunds/check
+make cam/conformance/check
 ```
 
 The original scenario remains unchanged. The additional recovery target runs
@@ -419,11 +451,12 @@ recipient selection, permissionless full refund, reuse, multi-customer channel
 retirement, incoming-move discovery, and the actual file-backed refund CLI with
 one-transaction batches and journal persistence. It uses a private disposable
 chain, advances only fixture time, and cleans up through the maintained scenario
-lane. Worker unit tests run with the JS workspace suite; the real-RPC recovery
-scenario is an explicit additional target, not part of root `make tests`.
+lane. It also checks that a confirmed receipt followed by a journal-write
+failure is fatal, rather than falsely reported as a pending transaction.
+The refund worker's own offline check runs in `make js/ci`; the combined
+real-RPC scenario runs in `make tests`. Neither selects an operator deployment.
 
-The existing optional browser check remains a payment/withdrawal and publication
-compatibility check, not full recovery-screen write coverage:
+The optional browser check uses an existing browser and a disposable local GUI:
 
 ```sh
 make pay-to-play/live/browser/check \
@@ -431,8 +464,14 @@ make pay-to-play/live/browser/check \
   EXPECTED_CAM_URI=http://127.0.0.1:5175/cam/main.json EXPECTED_CAM_HASH=0x...
 ```
 
-It needs an already-running local GUI/browser. Review the recovery screen with
-a compatible wallet as well as running the CAM/viewer and contract tests.
+It creates and closes its own tab in that browser. Its 11 transactions cover
+payment/withdrawal workflows and, in a separate zero-wait channel, choosing a
+refund recipient, starting position wind-down and relaying the full refund.
+It also checks 320px layout, draft restoration, time display and publication
+integrity rejection. It does not exercise every recovery operation in the
+browser; renewal and channel retirement have contract, viewer and real-RPC
+scenario coverage. Point it at a disposable fixture, not a demo whose state
+you need to preserve: it submits transactions.
 Compiler-exported ABI comparison must match the checked-in tuple layouts and
 resources before publishing a deployment. Local fixture success establishes
 local behavior, not a production deployment or delivered API service.

@@ -5,8 +5,9 @@ reads their current recovery state, and optionally submits individual `refund`
 transactions. It neither closes channels nor collects vouchers, chooses refund
 recipients, signs purchase vouchers, deploys contracts, or changes chain time.
 
-The normal run is a **read-only plan**. Execution requires a separate Compose
-overlay, an explicit confirmation, a file-backed relayer key, a protected state
+The normal run is a **read-only plan**. The supported `make pay-to-play/refunds/run`
+command requires a separate Compose overlay, an explicit confirmation,
+a file-backed relayer key, a protected state
 directory, and a configuration that pins the chain, contract, runtime-code hash,
 channel, scan interval, confirmations, gas, fees and transaction count.
 
@@ -21,16 +22,17 @@ make pay-to-play/local/recovery/run
 ```
 
 The root Makefile owns these targets and their non-root, source-path and
-dependency guards. The recovery
-scenario runs the existing disposable scenario first and then the recovery CAM
+dependency guards. The recovery scenario runs the payment scenario first and then the recovery CAM
 scenario, using the same isolated deployment and cleanup. It does not contact
 an operator deployment. The offline `check` target typechecks the entire worker
 and runs its tests as part of `make js/ci`.
+The combined disposable scenario also runs in `make tests`. Operator `plan`
+and `run` commands remain explicit; no automatic test selects a live deployment.
 
 ## Configuration
 
 Create a JSON file outside the repository, owned by the executing user, mode
-0600. All fields are required, and unknown fields are rejected. For example:
+0600. All fields are required; duplicate and unknown fields are rejected. For example:
 
 ```json
 {
@@ -96,7 +98,7 @@ make pay-to-play/refunds/plan \
 
 The plan does not mount or open a signing key or a state directory. It reports
 discovery scope, due positions, current destinations and balances, the
-configured execution-gas budget, a batch summary and the live channel total.
+configured transaction-gas budget, a batch summary and the live channel total.
 An empty expired funding cycle is still due for a zero refund before reuse;
 a clean, already-refunded position in a retired channel is skipped.
 
@@ -128,7 +130,7 @@ channelId)` on the pinned contract. The recipient is resolved by the contract;
 the executor has no recipient argument. Simulations use the configured gas
 limit. A simulation failure is isolated and consumes no transaction grant.
 A mined revert consumes one grant; later customers still run. The maximum
-execution-gas charge for new transactions in a run is
+transaction-gas charge for new transactions in a run is
 `maxTransactions * gasLimit * maxFeePerGas`. This is not a bound on rollup L1
 fees, nor on a transaction already pending from a previous invocation. The tool
 uses EIP-1559 transactions; legacy-only networks need a separate policy.
@@ -144,7 +146,10 @@ address, runtime hash and channel, so accidental reuse for another deployment
 fails closed.
 
 A matching receipt with the configured confirmations clears the pending entry
-and records the last receipt's status, block number and block hash. Structured
+and records the last receipt's status, block number and block hash. A journal
+write failure after a known receipt is fatal: it does not turn that receipt
+into an uncertain transaction. Retain the journal and resolve the filesystem
+problem before resuming. Structured
 JSON lines on stdout provide the full per-run audit stream; retain those lines
 outside the repository when an operation history is needed. The bounded state
 file stores only the pending transaction and last confirmed/reverted receipt,
@@ -171,8 +176,9 @@ reorganizations. Review reorgs beyond that depth and rescan relevant intervals.
 
 Exit codes: 0 for a completed plan/batch; 2 for isolated failures, deferred due
 positions, or a pending transaction; 1 for configuration, identity, discovery,
-journal or other fatal errors. Error messages report only the owned execution
-phase, not raw SDK errors that may embed RPC credentials or signed calldata.
+journal or other fatal errors. Error messages name the execution phase and
+include safe tool-owned reasons or filesystem operation/error codes when
+available. They omit raw SDK bodies that may embed RPC credentials or signed calldata.
 
 ## Validation boundary
 
@@ -182,5 +188,6 @@ broadcasts, file protections and journal restart. The local recovery scenario
 executes CAM recovery calls, verifies discovery of incoming-move-only customers,
 and runs the actual file-backed CLI against the disposable deployment. It checks
 a read-only plan, a one-transaction execution cap, a resumed batch, an empty
-rerun, and a confirmed journal entry. These fixture checks do not verify an
+rerun, a confirmed journal entry and a fatal journal-write failure after a known
+receipt. These fixture checks do not verify an
 operator deployment or justify skipping a pinned dry run before a live batch.

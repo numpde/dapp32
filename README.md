@@ -15,9 +15,9 @@ Experimental protocol reference: [CAM 1.2.0 and UI 1.0.0](docs/reference/cam/1.2
 
 ## Start here
 
-- [Pay-to-Play](dapps/pay-to-play/README.md): deposit native coins, authorize
-  cumulative voucher payments, and recover funds after a withdrawal wait.
-  Explains balance ownership, service integration, and the local demo.
+- [Pay-to-Play](dapps/pay-to-play/README.md): deposit native coins, register a
+  permanent voucher key, and authorize cumulative payments. Explains delayed
+  withdrawals, full refunds, channel retirement, service integration and the local demo.
 - [Escrow](dapps/escrow/README.md): create and fund an agreement, review work,
   resolve disputes, and withdraw settlement credit. Includes a local browser
   demo and an automated nine-path workflow.
@@ -51,7 +51,8 @@ runs the offline checks, formatting and build checks, Solidity suites, and
 
 `make tests` runs the complete automatic test campaigns: repository checks,
 Solidity unit/scenario, fuzz, and invariant tests, JS and tool checks, the live dependency-egress
-check, offline Cast check, Escrow local scenario, and Bike NFT local integration
+check, offline Cast check, Pay-to-Play payment/recovery/refund-worker scenarios,
+Escrow local scenario, and Bike NFT local integration
 fuzz campaigns with reads and fixture writes. It uses network access and deploys
 disposable local chains; successful cleanup removes their state.
 
