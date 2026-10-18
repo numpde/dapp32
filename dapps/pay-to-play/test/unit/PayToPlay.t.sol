@@ -282,7 +282,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
         payments.collect(relayer, channel, 50, signature);
         vm.expectRevert(PayToPlay.InvalidVoucherSignature.selector);
-        payments.collect(customer, channel, otherChannel, signature);
+        payments.collect(customer, otherChannel, 50, signature);
         PayToPlay other = new PayToPlay(address(this), PERIOD);
         other.createChannel(payee, PERIOD);
         vm.prank(customer);
