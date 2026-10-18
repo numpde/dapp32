@@ -1,6 +1,6 @@
 import { sha256, stringToBytes } from "viem"
 import type { Address, Hex } from "viem"
-import { requireEvmAddress } from "@cam/evm-viem"
+import { requireEvmAddress } from "../../packages/cam-evm-viem/dist/index.js"
 import { requiredRecord, requiredString } from "../input.ts"
 
 const MAX_UINT256 = (1n << 256n) - 1n

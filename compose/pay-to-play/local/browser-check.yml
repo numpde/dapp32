@@ -30,5 +30,5 @@ services:
       - -eu
       - -c
       - |
-        npm run build -w @cam/protocol
+        npm run build -w @cam/protocol -w @cam/core -w @cam/evm-viem
         exec node /work/js/apps/cam-web/test/pay-to-play-browser-check.mjs
