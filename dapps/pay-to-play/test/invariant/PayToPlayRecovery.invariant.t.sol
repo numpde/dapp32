@@ -42,12 +42,12 @@ contract PayToPlayRecoveryHandler is Test {
         funded += amount;
     }
 
-    function collect(uint8 who, uint8 channel, uint96 total) external {
+    function collect(uint8 who, uint8 channel, uint96 total, bytes32 invoiceHash) external {
         address customer = customers[who % 2];
         uint256 id = 1 + channel % 2;
         if (_view(customer, id).phase == PayToPlay.Phase.RefundOnly) return;
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(KEY, payments.voucherDigest(customer, id, total));
-        uint256 amount = payments.collect(customer, id, total, abi.encodePacked(r, s, v));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(KEY, payments.voucherDigest(customer, id, total, invoiceHash));
+        uint256 amount = payments.collect(customer, id, total, invoiceHash, abi.encodePacked(r, s, v));
         collected += amount;
         actuallyPaid[customer][id] += amount;
     }

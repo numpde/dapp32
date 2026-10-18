@@ -39,11 +39,12 @@ contract PayToPlayHandler is Test {
         else payments.requestWithdrawal(id, amount);
     }
 
-    function collect(uint8 rawChannel, uint96 total) external {
+    function collect(uint8 rawChannel, uint96 total, bytes32 invoiceHash) external {
         uint256 id = 1 + rawChannel % 2;
         uint256 beforePaid = payments.viewPosition(address(this), id, address(this)).voucherPaid;
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(VOUCHER_KEY, payments.voucherDigest(address(this), id, total));
-        uint256 amount = payments.collect(address(this), id, total, abi.encodePacked(r, s, v));
+        (uint8 v, bytes32 r, bytes32 s) =
+            vm.sign(VOUCHER_KEY, payments.voucherDigest(address(this), id, total, invoiceHash));
+        uint256 amount = payments.collect(address(this), id, total, invoiceHash, abi.encodePacked(r, s, v));
         totalCollected += amount;
         assertEq(payments.viewPosition(address(this), id, address(this)).voucherPaid, beforePaid + amount);
     }
@@ -86,7 +87,7 @@ contract PayToPlayInvariantTest is Test {
         handler.request(1, 50, false);
         handler.advanceTime(100);
         handler.move(1, 0);
-        handler.collect(0, 100);
+        handler.collect(0, 100, keccak256("invariant setup invoice"));
         bytes4[] memory selectors = new bytes4[](6);
         selectors[0] = PayToPlayHandler.fund.selector;
         selectors[1] = PayToPlayHandler.request.selector;
