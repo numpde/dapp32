@@ -3,6 +3,46 @@ pragma solidity 0.8.35;
 import {PayToPlay} from "../../src/PayToPlay.sol";
 import {PayToPlayTestBase} from "../support/PayToPlayTestBase.sol";
 
+contract PayToPlayMoveGasTest is PayToPlayTestBase {
+    // Cold empty-target baseline: 48,293 execution gas; allow about 24% headroom.
+    uint256 private constant MAX_MOVE_EXECUTION_GAS = 60_000;
+    uint256 private fundedTarget;
+
+    function setUp() public override {
+        super.setUp();
+        fundedTarget = payments.createChannel(payee, PERIOD);
+        _fund(customer, channel, 100);
+        _fund(customer, fundedTarget, 30);
+        vm.prank(customer);
+        payments.requestWithdrawal(channel, 80);
+        vm.warp(_position(channel).readyAt);
+    }
+
+    function testMoveGasIntoEmptyBalance() public {
+        _assertMoveGas(otherChannel, 0);
+    }
+
+    function testMoveGasIntoFundedBalance() public {
+        _assertMoveGas(fundedTarget, 30);
+    }
+
+    function _assertMoveGas(uint256 target, uint256 previousBalance) private {
+        // setUp commits original storage values; cooling also removes access-list warmth.
+        vm.cool(address(payments));
+        vm.prank(customer);
+        uint256 moved = payments.move(channel, target);
+        uint256 executionGas = vm.lastCallGas().gasTotalUsed;
+        emit log_named_uint("move execution gas (cold storage, before refunds)", executionGas);
+        assertEq(moved, 80);
+        assertEq(_position(channel).balance, 20);
+        assertEq(_position(target).balance, previousBalance + 80);
+        assertEq(_position(channel).requestedAmount, 0);
+        assertEq(_position(channel).readyAt, 0);
+        assertEq(address(payments).balance, 130);
+        assertLe(executionGas, MAX_MOVE_EXECUTION_GAS, "move execution gas budget exceeded");
+    }
+}
+
 contract NativeCustomer {
     bool public rejectPayment;
     bool public reenter;
