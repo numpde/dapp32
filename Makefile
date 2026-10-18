@@ -109,7 +109,7 @@ TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local
 FIRST_PARTY_ROOTS := compose containers dapps docs js tests tools
 COMPOSE_PROJECT_NAME_GUARD := for name in $(COMPOSE_PROJECT_NAME_VARS); do value="$${!name:?missing_$$name}"; if [[ ! "$$value" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$$ ]]; then printf '%s must be a Docker-safe name, not a path or shell expression.\n' "$$name" >&2; exit 2; fi; done
 NON_ROOT_GUARD := uid="$${LOCAL_UID:?missing_LOCAL_UID}"; gid="$${LOCAL_GID:?missing_LOCAL_GID}"; if [[ ! "$$uid" =~ ^[1-9][0-9]*$$ || ! "$$gid" =~ ^[1-9][0-9]*$$ ]]; then printf '%s\n' 'LOCAL_UID and LOCAL_GID must be positive decimal integers.' >&2; exit 2; fi; if [[ "$(ACTUAL_UID)" == "0" || "$$uid" == "0" ]]; then printf '%s\n' 'Refusing to run Docker lanes as root or with LOCAL_UID=0. Run make as a non-root user.' >&2; exit 2; fi
-ALLOW_UPDATE_GUARD := if [[ "$${ALLOW_UPDATE:?missing_ALLOW_UPDATE}" != "0" && "$$ALLOW_UPDATE" != "1" ]]; then printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2; fi
+ALLOW_UPDATE_GUARD := if [[ "$${ALLOW_UPDATE:?missing_ALLOW_UPDATE}" != "0" && "$${ALLOW_UPDATE}" != "1" ]]; then printf '%s\n' 'ALLOW_UPDATE must be 0 or 1.' >&2; exit 2; fi
 REPO_SHAPE_GUARD := for path in $(FIRST_PARTY_ROOTS); do if [[ -L "$$path" ]]; then printf 'Refusing Docker lane because first-party root is a symlink: %s\n' "$$path" >&2; exit 2; fi; if [[ -e "$$path" && ! -d "$$path" ]]; then printf 'Refusing Docker lane because first-party root is not a directory: %s\n' "$$path" >&2; exit 2; fi; done; symlink="$$(find $(FIRST_PARTY_ROOTS) \( -path "dapps/dependencies" -o -path "js/node_modules" \) -prune -o -type l -print -quit)"; if [[ -n "$$symlink" ]]; then printf 'Refusing Docker lane because first-party path is a symlink: %s\n' "$$symlink" >&2; exit 2; fi
 LANE_GUARD := $(COMPOSE_PROJECT_NAME_GUARD); $(NON_ROOT_GUARD); $(REPO_SHAPE_GUARD)
 ANVIL_HOST_PORT_GUARD := port="$${ANVIL_HOST_PORT:?missing_ANVIL_HOST_PORT}"; if [[ ! "$$port" =~ ^[1-9][0-9]{0,4}$$ || "$$port" -gt 65535 ]]; then printf '%s\n' 'ANVIL_HOST_PORT must be an integer from 1 to 65535.' >&2; exit 2; fi
@@ -344,7 +344,7 @@ help:
 	  '  make pay-to-play/local/demo/gui/down Stop the disposable payment-channel browser fixture' \
 	  '  make viewer/local/fixture-wallet/attach FIXTURE_WALLET_APP=... CDP_TARGET_ID=... CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=... EXPECTED_CONTRACT_ADDRESS=...  Attach a local fixture signer to an existing tab' \
 	  '  make pay-to-play/live/browser/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check local fixture writes in an existing browser' \
-	  '  make pay-to-play/local/voucher/sign PAY_TO_PLAY_ADDRESS=... PAY_TO_PLAY_TOTAL=...  Sign a local fixture voucher offline' \
+	  '  make pay-to-play/local/voucher/sign PAY_TO_PLAY_ADDRESS=... PAY_TO_PLAY_TOTAL=... PAY_TO_PLAY_INVOICE_HASH=...  Sign a v2 local fixture voucher offline' \
 	  '  make escrow/local/demo/terminal/up     Deploy escrow locally and open the real-RPC viewer terminal' \
 	  '  make escrow/local/demo/gui/up          Deploy escrow locally and run the browser GUI on $${ESCROW_GUI_ORIGIN}' \
 	  '  make escrow/live/browser/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check the running GUI in a fresh CDP tab' \
@@ -1274,16 +1274,17 @@ pay-to-play/local/demo/gui/down:
 PAY_TO_PLAY_ADDRESS ?=
 PAY_TO_PLAY_CHANNEL_ID ?= 1
 PAY_TO_PLAY_TOTAL ?=
-export PAY_TO_PLAY_ADDRESS PAY_TO_PLAY_CHANNEL_ID PAY_TO_PLAY_TOTAL
+PAY_TO_PLAY_INVOICE_HASH ?=
+export PAY_TO_PLAY_ADDRESS PAY_TO_PLAY_CHANNEL_ID PAY_TO_PLAY_TOTAL PAY_TO_PLAY_INVOICE_HASH
 pay-to-play/local/voucher/sign:
 	@$(LANE_GUARD); \
-	if [[ ! "$$PAY_TO_PLAY_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$$ || ! "$$PAY_TO_PLAY_CHANNEL_ID" =~ ^[0-9]+$$ || ! "$$PAY_TO_PLAY_TOTAL" =~ ^[0-9]+$$ ]]; then \
-	  printf '%s\n' 'Set PAY_TO_PLAY_ADDRESS to the local PayToPlay address and PAY_TO_PLAY_CHANNEL_ID/PAY_TO_PLAY_TOTAL to unsigned decimal integers.' >&2; exit 2; \
+	if [[ ! "$$PAY_TO_PLAY_ADDRESS" =~ ^0x[0-9a-fA-F]{40}$$ || ! "$$PAY_TO_PLAY_CHANNEL_ID" =~ ^[0-9]+$$ || ! "$$PAY_TO_PLAY_TOTAL" =~ ^[0-9]+$$ || ! "$$PAY_TO_PLAY_INVOICE_HASH" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then \
+	  printf '%s\n' 'Set PAY_TO_PLAY_ADDRESS to the local PayToPlay address and PAY_TO_PLAY_CHANNEL_ID/PAY_TO_PLAY_TOTAL to unsigned decimal integers, and PAY_TO_PLAY_INVOICE_HASH to the signed invoice reference (0x plus 64 hex digits).' >&2; exit 2; \
 	fi; \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/cast.yml run --build --rm --no-deps -T \
-	  -e PAY_TO_PLAY_ADDRESS -e PAY_TO_PLAY_CHANNEL_ID -e PAY_TO_PLAY_TOTAL cast-offline \
+	  -e PAY_TO_PLAY_ADDRESS -e PAY_TO_PLAY_CHANNEL_ID -e PAY_TO_PLAY_TOTAL -e PAY_TO_PLAY_INVOICE_HASH cast-offline \
 	  bash -eu -c 'customer="$$(cast wallet address --private-key 0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca)"; \
-	  typed="$$(printf '\''{"types":{"EIP712Domain":[{"name":"name","type":"string"},{"name":"version","type":"string"},{"name":"chainId","type":"uint256"},{"name":"verifyingContract","type":"address"}],"Voucher":[{"name":"customer","type":"address"},{"name":"channelId","type":"uint256"},{"name":"cumulativeTotal","type":"uint256"}]},"primaryType":"Voucher","domain":{"name":"PayToPlay","version":"1","chainId":31337,"verifyingContract":"%s"},"message":{"customer":"%s","channelId":"%s","cumulativeTotal":"%s"}}'\'' "$$PAY_TO_PLAY_ADDRESS" "$$customer" "$$PAY_TO_PLAY_CHANNEL_ID" "$$PAY_TO_PLAY_TOTAL")"; \
+	  typed="$$(printf '\''{"types":{"EIP712Domain":[{"name":"name","type":"string"},{"name":"version","type":"string"},{"name":"chainId","type":"uint256"},{"name":"verifyingContract","type":"address"}],"Voucher":[{"name":"customer","type":"address"},{"name":"channelId","type":"uint256"},{"name":"cumulativeTotal","type":"uint256"},{"name":"invoiceHash","type":"bytes32"}]},"primaryType":"Voucher","domain":{"name":"PayToPlay","version":"2","chainId":31337,"verifyingContract":"%s"},"message":{"customer":"%s","channelId":"%s","cumulativeTotal":"%s","invoiceHash":"%s"}}'\'' "$$PAY_TO_PLAY_ADDRESS" "$$customer" "$$PAY_TO_PLAY_CHANNEL_ID" "$$PAY_TO_PLAY_TOTAL" "$$PAY_TO_PLAY_INVOICE_HASH")"; \
 	  cast wallet sign --private-key 0xcacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacaca --data "$$typed"'
 
 .PHONY: pay-to-play/live/browser/check
