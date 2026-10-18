@@ -4,8 +4,10 @@ import {PayToPlay} from "../../src/PayToPlay.sol";
 import {PayToPlayTestBase} from "../support/PayToPlayTestBase.sol";
 
 contract PayToPlayMoveGasTest is PayToPlayTestBase {
-    // Recovery accounting cold empty-target baseline: 104,390 gas; allow about 24% headroom.
-    uint256 private constant MAX_MOVE_EXECUTION_GAS = 130_000;
+    // Cold execution baselines before refunds: 104,390 for an unfunded channel,
+    // 53,349 for a funded channel. Keep roughly 25% headroom for each path.
+    uint256 private constant MAX_MOVE_UNFUNDED_EXECUTION_GAS = 130_000;
+    uint256 private constant MAX_MOVE_FUNDED_EXECUTION_GAS = 67_000;
     uint256 private fundedTarget;
 
     function setUp() public override {
@@ -18,28 +20,52 @@ contract PayToPlayMoveGasTest is PayToPlayTestBase {
         vm.warp(_position(channel).readyAt);
     }
 
-    function testMoveGasIntoEmptyBalance() public {
-        _assertMoveGas(otherChannel, 0);
+    function testMoveGasIntoPreviouslyUnfundedChannel() public {
+        _assertMoveGas(otherChannel, 0, MAX_MOVE_UNFUNDED_EXECUTION_GAS);
     }
 
-    function testMoveGasIntoFundedBalance() public {
-        _assertMoveGas(fundedTarget, 30);
+    function testMoveGasIntoFundedChannel() public {
+        _assertMoveGas(fundedTarget, 30, MAX_MOVE_FUNDED_EXECUTION_GAS);
     }
 
-    function _assertMoveGas(uint256 target, uint256 previousBalance) private {
-        // setUp commits original storage values; cooling also removes access-list warmth.
+    function _assertMoveGas(uint256 target, uint256 previousBalance, uint256 maxExecutionGas) private {
+        PayToPlay.PositionView memory sourceBefore = _position(channel);
+        PayToPlay.PositionView memory targetBefore = _position(target);
+        // Pin the measured storage states: zero balance alone does not mean a fresh channel.
+        assertEq(sourceBefore.balance, 100);
+        assertEq(sourceBefore.escrowTotal, 100);
+        assertEq(targetBefore.balance, previousBalance);
+        assertEq(targetBefore.escrowTotal, previousBalance);
+        if (previousBalance == 0) {
+            assertEq(targetBefore.scheduledRefundAt, 0);
+        } else {
+            assertGt(targetBefore.scheduledRefundAt, 0);
+        }
+        uint256 expectedRefundAt = block.timestamp + payments.RECOVERY_HORIZON() + uint256(PERIOD);
+        assertGt(expectedRefundAt, targetBefore.scheduledRefundAt, "fixture must start or extend recovery");
+
+        // setUp commits original storage values; cool after all pre-checks to remove their warmth.
         vm.cool(address(payments));
         vm.prank(customer);
         uint256 moved = payments.move(channel, target);
         uint256 executionGas = vm.lastCallGas().gasTotalUsed;
         emit log_named_uint("move execution gas (cold storage, before refunds)", executionGas);
+
+        PayToPlay.PositionView memory sourceAfter = _position(channel);
+        PayToPlay.PositionView memory targetAfter = _position(target);
         assertEq(moved, 80);
-        assertEq(_position(channel).balance, 20);
-        assertEq(_position(target).balance, previousBalance + 80);
-        assertEq(_position(channel).requestedAmount, 0);
-        assertEq(_position(channel).readyAt, 0);
+        assertEq(sourceAfter.balance, 20);
+        assertEq(targetAfter.balance, previousBalance + 80);
+        assertEq(sourceAfter.requestedAmount, 0);
+        assertEq(sourceAfter.readyAt, 0);
+        assertEq(payments.channel(channel).escrowTotal, sourceBefore.escrowTotal - moved);
+        assertEq(payments.channel(target).escrowTotal, targetBefore.escrowTotal + moved);
+        assertEq(sourceAfter.scheduledRefundAt, sourceBefore.scheduledRefundAt);
+        assertEq(targetAfter.scheduledRefundAt, expectedRefundAt);
+        assertEq(targetAfter.refundAt, expectedRefundAt);
+        assertEq(targetAfter.settleAt, expectedRefundAt - uint256(PERIOD));
         assertEq(address(payments).balance, 130);
-        assertLe(executionGas, MAX_MOVE_EXECUTION_GAS, "move execution gas budget exceeded");
+        assertLe(executionGas, maxExecutionGas, "move execution gas budget exceeded");
     }
 }
 
@@ -198,7 +224,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         vm.prank(customer);
         payments.setWithdrawal(channel, 100);
         assertEq(_position(channel).readyAt, block.timestamp + PERIOD);
-        assertEq(_position(channel).requestedAmount, 100);
+        assertEq(_position(channel).effectiveBalance, 0);
         bytes memory signature = _sign(customer, channel, 50);
         payments.collect(customer, channel, 50, signature);
         _fund(customer, channel, 20);
