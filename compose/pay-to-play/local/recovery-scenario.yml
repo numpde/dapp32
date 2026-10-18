@@ -1,0 +1,14 @@
+# Overlay for the existing disposable local scenario. Retains its network,
+# deployment dependencies, read-only mounts and public fixture-account grants.
+services:
+  pay-to-play-local-scenario:
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build -w @cam/protocol -w @cam/core -w @cam/evm-viem -w @cam/screen -w @cam/viewer
+        ./node_modules/.bin/tsc -p tools/pay-to-play-local-scenario/tsconfig.json
+        node --experimental-strip-types tools/pay-to-play-local-scenario/runner.ts
+        node --experimental-strip-types tools/pay-to-play-local-scenario/recovery.ts
