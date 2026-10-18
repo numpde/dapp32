@@ -4,13 +4,14 @@ import { execFile } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { createPublicClient, createWalletClient, decodeEventLog, http, keccak256, parseAbiItem, type Address, type Hex } from "viem"
+import { createPublicClient, createWalletClient, decodeEventLog, http, keccak256, parseAbiItem, sha256, stringToBytes, type Address, type Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
 import { createHttpCamPublicClient, requireEvmAddress, sendCamContractCall, simulateCamContractCall } from "../../packages/cam-evm-viem/dist/index.js"
 import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
 import { resolvedUiButtons } from "../../packages/cam-screen/dist/index.js"
 import { createSameOriginHttpResourceLoader, isRecordObject, parseJsonBytes, requireHttpURL, toInertValue, type InertRecord } from "../../packages/cam-protocol/dist/index.js"
 import { discoverCustomers, runRefundBatch, type Position, type Report } from "../pay-to-play-refunds/core.ts"
+import { hashInvoice, voucherForInvoice } from "../pay-to-play-vouchers/protocol.ts"
 
 let phase = "configuration"
 function required(name: string): string {
@@ -82,6 +83,7 @@ async function main() {
     return receipt
   }
   const CREATED = parseAbiItem("event ChannelCreated(uint256 indexed channelId,address payee,uint64 claimPeriod)")
+  const COLLECTED = parseAbiItem("event VoucherCollected(address indexed customer,uint256 indexed channelId,address indexed payee,uint256 amount,uint256 voucherPaid,bytes32 invoiceHash)")
   async function create() {
     await open("admin", accounts.admin.address, "0", false)
     const receipt = await write("admin", "createChannel", { newPayee: accounts.payee.address, newClaimPeriod: "60" })
@@ -103,12 +105,19 @@ async function main() {
     assert.equal(record(await mined.json()).error, undefined)
     await session.refresh()
   }
-  async function sign(id: string, total: bigint) {
-    return accounts.relayer.signTypedData({
-      domain: { name: "PayToPlay", version: "1", chainId: 31337, verifyingContract: payments },
-      types: { Voucher: [{ name: "customer", type: "address" }, { name: "channelId", type: "uint256" }, { name: "cumulativeTotal", type: "uint256" }] },
-      primaryType: "Voucher", message: { customer: accounts.customer.address, channelId: BigInt(id), cumulativeTotal: total },
-    })
+  async function sign(id: string, total: bigint, previousTotal: bigint) {
+    const now = (await client.getBlock()).timestamp
+    const invoice = {
+      version: "1", purchaseId: sha256(stringToBytes(`recovery fixture:${id}:${total}`)),
+      merchant: accounts.payee.address, customer: accounts.customer.address,
+      chainId: "31337", paymentContract: payments, channelId: id,
+      previousTotal: previousTotal.toString(), cumulativeTotal: total.toString(),
+      acceptBefore: (now + 3600n).toString(), termsHash: sha256(stringToBytes("recovery fixture terms")),
+    }
+    return {
+      cumulativeTotal: total.toString(), invoiceHash: hashInvoice(invoice),
+      signature: await accounts.relayer.signTypedData(voucherForInvoice(invoice)),
+    }
   }
 
   const id = await create()
@@ -124,7 +133,8 @@ async function main() {
   const renewed = view().refundAt
   await write("customer", "setRefundRecipient", { newRefundRecipient: accounts.admin.address })
   assert.equal(view().refundAt, renewed)
-  const signature = await sign(id, 30n)
+  const signed = await sign(id, 30n, 0n)
+  const outstanding = await sign(id, 100n, 30n)
   await open("relayer", accounts.customer.address, id, true)
   button("closePosition", true)
   button("closeChannel", true)
@@ -139,7 +149,12 @@ async function main() {
   button("fund", true)
   button("setWithdrawal", true)
   await open("relayer", accounts.customer.address, id, false)
-  await write("relayer", "collect", { cumulativeTotal: "30", signature })
+  const collection = await write("relayer", "collect", signed)
+  const collectionLogs = collection.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
+  assert.equal(collectionLogs.length, 1)
+  const firstCollection = decodeEventLog({ abi: [COLLECTED], ...collectionLogs[0]! }).args
+  assert.equal(firstCollection.invoiceHash, signed.invoiceHash)
+  assert.equal(firstCollection.amount, 30n)
   assert.equal(view().balance, "70")
   await warp(deadline)
   button("collect", true)
@@ -153,6 +168,18 @@ async function main() {
   assert.equal(String(view().voucherKey).toLowerCase(), accounts.relayer.address.toLowerCase())
   await open("customer", accounts.customer.address, id, false)
   await write("customer", "fund", { fundAmount: "50" })
+  // The full collateral refund did not cancel unpaid capacity in the earlier invoice voucher.
+  await open("relayer", accounts.customer.address, id, false)
+  const retry = await write("relayer", "collect", outstanding)
+  const retryLogs = retry.logs.filter(log => log.address.toLowerCase() === payments.toLowerCase())
+  assert.equal(retryLogs.length, 1)
+  const retried = decodeEventLog({ abi: [COLLECTED], ...retryLogs[0]! }).args
+  assert.equal(retried.invoiceHash, outstanding.invoiceHash)
+  assert.equal(retried.amount, 50n)
+  assert.equal(retried.voucherPaid, 80n)
+  assert.equal(view().balance, "0")
+  await open("customer", accounts.customer.address, id, false)
+  await write("customer", "fund", { fundAmount: "50" })
   const annual = BigInt(String(view().refundAt))
   await warp(annual - 60n)
   button("fund", true)
@@ -163,6 +190,7 @@ async function main() {
   await open("relayer", accounts.customer.address, id, true)
   await write("relayer", "refund", {})
   assert.equal(view().balance, "0")
+  assert.equal(view().voucherPaid, "80")
 
   // Create two backed positions, one reached ONLY through an incoming move.
   const retired = await create()
