@@ -58,7 +58,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
     }
 
     bytes32 public constant VOUCHER_TYPEHASH =
-        keccak256("Voucher(address customer,uint256 channelId,uint256 cumulativeTotal)");
+        keccak256("Voucher(address customer,uint256 channelId,uint256 cumulativeTotal,bytes32 invoiceHash)");
 
     uint256 public channelCount = 1;
     mapping(uint256 => Channel) private _channels;
@@ -95,14 +95,20 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
     event RefundRecipientChanged(address indexed customer, uint256 indexed channelId, address recipient);
     event Refunded(address indexed customer, uint256 indexed channelId, address indexed recipient, uint256 amount);
     event Funded(address indexed customer, uint256 indexed channelId, uint256 amount);
+    /// @notice invoiceHash identifies the submitted voucher's reference, not allocation of this payment to an invoice.
     event VoucherCollected(
-        address indexed customer, uint256 indexed channelId, address indexed payee, uint256 amount, uint256 voucherPaid
+        address indexed customer,
+        uint256 indexed channelId,
+        address indexed payee,
+        uint256 amount,
+        uint256 voucherPaid,
+        bytes32 invoiceHash
     );
     event WithdrawalRequested(address indexed customer, uint256 indexed channelId, uint256 amount, uint256 readyAt);
     event Withdrawn(address indexed customer, uint256 indexed channelId, uint256 amount);
     event Moved(address indexed customer, uint256 indexed sourceId, uint256 indexed targetId, uint256 amount);
 
-    constructor(address initialAdmin, uint64 nullClaimPeriod) Ownable(initialAdmin) EIP712("PayToPlay", "1") {
+    constructor(address initialAdmin, uint64 nullClaimPeriod) Ownable(initialAdmin) EIP712("PayToPlay", "2") {
         _validateClaimPeriod(nullClaimPeriod);
         _channels[0].claimPeriod = nullClaimPeriod;
         emit ChannelCreated(0, address(0), nullClaimPeriod);
@@ -257,21 +263,29 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         emit Moved(msg.sender, sourceId, targetId, amount);
     }
 
-    function collect(address customer, uint256 channelId, uint256 cumulativeTotal, bytes calldata signature)
-        external
-        nonReentrant
-        returns (uint256 amount)
-    {
+    /// @notice Collect a cumulative entitlement, authenticating an opaque invoice reference.
+    /// @dev No invoice storage, uniqueness, expiry, allocation or fulfillment rules are enforced here.
+    function collect(
+        address customer,
+        uint256 channelId,
+        uint256 cumulativeTotal,
+        bytes32 invoiceHash,
+        bytes calldata signature
+    ) external nonReentrant returns (uint256 amount) {
         Channel storage definition = _channel(channelId);
         if (channelId == 0) revert NullChannelCannotCollect();
         Position storage position = _positions[customer][channelId];
-        uint256 deadline = _refundAt(definition, position);
-        if (deadline != 0 && block.timestamp >= deadline) revert VoucherCollectionEnded(deadline);
-        address voucherKey = position.voucherKey;
-        if (voucherKey == address(0)) revert VoucherKeyNotRegistered();
-        (address recovered, ECDSA.RecoverError err,) =
-            ECDSA.tryRecover(voucherDigest(customer, channelId, cumulativeTotal), signature);
-        if (err != ECDSA.RecoverError.NoError || recovered != voucherKey) revert InvalidVoucherSignature();
+        {
+            uint256 deadline = _refundAt(definition, position);
+            if (deadline != 0 && block.timestamp >= deadline) revert VoucherCollectionEnded(deadline);
+        }
+        {
+            address voucherKey = position.voucherKey;
+            if (voucherKey == address(0)) revert VoucherKeyNotRegistered();
+            (address recovered, ECDSA.RecoverError err,) =
+                ECDSA.tryRecover(voucherDigest(customer, channelId, cumulativeTotal, invoiceHash), signature);
+            if (err != ECDSA.RecoverError.NoError || recovered != voucherKey) revert InvalidVoucherSignature();
+        }
         if (cumulativeTotal <= position.voucherPaid) return 0;
         amount = _min(cumulativeTotal - position.voucherPaid, position.balance);
         if (amount == 0) return 0;
@@ -280,11 +294,15 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         definition.escrowTotal -= amount;
         address payee = definition.payee;
         _pay(payee, amount);
-        emit VoucherCollected(customer, channelId, payee, amount, position.voucherPaid);
+        emit VoucherCollected(customer, channelId, payee, amount, position.voucherPaid, invoiceHash);
     }
 
-    function voucherDigest(address customer, uint256 channelId, uint256 cumulativeTotal) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(VOUCHER_TYPEHASH, customer, channelId, cumulativeTotal)));
+    function voucherDigest(address customer, uint256 channelId, uint256 cumulativeTotal, bytes32 invoiceHash)
+        public
+        view
+        returns (bytes32)
+    {
+        return _hashTypedDataV4(keccak256(abi.encode(VOUCHER_TYPEHASH, customer, channelId, cumulativeTotal, invoiceHash)));
     }
 
     /// @notice One snapshot owns action availability for the inspected position and acting account.
