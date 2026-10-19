@@ -104,7 +104,6 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
   const routes = validateRouteDeclarations({
     resource: bundle.rootURI,
     root,
-    version,
     namespaces,
     issues,
   })

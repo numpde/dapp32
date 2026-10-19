@@ -5,6 +5,7 @@ import {
   requiredRecord,
 } from "./guards.ts"
 import {
+  CAM_VERSION,
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
   collectCamInvocationFact,
@@ -31,7 +32,6 @@ import type {
   CamResourceDeclarationFact,
   CamRootFact,
   CamNamespaceType,
-  CamVersion,
   InertValue,
 } from "@cam/protocol"
 
@@ -52,7 +52,7 @@ export function parseCam(input: unknown): CamDocument {
     throw new CamError("CAM_INVALID_FIELD", "CAM protocol resource declaration is missing", "protocol")
   }
   const namespaces = parseNamespaces(root)
-  const routes = parseRoutes(requiredRecord(root.value.routes, "routes"), namespaces, root.version)
+  const routes = parseRoutes(requiredRecord(root.value.routes, "routes"), namespaces)
   const entry = requiredNonEmptyString(root.value.entry, "entry")
 
   if (!hasOwn(routes, entry)) {
@@ -88,34 +88,33 @@ function parseNamespaces(root: CamRootFact): Record<string, CamNamespace> {
     throw camErrorFromFactDiagnostic(namespaceDiagnostic)
   }
 
-  return parseNamespaceFacts(namespaceResult.namespaces, root.version)
+  return parseNamespaceFacts(namespaceResult.namespaces)
 }
 
 function parseNamespaceFacts(
   facts: readonly CamNamespaceFact[],
-  version: CamVersion,
 ): Record<string, CamNamespace> {
   const namespaces = createStringMap<CamNamespace>()
   for (const fact of facts) {
-    namespaces[fact.name] = parseNamespaceFact(fact, version)
+    namespaces[fact.name] = parseNamespaceFact(fact)
   }
 
   return namespaces
 }
 
-function parseNamespaceFact(fact: CamNamespaceFact, version: CamVersion): CamNamespace {
+function parseNamespaceFact(fact: CamNamespaceFact): CamNamespace {
   switch (fact.type) {
     case "contract":
-      return parseContractNamespace(fact, version)
+      return parseContractNamespace(fact)
     case "routes":
-      return parseRoutesNamespace(fact, version)
+      return parseRoutesNamespace(fact)
     case "ui":
-      return parseUiNamespace(fact, version)
+      return parseUiNamespace(fact)
   }
 }
 
-function parseContractNamespace(fact: CamNamespaceFact, version: CamVersion): CamContractNamespace {
-  rejectUnknownCamFields(fact.declaration, CONTRACT_NAMESPACE_KEYS, fact.path, version)
+function parseContractNamespace(fact: CamNamespaceFact): CamContractNamespace {
+  rejectUnknownCamFields(fact.declaration, CONTRACT_NAMESPACE_KEYS, fact.path)
   const resource = parseResourceDeclaration(fact)
   return {
     type: "contract",
@@ -124,15 +123,15 @@ function parseContractNamespace(fact: CamNamespaceFact, version: CamVersion): Ca
   }
 }
 
-function parseRoutesNamespace(fact: CamNamespaceFact, version: CamVersion): CamRoutesNamespace {
-  rejectUnknownCamFields(fact.declaration, ROUTES_NAMESPACE_KEYS, fact.path, version)
+function parseRoutesNamespace(fact: CamNamespaceFact): CamRoutesNamespace {
+  rejectUnknownCamFields(fact.declaration, ROUTES_NAMESPACE_KEYS, fact.path)
   return {
     type: "routes",
   }
 }
 
-function parseUiNamespace(fact: CamNamespaceFact, version: CamVersion): CamUiNamespace {
-  rejectUnknownCamFields(fact.declaration, UI_NAMESPACE_KEYS, fact.path, version)
+function parseUiNamespace(fact: CamNamespaceFact): CamUiNamespace {
+  rejectUnknownCamFields(fact.declaration, UI_NAMESPACE_KEYS, fact.path)
   const resource = parseResourceDeclaration(fact)
   return {
     type: "ui",
@@ -158,7 +157,6 @@ function parseResourceDeclaration(fact: CamNamespaceFact): CamResourceDeclaratio
 function parseRoutes(
   source: Record<string, unknown>,
   namespaces: Record<string, CamNamespace>,
-  version: CamVersion,
 ): Record<string, CamRoute> {
   const routes = createStringMap<CamRoute>()
 
@@ -170,15 +168,14 @@ function parseRoutes(
     const path = `routes.${name}`
     const route = requiredRecord(value, path)
     const kind = parseRouteKind(route.kind, `${path}.kind`)
-    rejectUnknownCamFields(route, routeKeys(kind), path, version)
+    rejectUnknownCamFields(route, routeKeys(kind), path)
 
-    const call = parseInvocation(route.call, `${path}.call`, namespaces, CAM_ROUTE_CALL_NAMESPACE_TYPES, version)
+    const call = parseInvocation(route.call, `${path}.call`, namespaces, CAM_ROUTE_CALL_NAMESPACE_TYPES)
     const then = parseInvocation(
       route.then,
       `${path}.then`,
       namespaces,
       camRouteThenNamespaceTypes(kind),
-      version,
     )
     const inputs = parseInputNames(route.inputs, `${path}.inputs`, name)
 
@@ -242,10 +239,9 @@ function parseInvocation(
   path: string,
   namespaces: Record<string, CamNamespace>,
   allowedNamespaceTypes: ReadonlySet<CamNamespace["type"]>,
-  version: CamVersion,
 ): CamInvocation {
   const source = requiredRecord(value, path)
-  rejectUnknownCamFields(source, INVOCATION_KEYS, path, version)
+  rejectUnknownCamFields(source, INVOCATION_KEYS, path)
   const result = collectCamInvocationFact({
     resource: "CAM root",
     path,
@@ -296,14 +292,13 @@ function rejectUnknownCamFields(
   source: Record<string, unknown>,
   allowedKeys: ReadonlySet<string>,
   path: string,
-  version: CamVersion,
 ): void {
   // CAM documents are intentionally closed-world. Unknown fields are rejected
   // so older or richer shapes cannot be partially interpreted as another version.
   for (const key of Object.keys(source)) {
     if (!allowedKeys.has(key)) {
       const fieldPath = path.length === 0 ? key : `${path}.${key}`
-      throw new CamError("CAM_UNKNOWN_FIELD", `field is not allowed in CAM ${version}: ${key}`, fieldPath)
+      throw new CamError("CAM_UNKNOWN_FIELD", `field is not allowed in CAM ${CAM_VERSION}: ${key}`, fieldPath)
     }
   }
 }

@@ -1,4 +1,5 @@
 import {
+  CAM_VERSION,
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
   collectCamInvocationFact,
@@ -11,7 +12,6 @@ import type {
   CamNamespaceType,
   CamFactDiagnostic,
   CamRouteKind,
-  CamVersion,
 } from "@cam/protocol"
 
 import {
@@ -75,13 +75,11 @@ const RULES = conformanceRules({
 export function validateRouteDeclarations({
   resource,
   root,
-  version,
   namespaces,
   issues,
 }: {
   readonly resource: string
   readonly root: unknown
-  readonly version: CamVersion
   readonly namespaces: readonly DeclaredNamespace[]
   readonly issues: CamConformanceIssue[]
 }): readonly DeclaredRoute[] {
@@ -94,7 +92,7 @@ export function validateRouteDeclarations({
 
   const namespaceTypes = new Map(namespaces.map((namespace) => [namespace.name, namespace.type]))
   validateEntryRoute(resource, root.entry, root.routes, issues)
-  return validateRoutes(resource, root.routes, namespaceTypes, version, issues)
+  return validateRoutes(resource, root.routes, namespaceTypes, issues)
 }
 
 function validateEntryRoute(
@@ -126,7 +124,6 @@ function validateRoutes(
   resource: string,
   routes: Record<string, unknown>,
   namespaces: ReadonlyMap<string, CamNamespaceType>,
-  version: CamVersion,
   issues: CamConformanceIssue[],
 ): readonly DeclaredRoute[] {
   const declaredRoutes: DeclaredRoute[] = []
@@ -143,7 +140,7 @@ function validateRoutes(
     const inputs = validateRouteInputList(resource, routeName, route.inputs, issues)
     const invocations = validateRouteInvocations(resource, routeName, route, namespaces, issues)
     if (kind !== undefined) {
-      validateRouteFields(resource, routeName, route, version, kind, issues)
+      validateRouteFields(resource, routeName, route, kind, issues)
     }
     if (kind !== undefined && inputs !== undefined && invocations !== undefined) {
       const value = routeValue(route, kind)
@@ -175,7 +172,6 @@ function validateRouteFields(
   resource: string,
   routeName: string,
   route: Record<string, unknown>,
-  version: CamVersion,
   kind: CamRouteKind,
   issues: CamConformanceIssue[],
 ): void {
@@ -187,7 +183,7 @@ function validateRouteFields(
     issues.push(routeDeclarationIssue(
       resource,
       `routes.${routeName}.${field}`,
-      `field is not allowed in CAM ${version}: ${field}`,
+      `field is not allowed in CAM ${CAM_VERSION}: ${field}`,
     ))
   }
 }

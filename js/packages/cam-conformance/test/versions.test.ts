@@ -14,14 +14,8 @@ import {
   validateCamBundle,
 } from "../src/index.ts"
 import {
-  validateNamespaceDeclarations,
-} from "../src/manifest/namespaces.ts"
-import {
   validateRootManifest,
 } from "../src/manifest/root.ts"
-import {
-  validateRouteDeclarations,
-} from "../src/manifest/routes.ts"
 import {
   jsonBytes,
   minimalBundle,
