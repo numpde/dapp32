@@ -6,15 +6,13 @@ import {
 import {
   validateCamContractCall,
 } from "@cam/evm-viem"
-import {
-  isCamNamespaceNameForType,
-  toInertValue,
-} from "@cam/protocol"
+import { isCamNamespaceNameForType } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type { InertRecord } from "@cam/protocol"
 
 import { CamViewerError } from "./errors.ts"
+import { cloneViewerData } from "./inert-data.ts"
 import { assertViewerRouteAccountAvailable } from "./route-preflight.ts"
 import type {
   CamViewerAccount,
@@ -67,30 +65,14 @@ export function prepareViewerContractCall({
   const prepared: CamViewerPreparedContractCall = {
     route,
     address: contract.address,
-    abi: cloneContractAbi(contract.abi),
+    abi: cloneViewerData(contract.abi, "contract.abi"),
     function: call.function,
-    args: clonePreparedCallData(call.args, "call.args"),
+    args: cloneViewerData(call.args, "call.args"),
     ...(call.value === undefined
       ? {}
-      : { value: clonePreparedCallData(call.value, "call.value") }),
-    then: clonePreparedCallData(resolveRouteThen(cam, route, context), "call.then"),
+      : { value: cloneViewerData(call.value, "call.value") }),
+    then: cloneViewerData(resolveRouteThen(cam, route, context), "call.then"),
   }
   validateCamContractCall(prepared)
   return prepared
-}
-
-function cloneContractAbi(abi: ResolvedCamContract["abi"]): ResolvedCamContract["abi"] {
-  return clonePreparedCallData(abi, "contract.abi")
-}
-
-function clonePreparedCallData<T>(value: T, path: string): T {
-  try {
-    return toInertValue(value) as T
-  } catch (cause) {
-    throw new CamViewerError(
-      "CAM_VIEWER_INVALID_INERT_VALUE",
-      `CAM viewer data is not safely cloneable: ${path}`,
-      cause,
-    )
-  }
 }

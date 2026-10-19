@@ -11,7 +11,6 @@ import {
   CAM_UI_NAMESPACE,
   parseJsonBytes,
   resolveCamResourceURI,
-  toInertValue,
 } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
 import type { InertRecord, InertValue } from "@cam/protocol"
@@ -40,6 +39,7 @@ import type {
 } from "@cam/screen"
 
 import { CamViewerError } from "./errors.ts"
+import { cloneViewerData } from "./inert-data.ts"
 import {
   assertActionIsRendered,
   assertStatePatchTargets,
@@ -538,17 +538,5 @@ function cloneHost(source: CamHost): CamHost {
   return {
     chainId: requireEvmChainId(source.chainId),
     address: requireEvmAddress(source.address, "host.address"),
-  }
-}
-
-function cloneViewerData<T>(value: T, path: string): T {
-  try {
-    return toInertValue(value) as T
-  } catch (cause) {
-    throw new CamViewerError(
-      "CAM_VIEWER_INVALID_INERT_VALUE",
-      `CAM viewer data is not safely cloneable: ${path}`,
-      cause,
-    )
   }
 }

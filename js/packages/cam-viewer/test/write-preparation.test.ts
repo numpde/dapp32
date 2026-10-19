@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { CamError, parseCam } from "@cam/core"
-import { CAM_VERSION, toInertValue } from "@cam/protocol"
+import { CAM_VERSION, InertValueError, toInertValue } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
 import type { Abi, Address } from "viem"
@@ -228,7 +228,9 @@ test("prepareViewerContractCall rejects non-cloneable contract ABIs", () => {
     }),
     (error) => error instanceof CamViewerError
       && error.code === "CAM_VIEWER_INVALID_INERT_VALUE"
-      && /contract\.abi/.test(error.message),
+      && error.message === "CAM viewer data is not safely cloneable: contract.abi"
+      && error.cause instanceof InertValueError
+      && error.cause.path === "0.outputs.0.self",
   )
 })
 

@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
 import test from "node:test"
 
-import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, toInertValue, UI_VERSION, type InertRecord, type InertValue } from "@cam/protocol"
+import { CAM_RESOURCE_MAX_BYTES, CAM_VERSION, InertValueError, toInertValue, UI_VERSION, type InertRecord, type InertValue } from "@cam/protocol"
 import { CamEvmError } from "@cam/evm-viem"
 import { forEachResolvedUiNode, resolvedUiButtons, UiError, type ResolvedAmountFieldNode, type ResolvedNonNegativeIntegerFieldNode, type ResolvedUiNode } from "@cam/screen"
 
@@ -1833,6 +1833,26 @@ test("setAccount reload failures preserve the previous loaded snapshot", async (
   )
 
   assert.deepEqual(session.snapshot(), before)
+})
+
+test("createCamViewerSession rejects cyclic initial inputs with their boundary path", () => {
+  const cyclic: Record<string, unknown> = {}
+  cyclic.self = cyclic
+
+  assert.throws(
+    () => createCamViewerSession({
+      publicClient: createPublicClient(publicClientFixtureOptions({})),
+      host,
+      account: { address: userAddress },
+      inputs: cyclic as InertRecord,
+      loadResource: createResourceLoader(bikeResourceBytes(NO_RESOURCE_OVERRIDES)),
+    }),
+    (error) => error instanceof CamViewerError
+      && error.code === "CAM_VIEWER_INVALID_INERT_VALUE"
+      && error.message === "CAM viewer data is not safely cloneable: inputs"
+      && error.cause instanceof InertValueError
+      && error.cause.path === "self",
+  )
 })
 
 test("updateState rejects fields that are not backed by rendered inputs", async () => {
