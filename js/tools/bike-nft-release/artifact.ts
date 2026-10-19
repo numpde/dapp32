@@ -12,7 +12,10 @@ import {
   requireHandoff,
 } from "./artifact-model.ts"
 import type { DeploymentContracts } from "./artifact-model.ts"
-import { creationReceiptDeployer } from "../release-provenance.ts"
+import {
+  creationReceiptDeployer,
+  sharedCreationReceiptDeployer,
+} from "../release-provenance.ts"
 import {
   parseReleasePlan,
   rejectDeployerAuthorities,
@@ -204,11 +207,7 @@ async function proveCreationProvenance(
     "BicycleComponentManager",
   )
   const ui = creationReceiptDeployer(contracts.ui, uiReceipt, "BicycleComponentManagerUI")
-  const deployers = [camRoot, components, manager, ui]
-  if (new Set(deployers.map((address) => address.toLowerCase())).size !== 1) {
-    throw new Error("release creation transactions do not share one deployer")
-  }
-  return camRoot
+  return sharedCreationReceiptDeployer([camRoot, components, manager, ui])
 }
 
 async function observeCode(

@@ -15,7 +15,10 @@ import {
   deploymentContractsFromBroadcast,
   ownershipState,
 } from "./artifact-model.ts"
-import { creationReceiptDeployer } from "../release-provenance.ts"
+import {
+  creationReceiptDeployer,
+  sharedCreationReceiptDeployer,
+} from "../release-provenance.ts"
 import {
   DEPLOYMENT_SCHEMA,
   parseReleasePlan,
@@ -67,18 +70,11 @@ async function main(): Promise<void> {
     client.getTransactionReceipt({ hash: contracts.camEscrow.transactionHash }),
     client.getTransactionReceipt({ hash: contracts.camEscrowUI.transactionHash }),
   ])
-  const deployers = new Set([
+  const deployer = sharedCreationReceiptDeployer([
     creationReceiptDeployer(contracts.camRoot, rootReceipt, "CamRoot"),
     creationReceiptDeployer(contracts.camEscrow, escrowReceipt, "CamEscrow"),
     creationReceiptDeployer(contracts.camEscrowUI, uiReceipt, "CamEscrowUI"),
   ])
-  if (deployers.size !== 1) {
-    throw new Error("release creation transactions do not share one deployer")
-  }
-  const deployer = [...deployers][0]
-  if (deployer === undefined) {
-    throw new Error("release deployment receipt has no deployer")
-  }
 
   const observationBlockNumber = await client.getBlockNumber()
   const [rootCode, escrowCode, uiCode] = await Promise.all([

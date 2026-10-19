@@ -16,6 +16,7 @@ import {
 import test from "node:test"
 import { fileURLToPath } from "node:url"
 
+import { getAddress } from "viem"
 import type { Address, Hex } from "viem"
 
 import {
@@ -32,7 +33,10 @@ import {
   RELEASE_PLAN_SCHEMA,
 } from "./shared.ts"
 import type { DeploymentArtifact } from "./shared.ts"
-import { creationReceiptDeployer } from "../release-provenance.ts"
+import {
+  creationReceiptDeployer,
+  sharedCreationReceiptDeployer,
+} from "../release-provenance.ts"
 import { requiredNonzeroAddress, requiredReleaseChainId, requiredSourceCommit } from "../release-values.ts"
 
 const SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
@@ -278,6 +282,27 @@ test("creation receipts are bound to broadcast hashes and contract addresses", (
     from: DEPLOYER,
     to: null,
   }, "CamRoot"), /did not succeed/)
+})
+
+test("creation receipts identify one deployer without relying on address casing", () => {
+  const deployer = "0x00000000000000000000000000000000000000aa" as Address
+  const checksumSpelling = getAddress(deployer)
+  assert.notEqual(checksumSpelling, deployer)
+  assert.equal(
+    sharedCreationReceiptDeployer([deployer, checksumSpelling]),
+    deployer,
+  )
+  assert.equal(
+    sharedCreationReceiptDeployer([checksumSpelling, deployer, checksumSpelling]),
+    checksumSpelling,
+  )
+})
+
+test("creation receipts reject genuinely different deployers", () => {
+  assert.throws(
+    () => sharedCreationReceiptDeployer([DEPLOYER, ESCROW]),
+    /creation transactions do not share one deployer/,
+  )
 })
 
 test("ownership classification distinguishes pending and accepted handoff", () => {

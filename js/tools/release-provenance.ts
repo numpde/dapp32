@@ -33,6 +33,15 @@ export function creationReceiptDeployer(contract: CreatedContract, receipt: Crea
   return requiredNonzeroAddress(receipt.from, `${label} creation receipt deployer`)
 }
 
+export function sharedCreationReceiptDeployer(
+  deployers: readonly [Address, ...Address[]],
+): Address {
+  if (new Set(deployers.map((deployer) => deployer.toLowerCase())).size !== 1) {
+    throw new Error("release creation transactions do not share one deployer")
+  }
+  return deployers[0]
+}
+
 function isCreateTransaction(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value) && (value as Record<string, unknown>).transactionType === "CREATE"
 }
