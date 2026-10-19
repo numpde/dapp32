@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import http.server
 import ipaddress
+import math
 import os
 import re
 import select
@@ -51,7 +52,10 @@ def required_positive_seconds_env(name: str) -> float:
     value = required_env(name)
     if POSITIVE_SECONDS_RE.fullmatch(value) is None:
         raise RuntimeError(f"{name}: expected positive seconds")
-    return float(value)
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise RuntimeError(f"{name}: expected positive seconds")
+    return seconds
 
 
 LISTEN_HOST = required_env("HTTPS_EGRESS_PROXY_HOST")

@@ -3,6 +3,7 @@ import http.client
 import http.server
 import ipaddress
 import json
+import math
 import os
 import re
 import socket
@@ -51,7 +52,10 @@ def required_positive_seconds_env(name):
     value = required_env(name)
     if POSITIVE_SECONDS_RE.fullmatch(value) is None:
         raise RuntimeError(f"{name}: expected positive seconds")
-    return float(value)
+    seconds = float(value)
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise RuntimeError(f"{name}: expected positive seconds")
+    return seconds
 
 
 LISTEN_HOST = required_env("RPC_PROXY_HOST")

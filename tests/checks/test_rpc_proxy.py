@@ -63,6 +63,40 @@ class RpcProxyTest(unittest.TestCase):
                     self.proxy.MAX_REQUEST_LIMIT_BYTES,
                 )
 
+    def test_positive_seconds_environment_values_remain_finite_and_positive(self) -> None:
+        for value, expected in [("9", 9.0), ("0.125", 0.125)]:
+            with self.subTest(value=value), mock.patch.dict(
+                os.environ,
+                {"RPC_PROXY_CONNECT_TIMEOUT_SECONDS": value},
+            ):
+                self.assertEqual(
+                    self.proxy.required_positive_seconds_env("RPC_PROXY_CONNECT_TIMEOUT_SECONDS"),
+                    expected,
+                )
+
+        for value in ["9" * 400, "0." + "0" * 400 + "1"]:
+            with self.subTest(value=value[:8]), mock.patch.dict(
+                os.environ,
+                {"RPC_PROXY_CONNECT_TIMEOUT_SECONDS": value},
+            ):
+                with self.assertRaisesRegex(RuntimeError, "expected positive seconds"):
+                    self.proxy.required_positive_seconds_env("RPC_PROXY_CONNECT_TIMEOUT_SECONDS")
+
+    def test_invalid_seconds_environment_prevents_proxy_startup(self) -> None:
+        for value in ["9" * 400, "0." + "0" * 400 + "1"]:
+            with self.subTest(value=value[:8]), self.assertRaisesRegex(
+                RuntimeError,
+                "RPC_PROXY_CONNECT_TIMEOUT_SECONDS: expected positive seconds",
+            ):
+                import_python_module_with_env(
+                    "rpc_proxy_invalid_timeout",
+                    repo_path("containers/rpc-proxy/rpc_proxy.py"),
+                    {
+                        **proxy_environment("/tmp/rpc-url"),
+                        "RPC_PROXY_CONNECT_TIMEOUT_SECONDS": value,
+                    },
+                )
+
     def test_read_upstream_rejects_http_and_userinfo(self) -> None:
         with self.upstream_url("http://example.com/rpc"):
             with self.assertRaisesRegex(self.proxy.UpstreamRejected, "must use https"):

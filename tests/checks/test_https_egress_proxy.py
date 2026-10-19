@@ -22,6 +22,50 @@ class HttpsEgressProxyTest(unittest.TestCase):
                     self.proxy.MAX_TUNNEL_BUFFER_BYTES,
                 )
 
+    def test_positive_seconds_environment_values_remain_finite_and_positive(self) -> None:
+        for value, expected in [("9", 9.0), ("0.125", 0.125)]:
+            with self.subTest(value=value), mock.patch.dict(
+                os.environ,
+                {"HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS": value},
+            ):
+                self.assertEqual(
+                    self.proxy.required_positive_seconds_env("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS"),
+                    expected,
+                )
+
+        for value in ["9" * 400, "0." + "0" * 400 + "1"]:
+            with self.subTest(value=value[:8]), mock.patch.dict(
+                os.environ,
+                {"HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS": value},
+            ):
+                with self.assertRaisesRegex(RuntimeError, "expected positive seconds"):
+                    self.proxy.required_positive_seconds_env("HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS")
+
+    def test_invalid_seconds_environment_prevents_proxy_startup(self) -> None:
+        for name in [
+            "HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS",
+            "HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS",
+        ]:
+            for value in ["9" * 400, "0." + "0" * 400 + "1"]:
+                with self.subTest(name=name, value=value[:8]), self.assertRaisesRegex(
+                    RuntimeError,
+                    f"{name}: expected positive seconds",
+                ):
+                    import_python_module_with_env(
+                        "https_egress_proxy_invalid_timeout",
+                        repo_path("containers/https-egress-proxy/https_egress_proxy.py"),
+                        {
+                            "HTTPS_EGRESS_PROXY_HOST": "127.0.0.1",
+                            "HTTPS_EGRESS_PROXY_PORT": "8080",
+                            "HTTPS_EGRESS_PROXY_CONNECT_TIMEOUT_SECONDS": "1",
+                            "HTTPS_EGRESS_PROXY_TUNNEL_IDLE_TIMEOUT_SECONDS": "1",
+                            "HTTPS_EGRESS_PROXY_MAX_HOST_BYTES": "255",
+                            "HTTPS_EGRESS_PROXY_BUFFER_BYTES": "65536",
+                            "HTTPS_EGRESS_PROXY_ALLOWED_HOSTS": "registry.npmjs.org",
+                            name: value,
+                        },
+                    )
+
     def test_allowed_hosts_are_normalized_for_exact_matching(self) -> None:
         hosts = self.proxy.parse_allowed_hosts("Registry.NPMJS.org., registry.npmjs.org")
 
