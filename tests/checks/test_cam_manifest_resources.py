@@ -92,6 +92,23 @@ class CamManifestResourceTest(unittest.TestCase):
             ],
         )
 
+    def test_missing_resource_returns_its_primary_integrity_failure(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            manifest_path.parent.mkdir(parents=True)
+
+            failures = self.validator.validate_sha256_integrity(
+                manifest_path,
+                "namespaces.ui.integrity",
+                "./screens/missing.json",
+                ZERO_SHA256,
+            )
+
+        self.assertEqual(
+            failures,
+            [f"{manifest_path}: CAM resource does not exist: ./screens/missing.json"],
+        )
+
     def test_resource_integrity_requires_protocol_object(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"

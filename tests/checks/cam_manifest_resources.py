@@ -136,15 +136,11 @@ class CamManifestResourceValidator:
         if not isinstance(integrity, str) or not INTEGRITY_PATTERN.fullmatch(integrity):
             return [f"{manifest_path}: {field_path} must be a sha256:0x-prefixed lowercase digest"]
 
-        actual: str | None = None
-        failures: list[str] = []
         try:
             actual = resource_integrity(manifest_path, uri, field_path)
+        # silent-defaults: allow-exception-fallback -- Return the path failure before digest comparison; proof=tests/checks/test_cam_manifest_resources.py::CamManifestResourceTest.test_missing_resource_returns_its_primary_integrity_failure
         except CamResourceIntegrityError as error:
-            failures.append(str(error))
-
-        if failures:
-            return failures
+            return [str(error)]
 
         if actual != integrity:
             return [f"{manifest_path}: {field_path} does not match {uri}"]

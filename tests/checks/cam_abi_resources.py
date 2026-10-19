@@ -42,13 +42,13 @@ def validate_local_abi_uri(
     contract_name: str,
     abi_uri: object,
 ) -> list[str]:
-    failures: list[str] = []
     try:
         checked_local_abi_path(manifest_path, contract_name, abi_uri)
+    # silent-defaults: allow-exception-fallback -- Return the ABI path diagnostic; proof=tests/checks/test_cam_abi_resources.py::CamAbiResourceTest.test_abi_uri_reuses_cam_resource_path_policy
     except CamAbiResourceError as error:
-        failures.append(str(error))
+        return [str(error)]
 
-    return failures
+    return []
 
 
 def checked_local_abi_path(

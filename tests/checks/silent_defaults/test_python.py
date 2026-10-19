@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import ast
+import io
+import tokenize
 from collections.abc import Callable
+from tempfile import TemporaryDirectory
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from ..common import ROOT
 from .test_shared_scanner import repo_files
@@ -314,6 +318,31 @@ def is_exception_fallback_handler(node: ast.AST) -> bool:
     return False
 
 
+def exception_fallback_waivers(source: str, tree: ast.AST) -> tuple[set[ast.ExceptHandler], list[tuple[int, str]]]:
+    """Accept `# silent-defaults: allow-exception-fallback -- reason` before same-indent except.
+
+    It waives only that exception-fallback finding; malformed or stale directives
+    fail, while raw source classification remains unchanged.
+    """
+    handlers = [node for node in ast.walk(tree) if isinstance(node, ast.ExceptHandler)]
+    accepted: set[ast.ExceptHandler] = set()
+    failures: list[tuple[int, str]] = []
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type != tokenize.COMMENT or not token.string[1:].lstrip().startswith("silent-defaults"):
+            continue
+        prefix, separator, reason = token.string.partition(" -- ")
+        if prefix != "# silent-defaults: allow-exception-fallback" or not separator or not reason.strip():
+            failures.append((token.start[0], "expected allow-exception-fallback and a nonblank reason"))
+            continue
+
+        target = [handler for handler in handlers if handler.lineno == token.end[0] + 1 and handler.col_offset == token.start[1]]
+        if token.line[:token.start[1]].strip() or len(target) != 1 or not is_exception_fallback_handler(target[0]):
+            failures.append((token.start[0], "must immediately precede one fallback handler at the same indentation"))
+            continue
+        accepted.add(target[0])
+    return accepted, failures
+
+
 def source_snippet(source: str, node: ast.AST) -> str:
     segment = ast.get_source_segment(source, node)
     return f"<{type(node).__name__}>" if segment is None else " ".join(segment.split())
@@ -323,6 +352,9 @@ def python_default_findings(path: Path) -> list[str]:
     source = path.read_text(encoding="utf-8")
     tree = ast.parse(source, filename=str(path))
     findings: list[str] = []
+    waivers, waiver_failures = exception_fallback_waivers(source, tree)
+    for line, message in waiver_failures:
+        findings.append(f"{path.relative_to(ROOT)}:{line}: python exception-fallback waiver: {message}")
     for node in ast.walk(tree):
         if is_silent_default(node):
             findings.append(f"{path.relative_to(ROOT)}:{node.lineno}: python silent default: {source_snippet(source, node)}")
@@ -331,7 +363,7 @@ def python_default_findings(path: Path) -> list[str]:
                 f"{path.relative_to(ROOT)}:{default.lineno}: "
                 f"python function default: {source_snippet(source, default)}"
             )
-        if is_exception_fallback_handler(node):
+        if is_exception_fallback_handler(node) and node not in waivers:
             findings.append(
                 f"{path.relative_to(ROOT)}:{node.lineno}: "
                 f"python exception fallback: {source_snippet(source, node)}"
@@ -370,6 +402,96 @@ class PythonSilentDefaultsTest(unittest.TestCase):
         self.assertFalse(python_source_has_default('try:\n    run()\nexcept Exception as exc:\n    raise RuntimeError("failed") from exc'))
         self.assertFalse(python_source_has_default('optional = env["OPTIONAL"] if "OPTIONAL" in env else ""'))
         self.assertFalse(python_source_has_default('optional = env["OPTIONAL"] if "OPTIONAL" in env else None'))
+
+    def test_exception_fallback_waiver_is_local_and_preserves_raw_detection(self) -> None:
+        source = '''def validate():
+    try:
+        operation()
+    # silent-defaults: allow-exception-fallback -- Return the resource diagnostic; see test_missing_resource_returns_its_primary_integrity_failure.
+    except ValueError as error:
+        return [str(error)]
+'''
+
+        self.assertTrue(python_source_has_default(source))
+        self.assertEqual([], self.findings_for_source(source))
+
+    def test_exception_fallback_waiver_rejects_invalid_directives(self) -> None:
+        directives = {
+            "missing reason": "    # silent-defaults: allow-exception-fallback\n",
+            "missing separator": "    # silent-defaults allow-exception-fallback -- reason\n",
+            "missing namespace separator": "    # silent-defaults:allow-exception-fallback -- reason\n",
+            "blank reason": "    # silent-defaults: allow-exception-fallback --   \n",
+            "unknown rule": "    # silent-defaults: allow-contract -- reason\n",
+            "wrong indentation": "        # silent-defaults: allow-exception-fallback -- reason\n",
+            "blank line": "    # silent-defaults: allow-exception-fallback -- reason\n\n",
+            "duplicate": (
+                "    # silent-defaults: allow-exception-fallback -- first reason\n"
+                "    # silent-defaults: allow-exception-fallback -- second reason\n"
+            ),
+        }
+
+        for name, directive in directives.items():
+            with self.subTest(name=name):
+                source = f"def validate():\n    try:\n        operation()\n{directive}    except ValueError as error:\n        return [str(error)]\n"
+                findings = self.findings_for_source(source)
+                self.assertTrue(any("python exception-fallback waiver" in finding for finding in findings), findings)
+
+    def test_exception_fallback_waiver_does_not_cover_siblings_or_other_rules(self) -> None:
+        source = '''def validate(value):
+    try:
+        operation()
+    # silent-defaults: allow-exception-fallback -- Return the owned diagnostic; see test_abi_uri_reuses_cam_resource_path_policy.
+    except ValueError as error:
+        try:
+            operation()
+        except LookupError as nested_error:
+            return [str(nested_error)]
+        return os.environ.get("VALUE", "")
+    except OSError as error:
+        return [str(error)]
+'''
+
+        findings = self.findings_for_source(source)
+        self.assertTrue(any("python silent default" in finding for finding in findings), findings)
+        self.assertEqual(2, sum("python exception fallback" in finding for finding in findings), findings)
+
+    def test_exception_fallback_waiver_is_a_comment_and_stale_targets_fail(self) -> None:
+        string_marker = '''def validate():
+    marker = "# silent-defaults: allow-exception-fallback -- reason"
+    try:
+        operation()
+    except ValueError as error:
+        return [str(error)]
+'''
+        stale = '''def validate():
+    try:
+        operation()
+    # silent-defaults: allow-exception-fallback -- This handler no longer reports; see test_missing_resource_returns_its_primary_integrity_failure.
+    except ValueError:
+        raise
+'''
+
+        self.assertTrue(any("python exception fallback" in finding for finding in self.findings_for_source(string_marker)))
+        stale_findings = self.findings_for_source(stale)
+        self.assertTrue(any("python exception-fallback waiver" in finding for finding in stale_findings), stale_findings)
+
+        inline = '''def validate():
+    try:
+        operation()
+    except ValueError as error:  # silent-defaults: allow-exception-fallback -- reason
+        return [str(error)]
+'''
+        inline_findings = self.findings_for_source(inline)
+        self.assertTrue(any("python exception-fallback waiver" in finding for finding in inline_findings), inline_findings)
+        self.assertTrue(any("python exception fallback" in finding for finding in inline_findings), inline_findings)
+
+    def findings_for_source(self, source: str) -> list[str]:
+        with TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "sample.py"
+            path.write_text(source, encoding="utf-8")
+            with patch(__name__ + ".ROOT", root):
+                return python_default_findings(path)
 
     def test_python_file_scan_is_repository_wide(self) -> None:
         scanned = {path.relative_to(ROOT).as_posix() for path in python_files()}
