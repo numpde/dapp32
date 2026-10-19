@@ -59,13 +59,6 @@ class CamManifestResourceValidator:
 
         return failures
 
-    def validate_resource_inventory(self, manifest_path: Path, _manifest: dict[str, object]) -> list[str]:
-        screen_dir = manifest_path.parent / "screens"
-        if screen_dir.exists():
-            return [f"{manifest_path}: namespaced CAM must not keep legacy screens/ resources"]
-
-        return []
-
     def validate_resource_integrity(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
         if not isinstance(manifest.get("protocol"), dict):
             return [f"{manifest_path}: protocol must be an object reference"]

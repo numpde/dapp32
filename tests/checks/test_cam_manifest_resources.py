@@ -14,40 +14,11 @@ class CamManifestResourceTest(unittest.TestCase):
     def setUp(self) -> None:
         self.validator = CamManifestResourceValidator()
 
-    def test_cam_manifests_match_declared_resource_inventory(self) -> None:
-        failures = [
-            *self.validator.collect_manifest_failures(self.validator.validate_resource_inventory),
-            *self.validator.collect_manifest_failures(self.validator.validate_resource_integrity),
-        ]
+    def test_cam_manifest_resource_integrity_matches_declared_resources(self) -> None:
+        failures = self.validator.collect_manifest_failures(self.validator.validate_resource_integrity)
 
         if failures:
             self.fail("\n".join(failures))
-
-    def test_resource_inventory_rejects_legacy_screens_directory(self) -> None:
-        with TemporaryDirectory() as tmp:
-            manifest_path = Path(tmp) / "cam" / "main.json"
-            manifest_path.parent.mkdir(parents=True)
-
-            failures = self.validator.validate_resource_inventory(
-                manifest_path,
-                {},
-            )
-
-            (manifest_path.parent / "screens").mkdir()
-
-            legacy_failures = self.validator.validate_resource_inventory(
-                manifest_path,
-                {},
-            )
-
-        self.assertEqual(
-            failures,
-            [],
-        )
-        self.assertEqual(
-            legacy_failures,
-            [f"{manifest_path}: namespaced CAM must not keep legacy screens/ resources"],
-        )
 
     def test_contract_namespace_extraction_rejects_unsupported_namespaces(self) -> None:
         with TemporaryDirectory() as tmp:
@@ -80,9 +51,11 @@ class CamManifestResourceTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
             abi_dir = manifest_path.parent / "abi"
+            screens_dir = manifest_path.parent / "screens"
             abi_dir.mkdir(parents=True)
+            screens_dir.mkdir()
             (abi_dir / "UI.json").write_text("[]\n", encoding="utf-8")
-            (manifest_path.parent / "ui.json").write_text(
+            (screens_dir / "ui.json").write_text(
                 json.dumps({"ui": protocol_document_version("UI_VERSION"), "nodes": {}}) + "\n",
                 encoding="utf-8",
             )
@@ -104,7 +77,7 @@ class CamManifestResourceTest(unittest.TestCase):
                         },
                         "ui": {
                             "type": "ui",
-                            "uri": "./ui.json",
+                            "uri": "./screens/ui.json",
                             "integrity": ZERO_SHA256,
                         },
                     },
@@ -115,7 +88,7 @@ class CamManifestResourceTest(unittest.TestCase):
             failures,
             [
                 f"{manifest_path}: namespaces.contracts.UI.integrity does not match ./abi/UI.json",
-                f"{manifest_path}: namespaces.ui.integrity does not match ./ui.json",
+                f"{manifest_path}: namespaces.ui.integrity does not match ./screens/ui.json",
             ],
         )
 
