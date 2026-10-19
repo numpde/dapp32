@@ -1,6 +1,6 @@
-import type { Address } from "viem"
+import { zeroAddress, type Address } from "viem"
 
-import { requiredJsonRecord, ZERO_ADDRESS } from "../release-values.ts"
+import { requiredJsonRecord } from "../release-values.ts"
 import { createdContract } from "../release-provenance.ts"
 import type { CreatedContract } from "../release-provenance.ts"
 
@@ -43,7 +43,7 @@ export function ownershipState({
   const normalizedIntendedOwner = intendedOwner.toLowerCase()
   const normalizedOwner = owner.toLowerCase()
   const normalizedPendingOwner = pendingOwner.toLowerCase()
-  const zero = ZERO_ADDRESS.toLowerCase()
+  const zero = zeroAddress.toLowerCase()
 
   if (normalizedOwner === normalizedIntendedOwner && normalizedPendingOwner === zero) {
     return {

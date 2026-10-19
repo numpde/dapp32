@@ -1,9 +1,9 @@
+import { zeroAddress } from "viem"
+
 import { viewerErrorMessage } from "../packages/cam-viewer/dist/index.js"
 import { requireEvmAddress } from "../packages/cam-evm-viem/dist/index.js"
 import type { CamHost } from "../packages/cam-evm-viem/dist/index.js"
 import { isRecordObject, parseJsonBytes } from "../packages/cam-protocol/dist/index.js"
-
-export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 export function requiredSourceCommit(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-f]{40}$/.test(value)) {
@@ -34,7 +34,7 @@ export function requiredNonzeroAddress(value: unknown, label: string): CamHost["
     throw new Error(`${label}: expected 20-byte hex address`)
   }
   const address = requireEvmAddress(value, label)
-  if (address.toLowerCase() === ZERO_ADDRESS) {
+  if (address.toLowerCase() === zeroAddress) {
     throw new Error(`${label} must not be the zero address`)
   }
   return address

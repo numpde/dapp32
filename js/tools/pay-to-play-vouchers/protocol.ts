@@ -1,10 +1,9 @@
-import { sha256, stringToBytes } from "viem"
+import { sha256, stringToBytes, zeroAddress } from "viem"
 import type { Address, Hex } from "viem"
 import { requireEvmAddress } from "../../packages/cam-evm-viem/dist/index.js"
 import { requiredRecord, requiredString } from "../input.ts"
 
 const MAX_UINT256 = (1n << 256n) - 1n
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 const INVOICE_FIELDS = [
   "version", "purchaseId", "merchant", "customer", "chainId", "paymentContract",
   "channelId", "previousTotal", "cumulativeTotal", "acceptBefore", "termsHash",
@@ -145,7 +144,7 @@ export function assertInvoiceAcceptance(value: unknown, expected: Readonly<{
 
 function invoiceAddress(value: string, label: string): Address {
   const address = requireEvmAddress(value, label).toLowerCase() as Address
-  if (address === ZERO_ADDRESS) throw new Error(`${label} must be nonzero`)
+  if (address === zeroAddress) throw new Error(`${label} must be nonzero`)
   return address
 }
 

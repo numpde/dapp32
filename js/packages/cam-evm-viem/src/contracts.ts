@@ -5,11 +5,10 @@ import {
   resolveCamResourceURI,
 } from "@cam/protocol"
 import type { CamDocument } from "@cam/core"
-import { isAddress } from "viem"
+import { isAddress, zeroAddress } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, camRootAbi, parseAbiBytes } from "./abi.ts"
 import { assertClientChain } from "./chain.ts"
-import { ZERO_ADDRESS } from "./constants.ts"
 import { CamEvmError } from "./errors.ts"
 import { verifyCamResourceIntegrity } from "./hash.ts"
 import { loadResourceBytes } from "./resources.ts"
@@ -94,7 +93,7 @@ async function resolveContract({
   if (typeof address !== "string") {
     throw new CamEvmError("CAM_CONTRACT_INVALID", `CAM contract address is not a string for ${name}`)
   }
-  if (address.toLowerCase() === ZERO_ADDRESS) {
+  if (address.toLowerCase() === zeroAddress) {
     throw new CamEvmError("CAM_CONTRACT_UNBOUND", `CAM contract is unbound: ${name}`)
   }
   if (!isAddress(address)) {

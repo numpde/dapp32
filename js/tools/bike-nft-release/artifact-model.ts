@@ -1,6 +1,6 @@
-import { toFunctionSelector } from "viem"
+import { toFunctionSelector, zeroAddress } from "viem"
 import type { Address, Hex } from "viem"
-import { requiredJsonRecord, ZERO_ADDRESS } from "../release-values.ts"
+import { requiredJsonRecord } from "../release-values.ts"
 import { DEPLOYMENT_SCHEMA } from "./shared.ts"
 import type { DeploymentArtifact, ReleasePlan } from "./shared.ts"
 import { createdContract } from "../release-provenance.ts"
@@ -96,7 +96,7 @@ export function assertNoRegistrationCalls(transactions: readonly unknown[]): voi
 }
 
 export function requireHandoff(label: string, deployer: Address, intended: Address, current: Address, pending: Address): void {
-  const zero = ZERO_ADDRESS.toLowerCase()
+  const zero = zeroAddress.toLowerCase()
   if (current.toLowerCase() === intended.toLowerCase() && pending.toLowerCase() === zero) return
   if (current.toLowerCase() === deployer.toLowerCase() && pending.toLowerCase() === intended.toLowerCase()) return
   throw new Error(`unexpected ${label} handoff state: deployer=${deployer} intended=${intended} current=${current} pending=${pending}`)
