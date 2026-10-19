@@ -1,9 +1,8 @@
-import { sha256, stringToBytes, zeroAddress } from "viem"
+import { maxUint256, sha256, stringToBytes, zeroAddress } from "viem"
 import type { Address, Hex } from "viem"
 import { requireEvmAddress } from "../../packages/cam-evm-viem/dist/index.js"
 import { requiredRecord, requiredString } from "../input.ts"
 
-const MAX_UINT256 = (1n << 256n) - 1n
 const INVOICE_FIELDS = [
   "version", "purchaseId", "merchant", "customer", "chainId", "paymentContract",
   "channelId", "previousTotal", "cumulativeTotal", "acceptBefore", "termsHash",
@@ -163,6 +162,6 @@ function invoiceDecimal(source: Record<string, unknown>, name: string): string {
 }
 
 function unsigned(value: bigint, label: string): bigint {
-  if (typeof value !== "bigint" || value < 0n || value > MAX_UINT256) throw new Error(`${label} must be uint256`)
+  if (typeof value !== "bigint" || value < 0n || value > maxUint256) throw new Error(`${label} must be uint256`)
   return value
 }
