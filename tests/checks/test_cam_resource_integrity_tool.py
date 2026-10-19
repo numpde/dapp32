@@ -131,6 +131,34 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 self.assertEqual(manifest_before, manifest_path.read_bytes())
                 self.assertEqual(b"previous protocol", protocol_path.read_bytes())
 
+    def test_local_resource_query_and_fragment_markers_do_not_change_outputs(self) -> None:
+        for marker in ("?draft=1", "#section", "?", "#"):
+            with self.subTest(marker=marker), TemporaryDirectory() as tmp:
+                manifest_path = Path(tmp) / "cam" / "main.json"
+                manifest_path.parent.mkdir()
+                protocol_path = manifest_path.parent / "protocol.html"
+                ui_path = manifest_path.parent / f"ui.json{marker}"
+                ui_path.write_bytes(b"{}")
+                document: dict[str, object] = {
+                    "namespaces": {
+                        "ui": {
+                            "type": "ui",
+                            "uri": f"./{ui_path.name}",
+                            "integrity": ZERO_SHA256,
+                        },
+                    },
+                }
+                self.add_current_protocol(manifest_path, document)
+                write_json(manifest_path, document)
+                manifest_before = manifest_path.read_bytes()
+                protocol_before = protocol_path.read_bytes()
+
+                with self.assertRaisesRegex(CamResourceIntegrityError, "must not contain query or fragment markers"):
+                    refresh_manifest(manifest_path)
+
+                self.assertEqual(manifest_before, manifest_path.read_bytes())
+                self.assertEqual(protocol_before, protocol_path.read_bytes())
+
     def test_resource_referencing_protocol_is_pinned_to_the_published_bytes(self) -> None:
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
