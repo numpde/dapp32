@@ -29,13 +29,6 @@ export function parsePositiveIntegerText(value: string, message: string): number
   return parsed
 }
 
-export function requiredBooleanEnv(env: NodeJS.ProcessEnv, name: string): boolean {
-  const value = requiredEnv(env, name)
-  if (value === "true") return true
-  if (value === "false") return false
-  throw new Error(`${name}: expected "true" or "false"`)
-}
-
 export function readInertRecordEnv(env: NodeJS.ProcessEnv, name: string): InertRecord {
   const value = toInertValue(parseJsonText(requiredEnv(env, name)))
   if (!isRecordObject(value)) {
@@ -69,15 +62,6 @@ export function requiredString(source: Record<string, unknown>, key: string, pat
 export function requiredStringValue(value: unknown, path: string): string {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`${path}: expected a non-empty string`)
-  }
-
-  return value
-}
-
-export function requiredBoolean(source: Record<string, unknown>, key: string, path: string): boolean {
-  const value = requiredField(source, key)
-  if (typeof value !== "boolean") {
-    throw new Error(`${path}: expected a boolean`)
   }
 
   return value

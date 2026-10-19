@@ -76,13 +76,6 @@ x-bike-nft-integration-fuzz-base: &bike_nft_integration_fuzz_base
       }
       const camHost = requireEvmAddress(tx.contractAddress, "CamRoot contractAddress")
 
-      function requiredBooleanEnv(name) {
-        const value = requiredEnv(name)
-        if (value === "true") return true
-        if (value === "false") return false
-        throw new Error(`$${name} must be literal true or false`)
-      }
-
       const descriptor = {
         camIntegration: "1.0.0",
         chainId: requiredEnv("CAM_INTEGRATION_CHAIN_ID"),
