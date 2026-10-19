@@ -85,7 +85,19 @@ function errorCustomRevert(error: unknown): string | undefined {
   const args = errorProperty(data, "args")
   let argumentsText = ""
   try {
-    if (Array.isArray(args)) argumentsText = Array.prototype.map.call(args, formatErrorArgument).join(", ")
+    if (Array.isArray(args)) {
+      const argumentCount = args.length
+      let index = 0
+      for (; index < argumentCount; index += 1) {
+        if (index > 0) argumentsText += ", "
+        if (errorName.length + 1 + argumentsText.length >= MAX_ERROR_TEXT_LENGTH) break
+        if (index in args) argumentsText += formatErrorArgument(args[index])
+      }
+      if (index < argumentCount) {
+        const diagnostic = diagnosticText(`${errorName}(${argumentsText})`)
+        return diagnostic.length > MAX_ERROR_TEXT_LENGTH ? diagnostic : `${diagnostic}...`
+      }
+    }
   } catch {
     argumentsText = "unprintable arguments"
   }

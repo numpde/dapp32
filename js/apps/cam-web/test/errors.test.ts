@@ -228,6 +228,84 @@ test("errorMessage bounds untrusted provider text", () => {
   )
 })
 
+test("custom revert diagnostics stop reading args after the visible prefix", () => {
+  let indexedChecks = 0
+  let indexedReads = 0
+  const args = new Proxy(new Array(10_000), {
+    has(target, property) {
+      if (typeof property === "string" && /^\d+$/u.test(property)) indexedChecks += 1
+      return Reflect.has(target, property) || (typeof property === "string" && /^\d+$/u.test(property))
+    },
+    get(target, property, receiver) {
+      if (typeof property === "string" && /^\d+$/u.test(property)) {
+        indexedReads += 1
+        return Number(property)
+      }
+      return Reflect.get(target, property, receiver)
+    },
+  })
+  const visible = errorMessage(new Error("transaction failed", {
+    cause: { data: { errorName: "LargeArgs", args } },
+  }))
+
+  assert.match(visible, /^transaction failed: LargeArgs\(0, 1, 2,/)
+  assert.match(visible, /\.\.\.$/)
+  assert(indexedChecks < 1_000)
+  assert(indexedReads < 1_000)
+})
+
+test("custom revert truncation marks omitted args when the visible prefix hits its exact budget", () => {
+  const longArgument = "x".repeat(492)
+  const nearLimitName = "N".repeat(498)
+
+  const exactBudgetDiagnostic = errorMessage(new Error("transaction failed", {
+    cause: { data: { errorName: "Edge", args: [longArgument, 42] } },
+  }))
+  assert.match(exactBudgetDiagnostic, /^transaction failed: Edge\("x+/)
+  assert.match(exactBudgetDiagnostic, /\.\.\.$/)
+  assert.match(
+    errorMessage({ data: { errorName: nearLimitName, args: [42] } }),
+    /N+\(4\.\.\.$/,
+  )
+  assert.match(
+    errorMessage(new Error("transaction failed", { cause: { data: { errorName: "Edge", args: ["x".repeat(491), 42] } } })),
+    /\.\.\.$/,
+  )
+})
+
+test("custom revert formatting does not read an argument beyond the visible prefix", () => {
+  const args = ["x".repeat(491)]
+  Object.defineProperty(args, "1", { get() { throw new Error("invisible argument getter") } })
+  args.length = 2
+
+  const visible = errorMessage({ data: { errorName: "Edge", args } })
+  assert.match(visible, /^Edge\("x+/)
+  assert.match(visible, /\.\.\.$/)
+  assert.doesNotMatch(visible, /unprintable arguments|invisible argument getter/)
+})
+
+test("custom revert diagnostics preserve sparse argument separators", () => {
+  const args = new Array(3)
+  args[2] = "visible"
+
+  assert.equal(errorMessage({ data: { errorName: "Sparse", args } }), "Sparse(, , \"visible\")")
+})
+
+test("custom revert omission stays visible when composite credential redaction shortens the text", () => {
+  const visible = viewerErrorMessage({
+    data: {
+      errorName: "https://",
+      args: [`${"x".repeat(400)}@host`, "y".repeat(100), "omitted"],
+    },
+  })
+
+  assert(visible.length < 500)
+  assert.match(visible, /\.\.\.$/)
+  assert.match(visible, /\[redacted\]/)
+  assert.doesNotMatch(visible, /x{20}/)
+  assert.doesNotMatch(visible, /omitted/)
+})
+
 test("action failures name the visible operation and retain the existing diagnostic once", () => {
   const cause = { data: { errorName: "ChannelNotFound", args: [999999n] } }
   const error = Object.assign(new Error("failed to call CAM route: position", { cause }), { code: "CAM_ROUTE_CALL_FAILED" })
