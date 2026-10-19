@@ -3,7 +3,6 @@ import { lstat, open, realpath } from "node:fs/promises"
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 
 import {
-  assertCamResourceSize,
   assertCamSecondaryResourceURI,
   CAM_RESOURCE_MAX_BYTES,
 } from "../packages/cam-protocol/dist/index.js"
@@ -113,18 +112,14 @@ export async function readBoundedFile(path: string, label: string): Promise<Uint
   const pathStat = await assertRegularFile(path, label)
   assertResourceSize(pathStat.size, label)
 
-  const bytes = await readFileWithinResourceLimit(path, label)
-  assertCamResourceSize(bytes, label)
-  return bytes
+  return await readFileWithinResourceLimit(path, label)
 }
 
 export function readBoundedFileSync(path: string, label: string): Uint8Array {
   const pathStat = assertRegularFileSync(path, label)
   assertResourceSize(pathStat.size, label)
 
-  const bytes = readFileWithinResourceLimitSync(path, label)
-  assertCamResourceSize(bytes, label)
-  return bytes
+  return readFileWithinResourceLimitSync(path, label)
 }
 
 async function assertExistingPath(path: string, label: string): Promise<FileStat> {
