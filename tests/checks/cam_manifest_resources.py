@@ -67,6 +67,9 @@ class CamManifestResourceValidator:
         return []
 
     def validate_resource_integrity(self, manifest_path: Path, manifest: dict[str, object]) -> list[str]:
+        if not isinstance(manifest.get("protocol"), dict):
+            return [f"{manifest_path}: protocol must be an object reference"]
+
         failures: list[str] = []
         resources, resource_failures = self.manifest_resource_declarations(manifest_path, manifest)
         failures.extend(resource_failures)

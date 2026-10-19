@@ -21,6 +21,76 @@ from tools.json_policy import read_strict_json
 
 
 class CamResourceIntegrityToolTest(unittest.TestCase):
+    def add_current_protocol(self, manifest_path: Path, document: dict[str, object]) -> None:
+        manifest_path.parent.joinpath("protocol.html").write_bytes(b"previous protocol")
+        document["cam"] = protocol_document_version("CAM_VERSION")
+        document["protocol"] = {"uri": "./protocol.html", "integrity": ZERO_SHA256}
+
+    def test_refresh_rejects_missing_protocol_and_retired_cam_without_writes(self) -> None:
+        missing = object()
+        cases = (
+            ("missing protocol", "1.2.0", missing),
+            ("null protocol", "1.2.0", None),
+            ("missing protocol on retired CAM", "1.1.0", missing),
+            ("retired CAM 1.0 with protocol", "1.0.0", {"uri": "./protocol.html", "integrity": ZERO_SHA256}),
+            ("retired CAM 1.1 with protocol", "1.1.0", {"uri": "./protocol.html", "integrity": ZERO_SHA256}),
+            ("unsupported CAM 2.0 with protocol", "2.0.0", {"uri": "./protocol.html", "integrity": ZERO_SHA256}),
+        )
+        for label, version, protocol in cases:
+            with self.subTest(case=label), TemporaryDirectory() as tmp:
+                manifest_path = Path(tmp) / "cam" / "main.json"
+                manifest_path.parent.mkdir()
+                protocol_path = manifest_path.parent / "protocol.html"
+                protocol_path.write_bytes(b"previous protocol")
+                ui_path = manifest_path.parent / "ui.json"
+                ui_path.write_bytes(b"{}")
+                document = {
+                    "cam": version,
+                    "namespaces": {
+                        "ui": {"type": "ui", "uri": "./ui.json", "integrity": ZERO_SHA256},
+                    },
+                }
+                if protocol is not missing:
+                    document["protocol"] = protocol
+                write_json(manifest_path, document)
+                manifest_before = manifest_path.read_bytes()
+
+                with self.assertRaises(CamResourceIntegrityError):
+                    refresh_manifest(manifest_path)
+
+                self.assertEqual(manifest_before, manifest_path.read_bytes())
+                self.assertEqual(b"previous protocol", protocol_path.read_bytes())
+
+    def test_refresh_rejects_non_object_protocol_without_writes(self) -> None:
+        malformed_values = (
+            "./protocol.html",
+            [],
+            {},
+            {"uri": "./protocol.html", "integrity": ZERO_SHA256, "extra": True},
+        )
+        for protocol in malformed_values:
+            with self.subTest(protocol=protocol), TemporaryDirectory() as tmp:
+                manifest_path = Path(tmp) / "cam" / "main.json"
+                manifest_path.parent.mkdir()
+                protocol_path = manifest_path.parent / "protocol.html"
+                protocol_path.write_bytes(b"previous protocol")
+                ui_path = manifest_path.parent / "ui.json"
+                ui_path.write_bytes(b"{}")
+                write_json(manifest_path, {
+                    "cam": "1.2.0",
+                    "protocol": protocol,
+                    "namespaces": {
+                        "ui": {"type": "ui", "uri": "./ui.json", "integrity": ZERO_SHA256},
+                    },
+                })
+                manifest_before = manifest_path.read_bytes()
+
+                with self.assertRaises(CamResourceIntegrityError):
+                    refresh_manifest(manifest_path)
+
+                self.assertEqual(manifest_before, manifest_path.read_bytes())
+                self.assertEqual(b"previous protocol", protocol_path.read_bytes())
+
     def test_invalid_resource_declarations_do_not_change_publication_outputs(self) -> None:
         for failure in (
             "protocol integrity", "namespace", "resource integrity",
@@ -159,26 +229,25 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 json.dumps({"ui": protocol_document_version("UI_VERSION"), "nodes": {}}) + "\n",
                 encoding="utf-8",
             )
-            write_json(
-                manifest_path,
-                {
-                    "cam": protocol_document_version("CAM_VERSION"),
-                    "entry": "entry",
-                    "namespaces": {
-                        "contracts.UI": {
-                            "type": "contract",
-                            "abiURI": "./abi/UI.json",
-                            "integrity": ZERO_SHA256,
-                        },
-                        "ui": {
-                            "type": "ui",
-                            "uri": "./ui.json",
-                            "integrity": ZERO_SHA256,
-                        },
+            document: dict[str, object] = {
+                "cam": protocol_document_version("CAM_VERSION"),
+                "entry": "entry",
+                "namespaces": {
+                    "contracts.UI": {
+                        "type": "contract",
+                        "abiURI": "./abi/UI.json",
+                        "integrity": ZERO_SHA256,
                     },
-                    "routes": {},
+                    "ui": {
+                        "type": "ui",
+                        "uri": "./ui.json",
+                        "integrity": ZERO_SHA256,
+                    },
                 },
-            )
+                "routes": {},
+            }
+            self.add_current_protocol(manifest_path, document)
+            write_json(manifest_path, document)
 
             self.assertTrue(refresh_manifest(manifest_path))
             updated = read_strict_json(manifest_path)
@@ -206,18 +275,17 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             with self.subTest(uri=uri), TemporaryDirectory() as tmp:
                 manifest_path = Path(tmp) / "cam" / "main.json"
                 manifest_path.parent.mkdir(parents=True)
-                write_json(
-                    manifest_path,
-                    {
-                        "namespaces": {
-                            "contracts.UI": {
-                                "type": "contract",
-                                "abiURI": uri,
-                                "integrity": ZERO_SHA256,
-                            },
+                document: dict[str, object] = {
+                    "namespaces": {
+                        "contracts.UI": {
+                            "type": "contract",
+                            "abiURI": uri,
+                            "integrity": ZERO_SHA256,
                         },
                     },
-                )
+                }
+                self.add_current_protocol(manifest_path, document)
+                write_json(manifest_path, document)
 
                 with self.assertRaisesRegex(CamResourceIntegrityError, message):
                     refresh_manifest(manifest_path)
@@ -231,18 +299,17 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             outside.joinpath("UI.json").write_text("[]\n", encoding="utf-8")
             manifest_path.parent.mkdir(parents=True)
             manifest_path.parent.joinpath("abi").symlink_to(outside, target_is_directory=True)
-            write_json(
-                manifest_path,
-                {
-                    "namespaces": {
-                        "contracts.UI": {
-                            "type": "contract",
-                            "abiURI": "./abi/UI.json",
-                            "integrity": ZERO_SHA256,
-                        },
+            document: dict[str, object] = {
+                "namespaces": {
+                    "contracts.UI": {
+                        "type": "contract",
+                        "abiURI": "./abi/UI.json",
+                        "integrity": ZERO_SHA256,
                     },
                 },
-            )
+            }
+            self.add_current_protocol(manifest_path, document)
+            write_json(manifest_path, document)
 
             with self.assertRaisesRegex(CamResourceIntegrityError, "refusing symlinked CAM resource path"):
                 refresh_manifest(manifest_path)
@@ -284,14 +351,13 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 }
                 if value is not None:
                     declaration["integrity"] = value
-                write_json(
-                    manifest_path,
-                    {
-                        "namespaces": {
-                            "contracts.UI": declaration,
-                        },
+                document: dict[str, object] = {
+                    "namespaces": {
+                        "contracts.UI": declaration,
                     },
-                )
+                }
+                self.add_current_protocol(manifest_path, document)
+                write_json(manifest_path, document)
 
                 with self.assertRaisesRegex(CamResourceIntegrityError, "integrity must be"):
                     refresh_manifest(manifest_path)
@@ -302,18 +368,17 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             (manifest_path.parent / "abi").mkdir(parents=True)
             resource_uri = "./abi/UI.json"
             (manifest_path.parent / "abi" / "UI.json").write_bytes(b"0" * (MAX_CAM_RESOURCE_BYTES + 1))
-            write_json(
-                manifest_path,
-                {
-                    "namespaces": {
-                        "contracts.UI": {
-                            "type": "contract",
-                            "abiURI": resource_uri,
-                            "integrity": ZERO_SHA256,
-                        },
+            document: dict[str, object] = {
+                "namespaces": {
+                    "contracts.UI": {
+                        "type": "contract",
+                        "abiURI": resource_uri,
+                        "integrity": ZERO_SHA256,
                     },
                 },
-            )
+            }
+            self.add_current_protocol(manifest_path, document)
+            write_json(manifest_path, document)
 
             with self.assertRaisesRegex(
                 CamResourceIntegrityError,
@@ -327,18 +392,17 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
             (manifest_path.parent / "abi").mkdir(parents=True)
             resource_bytes = b"0" * MAX_CAM_RESOURCE_BYTES
             (manifest_path.parent / "abi" / "UI.json").write_bytes(resource_bytes)
-            write_json(
-                manifest_path,
-                {
-                    "namespaces": {
-                        "contracts.UI": {
-                            "type": "contract",
-                            "abiURI": "./abi/UI.json",
-                            "integrity": ZERO_SHA256,
-                        },
+            document: dict[str, object] = {
+                "namespaces": {
+                    "contracts.UI": {
+                        "type": "contract",
+                        "abiURI": "./abi/UI.json",
+                        "integrity": ZERO_SHA256,
                     },
                 },
-            )
+            }
+            self.add_current_protocol(manifest_path, document)
+            write_json(manifest_path, document)
 
             self.assertTrue(refresh_manifest(manifest_path))
             updated = read_strict_json(manifest_path)
@@ -355,47 +419,44 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             manifest_path = Path(tmp) / "cam" / "main.json"
             manifest_path.parent.mkdir(parents=True)
-            write_json(
-                manifest_path,
-                {
-                    "namespaces": {
-                        "contracts.UI": {
-                            "type": "ui",
-                            "abiURI": "./abi/UI.json",
-                        },
+            document: dict[str, object] = {
+                "namespaces": {
+                    "contracts.UI": {
+                        "type": "ui",
+                        "abiURI": "./abi/UI.json",
                     },
                 },
-            )
+            }
+            self.add_current_protocol(manifest_path, document)
+            write_json(manifest_path, document)
 
             with self.assertRaisesRegex(CamResourceIntegrityError, "namespaces.contracts.UI.type must be contract"):
                 refresh_manifest(manifest_path)
 
-            write_json(
-                manifest_path,
-                {
-                    "namespaces": {
-                        "contracts.UI-v1": {
-                            "type": "contract",
-                            "abiURI": "./abi/UI.json",
-                        },
+            document = {
+                "namespaces": {
+                    "contracts.UI-v1": {
+                        "type": "contract",
+                        "abiURI": "./abi/UI.json",
                     },
                 },
-            )
+            }
+            self.add_current_protocol(manifest_path, document)
+            write_json(manifest_path, document)
 
             with self.assertRaisesRegex(CamResourceIntegrityError, "contract namespace name must be one identifier"):
                 refresh_manifest(manifest_path)
 
-            write_json(
-                manifest_path,
-                {
-                    "namespaces": {
-                        "widgets": {
-                            "type": "ui",
-                            "uri": "./ui.json",
-                        },
+            document = {
+                "namespaces": {
+                    "widgets": {
+                        "type": "ui",
+                        "uri": "./ui.json",
                     },
                 },
-            )
+            }
+            self.add_current_protocol(manifest_path, document)
+            write_json(manifest_path, document)
 
             with self.assertRaisesRegex(CamResourceIntegrityError, "unsupported namespace: widgets"):
                 refresh_manifest(manifest_path)

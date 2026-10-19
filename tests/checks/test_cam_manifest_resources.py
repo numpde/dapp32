@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -85,10 +86,16 @@ class CamManifestResourceTest(unittest.TestCase):
                 json.dumps({"ui": protocol_document_version("UI_VERSION"), "nodes": {}}) + "\n",
                 encoding="utf-8",
             )
+            protocol_bytes = b"<p>CAM protocol fixture</p>"
+            (manifest_path.parent / "protocol.html").write_bytes(protocol_bytes)
 
             failures = self.validator.validate_resource_integrity(
                 manifest_path,
                 {
+                    "protocol": {
+                        "uri": "./protocol.html",
+                        "integrity": "sha256:0x" + hashlib.sha256(protocol_bytes).hexdigest(),
+                    },
                     "namespaces": {
                         "contracts.UI": {
                             "type": "contract",
@@ -111,5 +118,21 @@ class CamManifestResourceTest(unittest.TestCase):
                 f"{manifest_path}: namespaces.ui.integrity does not match ./ui.json",
             ],
         )
+
+    def test_resource_integrity_requires_protocol_object(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            manifest_path.parent.mkdir(parents=True)
+
+            for protocol in ("missing", None, "./protocol.html", [], 42):
+                with self.subTest(protocol=protocol):
+                    manifest = {"namespaces": {"routes": {"type": "routes"}}}
+                    if protocol != "missing":
+                        manifest["protocol"] = protocol
+                    failures = self.validator.validate_resource_integrity(manifest_path, manifest)
+                    self.assertEqual(
+                        failures,
+                        [f"{manifest_path}: protocol must be an object reference"],
+                    )
 
 ZERO_SHA256 = "sha256:0x0000000000000000000000000000000000000000000000000000000000000000"
