@@ -9,7 +9,7 @@
     "contracts.PayToPlay": {
       "type": "contract",
       "abiURI": "./abi/PayToPlay.json",
-      "integrity": "sha256:0x7169fce70e972c2afd9c7586b43735db8832d6ec4bee30d9058a1f08ca84400d"
+      "integrity": "sha256:0xf8580f76c7cc13f1baf01b50543e5b7ecc297ed493f35bebfb63517c6b261100"
     },
     "routes": {
       "type": "routes"
@@ -147,7 +147,8 @@
         "namespace": "contracts.PayToPlay",
         "function": "fund",
         "args": {
-          "channelId": "$inputs.channelId"
+          "channelId": "$inputs.channelId",
+          "amount": "$inputs.amount"
         }
       },
       "then": {

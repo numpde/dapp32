@@ -91,6 +91,22 @@ test("sender-owned payment writes always continue to the acting wallet's positio
   }
 })
 
+test("fund writes bind one requested native amount as both ABI argument and transaction value", async () => {
+  const { cam, abi } = await fixture()
+  for (const amount of ["23", "0"]) {
+    const prepared = prepareViewerContractCall({
+      cam,
+      contracts: { "contracts.PayToPlay": { address: contract, abi } },
+      host,
+      account: { address: customer },
+      route: "fund",
+      inputs: { channelId: "1", amount },
+    })
+    assert.deepEqual(prepared.args, toInertValue({ channelId: "1", amount }))
+    assert.equal(prepared.value, amount)
+  }
+})
+
 test("opened balance identity precedes explanatory text and controls", async () => {
   const { session } = await fixture()
   await session.load()

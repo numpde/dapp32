@@ -38,7 +38,7 @@ contract PayToPlayRecoveryHandler is Test {
         uint256 amount = bound(rawAmount, 0, 1 ether);
         vm.deal(customer, customer.balance + amount);
         vm.prank(customer);
-        payments.fund{value: amount}(id);
+        payments.fund{value: amount}(id, amount);
         funded += amount;
     }
 

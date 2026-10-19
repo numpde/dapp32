@@ -10,6 +10,7 @@ import {ReentrancyGuard} from "@openzeppelin-contracts-5.6.1/utils/ReentrancyGua
 contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
     uint256 public constant RECOVERY_HORIZON = 365 days;
     uint64 public constant MAX_CLAIM_PERIOD = 30 days;
+    address public constant asset = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     enum Phase {
         Operating,
@@ -81,6 +82,7 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
     error VoucherKeyAlreadyRegistered();
     error VoucherKeyNotRegistered();
     error InvalidWithdrawalAmount(uint256 requested, uint256 balance);
+    error FundingValueMismatch(uint256 declaredAmount, uint256 receivedValue);
     error WithdrawalNotRequested();
     error WithdrawalNotReady(uint256 readyAt);
     error SameChannel();
@@ -154,15 +156,16 @@ contract PayToPlay is Ownable2Step, EIP712, ReentrancyGuard {
         emit VoucherKeyRegistered(msg.sender, channelId, voucherKey);
     }
 
-    function fund(uint256 channelId) external payable nonReentrant {
+    function fund(uint256 channelId, uint256 amount) external payable nonReentrant {
+        if (msg.value != amount) revert FundingValueMismatch(amount, msg.value);
         Channel storage definition = _channel(channelId);
         Position storage position = _positions[msg.sender][channelId];
         _requireOperating(definition, position);
-        if (msg.value == 0) return;
-        position.balance += msg.value;
-        definition.escrowTotal += msg.value;
+        if (amount == 0) return;
+        position.balance += amount;
+        definition.escrowTotal += amount;
         _renew(position, channelId, definition.claimPeriod);
-        emit Funded(msg.sender, channelId, msg.value);
+        emit Funded(msg.sender, channelId, amount);
     }
 
     /// @notice Extend an active funding cycle, without changing withdrawal or voucher rights.

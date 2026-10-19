@@ -88,6 +88,19 @@ async function main(): Promise<void> {
     if (prepared.type !== "contractCall") throw new Error(`Cannot execute ${route}: CAM did not prepare a contract call`)
     assert.equal(prepared.call.address.toLowerCase(), payments.toLowerCase(), "CAM binding must select the deployed payment contract")
     if (route === "createChannel") {
+      const nativeAsset = await publicClient.readContract({
+        address: payments,
+        abi: prepared.call.abi,
+        functionName: "asset",
+      })
+      assert.equal(String(nativeAsset).toLowerCase(), "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "asset() must identify the deployed contract's native asset")
+    }
+    if (route === "fund") {
+      const requestedAmount = BigInt(String(state.fundAmount))
+      assert.equal(BigInt(String(prepared.call.args.amount)), requestedAmount, "fund ABI amount must match the requested amount")
+      assert.equal(BigInt(String(prepared.call.value)), requestedAmount, "native transaction value must match the requested amount")
+    }
+    if (route === "createChannel") {
       await assert.rejects(() => simulateCamContractCall({ publicClient, account: accounts.relayer.address, call: prepared.call }), "non-admin must fail even with the rendered admin call")
     }
     if (["registerVoucherKey", "fund", "requestWithdrawal", "setWithdrawal", "move"].includes(route)) {

@@ -97,7 +97,7 @@ contract NativeCustomer {
     }
 
     function fund(uint256 amount) external {
-        payments.fund{value: amount}(channel);
+        payments.fund{value: amount}(channel, amount);
     }
 
     function request(uint256 amount) external {
@@ -347,7 +347,7 @@ contract PayToPlayTest is PayToPlayTestBase {
         (bool accepted,) = address(payments).call{value: 1}("");
         assertFalse(accepted);
         vm.expectRevert(abi.encodeWithSelector(PayToPlay.ChannelNotFound.selector, 99));
-        payments.fund{value: 1}(99);
+        payments.fund{value: 1}(99, 1);
         assertEq(address(payments).balance, 0);
     }
 }

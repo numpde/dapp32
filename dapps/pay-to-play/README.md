@@ -377,11 +377,12 @@ Invoice references are bytes32; signatures are bytes.
 
 | Function | Authority and effect |
 | --- | --- |
+| `asset()` | Read the contract's immutable native-asset identifier, the ERC-7528 sentinel `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE`. It identifies the native asset; it does not provide a symbol, decimals or display labels. |
 | `channelCount`, `channel(id)` | Read channel directory, payee, claim period, close deadline and escrow total. |
 | `viewPosition(customer, id, actor)` | Read balances, key, ordinary request, scheduled/effective recovery dates, phase, recipient and contract-derived action IDs. |
 | `voucherDigest(customer, id, total, invoiceHash)` | Read EIP-712 digest; does not establish signature validity, invoice validity or collectibility. |
 | `registerVoucherKey(id, key)` | Customer permanently registers a nonzero key in an operating, nonzero channel. |
-| `fund(id)` payable | Credit sender; positive funding renews operating cycle. |
+| `fund(id, amount)` payable | Require `msg.value == amount`, then credit the sender; positive funding renews the operating cycle. For an operating position, zero amount with zero value changes nothing. |
 | `collect(customer, id, total, invoiceHash, signature)` | Anyone submits K's voucher; authenticate its reference and pay current channel recipient, only before recovery cutoff. |
 | `requestWithdrawal(id, amount)` | Customer starts an ordinary request only if none exists. |
 | `setWithdrawal(id, amount)` | Customer replaces/starts an ordinary request and wait while operating. |
@@ -400,7 +401,14 @@ renewal/recipient writes capture the acting account; closure and refund writes
 preserve the explicitly inspected customer. `closeChannel` has a route-level
 customer input solely for that continuation; it is not a Solidity argument.
 Other routes use contract names, except `move` maps route `channelId` to source
-and `fund` uses route `amount` as transaction value. Consult the manifest.
+and `fund` maps route `amount` to both the Solidity argument and transaction
+value. The contract rejects any mismatch. Consult the manifest.
+
+The asset identifier is contract-wide and immutable; there is no per-channel
+asset setting or ERC-20 funding path. The current CAM `AmountField` declares
+native amounts in base units with 18 decimals and labels them “Wei” and “Native
+coins”. Those labels and decimals are UI metadata; `asset()` identifies the
+asset but does not supply display metadata.
 
 `VoucherCollected(customer, channelId, payee, amount, voucherPaid, invoiceHash)`
 reports actual cumulative settlement using the referenced voucher, not an
@@ -430,7 +438,8 @@ voucher alone is not a backing reservation.
 
 These contracts are not upgradeable. Existing deployments retain their old
 code and policy. Deploy a new PayToPlay contract and bind it to a matching CAM
-publication; changing only the ABI or manifest does not change deployed code.
+publication; changing only the ABI or manifest does not add `asset()` or change
+the legacy `fund(uint256)` selector to `fund(uint256,uint256)`.
 Use ABI and UI resources exported for the exact deployed contract, including
 its Channel and PositionView tuple layouts. The voucher domain is PayToPlay/2;
 its four-field message and new verifying-contract address separate it from v1.

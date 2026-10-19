@@ -54,7 +54,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
         payments.renewPosition(channel);
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
-        payments.fund(channel);
+        payments.fund{value: 0}(channel, 0);
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
         payments.setWithdrawal(channel, 10);
         vm.stopPrank();
@@ -172,7 +172,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         payments.closeChannel(channel);
         vm.startPrank(customer);
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
-        payments.fund(channel);
+        payments.fund{value: 0}(channel, 0);
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
         payments.renewPosition(channel);
         payments.requestWithdrawal(otherChannel, 20);
@@ -239,7 +239,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         payments.collect(customer, channel, 100, INVOICE_HASH, _sign(customer, channel, 100));
         vm.prank(customer);
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
-        payments.fund(channel);
+        payments.fund{value: 0}(channel, 0);
         vm.warp(_position(channel).refundAt);
         assertTrue(_hasAction(_position(channel).actions, "refund"));
         assertEq(payments.refund(customer, channel), 0);
@@ -258,7 +258,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         assertEq(payments.channel(channel).escrowTotal, 0);
         vm.startPrank(customer);
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
-        payments.fund(channel);
+        payments.fund{value: 0}(channel, 0);
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
         payments.renewPosition(channel);
         vm.stopPrank();
@@ -327,7 +327,7 @@ contract PayToPlayRecoveryTest is PayToPlayTestBase {
         assertEq(payments.refund(customer, immediate), 10);
         vm.prank(customer);
         vm.expectRevert(PayToPlay.PositionNotOperating.selector);
-        payments.fund(immediate);
+        payments.fund{value: 0}(immediate, 0);
     }
 
     function testRefundRecipientIsOwnerScopedAndCannotChangeDeadlines() public {

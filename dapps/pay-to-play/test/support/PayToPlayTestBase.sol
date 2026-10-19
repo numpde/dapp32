@@ -32,7 +32,7 @@ abstract contract PayToPlayTestBase is Test {
     function _fund(address account, uint256 id, uint256 amount) internal {
         vm.deal(account, account.balance + amount);
         vm.prank(account);
-        payments.fund{value: amount}(id);
+        payments.fund{value: amount}(id, amount);
     }
 
     // Accounting-only cases use one explicit fixture reference. Invoice tests choose their own.

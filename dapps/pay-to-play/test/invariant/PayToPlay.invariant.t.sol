@@ -26,7 +26,7 @@ contract PayToPlayHandler is Test {
 
     function fund(uint8 rawChannel, uint96 rawAmount) external {
         uint256 amount = bound(rawAmount, 0, 1 ether);
-        payments.fund{value: amount}(rawChannel % 3);
+        payments.fund{value: amount}(rawChannel % 3, amount);
         totalFunded += amount;
     }
 
