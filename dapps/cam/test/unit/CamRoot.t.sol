@@ -40,4 +40,17 @@ contract CamRootTest is Test {
         root.setContractAddress("Escrow", address(0xBEEF));
         assertEq(ICamApp(address(root)).contractAddress("Escrow"), address(0xBEEF));
     }
+
+    function testNameResolverSetsAndClearsBindingWithoutHashSelector() external {
+        CamRoot root = new CamRoot(address(this), "ipfs://root", bytes32(0));
+        root.setContractAddress("Escrow", address(0xBEEF));
+        assertEq(root.contractAddress("Escrow"), address(0xBEEF));
+
+        (bool hashOk,) =
+            address(root).staticcall(abi.encodeWithSignature("contractAddressByHash(bytes32)", keccak256("Escrow")));
+        assertFalse(hashOk);
+
+        root.setContractAddress("Escrow", address(0));
+        assertEq(root.contractAddress("Escrow"), address(0));
+    }
 }

@@ -56,13 +56,6 @@ contract CamRoot is ICamApp, Ownable2Step {
         return _contractAddress[keccak256(bytes(contractName))];
     }
 
-    /// @notice Resolves a precomputed CAM contract-name hash.
-    function contractAddressByHash(bytes32 contractNameHash) external view returns (address) {
-        // Intentional default: this has the same unset-binding address(0)
-        // sentinel as contractAddress(string).
-        return _contractAddress[contractNameHash];
-    }
-
     /// @notice Sets, updates, or clears the address for a CAM contract name.
     function setContractAddress(string calldata contractName, address deployedAt) external onlyOwner {
         if (bytes(contractName).length == 0) revert EmptyContractName();
