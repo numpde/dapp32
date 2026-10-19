@@ -17,7 +17,6 @@ from tools.cam_resource_integrity import CamResourceIntegrityError, CONTRACT_NAM
 from tools.json_policy import JsonPolicyError, read_strict_json
 
 
-IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 DAPP_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 GENERATED_ABI_URI_RE = re.compile(r"^\./abi/([A-Za-z_][A-Za-z0-9_]*\.json)$")
 
@@ -94,15 +93,9 @@ def abi_plan_row(
     manifest_path: Path,
     dapp_name: str,
     dapp_path: Path,
-    contract_name: object,
-    contract: object,
+    contract_name: str,
+    contract: dict[object, object],
 ) -> AbiPlanRow:
-    if not isinstance(contract_name, str) or not IDENTIFIER_RE.fullmatch(contract_name):
-        raise CamAbiPlanError(f"{manifest_path}: invalid contract name: {contract_name!r}")
-
-    if not isinstance(contract, dict):
-        raise CamAbiPlanError(f"{manifest_path}: namespaces.contracts.{contract_name} must be an object")
-
     source_path = dapp_path / "src" / f"{contract_name}.sol"
     if source_path.is_symlink():
         raise CamAbiPlanError(f"{manifest_path}: refusing symlinked ABI export source: {source_path}")
