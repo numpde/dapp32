@@ -15,7 +15,7 @@ export interface JournalState {
 
 // File-backed credentials never enter arguments, environment values or logs.
 export function readProtectedFile(path: string, maxBytes: number): string {
-  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW)
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
   try {
     const stat = fstatSync(fd)
     if (!stat.isFile() || stat.size > maxBytes || (stat.mode & 0o077) !== 0 || stat.uid !== process.getuid?.()) {
