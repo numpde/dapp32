@@ -12,13 +12,9 @@ import { resolvedUiButtons } from "../../packages/cam-screen/dist/index.js"
 import { createSameOriginHttpResourceLoader, isRecordObject, parseJsonBytes, requireHttpURL, toInertValue, type InertRecord } from "../../packages/cam-protocol/dist/index.js"
 import { discoverCustomers, runRefundBatch, type Position, type Report } from "../pay-to-play-refunds/core.ts"
 import { hashInvoice, voucherForInvoice } from "../pay-to-play-vouchers/protocol.ts"
+import { requiredEnv } from "../input.ts"
 
 let phase = "configuration"
-function required(name: string): string {
-  const value = process.env[name]
-  if (!value) throw new Error(`Missing ${name}`)
-  return value
-}
 function record(value: unknown): Record<string, unknown> {
   assert(isRecordObject(value))
   return value
@@ -28,10 +24,10 @@ const inert = (value: Record<string, unknown>) => toInertValue(value) as InertRe
 async function main() {
   // This test inherits the existing disposable scenario's fixture accounts.
   // It cannot be pointed at an operator chain or an arbitrary remote RPC.
-  const rpcURL = requireHttpURL(required("PAY_TO_PLAY_SCENARIO_RPC_URL"), "fixture RPC")
+  const rpcURL = requireHttpURL(requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RPC_URL"), "fixture RPC")
   assert.equal(rpcURL.protocol, "http:")
   assert(["pay-to-play-anvil", "127.0.0.1", "localhost", "[::1]"].includes(new URL(rpcURL.href).hostname))
-  const broadcast = record(parseJsonBytes(new Uint8Array(readFileSync(required("PAY_TO_PLAY_SCENARIO_BROADCAST_PATH")))))
+  const broadcast = record(parseJsonBytes(new Uint8Array(readFileSync(requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_BROADCAST_PATH")))))
   assert(Array.isArray(broadcast.transactions))
   function deployed(name: string): Address {
     const found = (broadcast.transactions as unknown[]).filter(value => isRecordObject(value) && value.contractName === name && value.transactionType === "CREATE")
@@ -44,14 +40,14 @@ async function main() {
   const payments = deployed("PayToPlay")
   const roles = ["admin", "customer", "relayer", "payee"] as const
   type Role = typeof roles[number]
-  const accounts = Object.fromEntries(roles.map(role => [role, privateKeyToAccount(required(`PAY_TO_PLAY_${role.toUpperCase()}_PRIVATE_KEY`) as Hex)])) as Record<Role, ReturnType<typeof privateKeyToAccount>>
+  const accounts = Object.fromEntries(roles.map(role => [role, privateKeyToAccount(requiredEnv(process.env, `PAY_TO_PLAY_${role.toUpperCase()}_PRIVATE_KEY`) as Hex)])) as Record<Role, ReturnType<typeof privateKeyToAccount>>
   const chain = { id: 31337, name: "Disposable recovery fixture", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: [rpcURL.href] } } }
   const client = createPublicClient({ chain, transport: http(rpcURL.href, { timeout: 10_000, retryCount: 0 }) })
   assert.equal(await client.getChainId(), 31337)
   const session = createCamViewerSession({
     publicClient: createHttpCamPublicClient({ rpcURL: rpcURL.href }),
     host: { chainId: "eip155:31337", address: host }, account: { address: accounts.admin.address }, inputs: inert({}),
-    loadResource: createSameOriginHttpResourceLoader({ originInput: required("PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN"), originLabel: "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN", fetchResource: fetch, loadFailurePrefix: "Recovery fixture CAM resource" }),
+    loadResource: createSameOriginHttpResourceLoader({ originInput: requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN"), originLabel: "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN", fetchResource: fetch, loadFailurePrefix: "Recovery fixture CAM resource" }),
   })
   await session.load()
   function view() { return record(session.snapshot().values?.[0]) }
@@ -248,7 +244,7 @@ async function main() {
       gasLimit: "300000", maxFeePerGas: "10000000000", maxPriorityFeePerGas: "1000000000",
     }), { mode: 0o600 })
     writeFileSync(rpcFile, rpcURL.href, { mode: 0o600 })
-    writeFileSync(keyFile, required("PAY_TO_PLAY_PAYEE_PRIVATE_KEY"), { mode: 0o600 })
+    writeFileSync(keyFile, requiredEnv(process.env, "PAY_TO_PLAY_PAYEE_PRIVATE_KEY"), { mode: 0o600 })
     async function cli(execute: boolean) {
       phase = "refund CLI"
       const env: NodeJS.ProcessEnv = { REFUND_CONFIG_FILE: configFile, RPC_URL_FILE: rpcFile, REFUND_EXECUTE: execute ? "YES" : "NO" }

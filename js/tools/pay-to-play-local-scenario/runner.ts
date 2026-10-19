@@ -10,14 +10,15 @@ import { resolvedUiButtons } from "../../packages/cam-screen/dist/index.js"
 import { createSameOriginHttpResourceLoader, isRecordObject, parseJsonBytes, toInertValue } from "../../packages/cam-protocol/dist/index.js"
 import type { InertRecord } from "../../packages/cam-protocol/dist/index.js"
 import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from "../pay-to-play-vouchers/protocol.ts"
+import { requiredEnv } from "../input.ts"
 
 const roles = ["admin", "customer", "relayer", "payee"] as const
 type Role = typeof roles[number]
 const RECEIPT_TIMEOUT = 20_000
 
 async function main(): Promise<void> {
-  const rpcURL = requiredEnv("PAY_TO_PLAY_SCENARIO_RPC_URL")
-  const broadcast = object(parseJsonBytes(new Uint8Array(readFileSync(requiredEnv("PAY_TO_PLAY_SCENARIO_BROADCAST_PATH")))))
+  const rpcURL = requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RPC_URL")
+  const broadcast = object(parseJsonBytes(new Uint8Array(readFileSync(requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_BROADCAST_PATH")))))
   assert.ok(Array.isArray(broadcast.transactions), "Forge broadcast must contain transactions")
   function deployed(name: string): Address {
     const matches = (broadcast.transactions as unknown[]).filter((tx) => isRecordObject(tx) && tx.contractName === name && tx.transactionType === "CREATE")
@@ -29,7 +30,7 @@ async function main(): Promise<void> {
   const host = deployed("CamRoot")
   const payments = deployed("PayToPlay")
   const accounts = Object.fromEntries(roles.map((role) => {
-    const key = requiredEnv(`PAY_TO_PLAY_${role.toUpperCase()}_PRIVATE_KEY`)
+    const key = requiredEnv(process.env, `PAY_TO_PLAY_${role.toUpperCase()}_PRIVATE_KEY`)
     assert.match(key, /^0x[0-9a-fA-F]{64}$/, "fixture key must have 32 bytes")
     return [role, privateKeyToAccount(key as Hex)]
   })) as Record<Role, ReturnType<typeof privateKeyToAccount>>
@@ -49,7 +50,7 @@ async function main(): Promise<void> {
     account: { address: accounts.admin.address },
     inputs: inert({}),
     loadResource: createSameOriginHttpResourceLoader({
-      originInput: requiredEnv("PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN"),
+      originInput: requiredEnv(process.env, "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN"),
       originLabel: "PAY_TO_PLAY_SCENARIO_RESOURCE_ORIGIN",
       fetchResource: fetch,
       loadFailurePrefix: "Cannot load the payment-channel fixture CAM resource",
@@ -313,11 +314,6 @@ async function main(): Promise<void> {
   process.stdout.write(`${JSON.stringify({ event: "ok", host, payments, voucherPaid: "300", contractBalance: "0" })}\n`)
 }
 
-function requiredEnv(name: string): string {
-  const value = process.env[name]
-  if (!value) throw new Error(`Cannot run the local payment-channel scenario: ${name} is required`)
-  return value
-}
 function object(value: unknown): Record<string, unknown> {
   assert.ok(isRecordObject(value), "CAM/Forge value must be an object")
   return value
