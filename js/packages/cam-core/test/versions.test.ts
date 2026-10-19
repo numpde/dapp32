@@ -68,6 +68,19 @@ test("parseCam still rejects versions outside the supported inventory", () => {
   )
 })
 
+test("parseCam rejects retired CAM 1.0 and 1.1 documents", () => {
+  for (const version of ["1.0.0", "1.1.0"]) {
+    assert.throws(
+      () => parseCam(camDocument(version)),
+      (error) =>
+        error instanceof CamError
+        && error.code === "CAM_INVALID_FIELD"
+        && error.path === "cam"
+        && error.message === `cam: unsupported CAM version: ${version}`,
+    )
+  }
+})
+
 
 test("CAM 1.2 requires a closed protocol resource declaration with secondary URI policy", () => {
   for (const protocol of [undefined, null, {}, { uri: "./protocol.html" }, { uri: "https://example.com/protocol", integrity: "sha256:fixture" }, { uri: "./protocol.html", integrity: "sha256:fixture", extra: true }]) {
@@ -75,5 +88,4 @@ test("CAM 1.2 requires a closed protocol resource declaration with secondary URI
   }
   const protocol = { uri: "./protocol.html", integrity: "sha256:fixture" }
   assert.deepEqual(parseCam({ ...camDocument("1.2.0"), protocol }).protocol, protocol)
-  assert.throws(() => parseCam({ ...camDocument("1.1.0"), protocol }), /field is not allowed/)
 })

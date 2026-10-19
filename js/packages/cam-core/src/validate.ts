@@ -7,7 +7,6 @@ import {
 import {
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
-  camVersionSupportsWriteValue,
   collectCamInvocationFact,
   collectCamNamespaceFacts,
   collectCamResourceDeclarationFacts,
@@ -49,6 +48,9 @@ export function parseCam(input: unknown): CamDocument {
   const protocolDiagnostic = protocolResult.diagnostics[0]
   if (protocolDiagnostic !== undefined) throw camErrorFromFactDiagnostic(protocolDiagnostic)
   const protocol = protocolResult.declarations[0]
+  if (protocol === undefined) {
+    throw new CamError("CAM_INVALID_FIELD", "CAM protocol resource declaration is missing", "protocol")
+  }
   const namespaces = parseNamespaces(root)
   const routes = parseRoutes(requiredRecord(root.value.routes, "routes"), namespaces, root.version)
   const entry = requiredNonEmptyString(root.value.entry, "entry")
@@ -58,7 +60,7 @@ export function parseCam(input: unknown): CamDocument {
   }
 
   return {
-    ...(protocol === undefined ? {} : { protocol: { uri: protocol.uri, integrity: protocol.integrity } }),
+    protocol: { uri: protocol.uri, integrity: protocol.integrity },
     cam: root.version,
     entry,
     namespaces,
@@ -168,7 +170,7 @@ function parseRoutes(
     const path = `routes.${name}`
     const route = requiredRecord(value, path)
     const kind = parseRouteKind(route.kind, `${path}.kind`)
-    rejectUnknownCamFields(route, routeKeys(version, kind), path, version)
+    rejectUnknownCamFields(route, routeKeys(kind), path, version)
 
     const call = parseInvocation(route.call, `${path}.call`, namespaces, CAM_ROUTE_CALL_NAMESPACE_TYPES, version)
     const then = parseInvocation(
@@ -204,10 +206,8 @@ function parseRoutes(
   return routes
 }
 
-function routeKeys(version: CamVersion, kind: CamRoute["kind"]): ReadonlySet<string> {
-  return kind === "write" && camVersionSupportsWriteValue(version)
-    ? WRITE_VALUE_ROUTE_KEYS
-    : BASE_ROUTE_KEYS
+function routeKeys(kind: CamRoute["kind"]): ReadonlySet<string> {
+  return kind === "write" ? WRITE_VALUE_ROUTE_KEYS : BASE_ROUTE_KEYS
 }
 
 function parseRouteKind(value: unknown, path: string): CamRoute["kind"] {

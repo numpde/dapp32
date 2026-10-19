@@ -57,11 +57,13 @@ export async function loadCamFromHost({
     throw new CamEvmError("CAM_DOCUMENT_INVALID", `CAM document is not valid JSON: ${camURI}`, cause)
   }
   const cam = parseCam(camJson)
-  if (cam.protocol !== undefined) {
-    const uri = resolveCamResourceURI(camURI, cam.protocol.uri)
-    const bytes = await loadResourceBytes(loadResource, uri, `failed to load CAM protocol resource: ${uri}`)
-    verifyCamResourceIntegrity({ bytes, integrity: cam.protocol.integrity, uri })
-  }
+  const protocolURI = resolveCamResourceURI(camURI, cam.protocol.uri)
+  const protocolBytes = await loadResourceBytes(
+    loadResource,
+    protocolURI,
+    `failed to load CAM protocol resource: ${protocolURI}`,
+  )
+  verifyCamResourceIntegrity({ bytes: protocolBytes, integrity: cam.protocol.integrity, uri: protocolURI })
 
   return {
     camURI,

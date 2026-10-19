@@ -1,5 +1,4 @@
 import {
-  camVersionSupportsWriteValue,
   isRecordObject,
   parseAbiIntegerType,
 } from "@cam/protocol"
@@ -33,9 +32,6 @@ import {
 import type {
   DeclaredUiDocument,
 } from "./resources.ts"
-import {
-  validateUiTypeflow,
-} from "./typeflow.ts"
 
 const TRANSACTION_VALUE_ABI = {
   name: "transactionValue",
@@ -65,32 +61,7 @@ type TypeflowScope = {
   readonly reported: Set<string>
 }
 
-export function validateVersionedUiTypeflow({
-  uiDocument,
-  routes,
-  functionsByNamespace,
-  issues,
-}: {
-  readonly uiDocument: DeclaredUiDocument | undefined
-  readonly routes: readonly DeclaredRoute[]
-  readonly functionsByNamespace: ContractFunctionsByNamespace
-  readonly issues: CamConformanceIssue[]
-}): void {
-  validateUiTypeflow({
-    uiDocument,
-    routes,
-    functionsByNamespace,
-    issues,
-  })
-  validateTransactionValueTypeflow({
-    uiDocument,
-    routes,
-    functionsByNamespace,
-    issues,
-  })
-}
-
-function validateTransactionValueTypeflow({
+export function validateTransactionValueTypeflow({
   uiDocument,
   routes,
   functionsByNamespace,
@@ -215,7 +186,6 @@ function validateButtonValue(
   if (
     route === undefined
     || route.kind !== "write"
-    || !camVersionSupportsWriteValue(route.version)
     || !Object.hasOwn(route, "value")
   ) {
     return

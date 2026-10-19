@@ -1,7 +1,6 @@
 import {
   CAM_ROUTE_CALL_NAMESPACE_TYPES,
   camRouteThenNamespaceTypes,
-  camVersionSupportsWriteValue,
   collectCamInvocationFact,
   collectCamRouteExpressionDiagnostics,
   collectCamRouteInputsFact,
@@ -31,7 +30,6 @@ type DeclaredInvocation = {
 }
 
 export type DeclaredRoute = {
-  readonly version: CamVersion
   readonly name: string
   readonly kind: CamRouteKind
   readonly inputs: readonly string[]
@@ -148,7 +146,7 @@ function validateRoutes(
       validateRouteFields(resource, routeName, route, version, kind, issues)
     }
     if (kind !== undefined && inputs !== undefined && invocations !== undefined) {
-      const value = routeValue(route, version, kind)
+      const value = routeValue(route, kind)
       validateRouteExpressionReferences({
         resource,
         routeName,
@@ -160,7 +158,6 @@ function validateRoutes(
         issues,
       })
       declaredRoutes.push({
-        version,
         name: routeName,
         kind,
         inputs,
@@ -182,7 +179,7 @@ function validateRouteFields(
   kind: CamRouteKind,
   issues: CamConformanceIssue[],
 ): void {
-  const allowed = kind === "write" && camVersionSupportsWriteValue(version)
+  const allowed = kind === "write"
     ? WRITE_VALUE_ROUTE_FIELDS
     : BASE_ROUTE_FIELDS
   for (const field of Object.keys(route)) {
@@ -197,10 +194,9 @@ function validateRouteFields(
 
 function routeValue(
   route: Record<string, unknown>,
-  version: CamVersion,
   kind: CamRouteKind,
 ): { readonly present: false } | { readonly present: true, readonly value: unknown } {
-  if (kind !== "write" || !camVersionSupportsWriteValue(version) || !Object.hasOwn(route, "value")) {
+  if (kind !== "write" || !Object.hasOwn(route, "value")) {
     return { present: false }
   }
   return { present: true, value: route.value }

@@ -122,7 +122,7 @@ test("payable and nonpayable runtime calls enforce value presence", async () => 
     abi: payableAbi,
     function: "fund",
     args: { memo: "escrow" },
-  }, "CAM_WRITE_FUNCTION_PAYABLE_UNSUPPORTED")
+  }, "CAM_WRITE_INVALID_VALUE")
 
   await assertWriteError({
     address: contract,

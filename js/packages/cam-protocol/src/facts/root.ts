@@ -5,7 +5,7 @@ import {
   CAM_MANIFEST_TOP_LEVEL_KEYS,
 } from "../manifest.ts"
 import {
-  CAM_SUPPORTED_VERSIONS,
+  CAM_VERSION,
   isCamVersion,
   type CamVersion,
 } from "../versions.ts"
@@ -44,14 +44,14 @@ export function collectCamRootFact(
       path: "cam",
       message: typeof input.cam === "string" && input.cam.length > 0
         ? `unsupported CAM version: ${input.cam}`
-        : `CAM version must be ${CAM_SUPPORTED_VERSIONS.join(" or ")}`,
+        : `CAM version must be ${CAM_VERSION}`,
     }))
     return { diagnostics }
   }
 
   const version = input.cam
   for (const key of Object.keys(input)) {
-    if (CAM_MANIFEST_TOP_LEVEL_KEYS.has(key) && (key !== "protocol" || version === "1.2.0")) continue
+    if (CAM_MANIFEST_TOP_LEVEL_KEYS.has(key)) continue
     diagnostics.push(camFactDiagnostic({
       code: "CAM_FACT_ROOT_FIELD_UNKNOWN",
       resource: options.resource,

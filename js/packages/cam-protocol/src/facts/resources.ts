@@ -42,14 +42,14 @@ export function collectCamResourceDeclarationFacts(
     }
   }
 
-  if (root?.version === "1.2.0") {
+  if (root !== undefined) {
     const protocol = root.value.protocol
     if (!isRecordObject(protocol) || Object.keys(protocol).some(key => key !== "uri" && key !== "integrity")) {
       diagnostics.push(camFactDiagnostic({
         code: "CAM_FACT_RESOURCE_URI_INVALID",
         resource: root.resource,
         path: "protocol",
-        message: "CAM 1.2 protocol must be an object containing only uri and integrity",
+        message: "CAM protocol must be an object containing only uri and integrity",
       }))
     } else {
       const declaration = collectResourceDeclaration({

@@ -11,7 +11,7 @@ contracts that authorize them.
 
 Project overview: <https://numpde.github.io/dapp32/>
 
-Experimental protocol reference: [CAM 1.2.0 and UI 1.0.0](docs/reference/cam/1.2.0/index.html) (previous [CAM 1.1.0](docs/reference/cam/1.1.0/index.html)).
+Current software supports CAM 1.2.0 with UI 1.0.0: [protocol reference](docs/reference/cam/1.2.0/index.html). The [CAM 1.1.0 reference](docs/reference/cam/1.1.0/index.html) is retained as historical documentation only, including its CAM 1.0.0 compatibility description.
 
 ## Start here
 

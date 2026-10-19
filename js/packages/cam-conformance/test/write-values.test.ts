@@ -22,14 +22,12 @@ import type {
 } from "./fixtures.ts"
 
 type WriteRouteOptions = {
-  readonly version: import("@cam/protocol").CamVersion
   readonly functionName: "fund" | "save"
   readonly includeValue: boolean
   readonly value: unknown
 }
 
 const DEFAULT_WRITE_ROUTE_OPTIONS = {
-  version: CAM_VERSION,
   functionName: "fund",
   includeValue: true,
   value: "$inputs.amount",
@@ -67,13 +65,11 @@ function addWriteRoute(
   options: WriteRouteOptions,
 ): void {
   const {
-    version,
     functionName,
     includeValue,
     value,
   } = options
-  root.cam = version
-  if (version !== "1.2.0") delete root.protocol
+  root.cam = CAM_VERSION
   root.routes.write = {
     kind: "write",
     inputs: ["amount"],
@@ -94,31 +90,28 @@ function addWriteRoute(
 function validateWriteRoute(options: WriteRouteOptions) {
   return validateEditedRoot<RootWithNamespacesAndRoutes & Record<string, unknown>>((root, bundle) => {
     addWriteRoute(root, options)
-    const replacements = replaceBundleResources(root, bundle, { abiBytes: payableAbiBytes() })
-    const resources = new Map(replacements.resources)
-    if (options.version !== "1.2.0") resources.delete("./protocol.html")
-    return { resources }
+    return replaceBundleResources(root, bundle, { abiBytes: payableAbiBytes() })
   })
 }
 
-test("CAM 1.1 accepts explicit value on payable writes", () => {
+test("CAM 1.2 accepts explicit value on payable writes", () => {
   assert.deepEqual(validateWriteRoute(writeRouteOptions({})), [])
   assert.deepEqual(validateWriteRoute(writeRouteOptions({ value: "0" })), [])
 })
 
-test("CAM 1.1 requires value for payable writes", () => {
+test("CAM 1.2 requires value for payable writes", () => {
   assert.deepEqual(issueLocations(validateWriteRoute(writeRouteOptions({ includeValue: false }))), [
     ["CAM_ROUTE_VALUE_MISMATCH", "routes.write.value"],
   ])
 })
 
-test("CAM 1.1 forbids value on nonpayable writes", () => {
+test("CAM 1.2 forbids value on nonpayable writes", () => {
   assert.deepEqual(issueLocations(validateWriteRoute(writeRouteOptions({ functionName: "save" }))), [
     ["CAM_ROUTE_VALUE_MISMATCH", "routes.write.value"],
   ])
 })
 
-test("CAM 1.1 checks known transaction values as uint256", () => {
+test("CAM 1.2 checks known transaction values as uint256", () => {
   for (const value of [
     "-1",
     "115792089237316195423570985008687907853269984665640564039457584007913129639936",
@@ -131,14 +124,7 @@ test("CAM 1.1 checks known transaction values as uint256", () => {
   }
 })
 
-test("CAM 1.0 and read routes reject value at the grammar boundary", () => {
-  assert.deepEqual(issueLocations(validateWriteRoute(writeRouteOptions({
-    version: "1.0.0",
-    functionName: "save",
-  }))), [
-    ["CAM_ROUTE_DECLARATION_INVALID", "routes.write.value"],
-  ])
-
+test("read routes reject value at the grammar boundary", () => {
   const readIssues = validateEditedRoot<RootWithNamespacesAndRoutes & Record<string, unknown>>((root) => {
     root.cam = CAM_VERSION
     root.routes.entry.value = "0"
@@ -148,7 +134,7 @@ test("CAM 1.0 and read routes reject value at the grammar boundary", () => {
   ])
 })
 
-test("CAM 1.1 validates transaction-value expression references", () => {
+test("CAM 1.2 validates transaction-value expression references", () => {
   assert.deepEqual(issueLocations(validateWriteRoute(writeRouteOptions({ value: "$outputs.0" }))), [
     ["CAM_ROUTE_EXPRESSION_INVALID", "routes.write.value"],
   ])

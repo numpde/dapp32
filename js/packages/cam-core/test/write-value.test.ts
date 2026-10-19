@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
+  CAM_VERSION,
   toInertValue,
 } from "@cam/protocol"
 
@@ -20,11 +21,9 @@ const HOST = {
 const ACCOUNT = "0x0000000000000000000000000000000000000002"
 
 function camDocument({
-  version,
   value,
   routeKind,
 }: {
-  readonly version: "1.0.0" | "1.1.0"
   readonly value: unknown
   readonly routeKind: "read" | "write"
 }): Record<string, unknown> {
@@ -63,7 +62,8 @@ function camDocument({
       }
 
   return {
-    cam: version,
+    cam: CAM_VERSION,
+    protocol: { uri: "./protocol.html", integrity: "sha256:fixture" },
     entry: "entry",
     namespaces: {
       "contracts.App": {
@@ -102,9 +102,8 @@ function camDocument({
   }
 }
 
-test("CAM 1.1 parses and resolves write-route value expressions", () => {
+test("CAM 1.2 parses and resolves write-route value expressions", () => {
   const cam = parseCam(camDocument({
-    version: "1.1.0",
     value: "$inputs.amount",
     routeKind: "write",
   }))
@@ -129,7 +128,6 @@ test("CAM 1.1 parses and resolves write-route value expressions", () => {
 
 test("write-route value participates in account preflight", () => {
   const document = camDocument({
-    version: "1.1.0",
     value: "$account.address",
     routeKind: "write",
   })
@@ -146,25 +144,9 @@ test("write-route value participates in account preflight", () => {
   })).value, ACCOUNT)
 })
 
-test("CAM 1.0 rejects write-route value as unknown syntax", () => {
+test("CAM 1.2 rejects transaction value on read routes", () => {
   assert.throws(
     () => parseCam(camDocument({
-      version: "1.0.0",
-      value: "1",
-      routeKind: "write",
-    })),
-    (error) =>
-      error instanceof CamError
-      && error.code === "CAM_UNKNOWN_FIELD"
-      && error.path === "routes.valueRoute.value"
-      && error.message === "routes.valueRoute.value: field is not allowed in CAM 1.0.0: value",
-  )
-})
-
-test("CAM 1.1 rejects value on read routes", () => {
-  assert.throws(
-    () => parseCam(camDocument({
-      version: "1.1.0",
       value: "1",
       routeKind: "read",
     })),
@@ -172,6 +154,6 @@ test("CAM 1.1 rejects value on read routes", () => {
       error instanceof CamError
       && error.code === "CAM_UNKNOWN_FIELD"
       && error.path === "routes.valueRoute.value"
-      && error.message === "routes.valueRoute.value: field is not allowed in CAM 1.1.0: value",
+      && error.message === "routes.valueRoute.value: field is not allowed in CAM 1.2.0: value",
   )
 })

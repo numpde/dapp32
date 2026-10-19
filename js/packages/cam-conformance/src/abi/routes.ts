@@ -82,7 +82,16 @@ const RULES = conformanceRules({
     class: "A",
     reason: "Route declarations must agree with ABI functions and known argument/output shapes.",
   },
+  CAM_ROUTE_VALUE_MISMATCH: {
+    class: "A",
+    reason: "Payable writes require a declared uint256 transaction value; nonpayable writes forbid one.",
+  },
 })
+
+const TRANSACTION_VALUE_ABI = {
+  name: "value",
+  type: "uint256",
+} as const
 
 export function validateRouteAbiCompatibility({
   resource,
@@ -96,7 +105,8 @@ export function validateRouteAbiCompatibility({
   readonly issues: CamConformanceIssue[]
 }): void {
   for (const route of routes) {
-    validateRouteCallAbi(resource, route, functionsByNamespace, issues)
+    const fn = validateRouteCallAbi(resource, route, functionsByNamespace, issues)
+    validateRouteValue(resource, route, fn, issues)
   }
 }
 
@@ -178,18 +188,58 @@ function validateRouteCallAbi(
   route: DeclaredRoute,
   functionsByNamespace: ReadonlyMap<string, ReadonlyMap<string, readonly AbiFunction[]>>,
   issues: CamConformanceIssue[],
-): void {
+): AbiFunction | undefined {
   const path = `routes.${route.name}.call`
   const functions = functionsByNamespace.get(route.call.namespace)
-  if (functions === undefined) return
+  if (functions === undefined) return undefined
 
   const fn = resolveRouteFunction(resource, path, route.call.function, functions, issues)
   if (fn === undefined) {
-    return
+    return undefined
   }
   validateRouteMutability(resource, route, fn, issues)
   validateRouteArgs(resource, route, fn, issues)
   validateRouteOutputRefs(resource, route, fn, issues)
+  return fn
+}
+
+function validateRouteValue(
+  resource: string,
+  route: DeclaredRoute,
+  fn: AbiFunction | undefined,
+  issues: CamConformanceIssue[],
+): void {
+  if (route.kind !== "write" || fn === undefined) return
+
+  if (fn.stateMutability === "payable") {
+    if (!Object.hasOwn(route, "value")) {
+      issues.push(routeValueIssue(resource, route, `payable write route must declare value: ${fn.name}`))
+      return
+    }
+
+    for (const mismatch of abiArgValueMismatches("transaction value", route.value, TRANSACTION_VALUE_ABI)) {
+      issues.push(routeValueIssue(resource, route, mismatch.message, mismatch.pathSuffix))
+    }
+    return
+  }
+
+  if (fn.stateMutability === "nonpayable" && Object.hasOwn(route, "value")) {
+    issues.push(routeValueIssue(resource, route, `nonpayable write route must not declare value: ${fn.name}`))
+  }
+}
+
+function routeValueIssue(
+  resource: string,
+  route: DeclaredRoute,
+  message: string,
+  pathSuffix = "",
+): CamConformanceIssue {
+  return conformanceIssue({
+    rule: RULES.CAM_ROUTE_VALUE_MISMATCH,
+    resource,
+    path: `routes.${route.name}.value${pathSuffix}`,
+    message,
+  })
 }
 
 function resolveRouteFunction(
@@ -254,8 +304,12 @@ function validateRouteMutability(
   if (route.kind === "read" && fn.stateMutability !== "view" && fn.stateMutability !== "pure") {
     issues.push(routeAbiIssue(resource, path, `read route function must be view or pure: ${fn.name}`))
   }
-  if (route.kind === "write" && fn.stateMutability !== "nonpayable") {
-    issues.push(routeAbiIssue(resource, path, `write route function must be nonpayable: ${fn.name}`))
+  if (
+    route.kind === "write"
+    && fn.stateMutability !== "nonpayable"
+    && fn.stateMutability !== "payable"
+  ) {
+    issues.push(routeAbiIssue(resource, path, `write route function must be payable or nonpayable: ${fn.name}`))
   }
 }
 

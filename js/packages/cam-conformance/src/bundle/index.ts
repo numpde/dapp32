@@ -8,10 +8,8 @@ import type {
 
 import {
   contractFunctionsByNamespace,
+  validateRouteAbiCompatibility,
 } from "../abi/routes.ts"
-import {
-  validateVersionedRouteAbiCompatibility,
-} from "../abi/versioned-routes.ts"
 import {
   validateNamespaceDeclarations,
 } from "../manifest/namespaces.ts"
@@ -41,8 +39,11 @@ import {
   validateUiDataflow,
 } from "../ui/dataflow.ts"
 import {
-  validateVersionedUiTypeflow,
-} from "../ui/versioned-typeflow.ts"
+  validateUiTypeflow,
+} from "../ui/typeflow.ts"
+import {
+  validateTransactionValueTypeflow,
+} from "../ui/transaction-value-typeflow.ts"
 import {
   validateUiExpressionRoots,
 } from "../expressions/ui.ts"
@@ -125,13 +126,19 @@ export function validateCamBundle(bundle: CamConformanceBundle): readonly CamCon
     uiNodes,
     issues,
   })
-  validateVersionedRouteAbiCompatibility({
+  validateRouteAbiCompatibility({
     resource: bundle.rootURI,
     routes,
     functionsByNamespace,
     issues,
   })
-  validateVersionedUiTypeflow({
+  validateUiTypeflow({
+    uiDocument,
+    routes,
+    functionsByNamespace,
+    issues,
+  })
+  validateTransactionValueTypeflow({
     uiDocument,
     routes,
     functionsByNamespace,

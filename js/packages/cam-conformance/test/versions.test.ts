@@ -75,19 +75,16 @@ test("bundle conformance accepts each supported CAM version", () => {
     if (!isRecordObject(root)) continue
 
     root.cam = version
-    const resources = new Map(bundle.resources)
-    if (version !== "1.2.0") { delete root.protocol; resources.delete("./protocol.html") }
     assert.deepEqual(validateCamBundle({
       ...bundle,
-      resources,
       rootBytes: jsonBytes(root),
     }), [])
   }
 })
 
-test("conformance preserves the root version on every declared route", () => {
-  for (const expectedVersion of CAM_SUPPORTED_VERSIONS) {
-    const root = rootDocument(expectedVersion)
+test("conformance rejects unsupported versions before route inventory", () => {
+  for (const rejectedVersion of ["1.0.0", "1.1.0", "2.0.0"]) {
+    const root = rootDocument(rejectedVersion)
     const issues: CamConformanceIssue[] = []
     const version = validateRootManifest({
       resource: "cam",
@@ -95,51 +92,15 @@ test("conformance preserves the root version on every declared route", () => {
       issues,
     })
 
-    assert.equal(version, expectedVersion)
-    assert.notEqual(version, undefined)
-    if (version === undefined) continue
-
-    const namespaces = validateNamespaceDeclarations({
-      resource: "cam",
-      root,
-      issues,
-    })
-    const routes = validateRouteDeclarations({
-      resource: "cam",
-      root,
-      version,
-      namespaces,
-      issues,
-    })
-
-    assert.deepEqual(issues, [])
-    assert.deepEqual(routes.map((route) => ({
-      name: route.name,
-      version: route.version,
-    })), [{
-      name: "entry",
-      version: expectedVersion,
-    }])
+    assert.equal(version, undefined)
+    assert.deepEqual(issues.map((issue) => [
+      issue.rule,
+      issue.path,
+      issue.message,
+    ]), [[
+      "CAM_MANIFEST_VERSION_INVALID",
+      "cam",
+      `unsupported CAM version: ${rejectedVersion}`,
+    ]])
   }
-})
-
-test("conformance rejects unsupported versions before route inventory", () => {
-  const root = rootDocument("2.0.0")
-  const issues: CamConformanceIssue[] = []
-  const version = validateRootManifest({
-    resource: "cam",
-    root,
-    issues,
-  })
-
-  assert.equal(version, undefined)
-  assert.deepEqual(issues.map((issue) => [
-    issue.rule,
-    issue.path,
-    issue.message,
-  ]), [[
-    "CAM_MANIFEST_VERSION_INVALID",
-    "cam",
-    "unsupported CAM version: 2.0.0",
-  ]])
 })

@@ -1339,7 +1339,7 @@ test("sendCamContractCall rejects invalid dynamic bytes", async () => {
   )
 })
 
-test("sendCamContractCall rejects payable writes until CAM has a value model", async () => {
+test("sendCamContractCall rejects payable writes without a declared transaction value", async () => {
   const walletClient = createWalletClient()
   const payableAbi = [
     {
@@ -1362,7 +1362,7 @@ test("sendCamContractCall rejects payable writes until CAM has a value model", a
         args: {},
       },
     }),
-    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_FUNCTION_PAYABLE_UNSUPPORTED",
+    (error) => error instanceof CamEvmError && error.code === "CAM_WRITE_INVALID_VALUE",
   )
 })
 

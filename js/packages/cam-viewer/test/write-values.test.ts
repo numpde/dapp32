@@ -8,6 +8,7 @@ import type {
   ResolvedCamContract,
 } from "@cam/evm-viem"
 import {
+  CAM_VERSION,
   toInertValue,
 } from "@cam/protocol"
 import type {
@@ -40,10 +41,9 @@ const nonpayableAbi = [{
   outputs: [],
 }] as const satisfies Abi
 
-test("prepared CAM 1.1 calls disclose the resolved transaction value as inert data", () => {
+test("prepared CAM 1.2 calls disclose the resolved transaction value as inert data", () => {
   const prepared = prepareViewerContractCall({
     cam: writeCam({
-      version: "1.1.0",
       functionName: "fund",
       args: { memo: "escrow" },
       value: "$inputs.amount",
@@ -72,7 +72,6 @@ test("prepared CAM 1.1 calls disclose the resolved transaction value as inert da
 test("prepared nonpayable calls retain the value-free call shape", () => {
   const prepared = prepareViewerContractCall({
     cam: writeCam({
-      version: "1.0.0",
       functionName: "save",
       args: {},
     }),
@@ -86,18 +85,20 @@ test("prepared nonpayable calls retain the value-free call shape", () => {
 })
 
 function writeCam({
-  version,
   functionName,
   args,
   value,
 }: {
-  readonly version: "1.0.0" | "1.1.0"
   readonly functionName: string
   readonly args: Record<string, unknown>
   readonly value?: unknown
 }) {
   return parseCam({
-    cam: version,
+    cam: CAM_VERSION,
+    protocol: {
+      uri: "./protocol.html",
+      integrity: `sha256:0x${"00".repeat(32)}`,
+    },
     entry: "entry",
     namespaces: {
       [namespace]: {
