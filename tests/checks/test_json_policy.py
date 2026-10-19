@@ -15,6 +15,14 @@ class JsonPolicyTest(unittest.TestCase):
             with self.subTest(value=value), self.assertRaisesRegex(JsonPolicyError, "non-standard JSON constant"):
                 strict_json_loads(value)
 
+    def test_strict_json_rejects_nested_exponents_outside_finite_float_range(self) -> None:
+        for value in ("1e400", "-1e400"):
+            with self.subTest(value=value), self.assertRaisesRegex(JsonPolicyError, "outside the finite number range"):
+                strict_json_loads(f'{{"nested":[{value}]}}')
+
+    def test_strict_json_accepts_finite_exponents(self) -> None:
+        self.assertEqual({"nested": [1e300, -1e-300]}, strict_json_loads('{"nested":[1e300,-1e-300]}'))
+
 
 if __name__ == "__main__":
     unittest.main()

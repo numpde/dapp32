@@ -9,6 +9,7 @@ the stricter JSON shape expected by runtime parsers.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import NoReturn
 
@@ -23,9 +24,17 @@ def strict_json_loads(text: str) -> object:
             text,
             object_pairs_hook=reject_duplicate_keys,
             parse_constant=reject_json_constant,
+            parse_float=parse_finite_float,
         )
     except json.JSONDecodeError as error:
         raise JsonPolicyError(str(error)) from error
+
+
+def parse_finite_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise JsonPolicyError("JSON number is outside the finite number range")
+    return number
 
 
 def read_strict_json(path: Path) -> object:

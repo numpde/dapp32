@@ -91,6 +91,27 @@ class CamResourceIntegrityToolTest(unittest.TestCase):
                 self.assertEqual(manifest_before, manifest_path.read_bytes())
                 self.assertEqual(b"previous protocol", protocol_path.read_bytes())
 
+    def test_refresh_rejects_overflowing_json_number_without_changing_outputs(self) -> None:
+        with TemporaryDirectory() as tmp:
+            manifest_path = Path(tmp) / "cam" / "main.json"
+            manifest_path.parent.mkdir()
+            protocol_path = manifest_path.parent / "protocol.html"
+            protocol_path.write_bytes(b"previous protocol")
+            manifest_path.write_text(
+                '{"cam":"1.2.0","protocol":{"uri":"./protocol.html","integrity":"'
+                + ZERO_SHA256
+                + '"},"namespaces":{},"extension":{"nested":[1e400]}}',
+                encoding="utf-8",
+            )
+            manifest_before = manifest_path.read_bytes()
+            protocol_before = protocol_path.read_bytes()
+
+            with self.assertRaisesRegex(CamResourceIntegrityError, "outside the finite number range"):
+                refresh_manifest(manifest_path)
+
+            self.assertEqual(manifest_before, manifest_path.read_bytes())
+            self.assertEqual(protocol_before, protocol_path.read_bytes())
+
     def test_invalid_resource_declarations_do_not_change_publication_outputs(self) -> None:
         for failure in (
             "protocol integrity", "namespace", "resource integrity",
