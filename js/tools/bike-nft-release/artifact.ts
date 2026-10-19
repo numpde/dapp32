@@ -5,7 +5,7 @@ import type { Abi, Address, Hex } from "viem"
 
 import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
 import { requiredEnv } from "../input.ts"
-import { parseJsonRecord, runReleaseTool } from "../release-values.ts"
+import { assertAddress, assertEqual, parseJsonRecord, runReleaseTool } from "../release-values.ts"
 import {
   deploymentArtifact,
   deploymentContractsFromBroadcast,
@@ -483,14 +483,6 @@ function requireNoPendingDelay(label: string, pendingDelay: readonly [bigint, bi
 function requiredCode(code: Hex | undefined, label: string): Hex {
   if (code === undefined || code === "0x") throw new Error(`${label} has no deployed code`)
   return code
-}
-
-function assertAddress(actual: Address, expected: Address, label: string): void {
-  assertEqual(actual.toLowerCase(), expected.toLowerCase(), label)
-}
-
-function assertEqual(actual: string, expected: string, label: string): void {
-  if (actual !== expected) throw new Error(`${label} mismatch: expected ${expected}, got ${actual}`)
 }
 
 runReleaseTool(main)

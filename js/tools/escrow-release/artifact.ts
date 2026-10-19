@@ -8,7 +8,6 @@ import {
   parseAbi,
 } from "viem"
 import type {
-  Address,
   Hex,
 } from "viem"
 
@@ -26,7 +25,7 @@ import type {
 } from "./shared.ts"
 import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
 import { requiredEnv } from "../input.ts"
-import { parseJsonRecord, runReleaseTool } from "../release-values.ts"
+import { assertAddress, assertEqual, parseJsonRecord, runReleaseTool } from "../release-values.ts"
 
 const MAX_BROADCAST_BYTES = 16 * 1024 * 1024
 const CAM_ROOT_ABI = parseAbi([
@@ -193,16 +192,6 @@ async function requiredCode(codePromise: Promise<Hex | undefined>, label: string
     throw new Error(`${label} has no deployed code`)
   }
   return code
-}
-
-function assertAddress(actual: Address, expected: Address, label: string): void {
-  assertEqual(actual.toLowerCase(), expected.toLowerCase(), label)
-}
-
-function assertEqual(actual: string, expected: string, label: string): void {
-  if (actual !== expected) {
-    throw new Error(`${label} mismatch: expected ${expected}, got ${actual}`)
-  }
 }
 
 runReleaseTool(main)
