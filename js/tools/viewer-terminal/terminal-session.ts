@@ -206,6 +206,9 @@ async function handlePress(session: CamViewerSession, args: readonly string[]): 
   output.write(`address: ${result.call.address}\n`)
   output.write(`function: ${result.call.function}\n`)
   output.write(`args: ${formatValue(result.call.args)}\n`)
+  if (result.call.value !== undefined) {
+    output.write(`native amount (wei): ${formatValue(result.call.value)}\n`)
+  }
   output.write(`then: ${result.call.then.namespace}.${result.call.then.function} ${formatValue(result.call.then.args)}\n`)
 }
 

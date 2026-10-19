@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import { execFileSync } from "node:child_process"
 import test from "node:test"
 
-import type { CamViewerLoadedSnapshot } from "../../../packages/cam-viewer/dist/index.js"
+import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "../../../packages/cam-viewer/dist/index.js"
 
 import { formatDisplayText, formatError, formatValue } from "../format.ts"
 
@@ -38,6 +38,30 @@ test("terminal output consumes resolved Status presentation and preserves unform
   assert.ok(output.includes("Empty presentation: \n"))
   assert.ok(output.includes('Unformatted: ["client","contractor"]\n'))
   assert.ok(!output.includes("must not replace empty text"))
+})
+
+test("terminal prepared calls show native amounts exactly and omit value when absent", () => {
+  const button = { element: "Button" as const, props: { label: "Deposit" }, call: { namespace: "routes", function: "deposit", args: {} } }
+  const preparedCall = (value?: CamViewerPreparedContractCall["value"]): CamViewerPreparedContractCall => ({
+    route: "deposit",
+    address: "0x0000000000000000000000000000000000000001",
+    abi: [{ type: "function", name: "deposit", stateMutability: value === undefined ? "nonpayable" : "payable", inputs: [], outputs: [] }],
+    function: "deposit",
+    args: {},
+    then: { namespace: "routes", function: "receipt", args: {} },
+    ...(value === undefined ? {} : { value }),
+  })
+
+  for (const value of [0, "0", "900719925474099312345"]) {
+    const output = statusTerminalOutput([button], undefined, "press 1\nquit\n", false, preparedCall(value))
+
+    assert.ok(output.includes("Contract call requested; no transaction was sent."))
+    assert.ok(output.includes(`native amount (wei): ${value}\n`))
+  }
+
+  const nonpayable = statusTerminalOutput([button], undefined, "press 1\nquit\n", false, preparedCall())
+  assert.ok(nonpayable.includes("Contract call requested; no transaction was sent."))
+  assert.ok(!nonpayable.includes("native amount (wei):"))
 })
 
 test("formatted Status list text escapes C0/DEL and cannot forge output lines", () => {
@@ -230,7 +254,7 @@ test("formatError survives hostile thrown values", () => {
   assert.match(formatError(hostile), /^Error: .*unprintable.*\n$/)
 })
 
-function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][], title?: string, commands?: string, rejectAction?: boolean): string {
+function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][], title?: string, commands?: string, rejectAction?: boolean, preparedCall?: CamViewerPreparedContractCall): string {
   const snapshot: CamViewerLoadedSnapshot = {
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",
     documentHashes: {},
@@ -244,9 +268,10 @@ function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][],
     import { mock } from 'node:test';
     const snapshot = ${JSON.stringify(snapshot)};
     const unsupported = () => { throw new Error('The display fixture supports load and snapshot only'); };
+    const preparedCall = ${JSON.stringify(preparedCall)};
     const dispatchAction = ${rejectAction === true} ? async () => {
       throw new Error('failed to call CAM route: open', { cause: { data: { errorName: 'ChannelNotFound', args: [999999n] } } });
-    } : unsupported;
+    } : preparedCall === undefined ? unsupported : async () => ({ type: 'contractCall', call: preparedCall });
     mock.module(${JSON.stringify(backend.href)}, { namedExports: {
       createTerminalBackendFromEnv: async () => ({
         name: 'display-fixture', description: 'resolved Status display', hostLabel: 'fixture',
