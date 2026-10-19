@@ -2,7 +2,7 @@ import type { DurationDraft, DurationPart, DurationPresentation } from "./types.
 import { captureNumericText, canonicalUnsignedDigits, MAX_NUMERIC_DIGITS, projectIntegerDraft } from "./numeric.ts"
 
 export const DURATION_PARTS = ["days", "hours", "minutes", "seconds"] as const
-const SECONDS_PER_PART = { days: 86400n, hours: 3600n, minutes: 60n, seconds: 1n }
+export const SECONDS_PER_PART = { days: 86400n, hours: 3600n, minutes: 60n, seconds: 1n } as const
 
 export function durationDraftFromSeconds(text: string): DurationDraft {
   const source = captureNumericText(text)

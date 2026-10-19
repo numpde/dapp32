@@ -1,5 +1,6 @@
 import type { InertValue } from "@cam/protocol"
 
+import { SECONDS_PER_PART } from "./duration.ts"
 import { UiError } from "./errors.ts"
 
 export function formatStatusValue(value: InertValue, format: InertValue, path: string, zeroText?: InertValue): string {
@@ -23,7 +24,7 @@ export function formatStatusValue(value: InertValue, format: InertValue, path: s
   }
   if (format === "bytes") return `${groupedInteger(amount)} ${amount === 1n ? "byte" : "bytes"}`
   const words = durationWords(amount)
-  return amount < 60n ? words : `${words} (${groupedInteger(amount)} seconds)`
+  return amount < SECONDS_PER_PART.minutes ? words : `${words} (${groupedInteger(amount)} seconds)`
 }
 
 export function formatRelativeTimestamp(value: InertValue, nowSeconds: number, path: string, zeroText?: InertValue): string | undefined {
@@ -50,10 +51,15 @@ function timestampAbsence(amount: bigint, zeroText: InertValue | undefined, path
 }
 
 function durationWords(amount: bigint): string {
-  if (amount < 60n) return `${amount} ${amount === 1n ? "second" : "seconds"}`
+  if (amount < SECONDS_PER_PART.minutes) return `${amount} ${amount === 1n ? "second" : "seconds"}`
   let remainder = amount
   const parts: string[] = []
-  for (const [seconds, unit] of [[86400n, "day"], [3600n, "hour"], [60n, "minute"], [1n, "second"]] as const) {
+  for (const [seconds, unit] of [
+    [SECONDS_PER_PART.days, "day"],
+    [SECONDS_PER_PART.hours, "hour"],
+    [SECONDS_PER_PART.minutes, "minute"],
+    [SECONDS_PER_PART.seconds, "second"],
+  ] as const) {
     const count = remainder / seconds
     remainder %= seconds
     if (count > 0n) parts.push(`${groupedInteger(count)} ${unit}${count === 1n ? "" : "s"}`)
