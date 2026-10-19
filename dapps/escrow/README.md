@@ -352,7 +352,7 @@ artifact/deployment.json
 
 The `escrow.release-plan.v2` and `escrow.deployment.v2` schemas identify SHA-256 manifest commitments; older v1 artifacts retain their Keccak meaning and are rejected by these lanes.
 
-`plan/release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `artifact/deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, final owner, and whether the ownership handoff has already been accepted.
+`plan/release-plan.json` binds the source commit, expected chain, published CAM URI, computed CAM hash, and intended `CamRoot` owner. `artifact/deployment.json` records the three contract addresses, creation transaction hashes, deployed code hashes, deployer, and intended `CamRoot` owner. It also records whether an ownership transfer was required and whether that account owned `CamRoot` with no transfer pending when the artifact was created.
 
 The deployed `CamEscrow` and `CamEscrowUI` are immutable and have no owner, pause, upgrade, fee, sweep, or recovery authority. `CamRoot` remains mutable under its owner because it controls the published CAM URI/hash and contract-address bindings. If the intended root owner differs from the deployer, deployment starts an `Ownable2Step` transfer. The intended owner must review the addresses and artifact, then call `acceptOwnership()` independently. Do not treat the release as accepted while `pendingOwner()` is nonzero.
 
