@@ -191,11 +191,12 @@ export function isAbiIntegerValue(value: unknown, type: AbiIntegerType): value i
 }
 
 export function isAbiBytesValue(value: unknown, fixedBytesLength?: number): value is string {
-  if (typeof value !== "string" || !/^0x[0-9a-fA-F]*$/.test(value)) return false
+  if (typeof value !== "string") return false
 
-  const byteLength = value.length - 2
-  if (byteLength % 2 !== 0) return false
-  return fixedBytesLength === undefined || byteLength / 2 === fixedBytesLength
+  const hexLength = value.length - 2
+  if (hexLength % 2 !== 0) return false
+  if (fixedBytesLength !== undefined && hexLength / 2 !== fixedBytesLength) return false
+  return /^0x[0-9a-fA-F]*$/.test(value)
 }
 
 export function isFixedAbiArrayType(type: string): boolean {

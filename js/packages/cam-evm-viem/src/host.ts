@@ -1,5 +1,5 @@
 import { parseCam } from "@cam/core"
-import { assertLoadableCamRootURI, parseJsonBytes, resolveCamResourceURI } from "@cam/protocol"
+import { assertLoadableCamRootURI, isAbiBytesValue, parseJsonBytes, resolveCamResourceURI } from "@cam/protocol"
 import type { Hex } from "viem"
 
 import { CAM_ROOT_FUNCTIONS, ICAM_APP_INTERFACE_ID, camRootAbi } from "./abi.ts"
@@ -101,11 +101,10 @@ function requireStringRootValue(value: unknown, functionName: string): string {
 }
 
 function requireBytes32RootValue(value: unknown, functionName: string): Hex {
-  if (typeof value !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value)) {
+  if (!isAbiBytesValue(value, 32)) {
     throw new CamEvmError("CAM_HOST_READ_FAILED", `CAM host ${functionName} returned a non-bytes32 value`)
   }
 
-  // The regex proves viem's Hex template shape; TypeScript cannot infer that
-  // from a runtime regular expression.
+  // The shared predicate proves viem's Hex template shape; TypeScript cannot infer that.
   return value as Hex
 }

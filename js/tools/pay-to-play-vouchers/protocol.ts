@@ -1,5 +1,6 @@
 import { maxUint256, sha256, stringToBytes, zeroAddress } from "viem"
 import type { Address, Hex } from "viem"
+import { isAbiBytesValue } from "../../packages/cam-protocol/dist/index.js"
 import { requireEvmAddress } from "../../packages/cam-evm-viem/dist/index.js"
 import { requiredRecord, requiredString } from "../input.ts"
 
@@ -148,7 +149,7 @@ function invoiceAddress(value: string, label: string): Address {
 }
 
 function invoiceWord(value: unknown, label: string): Hex {
-  if (typeof value !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value)) {
+  if (!isAbiBytesValue(value, 32)) {
     throw new Error(`${label} must be exactly 32 hex-encoded bytes`)
   }
   return value.toLowerCase() as Hex

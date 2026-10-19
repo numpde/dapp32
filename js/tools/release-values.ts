@@ -4,7 +4,7 @@ import type { Address } from "viem"
 import { viewerErrorMessage } from "../packages/cam-viewer/dist/index.js"
 import { requireEvmAddress } from "../packages/cam-evm-viem/dist/index.js"
 import type { CamHost } from "../packages/cam-evm-viem/dist/index.js"
-import { isRecordObject, parseJsonBytes } from "../packages/cam-protocol/dist/index.js"
+import { isAbiBytesValue, isRecordObject, parseJsonBytes } from "../packages/cam-protocol/dist/index.js"
 
 export function requiredSourceCommit(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-f]{40}$/.test(value)) {
@@ -52,7 +52,7 @@ export function assertEqual(actual: string, expected: string, label: string): vo
 }
 
 export function requiredBytes32(value: unknown, label: string): `0x${string}` {
-  if (typeof value !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value)) {
+  if (!isAbiBytesValue(value, 32)) {
     throw new Error(`${label} must be a 32-byte hexadecimal value`)
   }
   return value as `0x${string}`

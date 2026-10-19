@@ -35,6 +35,7 @@ import {
   InertValueError,
   isAbiAddressValue,
   isAbiBytesValue,
+  isDocumentHashDigest,
   isAbiFunctionName,
   isAbiFunctionSignatureReference,
   isAbiIntegerValue,
@@ -515,6 +516,7 @@ test("owns CAM-supported ABI scalar grammar", () => {
   assert.equal(isAbiIntegerValue("255", { bits: 8, signed: false }), true)
   assert.equal(isAbiIntegerValue(256, { bits: 8, signed: false }), false)
   assert.equal(isAbiIntegerValue(Number.MAX_SAFE_INTEGER + 1, { bits: 256, signed: false }), false)
+  assert.equal(isAbiBytesValue("0x"), true)
   assert.equal(isAbiBytesValue("0x1234"), true)
   assert.equal(isAbiBytesValue("0x123"), false)
   assert.equal(isAbiBytesValue("0x1234", 2), true)
@@ -522,6 +524,40 @@ test("owns CAM-supported ABI scalar grammar", () => {
   assert.equal(abiDynamicArrayElementType("uint256[]"), "uint256")
   assert.equal(abiDynamicArrayElementType("tuple[][]"), "tuple[]")
   assert.equal(abiDynamicArrayElementType("uint256[2]"), undefined)
+})
+
+test("fixed bytes32 and document digest validation share exact lexical boundaries", () => {
+  const accepted: readonly [string, string][] = [
+    ["zero digest", `0x${"00".repeat(32)}`],
+    ["mixed-case hex", `0x${"aA".repeat(32)}`],
+  ]
+  const rejected: readonly [string, unknown][] = [
+    ["null", null],
+    ["number", 1],
+    ["array", []],
+    ["short width", "0x" + "a".repeat(62)],
+    ["odd nibble count", "0x" + "a".repeat(63)],
+    ["long width", "0x" + "a".repeat(66)],
+    ["upper-case prefix", "0X" + "a".repeat(64)],
+    ["missing prefix", "a".repeat(64)],
+    ["invalid hex", "0x" + "a".repeat(63) + "g"],
+    ["leading space", " 0x" + "a".repeat(64)],
+    ["trailing space", "0x" + "a".repeat(64) + " "],
+    ["same-width CR", "0x" + "a".repeat(63) + "\r"],
+    ["same-width LF", "0x" + "a".repeat(63) + "\n"],
+    ["same-width U+2028", "0x" + "a".repeat(63) + "\u2028"],
+    ["same-width CRLF", "0x" + "a".repeat(62) + "\r\n"],
+    ["oversized hex", "0x" + "a".repeat(1_000_000)],
+  ]
+
+  for (const [label, value] of accepted) {
+    assert.equal(isAbiBytesValue(value, 32), true, label)
+    assert.equal(isDocumentHashDigest(value), true, label)
+  }
+  for (const [label, value] of rejected) {
+    assert.equal(isAbiBytesValue(value, 32), false, label)
+    assert.equal(isDocumentHashDigest(value), false, label)
+  }
 })
 
 test("owns CAM-supported ABI function reference grammar", () => {

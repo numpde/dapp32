@@ -5,6 +5,7 @@ import {
 import {
   CAM_ROUTE_CONTEXT_KEYS,
 } from "./runtime-context.ts"
+import { isAbiBytesValue } from "./abi-types.ts"
 
 // Named UI nodes expose a deliberately tiny call interface. Keep shared UI
 // vocabulary here so UI parsing and conformance use one source.
@@ -91,5 +92,5 @@ export function isUiPropElement(value: string): value is UiPropElement {
 }
 
 export function isDocumentHashDigest(value: unknown): value is string {
-  return typeof value === "string" && /^0x[0-9a-fA-F]{64}$/.test(value)
+  return isAbiBytesValue(value, 32)
 }
