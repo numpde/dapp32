@@ -1,8 +1,8 @@
 // Foreground local-fixture signer for one operator-selected existing browser tab.
 import assert from 'node:assert/strict'
-import { createPublicClient, createWalletClient, http, parseAbi, sha256, toFunctionSelector } from 'viem'
+import { createPublicClient, createWalletClient, http, parseAbi, sha256 } from 'viem'
 import { requireHttpURL, requireSameHttpOrigin, readBoundedResponseBytes } from '@cam/protocol'
-import { fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
+import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource, installFixtureWalletInTarget, fixtureDocumentRequest, awaitFixtureSocketOpen, finishFixtureAttachment } from './browser-fixture-wallet.mjs'
 import { createCdpCommands, submitFixtureTransaction } from '../apps/cam-web/test/escrow-browser-fixture.mjs'
 
 let phase = 'validating app account configuration'
@@ -57,8 +57,7 @@ async function main() {
   const abi = JSON.parse(new TextDecoder().decode(abiBytes))
   const binding = await publicClient.readContract({ address: root, abi: rootABI, functionName: 'contractAddress', args: [config.contract] })
   assert.equal(binding.toLowerCase(), expectedTarget.toLowerCase(), 'CAM binding must match the explicit app target')
-  const selectors = new Set(abi.filter(item => item.type === 'function' && config.functions.includes(item.name)).map(toFunctionSelector))
-  assert.equal(selectors.size, config.functions.length, 'Each granted app function must exist exactly once')
+  const selectors = fixtureFunctionSelectors(abi, config.functions)
   const wallets = Object.fromEntries(Object.entries(accounts).map(([name, account]) => [name, createWalletClient({ account, chain, transport: http(rpcURL.href, { timeout: 10000, retryCount: 0 }) })]))
   phase = 'connecting to the selected existing browser tab'
   const version = JSON.parse(new TextDecoder().decode(await bytes(new URL('/json/version', cdp))))

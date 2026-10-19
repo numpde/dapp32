@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import vm from 'node:vm'
-import { fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import { toFunctionSelector } from 'viem'
+import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import escrowWalletConfig from './escrow-fixture-wallet.mjs'
+import payToPlayWalletConfig from './pay-to-play-fixture-wallet.mjs'
 const address = `0x${'11'.repeat(20)}`
 const other = `0x${'22'.repeat(20)}`
+const fn = (name, inputs) => ({ type: 'function', name, inputs, outputs: [], stateMutability: 'nonpayable' })
 function install(existing) {
   const sent = []
   const elements = new Map()
@@ -18,6 +23,46 @@ function install(existing) {
 test('address/key mismatch fails without revealing either key', () => {
   const privateKey = `0x${'ba'.repeat(32)}`
   assert.throws(() => fixtureWalletAccounts({ alice: { address, privateKey } }), error => !String(error).includes(privateKey) && /match/.test(error.message))
+})
+test('fixture function selectors reject a missing grant masked by another overload', () => {
+  const abi = [fn('allowedA', [{ name: 'value', type: 'uint256' }]), fn('allowedA', [{ name: 'value', type: 'address' }])]
+  assert.throws(() => fixtureFunctionSelectors(abi, ['allowedA', 'allowedB']), /allowedA.*exactly once/)
+})
+test('fixture function selectors include one declared grant and ignore unrelated functions', () => {
+  const allowed = fn('allowed', [{ name: 'value', type: 'uint256' }])
+  const unrelated = fn('unrelated', [])
+  assert.deepEqual(
+    [...fixtureFunctionSelectors([unrelated, allowed], ['allowed'])],
+    [toFunctionSelector(allowed)],
+  )
+})
+test('fixture function grants resolve against their checked-in app ABIs', () => {
+  const apps = [
+    { name: 'Escrow', config: escrowWalletConfig, abiPath: '../../../../dapps/escrow/cam/abi/CamEscrow.json' },
+    { name: 'PayToPlay', config: payToPlayWalletConfig, abiPath: '../../../../dapps/pay-to-play/cam/abi/PayToPlay.json' },
+  ]
+  for (const app of apps) {
+    const abi = JSON.parse(readFileSync(new URL(app.abiPath, import.meta.url), 'utf8'))
+    assert.doesNotThrow(() => fixtureFunctionSelectors(abi, app.config.functions), `${app.name} fixture grant`)
+  }
+})
+test('fixture function selectors reject missing, overloaded, and duplicate ABI declarations', () => {
+  for (const abi of [
+    [],
+    [fn('allowed', [{ name: 'value', type: 'uint256' }]), fn('allowed', [{ name: 'value', type: 'address' }])],
+    [fn('allowed', [{ name: 'value', type: 'uint256' }]), fn('allowed', [{ name: 'value', type: 'uint256' }])],
+  ]) {
+    assert.throws(() => fixtureFunctionSelectors(abi, ['allowed']), /allowed.*exactly once/)
+  }
+})
+test('fixture function selectors reject repeated grant names and colliding selectors', () => {
+  assert.throws(() => fixtureFunctionSelectors([fn('allowed', [])], ['allowed', 'allowed']), /repeats allowed/)
+  const collision = [
+    fn('burn', [{ name: 'amount', type: 'uint256' }]),
+    fn('collate_propagate_storage', [{ name: 'data', type: 'bytes16' }]),
+  ]
+  assert.equal(toFunctionSelector(collision[0]), toFunctionSelector(collision[1]))
+  assert.throws(() => fixtureFunctionSelectors(collision, ['burn', 'collate_propagate_storage']), /collate_propagate_storage.*shares a selector/)
 })
 test('refuses an existing wallet without replacing it', () => {
   const existing = { request() {} }

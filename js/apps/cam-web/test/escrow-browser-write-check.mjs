@@ -2,10 +2,10 @@
 // DOM activation proves application behavior, not physical input or extension UI.
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { createPublicClient, createWalletClient, http, sha256, parseAbi, toFunctionSelector, toHex } from 'viem'
+import { createPublicClient, createWalletClient, http, sha256, parseAbi, toHex } from 'viem'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
 import { createCdpCommands, lostBroadcastReply, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
-import { fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import walletConfig from './escrow-fixture-wallet.mjs'
 
 function endpoint(value, name, local) {
@@ -72,9 +72,7 @@ const abi = JSON.parse(abiBytes.toString())
 const escrow = await publicClient.readContract({ address: root, abi: rootAbi, functionName: 'contractAddress', args: ['CamEscrow'] })
 assert(!/^0x0+$/.test(escrow), 'Escrow binding is missing')
 assert.notEqual(await rpc('eth_getCode', [escrow, 'latest']), '0x', 'Escrow binding has no code')
-const allowedNames = new Set(['createAgreement', 'acceptAgreement', 'submitAgreement', 'disputeAgreement', 'resolveForContractor', 'withdrawTo'])
-const allowedSelectors = new Set(abi.filter(entry => entry.type === 'function' && allowedNames.has(entry.name)).map(toFunctionSelector))
-assert.equal(allowedSelectors.size, allowedNames.size, 'fixture ABI must expose each allowed action once')
+const allowedSelectors = fixtureFunctionSelectors(abi, walletConfig.functions)
 const accounts = fixtureWalletAccounts(walletConfig.accounts)
 assert.equal(accounts.client.address.toLowerCase(), viewer.searchParams.get('account').toLowerCase(), 'viewer account must be fixture client')
 const wallets = Object.fromEntries(Object.entries(accounts).map(([role, account]) => [role, createWalletClient({ account, chain, transport: http(rpcUrl.href, { retryCount: 0, timeout: 10000 }) })]))

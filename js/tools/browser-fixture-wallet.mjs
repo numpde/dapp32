@@ -1,4 +1,22 @@
 import { privateKeyToAccount } from 'viem/accounts'
+import { toFunctionSelector } from 'viem'
+
+export function fixtureFunctionSelectors(abi, configuredNames) {
+  const configured = new Set()
+  const selectors = new Set()
+  for (const name of configuredNames) {
+    if (configured.has(name)) throw new Error(`Fixture function grant repeats ${name}`)
+    configured.add(name)
+
+    const matches = abi.filter(item => item.type === 'function' && item.name === name)
+    if (matches.length !== 1) throw new Error(`Fixture ABI must declare granted function ${name} exactly once`)
+
+    const selector = toFunctionSelector(matches[0])
+    if (selectors.has(selector)) throw new Error(`Fixture ABI granted function ${name} shares a selector`)
+    selectors.add(selector)
+  }
+  return selectors
+}
 
 // Keys belong to the fixture process. The injected provider receives addresses only.
 export function fixtureWalletAccounts(namedAccounts) {

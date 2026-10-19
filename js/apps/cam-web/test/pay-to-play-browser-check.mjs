@@ -2,11 +2,11 @@ import { checkTimestampStatus } from './timestamp-status-browser-check.mjs'
 import { checkActionStyles } from './action-style-browser-check.mjs'
 // Real CAM browser actions in one owned tab of an existing local CDP browser.
 import assert from 'node:assert/strict'
-import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbi, sha256, stringToBytes, toFunctionSelector } from 'viem'
+import { createPublicClient, createWalletClient, decodeEventLog, hashTypedData, http, parseAbi, sha256, stringToBytes } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { readBoundedResponseBytes, requireHttpURL, requireSameHttpOrigin } from '@cam/protocol'
 import { browserFixtureFailureDetails, createCdpCommands, submitFixtureTransaction } from './escrow-browser-fixture.mjs'
-import { fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
+import { fixtureFunctionSelectors, fixtureWalletAccounts, fixtureWalletSource } from '../../../tools/browser-fixture-wallet.mjs'
 import { assertInvoiceAcceptance, hashInvoice, voucherForInvoice } from '../../../tools/pay-to-play-vouchers/protocol.ts'
 import walletConfig from './pay-to-play-fixture-wallet.mjs'
 
@@ -74,9 +74,7 @@ const accounts = fixtureWalletAccounts(walletConfig.accounts)
 const voucherSigner = privateKeyToAccount(`0x${'55'.repeat(32)}`)
 assert.equal(viewer.searchParams.get('account').toLowerCase(), accounts.admin.address.toLowerCase())
 assert.equal((await publicClient.readContract({ address: payments, abi, functionName: 'owner' })).toLowerCase(), accounts.admin.address.toLowerCase())
-const allowed = new Set(walletConfig.functions)
-const selectors = new Set(abi.filter(item => item.type === 'function' && allowed.has(item.name)).map(toFunctionSelector))
-assert.equal(selectors.size, allowed.size)
+const selectors = fixtureFunctionSelectors(abi, walletConfig.functions)
 const wallets = Object.fromEntries(Object.entries(accounts).map(([role, account]) => [role, createWalletClient({ account, chain, transport: http(rpcURL.href, { timeout: 10_000, retryCount: 0 }) })]))
 let sent = 0
 let attempts = 0
