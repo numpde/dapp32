@@ -9,7 +9,8 @@ import type {
 import { creationReceiptDeployer } from "../release-provenance.ts"
 import { parseDeploymentArtifact } from "./shared.ts"
 import { readBoundedRegularFile } from "../release-files.ts"
-import { requiredEnv, runReleaseTool } from "../release-values.ts"
+import { requiredEnv } from "../input.ts"
+import { runReleaseTool } from "../release-values.ts"
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024
 

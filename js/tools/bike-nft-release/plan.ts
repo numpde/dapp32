@@ -3,7 +3,8 @@ import { inspectReleaseCamBundle } from "../release-cam-bundle.ts"
 import { RELEASE_PLAN_SCHEMA, requiredAddresses, requiredDelay } from "./shared.ts"
 import type { ReleasePlan } from "./shared.ts"
 import { writeNewJson } from "../release-files.ts"
-import { requiredEnv, requiredNonzeroAddress, requiredReleaseChainId, requiredSingleLineString, requiredSourceCommit, runReleaseTool } from "../release-values.ts"
+import { requiredEnv } from "../input.ts"
+import { requiredNonzeroAddress, requiredReleaseChainId, requiredSingleLineString, requiredSourceCommit, runReleaseTool } from "../release-values.ts"
 
 async function main(): Promise<void> {
   const env = process.env

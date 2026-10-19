@@ -4,7 +4,8 @@ import { createPublicClient, getAddress, http, keccak256, parseAbi } from "viem"
 import type { Abi, Address, Hex } from "viem"
 
 import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
-import { parseJsonRecord, requiredEnv, runReleaseTool } from "../release-values.ts"
+import { requiredEnv } from "../input.ts"
+import { parseJsonRecord, runReleaseTool } from "../release-values.ts"
 import {
   deploymentArtifact,
   deploymentContractsFromBroadcast,

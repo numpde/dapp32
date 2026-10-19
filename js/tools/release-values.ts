@@ -5,14 +5,6 @@ import { isRecordObject, parseJsonBytes } from "../packages/cam-protocol/dist/in
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
-export function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]
-  if (value === undefined || value.length === 0) {
-    throw new Error(`missing required environment variable: ${name}`)
-  }
-  return value
-}
-
 export function requiredSourceCommit(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9a-f]{40}$/.test(value)) {
     throw new Error("source commit must be exactly 40 lowercase hexadecimal characters")

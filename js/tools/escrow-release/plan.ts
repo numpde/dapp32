@@ -10,8 +10,8 @@ import {
 } from "./shared.ts"
 import type { ReleasePlan } from "./shared.ts"
 import { writeNewJson } from "../release-files.ts"
+import { requiredEnv } from "../input.ts"
 import {
-  requiredEnv,
   requiredNonzeroAddress,
   requiredReleaseChainId,
   requiredSourceCommit,

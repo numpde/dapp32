@@ -2,7 +2,8 @@ import { createPublicClient, http } from "viem"
 import { parseDeploymentArtifact } from "./shared.ts"
 import { readBoundedRegularFile } from "../release-files.ts"
 import { creationReceiptDeployer } from "../release-provenance.ts"
-import { requiredEnv, runReleaseTool } from "../release-values.ts"
+import { requiredEnv } from "../input.ts"
+import { runReleaseTool } from "../release-values.ts"
 
 const MAX_BYTES = 1024 * 1024
 async function main(): Promise<void> {

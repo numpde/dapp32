@@ -25,7 +25,8 @@ import type {
   DeploymentArtifact,
 } from "./shared.ts"
 import { readBoundedRegularFile, writeNewJson } from "../release-files.ts"
-import { parseJsonRecord, requiredEnv, runReleaseTool } from "../release-values.ts"
+import { requiredEnv } from "../input.ts"
+import { parseJsonRecord, runReleaseTool } from "../release-values.ts"
 
 const MAX_BROADCAST_BYTES = 16 * 1024 * 1024
 const CAM_ROOT_ABI = parseAbi([

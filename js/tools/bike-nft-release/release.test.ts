@@ -163,6 +163,32 @@ test("the Bike planner rejects multiline release text before publishing a plan",
   }
 })
 
+test("the Bike planner rejects a missing or empty CAM URI before publishing a plan", () => {
+  const directory = mkdtempSync(join(tmpdir(), "bike-release-cam-uri-"))
+  try {
+    for (const camURI of [undefined, ""] as const) {
+      const planPath = join(directory, camURI === undefined ? "missing.json" : "empty.json")
+      const env = { ...process.env, ...plannerEnv(planPath) }
+      if (camURI === undefined) {
+        delete env.BIKE_NFT_RELEASE_CAM_URI
+      } else {
+        env.BIKE_NFT_RELEASE_CAM_URI = camURI
+      }
+
+      const result = spawnSync(
+        process.execPath,
+        ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), "plan.ts")],
+        { encoding: "utf8", env },
+      )
+      assert.notEqual(result.status, 0)
+      assert.match(result.stderr, /missing required environment variable: BIKE_NFT_RELEASE_CAM_URI/)
+      assert.equal(existsSync(planPath), false)
+    }
+  } finally {
+    rmSync(directory, { recursive: true })
+  }
+})
+
 test("deployment artifact projection preserves named contract evidence", () => {
   const contracts = deploymentContractsFromBroadcast({ transactions: [
     create("CamRoot", address("10"), hash("1")),

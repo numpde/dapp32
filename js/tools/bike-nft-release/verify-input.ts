@@ -1,6 +1,7 @@
 import { parseDeploymentArtifact } from "./shared.ts"
 import { stageVerifiedReleaseArtifact } from "../release-verification-input.ts"
-import { requiredEnv, requiredSourceCommit, runReleaseTool } from "../release-values.ts"
+import { requiredEnv } from "../input.ts"
+import { requiredSourceCommit, runReleaseTool } from "../release-values.ts"
 
 async function main(): Promise<void> {
   const env = process.env
