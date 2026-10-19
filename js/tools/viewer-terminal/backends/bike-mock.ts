@@ -1,9 +1,6 @@
 import { sha256 } from "viem"
 import { resolve } from "node:path"
 
-import type {
-  CamHost,
-} from "../../../packages/cam-evm-viem/dist/index.js"
 import {
   createCamViewerSession,
 } from "../../../packages/cam-viewer/dist/index.js"
@@ -37,8 +34,6 @@ import type {
   TerminalBackendOptions,
   TerminalPublicClient,
 } from "../types.ts"
-
-type MockAddress = CamHost["address"]
 
 const BIKE_MOCK_CAM_ORIGIN = "http://bike-nft.mock.local"
 const BIKE_MOCK_CAM_BASE_URI = `${BIKE_MOCK_CAM_ORIGIN}/`

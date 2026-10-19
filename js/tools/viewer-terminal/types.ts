@@ -2,7 +2,7 @@ import type {
   CamViewerSession,
   CreateCamViewerSessionOptions,
 } from "../../packages/cam-viewer/dist/index.js"
-import type { InertRecord, InertValue } from "../../packages/cam-protocol/dist/index.js"
+import type { InertRecord } from "../../packages/cam-protocol/dist/index.js"
 
 export type DebugEvent =
   | {
