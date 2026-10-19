@@ -1,4 +1,4 @@
-import type { CamRuntimeContext, CamVersion, InertValue } from "@cam/protocol"
+import type { CamVersion, InertValue } from "@cam/protocol"
 
 export type CamDocument = {
   readonly protocol: { readonly uri: string; readonly integrity: string }
