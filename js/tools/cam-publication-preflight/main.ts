@@ -1,6 +1,7 @@
 import { resolve } from "node:path"
 
 import { sha256 } from "viem"
+import { formatHumanOutput } from "../human-output.ts"
 
 import { validateCamBundle } from "../../packages/cam-conformance/dist/index.js"
 import type { CamConformanceBundle, CamConformanceIssue } from "../../packages/cam-conformance/dist/index.js"
@@ -268,7 +269,5 @@ function fatalErrorMessage(error: unknown): string {
 function humanOutputField(value: string): string {
   // Human stderr is for CI/operator logs. JSON mode above remains complete for
   // automation; text mode should not flood logs with manifest-controlled text.
-  return value.length <= MAX_HUMAN_OUTPUT_FIELD_LENGTH
-    ? value
-    : `${value.slice(0, MAX_HUMAN_OUTPUT_FIELD_LENGTH)}...`
+  return formatHumanOutput(value, MAX_HUMAN_OUTPUT_FIELD_LENGTH)
 }
