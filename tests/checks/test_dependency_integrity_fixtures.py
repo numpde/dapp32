@@ -24,6 +24,40 @@ FIXTURE_CONTRACT_SOURCE = "contract"
 
 
 class DependencyIntegrityFixtureTest(unittest.TestCase):
+    def test_soldeer_registry_url_policy(self) -> None:
+        with self.fixture() as root:
+            verifier = DependencyVerifier(root)
+            verifier.validate_soldeer_registry_url(
+                self.record(url=FIXTURE_ARCHIVE_URL, checksum=FIXTURE_PLACEHOLDER_CHECKSUM)
+            )
+
+            invalid_urls = {
+                "wrong scheme": "http://soldeer-revisions.s3.amazonaws.com/forge-std/1_0_0_test_forge-std-1.0.zip",
+                "unapproved host": "https://example.com/forge-std/1_0_0_test_forge-std-1.0.zip",
+                "userinfo": "https://user@soldeer-revisions.s3.amazonaws.com/forge-std/1_0_0_test_forge-std-1.0.zip",
+                "explicit port": "https://soldeer-revisions.s3.amazonaws.com:443/forge-std/1_0_0_test_forge-std-1.0.zip",
+                "path parameters": f"{FIXTURE_ARCHIVE_URL};download=1",
+                "query": f"{FIXTURE_ARCHIVE_URL}?download=1",
+                "fragment": f"{FIXTURE_ARCHIVE_URL}#archive",
+                "wrong package": "https://soldeer-revisions.s3.amazonaws.com/other-package/1_0_0_test_forge-std-1.0.zip",
+                "wrong version": "https://soldeer-revisions.s3.amazonaws.com/forge-std/2_0_0_test_forge-std-1.0.zip",
+                "wrong archive suffix": "https://soldeer-revisions.s3.amazonaws.com/forge-std/1_0_0_test_contracts.zip",
+            }
+            for label, url in invalid_urls.items():
+                with self.subTest(url=label), self.assertRaises(DependencyVerificationError):
+                    verifier.validate_soldeer_registry_url(
+                        self.record(url=url, checksum=FIXTURE_PLACEHOLDER_CHECKSUM)
+                    )
+
+            unknown_package = DependencyRecord(
+                name="unknown-package",
+                version=FIXTURE_VERSION,
+                url="https://soldeer-revisions.s3.amazonaws.com/unknown-package/1_0_0_test_archive.zip",
+                checksum=FIXTURE_PLACEHOLDER_CHECKSUM,
+            )
+            with self.assertRaisesRegex(DependencyVerificationError, "explicit Soldeer archive suffix policy"):
+                verifier.validate_soldeer_registry_url(unknown_package)
+
     def test_rejects_unsafe_zip_paths(self) -> None:
         with self.fixture() as root:
             archive = root / "unsafe.zip"

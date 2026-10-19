@@ -6,16 +6,11 @@ import unittest
 from urllib.parse import urlparse
 
 from .common import iter_files, read_text, repo_path
+from .test_dependency_integrity import SOLDEER_ARCHIVE_SUFFIX_RE, SOLDEER_REVISIONS_HOST
 
 
 OZ_PACKAGE = "@openzeppelin-contracts"
 OZ_PACKAGES = (OZ_PACKAGE,)
-FORGE_STD_PACKAGE = "forge-std"
-SOLDEER_REVISIONS_HOST = "soldeer-revisions.s3.amazonaws.com"
-SOLDEER_ARCHIVE_SUFFIX_RE = {
-    OZ_PACKAGE: r"contracts",
-    FORGE_STD_PACKAGE: r"forge-std-[0-9]+(?:\.[0-9]+)*",
-}
 REMAPPING_RE = re.compile(
     r"^(?P<name>@openzeppelin-contracts(?:-upgradeable)?)-(?P<version>[^/=]+)/=dependencies/(?P=name)-(?P=version)/$"
 )
