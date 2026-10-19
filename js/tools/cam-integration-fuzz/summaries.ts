@@ -31,6 +31,7 @@ export function contractCallSummary(call: CamViewerPreparedContractCall): JsonOb
     address: call.address,
     function: call.function,
     args: call.args,
+    ...(call.value === undefined ? {} : { value: call.value }),
   }
 }
 
