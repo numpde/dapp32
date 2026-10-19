@@ -7,7 +7,6 @@ import { CAM_VERSION, toInertValue, UI_VERSION } from "@cam/protocol"
 import { UiError, parseUi } from "@cam/screen"
 import type { CamDocument } from "@cam/core"
 import type { CamHost, ResolvedCamContract } from "@cam/evm-viem"
-import type { InertRecord } from "@cam/protocol"
 import type { UiDocument } from "@cam/screen"
 import type { Abi, Address } from "viem"
 
