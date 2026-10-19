@@ -297,6 +297,12 @@ test("formatError survives hostile thrown values", () => {
   assert.match(formatError(hostile), /^Error: .*unprintable.*\n$/)
 })
 
+test("formatError keeps blank thrown values visibly diagnostic", () => {
+  assert.equal(formatError(""), "Error: The error did not include a readable message.\n")
+  assert.equal(formatError("   "), "Error: The error did not include a readable message.\n")
+  assert.equal(formatError("\n"), "Error: \\u000a\n")
+})
+
 function statusTerminalOutput(
   children: CamViewerLoadedSnapshot["resolvedUi"][],
   title?: string,

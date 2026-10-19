@@ -2,13 +2,42 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import { HttpRequestError, sha256 } from "viem"
 import { isRecordObject } from "@cam/protocol"
-import { createCamViewerSession } from "@cam/viewer"
+import { createCamViewerSession, viewerErrorMessage } from "@cam/viewer"
 import { BIKE_ACCOUNT_ADDRESS, BIKE_CAM_URI, BIKE_UI_URI, bikeHost, bikeContractAddresses } from "../../../../tests/fixtures/cam/bike.mts"
 import { bikeCamJson } from "../../../../tests/fixtures/cam/bike-resources.mts"
 import { bikeResourceBytes, createMockCamPublicClient, createMockResourceLoader, encodeJson } from "../../../../tests/fixtures/cam/mock.mts"
 import { CamEvmError, validateCamContractCall } from "@cam/evm-viem"
 
 import { actionErrorMessage, errorMessage } from "../src/errors.ts"
+
+test("viewerErrorMessage gives blank thrown values a readable diagnostic", () => {
+  const emptyStringification = { toString: () => "" }
+
+  for (const error of ["", "   ", " ".repeat(1_000), emptyStringification]) {
+    assert.equal(viewerErrorMessage(error), "The error did not include a readable message.")
+  }
+  assert.equal(viewerErrorMessage("\n"), "\\u000a")
+  assert.equal(viewerErrorMessage({ data: { errorName: "Reason", args: ["   "] } }), 'Reason("   ")')
+})
+
+test("viewerErrorMessage skips blank cause fragments and keeps useful causes", () => {
+  assert.equal(viewerErrorMessage(new Error("operation failed", { cause: "   " })), "operation failed")
+  assert.equal(viewerErrorMessage({ toString: () => "", cause: "cause explains failure" }), "cause explains failure")
+})
+
+test("viewerErrorMessage does not stringify an error when its readable message is present", () => {
+  let stringifications = 0
+  const error = {
+    message: "readable failure",
+    toString() {
+      stringifications += 1
+      return "fallback"
+    },
+  }
+
+  assert.equal(viewerErrorMessage(error), "readable failure")
+  assert.equal(stringifications, 0)
+})
 
 test("errorMessage stops at cyclic cause chains", () => {
   const error = new Error("top")

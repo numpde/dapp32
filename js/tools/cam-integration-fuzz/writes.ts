@@ -94,9 +94,6 @@ export async function handlePreparedWrite({
     })
   } catch (cause) {
     const message = errorMessage(cause)
-    if (message.length === 0) {
-      throw new Error(`write simulation for ${call.route} failed without a useful error`)
-    }
     emit({
       event: "write_simulation",
       run,

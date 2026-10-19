@@ -24,13 +24,17 @@ export function viewerErrorMessage(error: unknown, options?: { readonly includeS
     current = errorCause(current)
     if (depth === MAX_ERROR_CAUSES - 1 && current !== undefined) appendDiagnostic(parts, "Cause chain truncated.")
   }
-  const diagnostic = parts.length === 0 ? diagnosticText(safeString(error, "unprintable error")) : parts.join(": ")
+  let diagnostic = parts.join(": ")
+  if (parts.length === 0) {
+    const fallback = diagnosticText(safeString(error, "unprintable error"))
+    diagnostic = fallback.trim().length === 0 ? "The error did not include a readable message." : fallback
+  }
   const message = stacks.length === 0 ? diagnostic : `${diagnostic}\nStack:\n${stacks.join("\n")}`
   return message.length <= MAX_ERROR_MESSAGE_LENGTH ? message : `${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}...`
 }
 
 function appendDiagnostic(parts: string[], text: string | undefined): void {
-  if (text !== undefined && !parts.some(part => part.includes(text))) parts.push(text)
+  if (text !== undefined && text.trim().length > 0 && !parts.some(part => part.includes(text))) parts.push(text)
 }
 
 function diagnosticText(value: string): string {
@@ -51,6 +55,7 @@ function redactDiagnosticText(value: string): string {
 
 function escapeDiagnosticText(value: string): string {
   const escaped = value.replace(/[\u0000-\u001f\u007f]/gu, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`)
+  if (escaped.trim().length === 0) return ""
   return escaped.length <= MAX_ERROR_TEXT_LENGTH ? escaped : `${escaped.slice(0, MAX_ERROR_TEXT_LENGTH)}...`
 }
 
