@@ -28,6 +28,31 @@ test("duplicate configuration authority fails before RPC without echoing file co
   } finally { rmSync(directory, { recursive: true, force: true }) }
 })
 
+test("invalid UTF-8 in a protected configuration fails before JSON parsing without echoing contents", () => {
+  const directory = mkdtempSync(join(tmpdir(), "refund-config-utf8-"))
+  try {
+    const file = join(directory, "config")
+    const secretMarker = "DO_NOT_ECHO_INVALID_UTF8_CONFIG"
+    writeFileSync(file, Buffer.concat([
+      Buffer.from(`{"secret":"${secretMarker}`),
+      Buffer.from([0xff]),
+      Buffer.from('"}'),
+    ]), { mode: 0o600 })
+    const result = spawnSync(
+      process.execPath,
+      ["--experimental-strip-types", fileURLToPath(new URL("./runner.ts", import.meta.url))],
+      { env: { REFUND_CONFIG_FILE: file }, encoding: "utf8", timeout: 10_000, maxBuffer: 100_000 },
+    )
+    assert.equal(result.status, 1)
+    assert.equal(result.error, undefined)
+    assert.match(result.stderr, /stopped during configuration/)
+    assert.match(result.stderr, /Protected file must contain valid UTF-8/)
+    assert(!result.stderr.includes(secretMarker))
+    assert(!result.stderr.includes("unambiguous valid JSON"))
+    assert.equal(result.stdout, "")
+  } finally { rmSync(directory, { recursive: true, force: true }) }
+})
+
 test("FIFO configuration fails promptly as a non-regular protected file", () => {
   const directory = mkdtempSync(join(tmpdir(), "refund-config-fifo-"))
   try {

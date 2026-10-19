@@ -29,7 +29,11 @@ export function readProtectedFile(path: string, maxBytes: number): string {
       length += count
     }
     if (length > maxBytes) throw new RefundWorkerError("File grew past its size limit")
-    return bytes.subarray(0, length).toString("utf8")
+    try {
+      return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes.subarray(0, length))
+    } catch (cause) {
+      throw new RefundWorkerError("Protected file must contain valid UTF-8", { cause })
+    }
   } finally { closeSync(fd) }
 }
 
