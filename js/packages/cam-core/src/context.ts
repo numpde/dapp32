@@ -1,17 +1,14 @@
-import { CamError } from "./errors.ts"
 import {
   requiredArray,
   rejectUnknownFields,
   requiredNonEmptyString,
   requiredRecord,
+  toInertCamValue,
 } from "./guards.ts"
 import {
   CAM_ROUTE_CONTEXT_KEYS,
   createStringMap,
   hasOwn,
-  InertValueError,
-  joinPath,
-  toInertValue,
 } from "@cam/protocol"
 import type { CamRuntimeContext, InertRecord, InertValue } from "@cam/protocol"
 
@@ -57,7 +54,7 @@ function cloneContextRecord(value: unknown, path: string): InertRecord {
   const clone = createStringMap<InertValue>()
 
   for (const [key, item] of Object.entries(source)) {
-    clone[key] = toInertContextValue(item, `${path}.${key}`)
+    clone[key] = toInertCamValue(item, `${path}.${key}`)
   }
 
   return clone
@@ -68,24 +65,8 @@ function cloneContextArray(value: unknown, path: string): readonly InertValue[] 
   const clone: InertValue[] = []
 
   for (const [index, item] of source.entries()) {
-    clone.push(toInertContextValue(item, `${path}.${index}`))
+    clone.push(toInertCamValue(item, `${path}.${index}`))
   }
 
   return clone
-}
-
-function toInertContextValue(value: unknown, path: string): InertValue {
-  try {
-    return toInertValue(value)
-  } catch (error) {
-    if (error instanceof InertValueError) {
-      throw new CamError(
-        "CAM_INVALID_FIELD",
-        error.message,
-        error.path === undefined ? path : joinPath(path, error.path),
-      )
-    }
-
-    throw error
-  }
 }

@@ -6,6 +6,7 @@ import {
   collectCamRootFact,
   toInertValue,
 } from "@cam/protocol"
+import type { CamRuntimeContext } from "@cam/protocol"
 
 import {
   CamError,
@@ -81,6 +82,40 @@ test("resolves a CAM route into a plain call descriptor", () => {
       },
     }),
   })
+})
+
+test("invalid inert values report the owning CAM path in contexts and resolved arguments", () => {
+  const baseContext = {
+    host: {
+      chainId: BIKE_HOST_CHAIN_ID,
+      address: BIKE_HOST_ADDRESS,
+    },
+    outputs: [],
+  }
+  const contextFailures: readonly { readonly value: unknown; readonly path: string }[] = [
+    { value: Infinity, path: "inputs.serialNumber" },
+    { value: { nested: undefined }, path: "inputs.serialNumber.nested" },
+  ]
+
+  for (const item of contextFailures) {
+    assert.throws(
+      () => createContext({
+        ...baseContext,
+        inputs: { serialNumber: item.value },
+      }),
+      (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD" && error.path === item.path,
+    )
+  }
+
+  const malformedContext = {
+    ...baseContext,
+    inputs: { serialNumber: { nested: undefined } },
+  } as unknown as CamRuntimeContext
+
+  assert.throws(
+    () => resolveRouteCall(parseCam(mainJson), BIKE_ROUTE_COMPONENT, malformedContext),
+    (error) => error instanceof CamError && error.code === "CAM_INVALID_FIELD" && error.path === "args.serialNumber.nested",
+  )
 })
 
 test("route account preflight follows protocol expression traversal", () => {

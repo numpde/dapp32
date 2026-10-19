@@ -2,30 +2,14 @@ import { CamError } from "./errors.ts"
 import {
   CAM_ROUTE_CONTEXT_KEYS,
   createExpressionRuntime,
-  InertValueError,
-  joinPath,
-  toInertValue,
 } from "@cam/protocol"
 import type { CamRuntimeContext, InertValue } from "@cam/protocol"
+import { toInertCamValue } from "./guards.ts"
 
 const CAM_EXPRESSIONS = createExpressionRuntime({
   roots: CAM_ROUTE_CONTEXT_KEYS,
   numericSegments: true,
-  normalize(value, path) {
-    try {
-      return toInertValue(value)
-    } catch (error) {
-      if (error instanceof InertValueError) {
-        throw new CamError(
-          "CAM_INVALID_FIELD",
-          error.message,
-          error.path === undefined ? path : joinPath(path, error.path),
-        )
-      }
-
-      throw error
-    }
-  },
+  normalize: toInertCamValue,
   error(kind, message, path) {
     switch (kind) {
       case "invalidField":
