@@ -45,6 +45,7 @@ import {
   parseJsonBytes,
   toInertValue,
 } from "../../packages/cam-protocol/dist/index.js"
+import { requiredEnv } from "../input.ts"
 import type {
   InertRecord,
   InertValue,
@@ -117,9 +118,9 @@ async function main(): Promise<void> {
 }
 
 async function createFixture(): Promise<Fixture> {
-  const rpcURL = requiredEnv("ESCROW_SCENARIO_RPC_URL")
-  const resourceOrigin = requiredEnv("ESCROW_SCENARIO_RESOURCE_ORIGIN")
-  const deployment = deploymentFromBroadcast(requiredEnv("ESCROW_SCENARIO_BROADCAST_PATH"))
+  const rpcURL = requiredEnv(process.env, "ESCROW_SCENARIO_RPC_URL")
+  const resourceOrigin = requiredEnv(process.env, "ESCROW_SCENARIO_RESOURCE_ORIGIN")
+  const deployment = deploymentFromBroadcast(requiredEnv(process.env, "ESCROW_SCENARIO_BROADCAST_PATH"))
   const privateKeys = rolePrivateKeys()
   const accounts = Object.fromEntries(
     Object.entries(privateKeys).map(([role, key]) => [role, privateKeyToAccount(key)]),
@@ -614,16 +615,8 @@ function requiredSafeUint(value: unknown, label: string): number {
   return number
 }
 
-function requiredEnv(name: string): string {
-  const value = process.env[name]
-  if (value === undefined || value.length === 0) {
-    throw new Error(`missing required environment variable: ${name}`)
-  }
-  return value
-}
-
 function requiredPrivateKey(name: string): Hex {
-  const value = requiredEnv(name)
+  const value = requiredEnv(process.env, name)
   if (!/^0x[0-9a-fA-F]{64}$/.test(value)) {
     throw new Error(`${name} must be a 32-byte hex private key`)
   }
