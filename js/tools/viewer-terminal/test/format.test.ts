@@ -64,6 +64,49 @@ test("terminal prepared calls show native amounts exactly and omit value when ab
   assert.ok(!nonpayable.includes("native amount (wei):"))
 })
 
+test("terminal human metadata escapes controls and bounds text without changing action JSON", () => {
+  const route = "deposit\u001b[2J\nFORGED"
+  const uiURI = `https://example.test/cam/${"x".repeat(2_500)}`
+  const thenFunction = "receipt\rFORGED"
+  const call: CamViewerPreparedContractCall = {
+    route,
+    address: "0x0000000000000000000000000000000000000001",
+    abi: [{ type: "function", name: "deposit", stateMutability: "payable", inputs: [], outputs: [] }],
+    function: "deposit",
+    args: {},
+    value: "0",
+    then: { namespace: "routes", function: thenFunction, args: {} },
+  }
+  const callButton = { element: "Button" as const, props: { label: "Pay" }, call: { namespace: "routes", function: "deposit", args: {} } }
+  const prepared = statusTerminalOutput([callButton], undefined, "press 1\nquit\n", false, call, { route, uiURI })
+  assert.ok(prepared.includes(`route: ${formatValue(route)}\n`))
+  const uiLine = prepared.split("\n").find(line => line.startsWith("ui: "))
+  assert.ok(uiLine !== undefined)
+  assert.equal(uiLine, `ui: ${formatValue(uiURI)}`)
+  assert.ok(uiLine.length <= "ui: ".length + 2_003)
+  assert.ok(prepared.includes("function: deposit\n"))
+  assert.ok(prepared.includes(`then: routes.${formatValue(thenFunction)} {}`))
+  assert.doesNotMatch(prepared, /[\u0000-\u0009\u000b-\u001f\u007f]/)
+  assert.doesNotMatch(prepared, /^FORGED/m)
+
+  const label = `Pay\u001b[2J\nFORGED${"x".repeat(2_500)}`
+  const button = {
+    element: "Button" as const,
+    disabled: true,
+    props: { label },
+    call: { namespace: "routes", function: "deposit", args: {} },
+  }
+  const actionsOutput = statusTerminalOutput([button], undefined, "actions\nquit\n")
+  assert.ok(actionsOutput.includes(`1. ${formatValue(label)} (disabled)\n`))
+  assert.doesNotMatch(actionsOutput, /[\u0000-\u0009\u000b-\u001f\u007f]/)
+  assert.doesNotMatch(actionsOutput, /^FORGED/m)
+  const actionJsonStart = actionsOutput.lastIndexOf("\n[\n") + 1
+  assert.ok(actionJsonStart > 0)
+  assert.deepEqual(JSON.parse(actionsOutput.slice(actionJsonStart).trim()), [
+    { index: 1, label: `${label} (disabled)`, disabled: true, call: button.call },
+  ])
+})
+
 test("formatted Status list text escapes C0/DEL and cannot forge output lines", () => {
   const value = "client\u001b[2J, contractor\rINJECTED\nFORGED\u0000"
   const output = statusTerminalOutput([
@@ -254,9 +297,17 @@ test("formatError survives hostile thrown values", () => {
   assert.match(formatError(hostile), /^Error: .*unprintable.*\n$/)
 })
 
-function statusTerminalOutput(children: CamViewerLoadedSnapshot["resolvedUi"][], title?: string, commands?: string, rejectAction?: boolean, preparedCall?: CamViewerPreparedContractCall): string {
+function statusTerminalOutput(
+  children: CamViewerLoadedSnapshot["resolvedUi"][],
+  title?: string,
+  commands?: string,
+  rejectAction?: boolean,
+  preparedCall?: CamViewerPreparedContractCall,
+  snapshotOverrides?: Partial<Pick<CamViewerLoadedSnapshot, "route" | "uiURI">>,
+): string {
   const snapshot: CamViewerLoadedSnapshot = {
     canGoBack: false, route: "entry", inputs: {}, state: {}, values: [], uiURI: "fixture://status-display",
+    ...snapshotOverrides,
     documentHashes: {},
     resolvedUi: title === undefined
       ? { element: "Fragment", props: {}, children }

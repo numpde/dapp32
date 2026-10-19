@@ -43,7 +43,7 @@ async function main(): Promise<void> {
 
   await context.session.load()
   printHelp()
-  output.write(`Backend: ${backend.name} (${backend.description})\n`)
+  output.write(`Backend: ${formatValue(backend.name)} (${formatValue(backend.description)})\n`)
   render(context.session.snapshot())
 
   const terminal = createInterface({
@@ -143,7 +143,7 @@ async function handleCommand(context: TerminalContext, rawLine: string): Promise
         keepRunning = false
         break
       default:
-        output.write(`Unknown command: ${command}\n`)
+        output.write(`Unknown command: ${formatValue(command)}\n`)
         output.write("Type help for available commands.\n")
         break
     }
@@ -202,20 +202,20 @@ async function handlePress(session: CamViewerSession, args: readonly string[]): 
   }
 
   output.write("Contract call requested; no transaction was sent.\n")
-  output.write(`route: ${result.call.route}\n`)
-  output.write(`address: ${result.call.address}\n`)
-  output.write(`function: ${result.call.function}\n`)
+  output.write(`route: ${formatValue(result.call.route)}\n`)
+  output.write(`address: ${formatValue(result.call.address)}\n`)
+  output.write(`function: ${formatValue(result.call.function)}\n`)
   output.write(`args: ${formatValue(result.call.args)}\n`)
   if (result.call.value !== undefined) {
     output.write(`native amount (wei): ${formatValue(result.call.value)}\n`)
   }
-  output.write(`then: ${result.call.then.namespace}.${result.call.then.function} ${formatValue(result.call.then.args)}\n`)
+  output.write(`then: ${formatValue(result.call.then.namespace)}.${formatValue(result.call.then.function)} ${formatValue(result.call.then.args)}\n`)
 }
 
 function render(snapshot: CamViewerSnapshot): void {
   output.write("\n")
-  output.write(`route: ${loadedText(snapshot.route)}\n`)
-  output.write(`ui: ${presentText(snapshot.uiURI)}\n`)
+  output.write(`route: ${formatValue(loadedText(snapshot.route))}\n`)
+  output.write(`ui: ${formatValue(presentText(snapshot.uiURI))}\n`)
 
   const root = snapshot.resolvedUi
   const title = root?.element === "Screen" ? root.props.title : undefined
@@ -237,7 +237,10 @@ function render(snapshot: CamViewerSnapshot): void {
   if (buttons.length > 0) {
     output.write("\nActions\n")
     buttons.forEach((button, index) => {
-      output.write(`${index + 1}. ${labelForAction(button)}\n`)
+      const label = button.props.label
+      const text = typeof label === "string" ? label : formatValue(button.props)
+      const disabled = button.disabled === true ? " (disabled)" : ""
+      output.write(`${index + 1}. ${formatValue(text)}${disabled}\n`)
     })
   }
 
@@ -339,9 +342,9 @@ function printState(snapshot: CamViewerSnapshot): void {
 function printPromptContext(context: TerminalContext): void {
   const snapshot = context.session.snapshot()
   output.write("Context before command:\n")
-  output.write(`  backend: ${context.backend.name}\n`)
-  output.write(`  host: ${context.backend.hostLabel}\n`)
-  output.write(`  account: ${accountText(snapshot.account)}\n`)
+  output.write(`  backend: ${formatValue(context.backend.name)}\n`)
+  output.write(`  host: ${formatValue(context.backend.hostLabel)}\n`)
+  output.write(`  account: ${formatValue(accountText(snapshot.account))}\n`)
   output.write(`  inputs: ${formatValue(snapshot.inputs)}\n`)
   output.write(`  state: ${snapshot.state === undefined ? "(not loaded)" : formatValue(snapshot.state)}\n`)
   output.write(`  values: ${snapshot.values === undefined ? "(not loaded)" : formatValue(snapshot.values)}\n`)
