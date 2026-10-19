@@ -41,10 +41,6 @@ const UI_EXPRESSIONS = createExpressionRuntime({
   },
 })
 
-export function validateExpressionValue(value: unknown, path: string): void {
-  UI_EXPRESSIONS.validateValue(value, path)
-}
-
 export function parseExpressionPayload(value: unknown, path: string): InertValue {
   return UI_EXPRESSIONS.parsePayload(value, path)
 }

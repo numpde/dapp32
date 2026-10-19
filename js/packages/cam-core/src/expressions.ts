@@ -59,10 +59,6 @@ export function resolveExpressionValue(
   return CAM_EXPRESSIONS.resolveValue(value, context, path)
 }
 
-export function validateExpressionValue(value: unknown, path: string): void {
-  CAM_EXPRESSIONS.validateValue(value, path)
-}
-
 export function parseExpressionPayload(value: unknown, path: string): InertValue {
   return CAM_EXPRESSIONS.parsePayload(value, path)
 }
