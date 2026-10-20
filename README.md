@@ -45,7 +45,9 @@ Make targets name their owner first. App operations start with `bike-nft/`,
 name. Operations across Solidity apps use `dapps/`. Shared tools and packages
 use their own namespaces, such as `cam/`, `viewer/`, `wallet/` and `js/`.
 Shared local release infrastructure uses `network/local/up`,
-`network/local/info` and `network/local/down`; starting it deploys no app.
+`network/local/info`, `network/local/status` and `network/local/down`;
+starting it deploys no app. Use `info` for connection details and `status` for
+container state and health, including stopped services.
 Only `help`, `tests` and `ci` apply to the whole repository.
 
 For example, `pay-to-play/release/setup`, `pay-to-play/release/deploy`,

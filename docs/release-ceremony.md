@@ -28,7 +28,16 @@ implementation, with its own settings.
 `network/local/up` starts only Anvil and CAM hosting. Deployment and verification
 attach to that existing internal Docker network and leave both services running.
 `make network/local/info` checks that both services are running and prints their
-connection details. There are no host ports or external network access.
+connection details. `make network/local/status` shows each existing service's
+container state and health status, including stopped containers. An empty table
+means this project's containers do not exist. It reports status without
+starting or stopping services. There are no host ports or external network access.
+The RPC and CAM hostnames resolve only inside this Docker network. CAM uses
+**HTTP**, so Pay-to-Play's manifest URI is
+`http://release-cam:8080/pay-to-play/main.json`. The deployment and verification
+containers can reach these services; your host browser cannot open that URI.
+Browser or wallet testing requires a separately configured network exposure;
+these commands provide container-based deployment and verification.
 `network/local/down` explicitly removes this infrastructure and its chain state.
 Use the same `COMPOSE_PROJECT_NAME` for network startup and setup when selecting
 a nondefault project; the resulting file saves the actual Docker network name.
@@ -110,6 +119,15 @@ Secret prompts hide the URL and signing key. The final review lets you change
 the inputs, cancel, or save with deployment confirmation already recorded.
 Setup sends no transactions. Deploying with `CONFIG` requires no further inputs
 and does not read the RPC catalog or any other credential file.
+
+Setup uses two separate paths: `CONFIG` stores the inputs for a future
+deployment, while the output directory stores that deployment's plans,
+transaction records and deployed contract addresses. Verification later reads
+`artifact/deployment.json` from that output directory. Choose a new absolute
+path outside the checkout, for example `/tmp/local-release`. Its parent must
+already exist; leave the directory itself for deployment to create. Keep the
+directory after deployment, including a failed attempt, so its records remain
+available for verification or inspection.
 
 The configuration is JSON containing the concrete RPC URL and private key,
 the exact source commit, every app setting, and `confirmDeploy: true`. Local

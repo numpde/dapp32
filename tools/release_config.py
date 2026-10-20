@@ -181,6 +181,8 @@ def setup(app, source_commit, output):
             config["settings"]["INTENDED_PAYMENT_ADMIN"] = LOCAL_DEPLOYER_ADDRESS
         print(f"Local Docker network: {config['localNetwork']}")
         print(f"Local funded test account: {LOCAL_DEPLOYER_ADDRESS}")
+        print("Local RPC and CAM URLs are reachable only by containers on this Docker network.")
+        print("CAM uses HTTP, not HTTPS. No host ports are published; your host browser cannot open this URL.")
     while True:
         if network == "public":
             config["rpcUrl"] = ask("Complete RPC URL (including any API key)", "rpc", config["rpcUrl"], secret=True)
@@ -189,6 +191,10 @@ def setup(app, source_commit, output):
             if network == "local" and name in ("EXPECTED_CHAIN_ID", "CAM_URI"):
                 print(f"{name}: {config['settings'][name]}")
                 continue
+            if name == "OUTPUT_DIR":
+                print("Deployment creates this directory to keep plans, transaction records and deployed contract addresses.")
+                print("Verification reads its artifact/deployment.json later. Keep it after deployment, including failures.")
+                print("Choose a new path such as /tmp/local-release; its parent must exist, but do not create the directory yourself.")
             config["settings"][name] = ask(label, kind, config["settings"][name], secret=False)
         validate(config, app, source_commit)
         print(f"\nApp: {app}\nNetwork: {network}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")

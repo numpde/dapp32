@@ -569,9 +569,12 @@ help:
 	  'Deploy or verify a release on an operator-selected blockchain:' \
 	  '  make network/local/up            Start a shared local release chain and CAM server in the background.' \
 	  '  make network/local/info          Show that running network and its internal connection details.' \
+	  '  make network/local/status        Show running or stopped local services and their container health.' \
 	  '  make network/local/down          Stop that network and discard its chain state.' \
 	  '    Starts infrastructure only. App deployment and verification are separate commands.' \
 	  '    No host ports or public network access. Chain 31338 uses public Anvil test accounts.' \
+	  '    RPC and CAM URLs work only inside the Docker network. CAM uses HTTP, not HTTPS;' \
+	  '    the host browser cannot open http://release-cam:8080. This flow supports deployment and verification.' \
 	  '  make release/rpc/list             List selectable network names, chain IDs and RPC URL templates.' \
 	  '  make dapps/release/rehearsal/check      Rehearse releases for all three supported apps.' \
 	  '  make bike-nft/release/rehearsal/run     Rehearse the Bike NFT release on an isolated local chain.' \
@@ -589,6 +592,8 @@ help:
 	  '    Walk through every input and save one ready-to-deploy configuration for bike-nft, escrow or pay-to-play.' \
 	  '    Choose public for an HTTPS RPC, or local for the running network/local/up infrastructure.' \
 	  '    Local setup saves its Docker network, exact RPC/CAM URLs and a funded public test key.' \
+	  '    Setup also asks for a new output directory for plans, transactions and deployed contract addresses.' \
+	  '    Keep that directory: verification reads its artifact/deployment.json. Do not create it beforehand.' \
 	  '    CONFIG must be new, outside the checkout, with an existing parent and no symlink path components.' \
 	  '    Saves the concrete RPC URL, deployer key, source commit, app settings and deployment confirmation; mode 0600.' \
 	  '    Then make <app>/release/deploy CONFIG=/absolute/private/release.json deploys without more inputs.' \
@@ -1152,7 +1157,7 @@ RELEASE_REHEARSAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" $(DOCKER_COMPOSE) \
 -f $(COMPOSE_DIR)/release/local-network.yml --profile internal $(1)
 endef
 
-.PHONY: network/local/up network/local/info network/local/down
+.PHONY: network/local/up network/local/info network/local/status network/local/down
 network/local/up:
 	@$(LANE_GUARD); \
 	$(call local_release_compose,up --build --detach --wait --wait-timeout 90 release-anvil release-cam); \
@@ -1166,7 +1171,14 @@ network/local/info:
 	done; \
 	printf '%s\n' 'Local release network: chain 31338' 'Docker network: $(LOCAL_RELEASE_NETWORK)' \
 	  'RPC URL: http://release-anvil:8545' 'CAM base URL: http://release-cam:8080' \
+	  'These URLs work only inside this Docker network. CAM uses HTTP, not HTTPS.' \
+	  'No host ports are published; your host browser cannot open the CAM URL.' \
 	  'Select local in <app>/release/setup. The network stays running until network/local/down.'
+
+network/local/status:
+	@$(LANE_GUARD); \
+	printf '%s\n' 'Local release services: $(LOCAL_RELEASE_PROJECT) (no rows means no containers exist)'; \
+	$(call local_release_compose,ps --all --format 'table {{.Service}}\t{{.State}}\t{{.Status}}' release-anvil release-cam)
 
 network/local/down:
 	@$(LANE_GUARD); \

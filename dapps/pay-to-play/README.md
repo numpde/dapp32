@@ -467,10 +467,23 @@ make pay-to-play/release/deploy CONFIG=/absolute/private/pay-to-play.json
 For a local test deployment, first run `make network/local/up`, then choose
 `local` in setup. Run the same deploy and verify commands afterward; the network
 stays running until `make network/local/down`. Use `make network/local/info` to
-check its services and connection details. Local setup supplies the funded
+show connection details, and `make network/local/status` to see container state
+and health, including stopped services. Local setup supplies the funded
 public `ba` test key, local RPC/CAM URLs and chain 31338.
 
-The file must be new and outside the checkout, with an existing parent and no
+The local manifest URI is `http://release-cam:8080/pay-to-play/main.json`
+(HTTP). It is reachable only inside the Docker network. No ports are published
+to your host, so your browser cannot open it. This flow supports container-based
+deployment and verification; browser or wallet testing needs separate network
+exposure. See the [local network flow](../../docs/release-ceremony.md#start-a-local-network-then-deploy-manually).
+
+When setup asks for an output directory, choose a new off-repo path such as
+`/tmp/local-release`, with an existing parent. Deployment creates it and saves
+plans, transaction records and contract addresses there. Keep it: verification
+reads its `artifact/deployment.json`. The `CONFIG` file holds the deployment
+inputs and is separate from these output records.
+
+The `CONFIG` file must be new and outside the checkout, with an existing parent and no
 symlink path components. Setup creates it with mode `0600`; loading requires
 that mode and your ownership. It pins the source commit and has no dependency
 on the RPC catalog or other credential files. Review all inputs before saving.
