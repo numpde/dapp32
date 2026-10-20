@@ -18,6 +18,9 @@ FORGE_STD_ALLOWED_SCRIPT_IMPORTS = {"Script.sol"}
 DEPENDENCY_PACKAGES = (OZ_PACKAGE, FORGE_STD_PACKAGE)
 DAPPS_ROOT_ALLOWED_IMPORTS = {
     "dapps/pay-to-play/script/DeployPayToPlayLocal.s.sol": {"cam/src/CamRoot.sol"},
+    "dapps/pay-to-play/script/DeployPayToPlayRelease.s.sol": {"cam/src/CamRoot.sol"},
+    "dapps/pay-to-play/script/PayToPlayReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},
+    "dapps/pay-to-play/test/unit/PayToPlayRelease.t.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/script/BikeNftLocalFixture.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/script/DeployBikeNftRelease.s.sol": {"cam/src/CamRoot.sol"},
     "dapps/bike-nft/script/BikeNftReleaseVerifier.sol": {"cam/src/CamRoot.sol", "cam/src/ICamApp.sol"},

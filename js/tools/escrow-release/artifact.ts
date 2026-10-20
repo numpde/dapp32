@@ -11,9 +11,9 @@ import type {
   Hex,
 } from "viem"
 
+import { ownershipState } from "../release-ownership.ts"
 import {
   deploymentContractsFromBroadcast,
-  ownershipState,
 } from "./artifact-model.ts"
 import {
   creationReceiptDeployer,
@@ -139,7 +139,7 @@ async function main(): Promise<void> {
   assertAddress(uiBinding, contracts.camEscrowUI.address, "CamRoot CamEscrowUI binding")
   assertAddress(projectionEscrow, contracts.camEscrow.address, "CamEscrowUI backing escrow")
 
-  const ownership = ownershipState({
+  const ownership = ownershipState({ label: "CamRoot",
     deployer,
     intendedOwner: plan.intendedCamRootOwner,
     owner: getAddress(owner),

@@ -1,0 +1,4 @@
+{
+  "extends": "../../tsconfig.tool.json",
+  "include": ["**/*.ts", "../release-files.test.ts", "../release-values.test.ts"]
+}

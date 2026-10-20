@@ -1,0 +1,4 @@
+services:
+  release-check:
+    environment:
+      RELEASE_TOOL_DIR: tools/pay-to-play-release

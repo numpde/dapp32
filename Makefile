@@ -105,6 +105,10 @@ ESCROW_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f 
 ESCROW_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/escrow/release/check.yml
 ESCROW_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml
 ESCROW_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/escrow/release/verify.yml
+PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/pay-to-play/release/check.yml
+PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/release/deploy.yml
+PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/pay-to-play/release/verify.yml
+export PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID PAY_TO_PLAY_RELEASE_CAM_URI PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD PAY_TO_PLAY_RELEASE_OUTPUT_DIR PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY
 ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/browser-check.yml
 TEST_INTEGRATION_FUZZ_COMPOSE_FILES := -f $(COMPOSE_DIR)/test/integration-fuzz.yml
 TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/test-integration-fuzz.yml
@@ -342,6 +346,7 @@ help:
 	  '  make cam/publication/preflight/check  Test publication validation using the local Bike NFT bundle.' \
 	  '  make cam/integration/fuzz/check  Build, typecheck and test the generated-workflow test runner offline.' \
 	  '  make bike-nft/release/check      Typecheck and test Bike NFT deployment/verification tools offline.' \
+	  '  make pay-to-play/release/check   Typecheck and test Pay-to-Play deployment/verification tools offline.' \
 	  '  make escrow/release/check        Typecheck and test Escrow deployment/verification tools offline.' \
 	  '  make pay-to-play/refunds/check   Typecheck and test the refund worker offline.' \
 	  '  make cast/offline/check         Check Foundry cast commands without contacting a blockchain.' \
@@ -471,11 +476,19 @@ help:
 	  'Deploy or verify a release on an operator-selected blockchain:' \
 	  '  make bike-nft/release/deploy      Send Bike NFT deployment transactions and save deployment records.' \
 	  '  make escrow/release/deploy        Send Escrow deployment transactions and save deployment records.' \
+	  '  make pay-to-play/release/deploy   Send Pay-to-Play deployment transactions and save deployment records.' \
 	  '    These require a clean checkout, installed Solidity/JS dependencies, a funded deployer, an expected chain ID,' \
 	  '    published CAM URI, intended owners, and a new absolute output directory outside the repository.' \
 	  '    RPC_URL_FILE contains the HTTPS RPC URL; DEPLOYER_PRIVATE_KEY_FILE contains the deployer key.' \
 	  '    Both must be absolute owner-only files. Confirm with CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES' \
-	  '    or CONFIRM_ESCROW_RELEASE_DEPLOY=YES only after reviewing the complete release configuration.' \
+	  '    or CONFIRM_ESCROW_RELEASE_DEPLOY=YES or CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY=YES after reviewing all settings.' \
+	  '    Required Pay-to-Play settings:' \
+	  '      PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID        Target chain number; 1337 and 31337 are excluded.' \
+	  '      PAY_TO_PLAY_RELEASE_CAM_URI                  Published HTTPS/IPFS manifest URI.' \
+	  '      PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER  Intended owner of the CAM host.' \
+	  '      PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN   Intended admin of the payment contract; may differ.' \
+	  '      PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD        Reserved-channel withdrawal wait in seconds, 0-2592000.' \
+	  '      PAY_TO_PLAY_RELEASE_OUTPUT_DIR               New absolute directory outside this repository.' \
 	  '    Required Escrow settings:' \
 	  '      ESCROW_RELEASE_EXPECTED_CHAIN_ID       Target chain number; 1337 and 31337 are excluded.' \
 	  '      ESCROW_RELEASE_CAM_URI                 Published HTTPS/IPFS manifest URI.' \
@@ -499,17 +512,20 @@ help:
 	  '      BIKE_NFT_RELEASE_MANAGER_CONFIGURER         Address allowed to set token contract/delegation limit.' \
 	  '      BIKE_NFT_RELEASE_REGISTRARS              Comma-separated unique nonzero registrar addresses.' \
 	  '      BIKE_NFT_RELEASE_OUTPUT_DIR              New absolute directory outside this repository.' \
-	  '    Copyable complete commands: dapps/bike-nft/README.md or dapps/escrow/README.md, release sections.' \
+	  '    Copyable commands: each app README under dapps/, release section.' \
 	  '    Every lasting Bike NFT authority must differ from the funded deployer.' \
 	  '    The output directory retains plans, broadcasts and deployment records, including partial failures.' \
 	  '    Requested new owners/admins must accept their transfers separately; Bike admin transfers have a wait.' \
-	  '    The new CAM host owner calls acceptOwnership(); each new Bike admin calls acceptDefaultAdminTransfer().' \
+	  '    CAM host owners and Pay-to-Play admins call acceptOwnership() on their respective contracts.' \
+	  '    Each new Bike admin calls acceptDefaultAdminTransfer().' \
 	  '    Use the saved deployment addresses and acceptance instructions in the app release README.' \
-	  '    Deployment runs verification too: pending transfers cause failure even after contracts were deployed.' \
+	  '    Deployment records pending transfers. Run release/verify after the intended owners accept them.' \
 	  '  make bike-nft/release/verify      Read the chain and compare it with the saved Bike NFT deployment.' \
 	  '    Set RPC_URL_FILE and BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE to absolute RPC/deployment JSON file paths.' \
 	  '  make escrow/release/verify        Read the chain and compare it with the saved Escrow deployment.' \
 	  '    Set RPC_URL_FILE and ESCROW_DEPLOYMENT_ARTIFACT_FILE to absolute RPC/deployment JSON file paths.' \
+	  '  make pay-to-play/release/verify   Read the chain and compare it with the saved Pay-to-Play deployment.' \
+	  '    Set RPC_URL_FILE and PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE to absolute RPC/deployment JSON paths.' \
 	  '    Verification needs a clean checkout and installed Solidity/JS dependencies; it sends no transactions.' \
 	  '    Its RPC_URL_FILE must also have owner-only permissions.' \
 	  '    Deployment record layout and file rules: docs/release-ceremony.md.' \
@@ -686,7 +702,7 @@ js/build/check:
 js/tests:
 	$(call compose_run_with_package_deps,packages.yml,package-test)
 
-js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check pay-to-play/refunds/check
+js/ci: js/tests viewer/terminal/check cam/publication/preflight/check cam/integration/fuzz/check bike-nft/release/check escrow/release/check pay-to-play/release/check pay-to-play/refunds/check
 
 cam/conformance/check:
 	$(call compose_run_with_package_deps,packages.yml,cam-conformance-check)
@@ -740,6 +756,11 @@ cam/integration/fuzz/check:
 	$(CAM_INTEGRATION_INPUT_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(TEST_INTEGRATION_FUZZ_ENV) CAM_INTEGRATION_DESCRIPTOR_HOST_PATH=/dev/null CAM_INTEGRATION_NETWORK=cam-integration-fuzz-check-unused $(DOCKER_COMPOSE) $(TEST_INTEGRATION_FUZZ_COMPOSE_FILES) run --build --rm -T test-integration-fuzz-check
+
+pay-to-play/release/check:
+	@$(LANE_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES) run --build --rm release-check
 
 escrow/release/check:
 	@$(LANE_GUARD); \
@@ -1313,6 +1334,84 @@ bike-nft/release/verify:
 	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"; \
 	require_release_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"; \
 	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES)) "$$@"; }; \
+	$(release_verify_execution)
+
+.PHONY: pay-to-play/release/check pay-to-play/release/deploy pay-to-play/release/verify
+pay-to-play/release/deploy:
+	@$(LANE_GUARD); \
+	$(SOLDEER_DEPS_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	if [[ ! -v CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY || "$$CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY" != "YES" ]]; then \
+	  printf '%s\n' 'Set CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY=YES only after reviewing the chain, CAM publication, both authorities, withdrawal wait, and funded deployer.' >&2; \
+	  exit 2; \
+	fi; \
+	$(call release_require_clean_source,Pay-to-Play release deployment); \
+	for name in PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID PAY_TO_PLAY_RELEASE_CAM_URI PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE PAY_TO_PLAY_RELEASE_OUTPUT_DIR; do \
+	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
+	    printf 'Missing required release input: %s\n' "$$name" >&2; \
+	    exit 2; \
+	  fi; \
+	done; \
+	chain_id="$$PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID"; \
+	if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == "1337" || "$$chain_id" == "31337" ]]; then \
+	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; \
+	  exit 2; \
+	fi; \
+	cam_uri="$$PAY_TO_PLAY_RELEASE_CAM_URI"; \
+	if [[ ! "$$cam_uri" =~ ^(https|ipfs):// || "$$cam_uri" == *'$$'* || "$$cam_uri" == *'`'* || "$$cam_uri" == *\\* || "$$cam_uri" == *\"* || "$$cam_uri" == *\'* || "$$cam_uri" == *\;* ]]; then \
+	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI without shell syntax.' >&2; \
+	  exit 2; \
+	fi; \
+	owner="$$PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER"; \
+	if [[ ! "$$owner" =~ ^0x[0-9a-fA-F]{40}$$ || "$$owner" == "0x0000000000000000000000000000000000000000" ]]; then \
+	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
+	  exit 2; \
+	fi; \
+	$(release_host_guard_functions); \
+	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "$$RPC_URL_FILE"; \
+	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
+	output_dir="$$PAY_TO_PLAY_RELEASE_OUTPUT_DIR"; \
+	validate_new_release_output "$$output_dir" "PAY_TO_PLAY_RELEASE_OUTPUT_DIR"; \
+	compose_release() { \
+	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+	    RELEASE_OUTPUT_DIR="$$output_dir" \
+	    PAY_TO_PLAY_RELEASE_CAM_URI="$$cam_uri" \
+	    PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
+	    PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER="$$owner" \
+	    PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN="$$PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN" \
+	    PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD="$$PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD" \
+	    PAY_TO_PLAY_RELEASE_SOURCE_COMMIT="$$source_commit" \
+	    RPC_URL_FILE="$$RPC_URL_FILE" \
+	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES)) "$$@"; \
+	}; \
+	compose_release_check() { \
+	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; \
+	}; \
+	$(call release_deploy_execution,PAY_TO_PLAY_RELEASE_OUTPUT_DIR)
+
+pay-to-play/release/verify:
+	@$(LANE_GUARD); \
+	$(SOLDEER_DEPS_GUARD); \
+	$(PACKAGE_DEPS_GUARD); \
+	$(call release_require_clean_source,Pay-to-Play release verification); \
+	for name in RPC_URL_FILE PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE; do \
+	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
+	    printf 'Missing required verification input: %s\n' "$$name" >&2; \
+	    exit 2; \
+	  fi; \
+	done; \
+	$(release_host_guard_functions); \
+	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"; \
+	require_release_file "$$PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE" "PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE"; \
+	compose_release() { \
+	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
+	    RPC_URL_FILE="$$RPC_URL_FILE" \
+	    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE" \
+	    PAY_TO_PLAY_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES)) "$$@"; \
+	}; \
 	$(release_verify_execution)
 
 # Disposable payment-channel fixture. Its scenario and browser projects are isolated.

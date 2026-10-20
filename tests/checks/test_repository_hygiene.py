@@ -85,6 +85,7 @@ PACKAGE_CI_PREREQS = (
     "cam/integration/fuzz/check",
     "bike-nft/release/check",
     "escrow/release/check",
+    "pay-to-play/release/check",
     "pay-to-play/refunds/check",
 )
 FIRST_PARTY_PYTHON_ROOTS = ("containers", "tests", "tools")

@@ -449,6 +449,89 @@ migration. Update signing clients, event consumers and refund-worker deployment
 and runtime-code pins together; old outstanding authorizations stay with their
 original deployment.
 
+## Deploy a release
+
+Use `make pay-to-play/release/deploy` to deploy one CAM host and one native-asset
+PayToPlay contract to a selected chain. The script binds the payment contract in
+the CAM host. It creates only reserved channel 0; service channels are created
+later by the payment admin.
+
+Publish the checked-out `cam/` bundle at an immutable HTTPS location, or pin it
+in content-addressed storage. Keep its relative ABI, UI and protocol paths
+available. Validate the local files against the intended publication URI first:
+
+```sh
+make cam/publication/preflight DAPP=pay-to-play CAM_URI=https://example.org/releases/COMMIT/pay-to-play/main.json
+```
+
+This validates local bytes; it does not upload files or test the public server.
+Check that the published bytes match, and that the server permits browser reads
+with CORS when using the web viewer. The current web viewer requires HTTP(S)
+resource transport; an IPFS publication needs an explicit supported gateway path.
+
+Prepare the funded deployer's key and HTTPS RPC URL in separate, owner-only
+files outside the checkout. Select a clean committed source revision and install
+its locked dependencies with `make dapps/deps/install` and
+`make js/deps/install`. Replace the example addresses, paths and publication
+URI below:
+
+```sh
+RPC_URL_FILE=/absolute/private/rpc-url \
+DEPLOYER_PRIVATE_KEY_FILE=/absolute/private/deployer-key \
+PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID=8453 \
+PAY_TO_PLAY_RELEASE_CAM_URI=https://example.org/releases/COMMIT/pay-to-play/main.json \
+PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER=0x1111111111111111111111111111111111111111 \
+PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN=0x2222222222222222222222222222222222222222 \
+PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD=86400 \
+PAY_TO_PLAY_RELEASE_OUTPUT_DIR=/absolute/new/pay-to-play-release \
+CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY=YES \
+make pay-to-play/release/deploy
+```
+
+The chain number above selects Base mainnet; choosing it spends real funds.
+Use the chain you intend to deploy to. Both owner addresses must be nonzero;
+they may differ or be the same account. The CAM owner can replace the manifest
+and contract binding. The payment admin can create service channels and change
+their payees. Neither authority comes from the wallet currently viewing CAM.
+
+`PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD` is the fixed withdrawal wait for
+reserved channel 0, in seconds from 0 through 2,592,000 (30 days). Zero means
+there is no wait on that channel. Service channels get their own fixed waits
+when the admin creates them.
+
+The command saves `plan/release-plan.json`, the Forge broadcast under
+`broadcast/`, and `artifact/deployment.json`. If an intended owner differs from
+the deployer, deployment starts a two-step ownership transfer on that contract.
+Using their own transaction client, the CAM owner calls `acceptOwnership()` on
+the saved `camRoot` address, and the payment admin calls it on `payToPlay`.
+These are separate transactions. They are unnecessary for an authority that
+already equals the deployer.
+
+Until each transfer is accepted, the deployer remains that contract's owner.
+
+After the transfers are accepted, run:
+
+```sh
+RPC_URL_FILE=/absolute/private/rpc-url \
+PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE=/absolute/new/pay-to-play-release/artifact/deployment.json \
+make pay-to-play/release/verify
+```
+
+Verification requires the same clean source commit. It submits no transactions.
+It checks creation receipts and deployer identity, the CAM digest and binding,
+both accepted ownership transfers, runtime hashes, reserved-channel settings and
+the EIP-712 signing domain. PayToPlay embeds its own address in runtime code, so
+source verification checks its actual creation-transaction input against the
+compiled creation code and constructor arguments. Creating and funding ordinary
+channels afterward does not invalidate these checks.
+
+The release artifact is `pay-to-play.deployment.v1`; its transaction hashes and
+creation-input hash are evidence for these checks, not a replacement for them.
+Run `make pay-to-play/release/check` for offline tool tests. Shared snapshot,
+credential, output and failure handling are documented in the
+[release ceremony](../../docs/release-ceremony.md). Explorer source publication
+is a separate step.
+
 ## Supply a local deployment to another repository's tests
 
 This repository starts and stops the temporary blockchain and deploys the contracts.

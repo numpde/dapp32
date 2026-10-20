@@ -283,6 +283,15 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "ESCROW_RELEASE_OUTPUT_DIR": "/tmp/escrow-release-output",
                 "ESCROW_RELEASE_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
                 "PAY_TO_PLAY_BROADCAST_DIR": "/foundry-broadcast",
+                "PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID": "11155111",
+                "PAY_TO_PLAY_RELEASE_CAM_URI": "https://example.test/pay-to-play/cam/main.json",
+                "PAY_TO_PLAY_RELEASE_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
+                "PAY_TO_PLAY_RELEASE_EXPECTED_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
+                "PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER": "0x0000000000000000000000000000000000000011",
+                "PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN": "0x0000000000000000000000000000000000000012",
+                "PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD": "0",
+                "PAY_TO_PLAY_RELEASE_OUTPUT_DIR": "/tmp/pay-to-play-release-output",
+                "PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE": "/tmp/pay-to-play-release-output/artifact/deployment.json",
                 "PAY_TO_PLAY_BROADCAST_PATH": "/foundry-broadcast/DeployPayToPlayLocal.s.sol/31337/run-latest.json",
                 "PAY_TO_PLAY_GUI_BIND_HOST": "127.0.0.1",
                 "PAY_TO_PLAY_GUI_ORIGIN": "http://127.0.0.1:5175",
@@ -409,35 +418,15 @@ class RenderedComposePostureTest(unittest.TestCase):
             ),
         }
         expected_ports.add((makefile_compose_unit("PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES"), "pay-to-play-browser-gateway", "127.0.0.1", 8080, "5175"))
-        expected_secrets = {
-            ("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url"),
-            (makefile_compose_unit("BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES"), "release-rpc-proxy", "rpc_url", "rpc_url"),
-            (
-                makefile_compose_unit("BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES"),
-                "deploy-release",
-                "deployer_private_key",
-                "deployer_private_key",
-            ),
-            (
-                makefile_compose_unit("BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES"),
-                "verify-rpc-proxy",
-                "rpc_url",
-                "rpc_url",
-            ),
-            (makefile_compose_unit("ESCROW_RELEASE_DEPLOY_COMPOSE_FILES"), "release-rpc-proxy", "rpc_url", "rpc_url"),
-            (
-                makefile_compose_unit("ESCROW_RELEASE_DEPLOY_COMPOSE_FILES"),
-                "deploy-release",
-                "deployer_private_key",
-                "deployer_private_key",
-            ),
-            (
-                makefile_compose_unit("ESCROW_RELEASE_VERIFY_COMPOSE_FILES"),
-                "verify-rpc-proxy",
-                "rpc_url",
-                "rpc_url",
-            ),
-        }
+        expected_secrets = {("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url")}
+        for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
+            deploy = makefile_compose_unit(f"{app}_RELEASE_DEPLOY_COMPOSE_FILES")
+            verify = makefile_compose_unit(f"{app}_RELEASE_VERIFY_COMPOSE_FILES")
+            expected_secrets.update({
+                (deploy, "release-rpc-proxy", "rpc_url", "rpc_url"),
+                (deploy, "deploy-release", "deployer_private_key", "deployer_private_key"),
+                (verify, "verify-rpc-proxy", "rpc_url", "rpc_url"),
+            })
         expected_fixture_keys = {
             (makefile_compose_unit("REFUND_EXECUTE_COMPOSE_FILES"), "pay-to-play-refunds", "REFUND_PRIVATE_KEY_FILE", "/run/secrets/refund-relayer"),
             ("compose/bike-nft/local/deploy.yml", "deploy-bike-nft-local", "PRIVATE_KEY", ANVIL_DEV_PRIVATE_KEY),
@@ -756,24 +745,6 @@ class RenderedComposePostureTest(unittest.TestCase):
         expected = {
             (makefile_compose_unit("REFUND_EXECUTE_COMPOSE_FILES"), "pay-to-play-refunds", "/tmp/refund-state", "/state"),
             ("compose/forge-abi.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
-            (
-                makefile_compose_unit("BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES"),
-                "release-plan",
-                "/tmp/release-output/plan",
-                "/release-plan",
-            ),
-            (
-                makefile_compose_unit("BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES"),
-                "deploy-release",
-                "/tmp/release-output/broadcast",
-                "/release-broadcast",
-            ),
-            (
-                makefile_compose_unit("BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES"),
-                "release-artifact",
-                "/tmp/release-output/artifact",
-                "/release-artifact",
-            ),
             ("compose/package-deps.yml", "package-apply-locked", str(repo_path("js/node_modules")), "/work/node_modules"),
             ("compose/package-deps.yml", "package-apply-update", str(repo_path("js/node_modules")), "/work/node_modules"),
             (
@@ -782,25 +753,15 @@ class RenderedComposePostureTest(unittest.TestCase):
                 str(repo_path("js/package-lock.json")),
                 "/work/package-lock.json",
             ),
-            (
-                makefile_compose_unit("ESCROW_RELEASE_DEPLOY_COMPOSE_FILES"),
-                "release-plan",
-                "/tmp/release-output/plan",
-                "/release-plan",
-            ),
-            (
-                makefile_compose_unit("ESCROW_RELEASE_DEPLOY_COMPOSE_FILES"),
-                "deploy-release",
-                "/tmp/release-output/broadcast",
-                "/release-broadcast",
-            ),
-            (
-                makefile_compose_unit("ESCROW_RELEASE_DEPLOY_COMPOSE_FILES"),
-                "release-artifact",
-                "/tmp/release-output/artifact",
-                "/release-artifact",
-            ),
         }
+
+        for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
+            deploy = makefile_compose_unit(f"{app}_RELEASE_DEPLOY_COMPOSE_FILES")
+            expected.update({
+                (deploy, "release-plan", "/tmp/release-output/plan", "/release-plan"),
+                (deploy, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
+                (deploy, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
+            })
 
         for compose_unit in compose_render_units():
             if "compose/deps.yml" not in compose_unit_files(compose_unit):

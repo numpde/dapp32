@@ -1,4 +1,4 @@
-import type { Address, Hex } from "viem"
+import { keccak256, type Address, type Hex } from "viem"
 
 import {
   requiredNonzeroAddress,
@@ -12,6 +12,19 @@ export type CreationReceiptEvidence = {
   readonly transactionHash: Hex
   readonly from: Address
   readonly to: Address | null
+}
+
+export function creationTransactionInputHash(
+  contract: CreatedContract,
+  transaction: { readonly hash: Hex; readonly from: Address; readonly to: Address | null; readonly input: Hex },
+  deployer: Address,
+  label: string,
+): Hex {
+  if (transaction.hash.toLowerCase() !== contract.transactionHash.toLowerCase()) throw new Error(`${label} creation transaction hash mismatch`)
+  if (transaction.from.toLowerCase() !== deployer.toLowerCase()) throw new Error(`${label} creation transaction sender mismatch`)
+  if (transaction.to !== null) throw new Error(`${label} creation transaction has a destination address`)
+  if (!/^0x(?:[0-9a-fA-F]{2})+$/.test(transaction.input)) throw new Error(`${label} creation transaction has no valid input bytes`)
+  return keccak256(transaction.input)
 }
 
 export function createdContract(transactions: readonly unknown[], contractName: string): CreatedContract {

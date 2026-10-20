@@ -16,14 +16,11 @@ class ReleaseHostGuardTest(unittest.TestCase):
                 "escrow/release/verify",
                 "bike-nft/release/deploy",
                 "bike-nft/release/verify",
+                "pay-to-play/release/deploy",
+                "pay-to-play/release/verify",
             )
         }
-        cls.targets = {
-            "escrow/release/deploy": cls.source[starts["escrow/release/deploy"]:starts["escrow/release/verify"]],
-            "escrow/release/verify": cls.source[starts["escrow/release/verify"]:starts["bike-nft/release/deploy"]],
-            "bike-nft/release/deploy": cls.source[starts["bike-nft/release/deploy"]:starts["bike-nft/release/verify"]],
-            "bike-nft/release/verify": cls.source[starts["bike-nft/release/verify"]:],
-        }
+        cls.targets = {name: cls.source[start:].split("\n\n", 1)[0] for name, start in starts.items()}
 
     def test_common_release_guards_have_one_implementation(self) -> None:
         self.assertEqual(1, self.source.count("define release_require_clean_source"))
@@ -45,6 +42,8 @@ class ReleaseHostGuardTest(unittest.TestCase):
             "escrow/release/verify": "Escrow release verification",
             "bike-nft/release/deploy": "Bike NFT release deployment",
             "bike-nft/release/verify": "Bike NFT release verification",
+            "pay-to-play/release/deploy": "Pay-to-Play release deployment",
+            "pay-to-play/release/verify": "Pay-to-Play release verification",
         }
         executions = {
             "deploy": "$(call release_deploy_execution,",
@@ -68,6 +67,7 @@ class ReleaseHostGuardTest(unittest.TestCase):
         for name, label in (
             ("escrow/release/deploy", "ESCROW_RELEASE_OUTPUT_DIR"),
             ("bike-nft/release/deploy", "BIKE_NFT_RELEASE_OUTPUT_DIR"),
+            ("pay-to-play/release/deploy", "PAY_TO_PLAY_RELEASE_OUTPUT_DIR"),
         ):
             target = self.targets[name]
             initial = f'validate_new_release_output "$$output_dir" "{label}"'

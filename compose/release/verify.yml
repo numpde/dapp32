@@ -78,7 +78,7 @@ services:
       RPC_ALLOWED_METHODS: >-
         eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance
         eth_getTransactionCount eth_getStorageAt eth_call eth_getCode
-        eth_getTransactionReceipt
+        eth_getTransactionReceipt eth_getTransactionByHash
     secrets:
       - source: rpc_url
         target: rpc_url

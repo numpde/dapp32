@@ -1,6 +1,6 @@
 # Release ceremony mechanics
 
-The Escrow and Bike NFT release lanes share one host ceremony. Application commands, authority policy, deployment artifacts, handoffs, verification claims, and live smoke tests remain in each dapp README.
+The Escrow, Bike NFT and Pay-to-Play release lanes share one host ceremony. Application commands, authority policy, deployment artifacts, handoffs, verification claims, and live smoke tests remain in each dapp README. The unfinished deposit gateway is excluded.
 
 `compose/release/` owns the planning, signing, artifact, and verification service boundaries. Each app supplies a small Compose overlay with its inputs and script entrypoints. Make uses both files from the selected commit's source snapshot, so deployment and verification use the same phase definitions as the contracts being checked.
 

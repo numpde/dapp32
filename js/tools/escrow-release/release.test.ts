@@ -19,9 +19,9 @@ import { fileURLToPath } from "node:url"
 import { getAddress } from "viem"
 import type { Address, Hex } from "viem"
 
+import { ownershipState } from "../release-ownership.ts"
 import {
   deploymentContractsFromBroadcast,
-  ownershipState,
 } from "./artifact-model.ts"
 import {
   inspectReleaseCamBundle,
@@ -306,7 +306,7 @@ test("creation receipts reject genuinely different deployers", () => {
 })
 
 test("ownership classification distinguishes pending and accepted handoff", () => {
-  assert.deepEqual(ownershipState({
+  assert.deepEqual(ownershipState({ label: "CamRoot",
     deployer: DEPLOYER,
     intendedOwner: OWNER,
     owner: DEPLOYER,
@@ -316,7 +316,7 @@ test("ownership classification distinguishes pending and accepted handoff", () =
     ownershipAccepted: false,
   })
 
-  assert.deepEqual(ownershipState({
+  assert.deepEqual(ownershipState({ label: "CamRoot",
     deployer: DEPLOYER,
     intendedOwner: OWNER,
     owner: OWNER,
@@ -326,7 +326,7 @@ test("ownership classification distinguishes pending and accepted handoff", () =
     ownershipAccepted: true,
   })
 
-  assert.throws(() => ownershipState({
+  assert.throws(() => ownershipState({ label: "CamRoot",
     deployer: DEPLOYER,
     intendedOwner: OWNER,
     owner: DEPLOYER,
