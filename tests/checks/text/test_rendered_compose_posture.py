@@ -316,6 +316,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "REFUND_STATE_DIR": "/tmp/refund-state",
                 "RELEASE_OUTPUT_DIR": "/tmp/release-output",
                 "RELEASE_REHEARSAL_DIR": "/tmp/release-rehearsal",
+                "RELEASE_RPC_OUTPUT_DIR": "/tmp/release-rpc-output",
                 "RELEASE_REHEARSAL_NETWORK": "cam-release-rehearsal-fixture",
                 "RELEASE_DEPLOYMENT_ARTIFACT_FILE": "/tmp/release-output/artifact/deployment.json",
                 "VIEWER_URL": "http://127.0.0.1:5174/?chainId=eip155%3A31337&host=0x0000000000000000000000000000000000000001&account=0x0000000000000000000000000000000000000002&rpcUrl=http%3A%2F%2F127.0.0.1%3A5174%2Frpc",
@@ -764,6 +765,7 @@ class RenderedComposePostureTest(unittest.TestCase):
 
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
+            ("compose/release/rpc.yml", "rpc-resolve", "/tmp/release-rpc-output", "/out"),
             (makefile_compose_unit("REFUND_EXECUTE_COMPOSE_FILES"), "pay-to-play-refunds", "/tmp/refund-state", "/state"),
             ("compose/forge-abi.yml", "forge-abi-plan", "/tmp/abi-plan", "/work/abi-plan"),
             ("compose/package-deps.yml", "package-apply-locked", str(repo_path("js/node_modules")), "/work/node_modules"),

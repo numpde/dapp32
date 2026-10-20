@@ -1,0 +1,29 @@
+# Offline endpoint resolution. Credential bytes arrive on stdin, never through mounts or argv.
+services:
+  rpc-resolve:
+    image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+    init: true
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 32
+    mem_limit: 64m
+    cpus: 1
+    entrypoint: [python3, -I, -B, /catalog/resolve_rpc.py]
+    volumes:
+      - type: bind
+        source: ../../tools/resolve_rpc.py
+        target: /catalog/resolve_rpc.py
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../../tools/rpc-catalog.json
+        target: /catalog/rpc-catalog.json
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: "${RELEASE_RPC_OUTPUT_DIR:?missing_RELEASE_RPC_OUTPUT_DIR}"
+        target: /out
+        bind: {create_host_path: false}

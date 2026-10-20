@@ -1,47 +1,59 @@
 from __future__ import annotations
 
-import csv
+import json
 from pathlib import Path
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import unittest
 
-from .common import repo_path
+from .common import repo_path, rendered_compose_config
 
 
 class RpcCatalogTest(unittest.TestCase):
+    def test_resolver_container_has_only_its_catalog_source_and_output(self) -> None:
+        service = rendered_compose_config("compose/release/rpc.yml")["services"]["rpc-resolve"]
+        self.assertEqual("none", service["network_mode"])
+        self.assertIs(True, service["read_only"])
+        self.assertEqual(["ALL"], service["cap_drop"])
+        self.assertEqual({"/catalog/resolve_rpc.py", "/catalog/rpc-catalog.json", "/out"}, {volume["target"] for volume in service["volumes"]})
+        for volume in service["volumes"]:
+            self.assertIn(volume["bind"], ({}, {"create_host_path": False}))
+            if volume["target"] != "/out":
+                self.assertIs(True, volume["read_only"])
+
     def resolve(self, directory: Path, chain: str, service: str, key: str = "", script: Path | None = None, expected_chain: str = ""):
-        return subprocess.run(
-            ["sh", str(script if script is not None else repo_path("tools/resolve_rpc.sh")), chain, service, key, str(directory / "rpc-url"), expected_chain],
-            capture_output=True, text=True, check=False,
-        )
+        command = [sys.executable, "-I", "-B", str(script if script is not None else repo_path("tools/resolve_rpc.py")), chain, service, str(directory / "rpc-url"), expected_chain]
+        credential = b""
+        if key:
+            command.append("--api-key-stdin")
+            credential = Path(key).read_bytes()
+        result = subprocess.run(command, input=credential, capture_output=True, check=False)
+        return subprocess.CompletedProcess(result.args, result.returncode, result.stdout.decode(), result.stderr.decode())
 
     def test_every_catalog_entry_resolves_without_revealing_credentials(self) -> None:
-        with repo_path("tools/rpc-catalog.tsv").open() as source:
-            entries = list(csv.DictReader(source, delimiter="\t"))
+        with repo_path("tools/rpc-catalog.json").open() as source:
+            entries = json.load(source)
         self.assertTrue(entries)
-        self.assertEqual(len(entries), len({entry["network"] for entry in entries}))
-        for entry in entries:
-            for service in ("public", "alchemy"):
-                with self.subTest(network=entry["network"], service=service), tempfile.TemporaryDirectory() as temporary:
+        for network, entry in entries.items():
+            for service, endpoint in entry["services"].items():
+                with self.subTest(network=network, service=service), tempfile.TemporaryDirectory() as temporary:
                     directory = Path(temporary)
                     key = directory / "api-key"
                     key.write_text("fixture_api-key123\n")
                     key_path = ""
-                    if service == "alchemy":
+                    if "{API_KEY}" in endpoint:
                         key_path = str(key)
-                    result = self.resolve(directory, entry["network"], service, key_path)
-                    if entry[service] == "-":
-                        self.assertNotEqual(0, result.returncode)
-                        self.assertFalse((directory / "rpc-url").exists())
-                        continue
+                    result = self.resolve(directory, network, service, key_path)
                     self.assertEqual(0, result.returncode, result.stderr)
-                    self.assertIn(entry["chain_id"], result.stdout)
-                    self.assertIn(entry["network"], result.stdout)
+                    self.assertIn(str(entry["chainId"]), result.stdout)
+                    self.assertIn(network, result.stdout)
                     self.assertEqual("", result.stderr)
-                    expected = entry[service].replace("{API_KEY}", "fixture_api-key123")
+                    expected = endpoint.replace("{API_KEY}", "fixture_api-key123")
+                    self.assertNotIn("fixture_api-key123", result.stdout + result.stderr)
+                    self.assertNotIn(expected, result.stdout + result.stderr)
                     self.assertEqual(expected + "\n", (directory / "rpc-url").read_text())
                     self.assertEqual(0o600, stat.S_IMODE((directory / "rpc-url").stat().st_mode))
 
@@ -57,6 +69,9 @@ class RpcCatalogTest(unittest.TestCase):
             ("base-sepolia", "alchemy", "secret?query=1"),
             ("base-sepolia", "alchemy", "secret\nsecond-line"),
             ("base-sepolia", "alchemy", "secret\x00suffix"),
+            ("base-sepolia", "alchemy", "secret\r\n"),
+            ("base-sepolia", "alchemy", "secret\n\n"),
+            ("base-sepolia", "alchemy", "secreté"),
         ]
         for chain, service, credential in cases:
             with self.subTest(chain=chain, service=service), tempfile.TemporaryDirectory() as temporary:
@@ -100,11 +115,10 @@ class RpcCatalogTest(unittest.TestCase):
     def test_new_network_flows_from_catalog_without_resolver_changes(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
-            script = directory / "resolve_rpc.sh"
-            shutil.copyfile(repo_path("tools/resolve_rpc.sh"), script)
-            shutil.copyfile(repo_path("tools/rpc-catalog.tsv"), directory / "rpc-catalog.tsv")
-            with (directory / "rpc-catalog.tsv").open("a") as catalog:
-                catalog.write("future-testnet\t123456789\thttps://rpc.example.test\t-\n")
+            script = directory / "resolve_rpc.py"
+            shutil.copyfile(repo_path("tools/resolve_rpc.py"), script)
+            catalog = {"future-testnet": {"chainId": 123456789, "services": {"public": "https://rpc.example.test"}}}
+            (directory / "rpc-catalog.json").write_text(json.dumps(catalog))
             result = self.resolve(directory, "future-testnet", "public", script=script)
             self.assertEqual(0, result.returncode, result.stderr)
             self.assertIn("123456789", result.stdout)
@@ -124,3 +138,23 @@ class RpcCatalogTest(unittest.TestCase):
             self.assertFalse((directory / "rpc-url").exists())
             accepted = self.resolve(directory, "base-sepolia", "public", expected_chain="84532")
             self.assertEqual(0, accepted.returncode, accepted.stderr)
+
+    def test_malformed_json_and_network_entries_fail_before_writing(self) -> None:
+        catalogs = [
+            "{",
+            '{"base-sepolia": {}, "base-sepolia": {}}',
+            "[]",
+            '{"base-sepolia": {"chainId": true, "services": {"public": "https://rpc.example.test"}}}',
+            '{"base-sepolia": {"chainId": 84532, "services": []}}',
+            '{"base-sepolia": {"chainId": 84532, "services": {"public": 42}}}',
+        ]
+        for catalog in catalogs:
+            with self.subTest(catalog=catalog), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                script = directory / "resolve_rpc.py"
+                shutil.copyfile(repo_path("tools/resolve_rpc.py"), script)
+                (directory / "rpc-catalog.json").write_text(catalog)
+                result = self.resolve(directory, "base-sepolia", "public", script=script)
+                self.assertNotEqual(0, result.returncode)
+                self.assertEqual("", result.stdout)
+                self.assertFalse((directory / "rpc-url").exists())

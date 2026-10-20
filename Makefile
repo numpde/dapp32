@@ -270,6 +270,10 @@ if [[ "$$release_dependencies_started" == "1" ]] && ! compose_release_dependenci
   printf '%s\n' 'Release dependency-check teardown failed.' >&2; \
   cleanup_failed=1; \
 fi; \
+if [[ "$$release_rpc_started" == "1" ]] && ! compose_release_rpc down --volumes --remove-orphans >/dev/null; then \
+  printf '%s\n' 'RPC resolver teardown failed.' >&2; \
+  cleanup_failed=1; \
+fi; \
 if [[ -n "$$ceremony_root" ]]; then \
   case "$$ceremony_root" in "/tmp/cam-release-$${LOCAL_UID:?missing_LOCAL_UID}-"*) \
       if [[ "$$cleanup_failed" == "0" ]] && ! rm -rf -- "$$ceremony_root"; then cleanup_failed=1; fi ;; \
@@ -301,14 +305,28 @@ endif
 
 define release_resolve_rpc
 if [[ ! -v RPC_URL_FILE || -z "$$RPC_URL_FILE" ]]; then \
-  sh "$$ceremony_source/tools/resolve_rpc.sh" "$$RPC_CHAIN" "$$RPC_SERVICE" "$$rpc_api_key_file" "$$ceremony_root/rpc_url" "$$release_rpc_expected_chain"; \
-  RPC_URL_FILE="$$ceremony_root/rpc_url"; \
+  mkdir --mode=0700 -- "$$ceremony_root/rpc"; \
+  rpc_key_args=(); \
+  rpc_key_input() { if [[ -n "$$rpc_api_key_file" ]]; then head -c 258 -- "$$rpc_api_key_file"; fi; }; \
+  if [[ -n "$$rpc_api_key_file" ]]; then rpc_key_args=(--api-key-stdin); fi; \
+  release_rpc_started=1; \
+  rpc_key_input | compose_release_rpc run --rm --no-deps -T rpc-resolve "$$RPC_CHAIN" "$$RPC_SERVICE" /out/rpc-url "$$release_rpc_expected_chain" "$${rpc_key_args[@]}"; \
+  RPC_URL_FILE="$$ceremony_root/rpc/rpc-url"; \
 fi
+endef
+
+define release_rpc_compose
+compose_release_rpc() { \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-rpc" \
+    RELEASE_RPC_OUTPUT_DIR="$$ceremony_root/rpc" env -u PRIVATE_KEY -u RPC_URL \
+    $(DOCKER_COMPOSE) -f "$$ceremony_source/compose/release/rpc.yml" "$$@"; \
+}
 endef
 
 define release_prepare_snapshot
 $(release_snapshot_dependency_compose); \
-ceremony_root=""; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
+$(release_rpc_compose); \
+ceremony_root=""; release_rpc_started=0; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
 cleanup() { $(release_snapshot_cleanup); }; \
 trap cleanup EXIT; \
 $(release_snapshot_allocate); \
@@ -1051,7 +1069,7 @@ dapps/tests: dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant
 tests: tests/checks dapps/tests js/ci tests/live cast/offline/check pay-to-play/local/recovery/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run release/local/rehearsal/check
 
 release/rpc/list:
-	@cat tools/rpc-catalog.tsv
+	@cat tools/rpc-catalog.json
 
 release/local/rehearsal/check:
 	@for app in bike-nft escrow pay-to-play; do $(MAKE) release/local/rehearsal/run DAPP="$$app" RPC_URL_FILE=/must-not-use-parent-rpc DEPLOYER_PRIVATE_KEY_FILE=/must-not-use-parent-key || exit "$$?"; done

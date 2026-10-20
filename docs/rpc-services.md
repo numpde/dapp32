@@ -1,7 +1,7 @@
 # Select an RPC service
 
 The deploy and verify commands for Bike NFT, Escrow and Pay-to-Play can select
-an endpoint from the repository's [RPC catalog](../tools/rpc-catalog.tsv).
+an endpoint from the repository's [RPC catalog](../tools/rpc-catalog.json).
 List the exact network names, chain IDs and service URL templates with:
 
 ```sh
@@ -62,16 +62,17 @@ make pay-to-play/release/deploy
 Conversely, unset `RPC_URL_FILE` before selecting a catalog endpoint. Mixing the
 two modes, supplying a key for `public`, missing an Alchemy key, or selecting an
 unknown/unavailable entry is an error. The commands never fall back to another
-service. A `-` in the catalog means that service is unavailable for the row.
+service. A service omitted from a network’s `services` object is unavailable for that network.
 
 ## Resolution and release checks
 
 The release uses the catalog and resolver from its archived clean Git commit.
-Resolution happens offline. It checks the selected chain against the deployment's
-explicit expected chain ID and writes the resolved URL with mode `0600` inside
-the ceremony's private temporary directory. Existing RPC proxies read that file;
-it is removed during ceremony cleanup. Logs identify the selection without
-printing the resolved URL or API key.
+Resolution runs in an offline Python container. Its only source mounts are the
+JSON catalog and resolver; API-key bytes arrive through stdin. It checks the
+selected chain against the deployment's explicit expected chain ID and writes
+the resolved URL with mode `0600` into a dedicated directory within the private
+ceremony directory. Existing RPC proxies read that file; ceremony cleanup
+removes it. Logs identify the selection without printing the URL or API key.
 
 Before broadcasting, deployment scripts also check the live chain ID against
 the expected ID. Catalog selection and custom URLs go through the same live
