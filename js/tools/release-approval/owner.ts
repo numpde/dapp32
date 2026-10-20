@@ -68,6 +68,8 @@ export class ApprovalOwner {
   private current: Pending | null = null
   private transmitting: Pending | null = null
   private admitting: Admission | null = null
+  private transmissionDone: Promise<void> | null = null
+  private finishTransmission: (() => void) | null = null
   private readonly outcomes = new Map<Hex, SubmissionResult>()
   private closed: string | null = null
 
@@ -89,6 +91,15 @@ export class ApprovalOwner {
       nonce: p.nonce, challenge: p.challenge, deadline: p.deadline,
       referenceDigest: this.options.referenceDigest }
   }
+
+  whenSettled(): Promise<void> {
+    if (this.transmissionDone !== null) return this.transmissionDone
+    return Promise.resolve()
+  }
+
+  closedReason(): string | null { return this.closed }
+
+  isIdle(): boolean { return this.current === null && this.transmitting === null && this.admitting === null }
 
   async submit(rawInput: string, signal?: AbortSignal): Promise<SubmissionResult> {
     const candidate = await inspect(rawInput)
@@ -188,6 +199,7 @@ export class ApprovalOwner {
     this.current = null
     pending.cancelExpiry()
     this.transmitting = pending
+    this.transmissionDone = new Promise<void>(resolve => { this.finishTransmission = resolve })
     let outcome: SubmissionResult
     try {
       const returned = await this.options.send(pending.raw)
@@ -216,6 +228,9 @@ export class ApprovalOwner {
     if (outcome.status === "uncertain") this.closed = outcome.reason
     this.transmitting = null
     this.resolve(pending, outcome)
+    this.finishTransmission?.()
+    this.finishTransmission = null
+    this.transmissionDone = null
   }
 
   private async admit(candidate: Candidate, signal?: AbortSignal): Promise<void> {

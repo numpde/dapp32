@@ -1,0 +1,207 @@
+import assert from "node:assert/strict"
+import { createHash } from "node:crypto"
+import { createServer as createHttpServer } from "node:http"
+import { connect } from "node:net"
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { PassThrough } from "node:stream"
+import test from "node:test"
+import type { Hex } from "viem"
+import { privateKeyToAccount } from "viem/accounts"
+
+import type { ReferenceSnapshot } from "./reference-snapshot.ts"
+import { approvalShutdownReason, assertReferenceIdentity, settingsFromEnv, startApprovalRuntime, type RuntimeSettings } from "./run.ts"
+
+const commit = "a".repeat(40)
+const digest = `0x${"ab".repeat(32)}` as Hex
+const deployer = "0x0000000000000000000000000000000000000011"
+
+function snapshot(deployerAddress = deployer): ReferenceSnapshot {
+  const contracts = [
+    { role: "camRoot", name: "CamRoot", source: "cam/src/CamRoot.sol", abi: [
+      { type: "constructor", inputs: [{ type: "address" }, { type: "string" }, { type: "bytes32" }] },
+      { type: "function", name: "setContractAddress", inputs: [{ type: "string" }, { type: "address" }] },
+    ] },
+    { role: "escrow", name: "CamEscrow", source: "escrow/src/CamEscrow.sol", abi: [{ type: "constructor", inputs: [] }] },
+    { role: "ui", name: "CamEscrowUI", source: "escrow/src/CamEscrowUI.sol", abi: [{ type: "constructor", inputs: [{ type: "address" }] }] },
+  ].map(contract => ({ ...contract, compilerVersion: "0.8.35+commit.47b9dedd", compilerMetadataSha256: digest,
+    artifactSha256: digest, creationBytecode: "0x60006000" as Hex }))
+  const base = {
+    schema: "release-approval.reference.v1" as const, app: "escrow" as const, sourceCommit: commit,
+    expectedChainId: 8453, expectedDeployer: deployerAddress, planSha256: digest,
+    contracts,
+    steps: [
+      { kind: "create" as const, role: "camRoot", name: "CamRoot", constructorTypes: ["address", "string", "bytes32"], args: [deployerAddress, "https://example.test/cam", digest] },
+      { kind: "create" as const, role: "escrow", name: "CamEscrow", constructorTypes: [], args: [] },
+      { kind: "create" as const, role: "ui", name: "CamEscrowUI", constructorTypes: ["address"], args: [{ createdContract: "escrow" }] },
+      { kind: "call" as const, role: "camRoot", name: "setContractAddress", signature: "setContractAddress(string,address)", args: ["CamEscrowUI", { createdContract: "ui" }] },
+    ],
+  }
+  return { ...base, snapshotSha256: `0x${createHash("sha256").update(JSON.stringify(base)).digest("hex")}` } as ReferenceSnapshot
+}
+
+function settings(root: string, reference: ReferenceSnapshot): RuntimeSettings {
+  return {
+    referencePath: join(root, "reference.json"), referenceSha256: reference.snapshotSha256,
+    sourceCommit: commit, planSha256: digest, app: "escrow", chainId: 8453, deployer: reference.expectedDeployer,
+    socketPath: join(root, "socket", "rpc.sock"), auditDir: join(root, "audit"),
+    backendUrl: "http://127.0.0.1:8976",
+  }
+}
+
+test("ceremony identity compares independent digest, source, plan, app, chain and deployer", () => {
+  const reference = snapshot()
+  const selected = settings("/tmp/approval", reference)
+  assert.doesNotThrow(() => assertReferenceIdentity(reference, selected))
+  for (const [field, changed] of [
+    ["referenceSha256", `0x${"cd".repeat(32)}`], ["sourceCommit", "b".repeat(40)],
+    ["planSha256", `0x${"cd".repeat(32)}`], ["app", "bike-nft"],
+    ["chainId", 1], ["deployer", "0x0000000000000000000000000000000000000022"],
+  ] as const) {
+    assert.throws(() => assertReferenceIdentity(reference, { ...selected, [field]: changed }), /selected.*reference/i, field)
+  }
+})
+
+test("SIGTERM cannot turn a previously closed or still active owner into a completed approval", () => {
+  assert.equal(approvalShutdownReason("SIGTERM", 5, 5, true, null), "approval complete")
+  assert.match(approvalShutdownReason("SIGTERM", 5, 5, true, "transaction inspection failed"), /approval closed before completion/)
+  assert.match(approvalShutdownReason("SIGTERM", 5, 5, false, null), /before all approved steps completed/)
+  assert.match(approvalShutdownReason("SIGTERM", 4, 5, true, null), /before all approved steps completed/)
+})
+
+test("runtime settings require explicit canonical chain and all independent pins", () => {
+  const reference = snapshot()
+  const selected = settings("/tmp/approval", reference)
+  const env = {
+    RELEASE_APPROVAL_REFERENCE_PATH: selected.referencePath,
+    RELEASE_APPROVAL_REFERENCE_SHA256: selected.referenceSha256,
+    RELEASE_APPROVAL_SOURCE_COMMIT: selected.sourceCommit,
+    RELEASE_APPROVAL_PLAN_SHA256: selected.planSha256,
+    RELEASE_APPROVAL_APP: selected.app,
+    RELEASE_APPROVAL_CHAIN_ID: String(selected.chainId),
+    RELEASE_APPROVAL_DEPLOYER: selected.deployer,
+    RELEASE_APPROVAL_SOCKET_PATH: selected.socketPath,
+    RELEASE_APPROVAL_AUDIT_DIR: selected.auditDir,
+    RELEASE_APPROVAL_BACKEND_URL: selected.backendUrl,
+  }
+  assert.equal(settingsFromEnv(env).chainId, 8453)
+  assert.throws(() => settingsFromEnv({ ...env, RELEASE_APPROVAL_CHAIN_ID: "8.453e3" }), /decimal integer/)
+  assert.throws(() => settingsFromEnv({ ...env, RELEASE_APPROVAL_PLAN_SHA256: undefined }), /PLAN_SHA256/)
+  assert.throws(() => settingsFromEnv({ ...env, RELEASE_APPROVAL_DEPLOYER: "0x00" }), /address/i)
+})
+
+test("startup rejects changed reference before opening the audit or socket", async () => {
+  const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
+  try {
+    const reference = snapshot()
+    const selected = settings(root, reference)
+    await mkdir(join(root, "socket"), { mode: 0o700 })
+    await mkdir(selected.auditDir, { mode: 0o700 })
+    await writeFile(selected.referencePath, JSON.stringify(reference))
+    const input = Object.assign(new PassThrough(), { isTTY: true })
+    const output = Object.assign(new PassThrough(), { isTTY: true })
+    await assert.rejects(startApprovalRuntime({ ...selected, referenceSha256: `0x${"cd".repeat(32)}` }, { input, output }), /selected.*reference/i)
+    assert.deepEqual(await readFile(selected.referencePath, "utf8"), JSON.stringify(reference))
+    await assert.rejects(stat(join(root, "audit", "approval.jsonl")), { code: "ENOENT" })
+    await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test("runtime requires an attached operator terminal before accepting connections", async () => {
+  const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
+  try {
+    const reference = snapshot()
+    const selected = settings(root, reference)
+    await mkdir(join(root, "socket"), { mode: 0o700 })
+    await mkdir(selected.auditDir, { mode: 0o700 })
+    await writeFile(selected.referencePath, JSON.stringify(reference))
+    const input = new PassThrough()
+    const output = new PassThrough()
+    await assert.rejects(startApprovalRuntime(selected, { input, output }), /operator TTY/i)
+    await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test("runtime serves bounded reads through the socket and stops incomplete ceremonies", async () => {
+  const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
+  const backend = createHttpServer((request, response) => {
+    let body = ""
+    request.setEncoding("utf8")
+    request.on("data", chunk => { body += chunk })
+    request.on("end", () => {
+      const rpc = JSON.parse(body) as { id: string; method: string }
+      assert.equal(rpc.method, "eth_chainId")
+      response.setHeader("content-type", "application/json")
+      response.end(JSON.stringify({ jsonrpc: "2.0", id: rpc.id, result: "0x2105" }))
+    })
+  })
+  await new Promise<void>(resolve => backend.listen(0, "127.0.0.1", resolve))
+  try {
+    const reference = snapshot()
+    const selected = settings(root, reference)
+    const address = backend.address()
+    if (address === null || typeof address === "string") throw new Error("No test backend address")
+    selected.backendUrl = `http://127.0.0.1:${address.port}`
+    await mkdir(join(root, "socket"), { mode: 0o700 })
+    await mkdir(selected.auditDir, { mode: 0o700 })
+    await writeFile(selected.referencePath, JSON.stringify(reference))
+    const input = Object.assign(new PassThrough(), { isTTY: true })
+    const output = Object.assign(new PassThrough(), { isTTY: true })
+    const runtime = await startApprovalRuntime(selected, { input, output })
+    try {
+      const socket = connect(selected.socketPath)
+      const response = await new Promise<string>((resolve, reject) => {
+        socket.once("error", reject)
+        socket.once("data", chunk => resolve(chunk.toString()))
+        socket.write(JSON.stringify({ jsonrpc: "2.0", id: "read", method: "eth_chainId", params: [] }))
+      })
+      assert.deepEqual(JSON.parse(response), { jsonrpc: "2.0", id: "read", result: "0x2105" })
+      socket.destroy()
+      await runtime.close("SIGTERM")
+      assert.equal(await runtime.finished, "release stopped before all approved steps completed")
+      assert.match(await readFile(join(selected.auditDir, "approval.jsonl"), "utf8"), /release stopped before all approved steps completed/)
+    } finally { await runtime.close("test cleanup") }
+  } finally {
+    await new Promise<void>(resolve => backend.close(() => resolve()))
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test("a signed transaction with mismatched calldata closes the gate after its RPC error", async () => {
+  const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
+  const account = privateKeyToAccount(`0x${"11".repeat(32)}`)
+  try {
+    const reference = snapshot(account.address)
+    const selected = settings(root, reference)
+    await mkdir(join(root, "socket"), { mode: 0o700 })
+    await mkdir(selected.auditDir, { mode: 0o700 })
+    await writeFile(selected.referencePath, JSON.stringify(reference))
+    const input = Object.assign(new PassThrough(), { isTTY: true })
+    const output = Object.assign(new PassThrough(), { isTTY: true })
+    const runtime = await startApprovalRuntime(selected, { input, output })
+    try {
+      const raw = await account.signTransaction({ type: "eip1559", chainId: 8453, nonce: 0,
+        gas: 200_000n, maxFeePerGas: 2n, maxPriorityFeePerGas: 1n, value: 0n, data: "0x60006001" })
+      const socket = connect(selected.socketPath)
+      const reply = await new Promise<string>((resolve, reject) => {
+        socket.once("error", reject)
+        socket.once("data", chunk => resolve(chunk.toString()))
+        socket.write(JSON.stringify({ jsonrpc: "2.0", id: "write", method: "eth_sendRawTransaction", params: [raw] }))
+      })
+      assert.match(JSON.stringify(JSON.parse(reply)), /creation bytecode differs|inspection failed/i)
+      socket.destroy()
+      let timeout: NodeJS.Timeout | null = null
+      let stopped: string
+      try {
+        stopped = await Promise.race([
+          runtime.finished,
+          new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("approval gate stayed open")), 3_000) }),
+        ])
+      } finally { if (timeout !== null) clearTimeout(timeout) }
+      assert.match(stopped, /transaction inspection failed/)
+      await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+      assert.match(await readFile(join(selected.auditDir, "approval.jsonl"), "utf8"), /transaction inspection failed/)
+    } finally { await runtime.close("test cleanup") }
+  } finally { await rm(root, { recursive: true, force: true }) }
+})

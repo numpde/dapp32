@@ -42,6 +42,40 @@ test("only a signed type-2 transaction from the selected chain and sender reache
   assert.equal(h.sends.length, 0)
 })
 
+test("closing during transmission leaves the audit available until the accepted outcome and continuation settle", async () => {
+  let completeSend: ((hash: `0x${string}`) => void) | undefined
+  let completeContinuation: (() => void) | undefined
+  const h = harness({
+    send: () => new Promise(resolve => { completeSend = resolve }),
+    accepted: () => new Promise<void>(resolve => { completeContinuation = resolve }),
+  })
+  const raw = await signed(0, account)
+  const waiting = h.owner.submit(raw)
+  await new Promise(resolve => setImmediate(resolve))
+  const pending = h.owner.pending()
+  assert(pending)
+  const decision = h.owner.decide(pending.challenge, "approve")
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.owner.isIdle(), false)
+  h.owner.close("operator terminal detached")
+  let settled = false
+  const drain = h.owner.whenSettled().then(() => { settled = true })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(settled, false)
+  assert(completeSend)
+  completeSend(keccak256(raw))
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(settled, false)
+  assert.deepEqual(h.events.filter(event => event.kind === "accepted").map(event => event.hash), [keccak256(raw)])
+  assert(completeContinuation)
+  completeContinuation()
+  await decision
+  await drain
+  assert.equal(settled, true)
+  assert.equal(h.owner.isIdle(), true)
+  assert.equal((await waiting).status, "accepted")
+})
+
 test("concurrent exact duplicates share admission before any audit or prompt; different bytes cannot race", async () => {
   let finishInspection: (() => void) | undefined
   let inspections = 0
@@ -108,12 +142,14 @@ test("closing during inspection releases the reservation and never publishes a p
   const raw = await signed(0, account)
   const waiting = h.owner.submit(raw)
   await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.owner.isIdle(), false)
   h.owner.close("operator terminal closed")
   assert(finishInspection)
   finishInspection()
   await assert.rejects(waiting, /closed|canceled/)
   assert.equal(h.owner.pending(), null)
   assert.deepEqual(cleared, [keccak256(raw)])
+  assert.equal(h.owner.isIdle(), true)
 })
 
 test("closing after inspection but before the pending audit releases admission without an orphan prompt", async () => {
