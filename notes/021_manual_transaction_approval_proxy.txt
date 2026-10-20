@@ -1,9 +1,11 @@
 Manual approval of deployment transactions
 2026-10-20
 
-Status: the approval proxy is a design proposal. A focused client-qualification
-fixture is implemented; see the test command and results below. Scope: Escrow,
-Bike NFT and Pay-to-Play releases. Deposit Gateway is excluded.
+Status: the approval proxy is a design proposal. The HTTP client-qualification
+fixture is implemented and fails the required long approval wait. The next
+implementation candidate is stock Forge over Unix IPC; source supports that
+candidate, but no IPC runtime qualification has been run. Scope: Escrow, Bike
+NFT and Pay-to-Play releases. Deposit Gateway is excluded.
 
 The operator already uses a dedicated deployment account. The proposed change
 is a separate container that reviews each signed transaction before submitting
@@ -13,29 +15,218 @@ files. No standing permission to deploy arbitrary contracts is implied.
 
 Decision
 --------
-Use one foreground operator terminal owned by the approval proxy. Forge keeps
-the deployment key and runs separately, with its output saved to a separate
-log. The proxy has no deployment key, repository mount, compiler, Docker socket,
-or executable application extensions.
+Qualify stock Forge's Unix-domain JSON-RPC transport first [F7]. Use one
+foreground operator terminal owned by the approval service. Forge keeps the
+deployment key and runs separately, with its output saved to a separate log.
+The approval service has no deployment key, RPC credential, repository mount,
+compiler, Docker socket or executable application extensions. The existing
+HTTPS RPC proxy remains its exclusive outbound backend.
 
-    Forge, with deployment key -> approval proxy -> configured RPC provider
-                                       ^
-                              operator terminal
+    Forge -> Unix socket -> approval service -> HTTPS backend -> RPC provider
+          no network              ^
+                           operator terminal
 
 Approval belongs to the exact signed transaction bytes retained by the proxy.
 The proxy decodes those bytes, displays the review, and makes at most one
 upstream submission attempt with those same bytes. It never rebuilds a
 transaction from the display.
 
-This replaces the signing lane's unconditional send forwarding. Read-only
-artifact and verification proxies retain their existing purpose. Current
-forwarding and phase separation are documented in [R1].
+Only the approval service can reach that backend. This replaces Forge's direct
+access to unconditional send forwarding, while keeping credential handling,
+endpoint checks and HTTPS forwarding under their current owner. Read-only
+artifact and verification proxies retain their existing purpose [R1].
 
-Before implementing the full feature, qualify the pinned Forge client's
-behavior while a submission waits for human input. That experiment is a
-blocking design check, not a final polish item; see "First implementation
-slice". The current source contains retries and separate receipt/RPC timeout
-paths [F1-F3].
+IPC avoids the inspected HTTP timeout path, but it does not remove retries:
+Alloy reconnects and reissues outstanding requests [F8]. Qualify the pinned
+binary before implementing the full feature. Do not adopt WebSockets, patch
+Foundry or add a separate sender unless a concrete IPC failure justifies that
+decision. No automatic transport fallback is planned.
+
+Implementation plan: five bounded slices
+----------------------------------------
+These are implementation instructions, not claims of existing functionality.
+Keep the current HTTP results below as historical evidence. The normal IPC
+qualification must have passing acceptance criteria, rather than permanently
+including an expected failing HTTP case.
+
+1. Qualify the stock client and socket boundary.
+
+   Extend the current release rehearsal and approval-wait fixture. Trace the
+   pinned IPC framing and receipt implementation, then run the actual maintained
+   Forge --broadcast --slow command with a socket endpoint and networking
+   disabled. Start with one ordinary Escrow release; then hold the first send
+   for 120 seconds before forwarding and complete the release. Capture all RPC
+   methods: reject and investigate any unexpected subscription requirement.
+
+   Reuse the existing fresh-chain setup, public fixture key, evidence format
+   and cleanup. Only the transport/connectivity change in this slice. Record
+   image identity, safe argv, configuration, request IDs, hashes, timing,
+   receipt observations and upstream effects. On the uninterrupted path require
+   one attempt and one upstream send of the held bytes. Later legitimate
+   deployment transactions remain permitted after the first result.
+
+   A fixture listener proves client feasibility only. Do not build a second
+   general parser or duplicate production approval logic in it. Promote or
+   replace that listener with the production listener in slice 2; qualification
+   of the final image must use the actual listener shipped.
+
+   Measure client behavior under injected rejection, socket loss during the hold
+   and lost reply after endpoint acceptance. The fixture blocks extra upstream
+   sends and records reconnect/replay; it does not prove production decision
+   persistence or cancellation. Inject a read on the same
+   socket as a pending send, with a different ID; its reply must arrive while
+   approval is still pending. Independent health connections cannot prove this.
+   Keep the null-receipt/mining control. Stop if the real client cannot finish
+   within the declared fixture bounds; report infrastructure failures separately.
+   The 120 seconds starts at first admitted send and is included in a 300-second
+   observation bound from that point; compilation/setup have separate bounds.
+   Normal success requires no send replay, matching receipt and Forge exit zero.
+   Injected reconnect records attempts, IDs and client outcomes under that
+   fixture guard. Expected denial has a failed client result and zero sends.
+   Lost-reply observations must agree with the independently observed chain.
+
+2. Implement and test the stream listener and approval owner.
+
+   Use the locked Viem implementation for signed transaction and ABI operations
+   in js/tools/release-approval/. One owner serializes the decision and effects;
+   do not introduce a durable queue, automatic recovery or a resume command.
+   Ceremony state is open or closed with a reason. A transaction progresses
+   from awaiting approval to possible transmission, then accepted or uncertain.
+   Rejection/expiry before transmission closes writes without submission.
+   Receipt observations are separate from these submission states.
+
+   Now exercise slice 1's replay/failure cases against the production decision
+   owner: one original decision, no revived canceled prompt, and at most one
+   upstream submission. These guarantees cannot come from the fixture guard.
+
+   Write failing behavioral tests before implementing each rule below and the
+   detailed lifecycle rules later in this note. Duplicates share a decision by
+   exact signed bytes/hash, regardless of connection or JSON-RPC ID. Cache the
+   real outcome; never submit it again. Last-waiter loss before transmission
+   closes submissions; reconnect cannot revive them. Loss after transmission
+   cannot revoke the effect. Keep bounded reconciliation reads available.
+
+   Pin actual stream behavior: fragmented/coalesced JSON, split UTF-8, escaped
+   delimiters, truncated input, duplicate/invalid IDs, batches, byte/depth limits,
+   concurrent reads and bounded response queues. Do not assume one read or one
+   newline equals a request. Bound connections, in-flight requests and history;
+   reaching a limit must not evict evidence and thereby permit another send.
+   Reject ambiguous JSON before it can become two interpretations of a request.
+
+   Inject failed pre-send sync, failed post-send sync, expiry/approval races,
+   upstream errors and lost replies. Assert actual sends and reported certainty.
+   Use private host-backed audit storage writable only by the approval service.
+   Create its ceremony marker exclusively and sync it and its parent directory
+   before admitting writes; sync each decision/outcome record. Refuse any used
+   directory on restart, including a truncated journal. Records must survive a
+   service/process crash; do not promise durability beyond the filesystem's
+   successful sync guarantees. Failures never turn evidence into an empty audit.
+   Initial approval deadline is 180 seconds from first admission, without reset
+   on duplicates. The 120-second hold leaves 60 seconds of test margin. Test
+   expiry separately with controlled clocks/declared short fixture deadlines.
+   Upstream submission has a separate 30-second total budget. Implement/prove
+   that budget through the existing HTTPS backend, including DNS/connect/response
+   handling, rather than merely
+   abandoning a client promise while backend work continues unbounded.
+   Retain bounded process supervision and independent receipt-wait deadlines.
+
+3. Produce independent references and the operator display.
+
+   Add an offline compiler-reference preparation step before key-bearing
+   execution. Compile the selected source with the release's pinned compiler,
+   settings and verified dependencies; export only the needed ABI, fully linked
+   creation bytecode and source/build identity to a guarded output. Current
+   Forge output is container-local /tmp/foundry-out; the existing Node
+   release-plan service does not provide this export.
+
+   Add the expected public deployer address to shared release configuration and
+   setup. Current plans do not supply an independent expected sender. The operator
+   provides that address; fixture setup uses its known fixture account. Compare
+   every recovered transaction sender against it. Do not trust the first request
+   to choose the expected account or expose the key to the reference exporter.
+
+   App-owned release tools combine that export with their validated plans.
+   The trusted host preparation freezes originals and digests before starting
+   Forge; bind the snapshot to candidate source/build, chain, sender and ceremony.
+   The gate loads and validates its bounded RO snapshot once at startup against
+   that host-selected identity, and never reloads changing files during review.
+   The host remains trusted; a RO mount alone does not freeze host-side edits.
+   Reference data names contract roles, literal expected arguments, references
+   to earlier contract roles, and expected CREATE/call order. Settle the shape
+   against all three real release sequences before adding fields. No general expression
+   language or application-specific interpreter belongs in the approval service.
+
+   Cover constructors and later bindings, role grants and ownership/admin
+   transfer calls, including conditional steps. CAM ABI inventories are
+   insufficient. Cross-check exports against their original inputs and actual
+   script transactions, using deliberately substituted values as negative tests.
+   Successful creation receipts establish addresses used by later approvals.
+
+   Build the display/challenge behavior specified below. Test it through a PTY:
+   inspect full details, approve, reject, stale buffered input, EOF/detach,
+   terminal-control strings and output bounds. Keep Forge's output out of this
+   terminal. Record all configuration-call and creation hashes in the private
+   approval audit; current public deployment artifacts retain their existing
+   purpose and schema. A checksum identifies a reference; it does not audit it.
+
+4. Package the boundary and replace shared deployment orchestration.
+
+   Add a minimal containers/release-approval/ runtime image. Build it offline
+   from verified locked dependencies; acquire dependencies only through the
+   existing separate networked lane. The live launcher selects an independently
+   admitted immutable image, never --build from the application candidate.
+   Package the production tool only. The fixture's operator driver runs outside
+   that image through its terminal; no live auto-approve flag or environment path.
+
+   Forge: key, source, broadcast output, RO socket directory, network_mode:none.
+   Approval service: RW socket directory, RO frozen references, RW private audit,
+   operator TTY and only the internal backend network. HTTPS backend: upstream
+   credential and egress. No key, repository or broad node_modules mount reaches
+   the approval service. The host launcher and image admission remain trusted.
+
+   Reuse guarded path creation for a fresh short socket directory: reject
+   symlinks, wrong types, aliases and stale sockets, set explicit permissions,
+   and prove Forge cannot unlink/replace its endpoint. A RO directory still
+   permits connecting to a Unix socket. Test effective mounts and networking,
+   not just Compose text. No process gets the Docker socket.
+
+   Keep make <app>/release/deploy as the entrypoint, now requiring a terminal.
+   Replace the shared release_deploy_execution up --abort-on-container-exit
+   orchestration: prepare references; start the backend; attach the TTY only
+   to the approval service; start Forge after readiness; capture its logs;
+   run the existing artifact step after successful Forge completion.
+   Use one shared launcher if the Make macro cannot express that lifecycle
+   clearly. Do not copy approval orchestration into three app targets.
+
+   Gate exit, EOF/detach, Forge failure or Ctrl-C closes writes and triggers
+   owned-resource cleanup. A successful Forge exit must also let the ceremony
+   finish without leaving an attached gate hanging. Test both paths and retain
+   audit/broadcast evidence. Cleanup failure preserves mounted inputs and
+   reports incomplete cleanup; it never relabels a possible send as unsent.
+
+5. Qualify the production image and cut over all three releases.
+
+   Register the new tool's typecheck and tests in the maintained Docker-backed
+   JS checks and js/ci. Use tests/checks for rendered grants and launcher wiring.
+   Keep stream/core tests with their owning implementation slices, rather than
+   postponing them to this last stage. Add no implementation-mirroring checks.
+
+   Run the actual image/listener/core/TTY path on disposable chains, using a
+   fixture-only terminal driver. Repeat the decisive 120-second wait and
+   reconnect/lost-reply controls against this image. Exercise approval expiry,
+   journal faults, used-output startup, malformed input/resource saturation and
+   cleanup with bounded cases. Do not rerun the obsolete HTTP delay matrix.
+
+   Complete Escrow, Bike NFT and Pay-to-Play through their maintained release,
+   artifact, ownership-acceptance and verification workflows. Match every
+   forwarded hash to its approval and every dependent step to required successful
+   receipts. Reject midway in a separate case and accurately report earlier
+   effects. The current approval-wait probe alone cannot establish these claims.
+
+   Switch the shared live target only after these pass. Experimental pieces
+   remain fixture-only until cutover; remove direct Forge-to-backend submission
+   access at cutover, with no ungated fallback. Meaningful commits follow each
+   tested slice. No contract or CAM changes are required by this plan.
 
 What the boundary guarantees
 ---------------------------
@@ -207,11 +398,18 @@ request ID and exactly one signed transaction parameter. Reject notifications
 and any batch containing a write before forwarding any part of it. Keep only
 the read methods required by the release and explicit reconciliation.
 
-Use bounded concurrent HTTP handling with one pending approval. Do not add
-input() to the current single-threaded handler: that would stop health and read
-requests [R1]. Duplicate requests for the same bytes share the same decision
-within a bounded waiter limit. A different simultaneous transaction is rejected
-as busy, with no hidden approval queue.
+Use bounded concurrent IPC handling with one pending approval. A blocked human
+decision must not prevent reads on that same connection. The existing backend
+receives no held submission until approval, so its single HTTP worker does not
+own the human wait [R1]. Duplicate requests for the same bytes share the same
+decision within a bounded waiter limit. A different simultaneous transaction
+is rejected as busy, with no hidden approval queue.
+
+The gate dispatches only the explicit release read methods directly to its fixed
+backend. eth_sendRawTransaction goes exclusively through the approval owner.
+Reject eth_sendTransaction and other write/signing methods; reject a batch
+containing any write before forwarding any member. Forge cannot choose backend
+URLs, headers or credentials. The backend retains its own request/method checks.
 
 A disconnected duplicate removes only that waiter. If the last waiter leaves
 before transmission begins, cancel the pending approval and close submissions.
@@ -223,7 +421,7 @@ Who waits, and what completes each wait
 There are three waits with different owners and deadlines:
 
 1. Approval: Forge has sent eth_sendRawTransaction to the proxy and is awaiting
-   its HTTP/JSON-RPC response. The proxy retains the validated signed bytes and
+   its JSON-RPC response over IPC. The proxy retains the validated signed bytes and
    awaits the operator. Nothing has been forwarded upstream. Approval permits
    the next phase; rejection, expiry or cancellation ends this request without
    submission. Read and health requests must remain responsive meanwhile.
@@ -243,12 +441,13 @@ It is not a promise of finality. The proxy must independently check matching
 successful creation receipts when a later approval depends on those creations;
 the signed request alone cannot establish that those creations succeeded.
 
-These waits must not share one ambiguous timeout. The approval and submission
-waits occur inside Forge's outstanding send RPC; their combined budget plus
-reply margin must fit its effective send timeout. Receipt waiting happens
-afterwards, under its own deadline. Its repeated reads are still subject to
-per-request transport limits. Exact polling and retry behavior belong to the
-pinned client and must be observed, not assumed from the word "await".
+These waits must not share one ambiguous timeout. Approval and submission
+occur inside Forge's outstanding IPC request. No equivalent of the HTTP
+45-second deadline was found in the inspected IPC path; qualify that observation
+and retain proxy/process bounds. Any discovered client deadline must exceed
+approval plus upstream budgets and reply margin. Receipt waiting happens later
+under its own deadline; read requests still need transport bounds. Exact polling
+and retry behavior belong to the pinned client and require runtime evidence.
 
 Approval, broadcast and failure
 ------------------------------
@@ -303,7 +502,7 @@ expired before marking transmission begun. A cancellation that wins before
 that transition prevents sending; one that arrives afterwards cannot revoke
 it. The durable pre-send record remains conservative evidence of possible
 submission if a crash interrupts this transition. Never let independent timer
-and HTTP callbacks each make their own send decision.
+and socket callbacks each make their own send decision.
 
 Approval expiry only stops a request that has not entered transmission.
 Disconnecting after approval cannot retract a request already sent. If the last
@@ -313,22 +512,24 @@ disconnect cannot erase the operator's already recorded decision.
 Approval wait, upstream transport and receipt wait are separate deadlines.
 The upstream operation needs a total deadline as well as byte and inactivity
 limits. Do not send a fabricated transaction hash early to keep Forge happy.
-Require the approval deadline plus total upstream deadline plus a response
-margin to fit within the measured effective Forge send timeout.
+Any effective client send deadline must accommodate approval, upstream and reply
+budgets. The failed HTTP qualification below does not measure an IPC deadline.
 
 Container and operator integration
 ----------------------------------
-The host launcher selects the proxy image, exact container identity, reference
-snapshot, expected chain/account and protected RPC URL. Attach the operator's
-TTY only to that proxy. Start Forge separately with logs captured. No approval
+The trusted host launcher selects the approval image, exact container identity,
+reference snapshot and expected chain/account; it supplies the protected RPC URL
+only to the HTTPS backend. Attach the operator's TTY only to the approval
+service. Start Forge separately with logs captured. No approval
 API, shared approval file or control credential is exposed to Forge.
 
-Prefer a foreground proxy with a terminal decision loop and bounded HTTP
-workers. A separate Unix-socket approval CLI is unnecessary unless the actual
-Make/Compose lifecycle proves this interface cannot work reliably.
+Use a foreground approval service with a terminal decision loop and bounded IPC
+handling. The Unix socket carries Forge RPC, not operator approvals. A separate
+approval CLI/control socket is unnecessary for this plan.
 
-The proxy gets only its approved references, RPC credential, private audit
-output, bounded tmpfs and necessary internal/egress networks. Use a non-root
+The approval service gets references, private audit output, the RPC socket,
+bounded tmpfs and an internal backend network. The HTTPS backend alone gets the
+RPC credential and egress. Use a non-root
 identity, read-only root, no capabilities/privilege escalation, no host ports,
 bounded CPU/memory/swap/PIDs and disabled core dumps. Package reviewed code and
 locked runtime dependencies in the image; no runtime repository or broad
@@ -336,17 +537,16 @@ node_modules bind. Dependency acquisition stays a separate networked build
 step. Source/build context must exclude application files and secrets.
 
 Preserve bounded HTTPS forwarding, credential-safe diagnostics, target
-validation and method admission. There should be one owner for outbound RPC
-policy. Decide through the feasibility slice whether the typed gate replaces
-the signing proxy or uses the existing transport as an exclusive backend;
-do not accidentally give Forge both a gated and ungated submission route.
+validation and method admission in the existing backend. Its total operation
+deadline is a concrete hardening task in slice 2. Forge has only the gated socket
+route, with no network or direct backend connection.
 
 Test effective network behavior, including host services, other containers,
 public IPv4/IPv6 and DNS. An internal Docker network alone is not proof of every
 claimed egress restriction [D1]. Retain the narrower one-path guarantee above.
 
-First implementation slice: approval-wait qualification test
------------------------------------------------------------
+Existing HTTP qualification: fixture and historical test contract
+-----------------------------------------------------------------
 Run the implemented fixture with:
 
     make escrow/release/approval-wait/check
@@ -451,7 +651,7 @@ success or depending on retry to prolong the approval. Otherwise resolve the
 client integration first, with a separately reviewed change. Do not silently
 add a durable job queue, custom polling protocol or fork of Foundry.
 
-Later approval-gate acceptance tests, before production changes:
+Acceptance summary for slices 2–5 (the same obligations, not another test lane):
 
 * No upstream send before approval, or after denial, deadline, EOF, unsupported
   input, failed evidence persistence or stale challenge.
@@ -672,6 +872,31 @@ they do not establish that the proposed approval UI or its policy exists.
   curl after browser fetch failure. Its inspected SHA-256 is:
   8bfdf5142b0b692831398591e3a45f74ca712178cdf30e28b49d4c95cb782d2c
 
+[F7] Foundry v1.7.1 runtime transport, IPC candidate source trace:
+  crates/common/src/provider/runtime_transport.rs:
+    RuntimeTransport::connect, reqwest_client, connect_ipc and request.
+  https://github.com/foundry-rs/foundry/blob/v1.7.1/crates/common/src/provider/runtime_transport.rs
+  crates/common/src/provider/mod.rs:
+    ProviderBuilder::new path normalization and build.
+  https://github.com/foundry-rs/foundry/blob/v1.7.1/crates/common/src/provider/mod.rs
+  Supports: file-scheme Unix IPC selection, HTTP-only reqwest timeout, and
+  shared client retry layer. It does not prove a successful IPC release.
+  The earlier HTTP runs did not explicitly test an eth_rpc_timeout override;
+  the source shows a bypass, but an upstream bug report still needs that
+  direct reproduction. No Foundry patch is required for the IPC candidate.
+
+[F8] Alloy 2.0.1 pubsub service and frontend:
+  https://github.com/alloy-rs/alloy/blob/v2.0.1/crates/pubsub/src/service.rs
+    PubSubService::reconnect, reconnect_with_retries and service_request.
+  https://github.com/alloy-rs/alloy/blob/v2.0.1/crates/pubsub/src/frontend.rs
+    PubSubFrontend::send and Service::call.
+  Foundry dependency version:
+  https://github.com/foundry-rs/foundry/blob/v1.7.1/Cargo.lock
+  Supports: reconnect reissues serialized pending requests, and frontend
+  response waiting is separate from the HTTP client timeout. Sources fetched
+  read-only after browser retrieval failed. These do not establish the full IPC
+  codec or receipt method set; trace and record those in qualification.
+
 [V1] Viem 2.50.4, installed upstream package source inspected locally:
   js/node_modules/viem/utils/transaction/parseTransaction.ts, parseTransaction;
   js/node_modules/viem/utils/signature/recoverTransactionAddress.ts,
@@ -746,7 +971,7 @@ versus send-start. It also clarified that every non-matching-success upstream
 outcome stops submissions, and replaced an exactly-once-sounding promise with
 at-most-one submission attempt.
 
-The design deliberately rejects a separate approval CLI/socket, approval
+The design deliberately rejects a separate operator approval CLI/socket, approval
 database, automatic retry/recovery engine and per-application business-rule
 interpreter until a concrete integration requirement justifies one.
 
@@ -756,8 +981,10 @@ It exposed duplicate-waiter cancellation and creation-dependency ambiguity.
 The note now cancels only when the last waiter disappears before send-start,
 requires successful receipts for dependent approvals, and explicitly leaves
 read-only reconciliation available after submissions close. Export format,
-transport composition and a future continuation command remain identified
-implementation decisions, not hidden claims of existing functionality.
+transport composition and a future continuation command were still open at
+that review. The subsequent IPC plan chooses the existing HTTPS backend and
+leaves continuation out of scope; the reference export remains implementation
+work, not existing functionality.
 The fresh reader repeated the teach-back after these revisions and found the
 rules coherent. A separate fresh source-aware auditor found no further
 material design issue after those corrections. These reviews establish clarity
@@ -768,3 +995,27 @@ It now holds before submission, fails compatibility on extra sends, defines
 the rejection/lost-response controls, and restores automining after the
 receipt-delay control. The three waits and their owners are explicit. This
 formulation preceded the focused implementation and observations recorded here.
+
+IPC implementation planning: six independent Luna-high peers reviewed transport,
+container authority, submission lifecycle, release integration, behavioral tests
+and context-isolated reader understanding. Accepted corrections include explicit
+compiler-reference export, same-connection read proof, promotion/replacement of
+the fixture listener before production proof, immutable image selection, terminal
+lifecycle, private full-ceremony audit and a decision deadline longer than the
+120-second qualification hold.
+
+One proposed test assertion was rejected: "exactly one total forwarded
+transaction" would fail legitimate multi-transaction releases. The invariant is
+one forward of each approved exact transaction, no later transaction during the
+held first result, and receipt-confirmed dependencies thereafter. HTTP retry
+evidence was kept separate from IPC replay/source evidence. These reviews do
+not constitute implementation or runtime qualification of the proposed gate.
+
+Two additional fresh Luna-high auditors checked the consolidated plan for
+consistency and taught it back without prior project context. Their corrections
+separate slice 1's guarded client observations from slice 2's actual decision
+guarantees, and label the older acceptance list as a summary. The plan also
+explicitly supplies the missing independently expected deployer address.
+Eight peers participated in total; the final consistency reviewer verified the
+corrections. The repository checks passed (241 tests); no IPC runtime or
+production approval behavior was exercised during this planning pass.
