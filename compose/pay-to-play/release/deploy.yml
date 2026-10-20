@@ -1,6 +1,13 @@
 # App-specific release inputs; phase boundaries are owned by compose/release/.
 services:
   release-plan:
+    volumes:
+      - type: bind
+        source: ../../dapps/pay-to-play/cam
+        target: /work/dapps/pay-to-play/cam
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       RELEASE_TOOL_DIR: tools/pay-to-play-release
       PAY_TO_PLAY_RELEASE_DAPPS_ROOT: /work/dapps

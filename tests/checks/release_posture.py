@@ -63,6 +63,24 @@ def assert_deployment_authority_split(
     materializer_proxy = services[materializer_proxy_name]
 
     case.assertEqual("none", planner["network_mode"])
+    for proxy in (signing_proxy, materializer_proxy):
+        case.assertEqual(
+            "service_completed_successfully",
+            proxy["depends_on"][planner_name]["condition"],
+        )
+    case.assertEqual([], compose_sequence_or_empty(planner, "secrets"))
+    case.assertEqual([], compose_sequence_or_empty(planner, "ports"))
+    case.assertEqual(1, float(planner["cpus"]))
+    case.assertEqual(planner["mem_limit"], planner["memswap_limit"])
+    case.assertIn(planner["ulimits"]["core"], ({}, {"hard": 0, "soft": 0}))
+    case.assertTrue(planner["init"])
+    planner_environment = _environment(planner)
+    cam_paths = [value for key, value in planner_environment.items() if key.endswith("_CAM_ROOT_PATH")]
+    case.assertEqual(1, len(cam_paths))
+    cam_directory = cam_paths[0].rsplit("/", 1)[0]
+    mounts = compose_sequence_or_empty(planner, "volumes")
+    case.assertNotIn("/work/dapps", [mount["target"] for mount in mounts])
+    case.assertTrue(compose_volume(planner, cam_directory)["read_only"])
     key_holders = [
         name
         for name, service in services.items()

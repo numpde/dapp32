@@ -1,6 +1,13 @@
 # App-specific release inputs; phase boundaries are owned by compose/release/.
 services:
   release-plan:
+    volumes:
+      - type: bind
+        source: ../../dapps/bike-nft/cam
+        target: /work/dapps/bike-nft/cam
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       RELEASE_TOOL_DIR: tools/bike-nft-release
       BIKE_NFT_RELEASE_DAPPS_ROOT: /work/dapps

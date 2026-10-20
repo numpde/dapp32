@@ -75,23 +75,34 @@ services:
       service: hardened-node-workspace
     working_dir: /work
     network_mode: "none"
+    init: true
+    cpus: 1
+    memswap_limit: 1g
+    ulimits:
+      core: 0
     volumes:
-      - ../../dapps:/work/dapps:ro
       - ../../js:/input/js:ro
       - ../../js/node_modules:/work/js/node_modules:ro
       - *plan_write
     command:
+      - timeout
+      - --signal=TERM
+      - --kill-after=10s
+      - 300s
       - "run-js-workspace"
       - "sh"
       - "-eu"
       - "-c"
       - |
-        npm run build:workspace
+        npm run build:packages
         ./node_modules/.bin/tsc -p "$${RELEASE_TOOL_DIR}/tsconfig.json"
         node --experimental-strip-types "$${RELEASE_TOOL_DIR}/plan.ts"
 
   release-rpc-proxy:
     <<: *rpc_proxy_base
+    depends_on:
+      release-plan:
+        condition: service_completed_successfully
     environment:
       RPC_PROXY_HOST: 0.0.0.0
       RPC_PROXY_PORT: "8080"
@@ -169,6 +180,9 @@ services:
 
   release-artifact-rpc-proxy:
     <<: *rpc_proxy_base
+    depends_on:
+      release-plan:
+        condition: service_completed_successfully
     environment:
       RPC_PROXY_HOST: 0.0.0.0
       RPC_PROXY_PORT: "8080"

@@ -765,6 +765,17 @@ class RenderedComposePostureTest(unittest.TestCase):
             self.assert_read_only_volumes(service, "/work/dapps")
             self.assert_no_volume_target(service, "/work")
 
+    def test_release_planning_deadline_covers_the_workspace_runner(self) -> None:
+        # Pin the command boundary without spending five minutes in a stalled build.
+        for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
+            with self.subTest(app=app):
+                files = makefile_compose_unit(f"{app}_RELEASE_DEPLOY_COMPOSE_FILES")
+                plan = compose_service(rendered_compose_config(files), "release-plan")
+                self.assertEqual(
+                    ["timeout", "--signal=TERM", "--kill-after=10s", "300s", "run-js-workspace"],
+                    plan["command"][:5],
+                )
+
     def test_writable_host_binds_are_explicit_materialization_outputs(self) -> None:
         expected = {
             ("compose/release/rpc.yml", "rpc-resolve", "/tmp/release-rpc-output", "/out"),

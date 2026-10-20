@@ -31,6 +31,7 @@ ROOT_WORKSPACES = [
     "apps/cam-web",
 ]
 ROOT_WORKSPACE_SCRIPTS = {
+    "build:packages": "npm run build --workspace packages",
     "build:workspace": "npm run build --workspaces --if-present",
     "build:cam-conformance": "npm run build -w @cam/protocol && npm run build -w @cam/conformance",
     "test:cam-conformance": "npm run build:cam-conformance && npm test -w @cam/conformance",
