@@ -24,9 +24,11 @@ FORBIDDEN_NAME_PATTERNS = [
 ]
 
 ALLOWED_FORBIDDEN_NAME_LITERALS = (
-    # External repository addresses are required as publication URLs, not prose branding.
+    # External repository addresses identify publications and sources, not prose branding.
     "https://numpde.github.io/dapp" + "32/",
     "https://raw.githubusercontent.com/numpde/dapp" + "32/",
+    "https://github.com/numpde/dapp" + "32/blob/",
+    "https://github.com/numpde/dapp" + "32/tree/",
     # Preserve this captured evidence filename; it is not a product label.
     "/tmp/dapp" + "32-multiparty-fields-20261012/movie-final-state.json",
 )

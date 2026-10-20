@@ -32,6 +32,10 @@ async function main(): Promise<void> {
   const fixture = createTestClient({ mode: "anvil", chain, transport: http(rpcURL) })
   assert.equal(await client.getChainId(), chainId)
   const action = process.argv[2]
+  if (action === "fund") {
+    await fixture.setBalance({ address: privateKeyToAccount(deployerKey).address, value: 1000n * 10n ** 18n })
+    return
+  }
   if (action === "prepare") {
     for (const account of [privateKeyToAccount(deployerKey), ...Object.values(owners)]) {
       await fixture.setBalance({ address: account.address, value: 1000n * 10n ** 18n })
@@ -42,7 +46,7 @@ async function main(): Promise<void> {
     await writeFile("/rehearsal-control/deployer-key", deployerKey + "\n", { flag: "wx", mode: 0o600 })
     return
   }
-  if (action !== "accept") throw new Error("Rehearsal action must be prepare or accept")
+  if (action !== "accept") throw new Error("Rehearsal action must be prepare, fund or accept")
   const bytes = await readFile("/deployment/deployment.json")
   const planBytes = await readFile("/deployment/release-plan.json")
   let root: Address

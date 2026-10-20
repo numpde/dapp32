@@ -579,6 +579,9 @@ help:
 	  '  make dapps/release/rehearsal/check      Rehearse releases for all three supported apps.' \
 	  '  make bike-nft/release/rehearsal/run     Rehearse the Bike NFT release on an isolated local chain.' \
 	  '  make escrow/release/rehearsal/run       Rehearse the Escrow release on an isolated local chain.' \
+	  '  make escrow/release/approval-wait/check Measure pinned Forge approval/receipt waits on a disposable chain.' \
+	  '    Runs 10/50/120-second pre-send delays, receipt delay, rejection and lost-response controls.' \
+	  '    Reports compatibility failures separately from fixture failures; does not deploy an approval proxy.' \
 	  '  make pay-to-play/release/rehearsal/run  Rehearse the Pay-to-Play release on an isolated local chain.' \
 	  '    Requires installed locked dependencies.' \
 	  '    It tests current source, including uncommitted changes, through a private committed snapshot.' \
@@ -1138,7 +1141,7 @@ dapps/release/rehearsal/check:
 
 define release_rehearsal
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)"
+	env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)" release
 endef
 
 .PHONY: dapps/release/rehearsal/check bike-nft/release/rehearsal/run escrow/release/rehearsal/run pay-to-play/release/rehearsal/run
@@ -1147,6 +1150,11 @@ bike-nft/release/rehearsal/run:
 
 escrow/release/rehearsal/run:
 	$(release_rehearsal)
+
+.PHONY: escrow/release/approval-wait/check
+escrow/release/approval-wait/check:
+	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
+	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" waits
 
 pay-to-play/release/rehearsal/run:
 	$(release_rehearsal)

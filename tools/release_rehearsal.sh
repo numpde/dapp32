@@ -3,6 +3,13 @@
 set -euo pipefail
 unset MAKEFLAGS MAKEOVERRIDES MFLAGS GNUMAKEFLAGS MAKEFILES
 app="${1:?Pass a supported app}"
+action="${3:?Pass release or waits}"
+if [[ "$action" != release && "$action" != waits ]]; then
+  printf '%s\n' 'Release rehearsal action must be release or waits.' >&2; exit 2
+fi
+if [[ "$action" == waits && "$app" != escrow ]]; then
+  printf '%s\n' 'The shared release-client wait qualification uses Escrow.' >&2; exit 2
+fi
 if [[ "${2:?Pass the Compose command}" != "docker compose" ]]; then
   printf '%s\n' 'Release rehearsals require Docker Compose.' >&2
   exit 2
@@ -35,6 +42,10 @@ planner_compose=(docker compose --project-name "$project-planner" -f compose/rel
 cleanup() {
   status="$?"
   cleanup_failed=0
+  # A child exit 2 can mean its signer teardown failed; retain mounted inputs.
+  if [[ "$action" == waits && "$status" == 2 ]]; then
+    cleanup_failed=1
+  fi
   trap - EXIT
   if [[ "$planner_started" == 1 ]] && ! "${planner_compose[@]}" down --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1; then
     printf 'Planner test teardown failed; inspect %s/planner-cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
@@ -93,10 +104,15 @@ set -a
 source "$RELEASE_REHEARSAL_DIR/control/inputs.env"
 set +a
 
-# Exercise the maintained planner service without starting its networked dependants.
 prefix="${app^^}"
 prefix="${prefix//-/_}"
 export "${prefix}_RELEASE_SOURCE_COMMIT=$(git rev-parse HEAD)"
+if [[ "$action" == waits ]]; then
+  bash tools/release_waits.sh "$project"
+  exit "$?"
+fi
+
+# Exercise the maintained planner service without starting its networked dependants.
 export RELEASE_OUTPUT_DIR="$RELEASE_REHEARSAL_DIR/planner-check"
 mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact"
 planner_started=1

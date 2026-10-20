@@ -124,7 +124,7 @@ def makefile_compose_unit(name: str) -> tuple[str, ...]:
 
 
 def compose_render_units() -> tuple[str | tuple[str, ...], ...]:
-    make_units = (*makefile_compose_units().values(), *release_rehearsal_units())
+    make_units = (*makefile_compose_units().values(), *release_rehearsal_units(), *release_wait_units())
     single_make_unit_files = {
         unit[0]
         for unit in make_units
@@ -156,6 +156,14 @@ def release_rehearsal_units() -> tuple[tuple[str, ...], ...]:
             if name.endswith(f"_RELEASE_{mode.upper()}_COMPOSE_FILES"):
                 units.append((*files, f"compose/release/rehearsal-{mode}.yml"))
     return tuple(units)
+
+
+def release_wait_units() -> tuple[tuple[str, ...], ...]:
+    return tuple(
+        (*files, "compose/release/rehearsal-waits.yml")
+        for files in release_rehearsal_units()
+        if "compose/escrow/release/deploy.yml" in files
+    )
 
 
 def compose_files_with_required_env() -> tuple[str, ...]:
@@ -321,6 +329,8 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "RELEASE_CONFIG_FILE": "/tmp/release-config.json",
                 "RELEASE_LOCAL_NETWORK": "dapps-release-local_anvil_internal",
                 "RELEASE_REHEARSAL_NETWORK": "cam-release-rehearsal-fixture",
+                "RELEASE_WAIT_CASE": "delay-10",
+                "RELEASE_WAIT_EVIDENCE_DIR": "/tmp/release-wait-evidence",
                 "RELEASE_DEPLOYMENT_ARTIFACT_FILE": "/tmp/release-output/artifact/deployment.json",
                 "VIEWER_URL": "http://127.0.0.1:5174/?chainId=eip155%3A31337&host=0x0000000000000000000000000000000000000001&account=0x0000000000000000000000000000000000000002&rpcUrl=http%3A%2F%2F127.0.0.1%3A5174%2Frpc",
             },
@@ -452,6 +462,11 @@ class RenderedComposePostureTest(unittest.TestCase):
                 })
             else:
                 expected_secrets.add((files, "verify-rpc-proxy", "rpc_url", "rpc_url"))
+        for files in release_wait_units():
+            expected_secrets.update({
+                (files, "release-rpc-proxy", "rpc_url", "rpc_url"),
+                (files, "deploy-release", "deployer_private_key", "deployer_private_key"),
+            })
         expected_fixture_keys = {
             (makefile_compose_unit("REFUND_EXECUTE_COMPOSE_FILES"), "pay-to-play-refunds", "REFUND_PRIVATE_KEY_FILE", "/run/secrets/refund-relayer"),
             ("compose/bike-nft/local/deploy.yml", "deploy-bike-nft-local", "PRIVATE_KEY", ANVIL_DEV_PRIVATE_KEY),
@@ -852,6 +867,13 @@ class RenderedComposePostureTest(unittest.TestCase):
                     (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
                     (files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
                 })
+        for files in release_wait_units():
+            expected.update({
+                (files, "release-plan", "/tmp/release-output/plan", "/release-plan"),
+                (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
+                (files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
+                (files, "release-rpc-proxy", "/tmp/release-wait-evidence", "/wait-evidence"),
+            })
         actual = set()
         for compose_file in compose_render_units():
             config = rendered_compose_config(

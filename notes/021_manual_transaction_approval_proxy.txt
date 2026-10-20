@@ -1,8 +1,9 @@
 Manual approval of deployment transactions
 2026-10-20
 
-Status: design proposal, not implemented. Scope: Escrow, Bike NFT and
-Pay-to-Play releases. Deposit Gateway is excluded.
+Status: the approval proxy is a design proposal. A focused client-qualification
+fixture is implemented; see the test command and results below. Scope: Escrow,
+Bike NFT and Pay-to-Play releases. Deposit Gateway is excluded.
 
 The operator already uses a dedicated deployment account. The proposed change
 is a separate container that reviews each signed transaction before submitting
@@ -346,8 +347,15 @@ claimed egress restriction [D1]. Retain the narrower one-path guarantee above.
 
 First implementation slice: approval-wait qualification test
 -----------------------------------------------------------
-This is a test specification; neither its fixture nor the approval proxy is
-implemented. The acceptance requirement is that a 120-second simulated review
+Run the implemented fixture with:
+
+    make escrow/release/approval-wait/check
+
+It uses the maintained release service and a fixture-only observer, not the
+proposed operator approval proxy. It captures current source in a private Git
+snapshot and retains logs, rendered configuration, actual signer image identity,
+events and case results under the printed /tmp/cam-release-rehearsal-* path.
+The acceptance requirement is that a 120-second simulated review
 can complete without a send retry or premature submission. Shorter cases help
 locate a client limitation. A failed client acceptance assertion is a
 compatibility failure, not a green characterization of current behavior.
@@ -427,7 +435,11 @@ Failure controls:
 Source inspection shows that --slow serializes sends but does not eliminate
 retry. --timeout configures receipt waiting; the broadcaster constructs its
 provider separately from the configuration-aware constructor [F1-F3].
-The actual pinned binary's effective send timeout remains untested.
+The completed source trace establishes this broadcaster's HTTP timeout at 45 seconds:
+new() selects REQUEST_TIMEOUT, build() passes it to the runtime transport, and
+that transport configures reqwest's client timeout [F6]. This predicts that
+10 seconds fits while 50 and 120 seconds do not. Runtime observations below
+check that prediction and the acceptance/receipt/error behavior.
 
 Run the matrix first unchanged. Repeat only with a concrete candidate setting
 that is demonstrated to affect the send provider; --timeout alone is not such
@@ -471,13 +483,64 @@ interactive and requires a TTY. Do not leave an unattended live-deployment
 bypass hidden behind a flag. Automated rehearsal uses a separate fixture-only
 operator driver that cannot be selected with real RPC/key inputs.
 
+Observed qualification: 2026-10-20
+----------------------------------
+Command: make escrow/release/approval-wait/check
+Retained records: /tmp/cam-release-rehearsal-1000-BcxwgWPz
+Tested private source snapshot: 78a0adf9abe820743d41b55ee037151cca0ea393
+Image: the pinned Foundry base in [F0]; each case retains actual signer image
+ID and command in signer-identity.txt, plus rendered Compose configuration.
+
+Case         Result                   Same-byte sends  First retry  Upstream sends
+delay-10     pass                     1                none         1
+delay-50     compatibility failure    5                46.018 s     1
+delay-120    compatibility failure    5                46.003 s     1
+receipt      pass                     1                none         1
+reject       pass                     5                 1.004 s     0
+drop         pass                     5                 1.004 s     1
+
+Counts concern the first held/controlled transaction, not subsequent successful
+release transactions. The fixture blocked duplicate upstream submissions.
+Rejection/drop controls pass because the expected client failure and chain
+outcomes were observed; they do not qualify the proposed approval proxy.
+
+Forwarding occurred 10.000, 50.000 and 120.000 seconds after first arrival in
+the delay cases. Both longer cases timed out and retried before release of the
+original request. Both original requests were eventually accepted and mined,
+while Forge exited 1. The 50-second case recorded BrokenPipeError on reply. The
+120-second case completed its fixture-side socket write, which does not prove
+Forge received or used the response; no successful client receipt observation
+was recorded. The fixed-delay fixture intentionally retains the original
+request; it does not implement the
+proposed gate's last-waiter cancellation policy. This demonstrates why client
+failure cannot establish that no transaction was submitted.
+
+The receipt control observed null through Forge's receipt lookup, mined after
+the controlled ten-second interval, restored automining and completed the
+release. The drop control recorded a real accepted hash and successful receipt,
+closed the original connection before its HTTP response, and observed Forge
+retrying and failing. The rejection control forwarded no transaction.
+
+The explicit qualification target exits nonzero because the 120-second
+acceptance requirement is unmet. All 241 offline repository checks, including
+the oracle regression and rendered-authority tests, passed. The focused runtime
+probes cover one representative release script; they do not establish the full
+future gate's behavior across all three applications.
+
+The source trace [F6] could predict this deadline and retry schedule. The runs
+confirm that prediction for the deployed binary/configuration and preserve a
+regression test for the approval/receipt/failure contract. Resolve the client's
+send-wait integration before implementing a two-minute operator approval UI;
+do not hide this failure behind retries or an early fabricated success result.
+
 Sources consulted
 -----------------
 Consulted on 2026-10-20. Repository references below identify inspected source
 at commit 9569c11ce3854f616b470f4d472cd3be2e383210 unless explicitly stated.
 Other worktree edits were present; they are not evidence for this design.
 References support current behavior or design constraints, not implementation
-of the proposal. No approval-proxy runtime experiment has been performed.
+of the approval proxy. The focused qualification results are recorded below;
+they do not establish that the proposed approval UI or its policy exists.
 
 [R1] Current phase grants and forwarding implementation:
   compose/release/deploy.yml, release-rpc-proxy and deploy-release services;
@@ -537,7 +600,21 @@ of the proposal. No approval-proxy runtime experiment has been performed.
   https://github.com/numpde/dapp32/blob/9569c11ce3854f616b470f4d472cd3be2e383210/tests/fixtures/release-rehearsal/rpc_proxy.py
   https://github.com/numpde/dapp32/blob/9569c11ce3854f616b470f4d472cd3be2e383210/tests/checks/test_release_rehearsal.py
   Supports: reusable disposable test boundary, actual command preservation and
-  current single-threaded fixture limitation. No approval-wait mode exists yet.
+  single-threaded fixture limitation at that baseline. The new wait observer
+  adds bounded concurrency without changing the production proxy.
+
+[R7] Focused qualification implementation added after that baseline:
+  tools/release_waits.sh, fixed six-case driver;
+  tools/release_rehearsal.sh, waits branch;
+  compose/release/rehearsal-waits.yml, fixture-only overlay;
+  tests/fixtures/release-rehearsal/wait_probe.py, observer and evaluate;
+  tests/checks/test_release_waits.py, oracle regression and authority tests;
+  js/tools/release-rehearsal/runner.ts, fixture-only fund action.
+  The retained source-commit file identifies the tested private snapshot.
+  Fresh chain state comes from recreating the owned Anvil service per case,
+  followed by funding the public fixture account. The first setup attempt used
+  viem.reset(), which this unforked pinned Anvil rejected; it was classified
+  inconclusive, stopped and cleaned up before the corrected run.
 
 [F0] Actual Foundry image selection:
   containers/foundry/Dockerfile, FROM at line 18.
@@ -548,18 +625,19 @@ of the proposal. No approval-proxy runtime experiment has been performed.
 [F1] Foundry v1.7.1 broadcast source, inspected as raw source:
   https://raw.githubusercontent.com/foundry-rs/foundry/v1.7.1/crates/script/src/broadcast.rs
   Sections: SendTransactionKind::send; BundledState::broadcast, provider
-  construction around line 366 and send batching/retries around lines 469-549.
+  construction at raw-file line 395 and outer send retries at lines 549-560.
   Supports: --slow batch size one, retries after failed sends, hash recorded
   after RPC success. This is source evidence, not measured binary timing.
 
 [F2] Foundry v1.7.1 script argument mapping:
   https://raw.githubusercontent.com/foundry-rs/foundry/v1.7.1/crates/script/src/lib.rs
-  ScriptArgs Provider::data, lines 573-575.
+  ScriptArgs Provider::data, the self.timeout to transaction_timeout mapping.
   Supports: --timeout is mapped to transaction_timeout.
 
 [F3] Foundry v1.7.1 provider construction:
   https://raw.githubusercontent.com/foundry-rs/foundry/v1.7.1/crates/common/src/provider/mod.rs
-  ProviderBuilder::new and ProviderBuilder::from_config, lines 184-219.
+  ProviderBuilder::new, raw-file line 205; from_config, lines 236-237;
+  build, lines 401-402.
   Supports: default builder and configured eth_rpc_timeout take different
   paths. No claim that changing a CLI flag fixes the broadcast path.
 
@@ -571,13 +649,28 @@ of the proposal. No approval-proxy runtime experiment has been performed.
 
 [F5] Foundry v1.7.1 receipt progress handling, newly consulted for the waits:
   https://raw.githubusercontent.com/foundry-rs/foundry/v1.7.1/crates/script/src/progress.rs
-  ScriptProgress::wait_for_pending, lines 168-278.
+  ScriptProgress::wait_for_pending, pending-hash loop and status match arms.
   Supports: pending-hash checks, receipt success/revert handling and separate
   transaction_timeout. Its dropped-transaction/resume suggestions are client
   behavior, not permission for this proposed gate to resend automatically.
   The related receipts.rs URL was attempted but unavailable to the browser
   tool, so it does not establish an exact polling interval:
   https://raw.githubusercontent.com/foundry-rs/foundry/v1.7.1/crates/script/src/receipts.rs
+
+[F6] Completed send-timeout source trace, consulted by the peer reviewer:
+  https://github.com/foundry-rs/foundry/blob/v1.7.1/crates/common/src/constants.rs#L22
+  https://github.com/foundry-rs/foundry/blob/v1.7.1/crates/common/src/provider/mod.rs#L205
+  https://github.com/foundry-rs/foundry/blob/v1.7.1/crates/common/src/provider/mod.rs#L401
+  https://github.com/foundry-rs/foundry/blob/v1.7.1/crates/common/src/provider/runtime_transport.rs#L190
+  https://github.com/foundry-rs/foundry/blob/v1.7.1/crates/script/src/broadcast.rs#L395
+  https://github.com/foundry-rs/foundry/blob/v1.7.1/crates/script/src/broadcast.rs#L549
+  Supports: 45-second default HTTP request deadline on this broadcast path,
+  explicit reqwest timeout, and one-second backoff before the first outer retry.
+  The configuration-aware eth_rpc_timeout override is bypassed here [F3].
+  These are raw source/GitHub line numbers; browser text extraction had removed
+  blank lines in earlier inspections. constants.rs was fetched read-only using
+  curl after browser fetch failure. Its inspected SHA-256 is:
+  8bfdf5142b0b692831398591e3a45f74ca712178cdf30e28b49d4c95cb782d2c
 
 [V1] Viem 2.50.4, installed upstream package source inspected locally:
   js/node_modules/viem/utils/transaction/parseTransaction.ts, parseTransaction;
@@ -674,4 +767,4 @@ The subsequent wait/test formulation received two independent peer reviews.
 It now holds before submission, fails compatibility on extra sends, defines
 the rejection/lost-response controls, and restores automining after the
 receipt-delay control. The three waits and their owners are explicit. This
-follow-up changes the specification only; no fixture was implemented or run.
+formulation preceded the focused implementation and observations recorded here.

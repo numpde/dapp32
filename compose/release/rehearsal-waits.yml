@@ -1,0 +1,15 @@
+# Fixture-only observation of the maintained release client's three waits.
+services:
+  release-rpc-proxy:
+    entrypoint: [python3, /rehearsal/wait_probe.py]
+    environment:
+      RELEASE_WAIT_CASE: "${RELEASE_WAIT_CASE:?missing_RELEASE_WAIT_CASE}"
+      RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "1048576"
+    volumes:
+      - ../../tests/fixtures/release-rehearsal/wait_probe.py:/rehearsal/wait_probe.py:ro
+      - type: bind
+        source: "${RELEASE_WAIT_EVIDENCE_DIR:?missing_RELEASE_WAIT_EVIDENCE_DIR}"
+        target: /wait-evidence
+        bind:
+          create_host_path: false
