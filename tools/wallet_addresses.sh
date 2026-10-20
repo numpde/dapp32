@@ -8,6 +8,7 @@ umask 077
 cleanup() {
   if [[ -v phrase_file ]]; then rm -f -- "$phrase_file"; fi
   unset phrase words
+  if [[ -v terminal_state ]]; then stty "$terminal_state"; fi
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -17,6 +18,9 @@ if [[ ! -t 0 || ! -t 1 ]]; then
   printf '%s\n' 'Run make wallet/addresses in an interactive terminal.' >&2
   exit 2
 fi
+# Keep queued input hidden while Cast runs, until this terminal session exits.
+terminal_state=$(stty -g)
+stty -echo
 printf '%s\n' "MetaMask accounts 1–10: m/44'/60'/0'/0/0 through m/44'/60'/0'/0/9"
 if ! IFS= read -rs -p 'Recovery phrase (12 words; hidden): ' phrase; then
   printf '\n%s\n' 'No recovery phrase was entered.' >&2

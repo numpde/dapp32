@@ -413,6 +413,7 @@ help:
 	  '  make pay-to-play/refunds/check   Typecheck and test the refund worker offline.' \
 	  '  make wallet/addresses           Prompt privately for a MetaMask phrase; print accounts 1-10 and paths.' \
 	  '    Input and derivation run offline in a local Foundry container; remote Docker endpoints are rejected.' \
+	  '    Wait for the Recovery phrase prompt, then enter or paste the 12 words on one line.' \
 	  '    Only public addresses are printed, never private keys.' \
 	  '    The hidden 12-word phrase uses a temporary RAM-backed file, removed on exit; no host files are written.' \
 	  '  make wallet/addresses/check     Test derivation and terminal handling with a public fixture phrase.' \

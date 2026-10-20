@@ -5,11 +5,22 @@ umask 077
 test_root=$(mktemp -d /tmp/wallet-address-check.XXXXXXXX)
 trap 'rm -rf -- "$test_root"' EXIT
 
+assert_absent() {
+  local status
+  if grep -Eq "$1" "$2"; then
+    printf 'Unexpected echoed input or address in %s\n' "$2" >&2
+    exit 1
+  else
+    status=$?
+    if [[ "$status" != 1 ]]; then exit "$status"; fi
+  fi
+}
+
 run_case() {
   local name="$1" input="$2" expected_status="$3" status pid attempt ready=0
   : >"$test_root/$name.transcript"
   mkfifo "$test_root/$name.input"
-  timeout 20 script -q -e -f -c 'bash --noprofile --norc /tool/wallet_addresses.sh' "$test_root/$name.transcript" <"$test_root/$name.input" >"$test_root/$name.output" 2>&1 &
+  timeout 20 script -q -e -f --echo always -c 'bash --noprofile --norc /tool/wallet_addresses.sh' "$test_root/$name.transcript" <"$test_root/$name.input" >"$test_root/$name.output" 2>&1 &
   pid=$!
   exec 3>"$test_root/$name.input"
   for attempt in {1..1000}; do
@@ -25,6 +36,23 @@ run_case() {
     return 1
   fi
   printf '%s' "$input" >&3
+  if [[ "$#" == 4 ]]; then
+    ready=0
+    for attempt in {1..1000}; do
+      if compgen -G '/tmp/wallet-phrase.*' >/dev/null; then ready=1; break; fi
+      if ! kill -0 "$pid" 2>/dev/null; then break; fi
+      sleep 0.01
+    done
+    if [[ "$ready" != 1 ]]; then
+      printf 'Derivation did not start for %s\n' "$name" >&2
+      return 1
+    fi
+    for phrase_path in /tmp/wallet-phrase.*; do
+      [[ "$(stat -c %a "$phrase_path")" == 600 ]]
+      [[ "$(stat -c %u "$phrase_path")" == "$(id -u)" ]]
+    done
+    printf '%s' "$4" >&3
+  fi
   if wait "$pid"; then status=0; else status=$?; fi
   exec 3>&-
   if [[ "$status" != "$expected_status" ]]; then
@@ -79,14 +107,19 @@ for index in {0..9}; do
   [[ "$path" == "m/44'/60'/0'/0/$index" ]]
   [[ "${address,,}" == "${expected[$index]}" ]]
 done
-! grep -Fq "$fixture" "$test_root/valid.transcript"
+assert_absent "$fixture" "$test_root/valid.transcript"
+run_case trailing "$fixture"$'\n' 0 $'PUBLIC_TRAILING_INPUT_PROBE\n'
+assert_absent PUBLIC_TRAILING_INPUT_PROBE "$test_root/trailing.transcript"
+run_case cancelled_after_file "$fixture"$'\n' 130 $'\003'
+run_case empty $'\n' 2
+run_case eof $'\004' 2
 run_case checksum $'test test test test test test test test test test test test\n' 2
-! grep -Fq 'test test' "$test_root/checksum.transcript"
-! grep -Eq '0x[[:xdigit:]]{40}' "$test_root/checksum.transcript"
+assert_absent 'test test' "$test_root/checksum.transcript"
+assert_absent '0x[[:xdigit:]]{40}' "$test_root/checksum.transcript"
 run_case short $'test test\n' 2
-! grep -Fq 'test test' "$test_root/short.transcript"
+assert_absent 'test test' "$test_root/short.transcript"
 run_case cancel $'test\003' 130
-! grep -Fq 'test' "$test_root/cancel.transcript"
+assert_absent 'test' "$test_root/cancel.transcript"
 if bash --noprofile --norc /tool/wallet_addresses.sh </dev/null >"$test_root/no-terminal" 2>&1; then
   printf '%s\n' 'Wallet accepted non-terminal input.' >&2
   exit 1
