@@ -5,8 +5,10 @@ import errno
 import io
 import os
 import runpy
+import socket
 import ssl
 import tempfile
+import threading
 import unittest
 from unittest import mock
 
@@ -112,6 +114,46 @@ class RpcProxyTest(unittest.TestCase):
                 self.proxy.read_upstream(),
                 ("example.com", 443, "/rpc?key=fixture"),
             )
+
+    def test_malformed_upstream_startup_does_not_disclose_credentials(self) -> None:
+        for address in ["https://user:fixture-secret@exam／ple.com/rpc", "https://user:fixture-secret@[invalid/rpc"]:
+            with self.subTest(address=address), tempfile.NamedTemporaryFile("w", encoding="utf-8") as upstream:
+                upstream.write(address)
+                upstream.flush()
+                stderr = io.StringIO()
+                with mock.patch.dict(os.environ, proxy_environment(upstream.name)), mock.patch("sys.stderr", stderr):
+                    with self.assertRaises(SystemExit) as exited:
+                        runpy.run_path(str(repo_path("containers/rpc-proxy/rpc_proxy.py")), run_name="__main__")
+                self.assertEqual(2, exited.exception.code)
+                self.assertIn("RPC upstream URL is malformed", stderr.getvalue())
+                self.assertNotIn("fixture-secret", stderr.getvalue())
+                self.assertNotIn(address, stderr.getvalue())
+
+    def test_incomplete_client_requests_release_the_handler(self) -> None:
+        requests = [b"POST / HTTP/1.0\r\n", b"POST / HTTP/1.0\r\nContent-Length: 20\r\n\r\n{"]
+        for request in requests:
+            with self.subTest(request=request):
+                client, accepted = socket.socketpair()
+                with client, accepted, mock.patch.object(self.proxy.Handler, "open_upstream") as upstream:
+                    failures = []
+
+                    def serve():
+                        try:
+                            self.proxy.Handler(accepted, ("127.0.0.1", 1234), mock.Mock())
+                        except Exception as failure:
+                            failures.append(failure)
+
+                    worker = threading.Thread(target=serve, daemon=True)
+                    client.sendall(request)
+                    worker.start()
+                    worker.join(timeout=2)
+                    finished = not worker.is_alive()
+                    if not finished:
+                        client.shutdown(socket.SHUT_RDWR)
+                        worker.join(timeout=1)
+                    self.assertTrue(finished, "an incomplete request held the handler past its inactivity limit")
+                    self.assertEqual([], failures)
+                    upstream.assert_not_called()
 
     def test_resolve_global_ip_rejects_private_addresses(self) -> None:
         with mock.patch.object(

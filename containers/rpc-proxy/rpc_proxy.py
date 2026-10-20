@@ -135,7 +135,10 @@ def read_upstream():
     if any(ord(char) < 0x21 or ord(char) == 0x7F for char in value):
         raise UpstreamRejected("RPC upstream URL must not contain control characters or whitespace")
 
-    parsed = urlsplit(value)
+    try:
+        parsed = urlsplit(value)
+    except ValueError as exc:
+        raise UpstreamRejected("RPC upstream URL is malformed") from exc
     if parsed.scheme != "https":
         raise UpstreamRejected("RPC upstream must use https")
     if not parsed.hostname:
@@ -225,6 +228,7 @@ def validate_rpc_request(raw_body, allowed_methods):
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    timeout = CONNECT_TIMEOUT_SECONDS
     server_version = "safe-rpc-proxy"
     # Intentional default: blanking Python's default sys_version intentionally
     # reduces response fingerprinting. Keep this local to the proxy handler so
