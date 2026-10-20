@@ -6,9 +6,9 @@ import { privateKeyToAccount } from "viem/accounts"
 import { createHttpCamPublicClient } from "../../packages/cam-evm-viem/dist/index.js"
 import { createCamViewerSession } from "../../packages/cam-viewer/dist/index.js"
 import { createSameOriginHttpResourceLoader } from "../../packages/cam-protocol/dist/index.js"
-import { parseDeploymentArtifact as parseEscrow } from "../escrow-release/shared.ts"
-import { parseDeploymentArtifact as parsePayments } from "../pay-to-play-release/shared.ts"
-import { parseDeploymentArtifact as parseBike } from "../bike-nft-release/shared.ts"
+import { parseReleasePlan as parseEscrowPlan, parseDeploymentArtifact as parseEscrow } from "../escrow-release/shared.ts"
+import { parseReleasePlan as parsePaymentsPlan, parseDeploymentArtifact as parsePayments } from "../pay-to-play-release/shared.ts"
+import { parseReleasePlan as parseBikePlan, parseDeploymentArtifact as parseBike } from "../bike-nft-release/shared.ts"
 import { requiredEnv } from "../input.ts"
 import { runReleaseTool } from "../release-values.ts"
 import { camOrigin, chainId, deployerKey, owners, rehearsalApp, releaseInputs, rpcURL, shellAssignments } from "./fixture.ts"
@@ -44,21 +44,25 @@ async function main(): Promise<void> {
   }
   if (action !== "accept") throw new Error("Rehearsal action must be prepare or accept")
   const bytes = await readFile("/deployment/deployment.json")
+  const planBytes = await readFile("/deployment/release-plan.json")
   let root: Address
   let camHash: `0x${string}`
   if (app === "pay-to-play") {
     const artifact = parsePayments(bytes)
+    assertPlannedDeployment(parsePaymentsPlan(planBytes), artifact)
     root = artifact.camRoot
     camHash = artifact.camHash
     await accept(artifact.camRoot, owners.root, "acceptOwnership")
     await accept(artifact.payToPlay, owners.payment, "acceptOwnership")
   } else if (app === "escrow") {
     const artifact = parseEscrow(bytes)
+    assertPlannedDeployment(parseEscrowPlan(planBytes), artifact)
     root = artifact.camRoot
     camHash = artifact.camHash
     await accept(artifact.camRoot, owners.root, "acceptOwnership")
   } else {
     const artifact = parseBike(bytes)
+    assertPlannedDeployment(parseBikePlan(planBytes), artifact)
     root = artifact.camRoot
     camHash = artifact.camHash
     const schedules = await Promise.all([
@@ -111,3 +115,11 @@ async function main(): Promise<void> {
 }
 
 runReleaseTool(main)
+
+function assertPlannedDeployment(plan: Readonly<Record<string, unknown>>, artifact: Readonly<Record<string, unknown>>): void {
+  for (const [field, value] of Object.entries(plan)) {
+    if (field === "schema") continue
+    const artifactField = field === "expectedChainId" ? "chainId" : field
+    assert.deepEqual(artifact[artifactField], value, `Deployment must preserve planned ${field}`)
+  }
+}

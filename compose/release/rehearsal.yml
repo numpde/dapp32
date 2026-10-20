@@ -95,6 +95,12 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      - type: bind
+        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/plan/release-plan.json"
+        target: /deployment/release-plan.json
+        read_only: true
+        bind:
+          create_host_path: false
 
 networks:
   rehearsal:

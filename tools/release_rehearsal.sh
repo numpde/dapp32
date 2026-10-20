@@ -29,14 +29,24 @@ while IFS= read -r name; do unset "$name"; done <<<"$git_environment"
 unset GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 infrastructure_started=0
+planner_started=0
+planner_compose=(docker compose --project-name "$project-planner" -f compose/release/deploy.yml -f "compose/$app/release/deploy.yml" -f compose/release/rehearsal-deploy.yml)
 
 cleanup() {
   status="$?"
+  cleanup_failed=0
   trap - EXIT
+  if [[ "$planner_started" == 1 ]] && ! "${planner_compose[@]}" down --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1; then
+    printf 'Planner test teardown failed; inspect %s/planner-cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
+    status=1
+    cleanup_failed=1
+  fi
   if [[ "$infrastructure_started" == 1 ]] && ! "${compose[@]}" down --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/cleanup.log" 2>&1; then
     printf 'Rehearsal teardown failed; inspect %s/cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
     status=1
-  elif [[ -d "$RELEASE_REHEARSAL_DIR/source" ]]; then
+    cleanup_failed=1
+  fi
+  if [[ "$cleanup_failed" == 0 && -d "$RELEASE_REHEARSAL_DIR/source" ]]; then
     rm -rf -- "$RELEASE_REHEARSAL_DIR/source/dapps/dependencies" "$RELEASE_REHEARSAL_DIR/source/js/node_modules"
   fi
   printf 'Release rehearsal records: %s\n' "$RELEASE_REHEARSAL_DIR"
@@ -82,6 +92,63 @@ run_logged prepare.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-p
 set -a
 source "$RELEASE_REHEARSAL_DIR/control/inputs.env"
 set +a
+
+# Exercise the maintained planner service without starting its networked dependants.
+prefix="${app^^}"
+prefix="${prefix//-/_}"
+export "${prefix}_RELEASE_SOURCE_COMMIT=$(git rev-parse HEAD)"
+export RELEASE_OUTPUT_DIR="$RELEASE_REHEARSAL_DIR/planner-check"
+mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact"
+planner_started=1
+anvil_id="$("${compose[@]}" ps --quiet release-anvil)"
+if [[ ! "$anvil_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'Cannot identify the fixture node.' >&2; exit 1; fi
+anvil_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$anvil_id")"
+run_logged planner-boundaries.log "${planner_compose[@]}" run --build --rm --no-deps -T release-plan \
+  timeout --signal=TERM --kill-after=10s 300s run-js-workspace node --experimental-strip-types tools/release-rehearsal/planner-check.ts "$app" "$anvil_ip"
+
+# Malformed CAM must fail inside the real planner, before any proxy or signer starts.
+cp -a "dapps/$app/cam" "$RELEASE_REHEARSAL_DIR/bad-cam"
+printf '{\n' >"$RELEASE_REHEARSAL_DIR/bad-cam/main.json"
+cat >"$RELEASE_REHEARSAL_DIR/bad-cam.yml" <<EOF
+services:
+  release-plan:
+    volumes:
+      - type: bind
+        source: $RELEASE_REHEARSAL_DIR/bad-cam
+        target: /work/dapps/$app/cam
+        read_only: true
+        bind:
+          create_host_path: false
+EOF
+bad_compose=("${planner_compose[@]}" -f "$RELEASE_REHEARSAL_DIR/bad-cam.yml")
+if timeout --foreground 360 "${bad_compose[@]}" up --build --abort-on-container-exit --exit-code-from release-artifact release-artifact >"$RELEASE_REHEARSAL_DIR/planner-rejection.log" 2>&1; then
+  printf '%s\n' 'Malformed CAM incorrectly passed the planner.' >&2; exit 1
+fi
+planner_id="$("${bad_compose[@]}" ps --all --quiet release-plan)"
+if [[ ! "$planner_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'The malformed CAM planner did not run.' >&2; exit 1; fi
+if [[ "$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$planner_id")" != 'exited 1' ]]; then
+  printf '%s\n' 'The malformed CAM planner did not exit with its expected validation failure.' >&2; exit 1
+fi
+docker logs "$planner_id" >"$RELEASE_REHEARSAL_DIR/planner-command.log" 2>&1
+if ! grep -F 'inspectReleaseCamBundle' "$RELEASE_REHEARSAL_DIR/planner-command.log" >/dev/null; then
+  tail -n 40 "$RELEASE_REHEARSAL_DIR/planner-command.log" >&2
+  printf '%s\n' 'The negative planner test failed before CAM validation.' >&2; exit 1
+fi
+if [[ -e "$RELEASE_OUTPUT_DIR/plan/release-plan.json" ]]; then
+  printf '%s\n' 'The rejected CAM left a published plan.' >&2; exit 1
+fi
+for service in release-rpc-proxy release-artifact-rpc-proxy deploy-release release-artifact; do
+  container_id="$("${bad_compose[@]}" ps --all --quiet "$service")"
+  if [[ -n "$container_id" ]]; then
+    if [[ ! "$container_id" =~ ^[0-9a-f]{64}$ ]]; then printf '%s\n' 'Unexpected planner test container identity.' >&2; exit 1; fi
+    if [[ "$(docker inspect --format '{{.State.StartedAt}}' "$container_id")" != 0001-01-01T00:00:00Z ]]; then
+      printf 'Planner rejection failed to prevent %s from starting.\n' "$service" >&2; exit 1
+    fi
+  fi
+done
+"${planner_compose[@]}" down --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1
+planner_started=0
+unset RELEASE_OUTPUT_DIR
 
 printf 'Deploying %s through its normal release command...\n' "$app"
 run_logged deploy.log make "$app/release/deploy"
