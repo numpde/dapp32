@@ -1,11 +1,12 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
+import { once } from "node:events"
 import { createServer as createHttpServer } from "node:http"
 import { connect } from "node:net"
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { PassThrough } from "node:stream"
+import { PassThrough, Writable } from "node:stream"
 import test from "node:test"
 import type { Hex } from "viem"
 import { privateKeyToAccount } from "viem/accounts"
@@ -123,6 +124,126 @@ test("runtime requires an attached operator terminal before accepting connection
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
+test("operator must see selected release facts and enter exact start before audit or socket exists", async () => {
+  const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
+  try {
+    const reference = snapshot()
+    const selected = settings(root, reference)
+    await mkdir(join(root, "socket"), { mode: 0o700 })
+    await mkdir(selected.auditDir, { mode: 0o700 })
+    await writeFile(selected.referencePath, JSON.stringify(reference))
+    const input = Object.assign(new PassThrough(), { isTTY: true })
+    const output = Object.assign(new PassThrough(), { isTTY: true })
+    const starting = startApprovalRuntime(selected, { input, output })
+    const [prompt] = await once(output, "data")
+    for (const fact of ["escrow", "8453", deployer, commit, reference.snapshotSha256, "Type start and press Enter"]) {
+      assert.match(String(prompt), new RegExp(fact))
+    }
+    await assert.rejects(stat(join(selected.auditDir, "approval.jsonl")), { code: "ENOENT" })
+    await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+    input.write("start\n")
+    const runtime = await starting
+    try { assert.equal((await stat(selected.socketPath)).isSocket(), true) }
+    finally { await runtime.close("test cleanup") }
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test("a buffered operator prompt opens the socket only after the prompt drains and start is entered", async () => {
+  const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
+  try {
+    const reference = snapshot()
+    const selected = settings(root, reference)
+    await mkdir(join(root, "socket"), { mode: 0o700 })
+    await mkdir(selected.auditDir, { mode: 0o700 })
+    await writeFile(selected.referencePath, JSON.stringify(reference))
+    const input = Object.assign(new PassThrough(), { isTTY: true })
+    let prompt = ""
+    let finishPrompt: () => void = () => { throw new Error("Operator prompt was not written") }
+    let firstWrite = true
+    let sawPrompt!: () => void
+    const promptReceived = new Promise<void>(resolve => { sawPrompt = resolve })
+    const output = Object.assign(new Writable({
+      highWaterMark: 1,
+      write(chunk: Buffer, _encoding, done) {
+        if (firstWrite) {
+          firstWrite = false
+          prompt = chunk.toString("utf8")
+          finishPrompt = done
+          sawPrompt()
+        } else done()
+      },
+    }), { isTTY: true })
+    const starting = startApprovalRuntime(selected, { input, output })
+    await promptReceived
+    assert.match(prompt, /Type start and press Enter/)
+    assert.equal(output.writableNeedDrain, true)
+    input.write("start\n")
+    await assert.rejects(stat(join(selected.auditDir, "approval.jsonl")), { code: "ENOENT" })
+    await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+    finishPrompt()
+    const runtime = await starting
+    try { assert.equal((await stat(selected.socketPath)).isSocket(), true) }
+    finally { await runtime.close("test cleanup") }
+  } finally { await rm(root, { recursive: true, force: true }) }
+})
+
+test("operator detachment immediately after start cannot open the approval socket", async () => {
+  for (const mode of ["input-end", "output-close"] as const) {
+    const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
+    try {
+      const reference = snapshot()
+      const selected = settings(root, reference)
+      await mkdir(join(root, "socket"), { mode: 0o700 })
+      await mkdir(selected.auditDir, { mode: 0o700 })
+      await writeFile(selected.referencePath, JSON.stringify(reference))
+      const input = Object.assign(new PassThrough(), { isTTY: true })
+      const output = Object.assign(new PassThrough(), { isTTY: true })
+      const starting = startApprovalRuntime(selected, { input, output })
+      await once(output, "data")
+      if (mode === "input-end") input.end("start\n")
+      else { input.write("start\n"); output.destroy() }
+      let runtime: Awaited<typeof starting> | null = null
+      try {
+        runtime = await starting
+        assert.fail(`${mode} opened the approval socket after operator detachment`)
+      } catch (error) {
+        if (error instanceof assert.AssertionError) throw error
+        assert.match(String(error), /operator terminal detached|operator start/i)
+      } finally {
+        if (runtime !== null) await runtime.close("test cleanup")
+      }
+      await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+    } finally { await rm(root, { recursive: true, force: true }) }
+  }
+})
+
+test("EOF, interrupted start, and malformed or buffered commands leave no audit or socket", async () => {
+  for (const mode of ["eof", "abort", "extra", "wrong", "oversize", "output-close"] as const) {
+    const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
+    try {
+      const reference = snapshot()
+      const selected = settings(root, reference)
+      await mkdir(join(root, "socket"), { mode: 0o700 })
+      await mkdir(selected.auditDir, { mode: 0o700 })
+      await writeFile(selected.referencePath, JSON.stringify(reference))
+      const input = Object.assign(new PassThrough(), { isTTY: true })
+      const output = Object.assign(new PassThrough(), { isTTY: true })
+      const controller = new AbortController()
+      const starting = startApprovalRuntime(selected, { input, output, signal: controller.signal })
+      await once(output, "data")
+      if (mode === "eof") input.end()
+      else if (mode === "abort") controller.abort()
+      else if (mode === "extra") input.write("start\napprove old-challenge\n")
+      else if (mode === "wrong") input.write("START\n")
+      else if (mode === "oversize") input.write("x".repeat(33))
+      else output.destroy()
+      await assert.rejects(starting, /operator start|before start|extra command/i)
+      await assert.rejects(stat(join(selected.auditDir, "approval.jsonl")), { code: "ENOENT" })
+      await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
+    } finally { await rm(root, { recursive: true, force: true }) }
+  }
+})
+
 test("runtime serves bounded reads through the socket and stops incomplete ceremonies", async () => {
   const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))
   const backend = createHttpServer((request, response) => {
@@ -148,7 +269,10 @@ test("runtime serves bounded reads through the socket and stops incomplete cerem
     await writeFile(selected.referencePath, JSON.stringify(reference))
     const input = Object.assign(new PassThrough(), { isTTY: true })
     const output = Object.assign(new PassThrough(), { isTTY: true })
-    const runtime = await startApprovalRuntime(selected, { input, output })
+    const starting = startApprovalRuntime(selected, { input, output })
+    await once(output, "data")
+    input.write("start\n")
+    const runtime = await starting
     try {
       const socket = connect(selected.socketPath)
       const response = await new Promise<string>((resolve, reject) => {
@@ -179,7 +303,10 @@ test("a signed transaction with mismatched calldata closes the gate after its RP
     await writeFile(selected.referencePath, JSON.stringify(reference))
     const input = Object.assign(new PassThrough(), { isTTY: true })
     const output = Object.assign(new PassThrough(), { isTTY: true })
-    const runtime = await startApprovalRuntime(selected, { input, output })
+    const starting = startApprovalRuntime(selected, { input, output })
+    await once(output, "data")
+    input.write("start\n")
+    const runtime = await starting
     try {
       const raw = await account.signTransaction({ type: "eip1559", chainId: 8453, nonce: 0,
         gas: 200_000n, maxFeePerGas: 2n, maxPriorityFeePerGas: 1n, value: 0n, data: "0x60006001" })

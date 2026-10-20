@@ -27,7 +27,75 @@ export interface RuntimeSettings {
   backendUrl: string
 }
 
-type RuntimeIO = { input: OperatorInput; output: OperatorOutput }
+type RuntimeIO = { input: OperatorInput; output: OperatorOutput; signal?: AbortSignal }
+
+function waitForOperatorStart(reference: ReferenceSnapshot, io: RuntimeIO): Promise<void> {
+  if (io.signal?.aborted) return Promise.reject(new Error("Operator start was interrupted"))
+  if (io.input.destroyed || io.input.readableEnded || io.output.destroyed) {
+    return Promise.reject(new Error("Operator terminal detached before start"))
+  }
+  return new Promise<void>((resolve, reject) => {
+    let command = ""
+    let settled = false
+    let commandAccepted = false
+    let promptPending = true
+    function clean(): void {
+      io.input.off("data", onData)
+      io.input.off("end", onDetach)
+      io.input.off("close", onDetach)
+      io.input.off("error", onDetach)
+      io.output.off("close", onDetach)
+      io.output.off("error", onDetach)
+      io.output.off("drain", onDrain)
+      io.signal?.removeEventListener("abort", onAbort)
+    }
+    function fail(message: string): void {
+      if (settled) return
+      settled = true
+      clean()
+      reject(new Error(message))
+    }
+    const onDetach = () => fail("Operator terminal detached before start")
+    const onAbort = () => fail("Operator start was interrupted")
+    const maybeStart = () => {
+      if (!commandAccepted || promptPending || settled) return
+      settled = true
+      clean()
+      resolve()
+    }
+    const onDrain = () => { promptPending = false; maybeStart() }
+    const onData = (chunk: Buffer | string) => {
+      const bytes = typeof chunk === "string" ? Buffer.from(chunk, "utf8") : chunk
+      if (Buffer.byteLength(command) + bytes.byteLength > 32) { fail("Operator start command exceeds 32 bytes"); return }
+      command += bytes.toString("utf8")
+      if (!command.includes("\n")) return
+      if (command !== "start\n" && command !== "start\r\n") { fail("Operator start requires one exact start command without extra input"); return }
+      commandAccepted = true
+      maybeStart()
+    }
+    io.input.on("data", onData)
+    io.input.on("end", onDetach)
+    io.input.on("close", onDetach)
+    io.input.on("error", onDetach)
+    io.output.on("close", onDetach)
+    io.output.on("error", onDetach)
+    io.output.on("drain", onDrain)
+    io.signal?.addEventListener("abort", onAbort, { once: true })
+    const prompt = [
+      "Release approval",
+      `  App: ${reference.app}`,
+      `  Chain ID: ${reference.expectedChainId}`,
+      `  Deployer: ${reference.expectedDeployer}`,
+      `  Source commit: ${reference.sourceCommit}`,
+      `  Reference SHA-256: ${reference.snapshotSha256}`,
+      "Type start and press Enter to open the approval socket.",
+      "",
+    ].join("\n")
+    try { if (io.output.write(prompt)) { promptPending = false; maybeStart() } }
+    catch { fail("Operator terminal output failed before start") }
+    if (io.signal?.aborted) onAbort()
+  })
+}
 
 function envValue(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]
@@ -111,6 +179,31 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
   const reference = parseReferenceSnapshot(await readBoundedRegularFile(settings.referencePath, "release approval reference", 1024 * 1024))
   assertReferenceIdentity(reference, settings)
   if (io.input.isTTY !== true || io.output.isTTY !== true) throw new Error("Approval requires an attached operator TTY")
+  let detached = false
+  const markDetached = () => { detached = true }
+  const stopWatchingHandoff = () => {
+    io.input.off("end", markDetached)
+    io.input.off("close", markDetached)
+    io.input.off("error", markDetached)
+    io.output.off("close", markDetached)
+    io.output.off("error", markDetached)
+  }
+  io.input.on("end", markDetached)
+  io.input.on("close", markDetached)
+  io.input.on("error", markDetached)
+  io.output.on("close", markDetached)
+  io.output.on("error", markDetached)
+  try {
+    await waitForOperatorStart(reference, io)
+    if (io.signal?.aborted) throw new Error("Operator start was interrupted")
+    if (detached || io.input.destroyed || io.input.readableEnded || io.output.destroyed) {
+      throw new Error("Operator terminal detached before approval startup")
+    }
+  } catch (error) {
+    stopWatchingHandoff()
+    throw error
+  }
+  stopWatchingHandoff()
 
   const backend = createFixedBackend({ url: settings.backendUrl, timeoutMs: 30_000, maxResponseBytes: 1024 * 1024 })
   const durableAudit = openAudit(settings.auditDir)
@@ -156,7 +249,11 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
     now: () => Date.now(), pageCharacters: 2048,
   })
 
-  const onDetach = () => { void close("operator terminal detached") }
+  let startupComplete = false
+  const onDetach = () => {
+    detached = true
+    if (startupComplete) void close("operator terminal detached")
+  }
   function close(reason: string): Promise<void> {
     if (closing !== null) return closing
     closing = shutdown(reason)
@@ -196,6 +293,10 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
     io.output.on("error", onDetach)
     listener = await startRpcListener({ socketPath: settings.socketPath, backend, owner,
       maxMessageBytes: 262_144, maxConnections: 8, maxInFlight: 32 })
+    if (io.signal?.aborted) throw new Error("Approval startup was interrupted")
+    if (detached || io.input.destroyed || io.input.readableEnded || io.output.destroyed) {
+      throw new Error("Operator terminal detached during approval startup")
+    }
     timer = setInterval(() => {
       try {
         terminal.poll()
@@ -203,9 +304,8 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
         if (fatalReason !== null) void close(fatalReason)
       } catch { void close("operator terminal display failed") }
     }, 50)
-    if (!io.output.write(`Approval ready for ${reference.app}; chain ${reference.expectedChainId}; reference ${reference.snapshotSha256}\n`)) {
-      throw new Error("Operator terminal output blocked at startup")
-    }
+    io.output.write(`Approval ready for ${reference.app}; chain ${reference.expectedChainId}; reference ${reference.snapshotSha256}\n`)
+    startupComplete = true
   } catch (error) {
     try { await close("approval startup failed") } catch { /* startup error remains primary */ }
     throw error
@@ -215,16 +315,28 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
 
 async function main(): Promise<void> {
   const settings = settingsFromEnv(process.env)
-  const runtime = await startApprovalRuntime(settings, { input: process.stdin, output: process.stdout })
-  const onInterrupt = () => { void runtime.close("SIGINT").catch(() => { process.exitCode = 1 }) }
-  const onTerminate = () => { void runtime.close("SIGTERM").catch(() => { process.exitCode = 1 }) }
+  const abortStart = new AbortController()
+  let runtime: Awaited<ReturnType<typeof startApprovalRuntime>> | null = null
+  const onInterrupt = () => {
+    if (runtime === null) abortStart.abort()
+    else void runtime.close("SIGINT").catch(() => { process.exitCode = 1 })
+  }
+  const onTerminate = () => {
+    if (runtime === null) abortStart.abort()
+    else void runtime.close("SIGTERM").catch(() => { process.exitCode = 1 })
+  }
   process.once("SIGINT", onInterrupt)
   process.once("SIGTERM", onTerminate)
-  const reason = await runtime.finished
-  process.off("SIGINT", onInterrupt)
-  process.off("SIGTERM", onTerminate)
-  if (reason !== "approval complete") process.exitCode = 1
-  if (process.exitCode) process.stderr.write(`Approval stopped: ${reason}\n`)
+  try {
+    runtime = await startApprovalRuntime(settings, { input: process.stdin, output: process.stdout, signal: abortStart.signal })
+    if (abortStart.signal.aborted) await runtime.close("approval startup was interrupted")
+    const reason = await runtime.finished
+    if (reason !== "approval complete") process.exitCode = 1
+    if (process.exitCode) process.stderr.write(`Approval stopped: ${reason}\n`)
+  } finally {
+    process.off("SIGINT", onInterrupt)
+    process.off("SIGTERM", onTerminate)
+  }
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
