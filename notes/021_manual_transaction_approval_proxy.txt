@@ -217,6 +217,38 @@ before transmission begins, cancel the pending approval and close submissions.
 One waiter's disconnect cannot cancel a request still owned by another live
 waiter. The shared approval deadline does not restart when a duplicate arrives.
 
+Who waits, and what completes each wait
+--------------------------------------
+There are three waits with different owners and deadlines:
+
+1. Approval: Forge has sent eth_sendRawTransaction to the proxy and is awaiting
+   its HTTP/JSON-RPC response. The proxy retains the validated signed bytes and
+   awaits the operator. Nothing has been forwarded upstream. Approval permits
+   the next phase; rejection, expiry or cancellation ends this request without
+   submission. Read and health requests must remain responsive meanwhile.
+2. Upstream submission: after durable approval, the proxy sends the retained
+   bytes to its configured provider and awaits that request's response. A
+   matching returned hash establishes endpoint acceptance only. The hash was
+   already computable locally; knowing it does not prove submission. A timeout
+   after sending might have begun means the outcome is uncertain.
+3. Receipt: after the send result, Forge queries transaction status and waits
+   for a receipt. eth_getTransactionReceipt(hash) returns a receipt or null;
+   each read request completes independently rather than remaining open until
+   mining. Forge's --slow path waits for the pending receipt before its next
+   send [F1, F5, E3]. Receipt-wait expiry is not permission to submit again.
+
+A receipt includes execution status: inclusion can mean success or revert.
+It is not a promise of finality. The proxy must independently check matching
+successful creation receipts when a later approval depends on those creations;
+the signed request alone cannot establish that those creations succeeded.
+
+These waits must not share one ambiguous timeout. The approval and submission
+waits occur inside Forge's outstanding send RPC; their combined budget plus
+reply margin must fit its effective send timeout. Receipt waiting happens
+afterwards, under its own deadline. Its repeated reads are still subject to
+per-request transport limits. Exact polling and retry behavior belong to the
+pinned client and must be observed, not assumed from the word "await".
+
 Approval, broadcast and failure
 ------------------------------
 1. Receive and validate immutable signed bytes. Compute the hash locally.
@@ -312,28 +344,102 @@ Test effective network behavior, including host services, other containers,
 public IPv4/IPv6 and DNS. An internal Docker network alone is not proof of every
 claimed egress restriction [D1]. Retain the narrower one-path guarantee above.
 
-First implementation slice and acceptance tests
-----------------------------------------------
-Before designing a new API or full UI, use the pinned Foundry image and the
-actual --broadcast --slow release invocation against a disposable chain.
+First implementation slice: approval-wait qualification test
+-----------------------------------------------------------
+This is a test specification; neither its fixture nor the approval proxy is
+implemented. The acceptance requirement is that a 120-second simulated review
+can complete without a send retry or premature submission. Shorter cases help
+locate a client limitation. A failed client acceptance assertion is a
+compatibility failure, not a green characterization of current behavior.
+Infrastructure failures remain separately classified as inconclusive.
 
-Delay send responses by 10, 50 and 120 seconds, including delays exceeding the
-observed client timeout. Repeat with intended timeout configuration. Record
-request timing, retry count, signed-byte identity and whether the client stays
-usable. Probe rejection, dropped replies and competing reads. No real keys,
-funds or remote deployment are needed.
+Given:
+  Use the pinned Foundry image and the maintained deploy-release service's
+  actual --broadcast --slow command, with Escrow as the first representative
+  app. Use the existing disposable rehearsal infrastructure, a public fixture
+  key, fresh chain and release output per case. No real RPC, funds or keys.
+  Record the image digest, source commit, complete safe command/configuration
+  and independent approval, upstream, receipt and outer-run deadlines.
+
+When, separately for D = 10, 50 and 120 seconds:
+  Intercept only the first logical eth_sendRawTransaction and hold it BEFORE
+  any upstream send. Start a monotonic timer at its first admitted arrival;
+  duplicates share that original timer. At D, simulate operator approval and
+  forward the exact retained signed bytes. Later release transactions pass
+  normally so the experiment does not multiply the human delay per contract.
+  This is a fixture-only delay, not an implementation of operator approval.
+
+Then, for each case:
+  * Upstream submission count for the held transaction stays zero throughout
+    the delay. Its first actual send occurs no earlier than D after arrival.
+  * During the hold, independently initiated health and eth_blockNumber
+    requests complete within a declared local-fixture deadline (five seconds).
+    A single-threaded sleeping proxy cannot establish this property.
+  * Forge makes exactly one submission attempt for those signed bytes. The
+    proxy sends them upstream exactly once after release. Any retry fails
+    approval-wait qualification even if the release eventually completes. Any
+    additional eth_sendRawTransaction while the first response is held also
+    fails, including a replacement with changed signed bytes; it is never
+    passed through as an unrelated transaction.
+  * Forge receives the provider's actual matching hash, observes a successful
+    receipt and completes the release command. No fabricated early result,
+    extended deadline on retry or automatic resend may make the case pass.
+
+Preserve observations even when a case fails and run all three durations.
+Record every incoming request ID and monotonic arrival time, signed-byte
+fingerprint, first upstream-send time/count, response-write outcome, actual
+Ethereum transaction hash, receipt and Forge exit/result. A SHA-256 fingerprint
+can compare signed bytes without logging them, but is not the Ethereum hash.
+A successful socket write does not prove Forge received the response; the
+client's result and subsequent reads provide the relevant evidence.
+
+Bound each case independently, including live connections, retained duplicate
+requests and evidence size. For example, a 300-second limit from first send
+arrival bounds a hung measurement; compilation/setup have separate bounds.
+Label a harness timeout or resource cap as inconclusive infrastructure failure,
+not a measured Forge timeout. Do not infer its effective timeout from D alone.
+
+Receipt-wait control case:
+  In a fresh run, delay no submission. Disable Anvil automining using the
+  fixture controller's direct node connection, then forward the first signed
+  transaction and return its actual hash promptly. Observe a null receipt while
+  it remains unmined, and verify Forge issues no later send. Ten seconds after
+  the first observed null receipt, mine it and restore automining for the rest
+  of the release. Verify the matching successful receipt, subsequent release
+  progress and no second submission of those signed bytes. Keep mining
+  control out of the release-facing RPC allowlist. This isolates receipt
+  waiting from the approval and submission waits.
+
+Failure controls:
+  Return HTTP 200 with JSON-RPC 2.0 error code -32000, message "Fixture approval
+  denied", and the current request ID. Keep rejecting all sends for that case
+  without forwarding them. Measure Forge's retries and exit; a retry is never
+  a new approval. This fixed fixture response is not a proposed production API.
+
+  In a separate run, forward the first transaction, receive and record the
+  provider's matching accepted hash, then close Forge's connection without an
+  HTTP response. Retain the known hash and observe its chain outcome; never
+  call it "not sent". Capture all later send attempts but prevent another
+  upstream send in this control. These experiments establish client behavior;
+  only the later approval-gate implementation can prove its own denial and
+  deduplication policy.
 
 Source inspection shows that --slow serializes sends but does not eliminate
 retry. --timeout configures receipt waiting; the broadcaster constructs its
 provider separately from the configuration-aware constructor [F1-F3].
 The actual pinned binary's effective send timeout remains untested.
 
+Run the matrix first unchanged. Repeat only with a concrete candidate setting
+that is demonstrated to affect the send provider; --timeout alone is not such
+evidence. If no tested delay exceeds the observed client timeout, report that
+coverage gap rather than claiming the 120-second case necessarily crossed it.
+
 Proceed only if a useful human review interval works without fabricated
 success or depending on retry to prolong the approval. Otherwise resolve the
 client integration first, with a separately reviewed change. Do not silently
 add a durable job queue, custom polling protocol or fork of Foundry.
 
-Then add tests before production changes:
+Later approval-gate acceptance tests, before production changes:
 
 * No upstream send before approval, or after denial, deadline, EOF, unsupported
   input, failed evidence persistence or stale challenge.
@@ -419,6 +525,20 @@ of the proposal. No approval-proxy runtime experiment has been performed.
   Supports: persist the known signed hash before sending; transport errors do
   not prove rejection. The proposed gate does not reuse the refund workflow.
 
+[R6] Existing disposable rehearsal infrastructure, inspected for test placement:
+  tools/release_rehearsal.sh, snapshot, fixture preparation and release calls;
+  compose/release/rehearsal.yml, isolated Anvil/CAM services;
+  compose/release/rehearsal-deploy.yml, fixture transport overlay;
+  tests/fixtures/release-rehearsal/rpc_proxy.py, RehearsalHandler and server;
+  tests/checks/test_release_rehearsal.py, command/method/network posture checks.
+  https://github.com/numpde/dapp32/blob/9569c11ce3854f616b470f4d472cd3be2e383210/tools/release_rehearsal.sh
+  https://github.com/numpde/dapp32/blob/9569c11ce3854f616b470f4d472cd3be2e383210/compose/release/rehearsal.yml
+  https://github.com/numpde/dapp32/blob/9569c11ce3854f616b470f4d472cd3be2e383210/compose/release/rehearsal-deploy.yml
+  https://github.com/numpde/dapp32/blob/9569c11ce3854f616b470f4d472cd3be2e383210/tests/fixtures/release-rehearsal/rpc_proxy.py
+  https://github.com/numpde/dapp32/blob/9569c11ce3854f616b470f4d472cd3be2e383210/tests/checks/test_release_rehearsal.py
+  Supports: reusable disposable test boundary, actual command preservation and
+  current single-threaded fixture limitation. No approval-wait mode exists yet.
+
 [F0] Actual Foundry image selection:
   containers/foundry/Dockerfile, FROM at line 18.
   https://github.com/numpde/dapp32/blob/9569c11ce3854f616b470f4d472cd3be2e383210/containers/foundry/Dockerfile#L16-L18
@@ -448,6 +568,16 @@ of the proposal. No approval-proxy runtime experiment has been performed.
   Title: "feat(config): configure RPC timeout for forge script".
   Description / Additional context: RPC timeout configuration. Useful as a warning to
   inspect implementation; not authority for current pinned binary behavior.
+
+[F5] Foundry v1.7.1 receipt progress handling, newly consulted for the waits:
+  https://raw.githubusercontent.com/foundry-rs/foundry/v1.7.1/crates/script/src/progress.rs
+  ScriptProgress::wait_for_pending, lines 168-278.
+  Supports: pending-hash checks, receipt success/revert handling and separate
+  transaction_timeout. Its dropped-transaction/resume suggestions are client
+  behavior, not permission for this proposed gate to resend automatically.
+  The related receipts.rs URL was attempted but unavailable to the browser
+  tool, so it does not establish an exact polling interval:
+  https://raw.githubusercontent.com/foundry-rs/foundry/v1.7.1/crates/script/src/receipts.rs
 
 [V1] Viem 2.50.4, installed upstream package source inspected locally:
   js/node_modules/viem/utils/transaction/parseTransaction.ts, parseTransaction;
@@ -487,6 +617,14 @@ of the proposal. No approval-proxy runtime experiment has been performed.
   https://eips.ethereum.org/EIPS/eip-7702#specification
   Supports: authorization-list semantics are additional effects requiring
   separate review; they must not be silently treated as ordinary type-2 calls.
+
+[E3] Ethereum JSON-RPC documentation, eth_sendRawTransaction and
+  eth_getTransactionReceipt; newly consulted for the waits:
+  https://ethereum.org/developers/docs/apis/json-rpc/#eth_sendrawtransaction
+  https://ethereum.org/developers/docs/apis/json-rpc/#eth_gettransactionreceipt
+  Supports: submission returns a hash; receipt lookup returns an object or
+  null, and pending transactions have no available receipt. A null result
+  does not independently distinguish unsubmitted, pending or unknown hashes.
 
 [D1] Docker Engine networking documentation, "User-defined networks",
   "Connecting to multiple networks" and "DNS services" sections;
@@ -531,3 +669,9 @@ The fresh reader repeated the teach-back after these revisions and found the
 rules coherent. A separate fresh source-aware auditor found no further
 material design issue after those corrections. These reviews establish clarity
 and source consistency; they do not replace the required Foundry runtime probe.
+
+The subsequent wait/test formulation received two independent peer reviews.
+It now holds before submission, fails compatibility on extra sends, defines
+the rejection/lost-response controls, and restores automining after the
+receipt-delay control. The three waits and their owners are explicit. This
+follow-up changes the specification only; no fixture was implemented or run.
