@@ -4,69 +4,451 @@
     "services": {
       "public": "https://ethereum-rpc.publicnode.com",
       "alchemy": "https://eth-mainnet.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "Ethereum",
+    "symbol": "ETH",
+    "explorer": "https://etherscan.io",
+    "index": 1,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://ethereum.org/en/developers/docs/networks/",
+      "https://ethereum.publicnode.com/",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ]
   },
   "ethereum-sepolia": {
     "chainId": 11155111,
     "services": {
       "public": "https://ethereum-sepolia-rpc.publicnode.com",
       "alchemy": "https://eth-sepolia.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "Sepolia",
+    "symbol": "ETH",
+    "explorer": "https://sepolia.etherscan.io",
+    "mainnet": "ethereum-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://ethereum.org/en/developers/docs/networks/",
+      "https://ethereum.publicnode.com/",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ],
+    "note": "Application testnet. Hoodi is maintained separately for validator, staking, and protocol testing."
   },
   "base-mainnet": {
     "chainId": 8453,
     "services": {
       "public": "https://base-rpc.publicnode.com",
       "alchemy": "https://base-mainnet.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "Base",
+    "symbol": "ETH",
+    "explorer": "https://basescan.org",
+    "index": 2,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.base.org/get-started/connect-to-base",
+      "https://base.publicnode.com/",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ]
   },
   "base-sepolia": {
     "chainId": 84532,
     "services": {
       "public": "https://base-sepolia-rpc.publicnode.com",
       "alchemy": "https://base-sepolia.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "Base Sepolia",
+    "symbol": "ETH",
+    "explorer": "https://sepolia.basescan.org",
+    "mainnet": "base-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.base.org/get-started/connect-to-base",
+      "https://base.publicnode.com/",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ]
   },
   "arbitrum-one": {
     "chainId": 42161,
     "services": {
       "public": "https://arb1.arbitrum.io/rpc",
       "alchemy": "https://arb-mainnet.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "Arbitrum One",
+    "symbol": "ETH",
+    "explorer": "https://arbiscan.io",
+    "index": 3,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.arbitrum.io/chain-info",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ]
   },
   "arbitrum-sepolia": {
     "chainId": 421614,
     "services": {
       "public": "https://sepolia-rollup.arbitrum.io/rpc",
       "alchemy": "https://arb-sepolia.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "Arbitrum Sepolia",
+    "symbol": "ETH",
+    "explorer": "https://sepolia.arbiscan.io",
+    "mainnet": "arbitrum-one",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.arbitrum.io/chain-info",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ]
   },
   "op-mainnet": {
     "chainId": 10,
     "services": {
       "public": "https://mainnet.optimism.io",
       "alchemy": "https://opt-mainnet.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "OP Mainnet",
+    "symbol": "ETH",
+    "explorer": "https://explorer.optimism.io",
+    "index": 4,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.optimism.io/op-mainnet/network-information/connecting-to-op",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ]
   },
   "op-sepolia": {
     "chainId": 11155420,
     "services": {
       "public": "https://sepolia.optimism.io",
       "alchemy": "https://opt-sepolia.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "OP Sepolia",
+    "symbol": "ETH",
+    "explorer": "https://testnet-explorer.optimism.io",
+    "mainnet": "op-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.optimism.io/op-mainnet/network-information/connecting-to-op",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ]
   },
   "polygon-mainnet": {
     "chainId": 137,
     "services": {
       "public": "https://polygon.drpc.org",
       "alchemy": "https://polygon-mainnet.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "Polygon PoS",
+    "symbol": "POL",
+    "explorer": "https://polygonscan.com",
+    "index": 5,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.polygon.technology/pos/reference/rpc-endpoints",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ]
   },
   "polygon-amoy": {
     "chainId": 80002,
     "services": {
       "public": "https://polygon-amoy.drpc.org",
       "alchemy": "https://polygon-amoy.g.alchemy.com/v2/{API_KEY}"
-    }
+    },
+    "name": "Amoy",
+    "symbol": "POL",
+    "explorer": "https://amoy.polygonscan.com",
+    "mainnet": "polygon-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.polygon.technology/pos/reference/rpc-endpoints",
+      "https://www.alchemy.com/docs/reference/node-supported-chains"
+    ]
+  },
+  "bsc-mainnet": {
+    "chainId": 56,
+    "services": {
+      "public": "https://bsc-dataseed.bnbchain.org"
+    },
+    "name": "BNB Smart Chain",
+    "symbol": "BNB",
+    "explorer": "https://bscscan.com",
+    "index": 6,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.bnbchain.org/bnb-opbnb/get-started/wallet-configuration/"
+    ]
+  },
+  "bsc-testnet": {
+    "chainId": 97,
+    "services": {
+      "public": "https://data-seed-prebsc-1-s1.bnbchain.org:8545"
+    },
+    "name": "BSC Testnet",
+    "symbol": "tBNB",
+    "explorer": "https://testnet.bscscan.com",
+    "mainnet": "bsc-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.bnbchain.org/bnb-opbnb/get-started/wallet-configuration/"
+    ],
+    "note": "This documented RPC uses port 8545; the repository release proxy accepts HTTPS on port 443 only. Use a compatible provider for release commands."
+  },
+  "avalanche-mainnet": {
+    "chainId": 43114,
+    "services": {
+      "public": "https://api.avax.network/ext/bc/C/rpc"
+    },
+    "name": "Avalanche C-Chain",
+    "symbol": "AVAX",
+    "explorer": "https://explorer.avax.network/c-chain",
+    "index": 7,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://build.avax.network/docs/primary-network"
+    ]
+  },
+  "avalanche-fuji": {
+    "chainId": 43113,
+    "services": {
+      "public": "https://api.avax-test.network/ext/bc/C/rpc"
+    },
+    "name": "Fuji",
+    "symbol": "AVAX",
+    "explorer": "https://explorer-test.avax.network/c-chain",
+    "mainnet": "avalanche-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://build.avax.network/docs/primary-network"
+    ]
+  },
+  "opbnb-mainnet": {
+    "chainId": 204,
+    "services": {
+      "public": "https://opbnb-mainnet-rpc.bnbchain.org"
+    },
+    "name": "opBNB",
+    "symbol": "BNB",
+    "explorer": "https://opbnbscan.com",
+    "index": 8,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.bnbchain.org/bnb-opbnb/get-started/network-info/"
+    ]
+  },
+  "opbnb-testnet": {
+    "chainId": 5611,
+    "services": {
+      "public": "https://opbnb-testnet-rpc.bnbchain.org"
+    },
+    "name": "opBNB Testnet",
+    "symbol": "tBNB",
+    "explorer": "https://testnet.opbnbscan.com",
+    "mainnet": "opbnb-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.bnbchain.org/bnb-opbnb/get-started/network-info/"
+    ]
+  },
+  "linea-mainnet": {
+    "chainId": 59144,
+    "services": {
+      "public": "https://rpc.linea.build"
+    },
+    "name": "Linea",
+    "symbol": "ETH",
+    "explorer": "https://lineascan.build",
+    "index": 9,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.linea.build/get-started/build/network-info/"
+    ]
+  },
+  "linea-sepolia": {
+    "chainId": 59141,
+    "services": {
+      "public": "https://rpc.sepolia.linea.build"
+    },
+    "name": "Linea Sepolia",
+    "symbol": "ETH",
+    "explorer": "https://sepolia.lineascan.build",
+    "mainnet": "linea-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.linea.build/get-started/build/network-info/"
+    ]
+  },
+  "megaeth-mainnet": {
+    "chainId": 4326,
+    "services": {
+      "public": "https://mainnet.megaeth.com/rpc"
+    },
+    "name": "MegaETH",
+    "symbol": "ETH",
+    "explorer": "https://mega.etherscan.io",
+    "index": 10,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.megaeth.com/user-guide/connect"
+    ]
+  },
+  "megaeth-testnet": {
+    "chainId": 6343,
+    "services": {
+      "public": "https://carrot.megaeth.com/rpc"
+    },
+    "name": "MegaETH Testnet",
+    "symbol": "ETH",
+    "explorer": "https://testnet-mega.etherscan.io",
+    "mainnet": "megaeth-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.megaeth.com/user-guide/connect"
+    ]
+  },
+  "monad-mainnet": {
+    "chainId": 143,
+    "services": {
+      "public": "https://rpc.monad.xyz"
+    },
+    "name": "Monad",
+    "symbol": "MON",
+    "explorer": "https://monadscan.com",
+    "index": 11,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.monad.xyz/developer-essentials/network-information",
+      "https://docs.monad.xyz/developer-essentials/testnet"
+    ]
+  },
+  "monad-testnet": {
+    "chainId": 10143,
+    "services": {
+      "public": "https://testnet-rpc.monad.xyz"
+    },
+    "name": "Monad Testnet",
+    "symbol": "MON",
+    "explorer": "https://testnet.monadscan.com",
+    "mainnet": "monad-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.monad.xyz/developer-essentials/network-information",
+      "https://docs.monad.xyz/developer-essentials/testnet"
+    ]
+  },
+  "zksync-mainnet": {
+    "chainId": 324,
+    "services": {
+      "public": "https://mainnet.era.zksync.io"
+    },
+    "name": "ZKsync Era",
+    "symbol": "ETH",
+    "explorer": "https://explorer.zksync.io",
+    "index": 12,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.zksync.io/zksync-network/zksync-era/network-details"
+    ],
+    "note": "EraVM has chain-specific execution and tooling differences; check ZKsync's compatibility documentation before deploying."
+  },
+  "zksync-sepolia": {
+    "chainId": 300,
+    "services": {
+      "public": "https://sepolia.era.zksync.dev"
+    },
+    "name": "ZKsync Era Sepolia",
+    "symbol": "ETH",
+    "explorer": "https://sepolia.explorer.zksync.io",
+    "mainnet": "zksync-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.zksync.io/zksync-network/zksync-era/network-details"
+    ],
+    "note": "EraVM has chain-specific execution and tooling differences; check ZKsync's compatibility documentation before deploying."
+  },
+  "gnosis-mainnet": {
+    "chainId": 100,
+    "services": {
+      "public": "https://rpc.gnosischain.com"
+    },
+    "name": "Gnosis",
+    "symbol": "xDAI",
+    "explorer": "https://gnosisscan.io",
+    "index": 13,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.gnosischain.com/about/networks/mainnet",
+      "https://docs.gnosischain.com/about/networks/chiado"
+    ]
+  },
+  "gnosis-chiado": {
+    "chainId": 10200,
+    "services": {
+      "public": "https://rpc.chiadochain.net"
+    },
+    "name": "Chiado",
+    "symbol": "xDAI",
+    "explorer": "https://gnosis-chiado.blockscout.com",
+    "mainnet": "gnosis-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.gnosischain.com/about/networks/mainnet",
+      "https://docs.gnosischain.com/about/networks/chiado"
+    ]
+  },
+  "celo-mainnet": {
+    "chainId": 42220,
+    "services": {
+      "public": "https://forno.celo.org"
+    },
+    "name": "Celo",
+    "symbol": "CELO",
+    "explorer": "https://celoscan.io",
+    "index": 14,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.celo.org/learn/network/overview"
+    ]
+  },
+  "celo-sepolia": {
+    "chainId": 11142220,
+    "services": {
+      "public": "https://forno.celo-sepolia.celo-testnet.org"
+    },
+    "name": "Celo Sepolia",
+    "symbol": "CELO",
+    "explorer": "https://celo-sepolia.blockscout.com",
+    "mainnet": "celo-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.celo.org/learn/network/overview"
+    ]
+  },
+  "scroll-mainnet": {
+    "chainId": 534352,
+    "services": {
+      "public": "https://rpc.scroll.io"
+    },
+    "name": "Scroll",
+    "symbol": "ETH",
+    "explorer": "https://scrollscan.com",
+    "index": 15,
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.scroll.io/en/developers/scroll-contracts/"
+    ]
+  },
+  "scroll-sepolia": {
+    "chainId": 534351,
+    "services": {},
+    "name": "Scroll Sepolia",
+    "symbol": "ETH",
+    "explorer": "https://sepolia.scrollscan.com",
+    "mainnet": "scroll-mainnet",
+    "checkedOn": "2026-10-20",
+    "references": [
+      "https://docs.scroll.io/en/developers/scroll-contracts/"
+    ],
+    "retired": true,
+    "note": "Shut down after 2026-07-30; RPC and bridge endpoints were removed. No replacement public testnet is listed on the cited network page."
   }
 }

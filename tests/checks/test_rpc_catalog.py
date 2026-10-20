@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 import shutil
 import stat
@@ -8,11 +9,53 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from urllib.parse import urlsplit
 
 from .common import repo_path, rendered_compose_config
 
 
 class RpcCatalogTest(unittest.TestCase):
+    def test_reference_metadata_pairs_each_mainnet_with_one_testnet(self) -> None:
+        catalog = json.loads(repo_path("tools/rpc-catalog.json").read_text())
+        mainnets = {key: chain for key, chain in catalog.items() if "mainnet" not in chain}
+        indexes = [chain["index"] for chain in mainnets.values()]
+        self.assertEqual(len(indexes), len(set(indexes)))
+        self.assertTrue(all(type(index) is int and index > 0 for index in indexes))
+        self.assertEqual(len(catalog), len({chain["chainId"] for chain in catalog.values()}))
+        for key, chain in catalog.items():
+            with self.subTest(network=key):
+                for field in ("name", "symbol"):
+                    self.assertIsInstance(chain[field], str)
+                    self.assertTrue(chain[field].strip())
+                self.assertEqual(chain["checkedOn"], date.fromisoformat(chain["checkedOn"]).isoformat())
+                self.assertTrue(chain["references"])
+                for url in [chain["explorer"], *chain["references"], *chain["services"].values()]:
+                    parsed = urlsplit(url)
+                    self.assertEqual("https", parsed.scheme)
+                    self.assertTrue(parsed.hostname)
+                    self.assertIsNone(parsed.username)
+                    self.assertIsNone(parsed.password)
+                if "mainnet" in chain:
+                    self.assertIn(chain["mainnet"], mainnets)
+                    self.assertNotIn("index", chain)
+                else:
+                    self.assertEqual(1, sum(testnet.get("mainnet") == key for testnet in catalog.values()))
+                if chain.get("retired"):
+                    self.assertEqual({}, chain["services"])
+                    self.assertTrue(chain["note"].strip())
+                else:
+                    self.assertIn("public", chain["services"])
+
+    def test_retired_networks_cannot_supply_a_release_endpoint(self) -> None:
+        catalog = json.loads(repo_path("tools/rpc-catalog.json").read_text())
+        for network, chain in catalog.items():
+            if chain.get("retired"):
+                with self.subTest(network=network), tempfile.TemporaryDirectory() as temporary:
+                    directory = Path(temporary)
+                    result = self.resolve(directory, network, "public")
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertFalse((directory / "rpc-url").exists())
+
     def test_resolver_container_has_only_its_catalog_source_and_output(self) -> None:
         service = rendered_compose_config("compose/release/rpc.yml")["services"]["rpc-resolve"]
         self.assertEqual("none", service["network_mode"])

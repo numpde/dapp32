@@ -8,9 +8,15 @@ List the exact network names, chain IDs and service URL templates with:
 make release/rpc/list
 ```
 
-The catalog currently covers Ethereum, Base, Arbitrum, Optimism and Polygon,
-with mainnet and application-testnet entries. It is the executable source of
-endpoint mappings; this guide does not maintain another endpoint table.
+The [network reference table](evm-networks.html) shows mainnets and their
+application testnets with fixed indexes, chain IDs, gas tokens, explorers,
+RPC services, and authoritative references. Switch between mainnets and
+testnets without changing row indexes or links. It reads the same catalog as
+the release commands; it does not maintain another network list.
+
+Open the HTML through an HTTP server rooted at this repository, or open it
+directly from disk and choose `tools/rpc-catalog.json` when prompted. No file
+is uploaded and the page does not contact any RPC service.
 
 ## Use a catalog endpoint
 
@@ -95,6 +101,20 @@ Anvil endpoint and ignores external catalog settings.
 Endpoint documentation was checked on **2026-10-20**, not live-tested against
 these services. Update the catalog row when a published endpoint changes; a new
 network using the existing services needs no resolver code change.
+
+Keep existing catalog keys and mainnet `index` values stable. Mainnet rows own
+their index; each testnet's `mainnet` field names its mainnet's catalog key.
+The table currently expects one application testnet per mainnet. Add or change
+network names, gas symbols, explorers, source URLs and source-check dates in
+the catalog. `references` cite network owners and endpoint providers;
+`checkedOn` records the documentation check date. A `retired` entry keeps its
+identity and an explanatory `note`, with an empty `services` object so release
+commands cannot resolve an endpoint for it.
+
+The BSC testnet public endpoint uses HTTPS port 8545. It can be used by wallets,
+but does not meet the release proxy's port-443 restriction described above.
+Scroll Sepolia is retained as retired, following Scroll's shutdown notice;
+its former RPC is deliberately absent.
 
 - [PublicNode Ethereum](https://ethereum.publicnode.com/) and
   [Base](https://base.publicnode.com/) supply the catalog's public Ethereum/Base endpoints.

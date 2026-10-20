@@ -25,7 +25,7 @@ def select_endpoint(network: str, service: str, expected_chain: str) -> tuple[in
     if network not in catalog:
         raise ValueError("Unknown RPC_CHAIN; run make release/rpc/list.")
     entry = catalog[network]
-    if not isinstance(entry, dict) or set(entry) != {"chainId", "services"}:
+    if not isinstance(entry, dict) or not {"chainId", "services"} <= entry.keys():
         raise ValueError("RPC catalog network must declare chainId and services.")
     chain_id = entry["chainId"]
     if type(chain_id) is not int or chain_id <= 0:

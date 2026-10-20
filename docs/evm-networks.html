@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EVM networks and testnets</title>
+  <style>
+    :root { color-scheme: light; --ink: #17212f; --muted: #526277; --line: #d8e0ea; --paper: #fff; --wash: #f5f7fa; --accent: #176b5f; }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--wash); font: 1rem/1.55 system-ui, sans-serif; }
+    main { max-width: 1560px; margin: auto; padding: 36px 24px 60px; }
+    h1 { font-size: clamp(1.9rem, 4vw, 2.8rem); line-height: 1.15; margin: 0 0 16px; }
+    p { max-width: 86ch; }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { text-decoration-thickness: 2px; }
+    :focus-visible { outline: 3px solid #ad510b; outline-offset: 3px; }
+    .intro, .hint, small { color: var(--muted); }
+    .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 20px 32px; margin: 28px 0 14px; }
+    fieldset { display: flex; gap: 6px; border: 1px solid var(--line); border-radius: 8px; margin: 0; padding: 6px 10px 10px; }
+    legend, .jump label { font-weight: 650; }
+    fieldset label { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px; border-radius: 4px; cursor: pointer; }
+    fieldset label:has(:checked) { background: #deeee8; color: #0c5147; }
+    input[type=radio] { accent-color: var(--accent); width: 18px; height: 18px; margin: 0; }
+    select { display: block; min-height: 44px; max-width: 100%; font: inherit; color: inherit; background: var(--paper); border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1090px; table-layout: fixed; }
+    caption { text-align: left; padding: 16px; font-weight: 650; background: #eaf2ef; }
+    th, td { vertical-align: top; text-align: left; padding: 16px 12px; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+    thead th { background: #f0f3f6; font-size: .85rem; }
+    th:first-child, td:first-child { width: 4rem; position: sticky; left: 0; background: var(--paper); }
+    thead th:first-child { background: #f0f3f6; }
+    th:nth-child(2) { width: 17%; }
+    th:nth-child(3) { width: 9%; }
+    td:nth-child(3) { white-space: nowrap; font: .85rem/1.6 ui-monospace, monospace; }
+    th:nth-child(4) { width: 6%; }
+    th:nth-child(5) { width: 30%; }
+    th:nth-child(6) { width: 13%; }
+    tbody th { font-weight: 600; }
+    tbody tr:target > * { background: #fff2ce; }
+    small { display: block; font-weight: 400; margin-top: 6px; font-size: .8rem; }
+    code { font: .83rem/1.6 ui-monospace, monospace; }
+    .service + .service { margin-top: 12px; }
+    .service strong { display: block; font-size: .8rem; }
+    .service code { display: block; user-select: all; }
+    .reference { display: block; margin-bottom: 7px; font-size: .85rem; }
+    .retired { display: inline-block; color: #812e18; background: #fce7df; border-radius: 3px; padding: 1px 6px; margin-bottom: 6px; }
+    #load-status { min-height: 1.6em; }
+    #open-catalog { border: 1px solid var(--line); padding: 16px; background: var(--paper); border-radius: 8px; margin: 18px 0; }
+    input[type=file] { max-width: 100%; font: inherit; }
+    footer { margin-top: 24px; font-size: .9rem; }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) { main { padding: 24px 12px 40px; } .toolbar { gap: 16px; } }
+    @media print { .toolbar, #open-catalog, .hint { display: none !important; } main { max-width: none; padding: 0; } .table-wrap { overflow: visible; border: 0; } table { min-width: 0; font-size: 8pt; } th, td { padding: 7px 4px; } code { font-size: 7pt; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>EVM networks and their testnets</h1>
+  <p class="intro">Switch between mainnets and application testnets. Network indexes and row links stay fixed; testnet names show their mainnet in brackets.</p>
+  <noscript><p>Enable JavaScript to load the network table from <a href="../tools/rpc-catalog.json">the RPC catalog</a>.</p></noscript>
+  <div id="open-catalog" hidden>
+    <p id="file-help">When opening this HTML directly from disk, choose this repository’s <code>tools/rpc-catalog.json</code> to display the table. The file stays in your browser.</p>
+    <label for="catalog-file">Open RPC catalog</label>
+    <input id="catalog-file" type="file" accept=".json,application/json" aria-describedby="file-help">
+  </div>
+  <p id="load-status" role="status">Loading the RPC catalog…</p>
+  <div id="reference" hidden>
+    <div class="toolbar">
+      <fieldset>
+        <legend>Show</legend>
+        <label><input type="radio" name="view" value="mainnet">Mainnets</label>
+        <label><input type="radio" name="view" value="testnet" checked>Testnets</label>
+      </fieldset>
+      <div class="jump">
+        <label for="network-jump">Jump to network</label>
+        <select id="network-jump"><option value="">Choose a network</option></select>
+      </div>
+    </div>
+    <p class="hint" id="table-help">Scroll sideways for more columns. RPC URLs are selectable; <code>{API_KEY}</code> requires your own provider key.</p>
+    <div class="table-wrap" role="region" aria-label="Network reference table" aria-describedby="table-help" tabindex="0">
+      <table>
+        <caption id="table-caption">Application testnets</caption>
+        <thead><tr><th scope="col">Index</th><th scope="col">Network</th><th scope="col">Chain ID</th><th scope="col">Gas token</th><th scope="col">RPC services</th><th scope="col">Explorer</th><th scope="col">Authoritative references</th></tr></thead>
+        <tbody id="networks"></tbody>
+      </table>
+    </div>
+  </div>
+  <footer>
+    <p>A curated reference for widely used EVM ecosystems, including the networks discussed in this repository. Chain-specific execution, fees, and tooling can differ. Source-check dates describe documentation checks, not live RPC tests.</p>
+    <p>Source: <a href="../tools/rpc-catalog.json">tools/rpc-catalog.json</a>. This page reads the catalog directly and keeps no separate network list. Endpoint selection for deployments is described in <a href="rpc-services.md">the RPC services guide</a>.</p>
+    <p>Public RPC services can impose rate and method limits. Mainnet and testnet balances and deployments are separate. A retired testnet is retained for identification and has no selectable RPC service.</p>
+  </footer>
+</main>
+<script type="module">
+  const status = document.querySelector('#load-status');
+  const filePanel = document.querySelector('#open-catalog');
+  const tbody = document.querySelector('#networks');
+  const jump = document.querySelector('#network-jump');
+  const radios = [...document.querySelectorAll('input[name=view]')];
+  const requestedView = new URL(location.href).searchParams.get('view');
+  if (requestedView === 'mainnet') radios[0].checked = true;
+  let catalog;
+  let mainnets;
+
+  function element(tag, text) {
+    const node = document.createElement(tag);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function link(url, text) {
+    if (!url.startsWith('#') && new URL(url).protocol !== 'https:') {
+      throw new Error('Reference and explorer links must use HTTPS.');
+    }
+    const node = element('a', text);
+    node.href = url;
+    return node;
+  }
+
+  function render() {
+    const view = radios.find(radio => radio.checked).value;
+    document.querySelector('#table-caption').textContent = view === 'mainnet' ? 'Mainnets' : 'Application testnets';
+    for (const [mainnetKey, mainnet] of mainnets) {
+      const row = document.getElementById(mainnetKey);
+      while (row.children.length > 1) row.lastElementChild.remove();
+      const chains = view === 'mainnet' ? [[mainnetKey, mainnet]] : Object.entries(catalog).filter(([, chain]) => chain.mainnet === mainnetKey);
+      const [chainKey, chain] = chains[0];
+      const name = element('th', view === 'mainnet' ? chain.name : `${chain.name} [${mainnet.name}]`);
+      name.scope = 'row';
+      name.append(element('small', chainKey));
+      if (chain.retired) name.prepend(element('span', 'Retired'), element('br'));
+      name.querySelector('span')?.classList.add('retired');
+      if (chain.note) name.append(element('small', chain.note));
+      const services = element('td');
+      for (const [provider, endpoint] of Object.entries(chain.services)) {
+        const service = element('div');
+        service.className = 'service';
+        service.append(element('strong', provider === 'public' ? 'Public · no API key' : provider), element('code', endpoint));
+        services.append(service);
+      }
+      if (chain.retired) services.textContent = 'Retired — no RPC endpoint';
+      const sources = element('td');
+      for (const url of chain.references) {
+        const source = link(url, new URL(url).hostname);
+        source.className = 'reference';
+        source.title = url;
+        sources.append(source);
+      }
+      sources.append(element('small', `Sources checked ${chain.checkedOn}`));
+      const explorer = element('td');
+      if (chain.retired) explorer.textContent = 'Historical network';
+      else explorer.append(link(chain.explorer, new URL(chain.explorer).hostname));
+      row.append(name, element('td', String(chain.chainId)), element('td', chain.symbol), services, explorer, sources);
+    }
+    const url = new URL(location.href);
+    url.searchParams.set('view', view);
+    history.replaceState(null, '', url);
+    status.textContent = `${mainnets.length} networks · ${view === 'mainnet' ? 'Mainnets' : 'Testnets'} shown`;
+  }
+
+  function showCatalog(selectedCatalog) {
+    if (!selectedCatalog || Array.isArray(selectedCatalog) || typeof selectedCatalog !== 'object' || !Object.keys(selectedCatalog).length) {
+      throw new Error('The catalog must contain network entries.');
+    }
+    catalog = selectedCatalog;
+    mainnets = Object.entries(catalog).filter(([, chain]) => !chain.mainnet).sort((a, b) => a[1].index - b[1].index);
+    if (!mainnets.length || mainnets.some(([key]) => Object.values(catalog).filter(chain => chain.mainnet === key).length !== 1)) {
+      throw new Error('Each mainnet must have one application-testnet entry.');
+    }
+    tbody.replaceChildren();
+    jump.replaceChildren(element('option', 'Choose a network'));
+    jump.firstElementChild.value = '';
+    for (const [key, mainnet] of mainnets) {
+      const row = element('tr');
+      row.id = key;
+      const index = element('td');
+      index.append(link(`#${key}`, String(mainnet.index).padStart(2, '0')));
+      row.append(index);
+      tbody.append(row);
+      const option = element('option', `${String(mainnet.index).padStart(2, '0')} · ${mainnet.name}`);
+      option.value = key;
+      jump.append(option);
+    }
+    render();
+    document.querySelector('#reference').hidden = false;
+    filePanel.hidden = true;
+    if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
+  }
+
+  radios.forEach(radio => radio.addEventListener('change', render));
+  jump.addEventListener('change', () => {
+    if (jump.value) location.hash = jump.value;
+  });
+  document.querySelector('#catalog-file').addEventListener('change', async event => {
+    const file = event.target.files[0];
+    if (!file) return;
+    try {
+      showCatalog(JSON.parse(await file.text()));
+    } catch (error) {
+      document.querySelector('#reference').hidden = true;
+      filePanel.hidden = false;
+      status.textContent = `Cannot display this file as the RPC catalog: ${error.message} Choose tools/rpc-catalog.json from this checkout.`;
+    }
+  });
+  if (location.protocol === 'file:') {
+    filePanel.hidden = false;
+    status.textContent = 'Choose the RPC catalog above to display the table.';
+  } else {
+    try {
+      const response = await fetch('../tools/rpc-catalog.json', {cache: 'no-store'});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      showCatalog(await response.json());
+    } catch (error) {
+      document.querySelector('#reference').hidden = true;
+      filePanel.hidden = false;
+      status.textContent = `Cannot load ../tools/rpc-catalog.json: ${error.message} Serve this page from the repository root, or choose the catalog file above.`;
+    }
+  }
+</script>
+</body>
+</html>
