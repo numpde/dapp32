@@ -23,7 +23,8 @@ const readMethods = new Set([
 ])
 
 function traceMethod(method: string): string {
-  return readMethods.has(method) || method === "eth_sendRawTransaction" ? method : "unlisted"
+  if (readMethods.has(method) || method === "eth_sendRawTransaction") return method
+  return /^[A-Za-z][A-Za-z0-9_.]{0,63}$/.test(method) ? method : "unlisted"
 }
 
 function error(id: RpcId, code: number, message: string): RpcResponse {
@@ -204,7 +205,10 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
           const response = await options.backend.read(rpc, control.signal)
           traceRpc(`response method=${method} outcome=${"error" in response ? "error" : "result"}`)
           reply(response)
-        } else reply(error(rpc.id, -32601, "Method not found"))
+        } else {
+          traceRpc(`response method=${method} outcome=method-not-found`)
+          reply(error(rpc.id, -32601, "Method not found"))
+        }
       } catch (cause) {
         if (!control.signal.aborted) {
           traceRpc(`failure method=${method} type=${cause instanceof Error ? cause.name : "unknown"}`)

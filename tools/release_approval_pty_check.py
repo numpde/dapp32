@@ -322,7 +322,7 @@ def main() -> None:
             signer_tail = save_signer_tail(project, rehearsal_dir)
             if signer_tail is None:
                 raise
-            gate_tail = save_container_tail(gate_id, rehearsal_dir / "approval-tail.log")
+            gate_tail = save_container_tail(approval_id, rehearsal_dir / "approval-tail.log")
             raise RuntimeError(
                 f"{cause}; bounded signer output saved to {signer_tail}; "
                 f"secret-free RPC trace saved to {gate_tail}"
