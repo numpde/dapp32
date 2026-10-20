@@ -10,6 +10,10 @@ export type RpcRequest = { jsonrpc: "2.0"; id: RpcId; method: string; params: un
 export type RpcResponse = { jsonrpc: "2.0"; id: RpcId; result?: unknown; error?: { code: number; message: string; data?: unknown } }
 type Owner = Pick<ApprovalOwner, "submit">
 
+function traceRpc(message: string): void {
+  if (process.env.RELEASE_APPROVAL_TRACE_RPC === "1") process.stderr.write(`approval RPC ${message}\n`)
+}
+
 const readMethods = new Set([
   "eth_chainId", "eth_blockNumber", "eth_getBlockByNumber", "eth_getBlockByHash",
   "eth_getBalance", "eth_getTransactionCount", "eth_getStorageAt", "eth_getProof",
@@ -17,6 +21,10 @@ const readMethods = new Set([
   "eth_createAccessList", "eth_call", "eth_getCode", "eth_getTransactionReceipt",
   "eth_getTransactionByHash",
 ])
+
+function traceMethod(method: string): string {
+  return readMethods.has(method) || method === "eth_sendRawTransaction" ? method : "unlisted"
+}
 
 function error(id: RpcId, code: number, message: string): RpcResponse {
   return { jsonrpc: "2.0", id, error: { code, message } }
@@ -181,6 +189,7 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
       socket.write(encoded)
     }
     async function dispatch(rpc: RpcRequest, control: AbortController) {
+      const method = traceMethod(rpc.method)
       try {
         if (rpc.method === "eth_sendRawTransaction") {
           if (rpc.params.length !== 1 || typeof rpc.params[0] !== "string" || rpc.id === null) {
@@ -188,13 +197,17 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
             return
           }
           const outcome: SubmissionResult = await options.owner.submit(rpc.params[0], control.signal)
+          traceRpc(`response method=${method} outcome=${outcome.status}`)
           if (outcome.status === "accepted") reply({ jsonrpc: "2.0", id: rpc.id, result: outcome.hash })
           else reply(error(rpc.id, -32000, `Transaction ${outcome.status}: ${outcome.reason}`))
         } else if (readMethods.has(rpc.method)) {
-          reply(await options.backend.read(rpc, control.signal))
+          const response = await options.backend.read(rpc, control.signal)
+          traceRpc(`response method=${method} outcome=${"error" in response ? "error" : "result"}`)
+          reply(response)
         } else reply(error(rpc.id, -32601, "Method not found"))
       } catch (cause) {
         if (!control.signal.aborted) {
+          traceRpc(`failure method=${method} type=${cause instanceof Error ? cause.name : "unknown"}`)
           const message = cause instanceof Error ? cause.message : "Unknown request failure"
           reply(error(rpc.id, -32000, message))
         }
@@ -202,6 +215,7 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
     }
     function accept(value: unknown) {
       if (Array.isArray(value)) {
+        traceRpc("request rejected=batch")
         reply(error(null, -32600, "JSON-RPC batches are not supported by the approval socket"))
         return
       }
@@ -211,7 +225,9 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
         if (Object.keys(value as Record<string, unknown>).some(key => !["jsonrpc", "id", "method", "params"].includes(key)) ||
             !safeJsonNumbers(rpc.params, 0)) throw new Error("Unexpected or imprecise JSON-RPC field")
       }
-      catch { reply(error(null, -32600, "Invalid JSON-RPC request")); return }
+      catch { traceRpc("request rejected=invalid"); reply(error(null, -32600, "Invalid JSON-RPC request")); return }
+      const method = traceMethod(rpc.method)
+      traceRpc(`request method=${method} params=${rpc.params.length}`)
       const key = idKey(rpc.id)
       if (active.has(key)) { reply(error(rpc.id, -32600, "Request ID is already active on this connection")); return }
       if (active.size >= options.maxInFlight) { reply(error(rpc.id, -32000, "Too many requests on this connection")); return }

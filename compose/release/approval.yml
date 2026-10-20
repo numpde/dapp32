@@ -32,6 +32,7 @@ services:
       RELEASE_APPROVAL_SOCKET_PATH: /run/approval/rpc.sock
       RELEASE_APPROVAL_AUDIT_DIR: /run/audit
       RELEASE_APPROVAL_BACKEND_URL: http://release-rpc-proxy:8080
+      RELEASE_APPROVAL_TRACE_RPC: "${RELEASE_APPROVAL_TRACE_RPC:-0}"
     tmpfs:
       - /tmp:rw,nosuid,nodev,noexec,size=16m
     volumes:

@@ -80,6 +80,9 @@ ALLOWED_SHELL_DEFAULTS = {
     # Compose must render cast-offline without an RPC secret. The Make
     # cast-rpc entrypoint still requires RPC_URL/RPC_URL_FILE before runtime.
     ("compose/cast.yml", "RPC_URL_FILE", ":-", "/dev/null"),
+    # Release RPC tracing is disabled in ordinary ceremonies and enabled only
+    # by the local PTY rehearsal, which saves parameter-free method evidence.
+    ("compose/release/approval.yml", "RELEASE_APPROVAL_TRACE_RPC", ":-", "0"),
 }
 
 

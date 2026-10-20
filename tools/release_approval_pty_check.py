@@ -74,6 +74,18 @@ def approval_socket_source(identity: str) -> Path:
     return Path(matches[0]) / "rpc.sock"
 
 
+def save_container_tail(identity: str, path: Path) -> Path:
+    path.write_text(docker("logs", "--tail", "80", identity), encoding="utf-8")
+    return path
+
+
+def save_signer_tail(project: str, rehearsal_dir: Path) -> Path | None:
+    signers = containers("deploy-release", project)
+    if len(signers) != 1:
+        return None
+    return save_container_tail(next(iter(signers)), rehearsal_dir / "signer-tail.log")
+
+
 def read_until(master: int, process: subprocess.Popen[bytes], transcript: bytearray,
                predicate, deadline: float, explanation: str) -> None:
     while time.monotonic() < deadline:
@@ -123,6 +135,19 @@ def approval_chain_id(signer: str) -> str:
     if chain_id != "31338":
         raise RuntimeError(f"Approval RPC returned chain ID {chain_id!r}, expected 31338")
     return chain_id
+
+
+def signer_rpc_read(signer: str, operation: str, *arguments: str) -> None:
+    result = subprocess.run(
+        ["docker", "exec", signer, "timeout", "8", "cast", operation, *arguments,
+         "--rpc-url", "file:///run/approval/rpc.sock"],
+        capture_output=True, text=True, check=False, timeout=12,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Forge RPC read {operation} failed through the approval socket "
+            f"(status {result.returncode}): {result.stderr.strip()}"
+        )
 
 
 def backend_chain_id(gate: str) -> str:
@@ -225,6 +250,7 @@ def main() -> None:
     tty.setraw(slave)
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
     env = os.environ.copy()
+    env["RELEASE_APPROVAL_TRACE_RPC"] = "1"
     process = subprocess.Popen(
         ["make", "escrow/release/deploy"],
         cwd=Path(__file__).resolve().parents[1], env=env,
@@ -277,14 +303,30 @@ def main() -> None:
         if len(signer_ids) != 1:
             raise RuntimeError("Starting approval must start exactly one Forge container")
         listener_chain_id(approval_id)
-        approval_chain_id(next(iter(signer_ids)))
+        signer = next(iter(signer_ids))
+        approval_chain_id(signer)
+        signer_rpc_read(signer, "block-number")
+        signer_rpc_read(signer, "nonce", deployer)
+        signer_rpc_read(signer, "gas-price")
 
         def first_review_shown() -> bool:
             text = transcript.decode("utf-8", errors="replace")
             return "Review transaction 1" in text and re.search(r"Reject with: reject ([A-Za-z0-9-]+)", text) is not None
 
-        read_until(master, process, transcript, first_review_shown,
-                   time.monotonic() + 180, "the first signed transaction review")
+        try:
+            read_until(master, process, transcript, first_review_shown,
+                       time.monotonic() + 180, "the first signed transaction review")
+        except RuntimeError as cause:
+            if "Timed out waiting" not in str(cause):
+                raise
+            signer_tail = save_signer_tail(project, rehearsal_dir)
+            if signer_tail is None:
+                raise
+            gate_tail = save_container_tail(gate_id, rehearsal_dir / "approval-tail.log")
+            raise RuntimeError(
+                f"{cause}; bounded signer output saved to {signer_tail}; "
+                f"secret-free RPC trace saved to {gate_tail}"
+            ) from cause
         display = transcript.decode("utf-8", errors="replace")
         challenge_match = re.search(r"Reject with: reject ([A-Za-z0-9-]+)", display)
         if challenge_match is None:
