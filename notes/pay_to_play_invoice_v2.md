@@ -1,5 +1,9 @@
 # PayToPlay invoice-bearing vouchers (v2)
 
+Later design decision (2026-10-20): [restart pending withdrawal waits on funding](022_pay_to_play_withdrawal_wait_on_funding.txt)
+supersedes the ordinary-withdrawal baseline retained by this invoice-v2 change.
+The original design below is preserved; the later rule is not yet implemented.
+
 This change extends the existing cumulative-voucher protocol. It does not add an invoice ledger or a general shared-balance payment network. P2P/service code remains responsible for invoice issuance, durable purchase acceptance, authorization sequencing, allocation, fulfillment and commercial refunds.
 
 ## Wire format

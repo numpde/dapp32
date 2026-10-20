@@ -1,0 +1,114 @@
+PayToPlay: restart pending withdrawal waits when funds arrive
+===========================================================
+
+Design decision: 2026-10-20.
+Status: accepted design; not yet implemented in PayToPlay.sol.
+
+This note supersedes the ordinary-withdrawal treatment of positive deposits
+and incoming moves in 020_service_payment_channels.txt. That note remains the
+historical baseline. pay_to_play_invoice_v2.md preserves the invoice-v2 change;
+its statement that ordinary withdrawals are unchanged predates this decision.
+
+Decision
+--------
+
+A positive deposit into a position with an outstanding ordinary withdrawal
+request restarts that request's entire channel claim period. A positive move
+into such a position does the same. The customer chooses to add funds and
+therefore accepts a renewed wait for the whole pending request.
+
+For the receiving position, let R be requestedAmount and G be the channel's
+fixed claimPeriod. After a successful positive credit:
+
+    if R > 0: readyAt = block.timestamp + G
+
+Preserve R. If no request exists, funding creates no request or withdrawal
+deadline. The rule applies to every channel, including channel 0. A zero claim
+period remains valid and makes the request immediately executable.
+
+Why the change is needed
+-----------------------
+
+The current contract has two independent deadlines. Ordinary withdrawal uses
+readyAt. Full recovery uses the effective refundAt, derived from position and
+channel recovery deadlines. fund() and positive incoming move() currently
+renew the funding cycle through _renew(), which updates position.refundAt;
+they leave readyAt untouched.
+
+Under that baseline, a customer can request 100, wait for readiness, have
+vouchers collect the original 100, then deposit another 100. The unconsumed
+mature request can immediately remove the new deposit. A service that admits
+work against that balance without accounting for the existing request can
+deliver work before collection and be left with an unbacked voucher.
+
+Under the new rule, that new deposit pushes the pending withdrawal to now + G.
+For G > 0, the service gets a fresh claim window before that ordinary exit can
+execute. This is a timing guarantee for the pending request, not a reservation of funds
+or a guarantee that a particular service will collect successfully.
+
+Operation and authority boundaries
+----------------------------------
+
+fund() applies the restart to the caller's credited position. move() first
+consumes the source request as before, then applies the restart to the
+destination if a positive amount actually arrives. Use the destination's G.
+An incoming move must not preserve a mature destination request as an escape
+from the fresh wait.
+
+Both operations are customer-controlled and credit only that customer's
+positions. A third-party relayer cannot extend another customer's wait through
+these operations. Funding and incoming movement still require an operating
+destination. Admin/payee closure starts wind-down without postponing an
+existing ordinary withdrawal deadline.
+
+Zero deposits and zero-value moves do not restart the receiving position's
+wait. Collection does not restart it. Explicit renewPosition() continues to
+extend only the funding-cycle recovery deadline. Ordinary withdrawal execution
+and outgoing movement consume their source request as before; full refund
+clears the request. Failed transactions must roll back any deadline changes.
+
+The restart is independent of whether annual recovery renewal changes refundAt.
+An early return from _renew() must not skip a required readyAt update. A pending
+R can exceed the current balance after collection; keep R and restart its wait
+without rejecting a positive credit for that reason. The original request's
+amount validation is not a prerequisite for restarting an existing request.
+
+Keep the existing request semantics: no cancellation or expiry is added, and
+withdrawal still transfers min(R, balance) to the customer and clears the whole
+request. A customer may instead consume it through an internal move. Another
+caller can still execute a mature withdrawal before that intended move.
+
+Publish each funding-induced restart using WithdrawalRequested with the same
+customer, channel and R and the new readyAt. Consumers must interpret this as
+the current request and deadline, including a restart caused by added funds.
+The existing event shape is sufficient; no new request identifier is needed.
+
+Tradeoffs and service responsibilities
+--------------------------------------
+
+Adding even a small positive amount delays the entire pending request,
+including older funds. The customer controls that choice. Separate deadlines
+for old and new deposits would require a different balance model; this design
+retains one balance and one ordinary withdrawal request per position.
+
+Services must still account for outstanding signed authorization, withdrawal
+requests, recovery cutoffs and transaction confirmation. Once readyAt is
+reached, collection and withdrawal still compete for the same balance. A valid
+voucher or positive balance alone remains insufficient evidence of payment.
+
+Implementation acceptance and deployment
+-----------------------------------------
+
+Implementation must demonstrate positive top-ups restarting both mature and
+immature requests while retaining R; positive incoming moves using the target
+period; zero credits leaving readiness unchanged; and funding without a request
+creating none. Cover R greater than balance, zero-period channels, repeated
+credits, exact readiness boundaries, atomic rollback and independent recovery
+renewal. Check that collection, explicit renewal and closure do not restart the
+ordinary wait, and that source-request consumption remains correct for moves.
+
+Update contract tests and public behavior documentation when implementing this
+decision. Existing non-upgradeable deployments keep their original behavior.
+A release adopting this rule requires a new deployment and deliberate updates
+to deployment/runtime-code pins; unchanged ABI signatures do not prove which
+withdrawal policy a deployed contract enforces.

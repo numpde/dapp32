@@ -4,6 +4,12 @@ Service payment channels
 Design record: 2026-10-15; permanent voucher keys: 2026-10-17;
 annual recovery, channel retirement and invoice-bearing vouchers: 2026-10-18.
 
+Later design decision (2026-10-20):
+022_pay_to_play_withdrawal_wait_on_funding.txt supersedes this note's rule that
+deposits and incoming moves preserve ordinary withdrawal readiness. It requires
+positive incoming funds to restart a pending request's claim period. The
+original design below is preserved; the new rule is not yet implemented.
+
 Scope and actors
 ----------------
 
