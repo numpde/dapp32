@@ -370,7 +370,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: wallet/addresses wallet/addresses/check release/rpc/list release/local/rehearsal/run release/local/rehearsal/check help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight cam/publication/preflight/json cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
+.PHONY: wallet/addresses/with-keys wallet/addresses wallet/addresses/check release/rpc/list release/local/rehearsal/run release/local/rehearsal/check help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight cam/publication/preflight/json cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
 
 help:
 	@printf '%s\n' \
@@ -416,6 +416,8 @@ help:
 	  '    Wait for the Recovery phrase prompt, then enter or paste the 12 words on one line.' \
 	  '    Only public addresses are printed, never private keys.' \
 	  '    The hidden 12-word phrase uses a temporary RAM-backed file, removed on exit; no host files are written.' \
+	  '  make wallet/addresses/with-keys  Print those 10 accounts with their private keys in the terminal.' \
+	  '    Uses the same local offline container; keys are not saved to host files.' \
 	  '  make wallet/addresses/check     Test derivation and terminal handling with a public fixture phrase.' \
 	  '  make cast/offline/check         Check Foundry cast commands without contacting a blockchain.' \
 	  '' \
@@ -1101,10 +1103,17 @@ fi; \
 $(COMPOSE_ENV) env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$$wallet_endpoint" compose --env-file /dev/null -f $(COMPOSE_DIR)/cast.yml $(1)
 endef
 
+define wallet_interactive
+$(LANE_GUARD); \
+if [[ ! -t 0 || ! -t 1 ]]; then printf '%s\n' 'Run make $@ in an interactive terminal.' >&2; exit 2; fi; \
+$(call wallet_compose,run --build --rm --no-deps wallet-addresses bash --noprofile --norc /tool/wallet_addresses.sh $(1))
+endef
+
 wallet/addresses:
-	@$(LANE_GUARD); \
-	if [[ ! -t 0 || ! -t 1 ]]; then printf '%s\n' 'Run make wallet/addresses in an interactive terminal.' >&2; exit 2; fi; \
-	$(call wallet_compose,run --build --rm --no-deps wallet-addresses)
+	@$(call wallet_interactive,)
+
+wallet/addresses/with-keys:
+	@$(call wallet_interactive,--with-keys)
 
 wallet/addresses/check:
 	@$(LANE_GUARD); \

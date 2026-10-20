@@ -17,10 +17,13 @@ assert_absent() {
 }
 
 run_case() {
-  local name="$1" input="$2" expected_status="$3" status pid attempt ready=0
+  local mode="$1" name="$2" input="$3" expected_status="$4" status pid attempt ready=0
+  local wallet_command='bash --noprofile --norc /tool/wallet_addresses.sh'
+  if [[ "$mode" == --with-keys ]]; then wallet_command+=' --with-keys'; fi
+  shift 4
   : >"$test_root/$name.transcript"
   mkfifo "$test_root/$name.input"
-  timeout 20 script -q -e -f --echo always -c 'bash --noprofile --norc /tool/wallet_addresses.sh' "$test_root/$name.transcript" <"$test_root/$name.input" >"$test_root/$name.output" 2>&1 &
+  timeout 20 script -q -e -f --echo always -c "$wallet_command" "$test_root/$name.transcript" <"$test_root/$name.input" >"$test_root/$name.output" 2>&1 &
   pid=$!
   exec 3>"$test_root/$name.input"
   for attempt in {1..1000}; do
@@ -36,7 +39,7 @@ run_case() {
     return 1
   fi
   printf '%s' "$input" >&3
-  if [[ "$#" == 4 ]]; then
+  if [[ "$#" == 1 ]]; then
     ready=0
     for attempt in {1..1000}; do
       if compgen -G '/tmp/wallet-phrase.*' >/dev/null; then ready=1; break; fi
@@ -51,7 +54,7 @@ run_case() {
       [[ "$(stat -c %a "$phrase_path")" == 600 ]]
       [[ "$(stat -c %u "$phrase_path")" == "$(id -u)" ]]
     done
-    printf '%s' "$4" >&3
+    printf '%s' "$1" >&3
   fi
   if wait "$pid"; then status=0; else status=$?; fi
   exec 3>&-
@@ -86,7 +89,7 @@ fi
 [[ "$(stat -f -c %T /tmp)" == tmpfs ]]
 
 fixture='test test test test test test test test test test test junk'
-run_case valid "$fixture"$'\n' 0
+run_case '' valid "$fixture"$'\n' 0
 mapfile -t rows < <(grep -E '^[[:space:]]*[0-9]+[[:space:]]+m/' "$test_root/valid.transcript" | tr -d '\r')
 expected=(
   0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
@@ -108,20 +111,47 @@ for index in {0..9}; do
   [[ "${address,,}" == "${expected[$index]}" ]]
 done
 assert_absent "$fixture" "$test_root/valid.transcript"
-run_case trailing "$fixture"$'\n' 0 $'PUBLIC_TRAILING_INPUT_PROBE\n'
+assert_absent '[[:xdigit:]]{64}' "$test_root/valid.transcript"
+run_case --with-keys with_keys "$fixture"$'\n' 0
+mapfile -t key_rows < <(grep -E '^[[:space:]]*[0-9]+[[:space:]]+m/' "$test_root/with_keys.transcript" | tr -d '\r')
+[[ "${#key_rows[@]}" == 10 ]]
+for index in {0..9}; do
+  read -r number path address private_key extra <<<"${key_rows[$index]}"
+  [[ "$number" == "$((index + 1))" && "$path" == "m/44'/60'/0'/0/$index" ]]
+  [[ "${address,,}" == "${expected[$index]}" && -z "$extra" ]]
+  [[ "$private_key" =~ ^0x[0-9a-fA-F]{64}$ ]]
+  # These keys come only from the public fixture mnemonic, never operator input.
+  key_address=$(cast wallet address --private-key "$private_key")
+  [[ "${key_address,,}" == "${expected[$index]}" ]]
+done
+assert_absent "$fixture" "$test_root/with_keys.transcript"
+run_case --with-keys keys_checksum $'test test test test test test test test test test test test test\n' 2
+assert_absent '0x[[:xdigit:]]{40}' "$test_root/keys_checksum.transcript"
+run_case --with-keys keys_cancelled "$fixture"$'\n' 130 $'\003'
+assert_absent '0x[[:xdigit:]]{40}' "$test_root/keys_cancelled.transcript"
+check_invalid_arguments() {
+  if bash --noprofile --norc /tool/wallet_addresses.sh "$@" </dev/null >"$test_root/invalid-mode" 2>&1; then
+    printf '%s\n' 'Wallet accepted unsupported arguments.' >&2; exit 1
+  fi
+  grep -q 'Usage:' "$test_root/invalid-mode"
+  assert_absent 'Recovery phrase' "$test_root/invalid-mode"
+}
+check_invalid_arguments --with-key
+check_invalid_arguments --with-keys extra
+run_case '' trailing "$fixture"$'\n' 0 $'PUBLIC_TRAILING_INPUT_PROBE\n'
 assert_absent PUBLIC_TRAILING_INPUT_PROBE "$test_root/trailing.transcript"
-run_case cancelled_after_file "$fixture"$'\n' 130 $'\003'
-run_case empty $'\n' 2
-run_case eof $'\004' 2
-run_case checksum $'test test test test test test test test test test test test\n' 2
+run_case '' cancelled_after_file "$fixture"$'\n' 130 $'\003'
+run_case '' empty $'\n' 2
+run_case '' eof $'\004' 2
+run_case '' checksum $'test test test test test test test test test test test test\n' 2
 assert_absent 'test test' "$test_root/checksum.transcript"
 assert_absent '0x[[:xdigit:]]{40}' "$test_root/checksum.transcript"
-run_case short $'test test\n' 2
+run_case '' short $'test test\n' 2
 assert_absent 'test test' "$test_root/short.transcript"
-run_case cancel $'test\003' 130
+run_case '' cancel $'test\003' 130
 assert_absent 'test' "$test_root/cancel.transcript"
 if bash --noprofile --norc /tool/wallet_addresses.sh </dev/null >"$test_root/no-terminal" 2>&1; then
   printf '%s\n' 'Wallet accepted non-terminal input.' >&2
   exit 1
 fi
-printf '%s\n' 'Wallet address checks passed: paths 0–9, hidden input, checksum, cancellation, cleanup, terminal requirement, and live isolation.'
+printf '%s\n' 'Wallet checks passed: addresses and explicit key export for paths 0–9, hidden input, checksum, cancellation, cleanup, terminal requirement, and live isolation.'
