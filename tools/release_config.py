@@ -41,6 +41,11 @@ APP_FIELDS = {
 OUTPUT_FIELD = ("OUTPUT_DIR", "New deployment output directory (absolute, outside this checkout; parent must exist)", "path")
 KEY_ORDER = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141
 MAX_CONFIG_BYTES = 65536
+# Public repeated-pattern key, pre-funded by the local network's genesis.
+# This preset is a test fixture, never an operator credential.
+LOCAL_DEPLOYER_KEY = "0x" + "ba" * 32
+LOCAL_DEPLOYER_ADDRESS = "0xfe7854Bc8cA79FBE9DC94Dfdaf8c10E5C6deCAB7"
+LOCAL_RPC_URL = "http://release-anvil:8545"
 
 
 def fields(app):
@@ -86,6 +91,12 @@ def check_value(value, kind):
     elif kind == "key":
         if not re.fullmatch(r"0x[0-9a-fA-F]{64}", value) or not 0 < int(value[2:], 16) < KEY_ORDER:
             raise ValueError("Enter a valid 32-byte EVM private key with a 0x prefix.")
+    elif kind == "network":
+        if value not in ("public", "local"):
+            raise ValueError("Choose public or local.")
+    elif kind == "docker-network":
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", value):
+            raise ValueError("Enter a Docker network name containing only letters, digits, underscores, dots and hyphens.")
     return value
 
 
@@ -100,20 +111,30 @@ def unique_fields(pairs):
 
 def validate(config, app, source_commit):
     expected = {"app", "sourceCommit", "rpcUrl", "deployerPrivateKey", "settings", "confirmDeploy"}
+    if isinstance(config, dict) and "localNetwork" in config:
+        expected.add("localNetwork")
     if not isinstance(config, dict) or config.keys() != expected:
-        raise ValueError("The configuration must contain exactly app, sourceCommit, rpcUrl, deployerPrivateKey, settings and confirmDeploy.")
+        raise ValueError("The configuration must contain app, sourceCommit, rpcUrl, deployerPrivateKey, settings and confirmDeploy, with only localNetwork optional.")
     if config["app"] != app:
         raise ValueError("The configuration belongs to a different app; use its release target.")
     if config["sourceCommit"] != source_commit:
         raise ValueError("The configuration pins a different source commit; use that commit or run the walkthrough again.")
     if config["confirmDeploy"] is not True:
         raise ValueError("The configuration has no saved deployment confirmation; finish the walkthrough.")
-    check_value(config["rpcUrl"], "rpc")
     check_value(config["deployerPrivateKey"], "key")
     settings = config["settings"]
     if not isinstance(settings, dict) or settings.keys() != {name for name, _, _ in fields(app)}:
         raise ValueError("The configuration settings must contain exactly the inputs required by this app.")
+    local = "localNetwork" in config
+    if local:
+        check_value(config["localNetwork"], "docker-network")
+        if config["rpcUrl"] != LOCAL_RPC_URL or settings["EXPECTED_CHAIN_ID"] != "31338" or settings["CAM_URI"] != f"http://release-cam:8080/{app}/main.json":
+            raise ValueError("Local releases require chain 31338, RPC http://release-anvil:8545 and this app's manifest at http://release-cam:8080.")
+    else:
+        check_value(config["rpcUrl"], "rpc")
     for name, _, kind in fields(app):
+        if local and name == "CAM_URI":
+            continue
         try:
             check_value(settings[name], kind)
         except ValueError as error:
@@ -143,16 +164,34 @@ def write_private(path, content):
 
 def setup(app, source_commit, output):
     print(f"Release setup: {app}, source {source_commit}")
+    network = ask("Target network [public/local]", "network", "", secret=False)
     print("Enter the actual deployment values. RPC URL and signing key are stored in the protected configuration.")
     print("Saving records approval to deploy these settings later. Setup itself sends no transactions.")
     config = {"app": app, "sourceCommit": source_commit, "rpcUrl": "", "deployerPrivateKey": "", "settings": {name: "" for name, _, _ in fields(app)}, "confirmDeploy": True}
+    if network == "local":
+        if "RELEASE_LOCAL_NETWORK" not in os.environ:
+            raise ValueError("Run local setup through make <app>/release/setup so its Docker network is selected.")
+        config["localNetwork"] = check_value(os.environ["RELEASE_LOCAL_NETWORK"], "docker-network")
+        config["rpcUrl"] = LOCAL_RPC_URL
+        config["deployerPrivateKey"] = LOCAL_DEPLOYER_KEY
+        config["settings"].update(EXPECTED_CHAIN_ID="31338", CAM_URI=f"http://release-cam:8080/{app}/main.json")
+        if app != "bike-nft":
+            config["settings"]["INTENDED_CAM_ROOT_OWNER"] = LOCAL_DEPLOYER_ADDRESS
+        if app == "pay-to-play":
+            config["settings"]["INTENDED_PAYMENT_ADMIN"] = LOCAL_DEPLOYER_ADDRESS
+        print(f"Local Docker network: {config['localNetwork']}")
+        print(f"Local funded test account: {LOCAL_DEPLOYER_ADDRESS}")
     while True:
-        config["rpcUrl"] = ask("Complete RPC URL (including any API key)", "rpc", config["rpcUrl"], secret=True)
-        config["deployerPrivateKey"] = ask("Funded deployer private key", "key", config["deployerPrivateKey"], secret=True)
+        if network == "public":
+            config["rpcUrl"] = ask("Complete RPC URL (including any API key)", "rpc", config["rpcUrl"], secret=True)
+            config["deployerPrivateKey"] = ask("Funded deployer private key", "key", config["deployerPrivateKey"], secret=True)
         for name, label, kind in fields(app):
+            if network == "local" and name in ("EXPECTED_CHAIN_ID", "CAM_URI"):
+                print(f"{name}: {config['settings'][name]}")
+                continue
             config["settings"][name] = ask(label, kind, config["settings"][name], secret=False)
         validate(config, app, source_commit)
-        print(f"\nApp: {app}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")
+        print(f"\nApp: {app}\nNetwork: {network}\nSource: {source_commit}\nRPC URL: saved (hidden)\nDeployer key: saved (hidden)")
         for name, value in config["settings"].items():
             print(f"{name}: {value}")
         print("Deployment confirmation: YES")
@@ -182,6 +221,11 @@ def unpack(app, source_commit, mode, source, output):
     else:
         settings = {f"{prefix}_RELEASE_{name}": value for name, value in config["settings"].items()}
         settings[f"CONFIRM_{prefix}_RELEASE_DEPLOY"] = "YES"
+    if "localNetwork" in config:
+        settings["RELEASE_REHEARSAL"] = "1"
+        settings["RELEASE_REHEARSAL_NETWORK"] = config["localNetwork"]
+    else:
+        settings["RELEASE_REHEARSAL"] = "0"
     encoded = b"".join(f"{name}={value}\0".encode() for name, value in settings.items())
     write_private(output / "inputs", encoded)
     write_private(output / "rpc-url", (config["rpcUrl"] + "\n").encode())

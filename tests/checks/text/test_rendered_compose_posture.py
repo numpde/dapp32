@@ -319,6 +319,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "RELEASE_RPC_OUTPUT_DIR": "/tmp/release-rpc-output",
                 "RELEASE_CONFIG_STAGE_DIR": "/tmp/release-config-stage",
                 "RELEASE_CONFIG_FILE": "/tmp/release-config.json",
+                "RELEASE_LOCAL_NETWORK": "dapps-release-local_anvil_internal",
                 "RELEASE_REHEARSAL_NETWORK": "cam-release-rehearsal-fixture",
                 "RELEASE_DEPLOYMENT_ARTIFACT_FILE": "/tmp/release-output/artifact/deployment.json",
                 "VIEWER_URL": "http://127.0.0.1:5174/?chainId=eip155%3A31337&host=0x0000000000000000000000000000000000000001&account=0x0000000000000000000000000000000000000002&rpcUrl=http%3A%2F%2F127.0.0.1%3A5174%2Frpc",

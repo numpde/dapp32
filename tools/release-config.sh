@@ -35,6 +35,19 @@ release_config_stage() {
   trap 'release_config_status=$?; release_config_cleanup || release_config_status=1; exit "$release_config_status"' EXIT
 }
 
+require_release_local_network() {
+  if [[ ! "${RELEASE_REHEARSAL_NETWORK:?Missing local Docker network in release inputs}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+    printf '%s\n' 'Local release Docker network must be a Docker-safe name.' >&2
+    exit 2
+  fi
+  local internal
+  internal="$(docker network inspect --format '{{.Internal}}' "$RELEASE_REHEARSAL_NETWORK")"
+  if [[ "$internal" != true ]]; then
+    printf '%s\n' 'Local release requires an existing internal Docker network; run make network/local/up.' >&2
+    exit 2
+  fi
+}
+
 load_release_config() {
   local app="$1" mode="$2"
   local -a inputs
@@ -43,7 +56,7 @@ load_release_config() {
   release_config_stage /tmp
   compose_release_config run --rm --no-deps -T release-config "$mode" "$app" "$source_commit"
   mapfile -d '' -t inputs < "$release_config_dir/inputs"
-  unset RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE
+  unset RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE RPC_URL_FILE DEPLOYER_PRIVATE_KEY_FILE RELEASE_REHEARSAL RELEASE_REHEARSAL_NETWORK
   export "${inputs[@]}"
   RPC_URL_FILE="$release_config_dir/rpc-url"
   export RPC_URL_FILE

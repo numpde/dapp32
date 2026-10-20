@@ -32,6 +32,8 @@ x-output: &output
 services:
   release-setup:
     <<: *config_runtime
+    environment:
+      RELEASE_LOCAL_NETWORK: "${RELEASE_LOCAL_NETWORK:?missing_RELEASE_LOCAL_NETWORK}"
     stdin_open: true
     tty: true
     volumes: [*tool, *output]

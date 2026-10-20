@@ -1,0 +1,55 @@
+# A manually managed release network. App release commands attach to it but do
+# not start or stop it. Both peers are internal, with no host ports or secrets.
+services:
+  release-anvil:
+    extends:
+      file: ../anvil.yml
+      service: anvil-internal
+    cpus: 1
+    command: [anvil, --host, 0.0.0.0, --port, "8545", --chain-id, "31338", --init, /fixture/genesis.json]
+    volumes:
+      - type: bind
+        source: ../../tests/fixtures/release-rehearsal/local-genesis.json
+        target: /fixture/genesis.json
+        read_only: true
+        bind: {create_host_path: false}
+
+  release-cam:
+    image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+    init: true
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 1
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=16m"]
+    volumes:
+      - type: bind
+        source: ../../dapps/bike-nft/cam
+        target: /srv/bike-nft
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../../dapps/escrow/cam
+        target: /srv/escrow
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../../dapps/pay-to-play/cam
+        target: /srv/pay-to-play
+        read_only: true
+        bind: {create_host_path: false}
+    networks: [anvil_internal]
+    command: [python3, -I, -B, -m, http.server, "8080", --bind, 0.0.0.0, --directory, /srv]
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/pay-to-play/main.json', timeout=2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+networks:
+  anvil_internal:
+    name: "${RELEASE_REHEARSAL_NETWORK:?missing_RELEASE_REHEARSAL_NETWORK}"
+    internal: true

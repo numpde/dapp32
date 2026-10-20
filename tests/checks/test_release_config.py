@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from tools import release_config
-from .common import rendered_compose_config
+from .common import compose_sequence_or_empty, rendered_compose_config
 
 
 COMMIT = "0123456789abcdef0123456789abcdef01234567"
@@ -39,7 +39,7 @@ class ReleaseConfigTest(unittest.TestCase):
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
                 expected = configuration(app)
-                answers = [*expected["settings"].values(), "save"]
+                answers = ["public", *expected["settings"].values(), "save"]
                 transcript = io.StringIO()
                 with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
                     release_config.setup(app, COMMIT, directory)
@@ -72,7 +72,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 output.mkdir()
                 release_config.unpack(app, COMMIT, "verify", source, output)
                 self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
-                self.assertEqual(f"{app.upper().replace('-', '_')}_DEPLOYMENT_ARTIFACT_FILE=/tmp/new-release-output/artifact/deployment.json\0", (output / "inputs").read_text())
+                self.assertEqual(f"{app.upper().replace('-', '_')}_DEPLOYMENT_ARTIFACT_FILE=/tmp/new-release-output/artifact/deployment.json\0RELEASE_REHEARSAL=0\0", (output / "inputs").read_text())
 
     def test_cancel_saves_nothing_and_change_replaces_the_reviewed_settings(self):
         app = "pay-to-play"
@@ -80,7 +80,7 @@ class ReleaseConfigTest(unittest.TestCase):
             with self.subTest(decision=decision), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 first = configuration(app)
-                answers = [*first["settings"].values(), decision]
+                answers = ["public", *first["settings"].values(), decision]
                 secrets = [FIXTURE_RPC, FIXTURE_KEY]
                 if decision == "change":
                     changed = dict(first["settings"], EXPECTED_CHAIN_ID="11155111")
@@ -167,6 +167,66 @@ class ReleaseConfigTest(unittest.TestCase):
                     if mount["target"] != "/out":
                         self.assertTrue(mount["read_only"])
                     self.assertIn(mount["bind"], ({}, {"create_host_path": False}))
+
+    def test_local_setup_records_complete_connection_and_uses_funded_test_account(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                expected = configuration(app)
+                answers = ["local", *[value for name, value in expected["settings"].items() if name not in ("EXPECTED_CHAIN_ID", "CAM_URI")], "save"]
+                with patch.dict(release_config.os.environ, {"RELEASE_LOCAL_NETWORK": "local-release-test"}), patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=AssertionError("Local setup must not request operator credentials")), contextlib.redirect_stdout(io.StringIO()):
+                    release_config.setup(app, COMMIT, root)
+                config = json.loads((root / "release.json").read_text())
+                self.assertEqual("local-release-test", config["localNetwork"])
+                self.assertEqual("31338", config["settings"]["EXPECTED_CHAIN_ID"])
+                self.assertEqual(f"http://release-cam:8080/{app}/main.json", config["settings"]["CAM_URI"])
+                self.assertEqual(release_config.LOCAL_DEPLOYER_KEY, config["deployerPrivateKey"])
+                self.assertEqual(1, len(set(bytes.fromhex(config["deployerPrivateKey"][2:]))), "Local fixture keys must be an obvious repeated byte pattern")
+                output = root / "verify"
+                output.mkdir()
+                release_config.unpack(app, COMMIT, "verify", root / "release.json", output)
+                inputs = (output / "inputs").read_text()
+                self.assertIn("RELEASE_REHEARSAL=1\0", inputs)
+                self.assertIn("RELEASE_REHEARSAL_NETWORK=local-release-test\0", inputs)
+                self.assertFalse((output / "deployer-key").exists())
+
+    def test_local_transport_is_confined_to_the_fixture_chain_and_peers(self):
+        config = configuration("pay-to-play")
+        config["localNetwork"] = "local-release-test"
+        config["rpcUrl"] = release_config.LOCAL_RPC_URL
+        config["settings"].update(EXPECTED_CHAIN_ID="31338", CAM_URI="http://release-cam:8080/pay-to-play/main.json")
+        release_config.validate(config, "pay-to-play", COMMIT)
+        for top_level, name, value in (
+            (True, "localNetwork", "unsafe network"),
+            (True, "localNetwork", "--argument"),
+            (True, "rpcUrl", "http://127.0.0.1:8545"),
+            (True, "rpcUrl", "https://rpc.example.test"),
+            (False, "EXPECTED_CHAIN_ID", "84532"),
+            (False, "CAM_URI", "http://release-cam:8080/escrow/main.json"),
+        ):
+            changed = json.loads(json.dumps(config))
+            if top_level:
+                changed[name] = value
+            else:
+                changed["settings"][name] = value
+            with self.subTest(field=name), self.assertRaises(ValueError):
+                release_config.validate(changed, "pay-to-play", COMMIT)
+        del config["localNetwork"]
+        with self.assertRaisesRegex(ValueError, "HTTPS"):
+            release_config.validate(config, "pay-to-play", COMMIT)
+
+    def test_manual_network_has_no_app_deployment_or_public_network_authority(self):
+        config = rendered_compose_config("compose/release/local-network.yml", env={"COMPOSE_PROFILES": "internal"})
+        self.assertEqual({"release-anvil", "release-cam"}, set(config["services"]))
+        self.assertTrue(all(network["internal"] for network in config["networks"].values()))
+        for service in config["services"].values():
+            self.assertTrue(service["read_only"])
+            self.assertEqual(["ALL"], service["cap_drop"])
+            self.assertNotIn("ports", service)
+            self.assertNotIn("secrets", service)
+            for mount in compose_sequence_or_empty(service, "volumes"):
+                self.assertTrue(mount["read_only"])
+        self.assertIn("31338", config["services"]["release-anvil"]["command"])
 
 
 if __name__ == "__main__":

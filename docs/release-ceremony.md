@@ -4,6 +4,40 @@ The Escrow, Bike NFT and Pay-to-Play release lanes share one host ceremony. Appl
 
 `compose/release/` owns the planning, signing, artifact, and verification service boundaries. Each app supplies a small Compose overlay with its inputs and script entrypoints. Make uses both files from the selected commit's source snapshot, so deployment and verification use the same phase definitions as the contracts being checked.
 
+## Start a local network, then deploy manually
+
+Start the shared network first, then run each release step separately:
+
+```sh
+make network/local/up
+make pay-to-play/release/setup CONFIG=/absolute/private/pay-to-play-local.json
+make pay-to-play/release/deploy CONFIG=/absolute/private/pay-to-play-local.json
+make pay-to-play/release/verify CONFIG=/absolute/private/pay-to-play-local.json
+make network/local/down
+```
+
+Choose `local` in setup. It records the running network's Docker name, chain
+31338, RPC URL `http://release-anvil:8545`, the app's CAM URI under
+`http://release-cam:8080`, and the public repeated-pattern `ba` test key. Anvil's
+genesis funds this key with 1,000 test ETH. Setup shows the local owner defaults;
+Pay-to-Play and Escrow can keep the deployer as owner and verify immediately.
+Bike NFT still requires separate lasting authorities and their ownership
+handoffs, as described in its README. Every app uses the same setup and release
+implementation, with its own settings.
+
+`network/local/up` starts only Anvil and CAM hosting. Deployment and verification
+attach to that existing internal Docker network and leave both services running.
+`make network/local/info` checks that both services are running and prints their
+connection details. There are no host ports or external network access.
+`network/local/down` explicitly removes this infrastructure and its chain state.
+Use the same `COMPOSE_PROJECT_NAME` for network startup and setup when selecting
+a nondefault project; the resulting file saves the actual Docker network name.
+
+Local configuration files have the same off-repo, owner and mode requirements
+as public release files. Commit the intended source and install locked
+dependencies before setup and deployment. Local mode permits only these exact
+fixture peers, app URI and chain ID; public mode retains the HTTPS RPC policy.
+
 ## Rehearse the release locally
 
 Run the full release workflow without real funds or operator credentials:
@@ -68,8 +102,9 @@ make pay-to-play/release/verify CONFIG=/absolute/private/pay-to-play.json
 
 Use `escrow/release/setup` or `bike-nft/release/setup` with their corresponding
 deployment and verification targets. All three setup targets use one shared
-walkthrough; the target name selects the app. It collects the complete HTTPS RPC
-URL, funded deployer's private key, target chain ID, published CAM URI, all of the
+walkthrough; the target name selects the app. Choose `public` for an operator
+RPC or `local` for the network started above. Public setup collects the complete
+HTTPS RPC URL, funded deployer's private key, target chain ID, published CAM URI, all of the
 app's authority and contract settings, and a new deployment output directory.
 Secret prompts hide the URL and signing key. The final review lets you change
 the inputs, cancel, or save with deployment confirmation already recorded.
@@ -77,7 +112,8 @@ Setup sends no transactions. Deploying with `CONFIG` requires no further inputs
 and does not read the RPC catalog or any other credential file.
 
 The configuration is JSON containing the concrete RPC URL and private key,
-the exact source commit, every app setting, and `confirmDeploy: true`.
+the exact source commit, every app setting, and `confirmDeploy: true`. Local
+files additionally contain `localNetwork`, the concrete Docker network name.
 It must be a normalized absolute path outside the checkout, owned by the
 current user with mode `0600`; every path component must be free of symlinks.
 Its parent must already exist. Setup publishes without overwriting an existing

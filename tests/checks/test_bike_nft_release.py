@@ -124,8 +124,8 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         )
         self.assertIn("$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)", deploy)
         self.assertIn("$(release_verify_execution)", verify)
-        self.assertIn("$(call release_snapshot_compose_args,$(call release_compose_files,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES),deploy))", deploy)
-        self.assertIn("$(call release_snapshot_compose_args,$(call release_compose_files,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES),verify))", verify)
+        self.assertIn('$(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_transport_args[@]}"', deploy)
+        self.assertIn('$(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}"', verify)
 
 
 

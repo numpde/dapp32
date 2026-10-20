@@ -464,6 +464,12 @@ make pay-to-play/release/setup CONFIG=/absolute/private/pay-to-play.json
 make pay-to-play/release/deploy CONFIG=/absolute/private/pay-to-play.json
 ```
 
+For a local test deployment, first run `make network/local/up`, then choose
+`local` in setup. Run the same deploy and verify commands afterward; the network
+stays running until `make network/local/down`. Use `make network/local/info` to
+check its services and connection details. Local setup supplies the funded
+public `ba` test key, local RPC/CAM URLs and chain 31338.
+
 The file must be new and outside the checkout, with an existing parent and no
 symlink path components. Setup creates it with mode `0600`; loading requires
 that mode and your ownership. It pins the source commit and has no dependency
@@ -472,7 +478,7 @@ The [shared release walkthrough](../../docs/release-ceremony.md#deploy-to-the-se
 also serves Escrow and Bike NFT. The manual environment interface is described
 below.
 
-Publish the checked-out `cam/` bundle at an immutable HTTPS location, or pin it
+For a public deployment, publish the checked-out `cam/` bundle at an immutable HTTPS location, or pin it
 in content-addressed storage. Keep its relative ABI, UI and protocol paths
 available. Validate the local files against the intended publication URI first:
 
