@@ -114,6 +114,12 @@ The publication preflight prints the exact-byte SHA-256 `CAM_HASH`; the deploy p
 
 ## Release deployment
 
+For guided setup, run `make bike-nft/release/setup CONFIG=/absolute/private/bike-nft.json`,
+then `make bike-nft/release/deploy CONFIG=/absolute/private/bike-nft.json`.
+The [shared walkthrough](../../docs/release-ceremony.md#deploy-to-the-selected-chain)
+saves every app input, concrete RPC URL, signing key and deployment confirmation
+in one protected off-repo file. Use the same `CONFIG` for release verification.
+
 The `bike-nft.release-plan.v2` and `bike-nft.deployment.v2` schemas identify SHA-256 manifest commitments. Older v1 artifacts retain their Keccak meaning and are rejected by these lanes. Publish the manifest together with every declared protocol/ABI/UI resource.
 
 Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in [the release ceremony guide](../../docs/release-ceremony.md).

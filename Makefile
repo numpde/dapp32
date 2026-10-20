@@ -60,6 +60,7 @@ export ANVIL_HOST_PORT BIKE_NFT_GUI_PORT BIKE_NFT_GUI_BIND_HOST BIKE_NFT_GUI_ORI
 export CAM_INTEGRATION_SEED CAM_INTEGRATION_RUNS CAM_INTEGRATION_STEPS
 export LOCAL_UID LOCAL_GID ALLOW_UPDATE
 export RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
+export CONFIG
 export CAM_URI
 export VIEWER_TERMINAL_MOCK
 COMPOSE_PROJECT_NAME_VARS := COMPOSE_PROJECT_NAME RPC_COMPOSE_PROJECT_NAME ANVIL_COMPOSE_PROJECT_NAME LIVE_CHECK_COMPOSE_PROJECT_NAME BIKE_NFT_LOCAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME BIKE_NFT_VIEWER_GUI_COMPOSE_PROJECT_NAME BIKE_NFT_RELEASE_CHECK_COMPOSE_PROJECT_NAME ESCROW_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ESCROW_VIEWER_TERMINAL_COMPOSE_PROJECT_NAME ESCROW_VIEWER_GUI_COMPOSE_PROJECT_NAME ESCROW_RELEASE_CHECK_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_PROJECT_NAME TEST_INTEGRATION_FUZZ_WITH_WRITES_BIKE_NFT_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_COMPOSE_PROJECT_NAME VIEWER_TERMINAL_CONTAINER_NAME
@@ -234,6 +235,17 @@ recheck_new_release_output() { \
     printf '%s changed while the release snapshot was being checked.\n' "$$label" >&2; \
     exit 2; \
   fi; \
+}; \
+source tools/release-config.sh
+endef
+
+define release_config_compose
+compose_release_config() { \
+	local config_input="$$CONFIG"; \
+	if [[ -v release_config_input ]]; then config_input="$$release_config_input"; fi; \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)-release-config" \
+    RELEASE_CONFIG_STAGE_DIR="$$release_config_dir" RELEASE_CONFIG_FILE="$$config_input" \
+    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/config.yml "$$@"; \
 }
 endef
 
@@ -274,6 +286,7 @@ if [[ "$$release_rpc_started" == "1" ]] && ! compose_release_rpc down --volumes 
   printf '%s\n' 'RPC resolver teardown failed.' >&2; \
   cleanup_failed=1; \
 fi; \
+if ! release_config_cleanup; then cleanup_failed=1; fi; \
 if [[ -n "$$ceremony_root" ]]; then \
   case "$$ceremony_root" in "/tmp/cam-release-$${LOCAL_UID:?missing_LOCAL_UID}-"*) \
       if [[ "$$cleanup_failed" == "0" ]] && ! rm -rf -- "$$ceremony_root"; then cleanup_failed=1; fi ;; \
@@ -553,6 +566,14 @@ help:
 	  '    loads CAM from its recorded URI, and verifies again. Bike admin waits use the local chain clock.' \
 	  '    It uses public test keys, private HTTP transport and no host ports or external network.' \
 	  '    Temporary services are removed; records remain at the printed /tmp/cam-release-rehearsal-* path.' \
+	  '  make bike-nft/release/setup CONFIG=/absolute/private/release.json' \
+	  '  make escrow/release/setup CONFIG=/absolute/private/release.json' \
+	  '  make pay-to-play/release/setup CONFIG=/absolute/private/release.json' \
+	  '    Walk through every input and save one ready-to-deploy configuration for bike-nft, escrow or pay-to-play.' \
+	  '    CONFIG must be new, outside the checkout, with an existing parent and no symlink path components.' \
+	  '    Saves the concrete RPC URL, deployer key, source commit, app settings and deployment confirmation; mode 0600.' \
+	  '    Then make <app>/release/deploy CONFIG=/absolute/private/release.json deploys without more inputs.' \
+	  '    Use the same CONFIG with <app>/release/verify after any required ownership handoffs.' \
 	  '  make bike-nft/release/deploy      Send Bike NFT deployment transactions and save deployment records.' \
 	  '  make escrow/release/deploy        Send Escrow deployment transactions and save deployment records.' \
 	  '  make pay-to-play/release/deploy   Send Pay-to-Play deployment transactions and save deployment records.' \
@@ -1341,15 +1362,49 @@ escrow/live/browser/fixture-writes/check:
 	EXPECTED_CAM_URI="$${EXPECTED_CAM_URI:?Set EXPECTED_CAM_URI}" EXPECTED_CAM_HASH="$${EXPECTED_CAM_HASH:?Set EXPECTED_CAM_HASH}" \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES) run --build --rm --no-deps -T escrow-viewer-browser-write-check
 
+define release_setup
+$(LANE_GUARD); \
+app="$(patsubst %/release/setup,%,$@)"; \
+$(release_host_guard_functions); \
+validate_new_release_output "$${CONFIG:?Set CONFIG to a new absolute off-repo file}" CONFIG; \
+source_commit="$$(git rev-parse HEAD)"; \
+release_config_stage "$$(dirname -- "$$CONFIG")"; \
+$(release_config_compose); \
+compose_release_config run --rm --no-deps release-setup setup "$$app" "$$source_commit"; \
+release_config_input="$$release_config_dir/release.json"; \
+require_release_config "$$release_config_input"; \
+compose_release_config run --rm --no-deps -T release-config deploy "$$app" "$$source_commit"; \
+mapfile -d '' -t inputs < "$$release_config_dir/inputs"; \
+export "$${inputs[@]}"; \
+prefix="$${app^^}"; prefix="$${prefix//-/_}"; output_name="$${prefix}_RELEASE_OUTPUT_DIR"; \
+validate_new_release_output "$${!output_name}" "$$output_name"; \
+recheck_new_release_output "$$CONFIG" CONFIG; \
+ln -T -- "$$release_config_input" "$$CONFIG"; \
+printf 'Saved ready-to-deploy configuration: %s\n' "$$CONFIG"
+endef
+
+.PHONY: bike-nft/release/setup escrow/release/setup pay-to-play/release/setup
+bike-nft/release/setup:
+	@$(release_setup)
+
+escrow/release/setup:
+	@$(release_setup)
+
+pay-to-play/release/setup:
+	@$(release_setup)
+
 escrow/release/deploy:
 	@$(LANE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
+	$(call release_require_clean_source,Escrow release deployment); \
+	$(release_host_guard_functions); \
+	$(release_config_compose); \
+	load_release_config escrow deploy; \
 	if [[ ! -v CONFIRM_ESCROW_RELEASE_DEPLOY || "$$CONFIRM_ESCROW_RELEASE_DEPLOY" != "YES" ]]; then \
 	  printf '%s\n' 'Set CONFIRM_ESCROW_RELEASE_DEPLOY=YES only after reviewing the chain, CAM publication, final owner, and funded deployer.' >&2; \
 	  exit 2; \
 	fi; \
-	$(call release_require_clean_source,Escrow release deployment); \
 	for name in ESCROW_RELEASE_EXPECTED_CHAIN_ID ESCROW_RELEASE_CAM_URI ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER DEPLOYER_PRIVATE_KEY_FILE ESCROW_RELEASE_OUTPUT_DIR; do \
 	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
 	    printf 'Missing required release input: %s\n' "$$name" >&2; \
@@ -1367,7 +1422,6 @@ escrow/release/deploy:
 	  printf '%s\n' 'ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
 	  exit 2; \
 	fi; \
-	$(release_host_guard_functions); \
 	require_release_rpc_input; \
 	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
 	output_dir="$$ESCROW_RELEASE_OUTPUT_DIR"; \
@@ -1394,13 +1448,15 @@ escrow/release/verify:
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(call release_require_clean_source,Escrow release verification); \
+	$(release_host_guard_functions); \
+	$(release_config_compose); \
+	load_release_config escrow verify; \
 	for name in ESCROW_DEPLOYMENT_ARTIFACT_FILE; do \
 	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
 	    printf 'Missing required verification input: %s\n' "$$name" >&2; \
 	    exit 2; \
 	  fi; \
 	done; \
-	$(release_host_guard_functions); \
 	require_release_rpc_input; \
 	require_release_file "$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"; \
 	compose_release() { \
@@ -1416,16 +1472,18 @@ bike-nft/release/deploy:
 	@$(LANE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
+	$(call release_require_clean_source,Bike NFT release deployment); \
+	$(release_host_guard_functions); \
+	$(release_config_compose); \
+	load_release_config bike-nft deploy; \
 	if [[ ! -v CONFIRM_BIKE_NFT_RELEASE_DEPLOY || "$$CONFIRM_BIKE_NFT_RELEASE_DEPLOY" != "YES" ]]; then \
 	  printf '%s\n' 'Set CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES only after reviewing every authority, delay, URI, chain, and registrar.' >&2; exit 2; \
 	fi; \
-	$(call release_require_clean_source,Bike NFT release deployment); \
 	required=(BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID BIKE_NFT_RELEASE_CAM_URI BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER BIKE_NFT_RELEASE_TOKEN_NAME BIKE_NFT_RELEASE_TOKEN_SYMBOL BIKE_NFT_RELEASE_BASE_TOKEN_URI BIKE_NFT_RELEASE_COLLECTION_URI BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY BIKE_NFT_RELEASE_COMPONENTS_PAUSER BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY BIKE_NFT_RELEASE_MANAGER_PAUSER BIKE_NFT_RELEASE_MANAGER_CONFIGURER BIKE_NFT_RELEASE_REGISTRARS DEPLOYER_PRIVATE_KEY_FILE BIKE_NFT_RELEASE_OUTPUT_DIR); \
 	for name in "$${required[@]}"; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required Bike NFT release input: %s\n' "$$name" >&2; exit 2; fi; done; \
 	chain_id="$$BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID"; \
 	if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == 1337 || "$$chain_id" == 31337 ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; exit 2; fi; \
 	$(call release_validate_cam_uri,BIKE_NFT,bike-nft); \
-	$(release_host_guard_functions); \
 	require_release_rpc_input; \
 	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
 	output_dir="$$BIKE_NFT_RELEASE_OUTPUT_DIR"; \
@@ -1447,8 +1505,10 @@ bike-nft/release/verify:
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(call release_require_clean_source,Bike NFT release verification); \
-	for name in BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required verification input: %s\n' "$$name" >&2; exit 2; fi; done; \
 	$(release_host_guard_functions); \
+	$(release_config_compose); \
+	load_release_config bike-nft verify; \
+	for name in BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required verification input: %s\n' "$$name" >&2; exit 2; fi; done; \
 	require_release_rpc_input; \
 	require_release_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"; \
 	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(call release_compose_files,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES),verify)) "$$@"; }; \
@@ -1459,11 +1519,14 @@ pay-to-play/release/deploy:
 	@$(LANE_GUARD); \
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
+	$(call release_require_clean_source,Pay-to-Play release deployment); \
+	$(release_host_guard_functions); \
+	$(release_config_compose); \
+	load_release_config pay-to-play deploy; \
 	if [[ ! -v CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY || "$$CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY" != "YES" ]]; then \
 	  printf '%s\n' 'Set CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY=YES only after reviewing the chain, CAM publication, both authorities, withdrawal wait, and funded deployer.' >&2; \
 	  exit 2; \
 	fi; \
-	$(call release_require_clean_source,Pay-to-Play release deployment); \
 	for name in PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID PAY_TO_PLAY_RELEASE_CAM_URI PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD DEPLOYER_PRIVATE_KEY_FILE PAY_TO_PLAY_RELEASE_OUTPUT_DIR; do \
 	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
 	    printf 'Missing required release input: %s\n' "$$name" >&2; \
@@ -1481,7 +1544,6 @@ pay-to-play/release/deploy:
 	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
 	  exit 2; \
 	fi; \
-	$(release_host_guard_functions); \
 	require_release_rpc_input; \
 	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
 	output_dir="$$PAY_TO_PLAY_RELEASE_OUTPUT_DIR"; \
@@ -1510,13 +1572,15 @@ pay-to-play/release/verify:
 	$(SOLDEER_DEPS_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
 	$(call release_require_clean_source,Pay-to-Play release verification); \
+	$(release_host_guard_functions); \
+	$(release_config_compose); \
+	load_release_config pay-to-play verify; \
 	for name in PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE; do \
 	  if [[ ! -v $$name || -z "$${!name}" ]]; then \
 	    printf 'Missing required verification input: %s\n' "$$name" >&2; \
 	    exit 2; \
 	  fi; \
 	done; \
-	$(release_host_guard_functions); \
 	require_release_rpc_input; \
 	require_release_file "$$PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE" "PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE"; \
 	compose_release() { \

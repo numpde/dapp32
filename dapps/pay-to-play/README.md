@@ -456,6 +456,22 @@ PayToPlay contract to a selected chain. The script binds the payment contract in
 the CAM host. It creates only reserved channel 0; service channels are created
 later by the payment admin.
 
+Use the shared walkthrough to collect every setting once and save one complete
+configuration, including the RPC URL, deployer key and deployment confirmation:
+
+```sh
+make pay-to-play/release/setup CONFIG=/absolute/private/pay-to-play.json
+make pay-to-play/release/deploy CONFIG=/absolute/private/pay-to-play.json
+```
+
+The file must be new and outside the checkout, with an existing parent and no
+symlink path components. Setup creates it with mode `0600`; loading requires
+that mode and your ownership. It pins the source commit and has no dependency
+on the RPC catalog or other credential files. Review all inputs before saving.
+The [shared release walkthrough](../../docs/release-ceremony.md#deploy-to-the-selected-chain)
+also serves Escrow and Bike NFT. The manual environment interface is described
+below.
+
 Publish the checked-out `cam/` bundle at an immutable HTTPS location, or pin it
 in content-addressed storage. Keep its relative ABI, UI and protocol paths
 available. Validate the local files against the intended publication URI first:
@@ -510,6 +526,12 @@ already equals the deployer.
 Until each transfer is accepted, the deployer remains that contract's owner.
 
 After the transfers are accepted, run:
+
+```sh
+make pay-to-play/release/verify CONFIG=/absolute/private/pay-to-play.json
+```
+
+For a deployment made with individual environment inputs, use:
 
 ```sh
 RPC_URL_FILE=/absolute/private/rpc-url \

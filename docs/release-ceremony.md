@@ -57,6 +57,45 @@ the live service that uses the contracts.
 
 ## Deploy to the selected chain
 
+Run the shared walkthrough once for any supported app:
+
+```sh
+make pay-to-play/release/setup CONFIG=/absolute/private/pay-to-play.json
+make pay-to-play/release/deploy CONFIG=/absolute/private/pay-to-play.json
+make pay-to-play/release/verify CONFIG=/absolute/private/pay-to-play.json
+```
+
+Use `escrow/release/setup` or `bike-nft/release/setup` with their corresponding
+deployment and verification targets. All three setup targets use one shared
+walkthrough; the target name selects the app. It collects the complete HTTPS RPC
+URL, funded deployer's private key, target chain ID, published CAM URI, all of the
+app's authority and contract settings, and a new deployment output directory.
+Secret prompts hide the URL and signing key. The final review lets you change
+the inputs, cancel, or save with deployment confirmation already recorded.
+Setup sends no transactions. Deploying with `CONFIG` requires no further inputs
+and does not read the RPC catalog or any other credential file.
+
+The configuration is JSON containing the concrete RPC URL and private key,
+the exact source commit, every app setting, and `confirmDeploy: true`.
+It must be a normalized absolute path outside the checkout, owned by the
+current user with mode `0600`; every path component must be free of symlinks.
+Its parent must already exist. Setup publishes without overwriting an existing
+file, including a file created while the walkthrough was running. Loading
+enforces the same file requirements, rejects unknown or duplicate fields, and
+requires the matching app and source commit. Values are decoded as inputs;
+the configuration is never executed as shell code. Saved inputs take precedence
+over ambient release settings. Commit the intended source before setup.
+
+The offline loader unpacks the saved RPC URL and, for deployment only, the
+signing key into temporary owner-only files for the existing release phases.
+Cleanup removes these temporary files. Verification reuses the saved output
+directory to locate `artifact/deployment.json`; the verifier and its networked
+services receive no signing key. Run verification after the app's required
+ownership transfers have been accepted.
+
+For callers that already supply individual environment settings, the existing
+interface also remains available:
+
 Select `RPC_CHAIN` and `RPC_SERVICE` from `make release/rpc/list`, or supply a
 protected `RPC_URL_FILE` for a custom endpoint. The [RPC selection guide](rpc-services.md)
 explains both modes and API-key files.

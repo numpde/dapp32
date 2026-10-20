@@ -313,6 +313,12 @@ make escrow/local/demo/gui/up
 
 ## Release deployment
 
+For guided setup, run `make escrow/release/setup CONFIG=/absolute/private/escrow.json`,
+then `make escrow/release/deploy CONFIG=/absolute/private/escrow.json`.
+The [shared walkthrough](../../docs/release-ceremony.md#deploy-to-the-selected-chain)
+saves every app input, concrete RPC URL, signing key and deployment confirmation
+in one protected off-repo file. Use the same `CONFIG` for release verification.
+
 A release deployment is deliberately separate from the local fixture. It has no default chain and accepts no local fixture chain ID. The offline planning step validates the complete checked-in CAM bundle and computes the exact-byte SHA-256 root digest stored in `CamRoot`.
 
 Shared source-snapshot, secret-file, output, Compose-isolation, one-shot, and verification-snapshot rules are documented in [the release ceremony guide](../../docs/release-ceremony.md).

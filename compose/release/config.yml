@@ -1,0 +1,47 @@
+# Offline setup and unpacking. Only the unpacker can read an existing configuration.
+x-config-runtime: &config_runtime
+  image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+  init: true
+  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+  read_only: true
+  network_mode: none
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 32
+  mem_limit: 64m
+  memswap_limit: 64m
+  cpus: 1
+  ulimits:
+    core: 0
+  logging:
+    driver: none
+  entrypoint: [python3, -I, -B, /tool/release_config.py]
+
+x-tool: &tool
+  type: bind
+  source: ../../tools/release_config.py
+  target: /tool/release_config.py
+  read_only: true
+  bind: {create_host_path: false}
+x-output: &output
+  type: bind
+  source: "${RELEASE_CONFIG_STAGE_DIR:?missing_RELEASE_CONFIG_STAGE_DIR}"
+  target: /out
+  bind: {create_host_path: false}
+
+services:
+  release-setup:
+    <<: *config_runtime
+    stdin_open: true
+    tty: true
+    volumes: [*tool, *output]
+  release-config:
+    <<: *config_runtime
+    volumes:
+      - *tool
+      - *output
+      - type: bind
+        source: "${RELEASE_CONFIG_FILE:?missing_RELEASE_CONFIG_FILE}"
+        target: /run/release.json
+        read_only: true
+        bind: {create_host_path: false}
