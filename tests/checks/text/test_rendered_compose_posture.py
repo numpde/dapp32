@@ -334,6 +334,9 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "RELEASE_WAIT_EVIDENCE_DIR": "/tmp/release-wait-evidence",
                 "RELEASE_WAIT_SOCKET_DIR": "/tmp/release-wait-socket",
                 "RELEASE_APPROVAL_IMAGE": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "RELEASE_APPROVAL_SOURCE_DIR": "/tmp/approval-image-source",
+                "RELEASE_APPROVAL_CONTEXT_DIR": "/tmp/approval-image-context",
+                "PACKAGE_INPUT_DIR": "/tmp/approval-image-manifests",
                 "RELEASE_APPROVAL_APP": "escrow",
                 "RELEASE_APPROVAL_CHAIN_ID": "11155111",
                 "RELEASE_APPROVAL_DEPLOYER": "0x0000000000000000000000000000000000000019",
@@ -909,6 +912,8 @@ class RenderedComposePostureTest(unittest.TestCase):
                     (files, "release-approval", "/tmp/release-output/approval/socket", "/run/approval"),
                     (files, "release-approval", "/tmp/release-output/approval/audit", "/run/audit"),
                 })
+            if "compose/release/approval-image.yml" in compose_unit_files(files):
+                expected.add((files, "release-approval-context", "/tmp/approval-image-context", "/context"))
         actual = set()
         for compose_file in compose_render_units():
             config = rendered_compose_config(

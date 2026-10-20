@@ -1,0 +1,42 @@
+services:
+  release-approval-context:
+    image: docker.io/library/node:24.22.0-bookworm-slim@sha256:a5f4366e834695d5f363b920c104953a535d3a9864d1bdf74566a0ebe01daee5
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    network_mode: none
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 512m
+    environment:
+      RELEASE_APPROVAL_TEST_SOURCE: /source/js
+      RELEASE_APPROVAL_TEST_DEPENDENCIES: /dependencies
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+    volumes:
+      - type: bind
+        source: ${RELEASE_APPROVAL_SOURCE_DIR:?missing_RELEASE_APPROVAL_SOURCE_DIR}
+        target: /source
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: volume
+        source: package-out
+        target: /dependencies
+        read_only: true
+      - type: bind
+        source: ${RELEASE_APPROVAL_CONTEXT_DIR:?missing_RELEASE_APPROVAL_CONTEXT_DIR}
+        target: /context
+        bind:
+          create_host_path: false
+    command:
+      - sh
+      - -ec
+      - |
+        node --experimental-strip-types --test /source/containers/release-approval/prepare-context.test.mjs
+        node /source/containers/release-approval/prepare-context.mjs /source/js /dependencies /source/containers/release-approval /context
+
+volumes:
+  package-out: {}

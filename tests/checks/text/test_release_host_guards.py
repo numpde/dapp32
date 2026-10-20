@@ -62,7 +62,11 @@ class ReleaseHostGuardTest(unittest.TestCase):
         self.assertIn("$(release_snapshot_populate)", prepare)
         for definition in ("release_deploy_execution", "release_verify_execution"):
             execution = self.source.split(f"define {definition}\n", 1)[1].split("endef", 1)[0]
-            self.assertLess(execution.index("$(release_prepare_snapshot)"), execution.index("up --build --abort"))
+            operation = {
+                "release_deploy_execution": "release_approval_prepare",
+                "release_verify_execution": "up --build --abort",
+            }[definition]
+            self.assertLess(execution.index("$(release_prepare_snapshot)"), execution.index(operation))
 
     def test_deploy_output_is_rechecked_before_creation(self) -> None:
         for name, label in (
@@ -77,8 +81,10 @@ class ReleaseHostGuardTest(unittest.TestCase):
         recheck = 'recheck_new_release_output "$$output_dir" "$(1)"'
         mkdir = 'mkdir --mode=0700 -- "$$output_dir"'
         self.assertLess(execution.index("compose_release_check run"), execution.index(recheck))
+        self.assertLess(execution.index("release_approval_require_deployer"), execution.index(mkdir))
         self.assertLess(execution.index(recheck), execution.index(mkdir))
-        self.assertLess(execution.index(mkdir), execution.index("up --build --abort"))
+        self.assertLess(execution.index(mkdir), execution.index("release_approval_prepare"))
+        self.assertLess(execution.index("release_approval_prepare"), execution.index("release_approval_run"))
 
 
 if __name__ == "__main__":

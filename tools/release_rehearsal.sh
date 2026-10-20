@@ -3,9 +3,9 @@
 set -euo pipefail
 unset MAKEFLAGS MAKEOVERRIDES MFLAGS GNUMAKEFLAGS MAKEFILES
 app="${1:?Pass a supported app}"
-action="${3:?Pass release, waits, or ipc-waits}"
-if [[ "$action" != release && "$action" != waits && "$action" != ipc-waits ]]; then
-  printf '%s\n' 'Release rehearsal action must be release, waits, or ipc-waits.' >&2; exit 2
+action="${3:?Pass release, waits, ipc-waits, or approval-pty}"
+if [[ "$action" != release && "$action" != waits && "$action" != ipc-waits && "$action" != approval-pty ]]; then
+  printf '%s\n' 'Release rehearsal action must be release, waits, ipc-waits, or approval-pty.' >&2; exit 2
 fi
 if [[ "$action" != release && "$app" != escrow ]]; then
   printf '%s\n' 'The shared release-client wait qualification uses Escrow.' >&2; exit 2
@@ -107,8 +107,12 @@ set +a
 prefix="${app^^}"
 prefix="${prefix//-/_}"
 export "${prefix}_RELEASE_SOURCE_COMMIT=$(git rev-parse HEAD)"
-if [[ "$action" != release ]]; then
+if [[ "$action" == waits || "$action" == ipc-waits ]]; then
   bash tools/release_waits.sh "$project" "$action"
+  exit "$?"
+fi
+if [[ "$action" == approval-pty ]]; then
+  python3 tools/release_approval_pty_check.py
   exit "$?"
 fi
 

@@ -100,15 +100,21 @@ BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deplo
 BIKE_NFT_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-gui.yml
 BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/bike-nft/release/check.yml
 BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml
+BIKE_NFT_RELEASE_REFERENCE_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml
+BIKE_NFT_RELEASE_APPROVAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
 BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/bike-nft/release/verify.yml
 ESCROW_LOCAL_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/scenario.yml
 ESCROW_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-terminal.yml
 ESCROW_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-gui.yml
 ESCROW_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/escrow/release/check.yml
 ESCROW_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml
+ESCROW_RELEASE_REFERENCE_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml
+ESCROW_RELEASE_APPROVAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
 ESCROW_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/escrow/release/verify.yml
 PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/pay-to-play/release/check.yml
 PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/release/deploy.yml
+PAY_TO_PLAY_RELEASE_REFERENCE_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml
+PAY_TO_PLAY_RELEASE_APPROVAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/release/deploy.yml -f $(COMPOSE_DIR)/release/reference.yml -f $(COMPOSE_DIR)/release/approval.yml
 PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/pay-to-play/release/verify.yml
 export PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID PAY_TO_PLAY_RELEASE_CAM_URI PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN PAY_TO_PLAY_RELEASE_NULL_CLAIM_PERIOD PAY_TO_PLAY_RELEASE_OUTPUT_DIR PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY
 LOCAL_RELEASE_PROJECT := $(COMPOSE_PROJECT_NAME)-release-local
@@ -272,7 +278,7 @@ define release_snapshot_cleanup
 status="$$?"; \
 set +e; \
 cleanup_failed=0; \
-if [[ "$$release_run_started" == "1" ]] && ! compose_release down --rmi local --volumes --remove-orphans >/dev/null; then \
+if [[ "$$release_run_started" == "1" ]] && ! compose_release down --volumes --remove-orphans >/dev/null; then \
   printf '%s\n' 'Release run teardown failed.' >&2; \
   cleanup_failed=1; \
 fi; \
@@ -357,11 +363,22 @@ release_rpc_expected_chain="$$chain_id"; \
 $(release_prepare_snapshot); \
 release_check_started=1; \
 compose_release_check run --build --rm release-check; \
+source "$$ceremony_source/tools/release_approval_deploy.sh"; \
+release_approval_require_terminal; \
+release_approval_require_image; \
+release_phase_overlays=(-f "$$ceremony_source/compose/release/reference.yml"); \
+approval_prefix="$(1)"; approval_prefix="$${approval_prefix%_RELEASE_OUTPUT_DIR}"; \
+expected_deployer_name="$${approval_prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS"; \
+approval_app="$${approval_prefix,,}"; approval_app="$${approval_app//_/-}"; \
+if [[ ! -v $$expected_deployer_name ]]; then printf 'Missing required release input: %s\n' "$$expected_deployer_name" >&2; exit 2; fi; \
+expected_deployer="$${!expected_deployer_name}"; \
+release_approval_require_deployer "$$expected_deployer_name" "$$expected_deployer"; \
 recheck_new_release_output "$$output_dir" "$(1)"; \
 mkdir --mode=0700 -- "$$output_dir"; \
 mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
 release_run_started=1; \
-compose_release up --build --abort-on-container-exit --exit-code-from release-artifact release-artifact; \
+release_approval_prepare "$$approval_app" "$$expected_deployer" "$$source_commit" "$$chain_id" "$$output_dir"; \
+release_approval_run "$$output_dir"; \
 printf 'Release artifact: %s/artifact/deployment.json\n' "$$output_dir"
 endef
 
@@ -582,6 +599,9 @@ help:
 	  '  make escrow/release/approval-wait/check Measure pinned Forge approval/receipt waits on a disposable chain.' \
 	  '    Runs 10/50/120-second pre-send delays, receipt delay, rejection and lost-response controls.' \
 	  '    Reports compatibility failures separately from fixture failures; does not deploy an approval proxy.' \
+	  '  make escrow/release/approval/start/check Exercise the live Escrow approval launcher in a PTY.' \
+	  '    Uses the private disposable chain, opens the socket only after start, then rejects the first transaction.' \
+	  '    Requires host Python 3 and RELEASE_APPROVAL_IMAGE set to the operator-reviewed local sha256 image ID.' \
 	  '  make escrow/release/ipc-approval-wait/check Qualify stock Forge over a private Unix socket.' \
 	  '    Runs an ordinary release first, then a 120-second hold and failure/receipt controls.' \
 	  '  make pay-to-play/release/rehearsal/run  Rehearse the Pay-to-Play release on an isolated local chain.' \
@@ -601,7 +621,12 @@ help:
 	  '    Keep that directory: verification reads its artifact/deployment.json. Do not create it beforehand.' \
 	  '    CONFIG must be new, outside the checkout, with an existing parent and no symlink path components.' \
 	  '    Saves the concrete RPC URL, deployer key, source commit, app settings and deployment confirmation; mode 0600.' \
-	  '    Then make <app>/release/deploy CONFIG=/absolute/private/release.json deploys without more inputs.' \
+	  '    Review the approval image provenance separately. Deploy from a terminal with CONFIG and RELEASE_APPROVAL_IMAGE=sha256:<local image ID>.' \
+	  '  make release/approval/image/build SOURCE_COMMIT=<reviewed tool commit> RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=<new directory>' \
+	  '    Build the approval tool image from that committed source and fresh locked dependencies.' \
+	  '    Saves its immutable image ID and source/lock digests for separate operator review; never admits it automatically.' \
+	  '    Deployment checks that exact image ID is present locally; it does not establish image provenance.' \
+	  '    Each signed transaction is shown for approval; output retains the private audit and transaction records.' \
 	  '    Use the same CONFIG with <app>/release/verify after any required ownership handoffs.' \
 	  '  make bike-nft/release/deploy      Send Bike NFT deployment transactions and save deployment records.' \
 	  '  make escrow/release/deploy        Send Escrow deployment transactions and save deployment records.' \
@@ -905,6 +930,13 @@ escrow/release/check:
 	$(PACKAGE_DEPS_GUARD); \
 	$(ESCROW_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(ESCROW_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T release-check
 
+.PHONY: release/approval/image/build
+release/approval/image/build:
+	@$(LANE_GUARD); \
+	: "$${SOURCE_COMMIT:?Set SOURCE_COMMIT to the reviewed approval-tool Git commit.}"; \
+	: "$${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR:?Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR to a new output directory.}"; \
+	bash tools/release_approval_image_build.sh "$$SOURCE_COMMIT" "$$RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"
+
 bike-nft/release/check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
@@ -1162,6 +1194,11 @@ escrow/release/approval-wait/check:
 escrow/release/ipc-approval-wait/check:
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
 	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" ipc-waits
+
+.PHONY: escrow/release/approval/start/check
+escrow/release/approval/start/check:
+	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
+	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" approval-pty
 
 pay-to-play/release/rehearsal/run:
 	$(release_rehearsal)
@@ -1528,7 +1565,7 @@ escrow/release/deploy:
 	    ESCROW_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$$@"; \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$$@"; \
 	}; \
 	compose_release_check() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
@@ -1588,7 +1625,7 @@ bike-nft/release/deploy:
 	  BIKE_NFT_RELEASE_BASE_TOKEN_URI="$$BIKE_NFT_RELEASE_BASE_TOKEN_URI" BIKE_NFT_RELEASE_COLLECTION_URI="$$BIKE_NFT_RELEASE_COLLECTION_URI" \
 	  BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN" BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY="$$BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY" BIKE_NFT_RELEASE_COMPONENTS_PAUSER="$$BIKE_NFT_RELEASE_COMPONENTS_PAUSER" BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER="$$BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER" \
 	  BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN" BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY="$$BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY" BIKE_NFT_RELEASE_MANAGER_PAUSER="$$BIKE_NFT_RELEASE_MANAGER_PAUSER" BIKE_NFT_RELEASE_MANAGER_CONFIGURER="$$BIKE_NFT_RELEASE_MANAGER_CONFIGURER" BIKE_NFT_RELEASE_REGISTRARS="$$BIKE_NFT_RELEASE_REGISTRARS" \
-	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$$@"; \
+	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$$@"; \
 	}; \
 	compose_release_check() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; }; \
 	$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)
@@ -1652,7 +1689,7 @@ pay-to-play/release/deploy:
 	    PAY_TO_PLAY_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$$@"; \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$$@"; \
 	}; \
 	compose_release_check() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \

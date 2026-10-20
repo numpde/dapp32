@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.19
-
 # Minimal HTTPS CONNECT proxy for dependency installation lanes.
 #
 # The proxy is intentionally small and dependency-free. It allows CONNECT only

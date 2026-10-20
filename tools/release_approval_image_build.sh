@@ -1,0 +1,139 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# != 2 || ! $1 =~ ^[0-9a-f]{40}$ ]]; then
+  printf '%s\n' 'Usage: release_approval_image_build.sh SOURCE_COMMIT NEW_OUTPUT_DIR' >&2
+  exit 2
+fi
+
+source_commit=$1
+output_dir=$2
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+if [[ $(id -u) == 0 ]]; then
+  printf '%s\n' 'Build the approval image as a non-root operator.' >&2
+  exit 2
+fi
+validate_output_path() {
+  local path=$1 parent=$2 current=/ part
+  local -a parts
+  if [[ $path != /* || $(realpath -ms -- "$path") != "$path" ]]; then
+    printf '%s\n' 'The approval image output must be a normalized absolute path.' >&2
+    exit 2
+  fi
+  IFS=/ read -r -a parts <<< "$parent"
+  for part in "${parts[@]}"; do
+    if [[ -z $part ]]; then continue; fi
+    if [[ $current == / ]]; then current=/$part; else current=$current/$part; fi
+    if [[ -L $current ]]; then
+      printf '%s\n' 'The approval image output parent must not pass through a symlink.' >&2
+      exit 2
+    fi
+  done
+  if [[ ! -d $parent ]]; then
+    printf '%s\n' 'The approval image output parent must be an existing directory.' >&2
+    exit 2
+  fi
+  case $path in
+    "$repo_root"|"$repo_root"/*)
+      printf '%s\n' 'The approval image output must be outside the repository.' >&2
+      exit 2 ;;
+  esac
+  if [[ -e $path || -L $path ]]; then
+    printf '%s\n' 'The approval image output directory must be new.' >&2
+    exit 2
+  fi
+}
+output_parent=$(dirname -- "$output_dir")
+validate_output_path "$output_dir" "$output_parent"
+if [[ $(git -C "$repo_root" cat-file -t "$source_commit" 2>/dev/null) != commit ]]; then
+  printf '%s\n' 'SOURCE_COMMIT must identify a local Git commit.' >&2
+  exit 2
+fi
+
+# All image inputs come from this archive, not from the checkout being deployed.
+work_dir=$(mktemp -d)
+source_dir=$work_dir/source
+manifest_dir=$work_dir/manifests
+context_dir=$work_dir/context
+mkdir -m 0700 "$source_dir" "$manifest_dir" "$context_dir"
+project_name=cam-approval-image-$(basename "$work_dir" | tr -cd 'a-zA-Z0-9')
+compose_files=(-f "$source_dir/compose/package-deps.yml" -f "$source_dir/compose/release/approval-image.yml")
+stage_started=0
+cleanup() {
+  status=$?
+  if [[ $stage_started == 1 ]]; then
+    if ! docker compose -p "$project_name" "${compose_files[@]}" down --volumes --remove-orphans >&2; then
+      printf '%s\n' 'Approval image dependency volume cleanup failed; inspect the Docker project before retrying.' >&2
+      status=1
+    fi
+  fi
+  if [[ ${artifact_dir+x} == x ]]; then rm -rf -- "$artifact_dir"; fi
+  rm -rf -- "$work_dir"
+  exit "$status"
+}
+trap cleanup EXIT
+
+git -C "$repo_root" archive --format=tar "$source_commit" | tar -xf - -C "$source_dir"
+for input in \
+  "$source_dir/js/package.json" \
+  "$source_dir/js/package-lock.json" \
+  "$source_dir/containers/release-approval/Dockerfile" \
+  "$source_dir/containers/release-approval/prepare-context.mjs" \
+  "$source_dir/compose/release/approval-image.yml"; do
+  if [[ -L $input || ! -f $input ]]; then
+    printf 'Missing or unsafe approval image source input: %s\n' "$input" >&2
+    exit 2
+  fi
+done
+cp "$source_dir/js/package.json" "$source_dir/js/package-lock.json" "$manifest_dir/"
+for manifest in "$source_dir"/js/packages/*/package.json "$source_dir"/js/apps/*/package.json; do
+  if [[ -L $manifest || ! -f $manifest ]]; then
+    printf 'Missing or unsafe npm workspace manifest: %s\n' "$manifest" >&2
+    exit 2
+  fi
+  relative=${manifest#"$source_dir/js/"}
+  mkdir -p "$manifest_dir/$(dirname "$relative")"
+  cp "$manifest" "$manifest_dir/$relative"
+done
+
+export LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) ALLOW_UPDATE=0
+export PACKAGE_INPUT_DIR=$manifest_dir
+export RELEASE_APPROVAL_SOURCE_DIR=$source_dir RELEASE_APPROVAL_CONTEXT_DIR=$context_dir
+for base in \
+  $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/release-approval/Dockerfile") \
+  $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/node-deps/Dockerfile") \
+  $(sed -n 's/^FROM \([^ ]*\).*/\1/p' "$source_dir/containers/https-egress-proxy/Dockerfile"); do
+  if ! docker image inspect "$base" >/dev/null 2>&1; then
+    printf 'Pinned image prerequisite is absent locally: %s\n' "$base" >&2
+    printf '%s\n' 'Acquire and review this base explicitly before running the approval image build.' >&2
+    exit 2
+  fi
+done
+
+# The npm stage sees manifests through the registry-only proxy, not repository source.
+stage_started=1
+docker compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
+docker compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
+docker compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
+
+lock_sha256=$(sha256sum "$source_dir/js/package-lock.json" | cut -d ' ' -f1)
+dockerfile_sha256=$(sha256sum "$source_dir/containers/release-approval/Dockerfile" | cut -d ' ' -f1)
+image_id=$(docker build --network=none --pull=false --label "org.opencontainers.image.revision=$source_commit" --quiet "$context_dir")
+if [[ ! $image_id =~ ^sha256:[0-9a-f]{64}$ ]]; then
+  printf 'Docker build returned an invalid image ID: %s\n' "$image_id" >&2
+  exit 1
+fi
+observed_id=$(docker image inspect --format '{{.Id}}' "$image_id")
+observed_commit=$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$image_id")
+if [[ $observed_id != "$image_id" || $observed_commit != "$source_commit" ]]; then
+  printf '%s\n' 'The built image ID or source-commit label differs from the expected artifact.' >&2
+  exit 1
+fi
+artifact_dir=$(mktemp -d "$output_dir.tmp.XXXXXX")
+printf '{"imageId":"%s","approvalToolSourceCommit":"%s","packageLockSha256":"%s","dockerfileSha256":"%s"}\n' \
+  "$image_id" "$source_commit" "$lock_sha256" "$dockerfile_sha256" > "$artifact_dir/approval-image.json"
+validate_output_path "$output_dir" "$output_parent"
+mv -T -- "$artifact_dir" "$output_dir"
+unset artifact_dir
+printf 'Built approval tool image %s from source commit %s. Review %s before operator admission.\n' \
+  "$image_id" "$source_commit" "$output_dir/approval-image.json"

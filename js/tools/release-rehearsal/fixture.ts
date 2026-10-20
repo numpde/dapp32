@@ -23,6 +23,7 @@ export function releaseInputs(app: RehearsalApp, directory: string): Record<stri
   const settings: Record<string, string> = {
     RPC_URL_FILE: `${directory}/control/rpc-url`,
     DEPLOYER_PRIVATE_KEY_FILE: `${directory}/control/deployer-key`,
+    [`${prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS`]: privateKeyToAccount(deployerKey).address,
     [`CONFIRM_${prefix}_RELEASE_DEPLOY`]: "YES",
     [`${prefix}_RELEASE_EXPECTED_CHAIN_ID`]: String(chainId),
     [`${prefix}_RELEASE_CAM_URI`]: `${camOrigin}/${app}/main.json`,

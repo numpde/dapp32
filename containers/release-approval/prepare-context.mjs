@@ -53,7 +53,7 @@ async function rejectTreeSymlinks(root) {
   }
 }
 
-async function runtimePackages(source, lock) {
+async function runtimePackages(dependencies, lock) {
   if (lock.lockfileVersion !== 3 || lock.packages === null || typeof lock.packages !== 'object') {
     throw new Error('Release image requires an npm v3 package lock')
   }
@@ -63,8 +63,8 @@ async function runtimePackages(source, lock) {
     if (seen.has(name)) return
     const locked = lock.packages[`node_modules/${name}`]
     if (!locked || typeof locked.version !== 'string') throw new Error(`Runtime package ${name} is missing from the lock`)
-    const directory = join(source, 'node_modules', name)
-    await regularBelow(source, join(directory, 'package.json'))
+    const directory = join(dependencies, 'node_modules', name)
+    await regularBelow(dependencies, join(directory, 'package.json'))
     const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'))
     if (manifest.name !== name || manifest.version !== locked.version) {
       throw new Error(`Runtime package ${name} differs from the lock`)
@@ -77,17 +77,22 @@ async function runtimePackages(source, lock) {
   return [...seen].sort()
 }
 
-export async function prepareContext({ source, image, output }) {
+export async function prepareContext({ source, dependencies, image, output }) {
   source = resolve(source)
+  dependencies = resolve(dependencies)
   image = resolve(image)
   output = resolve(output)
   await realEntry(output, 'directory')
   if ((await readdir(output)).length !== 0) throw new Error('Release image output directory must be empty')
   for (const name of ['Dockerfile', '.dockerignore']) await regularBelow(image, join(image, name))
   await regularBelow(source, join(source, 'package-lock.json'))
+  await regularBelow(dependencies, join(dependencies, 'package-lock.json'))
   for (const name of RUNTIME_SOURCES) await regularBelow(source, join(source, name))
-  const lock = JSON.parse(await readFile(join(source, 'package-lock.json'), 'utf8'))
-  const packages = await runtimePackages(source, lock)
+  const sourceLock = await readFile(join(source, 'package-lock.json'))
+  const dependencyLock = await readFile(join(dependencies, 'package-lock.json'))
+  if (!sourceLock.equals(dependencyLock)) throw new Error('Dependency stage lockfile differs from release source lockfile')
+  const lock = JSON.parse(sourceLock.toString('utf8'))
+  const packages = await runtimePackages(dependencies, lock)
 
   for (const name of ['Dockerfile', '.dockerignore']) await cp(join(image, name), join(output, name), { errorOnExist: true, force: false })
   await writeFile(join(output, 'package.json'), '{"private":true,"type":"module"}\n', { flag: 'wx' })
@@ -99,17 +104,17 @@ export async function prepareContext({ source, image, output }) {
   for (const name of packages) {
     const destination = join(output, 'node_modules', name)
     await mkdir(dirname(destination), { recursive: true })
-    await cp(join(source, 'node_modules', name), destination, { recursive: true, errorOnExist: true, force: false })
+    await cp(join(dependencies, 'node_modules', name), destination, { recursive: true, errorOnExist: true, force: false })
   }
   return packages
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv.length !== 5) {
-    process.stderr.write('Usage: prepare-context.mjs SOURCE_JS IMAGE_DIR EMPTY_OUTPUT_DIR\n')
+  if (process.argv.length !== 6) {
+    process.stderr.write('Usage: prepare-context.mjs SOURCE_JS DEPENDENCY_STAGE IMAGE_DIR EMPTY_OUTPUT_DIR\n')
     process.exitCode = 2
   } else {
-    prepareContext({ source: process.argv[2], image: process.argv[3], output: process.argv[4] })
+    prepareContext({ source: process.argv[2], dependencies: process.argv[3], image: process.argv[4], output: process.argv[5] })
       .then(packages => process.stdout.write(`Staged release approval runtime with ${packages.length} locked packages\n`))
       .catch(error => {
         process.stderr.write(`Release approval image staging failed: ${error instanceof Error ? error.message : String(error)}\n`)
