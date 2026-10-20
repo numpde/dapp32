@@ -11,12 +11,13 @@ export type AuditEvent =
 
 export interface Audit { append(event: AuditEvent): void }
 export type SubmissionResult =
-  | { status: "accepted"; hash: Hex }
+  | { status: "accepted"; hash: Hex; continuationFailure?: string }
   | { status: "refused" | "uncertain"; hash: Hex; reason: string }
 
 type Candidate = { raw: Hex; hash: Hex; sender: Address; chainId: number; nonce: number }
 type Pending = Candidate & { challenge: string; deadline: number; waiters: Set<Waiter>; cancelExpiry: () => void }
 type Waiter = { resolve(value: SubmissionResult): void; signal?: AbortSignal; onAbort?: () => void }
+type Admission = Candidate & { inspection: Promise<Error | null>; waiters: number; canceled: boolean; completed: boolean; released: boolean }
 
 export interface ApprovalOptions {
   chainId: number
@@ -26,6 +27,9 @@ export interface ApprovalOptions {
   now: () => number
   schedule: (callback: () => void, delayMs: number) => () => void
   audit: Audit
+  inspect: (raw: Hex) => Promise<void>
+  accepted: (hash: Hex) => Promise<void> | void
+  notAccepted: (hash: Hex) => void
   send: (raw: Hex) => Promise<Hex>
   maxWaiters: number
   maxHistory: number
@@ -63,6 +67,7 @@ export class ApprovalOwner {
   private readonly options: ApprovalOptions
   private current: Pending | null = null
   private transmitting: Pending | null = null
+  private admitting: Admission | null = null
   private readonly outcomes = new Map<Hex, SubmissionResult>()
   private closed: string | null = null
 
@@ -99,16 +104,39 @@ export class ApprovalOwner {
     if (this.closed !== null && !retryOfTransmitting) throw new Error(`Approval ceremony closed: ${this.closed}`)
     if (active !== null && candidate.hash !== active.hash) throw new Error("Another transaction is awaiting approval or transmission")
     if (active === null) {
+      await this.admit(candidate, signal)
+      if (this.closed !== null) throw new Error(`Approval ceremony closed: ${this.closed}`)
+      if (signal?.aborted) throw new Error("Approval waiter disconnected")
+      const afterAdmission = this.current !== null ? this.current : this.transmitting
+      if (afterAdmission !== null && afterAdmission.hash !== candidate.hash) throw new Error("Another transaction is awaiting approval or transmission")
+      if (afterAdmission === null && (this.admitting === null || this.admitting.raw !== candidate.raw)) {
+        throw new Error("Approval admission changed before request could be recorded")
+      }
+    }
+    if (this.current === null && this.transmitting === null) {
       if (this.outcomes.size >= this.options.maxHistory) {
+        this.releaseReservation(candidate.hash)
         this.close("Approval history limit reached")
         throw new Error("Approval history limit reached")
       }
       const pending: Pending = { ...candidate, challenge: randomUUID(), deadline: this.options.now() + this.options.approvalMs,
         waiters: new Set(), cancelExpiry: () => {} }
+      if (this.closed !== null || this.admitting?.raw !== candidate.raw) {
+        throw new Error(`Approval ceremony closed: ${this.closed === null ? "admission changed" : this.closed}`)
+      }
       try { this.options.audit.append({ kind: "pending", hash: candidate.hash, sender: candidate.sender,
         chainId: candidate.chainId, nonce: candidate.nonce, referenceDigest: this.options.referenceDigest, challenge: pending.challenge }) }
-      catch (cause) { this.closed = "audit write failed"; throw new Error("Cannot record approval request", { cause }) }
+      catch (cause) {
+        this.closed = "audit write failed"
+        if (this.admitting !== null) this.releaseAdmission(this.admitting)
+        this.admitting = null
+        throw new Error("Cannot record approval request", { cause })
+      }
+      if (this.closed !== null || this.admitting?.raw !== candidate.raw) {
+        throw new Error(`Approval ceremony closed: ${this.closed === null ? "admission changed" : this.closed}`)
+      }
       this.current = pending
+      this.admitting = null
       try {
         pending.cancelExpiry = this.options.schedule(() => {
           if (this.current === pending) this.closePending("approval expired")
@@ -174,16 +202,90 @@ export class ApprovalOwner {
     } catch {
       outcome = { status: "uncertain", hash: pending.hash, reason: "cannot persist upstream result" }
     }
+    if (outcome.status === "accepted") {
+      try { await this.options.accepted(pending.hash) }
+      catch (error) {
+        outcome = { status: "accepted", hash: pending.hash, continuationFailure: safeErrorClass(error) }
+        if (this.closed === null) this.closed = "accepted continuation failed"
+      }
+    } else {
+      const cleanupFailure = this.releaseReservation(pending.hash)
+      if (cleanupFailure !== null) outcome = { ...outcome, reason: `${outcome.reason}; ${cleanupFailure}` }
+    }
     this.outcomes.set(pending.hash, outcome)
     if (outcome.status === "uncertain") this.closed = outcome.reason
     this.transmitting = null
     this.resolve(pending, outcome)
   }
 
+  private async admit(candidate: Candidate, signal?: AbortSignal): Promise<void> {
+    let admission = this.admitting
+    if (admission !== null && admission.raw !== candidate.raw) throw new Error("Another candidate is being inspected")
+    if (admission === null) {
+      admission = { ...candidate, waiters: 0, canceled: false, completed: false, released: false, inspection: Promise.resolve(null) }
+      const started = admission
+      started.inspection = Promise.resolve().then(() => this.options.inspect(candidate.raw)).then(
+        () => { started.completed = true; if (started.canceled) this.releaseAdmission(started); return null },
+        error => {
+          started.completed = true
+          this.closed = "transaction inspection failed"
+          const cleanupFailure = this.releaseAdmission(started)
+          const reason = `Transaction inspection failed (${safeErrorClass(error)})`
+          return new Error(cleanupFailure === null ? reason : `${reason}; ${cleanupFailure}`)
+        },
+      )
+      this.admitting = started
+    }
+    if (admission.waiters >= this.options.maxWaiters) throw new Error("Too many approval admission waiters")
+    admission.waiters++
+    let admitted = false
+    try {
+      const result = signal ? await this.waitForAdmission(admission.inspection, signal) : await admission.inspection
+      if (result !== null) throw result
+      if (admission.canceled) throw new Error(`Approval admission canceled: ${this.closed === null ? "closed" : this.closed}`)
+      admitted = true
+    } finally {
+      admission.waiters--
+      if (admission.waiters === 0 && this.admitting === admission) {
+        if (!admitted || admission.canceled) {
+          admission.canceled = true
+          if (this.closed === null) this.closed = "all approval waiters disconnected"
+          if (admission.completed) this.releaseAdmission(admission)
+          this.admitting = null
+        }
+      }
+    }
+  }
+
+  private waitForAdmission(inspection: Promise<Error | null>, signal: AbortSignal): Promise<Error | null> {
+    if (signal.aborted) return Promise.reject(new Error("Approval waiter disconnected"))
+    return new Promise((resolve, reject) => {
+      const onAbort = () => { signal.removeEventListener("abort", onAbort); reject(new Error("Approval waiter disconnected")) }
+      signal.addEventListener("abort", onAbort, { once: true })
+      inspection.then(value => { signal.removeEventListener("abort", onAbort); resolve(value) })
+    })
+  }
+
+  private releaseReservation(hash: Hex): string | null {
+    try { this.options.notAccepted(hash) }
+    catch { this.closed = "verifier reservation cleanup failed"; return this.closed }
+    return null
+  }
+
+  private releaseAdmission(admission: Admission): string | null {
+    if (admission.released) return null
+    admission.released = true
+    return this.releaseReservation(admission.hash)
+  }
+
   close(reason: string): void {
     if (this.closed !== null) return
     if (this.current) { this.closePending(reason); return }
     this.closed = reason
+    if (this.admitting) {
+      this.admitting.canceled = true
+      if (this.admitting.completed) this.releaseAdmission(this.admitting)
+    }
     this.options.audit.append({ kind: "closed", reason })
   }
 
@@ -191,6 +293,8 @@ export class ApprovalOwner {
     this.current = null
     pending.cancelExpiry()
     this.closed = reason
+    const cleanupFailure = this.releaseReservation(pending.hash)
+    if (cleanupFailure !== null) reason = `${reason}; ${cleanupFailure}`
     this.resolve(pending, { status: "refused", hash: pending.hash, reason })
   }
 
@@ -202,6 +306,8 @@ export class ApprovalOwner {
     this.closed = reason
     try { this.options.audit.append({ kind: "closed", hash: pending.hash, reason }) }
     catch { reason = "audit write failed"; this.closed = reason }
+    const cleanupFailure = this.releaseReservation(pending.hash)
+    if (cleanupFailure !== null) reason = `${reason}; ${cleanupFailure}`
     const outcome: SubmissionResult = { status: "refused", hash: pending.hash, reason }
     this.outcomes.set(pending.hash, outcome)
     this.resolve(pending, outcome)

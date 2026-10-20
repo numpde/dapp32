@@ -27,7 +27,7 @@ function harness(override: Partial<ConstructorParameters<typeof ApprovalOwner>[0
   const owner = new ApprovalOwner({ chainId: 31337, sender: account.address, referenceDigest,
     approvalMs: 180_000, maxWaiters: 32, maxHistory: 128, now: () => now,
     schedule: (callback, delay) => { const timer = { due: now + delay, callback, canceled: false }; timers.push(timer); return () => { timer.canceled = true } },
-    audit,
+    audit, inspect: async () => {}, accepted: () => {}, notAccepted: () => {},
     send: async raw => { sends.push(raw); return keccak256(raw) }, ...override })
   return { owner, events, sends,
     elapseWithoutTimer(ms: number) { now += ms },
@@ -40,6 +40,222 @@ test("only a signed type-2 transaction from the selected chain and sender reache
   await assert.rejects(h.owner.submit(await signed(0, other)), /sender/)
   assert.equal(h.owner.pending(), null)
   assert.equal(h.sends.length, 0)
+})
+
+test("concurrent exact duplicates share admission before any audit or prompt; different bytes cannot race", async () => {
+  let finishInspection: (() => void) | undefined
+  let inspections = 0
+  let accepted = 0
+  const h = harness({ inspect: async () => { inspections++; await new Promise<void>(resolve => { finishInspection = resolve }) },
+    accepted: () => { accepted++ } })
+  const raw = await signed(0, account)
+  const first = h.owner.submit(raw)
+  const duplicate = h.owner.submit(raw)
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.owner.pending(), null)
+  assert.equal(h.events.length, 0)
+  assert.equal(inspections, 1)
+  await assert.rejects(h.owner.submit(await signed(1, account)), /candidate|inspection|busy/i)
+  assert(finishInspection)
+  finishInspection()
+  await new Promise(resolve => setImmediate(resolve))
+  const pending = h.owner.pending()
+  assert(pending)
+  assert.equal(h.events.filter(event => event.kind === "pending").length, 1)
+  await h.owner.decide(pending.challenge, "approve")
+  assert.equal((await first).status, "accepted")
+  assert.equal((await duplicate).status, "accepted")
+  assert.equal(accepted, 1)
+  assert.equal((await h.owner.submit(raw)).status, "accepted")
+  assert.equal(inspections, 1)
+})
+
+test("a stalled inspection admits only the configured number of waiters", async () => {
+  let finishInspection: (() => void) | undefined
+  const h = harness({ maxWaiters: 2,
+    inspect: async () => { await new Promise<void>(resolve => { finishInspection = resolve }) } })
+  const raw = await signed(0, account)
+  const first = h.owner.submit(raw)
+  const second = h.owner.submit(raw)
+  await new Promise(resolve => setImmediate(resolve))
+  let rejectedBeforeRelease = false
+  const third = h.owner.submit(raw).then(
+    () => null,
+    error => { rejectedBeforeRelease = true; return error as Error },
+  )
+  await new Promise(resolve => setImmediate(resolve))
+  const wasBounded = rejectedBeforeRelease
+  assert.equal(h.owner.pending(), null)
+  assert(finishInspection)
+  finishInspection()
+  await new Promise(resolve => setImmediate(resolve))
+  const pending = h.owner.pending()
+  assert(pending)
+  await h.owner.decide(pending.challenge, "approve")
+  assert.equal((await first).status, "accepted")
+  assert.equal((await second).status, "accepted")
+  const thirdError = await third
+  assert.equal(wasBounded, true)
+  assert(thirdError instanceof Error)
+  assert.match(thirdError.message, /too many.*waiters/i)
+})
+
+test("closing during inspection releases the reservation and never publishes a prompt", async () => {
+  let finishInspection: (() => void) | undefined
+  const cleared: string[] = []
+  const h = harness({ inspect: async () => { await new Promise<void>(resolve => { finishInspection = resolve }) },
+    notAccepted: hash => { cleared.push(hash) } })
+  const raw = await signed(0, account)
+  const waiting = h.owner.submit(raw)
+  await new Promise(resolve => setImmediate(resolve))
+  h.owner.close("operator terminal closed")
+  assert(finishInspection)
+  finishInspection()
+  await assert.rejects(waiting, /closed|canceled/)
+  assert.equal(h.owner.pending(), null)
+  assert.deepEqual(cleared, [keccak256(raw)])
+})
+
+test("closing after inspection but before the pending audit releases admission without an orphan prompt", async () => {
+  let owner: ApprovalOwner
+  let clockReads = 0
+  const released: string[] = []
+  const h = harness({ now: () => {
+    clockReads++
+    owner.close("operator terminal closed")
+    return 1_000
+  }, notAccepted: hash => { released.push(hash) } })
+  owner = h.owner
+  const raw = await signed(0, account)
+  await assert.rejects(owner.submit(raw), /closed/)
+  assert.equal(clockReads, 1)
+  assert.equal(owner.pending(), null)
+  assert.equal(h.events.some(event => event.kind === "pending"), false)
+  assert.deepEqual(released, [keccak256(raw)])
+})
+
+test("a different transaction submitted during pending installation cannot replace the admitted candidate", async () => {
+  const firstRaw = await signed(0, account)
+  const secondRaw = await signed(1, account)
+  let owner: ApprovalOwner
+  let competing: Promise<Error | null> | null = null
+  let inspections = 0
+  const h = harness({ now: () => {
+    if (competing === null) {
+      competing = owner.submit(secondRaw).then(
+        () => null,
+        error => error instanceof Error ? error : new Error(String(error)),
+      )
+    }
+    return 1_000
+  }, inspect: async () => { inspections++ } })
+  owner = h.owner
+  const first = owner.submit(firstRaw)
+  await new Promise(resolve => setImmediate(resolve))
+  function competingResult(): Promise<Error | null> {
+    if (competing === null) throw new Error("The competing submission was not started")
+    return competing
+  }
+  const rejected = await competingResult()
+  assert(rejected instanceof Error)
+  assert.match(rejected.message, /another transaction|candidate|inspection/i)
+  const pending = owner.pending()
+  assert(pending)
+  assert.equal(pending.hash, keccak256(firstRaw))
+  assert.equal(h.events.filter(event => event.kind === "pending").length, 1)
+  assert.equal(inspections, 1)
+  await owner.decide(pending.challenge, "reject")
+  assert.equal((await first).status, "refused")
+  assert.equal(h.sends.length, 0)
+})
+
+test("reservation cleanup failure is visible with refusal and uncertainty", async () => {
+  const raw = await signed(0, account)
+  const refusal = harness({ notAccepted: () => { throw Error("cleanup failed") } })
+  const refused = refusal.owner.submit(raw)
+  await new Promise(resolve => setImmediate(resolve))
+  const pending = refusal.owner.pending()
+  assert(pending)
+  await refusal.owner.decide(pending.challenge, "reject")
+  const refusedResult = await refused
+  assert.equal(refusedResult.status, "refused")
+  assert.match(refusedResult.reason, /operator rejected.*reservation cleanup failed/i)
+  await assert.rejects(refusal.owner.submit(await signed(1, account)), /reservation cleanup failed/i)
+
+  const uncertainty = harness({ send: async () => { throw Error("lost reply") },
+    notAccepted: () => { throw Error("cleanup failed") } })
+  const uncertain = uncertainty.owner.submit(raw)
+  await new Promise(resolve => setImmediate(resolve))
+  const secondPending = uncertainty.owner.pending()
+  assert(secondPending)
+  await uncertainty.owner.decide(secondPending.challenge, "approve")
+  const result = await uncertain
+  assert.equal(result.status, "uncertain")
+  assert.match(result.reason, /upstream result unknown.*reservation cleanup failed/i)
+  await assert.rejects(uncertainty.owner.submit(await signed(1, account)), /reservation cleanup failed/i)
+})
+
+test("aborting the sole admission waiter leaves no prompt or reserved verifier candidate", async () => {
+  let finishInspection: (() => void) | undefined
+  const cleared: string[] = []
+  const abort = new AbortController()
+  const h = harness({ inspect: async () => { await new Promise<void>(resolve => { finishInspection = resolve }) },
+    notAccepted: hash => { cleared.push(hash) } })
+  const raw = await signed(0, account)
+  const waiting = h.owner.submit(raw, abort.signal)
+  await new Promise(resolve => setImmediate(resolve))
+  abort.abort()
+  await assert.rejects(waiting, /disconnected/)
+  assert(finishInspection)
+  finishInspection()
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(h.owner.pending(), null)
+  assert.equal(h.sends.length, 0)
+  assert.deepEqual(cleared, [keccak256(raw)])
+  await assert.rejects(h.owner.submit(raw), /closed/)
+})
+
+test("accepted continuation runs once after durable acceptance and preserves acceptance if it fails", async () => {
+  let calls = 0
+  const events: AuditEvent[] = []
+  const h = harness({ audit: { append(event) { events.push(event) } },
+    accepted: () => { calls++; assert(events.some(event => event.kind === "accepted")); throw Error("verifier continuation failed") } })
+  const raw = await signed(0, account)
+  const waiting = h.owner.submit(raw)
+  await new Promise(resolve => setImmediate(resolve))
+  const pending = h.owner.pending()
+  assert(pending)
+  await h.owner.decide(pending.challenge, "approve")
+  assert.deepEqual(await waiting, { status: "accepted", hash: pending.hash, continuationFailure: "Error" })
+  assert.deepEqual(await h.owner.submit(raw), { status: "accepted", hash: pending.hash, continuationFailure: "Error" })
+  assert.equal(calls, 1)
+  assert.equal(h.sends.length, 1)
+  await assert.rejects(h.owner.submit(await signed(1, account)), /closed/)
+})
+
+test("refusal and uncertain send each release verifier reservation once", async () => {
+  const refused: string[] = []
+  const h = harness({ notAccepted: hash => { refused.push(hash) } })
+  const raw = await signed(0, account)
+  const waiting = h.owner.submit(raw)
+  await new Promise(resolve => setImmediate(resolve))
+  const pending = h.owner.pending()
+  assert(pending)
+  await h.owner.decide(pending.challenge, "reject")
+  assert.equal((await waiting).status, "refused")
+  await h.owner.submit(raw)
+  assert.deepEqual(refused, [pending.hash])
+
+  const uncertain: string[] = []
+  const failed = harness({ send: async () => { throw Error("lost reply") }, notAccepted: hash => { uncertain.push(hash) } })
+  const failedWaiting = failed.owner.submit(raw)
+  await new Promise(resolve => setImmediate(resolve))
+  const failedPending = failed.owner.pending()
+  assert(failedPending)
+  await failed.owner.decide(failedPending.challenge, "approve")
+  assert.equal((await failedWaiting).status, "uncertain")
+  await failed.owner.submit(raw)
+  assert.deepEqual(uncertain, [failedPending.hash])
 })
 
 test("malformed signed bytes never enter ordinary admission diagnostics", async () => {
