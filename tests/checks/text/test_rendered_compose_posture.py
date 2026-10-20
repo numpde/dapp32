@@ -124,7 +124,7 @@ def makefile_compose_unit(name: str) -> tuple[str, ...]:
 
 
 def compose_render_units() -> tuple[str | tuple[str, ...], ...]:
-    make_units = tuple(makefile_compose_units().values())
+    make_units = (*makefile_compose_units().values(), *release_rehearsal_units())
     single_make_unit_files = {
         unit[0]
         for unit in make_units
@@ -147,6 +147,15 @@ def compose_render_units() -> tuple[str | tuple[str, ...], ...]:
         *standalone_units,
         *(unit for unit in make_units if len(unit) > 1),
     )
+
+
+def release_rehearsal_units() -> tuple[tuple[str, ...], ...]:
+    units = []
+    for name, files in makefile_compose_units().items():
+        for mode in ("deploy", "verify"):
+            if name.endswith(f"_RELEASE_{mode.upper()}_COMPOSE_FILES"):
+                units.append((*files, f"compose/release/rehearsal-{mode}.yml"))
+    return tuple(units)
 
 
 def compose_files_with_required_env() -> tuple[str, ...]:
@@ -268,6 +277,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "CDP_ORIGIN": "http://127.0.0.1:9222",
                 "COMPOSE_PROJECT_NAME": "dapps-check",
                 "DEPLOYER_PRIVATE_KEY_FILE": "/tmp/escrow-release-private-key",
+                "DAPP": "pay-to-play",
                 "ESCROW_BROADCAST_DIR": "/foundry-broadcast",
                 "ESCROW_BROADCAST_PATH": "/foundry-broadcast/DeployEscrowLocal.s.sol/31337/run-latest.json",
                 "ESCROW_DEPLOYMENT_ARTIFACT_FILE": "/tmp/escrow-release-output/artifact/deployment.json",
@@ -305,6 +315,8 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "REFUND_PRIVATE_KEY_FILE": "/tmp/refund-relayer-key",
                 "REFUND_STATE_DIR": "/tmp/refund-state",
                 "RELEASE_OUTPUT_DIR": "/tmp/release-output",
+                "RELEASE_REHEARSAL_DIR": "/tmp/release-rehearsal",
+                "RELEASE_REHEARSAL_NETWORK": "cam-release-rehearsal-fixture",
                 "RELEASE_DEPLOYMENT_ARTIFACT_FILE": "/tmp/release-output/artifact/deployment.json",
                 "VIEWER_URL": "http://127.0.0.1:5174/?chainId=eip155%3A31337&host=0x0000000000000000000000000000000000000001&account=0x0000000000000000000000000000000000000002&rpcUrl=http%3A%2F%2F127.0.0.1%3A5174%2Frpc",
             },
@@ -427,6 +439,15 @@ class RenderedComposePostureTest(unittest.TestCase):
                 (deploy, "deploy-release", "deployer_private_key", "deployer_private_key"),
                 (verify, "verify-rpc-proxy", "rpc_url", "rpc_url"),
             })
+        for files in release_rehearsal_units():
+            mode = files[-1]
+            if mode.endswith("rehearsal-deploy.yml"):
+                expected_secrets.update({
+                    (files, "release-rpc-proxy", "rpc_url", "rpc_url"),
+                    (files, "deploy-release", "deployer_private_key", "deployer_private_key"),
+                })
+            else:
+                expected_secrets.add((files, "verify-rpc-proxy", "rpc_url", "rpc_url"))
         expected_fixture_keys = {
             (makefile_compose_unit("REFUND_EXECUTE_COMPOSE_FILES"), "pay-to-play-refunds", "REFUND_PRIVATE_KEY_FILE", "/run/secrets/refund-relayer"),
             ("compose/bike-nft/local/deploy.yml", "deploy-bike-nft-local", "PRIVATE_KEY", ANVIL_DEV_PRIVATE_KEY),
@@ -805,6 +826,14 @@ class RenderedComposePostureTest(unittest.TestCase):
                     )
                 )
 
+        expected.add(("compose/release/rehearsal.yml", "rehearsal-prepare", "/tmp/release-rehearsal/control", "/rehearsal-control"))
+        for files in release_rehearsal_units():
+            if files[-1].endswith("rehearsal-deploy.yml"):
+                expected.update({
+                    (files, "release-plan", "/tmp/release-output/plan", "/release-plan"),
+                    (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
+                    (files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
+                })
         actual = set()
         for compose_file in compose_render_units():
             config = rendered_compose_config(

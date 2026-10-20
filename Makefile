@@ -276,6 +276,11 @@ endef
 
 # Every release phase uses these files from the archived commit, including overlays.
 release_snapshot_compose_args = $(foreach file,$(filter-out -f,$(1)),-f "$$ceremony_source/$(file)")
+ifeq ($(RELEASE_REHEARSAL),1)
+release_compose_files = $(1) -f $(COMPOSE_DIR)/release/rehearsal-$(2).yml
+else
+release_compose_files = $(1)
+endif
 
 define release_prepare_snapshot
 $(release_snapshot_dependency_compose); \
@@ -320,7 +325,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight cam/publication/preflight/json cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
+.PHONY: release/local/rehearsal/run release/local/rehearsal/check help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight cam/publication/preflight/json cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
 
 help:
 	@printf '%s\n' \
@@ -486,6 +491,14 @@ help:
 	  '    Validation reads the local bundle, not a downloaded copy. Publish those exact bytes separately.' \
 	  '' \
 	  'Deploy or verify a release on an operator-selected blockchain:' \
+	  '  make release/local/rehearsal/check  Rehearse releases for all three supported apps.' \
+	  '  make release/local/rehearsal/run DAPP=pay-to-play  Test that same release workflow on an isolated local chain.' \
+	  '    DAPP must be bike-nft, escrow or pay-to-play. Requires installed locked dependencies.' \
+	  '    It tests current source, including uncommitted changes, through a private committed snapshot.' \
+	  '    It deploys through the normal commands, checks pending handoffs fail verification, accepts them,' \
+	  '    loads CAM from its recorded URI, and verifies again. Bike admin waits use the local chain clock.' \
+	  '    It uses public test keys, private HTTP transport and no host ports or external network.' \
+	  '    Temporary services are removed; records remain at the printed /tmp/cam-release-rehearsal-* path.' \
 	  '  make bike-nft/release/deploy      Send Bike NFT deployment transactions and save deployment records.' \
 	  '  make escrow/release/deploy        Send Escrow deployment transactions and save deployment records.' \
 	  '  make pay-to-play/release/deploy   Send Pay-to-Play deployment transactions and save deployment records.' \
@@ -1004,7 +1017,14 @@ dapps/tests/coverage: dapps/deps/verify
 
 dapps/tests: dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant
 
-tests: tests/checks dapps/tests js/ci tests/live cast/offline/check pay-to-play/local/recovery/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run
+tests: tests/checks dapps/tests js/ci tests/live cast/offline/check pay-to-play/local/recovery/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run release/local/rehearsal/check
+
+release/local/rehearsal/check:
+	@for app in bike-nft escrow pay-to-play; do $(MAKE) release/local/rehearsal/run DAPP="$$app" RPC_URL_FILE=/must-not-use-parent-rpc DEPLOYER_PRIVATE_KEY_FILE=/must-not-use-parent-key || exit "$$?"; done
+
+release/local/rehearsal/run:
+	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
+	bash tools/release_rehearsal.sh "$${DAPP:?Set DAPP to bike-nft, escrow or pay-to-play}" "$(DOCKER_COMPOSE)"
 
 ci: dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
 
@@ -1270,7 +1290,7 @@ escrow/release/deploy:
 	    ESCROW_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$$@"; \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(call release_compose_files,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES),deploy)) "$$@"; \
 	}; \
 	compose_release_check() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
@@ -1297,7 +1317,7 @@ escrow/release/verify:
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" \
 	    ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES)) "$$@"; \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(call release_compose_files,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES),verify)) "$$@"; \
 	}; \
 	$(release_verify_execution)
 
@@ -1326,7 +1346,7 @@ bike-nft/release/deploy:
 	  BIKE_NFT_RELEASE_BASE_TOKEN_URI="$$BIKE_NFT_RELEASE_BASE_TOKEN_URI" BIKE_NFT_RELEASE_COLLECTION_URI="$$BIKE_NFT_RELEASE_COLLECTION_URI" \
 	  BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN" BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY="$$BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY" BIKE_NFT_RELEASE_COMPONENTS_PAUSER="$$BIKE_NFT_RELEASE_COMPONENTS_PAUSER" BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER="$$BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER" \
 	  BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN" BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY="$$BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY" BIKE_NFT_RELEASE_MANAGER_PAUSER="$$BIKE_NFT_RELEASE_MANAGER_PAUSER" BIKE_NFT_RELEASE_MANAGER_CONFIGURER="$$BIKE_NFT_RELEASE_MANAGER_CONFIGURER" BIKE_NFT_RELEASE_REGISTRARS="$$BIKE_NFT_RELEASE_REGISTRARS" \
-	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$$@"; \
+	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(call release_compose_files,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES),deploy)) "$$@"; \
 	}; \
 	compose_release_check() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; }; \
 	$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)
@@ -1340,7 +1360,7 @@ bike-nft/release/verify:
 	$(release_host_guard_functions); \
 	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"; \
 	require_release_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"; \
-	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES)) "$$@"; }; \
+	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(call release_compose_files,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES),verify)) "$$@"; }; \
 	$(release_verify_execution)
 
 .PHONY: pay-to-play/release/check pay-to-play/release/deploy pay-to-play/release/verify
@@ -1386,7 +1406,7 @@ pay-to-play/release/deploy:
 	    PAY_TO_PLAY_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES)) "$$@"; \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(call release_compose_files,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES),deploy)) "$$@"; \
 	}; \
 	compose_release_check() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
@@ -1413,7 +1433,7 @@ pay-to-play/release/verify:
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE" \
 	    PAY_TO_PLAY_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES)) "$$@"; \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(call release_compose_files,$(PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES),verify)) "$$@"; \
 	}; \
 	$(release_verify_execution)
 

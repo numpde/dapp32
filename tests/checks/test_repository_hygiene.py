@@ -322,7 +322,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertEqual(
             ("tests/checks", "dapps/tests", "js/ci", "tests/live", "cast/offline/check",
              "pay-to-play/local/recovery/run", "escrow/local/scenario/run", "bike-nft/local/integration/fuzz/run",
-             "bike-nft/local/integration/fuzz/fixture-writes/run"),
+             "bike-nft/local/integration/fuzz/fixture-writes/run", "release/local/rehearsal/check"),
             self.make_target_prereqs(makefile, "tests"),
         )
         for target in ("dapps/tests", "tests"):

@@ -4,6 +4,59 @@ The Escrow, Bike NFT and Pay-to-Play release lanes share one host ceremony. Appl
 
 `compose/release/` owns the planning, signing, artifact, and verification service boundaries. Each app supplies a small Compose overlay with its inputs and script entrypoints. Make uses both files from the selected commit's source snapshot, so deployment and verification use the same phase definitions as the contracts being checked.
 
+## Rehearse the release locally
+
+Run the full release workflow without real funds or operator credentials:
+
+```sh
+make release/local/rehearsal/run DAPP=pay-to-play
+```
+
+`DAPP` can be `bike-nft`, `escrow` or `pay-to-play`. To rehearse all three,
+run `make release/local/rehearsal/check`. This check is also part of `make tests`;
+`make ci` keeps its offline scope. Install the locked Solidity and JS dependencies
+before running either command.
+
+The rehearsal captures current source, including uncommitted and nonignored new
+files, in a private temporary Git repository. Its candidate commit identifies
+the tested files; it is not the original checkout's `HEAD`. Your files, index,
+and history remain unchanged. The normal release commands run from this clean
+candidate and take their usual source snapshots.
+
+The fixture starts Anvil on chain ID 31338 and serves the candidate's CAM files
+at `http://release-cam:8080`. It creates protected credential files containing
+public fixture values and chooses distinct intended owners. It then:
+
+1. Calls the app's normal `release/deploy` target.
+2. Calls its normal `release/verify` target and requires the pending-owner error.
+3. Accepts the ownership transfers using the intended fixture accounts. For Bike
+   NFT, it first checks that early admin acceptance fails, then advances Anvil's
+   clock past the delay and accepts both admin transfers.
+4. Loads CAM through the recorded URI, checks its digest, and loads the entry
+   screen through the normal viewer's discovery and resource checks.
+5. Calls the same `release/verify` target again and requires success.
+
+The rehearsal overlays change only CAM publication policy and RPC upstream
+transport. Deployment scripts, plans, artifacts, signing, method restrictions,
+receipt provenance and contract verification are shared with normal releases.
+Release broadcasts are sequential so each recorded transaction hash stays paired
+with its submitted transaction.
+Normal releases still require HTTPS/IPFS CAM references and public HTTPS RPCs.
+The fixture permits only its exact private CAM origin and Anvil upstream.
+
+All running fixture services use an internal Docker network with no host ports.
+Image builds may still fetch their pinned inputs. The command removes its
+services and copied dependency trees when finished, retaining the candidate
+source, ordinary deployment records and per-step logs under the printed
+`/tmp/cam-release-rehearsal-*` directory. Failed teardown retains the dependencies
+as well so mounted state remains available for inspection.
+
+This proves local release composition, handoffs and CAM loading. It does not
+test a public RPC provider, public hosting/CORS, explorer source publication or
+the live service that uses the contracts.
+
+## Deploy to the selected chain
+
 Run a release only from the exact clean commit selected for publication. The targets reject visible tracked or untracked changes, resolve one commit, and export that commit with `git archive` into a private temporary directory. Dependency verification, release checks, compilation, planning, signing, and artifact materialization all use that snapshot rather than the working tree.
 
 The snapshot includes copies of the installed Solidity and npm dependency trees. The lanes verify those trees against the archived repository metadata before use. The npm check proves the lockfile and package graph, not an independent checksum for every installed file byte; the ceremony therefore does not claim reproducible dependency-byte provenance.

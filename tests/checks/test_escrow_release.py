@@ -108,8 +108,8 @@ class EscrowReleasePostureTest(unittest.TestCase):
 
         self.assertIn("$(call release_deploy_execution,ESCROW_RELEASE_OUTPUT_DIR)", deploy)
         self.assertIn("$(release_verify_execution)", verify)
-        self.assertIn("$(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES))", deploy)
-        self.assertIn("$(call release_snapshot_compose_args,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES))", verify)
+        self.assertIn("$(call release_snapshot_compose_args,$(call release_compose_files,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES),deploy))", deploy)
+        self.assertIn("$(call release_snapshot_compose_args,$(call release_compose_files,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES),verify))", verify)
         prepare = source.split("define release_prepare_snapshot\n", 1)[1].split("\nendef", 1)[0]
         execute = source.split("define release_deploy_execution\n", 1)[1].split("\nendef", 1)[0]
         self.assertLess(prepare.index("trap cleanup EXIT"), prepare.index("$(release_snapshot_allocate)"))

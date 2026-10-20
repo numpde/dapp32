@@ -78,8 +78,8 @@ type RootObservation = {
 type AdministrationObservation = {
   readonly admin: Address
   readonly pendingAdmin: Address
-  readonly delay: bigint
-  readonly pendingDelay: readonly [bigint, bigint]
+  readonly delay: number
+  readonly pendingDelay: readonly [number, number]
 }
 
 type BikeConfigurationObservation = {
@@ -97,8 +97,8 @@ type BikeConfigurationObservation = {
   readonly manager: {
     readonly componentsAddress: Address
     readonly paused: boolean
-    readonly maxDelegationDuration: bigint
-    readonly defaultMaxDelegationDuration: bigint
+    readonly maxDelegationDuration: number
+    readonly defaultMaxDelegationDuration: number
     readonly registrarRole: Hex
     readonly pauserRole: Hex
     readonly configurerRole: Hex
@@ -264,9 +264,9 @@ async function observeAdministration(
 ): Promise<AdministrationObservation> {
   const [admin, pendingAdmin, delay, pendingDelay] = await Promise.all([
     read<Address>(address, ADMIN_ABI, "defaultAdmin"),
-    read<readonly [Address, bigint]>(address, ADMIN_ABI, "pendingDefaultAdmin"),
-    read<bigint>(address, ADMIN_ABI, "defaultAdminDelay"),
-    read<readonly [bigint, bigint]>(address, ADMIN_ABI, "pendingDefaultAdminDelay"),
+    read<readonly [Address, number]>(address, ADMIN_ABI, "pendingDefaultAdmin"),
+    read<number>(address, ADMIN_ABI, "defaultAdminDelay"),
+    read<readonly [number, number]>(address, ADMIN_ABI, "pendingDefaultAdminDelay"),
   ])
   return {
     admin,
@@ -323,8 +323,8 @@ async function observeManager(
   const [componentsAddress, paused, maxDelegationDuration, defaultMaxDelegationDuration, registrarRole, pauserRole, configurerRole] = await Promise.all([
     read<Address>(address, MANAGER_ABI, "componentsAddress"),
     read<boolean>(address, MANAGER_ABI, "paused"),
-    read<bigint>(address, MANAGER_ABI, "maxDelegationDuration"),
-    read<bigint>(address, MANAGER_ABI, "DEFAULT_MAX_DELEGATION_DURATION"),
+    read<number>(address, MANAGER_ABI, "maxDelegationDuration"),
+    read<number>(address, MANAGER_ABI, "DEFAULT_MAX_DELEGATION_DURATION"),
     read<Hex>(address, MANAGER_ABI, "REGISTRAR_ROLE"),
     read<Hex>(address, MANAGER_ABI, "PAUSER_ROLE"),
     read<Hex>(address, MANAGER_ABI, "CONFIGURER_ROLE"),
@@ -473,8 +473,8 @@ function roleExpectation(
   return { contract, role, account, expected, label }
 }
 
-function requireNoPendingDelay(label: string, pendingDelay: readonly [bigint, bigint]): void {
-  if (pendingDelay[0] !== 0n || pendingDelay[1] !== 0n) {
+function requireNoPendingDelay(label: string, pendingDelay: readonly [number, number]): void {
+  if (pendingDelay[0] !== 0 || pendingDelay[1] !== 0) {
     throw new Error(`${label} admin delay change must not be pending`)
   }
 }

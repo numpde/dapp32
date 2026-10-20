@@ -61,7 +61,7 @@ services:
       context: ../../containers/rpc-proxy
       dockerfile: Dockerfile
     init: true
-    user: "65532:65532"
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -78,7 +78,7 @@ services:
       RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
       RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
       RPC_ALLOWED_METHODS: >-
-        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance
+        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance eth_gasPrice
         eth_getTransactionCount eth_getStorageAt eth_call eth_getCode
         eth_getTransactionReceipt eth_getTransactionByHash
     secrets:
@@ -158,7 +158,7 @@ services:
       - *verified_read
     networks:
       - release_verify_internal
-    command: [bash, -lc, 'exec forge script --offline "$${RELEASE_SCRIPT}" --rpc-url http://verify-rpc-proxy:8080 -vvv']
+    command: [bash, -lc, 'exec forge script --offline "$${RELEASE_SCRIPT}" --skip test --rpc-url http://verify-rpc-proxy:8080 -vvv']
 
 secrets:
   rpc_url:

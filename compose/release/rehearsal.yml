@@ -1,0 +1,102 @@
+# Local release infrastructure. No public network, host ports, or operator keys.
+x-client: &client
+    extends:
+      file: ../fragments/node-workspace.yml
+      service: hardened-node-workspace
+    working_dir: /work
+    cpus: 1
+    networks: [rehearsal]
+    environment:
+      REHEARSAL_DAPP: "${DAPP:?missing_DAPP}"
+    command:
+      - run-js-workspace
+      - sh
+      - -eu
+      - -c
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p tools/release-rehearsal/tsconfig.json
+        node --experimental-strip-types tools/release-rehearsal/runner.ts "$${REHEARSAL_ACTION}"
+
+services:
+  release-anvil:
+    build:
+      context: ../../containers/foundry
+      dockerfile: Dockerfile
+    init: true
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 1
+    environment:
+      HOME: /tmp/home
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=256m
+    networks: [rehearsal]
+    command: [anvil, --host, 0.0.0.0, --port, "8545", --chain-id, "31338"]
+    healthcheck:
+      test: [CMD, cast, block-number, --rpc-url, "http://127.0.0.1:8545"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  release-cam:
+    image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+    init: true
+    user: "65532:65532"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 1
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=16m"]
+    volumes:
+      - ../../dapps/bike-nft/cam:/srv/bike-nft:ro
+      - ../../dapps/escrow/cam:/srv/escrow:ro
+      - ../../dapps/pay-to-play/cam:/srv/pay-to-play:ro
+    networks: [rehearsal]
+    command: [python3, -I, -B, -m, http.server, "8080", --bind, 0.0.0.0, --directory, /srv]
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/pay-to-play/main.json', timeout=2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  rehearsal-prepare:
+    <<: *client
+    environment:
+      REHEARSAL_DAPP: "${DAPP:?missing_DAPP}"
+      REHEARSAL_ACTION: prepare
+      RELEASE_REHEARSAL_HOST_DIR: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}"
+    volumes:
+      - ../../js:/input/js:ro
+      - ../../js/node_modules:/work/js/node_modules:ro
+      - type: bind
+        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/control"
+        target: /rehearsal-control
+        bind:
+          create_host_path: false
+
+  rehearsal-accept:
+    <<: *client
+    environment:
+      REHEARSAL_DAPP: "${DAPP:?missing_DAPP}"
+      REHEARSAL_ACTION: accept
+    volumes:
+      - ../../js:/input/js:ro
+      - ../../js/node_modules:/work/js/node_modules:ro
+      - type: bind
+        source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/artifact/deployment.json"
+        target: /deployment/deployment.json
+        read_only: true
+        bind:
+          create_host_path: false
+
+networks:
+  rehearsal:
+    name: "${RELEASE_REHEARSAL_NETWORK:?missing_RELEASE_REHEARSAL_NETWORK}"
+    internal: true

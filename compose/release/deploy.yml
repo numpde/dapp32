@@ -38,7 +38,7 @@ x-rpc-proxy-base: &rpc_proxy_base
     context: ../../containers/rpc-proxy
     dockerfile: Dockerfile
   init: true
-  user: "65532:65532"
+  user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
   read_only: true
   security_opt:
     - no-new-privileges:true
@@ -162,14 +162,13 @@ services:
           printf '%s\n' 'deployer private-key secret must contain exactly one 32-byte hex key' >&2
           exit 2
         fi
-        PRIVATE_KEY="$${private_key}" forge script --offline "$${RELEASE_SCRIPT}" \
+        PRIVATE_KEY="$${private_key}" forge script --offline "$${RELEASE_SCRIPT}" --skip test \
           --rpc-url http://release-rpc-proxy:8080 \
-          --broadcast \
+          --broadcast --slow \
           -vvv
 
   release-artifact-rpc-proxy:
     <<: *rpc_proxy_base
-    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
     environment:
       RPC_PROXY_HOST: 0.0.0.0
       RPC_PROXY_PORT: "8080"

@@ -1,0 +1,22 @@
+# Change only fixture transport; retain the normal release commands and method gates.
+x-fixture-rpc: &fixture_rpc
+  entrypoint: [python3, /rehearsal/rpc_proxy.py]
+  volumes:
+    - ../../tests/fixtures/release-rehearsal/rpc_proxy.py:/rehearsal/rpc_proxy.py:ro
+
+services:
+  release-plan:
+    environment:
+      RELEASE_REHEARSAL: "1"
+  release-rpc-proxy:
+    <<: *fixture_rpc
+  release-artifact-rpc-proxy:
+    <<: *fixture_rpc
+
+networks:
+  release_deploy_egress:
+    external: true
+    name: "${RELEASE_REHEARSAL_NETWORK:?missing_RELEASE_REHEARSAL_NETWORK}"
+  release_artifact_egress:
+    external: true
+    name: "${RELEASE_REHEARSAL_NETWORK:?missing_RELEASE_REHEARSAL_NETWORK}"
