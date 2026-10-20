@@ -1,0 +1,43 @@
+#!/bin/sh
+set -eu
+
+app=${1:?pass the release app}
+output=${2:?pass an existing empty artifact output directory}
+case "$app" in
+  escrow)
+    script=escrow/script/DeployEscrowRelease.s.sol
+    contracts='CamRoot CamEscrow CamEscrowUI'
+    ;;
+  bike-nft)
+    script=bike-nft/script/DeployBikeNftRelease.s.sol
+    contracts='CamRoot BicycleComponents BicycleComponentManager BicycleComponentManagerUI'
+    ;;
+  pay-to-play)
+    script=pay-to-play/script/DeployPayToPlayRelease.s.sol
+    contracts='CamRoot PayToPlay'
+    ;;
+  *) printf '%s\n' "unknown release app: $app" >&2; exit 2 ;;
+esac
+
+if [ ! -d "$output" ] || [ -L "$output" ] || [ -n "$(find "$output" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+  printf '%s\n' 'compiler artifact output must be an existing empty real directory' >&2
+  exit 2
+fi
+if [ "${FOUNDRY_OUT:-}" != /tmp/foundry-out ]; then
+  printf '%s\n' 'compiler export requires FOUNDRY_OUT=/tmp/foundry-out' >&2
+  exit 2
+fi
+
+umask 077
+forge build --offline "$script"
+
+for contract in $contracts; do
+  source="$FOUNDRY_OUT/$contract.sol/$contract.json"
+  target_dir="$output/$contract.sol"
+  if [ ! -f "$source" ] || [ -L "$source" ]; then
+    printf '%s\n' "compiler did not produce $contract" >&2
+    exit 2
+  fi
+  mkdir "$target_dir"
+  (set -C; cat "$source" > "$target_dir/$contract.json")
+done
