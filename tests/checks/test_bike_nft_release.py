@@ -22,7 +22,7 @@ from .release_posture import (
 
 
 CHECK = ("compose/release/check.yml", "compose/bike-nft/release/check.yml")
-DEPLOY = ("compose/release/deploy.yml", "compose/bike-nft/release/deploy.yml")
+DEPLOY = ("compose/release/deploy.yml", "compose/bike-nft/release/deploy.yml", "compose/release/reference.yml", "compose/release/approval.yml")
 VERIFY = ("compose/release/verify.yml", "compose/bike-nft/release/verify.yml")
 
 
@@ -56,7 +56,7 @@ class BikeNftReleasePostureTest(unittest.TestCase):
             broadcast_target="/release-broadcast",
             artifact_target="/release-artifact",
         )
-        self.assertEqual({"release_deploy_internal": None}, signer["networks"])
+        self.assertEqual("none", signer["network_mode"])
         self.assertEqual({"release_artifact_internal": None}, artifact["networks"])
 
         signer_command = compose_command_text(signer)
@@ -124,7 +124,7 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         )
         self.assertIn("$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)", deploy)
         self.assertIn("$(release_verify_execution)", verify)
-        self.assertIn('$(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_transport_args[@]}"', deploy)
+        self.assertIn('$(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}"', deploy)
         self.assertIn('$(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}"', verify)
 
 

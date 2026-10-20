@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
 import unittest
+from typing import Any
 
 from .common import (
     compose_mapping,
@@ -62,8 +62,22 @@ def assert_deployment_authority_split(
     materializer = services[materializer_name]
     signing_proxy = services[signing_proxy_name]
     materializer_proxy = services[materializer_proxy_name]
+    approval = services["release-approval"]
+    reference_export = services["release-reference-export"]
+    reference_prepare = services["release-reference-prepare"]
 
     case.assertEqual("none", planner["network_mode"])
+    for reference_service in (reference_export, reference_prepare):
+        case.assertEqual("none", reference_service["network_mode"])
+        case.assertEqual([], compose_sequence_or_empty(reference_service, "secrets"))
+        case.assertEqual([], compose_sequence_or_empty(reference_service, "ports"))
+        case.assertIs(reference_service["read_only"], True)
+    case.assertEqual("service_completed_successfully", reference_prepare["depends_on"]["release-reference-export"]["condition"])
+    case.assertIs(compose_volume(reference_export, "/work/dapps")["read_only"], True)
+    case.assertIs(compose_volume(reference_prepare, "/work/dapps")["read_only"], True)
+    case.assertIs(compose_volume(reference_prepare, "/release-plan")["read_only"], True)
+    case.assertIs(compose_volume(reference_prepare, "/reference-artifacts")["read_only"], True)
+    case.assertIsNot(compose_volume(reference_prepare, "/reference-out").get("read_only"), True)
     for proxy in (signing_proxy, materializer_proxy):
         case.assertEqual(
             "service_completed_successfully",
@@ -116,19 +130,43 @@ def assert_deployment_authority_split(
     case.assertEqual([signing_proxy_name], send_capable_services)
     case.assertNotIn("eth_sendRawTransaction", _rpc_methods(materializer_proxy))
 
-    signer_networks = set(compose_mapping(signer, "networks"))
+    case.assertEqual("none", signer["network_mode"])
+    case.assertNotIn("networks", signer)
+    case.assertIn("--rpc-url file:///run/approval/rpc.sock", " ".join(signer["command"]))
+    signer_socket = compose_volume(signer, "/run/approval")
+    approval_socket = compose_volume(approval, "/run/approval")
+    case.assertEqual(signer_socket["source"], approval_socket["source"])
+    case.assertIs(signer_socket["read_only"], True)
+    case.assertIsNot(approval_socket.get("read_only"), True)
+    case.assertIs(compose_volume(approval, "/run/reference/reference.json")["read_only"], True)
+    case.assertIsNot(compose_volume(approval, "/run/audit").get("read_only"), True)
+    case.assertEqual([], compose_sequence_or_empty(approval, "secrets"))
+    case.assertEqual([], compose_sequence_or_empty(approval, "ports"))
+    case.assertIs(approval["read_only"], True)
+    case.assertEqual("service_healthy", signer["depends_on"]["release-approval"]["condition"])
+    case.assertNotIn("build", approval)
+    case.assertEqual("never", approval["pull_policy"])
+    case.assertRegex(approval["image"], r"^sha256:[0-9a-f]{64}$")
+    case.assertEqual(1, len(compose_mapping(approval, "networks")))
+    case.assertNotIn("release_deploy_egress", approval["networks"])
+    case.assertNotIn("release_artifact_internal", approval["networks"])
+    case.assertNotIn("release_artifact_egress", approval["networks"])
+    approval_volumes = compose_sequence_or_empty(approval, "volumes")
+    case.assertEqual([], [volume for volume in approval_volumes if volume["target"].startswith(("/work", "/run/secrets"))])
+    signer_source = compose_volume(signer, "/work/dapps")["source"]
+    case.assertEqual([], [volume for volume in approval_volumes if volume["source"] == signer_source])
     materializer_networks = set(compose_mapping(materializer, "networks"))
-    case.assertEqual(1, len(signer_networks))
-    for network in signer_networks:
+    approval_networks = set(compose_mapping(approval, "networks"))
+    for network in approval_networks:
         case.assertTrue(config["networks"][network]["internal"])
         members = {
             name for name, service in services.items()
             if "networks" in service and network in compose_mapping(service, "networks")
         }
-        case.assertEqual({signer_name, signing_proxy_name}, members)
+        case.assertEqual({"release-approval", signing_proxy_name}, members)
     case.assertTrue(materializer_networks)
-    case.assertTrue(signer_networks.isdisjoint(materializer_networks))
-    case.assertTrue(signer_networks.issubset(compose_mapping(signing_proxy, "networks")))
+    case.assertTrue(approval_networks.isdisjoint(materializer_networks))
+    case.assertTrue(approval_networks.issubset(compose_mapping(signing_proxy, "networks")))
     case.assertTrue(
         materializer_networks.issubset(compose_mapping(materializer_proxy, "networks"))
     )

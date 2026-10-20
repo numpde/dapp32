@@ -42,6 +42,9 @@ class ToolchainVersionTest(unittest.TestCase):
                 if not self.is_pinned_image_reference(image):
                     failures.append(f"{path}:{line_number}: Dockerfile FROM image must be tag-and-digest pinned: {image}")
             for line_number, image in self.compose_images(text):
+                # This release image is selected by an exact local image ID at launch.
+                if path == repo_path("compose/release/approval.yml") and image == '"${RELEASE_APPROVAL_IMAGE:?missing_RELEASE_APPROVAL_IMAGE}"':
+                    continue
                 if not self.is_pinned_image_reference(image):
                     failures.append(f"{path}:{line_number}: Compose image must be tag-and-digest pinned: {image}")
 

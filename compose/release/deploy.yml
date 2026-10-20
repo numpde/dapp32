@@ -139,8 +139,6 @@ services:
     depends_on:
       release-plan:
         condition: service_completed_successfully
-      release-rpc-proxy:
-        condition: service_healthy
     user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
     read_only: true
     security_opt:
@@ -165,8 +163,7 @@ services:
       - ../../dapps:/work/dapps:ro
       - *plan_read
       - *broadcast_write
-    networks:
-      - release_deploy_internal
+    network_mode: "none"
     command:
       - "bash"
       - "-lc"
@@ -180,7 +177,7 @@ services:
           exit 2
         fi
         PRIVATE_KEY="$${private_key}" exec forge script --offline "$${RELEASE_SCRIPT}" --skip test \
-          --rpc-url http://release-rpc-proxy:8080 \
+          --rpc-url file:///run/approval/rpc.sock \
           --broadcast --slow \
           -vvv
 

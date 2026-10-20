@@ -119,11 +119,18 @@ class ReleaseWaitPostureTest(unittest.TestCase):
                     self.assertIsNot(socket_mounts[0].get("read_only"), True)
                 self.assertIsNot(socket_mounts[0]["bind"].get("create_host_path"), True)
 
-    def test_probe_keeps_real_signer_command_and_scopes_its_evidence(self):
+    def test_http_wait_probe_uses_its_fixture_transport_and_scopes_evidence(self):
         files = ("compose/release/deploy.yml", "compose/escrow/release/deploy.yml", "compose/release/rehearsal-deploy.yml")
         baseline = rendered_compose_config(files)["services"]
         services = rendered_compose_config((*files, "compose/release/rehearsal-waits.yml"))["services"]
-        self.assertEqual(baseline["deploy-release"], services["deploy-release"])
+        base_signer = baseline["deploy-release"]
+        signer = services["deploy-release"]
+        self.assertEqual("none", base_signer["network_mode"])
+        self.assertIn("--rpc-url file:///run/approval/rpc.sock", base_signer["command"][-1])
+        self.assertNotIn("network_mode", signer)
+        self.assertEqual({"release_deploy_internal": None}, signer["networks"])
+        self.assertIn("--rpc-url http://release-rpc-proxy:8080", signer["command"][-1])
+        self.assertNotIn("/run/approval", [volume["target"] for volume in signer["volumes"]])
         self.assertEqual(baseline["release-rpc-proxy"]["environment"]["RPC_ALLOWED_METHODS"], services["release-rpc-proxy"]["environment"]["RPC_ALLOWED_METHODS"])
         for name, service in services.items():
             self.assertEqual([], compose_sequence_or_empty(service, "ports"))

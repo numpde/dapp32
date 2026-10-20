@@ -1,0 +1,76 @@
+# Live approval only. The base signer has no RPC socket without this overlay.
+services:
+  release-approval:
+    image: "${RELEASE_APPROVAL_IMAGE:?missing_RELEASE_APPROVAL_IMAGE}"
+    pull_policy: never
+    init: true
+    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    cpus: 1
+    mem_limit: 256m
+    memswap_limit: 256m
+    ulimits:
+      core: 0
+    tty: true
+    stdin_open: true
+    depends_on:
+      release-rpc-proxy:
+        condition: service_healthy
+    environment:
+      RELEASE_APPROVAL_APP: "${RELEASE_APPROVAL_APP:?missing_RELEASE_APPROVAL_APP}"
+      RELEASE_APPROVAL_CHAIN_ID: "${RELEASE_APPROVAL_CHAIN_ID:?missing_RELEASE_APPROVAL_CHAIN_ID}"
+      RELEASE_APPROVAL_DEPLOYER: "${RELEASE_APPROVAL_DEPLOYER:?missing_RELEASE_APPROVAL_DEPLOYER}"
+      RELEASE_APPROVAL_REFERENCE_PATH: /run/reference/reference.json
+      RELEASE_APPROVAL_REFERENCE_SHA256: "${RELEASE_APPROVAL_REFERENCE_SHA256:?missing_RELEASE_APPROVAL_REFERENCE_SHA256}"
+      RELEASE_APPROVAL_SOURCE_COMMIT: "${RELEASE_APPROVAL_SOURCE_COMMIT:?missing_RELEASE_APPROVAL_SOURCE_COMMIT}"
+      RELEASE_APPROVAL_PLAN_SHA256: "${RELEASE_APPROVAL_PLAN_SHA256:?missing_RELEASE_APPROVAL_PLAN_SHA256}"
+      RELEASE_APPROVAL_SOCKET_PATH: /run/approval/rpc.sock
+      RELEASE_APPROVAL_AUDIT_DIR: /run/audit
+      RELEASE_APPROVAL_BACKEND_URL: http://release-rpc-proxy:8080
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=16m
+    volumes:
+      - type: bind
+        source: "${RELEASE_APPROVAL_SOCKET_DIR:?missing_RELEASE_APPROVAL_SOCKET_DIR}"
+        target: /run/approval
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${RELEASE_APPROVAL_REFERENCE_FILE:?missing_RELEASE_APPROVAL_REFERENCE_FILE}"
+        target: /run/reference/reference.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${RELEASE_APPROVAL_AUDIT_DIR:?missing_RELEASE_APPROVAL_AUDIT_DIR}"
+        target: /run/audit
+        bind:
+          create_host_path: false
+    networks:
+      release_deploy_internal: {}
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const s=require('node:net').connect('/run/approval/rpc.sock');s.setTimeout(2000);s.on('connect',()=>s.end());s.on('error',()=>process.exit(1));s.on('timeout',()=>process.exit(1))"
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  deploy-release:
+    depends_on:
+      release-approval:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: "${RELEASE_APPROVAL_SOCKET_DIR:?missing_RELEASE_APPROVAL_SOCKET_DIR}"
+        target: /run/approval
+        read_only: true
+        bind:
+          create_host_path: false

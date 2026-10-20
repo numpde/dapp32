@@ -1,5 +1,25 @@
 # Fixture-only observation of the maintained release client's three waits.
 services:
+  deploy-release:
+    network_mode: !reset null
+    networks:
+      - release_deploy_internal
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        set +x
+        umask 077
+        private_key="$$(< /run/secrets/deployer_private_key)"
+        if [[ ! "$${private_key}" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then
+          printf '%s\n' 'deployer private-key secret must contain exactly one 32-byte hex key' >&2
+          exit 2
+        fi
+        PRIVATE_KEY="$${private_key}" exec forge script --offline "$${RELEASE_SCRIPT}" --skip test \
+          --rpc-url http://release-rpc-proxy:8080 \
+          --broadcast --slow \
+          -vvv
   release-rpc-proxy:
     entrypoint: [python3, /rehearsal/wait_probe.py]
     environment:

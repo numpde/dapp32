@@ -23,7 +23,7 @@ from .release_posture import (
 
 
 CHECK = ("compose/release/check.yml", "compose/escrow/release/check.yml")
-DEPLOY = ("compose/release/deploy.yml", "compose/escrow/release/deploy.yml")
+DEPLOY = ("compose/release/deploy.yml", "compose/escrow/release/deploy.yml", "compose/release/reference.yml", "compose/release/approval.yml")
 VERIFY = ("compose/release/verify.yml", "compose/escrow/release/verify.yml")
 OUTPUT_DIR = "/tmp/escrow-release-output"
 ARTIFACT_FILE = "/tmp/escrow-release-output/artifact/deployment.json"
@@ -46,6 +46,16 @@ RELEASE_ENV = {
 
 
 class EscrowReleasePostureTest(unittest.TestCase):
+    def test_base_signer_has_no_ungated_rpc_path(self) -> None:
+        config = rendered_compose_config(("compose/release/deploy.yml", "compose/escrow/release/deploy.yml"), env=RELEASE_ENV)
+        services = compose_mapping(config, "services")
+        signer = services["deploy-release"]
+        self.assertNotIn("release-approval", services)
+        self.assertEqual("none", signer["network_mode"])
+        self.assertNotIn("networks", signer)
+        self.assertIn("--rpc-url file:///run/approval/rpc.sock", compose_command_text(signer))
+        self.assertNotIn("/run/approval", [volume["target"] for volume in signer["volumes"]])
+
     def test_release_check_is_offline_and_read_only(self) -> None:
         config = rendered_compose_config(CHECK, env=RELEASE_ENV)
         service = compose_service(config, "release-check")
@@ -108,7 +118,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
 
         self.assertIn("$(call release_deploy_execution,ESCROW_RELEASE_OUTPUT_DIR)", deploy)
         self.assertIn("$(release_verify_execution)", verify)
-        self.assertIn('$(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_transport_args[@]}"', deploy)
+        self.assertIn('$(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}"', deploy)
         self.assertIn('$(call release_snapshot_compose_args,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}"', verify)
         prepare = source.split("define release_prepare_snapshot\n", 1)[1].split("\nendef", 1)[0]
         execute = source.split("define release_deploy_execution\n", 1)[1].split("\nendef", 1)[0]
@@ -117,7 +127,8 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertLess(prepare.index("$(release_snapshot_populate)"), prepare.index("compose_release_dependencies run"))
         self.assertLess(execute.index("$(release_prepare_snapshot)"), execute.index("compose_release_check run"))
         self.assertLess(execute.index("compose_release_check run"), execute.index('mkdir --mode=0700 -- "$$output_dir"'))
-        self.assertLess(execute.index('mkdir --mode=0700 -- "$$output_dir"'), execute.index("up --build --abort"))
+        self.assertLess(execute.index('mkdir --mode=0700 -- "$$output_dir"'), execute.index("release_approval_prepare"))
+        self.assertLess(execute.index("release_approval_prepare"), execute.index("release_approval_run"))
         self.assertIn('"$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"', execute)
         self.assertIn('-f "$$ceremony_source/$(file)"', source)
 
@@ -147,7 +158,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
             broadcast_target="/release-broadcast",
             artifact_target="/release-artifact",
         )
-        self.assertEqual({"release_deploy_internal": None}, deploy["networks"])
+        self.assertEqual("none", deploy["network_mode"])
         self.assertEqual({"release_artifact_internal": None}, artifact["networks"])
         self.assertEqual(
             {
@@ -173,6 +184,8 @@ class EscrowReleasePostureTest(unittest.TestCase):
         # Compose omits an explicit false create_host_path value when it renders
         # JSON, so the checked-in source must retain this fail-closed boundary.
         self.assertEqual(4, read_text(repo_path(DEPLOY[0])).count("create_host_path: false"))
+        self.assertEqual(4, read_text(repo_path("compose/release/reference.yml")).count("create_host_path: false"))
+        self.assertEqual(4, read_text(repo_path("compose/release/approval.yml")).count("create_host_path: false"))
 
         deploy_command = compose_command_text(deploy)
         self.assertNotIn("release-plan.args", deploy_command)

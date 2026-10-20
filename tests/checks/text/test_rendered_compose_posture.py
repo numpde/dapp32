@@ -333,6 +333,18 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "RELEASE_WAIT_CASE": "delay-10",
                 "RELEASE_WAIT_EVIDENCE_DIR": "/tmp/release-wait-evidence",
                 "RELEASE_WAIT_SOCKET_DIR": "/tmp/release-wait-socket",
+                "RELEASE_APPROVAL_IMAGE": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "RELEASE_APPROVAL_APP": "escrow",
+                "RELEASE_APPROVAL_CHAIN_ID": "11155111",
+                "RELEASE_APPROVAL_DEPLOYER": "0x0000000000000000000000000000000000000019",
+                "RELEASE_APPROVAL_REFERENCE_FILE": "/tmp/release-output/approval/reference.json",
+                "RELEASE_APPROVAL_REFERENCE_SHA256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "RELEASE_APPROVAL_SOURCE_COMMIT": "0123456789abcdef0123456789abcdef01234567",
+                "RELEASE_APPROVAL_PLAN_SHA256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                "RELEASE_APPROVAL_SOCKET_DIR": "/tmp/release-output/approval/socket",
+                "RELEASE_APPROVAL_AUDIT_DIR": "/tmp/release-output/approval/audit",
+                "RELEASE_APPROVAL_ARTIFACTS_DIR": "/tmp/release-output/approval/artifacts",
+                "RELEASE_APPROVAL_REFERENCE_DIR": "/tmp/release-output/approval/reference",
                 "RELEASE_DEPLOYMENT_ARTIFACT_FILE": "/tmp/release-output/artifact/deployment.json",
                 "VIEWER_URL": "http://127.0.0.1:5174/?chainId=eip155%3A31337&host=0x0000000000000000000000000000000000000001&account=0x0000000000000000000000000000000000000002&rpcUrl=http%3A%2F%2F127.0.0.1%3A5174%2Frpc",
             },
@@ -449,12 +461,19 @@ class RenderedComposePostureTest(unittest.TestCase):
         expected_secrets = {("compose/cast.yml", "rpc-proxy", "rpc_url", "rpc_url")}
         for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
             deploy = makefile_compose_unit(f"{app}_RELEASE_DEPLOY_COMPOSE_FILES")
+            reference = makefile_compose_unit(f"{app}_RELEASE_REFERENCE_COMPOSE_FILES")
+            approval = makefile_compose_unit(f"{app}_RELEASE_APPROVAL_COMPOSE_FILES")
             verify = makefile_compose_unit(f"{app}_RELEASE_VERIFY_COMPOSE_FILES")
             expected_secrets.update({
                 (deploy, "release-rpc-proxy", "rpc_url", "rpc_url"),
                 (deploy, "deploy-release", "deployer_private_key", "deployer_private_key"),
                 (verify, "verify-rpc-proxy", "rpc_url", "rpc_url"),
             })
+            for files in (reference, approval):
+                expected_secrets.update({
+                    (files, "release-rpc-proxy", "rpc_url", "rpc_url"),
+                    (files, "deploy-release", "deployer_private_key", "deployer_private_key"),
+                })
         for files in release_rehearsal_units():
             mode = files[-1]
             if mode.endswith("rehearsal-deploy.yml"):
@@ -812,12 +831,13 @@ class RenderedComposePostureTest(unittest.TestCase):
         }
 
         for app in ("BIKE_NFT", "ESCROW", "PAY_TO_PLAY"):
-            deploy = makefile_compose_unit(f"{app}_RELEASE_DEPLOY_COMPOSE_FILES")
-            expected.update({
-                (deploy, "release-plan", "/tmp/release-output/plan", "/release-plan"),
-                (deploy, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
-                (deploy, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
-            })
+            for phase in ("DEPLOY", "REFERENCE", "APPROVAL"):
+                files = makefile_compose_unit(f"{app}_RELEASE_{phase}_COMPOSE_FILES")
+                expected.update({
+                    (files, "release-plan", "/tmp/release-output/plan", "/release-plan"),
+                    (files, "deploy-release", "/tmp/release-output/broadcast", "/release-broadcast"),
+                    (files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
+                })
 
         for compose_unit in compose_render_units():
             if "compose/deps.yml" not in compose_unit_files(compose_unit):
@@ -878,6 +898,17 @@ class RenderedComposePostureTest(unittest.TestCase):
             })
             if files[-1].endswith("rehearsal-ipc.yml"):
                 expected.add((files, "release-rpc-proxy", "/tmp/release-wait-socket", "/run/approval"))
+        for files in compose_render_units():
+            if "compose/release/reference.yml" in compose_unit_files(files):
+                expected.update({
+                    (files, "release-reference-export", "/tmp/release-output/approval/artifacts", "/reference-artifacts"),
+                    (files, "release-reference-prepare", "/tmp/release-output/approval/reference", "/reference-out"),
+                })
+            if "compose/release/approval.yml" in compose_unit_files(files):
+                expected.update({
+                    (files, "release-approval", "/tmp/release-output/approval/socket", "/run/approval"),
+                    (files, "release-approval", "/tmp/release-output/approval/audit", "/run/audit"),
+                })
         actual = set()
         for compose_file in compose_render_units():
             config = rendered_compose_config(
