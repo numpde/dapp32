@@ -1,187 +1,20 @@
-# Read-only verification for one escrow deployment artifact.
-#
-# The offline input service binds deployment.json to the current source/CAM
-# bytes and publishes one canonical snapshot. A read-only provenance service then checks all
-# creation receipts before the Solidity verifier checks live bytecode and state.
-# No verification service has a signing key or transaction-submission method.
-
-x-deployment-artifact: &deployment_artifact
-  type: bind
-  source: "${ESCROW_DEPLOYMENT_ARTIFACT_FILE:?missing_ESCROW_DEPLOYMENT_ARTIFACT_FILE}"
-  target: /deployment/deployment.json
-  read_only: true
-  bind:
-    create_host_path: false
-
-x-verified-write: &verified_write
-  type: volume
-  source: escrow_release_verified
-  target: /out
-  volume:
-    nocopy: false
-
-x-verified-read: &verified_read
-  type: volume
-  source: escrow_release_verified
-  target: /out
-  read_only: true
-  volume:
-    nocopy: true
-
-x-node-modules: &node_modules
-  type: bind
-  source: ../../../js/node_modules
-  target: /work/js/node_modules
-  read_only: true
-  bind:
-    create_host_path: false
-
+# App-specific release inputs; phase boundaries are owned by compose/release/.
 services:
-  escrow-release-verify-input:
-    extends:
-      file: ../../fragments/node-workspace.yml
-      service: hardened-node-workspace
-    working_dir: /work
-    network_mode: "none"
+  verify-input:
     environment:
+      RELEASE_TOOL_DIR: tools/escrow-release
       ESCROW_RELEASE_DAPPS_ROOT: /work/dapps
       ESCROW_RELEASE_CAM_ROOT_PATH: /work/dapps/escrow/cam/main.json
       ESCROW_DEPLOYMENT_ARTIFACT_PATH: /deployment/deployment.json
       ESCROW_VERIFIED_ARTIFACT_PATH: /out/deployment.json
       ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT: "${ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT}"
-    volumes:
-      - ../../../dapps:/work/dapps:ro
-      - ../../../js:/input/js:ro
-      - *node_modules
-      - *deployment_artifact
-      - *verified_write
-    command:
-      - "run-js-workspace"
-      - "sh"
-      - "-eu"
-      - "-c"
-      - |
-        npm run build:workspace
-        ./node_modules/.bin/tsc -p tools/escrow-release/tsconfig.json
-        node --experimental-strip-types tools/escrow-release/verify-input.ts
-
-  escrow-release-verify-rpc-proxy:
-    build:
-      context: ../../../containers/rpc-proxy
-      dockerfile: Dockerfile
-    init: true
-    user: "65532:65532"
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 64
-    mem_limit: 128m
+  verify-provenance:
     environment:
-      RPC_PROXY_HOST: 0.0.0.0
-      RPC_PROXY_PORT: "8080"
-      RPC_UPSTREAM_FILE: /run/secrets/rpc_url
-      RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
-      RPC_PROXY_MAX_RESPONSE_BYTES: "16777216"
-      RPC_PROXY_MAX_UPSTREAM_URL_BYTES: "4096"
-      RPC_PROXY_CONNECT_TIMEOUT_SECONDS: "20"
-      RPC_ALLOWED_METHODS: >-
-        eth_chainId eth_blockNumber eth_getBlockByNumber eth_getBalance
-        eth_getTransactionCount eth_getStorageAt eth_call eth_getCode
-        eth_getTransactionReceipt
-    secrets:
-      - source: rpc_url
-        target: rpc_url
-    tmpfs:
-      - /tmp:rw,nosuid,nodev,noexec,size=16m
-    networks:
-      escrow_release_verify_internal:
-        aliases:
-          - escrow-release-verify-rpc-proxy
-      escrow_release_verify_egress: {}
-    healthcheck:
-      test:
-        - CMD
-        - python3
-        - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=2).close()"
-      interval: 2s
-      timeout: 2s
-      retries: 10
-
-  escrow-release-verify-provenance:
-    extends:
-      file: ../../fragments/node-workspace.yml
-      service: hardened-node-workspace
-    working_dir: /work
-    depends_on:
-      escrow-release-verify-input:
-        condition: service_completed_successfully
-      escrow-release-verify-rpc-proxy:
-        condition: service_healthy
-    environment:
+      RELEASE_TOOL_DIR: tools/escrow-release
       ESCROW_DEPLOYMENT_ARTIFACT_PATH: /out/deployment.json
-      ESCROW_RELEASE_RPC_URL: http://escrow-release-verify-rpc-proxy:8080
-    volumes:
-      - ../../../js:/input/js:ro
-      - *node_modules
-      - *verified_read
-    networks:
-      - escrow_release_verify_internal
-    command:
-      - "run-js-workspace"
-      - "sh"
-      - "-eu"
-      - "-c"
-      - |
-        npm run build:workspace
-        ./node_modules/.bin/tsc -p tools/escrow-release/tsconfig.json
-        node --experimental-strip-types tools/escrow-release/verify-provenance.ts
-
-  verify-escrow-release:
-    build:
-      context: ../../../containers/foundry
-      dockerfile: Dockerfile
-    working_dir: /work/dapps
-    depends_on:
-      escrow-release-verify-provenance:
-        condition: service_completed_successfully
-      escrow-release-verify-rpc-proxy:
-        condition: service_healthy
-    user: "${LOCAL_UID:?missing_LOCAL_UID}:${LOCAL_GID:?missing_LOCAL_GID}"
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    pids_limit: 256
-    mem_limit: 1g
+      ESCROW_RELEASE_RPC_URL: http://verify-rpc-proxy:8080
+  verify-release:
     environment:
-      HOME: /tmp/home
-      XDG_DATA_HOME: /usr/local/share
-      FOUNDRY_CACHE_PATH: /tmp/foundry-cache
-      FOUNDRY_CONFIG: /work/dapps/foundry.toml
-      FOUNDRY_OUT: /tmp/foundry-out
+      RELEASE_SCRIPT: escrow/script/VerifyEscrowRelease.s.sol
       ESCROW_VERIFIED_DEPLOYMENT_PATH: /out/deployment.json
       ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT: "${ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT:?missing_ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT}"
-    tmpfs:
-      - /tmp:rw,nosuid,nodev,noexec,size=512m
-    volumes:
-      - ../../../dapps:/work/dapps:ro
-      - *verified_read
-    networks:
-      - escrow_release_verify_internal
-    command: [forge, script, --offline, escrow/script/VerifyEscrowRelease.s.sol, --rpc-url, "http://escrow-release-verify-rpc-proxy:8080", -vvv]
-
-secrets:
-  rpc_url:
-    file: "${RPC_URL_FILE:?missing_RPC_URL_FILE}"
-
-networks:
-  escrow_release_verify_internal:
-    internal: true
-  escrow_release_verify_egress: {}
-
-volumes:
-  escrow_release_verified: {}

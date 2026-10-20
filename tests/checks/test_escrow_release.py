@@ -22,9 +22,9 @@ from .release_posture import (
 )
 
 
-CHECK = "compose/escrow/release/check.yml"
-DEPLOY = "compose/escrow/release/deploy.yml"
-VERIFY = "compose/escrow/release/verify.yml"
+CHECK = ("compose/release/check.yml", "compose/escrow/release/check.yml")
+DEPLOY = ("compose/release/deploy.yml", "compose/escrow/release/deploy.yml")
+VERIFY = ("compose/release/verify.yml", "compose/escrow/release/verify.yml")
 OUTPUT_DIR = "/tmp/escrow-release-output"
 ARTIFACT_FILE = "/tmp/escrow-release-output/artifact/deployment.json"
 RPC_URL_FILE = "/tmp/escrow-release-rpc-url"
@@ -40,17 +40,19 @@ RELEASE_ENV = {
     "ESCROW_RELEASE_OUTPUT_DIR": OUTPUT_DIR,
     "ESCROW_RELEASE_SOURCE_COMMIT": SOURCE_COMMIT,
     "RPC_URL_FILE": RPC_URL_FILE,
+    "RELEASE_OUTPUT_DIR": OUTPUT_DIR,
+    "RELEASE_DEPLOYMENT_ARTIFACT_FILE": ARTIFACT_FILE,
 }
 
 
 class EscrowReleasePostureTest(unittest.TestCase):
     def test_release_check_is_offline_and_read_only(self) -> None:
         config = rendered_compose_config(CHECK, env=RELEASE_ENV)
-        service = compose_service(config, "escrow-release-check")
+        service = compose_service(config, "release-check")
 
         assert_offline_read_only_release_check(self, service)
-        self.assertIn("tools/escrow-release/tsconfig.json", compose_command_text(service))
-        self.assertIn("tools/escrow-release/*.test.ts", compose_command_text(service))
+        self.assertEqual("tools/escrow-release", compose_mapping(service, "environment")["RELEASE_TOOL_DIR"])
+        self.assertIn("/*.test.ts", compose_command_text(service))
 
     def test_release_make_targets_fail_closed(self) -> None:
         source = read_text(repo_path("Makefile"))
@@ -104,35 +106,37 @@ class EscrowReleasePostureTest(unittest.TestCase):
         for phase in ("run", "check", "deps"):
             self.assertIn(f'COMPOSE_PROJECT_NAME="$$ceremony_project-{phase}"', source)
 
-        for target in (deploy, verify):
-            self.assertLess(target.index("trap cleanup EXIT"), target.index("$(release_snapshot_allocate)"))
-            self.assertLess(target.index("$(release_snapshot_allocate)"), target.index("$(release_snapshot_populate)"))
-            self.assertLess(target.index("$(release_snapshot_populate)"), target.index("compose_release_dependencies run --build --rm soldeer-verify"))
-            self.assertLess(target.index("compose_release_dependencies run --build --rm soldeer-verify"), target.index("up --build --abort"))
-            self.assertIn('-f "$$ceremony_source/$$release_compose_file"', target)
-
-        self.assertLess(deploy.index("compose_release_dependencies run"), deploy.index("compose_release_check run"))
-        self.assertLess(deploy.index("compose_release_check run"), deploy.index('mkdir --mode=0700 -- "$$output_dir"'))
-        self.assertLess(deploy.index('mkdir --mode=0700 -- "$$output_dir"'), deploy.index("up --build --abort"))
-        self.assertIn('"$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"', deploy)
-        self.assertIn("%s/artifact/deployment.json", deploy)
+        self.assertIn("$(call release_deploy_execution,ESCROW_RELEASE_OUTPUT_DIR)", deploy)
+        self.assertIn("$(release_verify_execution)", verify)
+        self.assertIn("$(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES))", deploy)
+        self.assertIn("$(call release_snapshot_compose_args,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES))", verify)
+        prepare = source.split("define release_prepare_snapshot\n", 1)[1].split("\nendef", 1)[0]
+        execute = source.split("define release_deploy_execution\n", 1)[1].split("\nendef", 1)[0]
+        self.assertLess(prepare.index("trap cleanup EXIT"), prepare.index("$(release_snapshot_allocate)"))
+        self.assertLess(prepare.index("$(release_snapshot_allocate)"), prepare.index("$(release_snapshot_populate)"))
+        self.assertLess(prepare.index("$(release_snapshot_populate)"), prepare.index("compose_release_dependencies run"))
+        self.assertLess(execute.index("$(release_prepare_snapshot)"), execute.index("compose_release_check run"))
+        self.assertLess(execute.index("compose_release_check run"), execute.index('mkdir --mode=0700 -- "$$output_dir"'))
+        self.assertLess(execute.index('mkdir --mode=0700 -- "$$output_dir"'), execute.index("up --build --abort"))
+        self.assertIn('"$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"', execute)
+        self.assertIn('-f "$$ceremony_source/$(file)"', source)
 
     def test_deployment_signer_is_secret_file_backed_and_proxy_scoped(self) -> None:
         config = rendered_compose_config(DEPLOY, env=RELEASE_ENV)
-        plan = compose_service(config, "escrow-release-plan")
-        deploy_proxy = compose_service(config, "escrow-release-rpc-proxy")
-        artifact_proxy = compose_service(config, "escrow-release-artifact-rpc-proxy")
-        deploy = compose_service(config, "deploy-escrow-release")
-        artifact = compose_service(config, "escrow-release-artifact")
+        plan = compose_service(config, "release-plan")
+        deploy_proxy = compose_service(config, "release-rpc-proxy")
+        artifact_proxy = compose_service(config, "release-artifact-rpc-proxy")
+        deploy = compose_service(config, "deploy-release")
+        artifact = compose_service(config, "release-artifact")
 
         assert_deployment_authority_split(
             self,
             compose_mapping(config, "services"),
-            planner_name="escrow-release-plan",
-            signer_name="deploy-escrow-release",
-            materializer_name="escrow-release-artifact",
-            signing_proxy_name="escrow-release-rpc-proxy",
-            materializer_proxy_name="escrow-release-artifact-rpc-proxy",
+            planner_name="release-plan",
+            signer_name="deploy-release",
+            materializer_name="release-artifact",
+            signing_proxy_name="release-rpc-proxy",
+            materializer_proxy_name="release-artifact-rpc-proxy",
         )
         assert_release_output_directions(
             self,
@@ -143,19 +147,19 @@ class EscrowReleasePostureTest(unittest.TestCase):
             broadcast_target="/release-broadcast",
             artifact_target="/release-artifact",
         )
-        self.assertEqual({"escrow_release_deploy_internal": None}, deploy["networks"])
-        self.assertEqual({"escrow_release_artifact_internal": None}, artifact["networks"])
+        self.assertEqual({"release_deploy_internal": None}, deploy["networks"])
+        self.assertEqual({"release_artifact_internal": None}, artifact["networks"])
         self.assertEqual(
             {
-                "escrow_release_deploy_egress": {},
-                "escrow_release_deploy_internal": {"aliases": ["escrow-release-rpc-proxy"]},
+                "release_deploy_egress": {},
+                "release_deploy_internal": {"aliases": ["release-rpc-proxy"]},
             },
             deploy_proxy["networks"],
         )
         self.assertEqual(
             {
-                "escrow_release_artifact_egress": {},
-                "escrow_release_artifact_internal": {"aliases": ["escrow-release-artifact-rpc-proxy"]},
+                "release_artifact_egress": {},
+                "release_artifact_internal": {"aliases": ["release-artifact-rpc-proxy"]},
             },
             artifact_proxy["networks"],
         )
@@ -168,7 +172,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertIs(artifact_rpc_url["read_only"], True)
         # Compose omits an explicit false create_host_path value when it renders
         # JSON, so the checked-in source must retain this fail-closed boundary.
-        self.assertEqual(4, read_text(repo_path(DEPLOY)).count("create_host_path: false"))
+        self.assertEqual(4, read_text(repo_path(DEPLOY[0])).count("create_host_path: false"))
 
         deploy_command = compose_command_text(deploy)
         self.assertNotIn("release-plan.args", deploy_command)
@@ -198,17 +202,17 @@ class EscrowReleasePostureTest(unittest.TestCase):
 
     def test_verifier_has_offline_source_and_receipt_gates_without_send_authority(self) -> None:
         config = rendered_compose_config(VERIFY, env=RELEASE_ENV)
-        input_check = compose_service(config, "escrow-release-verify-input")
-        proxy = compose_service(config, "escrow-release-verify-rpc-proxy")
-        provenance = compose_service(config, "escrow-release-verify-provenance")
-        verify = compose_service(config, "verify-escrow-release")
+        input_check = compose_service(config, "verify-input")
+        proxy = compose_service(config, "verify-rpc-proxy")
+        provenance = compose_service(config, "verify-provenance")
+        verify = compose_service(config, "verify-release")
 
         assert_receipt_gated_verification(
             self,
             input_service=input_check,
-            input_service_name="escrow-release-verify-input",
+            input_service_name="verify-input",
             provenance_service=provenance,
-            provenance_service_name="escrow-release-verify-provenance",
+            provenance_service_name="verify-provenance",
             verifier_service=verify,
         )
         assert_verification_snapshot_boundary(
@@ -222,8 +226,10 @@ class EscrowReleasePostureTest(unittest.TestCase):
             self,
             compose_mapping(config, "services"),
         )
-        self.assertIn("tools/escrow-release/verify-input.ts", compose_command_text(input_check))
-        self.assertIn("tools/escrow-release/verify-provenance.ts", compose_command_text(provenance))
+        self.assertEqual("tools/escrow-release", compose_mapping(input_check, "environment")["RELEASE_TOOL_DIR"])
+        self.assertIn("/verify-input.ts", compose_command_text(input_check))
+        self.assertEqual("tools/escrow-release", compose_mapping(provenance, "environment")["RELEASE_TOOL_DIR"])
+        self.assertIn("/verify-provenance.ts", compose_command_text(provenance))
 
         proxy_methods = compose_mapping(proxy, "environment")["RPC_ALLOWED_METHODS"]
         self.assertIn("eth_getStorageAt", proxy_methods)
@@ -232,13 +238,13 @@ class EscrowReleasePostureTest(unittest.TestCase):
         artifact_input = compose_volume(input_check, "/deployment/deployment.json")
         self.assertEqual(ARTIFACT_FILE, artifact_input["source"])
         verified_input = compose_volume(input_check, "/out")
-        self.assertEqual("escrow_release_verified", verified_input["source"])
+        self.assertEqual("release_verified", verified_input["source"])
 
         # Compose v2.40.3, pinned in the checks image, omits
         # bind.create_host_path from rendered JSON. Pin the engine policy in
         # source while the rendered assertions above own exact sources and
         # read-only access.
-        self.assertEqual(2, read_text(repo_path(VERIFY)).count("create_host_path: false"))
+        self.assertEqual(2, read_text(repo_path(VERIFY[0])).count("create_host_path: false"))
 
         self.assertNotIn("deployment.args", str(config))
         self.assertNotIn("DEPLOYMENT_ARGUMENTS", str(config))

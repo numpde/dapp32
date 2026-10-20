@@ -1,0 +1,21 @@
+# Shared release phase boundaries; app overlays supply settings and entrypoints.
+
+services:
+  release-check:
+    extends:
+      file: ../fragments/node-workspace.yml
+      service: offline-node-workspace
+    working_dir: /work
+    volumes:
+      - ../../dapps:/work/dapps:ro
+      - ../../js:/input/js:ro
+      - ../../js/node_modules:/work/js/node_modules:ro
+    command:
+      - "run-js-workspace"
+      - "sh"
+      - "-eu"
+      - "-c"
+      - |
+        npm run build:workspace
+        ./node_modules/.bin/tsc -p "$${RELEASE_TOOL_DIR}/tsconfig.json"
+        node --test --experimental-strip-types tools/release-cam-bundle.test.ts tools/release-files.test.ts tools/release-values.test.ts "$${RELEASE_TOOL_DIR}"/*.test.ts

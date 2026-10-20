@@ -96,11 +96,15 @@ FORGE_ABI_COMPOSE_FILES := -f $(COMPOSE_DIR)/forge-abi.yml
 BIKE_NFT_LOCAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml
 BIKE_NFT_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-terminal.yml
 BIKE_NFT_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/viewer-gui.yml
-BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/release/check.yml
+BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/bike-nft/release/check.yml
+BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/bike-nft/release/deploy.yml
+BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/bike-nft/release/verify.yml
 ESCROW_LOCAL_SCENARIO_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/scenario.yml
 ESCROW_VIEWER_TERMINAL_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-terminal.yml
 ESCROW_VIEWER_GUI_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/deploy.yml -f $(COMPOSE_DIR)/escrow/local/http.yml -f $(COMPOSE_DIR)/escrow/local/viewer-gui.yml
-ESCROW_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/release/check.yml
+ESCROW_RELEASE_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/check.yml -f $(COMPOSE_DIR)/escrow/release/check.yml
+ESCROW_RELEASE_DEPLOY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/deploy.yml -f $(COMPOSE_DIR)/escrow/release/deploy.yml
+ESCROW_RELEASE_VERIFY_COMPOSE_FILES := -f $(COMPOSE_DIR)/release/verify.yml -f $(COMPOSE_DIR)/escrow/release/verify.yml
 ESCROW_VIEWER_BROWSER_CHECK_COMPOSE_FILES := -f $(COMPOSE_DIR)/escrow/local/browser-check.yml
 TEST_INTEGRATION_FUZZ_COMPOSE_FILES := -f $(COMPOSE_DIR)/test/integration-fuzz.yml
 TEST_INTEGRATION_FUZZ_BIKE_NFT_COMPOSE_FILES := -f $(COMPOSE_DIR)/bike-nft/local/deploy.yml -f $(COMPOSE_DIR)/bike-nft/local/http.yml -f $(COMPOSE_DIR)/bike-nft/local/test-integration-fuzz.yml
@@ -252,6 +256,38 @@ compose_release_dependencies() { \
   LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-deps" ALLOW_UPDATE=0 \
     env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/compose/deps.yml" "$$@"; \
 }
+endef
+
+# Every release phase uses these files from the archived commit, including overlays.
+release_snapshot_compose_args = $(foreach file,$(filter-out -f,$(1)),-f "$$ceremony_source/$(file)")
+
+define release_prepare_snapshot
+$(release_snapshot_dependency_compose); \
+ceremony_root=""; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
+cleanup() { $(release_snapshot_cleanup); }; \
+trap cleanup EXIT; \
+$(release_snapshot_allocate); \
+$(release_snapshot_populate); \
+release_dependencies_started=1; \
+compose_release_dependencies run --build --rm soldeer-verify
+endef
+
+define release_deploy_execution
+$(release_prepare_snapshot); \
+release_check_started=1; \
+compose_release_check run --build --rm release-check; \
+recheck_new_release_output "$$output_dir" "$(1)"; \
+mkdir --mode=0700 -- "$$output_dir"; \
+mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
+release_run_started=1; \
+compose_release up --build --abort-on-container-exit --exit-code-from release-artifact release-artifact; \
+printf 'Release artifact: %s/artifact/deployment.json\n' "$$output_dir"
+endef
+
+define release_verify_execution
+$(release_prepare_snapshot); \
+release_run_started=1; \
+compose_release up --build --abort-on-container-exit --exit-code-from verify-release verify-release
 endef
 
 define compose_run
@@ -708,12 +744,12 @@ cam/integration/fuzz/check:
 escrow/release/check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	$(ESCROW_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(ESCROW_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T escrow-release-check
+	$(ESCROW_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(ESCROW_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T release-check
 
 bike-nft/release/check:
 	@$(LANE_GUARD); \
 	$(PACKAGE_DEPS_GUARD); \
-	$(BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T bike-nft-release-check
+	$(BIKE_NFT_RELEASE_CHECK_COMPOSE_ENV) $(DOCKER_COMPOSE) $(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES) run --build --rm -T release-check
 
 viewer/terminal/mock/up:
 	@$(LANE_GUARD); \
@@ -1196,40 +1232,22 @@ escrow/release/deploy:
 	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
 	output_dir="$$ESCROW_RELEASE_OUTPUT_DIR"; \
 	validate_new_release_output "$$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"; \
-	release_compose_file="compose/escrow/release/deploy.yml"; \
-	release_check_compose_file="compose/escrow/release/check.yml"; \
 	compose_release() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
-	    ESCROW_RELEASE_OUTPUT_DIR="$$output_dir" \
+	    RELEASE_OUTPUT_DIR="$$output_dir" \
 	    ESCROW_RELEASE_CAM_URI="$$cam_uri" \
 	    ESCROW_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
 	    ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER="$$owner" \
 	    ESCROW_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/$$release_compose_file" "$$@"; \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$$@"; \
 	}; \
 	compose_release_check() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/$$release_check_compose_file" "$$@"; \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; \
 	}; \
-	$(release_snapshot_dependency_compose); \
-	ceremony_root=""; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
-	cleanup() { $(release_snapshot_cleanup); }; \
-	trap cleanup EXIT; \
-	$(release_snapshot_allocate); \
-	$(release_snapshot_populate); \
-	release_dependencies_started=1; \
-	compose_release_dependencies run --build --rm soldeer-verify; \
-	release_check_started=1; \
-	compose_release_check run --build --rm escrow-release-check; \
-	recheck_new_release_output "$$output_dir" "ESCROW_RELEASE_OUTPUT_DIR"; \
-	mkdir --mode=0700 -- "$$output_dir"; \
-	mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
-	release_run_started=1; \
-	compose_release \
-	  up --build --abort-on-container-exit --exit-code-from escrow-release-artifact escrow-release-artifact; \
-	printf 'Escrow release artifact: %s/artifact/deployment.json\n' "$$output_dir"
+	$(call release_deploy_execution,ESCROW_RELEASE_OUTPUT_DIR)
 
 escrow/release/verify:
 	@$(LANE_GUARD); \
@@ -1245,25 +1263,14 @@ escrow/release/verify:
 	$(release_host_guard_functions); \
 	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"; \
 	require_release_file "$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" "ESCROW_DEPLOYMENT_ARTIFACT_FILE"; \
-	release_compose_file="compose/escrow/release/verify.yml"; \
 	compose_release() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
-	    ESCROW_DEPLOYMENT_ARTIFACT_FILE="$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" \
+	    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" \
 	    ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/$$release_compose_file" "$$@"; \
+	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES)) "$$@"; \
 	}; \
-	$(release_snapshot_dependency_compose); \
-	ceremony_root=""; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
-	cleanup() { $(release_snapshot_cleanup); }; \
-	trap cleanup EXIT; \
-	$(release_snapshot_allocate); \
-	$(release_snapshot_populate); \
-	release_dependencies_started=1; \
-	compose_release_dependencies run --build --rm soldeer-verify; \
-	release_run_started=1; \
-	compose_release \
-	  up --build --abort-on-container-exit --exit-code-from verify-escrow-release verify-escrow-release
+	$(release_verify_execution)
 
 bike-nft/release/deploy:
 	@$(LANE_GUARD); \
@@ -1284,31 +1291,17 @@ bike-nft/release/deploy:
 	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
 	output_dir="$$BIKE_NFT_RELEASE_OUTPUT_DIR"; \
 	validate_new_release_output "$$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"; \
-	release_compose_file="compose/bike-nft/release/deploy.yml"; release_check_compose_file="compose/bike-nft/release/check.yml"; \
 	compose_release() { \
-	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" BIKE_NFT_RELEASE_OUTPUT_DIR="$$output_dir" BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
+	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RELEASE_OUTPUT_DIR="$$output_dir" BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	  BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" BIKE_NFT_RELEASE_CAM_URI="$$cam_uri" \
 	  BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER="$$BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER" BIKE_NFT_RELEASE_TOKEN_NAME="$$BIKE_NFT_RELEASE_TOKEN_NAME" BIKE_NFT_RELEASE_TOKEN_SYMBOL="$$BIKE_NFT_RELEASE_TOKEN_SYMBOL" \
 	  BIKE_NFT_RELEASE_BASE_TOKEN_URI="$$BIKE_NFT_RELEASE_BASE_TOKEN_URI" BIKE_NFT_RELEASE_COLLECTION_URI="$$BIKE_NFT_RELEASE_COLLECTION_URI" \
 	  BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN" BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY="$$BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY" BIKE_NFT_RELEASE_COMPONENTS_PAUSER="$$BIKE_NFT_RELEASE_COMPONENTS_PAUSER" BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER="$$BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER" \
 	  BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN" BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY="$$BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY" BIKE_NFT_RELEASE_MANAGER_PAUSER="$$BIKE_NFT_RELEASE_MANAGER_PAUSER" BIKE_NFT_RELEASE_MANAGER_CONFIGURER="$$BIKE_NFT_RELEASE_MANAGER_CONFIGURER" BIKE_NFT_RELEASE_REGISTRARS="$$BIKE_NFT_RELEASE_REGISTRARS" \
-	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/$$release_compose_file" "$$@"; \
+	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$$@"; \
 	}; \
-	compose_release_check() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/$$release_check_compose_file" "$$@"; }; \
-	$(release_snapshot_dependency_compose); \
-	ceremony_root=""; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
-	cleanup() { $(release_snapshot_cleanup); }; trap cleanup EXIT; \
-	$(release_snapshot_allocate); \
-	$(release_snapshot_populate); \
-	release_dependencies_started=1; \
-	compose_release_dependencies run --build --rm soldeer-verify; \
-	release_check_started=1; \
-	compose_release_check run --build --rm bike-nft-release-check; \
-	recheck_new_release_output "$$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"; \
-	mkdir --mode=0700 -- "$$output_dir"; mkdir --mode=0700 -- "$$output_dir/plan" "$$output_dir/broadcast" "$$output_dir/artifact"; \
-	release_run_started=1; \
-	compose_release up --build --abort-on-container-exit --exit-code-from bike-nft-release-artifact bike-nft-release-artifact; \
-	printf 'Bike NFT release artifact: %s/artifact/deployment.json\n' "$$output_dir"
+	compose_release_check() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; }; \
+	$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)
 
 bike-nft/release/verify:
 	@$(LANE_GUARD); \
@@ -1319,17 +1312,8 @@ bike-nft/release/verify:
 	$(release_host_guard_functions); \
 	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"; \
 	require_release_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"; \
-	release_compose_file="compose/bike-nft/release/verify.yml"; \
-	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/$$release_compose_file" "$$@"; }; \
-	$(release_snapshot_dependency_compose); \
-	ceremony_root=""; release_dependencies_started=0; release_check_started=0; release_run_started=0; \
-	cleanup() { $(release_snapshot_cleanup); }; trap cleanup EXIT; \
-	$(release_snapshot_allocate); \
-	$(release_snapshot_populate); \
-	release_dependencies_started=1; \
-	compose_release_dependencies run --build --rm soldeer-verify; \
-	release_run_started=1; \
-	compose_release up --build --abort-on-container-exit --exit-code-from verify-bike-nft-release verify-bike-nft-release
+	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES)) "$$@"; }; \
+	$(release_verify_execution)
 
 # Disposable payment-channel fixture. Its scenario and browser projects are isolated.
 PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_PROJECT_NAME ?= $(COMPOSE_PROJECT_NAME)-pay-to-play-local-scenario
