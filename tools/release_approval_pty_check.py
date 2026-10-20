@@ -107,6 +107,82 @@ def fixture_nonce(project: str, address: str) -> int:
     return int(output)
 
 
+def approval_chain_id(signer: str) -> str:
+    """Verify Forge's RPC client can read through the live approval listener."""
+    result = subprocess.run(
+        ["docker", "exec", signer, "timeout", "8", "cast", "chain-id",
+         "--rpc-url", "file:///run/approval/rpc.sock"],
+        capture_output=True, text=True, check=False, timeout=12,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Forge could not read the chain ID through the live approval socket "
+            f"(status {result.returncode}): {result.stderr.strip()}"
+        )
+    chain_id = result.stdout.strip()
+    if chain_id != "31338":
+        raise RuntimeError(f"Approval RPC returned chain ID {chain_id!r}, expected 31338")
+    return chain_id
+
+
+def backend_chain_id(gate: str) -> str:
+    """Check the approval container's fixed HTTP backend independently of IPC."""
+    script = (
+        "const response=await fetch('http://release-rpc-proxy:8080',{method:'POST',"
+        "headers:{'content-type':'application/json'},"
+        "body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_chainId',params:[]}),"
+        "signal:AbortSignal.timeout(5000)});"
+        "if(!response.ok)throw Error('backend HTTP '+response.status);"
+        "const body=await response.json();"
+        "if(body.jsonrpc!=='2.0'||body.id!==1||body.result!=='0x7a6a')"
+        "throw Error('unexpected backend JSON-RPC response');"
+        "process.stdout.write(body.result);"
+    )
+    result = subprocess.run(
+        ["docker", "exec", gate, "node", "--input-type=module", "-e", script],
+        capture_output=True, text=True, check=False, timeout=8,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Approval container could not read chain ID from its fixed HTTP backend "
+            f"(status {result.returncode}): {result.stderr.strip()}"
+        )
+    chain_id = result.stdout.strip()
+    if chain_id != "0x7a6a":
+        raise RuntimeError(f"Approval backend returned chain ID {chain_id!r}, expected 0x7a6a")
+    return chain_id
+
+
+def listener_chain_id(gate: str) -> str:
+    """Check the live listener with a bounded ordinary Unix-socket JSON client."""
+    script = (
+        "const net=await import('node:net');"
+        "const socket=net.createConnection('/run/approval/rpc.sock');"
+        "let bytes='';let settled=false;"
+        "const timer=setTimeout(()=>finish(Error('listener response timed out')),5000);"
+        "function finish(error,value){if(settled)return;settled=true;clearTimeout(timer);"
+        "socket.destroy();if(error){console.error(error.message);process.exitCode=1;}"
+        "else process.stdout.write(value);};"
+        "socket.on('error',error=>finish(error));"
+        "socket.on('connect',()=>socket.write(JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_chainId',params:[]})));"
+        "socket.on('data',block=>{bytes+=block.toString('utf8');const end=bytes.indexOf('\\n');"
+        "if(end<0)return;try{const body=JSON.parse(bytes.slice(0,end));"
+        "if(body.jsonrpc!=='2.0'||body.id!==1||body.result!=='0x7a6a')"
+        "throw Error('unexpected listener JSON-RPC response');finish(null,body.result);"
+        "}catch(error){finish(error);}});"
+    )
+    result = subprocess.run(
+        ["docker", "exec", gate, "node", "--input-type=module", "-e", script],
+        capture_output=True, text=True, check=False, timeout=8,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Approval listener did not answer a direct Unix-socket read "
+            f"(status {result.returncode}): {result.stderr.strip()}"
+        )
+    return result.stdout.strip()
+
+
 def wait_for_exit(process: subprocess.Popen[bytes], master: int, transcript: bytearray,
                   deadline: float) -> int:
     while time.monotonic() < deadline:
@@ -131,7 +207,7 @@ def main() -> None:
     rehearsal_dir = Path(required("RELEASE_REHEARSAL_DIR"))
     rehearsal_network = required("RELEASE_REHEARSAL_NETWORK")
     if IDENTITY.fullmatch(image) is None:
-        raise RuntimeError("RELEASE_APPROVAL_IMAGE must be an admitted local sha256 image ID")
+        raise RuntimeError("RELEASE_APPROVAL_IMAGE must be a local sha256 image ID")
     if not re.fullmatch(r"0x[0-9a-fA-F]{40}", deployer):
         raise RuntimeError("Fixture deployer address is malformed")
     if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
@@ -188,6 +264,7 @@ def main() -> None:
         if containers("deploy-release") - old_signers:
             raise RuntimeError("A new Forge container started before the operator entered start")
 
+        backend_chain_id(approval_id)
         os.write(master, b"start\n")
         read_until(master, process, transcript,
                    lambda: socket_path is not None and socket_path.is_socket(),
@@ -199,6 +276,8 @@ def main() -> None:
         signer_ids = containers("deploy-release", project)
         if len(signer_ids) != 1:
             raise RuntimeError("Starting approval must start exactly one Forge container")
+        listener_chain_id(approval_id)
+        approval_chain_id(next(iter(signer_ids)))
 
         def first_review_shown() -> bool:
             text = transcript.decode("utf-8", errors="replace")

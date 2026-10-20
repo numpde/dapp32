@@ -28,10 +28,11 @@ function object(value: unknown): value is Record<string, unknown> {
 
 function request(value: unknown): RpcRequest {
   if (!object(value) || value.jsonrpc !== "2.0" || typeof value.method !== "string" ||
-      !Array.isArray(value.params) || !(typeof value.id === "string" ||
+      (value.params !== undefined && !Array.isArray(value.params)) || !(typeof value.id === "string" ||
       (typeof value.id === "number" && Number.isSafeInteger(value.id)) || value.id === null)) {
-    throw new Error("Expected JSON-RPC 2.0 request with an ID, method and array parameters")
+    throw new Error("Expected a JSON-RPC 2.0 request with a valid ID, method and positional parameters")
   }
+  if (value.params === undefined) value.params = []
   return value as RpcRequest
 }
 

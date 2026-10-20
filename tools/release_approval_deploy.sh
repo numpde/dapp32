@@ -117,7 +117,11 @@ release_approval_prepare() {
 release_approval_run() {
   local output="$1" gate_id attach_status=0 forge_status="" gate_status=""
   local supervisor_pid
-  compose_release up -d --no-build release-approval
+  # Each `up` normally restarts exited one-shot dependencies. The release plan
+  # already ran to produce the approval reference, so start live services only
+  # after explicitly checking their predecessor instead of replaying the plan.
+  compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-rpc-proxy
+  compose_release up -d --no-build --no-deps release-approval
   gate_id="$(release_approval_service_id release-approval)" || return
   release_approval_show_startup "$gate_id"
 
@@ -148,8 +152,8 @@ release_approval_run() {
       fi
       sleep 0.2
     done
-    if ! compose_release up -d --no-build --wait --wait-timeout 30 release-approval; then exit 1; fi
-    if ! compose_release up -d --no-build deploy-release; then exit 1; fi
+    if ! compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-approval; then exit 1; fi
+    if ! compose_release up -d --no-build --no-deps deploy-release; then exit 1; fi
     forge_id="$(release_approval_service_id deploy-release)" || exit
     if code="$(timeout --foreground 900 docker wait "$forge_id")" && [[ "$code" =~ ^[0-9]+$ ]]; then
       printf '%s\n' "$code" > "$output/forge-exit-code"
@@ -178,6 +182,6 @@ release_approval_run() {
     printf 'Release stopped before artifact creation. Forge: %s; approval: %s. Review broadcast and approval audit for possible earlier effects.\n' "$forge_status" "$gate_status" >&2
     return 1
   fi
-  compose_release up -d --no-build --wait release-artifact-rpc-proxy
+  compose_release up -d --no-build --no-deps --wait release-artifact-rpc-proxy
   compose_release run --rm --no-deps -T release-artifact
 }

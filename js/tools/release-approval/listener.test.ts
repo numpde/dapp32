@@ -90,6 +90,19 @@ test("fragmented and coalesced IPC requests retain their IDs", async () => {
   } finally { await f.close() }
 })
 
+test("JSON-RPC reads may omit params and are forwarded with an empty positional list", async () => {
+  const f = await fixture()
+  try {
+    const c = await client(f.socketPath)
+    c.write('{"jsonrpc":"2.0","id":"chain","method":"eth_chainId"}')
+    const answer = await c.next()
+    assert.equal(answer.id, "chain")
+    assert.equal(answer.result, "0x2a")
+    assert.deepEqual(f.forwarded, [{ jsonrpc: "2.0", id: "chain", method: "eth_chainId", params: [] }])
+    c.close()
+  } finally { await f.close() }
+})
+
 test("a held send leaves reads responsive on the same socket", async () => {
   const f = await fixture()
   try {
