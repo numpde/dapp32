@@ -118,6 +118,94 @@ test('image artifact path must be a new normalized external directory without sy
   await assert.rejects(lstat(validPath), { code: 'ENOENT' })
 })
 
+test('image builder gives Compose a valid project name for mixed-case temporary paths', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'approval-project-name-test-'))
+  t.after(() => rm(root, { recursive: true, force: true }))
+  const fixtureSource = join(root, 'source')
+  const workRoot = join(root, 'work')
+  const output = join(root, 'image-output')
+  const log = join(root, 'docker-args')
+  await mkdir(workRoot)
+  await mkdir(output)
+  for (const path of [
+    'compose/package-deps.yml',
+    'compose/release/approval-image.yml',
+    'containers/release-approval/Dockerfile',
+    'containers/release-approval/prepare-context.mjs',
+    'containers/node-deps/Dockerfile',
+    'containers/https-egress-proxy/Dockerfile',
+    'js/package.json',
+    'js/package-lock.json',
+    'js/packages/protocol/package.json',
+    'js/apps/viewer/package.json',
+  ]) {
+    const file = join(fixtureSource, path)
+    await mkdir(file.slice(0, file.lastIndexOf('/')), { recursive: true })
+    await writeFile(file, '{}\n')
+  }
+  const imageId = `sha256:${'a'.repeat(64)}`
+  const sourceCommit = 'b'.repeat(40)
+  const script = resolve(fileURLToPath(new URL('.', import.meta.url)), '../../tools/release_approval_image_build.sh')
+  const outputPath = join(output, 'new-image')
+  const runner = `
+docker() {
+  printf '%s\\n' "$*" >> "$APPROVAL_TEST_DOCKER_LOG"
+  if [[ "$1" == compose ]]; then
+    [[ "$2" == -p && "$3" =~ ^cam-approval-image-[a-z0-9]+$ ]] || return 91
+    return 0
+  fi
+  if [[ "$1" == build ]]; then printf '%s\\n' "$APPROVAL_TEST_IMAGE_ID"; return 0; fi
+  if [[ "$1 $2" == 'image inspect' ]]; then
+    if [[ "$*" == *org.opencontainers.image.revision* ]]; then
+      printf '%s\\n' "$APPROVAL_TEST_SOURCE_COMMIT"
+    elif [[ "$*" == *--format* ]]; then
+      printf '%s\\n' "$APPROVAL_TEST_IMAGE_ID"
+    fi
+    return 0
+  fi
+  return 93
+}
+git() {
+  if [[ "$1 $3" == '-C cat-file' ]]; then printf 'commit\\n'; return 0; fi
+  if [[ "$1 $3" == '-C archive' ]]; then tar -cf - -C "$APPROVAL_TEST_SOURCE" .; return; fi
+  return 94
+}
+mktemp() {
+  if [[ "$#" == 1 && "$1" == -d ]]; then
+    local path="$APPROVAL_TEST_WORK_ROOT/build-TmpABC123"
+    mkdir "$path"
+    printf '%s\\n' "$path"
+  else
+    /usr/bin/mktemp "$@"
+  fi
+}
+export -f docker git mktemp
+exec bash "$@"
+`
+  const testEnv = {
+    ...process.env,
+    APPROVAL_TEST_DOCKER_LOG: log,
+    APPROVAL_TEST_IMAGE_ID: imageId,
+    APPROVAL_TEST_SOURCE_COMMIT: sourceCommit,
+    APPROVAL_TEST_SOURCE: fixtureSource,
+    APPROVAL_TEST_WORK_ROOT: workRoot,
+  }
+  const result = spawnSync('bash', ['-c', runner, 'approval-test', script, sourceCommit, outputPath], {
+    encoding: 'utf8',
+    env: testEnv,
+  })
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+  const composeCalls = (await readFile(log, 'utf8')).split('\n').filter(line => line.startsWith('compose '))
+  assert.equal(composeCalls.length, 4)
+  for (const call of composeCalls) {
+    assert.match(call, /\s-p cam-approval-image-[a-z0-9]+\s/)
+    assert.doesNotMatch(call, /\s-p [^ ]*[A-Z]/)
+  }
+  const artifact = JSON.parse(await readFile(join(output, 'new-image', 'approval-image.json'), 'utf8'))
+  assert.equal(artifact.imageId, imageId)
+  assert.equal(artifact.approvalToolSourceCommit, sourceCommit)
+})
+
 test('real staged runtime loads without release preparers or workspace packages', async t => {
   const image = fileURLToPath(new URL('.', import.meta.url))
   const source = process.env.RELEASE_APPROVAL_TEST_SOURCE ?? resolve(image, '../../js')

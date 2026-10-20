@@ -56,7 +56,7 @@ source_dir=$work_dir/source
 manifest_dir=$work_dir/manifests
 context_dir=$work_dir/context
 mkdir -m 0700 "$source_dir" "$manifest_dir" "$context_dir"
-project_name=cam-approval-image-$(basename "$work_dir" | tr -cd 'a-zA-Z0-9')
+project_name=cam-approval-image-$(basename "$work_dir" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
 compose_files=(-f "$source_dir/compose/package-deps.yml" -f "$source_dir/compose/release/approval-image.yml")
 stage_started=0
 cleanup() {
