@@ -27,7 +27,7 @@ def configuration(app):
         "path": "/tmp/new-release-output",
     }
     return {
-        "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC,
+        "schemaVersion": 2, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC,
         "deployerPrivateKey": FIXTURE_KEY, "confirmDeploy": True,
         "settings": {name: values[kind] for name, _, kind in release_config.fields(app)},
     }
@@ -56,6 +56,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 prefix = app.upper().replace("-", "_")
                 inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
                 self.assertEqual("YES", inputs[f"CONFIRM_{prefix}_RELEASE_DEPLOY"])
+                self.assertEqual(FIXTURE_ADDRESS, inputs[f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS"])
                 for name, value in expected["settings"].items():
                     self.assertEqual(value, inputs[f"{prefix}_RELEASE_{name}"])
                 self.assertEqual(FIXTURE_KEY + "\n", (output / "deployer-key").read_text())
@@ -105,6 +106,10 @@ class ReleaseConfigTest(unittest.TestCase):
             json.dumps(dict(valid, sourceCommit="f" * 40)),
             json.dumps(dict(valid, settings=dict(valid["settings"], RPC_CHAIN="base-sepolia"))),
             json.dumps(dict(valid, settings={"EXPECTED_CHAIN_ID": "84532"})),
+            json.dumps({key: value for key, value in valid.items() if key != "schemaVersion"}),
+            json.dumps(dict(valid, schemaVersion=1)),
+            json.dumps(dict(valid, schemaVersion="2")),
+            json.dumps(dict(valid, settings={key: value for key, value in valid["settings"].items() if key != "EXPECTED_DEPLOYER_ADDRESS"})),
             json.dumps(dict(valid, rpcUrl="https://provider.example.test/{API_KEY}")),
             b" " * (release_config.MAX_CONFIG_BYTES + 1),
         ]
@@ -118,6 +123,13 @@ class ReleaseConfigTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     release_config.unpack("pay-to-play", COMMIT, "deploy", source, output)
                 self.assertEqual([], list(output.iterdir()))
+
+    def test_previous_configuration_shape_requires_setup_again(self):
+        previous = configuration("escrow")
+        del previous["schemaVersion"]
+        del previous["settings"]["EXPECTED_DEPLOYER_ADDRESS"]
+        with self.assertRaisesRegex(ValueError, "run the release setup again"):
+            release_config.validate(previous, "escrow", COMMIT)
 
     def test_invalid_operator_values_are_rejected_without_echoing_secrets(self):
         cases = {
@@ -173,7 +185,7 @@ class ReleaseConfigTest(unittest.TestCase):
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 expected = configuration(app)
-                answers = ["local", *[value for name, value in expected["settings"].items() if name not in ("EXPECTED_CHAIN_ID", "CAM_URI")], "save"]
+                answers = ["local", *[value for name, value in expected["settings"].items() if name not in ("EXPECTED_CHAIN_ID", "CAM_URI", "EXPECTED_DEPLOYER_ADDRESS")], "save"]
                 with patch.dict(release_config.os.environ, {"RELEASE_LOCAL_NETWORK": "local-release-test"}), patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=AssertionError("Local setup must not request operator credentials")), contextlib.redirect_stdout(io.StringIO()):
                     release_config.setup(app, COMMIT, root)
                 config = json.loads((root / "release.json").read_text())
@@ -181,6 +193,7 @@ class ReleaseConfigTest(unittest.TestCase):
                 self.assertEqual("31338", config["settings"]["EXPECTED_CHAIN_ID"])
                 self.assertEqual(f"http://release-cam:8080/{app}/main.json", config["settings"]["CAM_URI"])
                 self.assertEqual(release_config.LOCAL_DEPLOYER_KEY, config["deployerPrivateKey"])
+                self.assertEqual(release_config.LOCAL_DEPLOYER_ADDRESS, config["settings"]["EXPECTED_DEPLOYER_ADDRESS"])
                 self.assertEqual(1, len(set(bytes.fromhex(config["deployerPrivateKey"][2:]))), "Local fixture keys must be an obvious repeated byte pattern")
                 output = root / "verify"
                 output.mkdir()
@@ -194,15 +207,18 @@ class ReleaseConfigTest(unittest.TestCase):
         config = configuration("pay-to-play")
         config["localNetwork"] = "local-release-test"
         config["rpcUrl"] = release_config.LOCAL_RPC_URL
-        config["settings"].update(EXPECTED_CHAIN_ID="31338", CAM_URI="http://release-cam:8080/pay-to-play/main.json")
+        config["deployerPrivateKey"] = release_config.LOCAL_DEPLOYER_KEY
+        config["settings"].update(EXPECTED_CHAIN_ID="31338", EXPECTED_DEPLOYER_ADDRESS=release_config.LOCAL_DEPLOYER_ADDRESS, CAM_URI="http://release-cam:8080/pay-to-play/main.json")
         release_config.validate(config, "pay-to-play", COMMIT)
         for top_level, name, value in (
             (True, "localNetwork", "unsafe network"),
             (True, "localNetwork", "--argument"),
             (True, "rpcUrl", "http://127.0.0.1:8545"),
             (True, "rpcUrl", "https://rpc.example.test"),
+            (True, "deployerPrivateKey", FIXTURE_KEY),
             (False, "EXPECTED_CHAIN_ID", "84532"),
             (False, "CAM_URI", "http://release-cam:8080/escrow/main.json"),
+            (False, "EXPECTED_DEPLOYER_ADDRESS", FIXTURE_ADDRESS),
         ):
             changed = json.loads(json.dumps(config))
             if top_level:
