@@ -337,6 +337,9 @@ help:
 	  '  make escrow/local/scenario/run      Run all nine escrow terminal paths through the real-RPC CAM viewer' \
 	  '  make pay-to-play/local/scenario/run  Run payment-channel workflows through real-RPC CAM actions' \
 	  '  make pay-to-play/local/recovery/run  Run payment workflows, recovery and refund-batch scenarios once' \
+	  '  make pay-to-play/local/fixture/up FIXTURE_ID=...    Start a fresh disposable deployment for external container tests' \
+	  '  make pay-to-play/local/fixture/info FIXTURE_ID=...  Print verified connection details and public fixture accounts as JSON' \
+	  '  make pay-to-play/local/fixture/down FIXTURE_ID=...  Remove only this disposable fixture and its volumes' \
 	  '  make pay-to-play/refunds/check       Offline refund-worker typecheck and tests' \
 	  '  make pay-to-play/refunds/plan REFUND_CONFIG_FILE=... RPC_URL_FILE=...  Preview bounded refunds' \
 	  '  make pay-to-play/refunds/run REFUND_CONFIG_FILE=... RPC_URL_FILE=... REFUND_PRIVATE_KEY_FILE=... REFUND_STATE_DIR=... CONFIRM_PAY_TO_PLAY_REFUNDS=YES  Execute bounded refunds' \
@@ -1268,6 +1271,54 @@ pay-to-play/local/demo/gui/down:
 
 
 .PHONY: pay-to-play/local/scenario/run pay-to-play/local/demo/gui/up pay-to-play/local/demo/gui/down pay-to-play/local/voucher/sign
+
+export FIXTURE_ID
+PAY_TO_PLAY_FIXTURE_PROJECT = dapps-pay-to-play-fixture-$(FIXTURE_ID)
+PAY_TO_PLAY_FIXTURE_NETWORK = $(PAY_TO_PLAY_FIXTURE_PROJECT)_pay-to-play_local
+PAY_TO_PLAY_FIXTURE_COMPOSE_ENV = $(PAY_TO_PLAY_COMPOSE_ENV) COMPOSE_PROJECT_NAME=$(PAY_TO_PLAY_FIXTURE_PROJECT) PAY_TO_PLAY_FIXTURE_PROJECT=$(PAY_TO_PLAY_FIXTURE_PROJECT) CAM_URI=$(PAY_TO_PLAY_CAM_HTTP_ORIGIN)/main.json PAY_TO_PLAY_FIXTURE_NETWORK=$(PAY_TO_PLAY_FIXTURE_NETWORK)
+PAY_TO_PLAY_FIXTURE_COMPOSE_FILES := -f $(COMPOSE_DIR)/pay-to-play/local/deploy.yml -f $(COMPOSE_DIR)/pay-to-play/local/http.yml -f $(COMPOSE_DIR)/pay-to-play/local/fixture.yml
+PAY_TO_PLAY_FIXTURE_GUARD := if [[ ! "$${FIXTURE_ID:?Set FIXTURE_ID for this fixture run}" =~ ^[a-z0-9][a-z0-9_-]{0,47}$$ ]]; then printf '%s\n' 'FIXTURE_ID must be 1-48 lowercase letters, digits, underscores or hyphens, starting with a letter or digit.' >&2; exit 2; fi
+
+define pay_to_play_fixture_compose
+$(PAY_TO_PLAY_FIXTURE_COMPOSE_ENV) env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(PAY_TO_PLAY_FIXTURE_COMPOSE_FILES) $(1)
+endef
+
+.PHONY: pay-to-play/local/fixture/up pay-to-play/local/fixture/info pay-to-play/local/fixture/down
+pay-to-play/local/fixture/up:
+	@$(LANE_GUARD); $(PAY_TO_PLAY_FIXTURE_GUARD); \
+	for resource in container network volume; do \
+	  existing="$$(docker "$$resource" ls --quiet --filter 'label=com.docker.compose.project=$(PAY_TO_PLAY_FIXTURE_PROJECT)')"; \
+	  if [[ -n "$$existing" ]]; then printf '%s\n' 'Fixture already exists; use another FIXTURE_ID or stop this fixture first.' >&2; exit 2; fi; \
+	done; \
+	$(MAKE) dapps/deps/verify; \
+	docker network create --internal \
+	  --label 'com.docker.compose.project=$(PAY_TO_PLAY_FIXTURE_PROJECT)' \
+	  --label 'com.docker.compose.network=pay-to-play_local' \
+	  '$(PAY_TO_PLAY_FIXTURE_NETWORK)' >/dev/null; \
+	cleanup() { \
+	  status="$$?"; \
+	  if (( status != 0 )); then \
+	    $(call pay_to_play_fixture_compose,down --volumes) || printf '%s\n' 'Fixture cleanup failed; retry fixture/down with the same FIXTURE_ID.' >&2; \
+	  fi; \
+	  exit "$$status"; \
+	}; \
+	trap cleanup EXIT; \
+	$(call pay_to_play_fixture_compose,up --build --detach --wait --wait-timeout 60 pay-to-play-anvil pay-to-play-cam-http); \
+	$(PAY_TO_PLAY_FIXTURE_COMPOSE_ENV) timeout 180 env -u PRIVATE_KEY $(DOCKER_COMPOSE) $(PAY_TO_PLAY_FIXTURE_COMPOSE_FILES) run --build --rm --no-deps -T deploy-pay-to-play-local; \
+	$(call pay_to_play_fixture_compose,run --pull never --rm --no-deps -T pay-to-play-fixture-info) >/dev/null
+
+pay-to-play/local/fixture/info:
+	@$(LANE_GUARD); $(PAY_TO_PLAY_FIXTURE_GUARD); \
+	for service in pay-to-play-anvil pay-to-play-cam-http; do \
+	  running="$$( $(call pay_to_play_fixture_compose,ps --quiet --status running) "$$service" )"; \
+	  if [[ -z "$$running" ]]; then printf 'Fixture service %s is not running; start this FIXTURE_ID first.\n' "$$service" >&2; exit 2; fi; \
+	done; \
+	docker volume inspect '$(PAY_TO_PLAY_FIXTURE_PROJECT)_pay-to-play_broadcast' >/dev/null; \
+	$(call pay_to_play_fixture_compose,run --pull never --rm --no-deps -T pay-to-play-fixture-info)
+
+pay-to-play/local/fixture/down:
+	@$(LANE_GUARD); $(PAY_TO_PLAY_FIXTURE_GUARD); \
+	$(call pay_to_play_fixture_compose,down --volumes)
 
 
 # Offline fixture signing: only the fixed local customer key is available here.

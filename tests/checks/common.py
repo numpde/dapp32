@@ -77,6 +77,8 @@ RENDERED_COMPOSE_FIXTURE_ENV = {
     "PAY_TO_PLAY_GUI_BIND_HOST": "127.0.0.1",
     "PAY_TO_PLAY_GUI_ORIGIN": "http://127.0.0.1:5175",
     "PAY_TO_PLAY_GUI_PORT": "5175",
+    "PAY_TO_PLAY_FIXTURE_NETWORK": "dapps-check_pay-to-play_local",
+    "PAY_TO_PLAY_FIXTURE_PROJECT": "dapps-check",
     "LOCAL_GID": "1000",
     "LOCAL_UID": "1000",
     "RPC_URL_FILE": "/tmp/escrow-release-rpc-url",

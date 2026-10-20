@@ -287,6 +287,8 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "PAY_TO_PLAY_GUI_BIND_HOST": "127.0.0.1",
                 "PAY_TO_PLAY_GUI_ORIGIN": "http://127.0.0.1:5175",
                 "PAY_TO_PLAY_GUI_PORT": "5175",
+                "PAY_TO_PLAY_FIXTURE_NETWORK": "dapps-check_pay-to-play_local",
+                "PAY_TO_PLAY_FIXTURE_PROJECT": "dapps-check",
                 "LOCAL_GID": "1000",
                 "LOCAL_UID": "1000",
                 "RPC_URL_FILE": "/tmp/escrow-release-rpc-url",
@@ -480,7 +482,7 @@ class RenderedComposePostureTest(unittest.TestCase):
             "PAY_TO_PLAY_RELAYER_PRIVATE_KEY": "0x" + "da" * 32,
             "PAY_TO_PLAY_PAYEE_PRIVATE_KEY": "0x" + "fa" * 32,
         }
-        for unit_name in ("PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES", "PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES", "RECOVERY_SCENARIO_COMPOSE_FILES"):
+        for unit_name in ("PAY_TO_PLAY_LOCAL_SCENARIO_COMPOSE_FILES", "PAY_TO_PLAY_VIEWER_GUI_COMPOSE_FILES", "RECOVERY_SCENARIO_COMPOSE_FILES", "PAY_TO_PLAY_FIXTURE_COMPOSE_FILES"):
             compose_unit = makefile_compose_unit(unit_name)
             for name, value in payment_keys.items():
                 expected_fixture_keys.add((compose_unit, "deploy-pay-to-play-local", name, value))

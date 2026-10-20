@@ -84,16 +84,22 @@ services:
       - "-lc"
       - |
         set -euo pipefail
-        for key in \
-          "$${PRIVATE_KEY}" \
-          "$${PAY_TO_PLAY_CUSTOMER_PRIVATE_KEY}" \
-          "$${PAY_TO_PLAY_RELAYER_PRIVATE_KEY}" \
-          "$${PAY_TO_PLAY_PAYEE_PRIVATE_KEY}"
+        accounts="$${FOUNDRY_BROADCAST}/public-accounts.json"
+        : > "$${accounts}"
+        prefix='{'
+        for role in admin customer relayer payee
         do
+          key_name="PAY_TO_PLAY_$${role^^}_PRIVATE_KEY"
+          if [[ "$${role}" == admin ]]; then key_name=PRIVATE_KEY; fi
+          key="$${!key_name}"
           account="$(cast wallet address --private-key "$${key}")"
           cast rpc anvil_setBalance "$${account}" 0x3635C9ADC5DEA00000 \
             --rpc-url http://pay-to-play-anvil:8545 >/dev/null
+          printf '%s"%s":{"address":"%s","privateKey":"%s"}' \
+            "$${prefix}" "$${role}" "$${account}" "$${key}" >> "$${accounts}"
+          prefix=,
         done
+        printf '}\n' >> "$${accounts}"
 
         forge script --offline pay-to-play/script/DeployPayToPlayLocal.s.sol \
           --rpc-url http://pay-to-play-anvil:8545 \

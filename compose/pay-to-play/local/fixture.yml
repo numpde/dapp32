@@ -1,0 +1,29 @@
+# External test runners join this network after obtaining verified coordinates.
+services:
+  pay-to-play-fixture-info:
+    image: docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
+    user: "65532:65532"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    mem_limit: 128m
+    environment:
+      COMPOSE_PROJECT_NAME: "${PAY_TO_PLAY_FIXTURE_PROJECT:?missing_PAY_TO_PLAY_FIXTURE_PROJECT}"
+      PAY_TO_PLAY_FIXTURE_NETWORK: "${PAY_TO_PLAY_FIXTURE_NETWORK:?missing_PAY_TO_PLAY_FIXTURE_NETWORK}"
+      PAY_TO_PLAY_BROADCAST_DIR: "${PAY_TO_PLAY_BROADCAST_DIR:?missing_PAY_TO_PLAY_BROADCAST_DIR}"
+      PAY_TO_PLAY_BROADCAST_PATH: "${PAY_TO_PLAY_BROADCAST_PATH:?missing_PAY_TO_PLAY_BROADCAST_PATH}"
+    volumes:
+      - ../../../tools/pay_to_play_fixture.py:/work/tools/pay_to_play_fixture.py:ro
+      - ../../../tools/json_policy.py:/work/tools/json_policy.py:ro
+      - "pay-to-play_broadcast:${PAY_TO_PLAY_BROADCAST_DIR:?missing_PAY_TO_PLAY_BROADCAST_DIR}:ro"
+    networks:
+      - pay-to-play_local
+    command: ["python3", "-I", "-B", "/work/tools/pay_to_play_fixture.py"]
+
+networks:
+  pay-to-play_local:
+    name: "${PAY_TO_PLAY_FIXTURE_NETWORK:?missing_PAY_TO_PLAY_FIXTURE_NETWORK}"
+    internal: true

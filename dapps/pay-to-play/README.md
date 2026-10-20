@@ -449,6 +449,71 @@ migration. Update signing clients, event consumers and refund-worker deployment
 and runtime-code pins together; old outstanding authorizations stay with their
 original deployment.
 
+## Supply a local deployment to another repository's tests
+
+This repository starts and stops the temporary blockchain and deploys the contracts.
+The other repository's test runner starts its own services and tests them against
+that deployment. Call these targets
+from a prepared checkout; Solidity dependencies must already be installed through
+`make dapps/deps/install`. This fixture does not need the JS workspace installed.
+
+| Target | Input | Effect |
+| --- | --- | --- |
+| `pay-to-play/local/fixture/up` | `FIXTURE_ID` | Start a fresh internal Anvil and CAM HTTP service, deploy once, and verify readiness. Leave them running on success; attempt cleanup on failure. |
+| `pay-to-play/local/fixture/info` | The same `FIXTURE_ID` | Check the running deployment and print its connection details as JSON. A temporary reader container performs the checks. |
+| `pay-to-play/local/fixture/down` | The same `FIXTURE_ID` | Remove that fixture's services, network and deployment volume. Safe to repeat. |
+
+Choose a different ID for each concurrent run: 1–48 lowercase letters, digits,
+underscores or hyphens, beginning with a letter or digit. `up` refuses an ID with
+existing fixture resources. It never resumes or redeploys into that state.
+Fixtures use dedicated projects prefixed `dapps-pay-to-play-fixture-`, separate
+from the scenario and GUI projects. Use the same local Docker daemon for this repository
+and the consuming test containers.
+
+In this example, `DAPPS_CHECKOUT` is this checkout's path, `RUN_ID` identifies
+one test run, and `RUN_DIR` is an existing directory for test output:
+
+```sh
+make -C "$DAPPS_CHECKOUT" pay-to-play/local/fixture/up FIXTURE_ID="$RUN_ID"
+# Register cleanup after successful startup; first stop P2P's own containers,
+# then call fixture/down with this RUN_ID, including when the scenario fails.
+make -s -C "$DAPPS_CHECKOUT" pay-to-play/local/fixture/info \
+  FIXTURE_ID="$RUN_ID" > "$RUN_DIR/fixture.json.tmp"
+mv "$RUN_DIR/fixture.json.tmp" "$RUN_DIR/fixture.json"
+```
+
+`info` writes only JSON to stdout; operational diagnostics go to stderr. It
+checks chain ID 31337, all deployment receipts against their recorded blocks,
+successful transaction status, and that both deployed addresses contain contract
+code. It does not compare that code with compiler output. The JSON contains:
+
+- `composeProject` and `dockerNetwork`: the fixture's cleanup identity and the
+  existing internal network the consumer joins.
+- `rpcUrl` and `chainId`: connection details usable from that Docker network.
+- `contracts.CamRoot` and `contracts.PayToPlay`: each has `address` and the mined
+  `deploymentBlock`. Use the PayToPlay address for voucher signatures and payments.
+- `publicFixtureAccounts`: `admin`, `customer`, `relayer` and `payee`, each with
+  `address` and `privateKey`. These are intentionally public test identities;
+  their addresses are derived by the deployment from its existing fixture keys.
+
+P2P attaches its test container to `dockerNetwork`, for example with a Compose
+network declared `external: true` and `name` set to that value. Configure its
+normal RPC client with `rpcUrl`. No RPC port is published on the host. A peer on
+this network can use Anvil's test-only mutation methods; this is a trusted test
+environment. Stop attached P2P containers before tearing down the fixture network.
+
+After stopping its own containers, the runner calls this command even if its
+tests or `info` failed. Register that cleanup as soon as `up` succeeds:
+
+```sh
+make -C "$DAPPS_CHECKOUT" pay-to-play/local/fixture/down FIXTURE_ID="$RUN_ID"
+```
+
+Fresh deployments have only channel 0 and funded test accounts. The P2P scenario
+creates its channels, registers voucher keys and deposits through normal contract
+calls. Fixture readiness establishes a usable deployment; the consuming test
+must still prove invoice acceptance, collection and service accounting together.
+
 ## Run the disposable local demo
 
 Use Docker, Compose and Make as a non-root user. Install locked dependencies
