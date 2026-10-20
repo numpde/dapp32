@@ -131,7 +131,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
 
         assert_deployment_authority_split(
             self,
-            compose_mapping(config, "services"),
+            config,
             planner_name="release-plan",
             signer_name="deploy-release",
             materializer_name="release-artifact",

@@ -16,7 +16,7 @@ class PayToPlayReleasePostureTest(unittest.TestCase):
     def test_payments_use_shared_deployment_authority_boundaries(self) -> None:
         config = rendered_compose_config(("compose/release/deploy.yml", "compose/pay-to-play/release/deploy.yml"))
         services = compose_mapping(config, "services")
-        assert_deployment_authority_split(self, services, planner_name="release-plan", signer_name="deploy-release",
+        assert_deployment_authority_split(self, config, planner_name="release-plan", signer_name="deploy-release",
             materializer_name="release-artifact", signing_proxy_name="release-rpc-proxy", materializer_proxy_name="release-artifact-rpc-proxy")
         assert_release_output_directions(self, planner=services["release-plan"], signer=services["deploy-release"],
             materializer=services["release-artifact"], plan_target="/release-plan", broadcast_target="/release-broadcast", artifact_target="/release-artifact")

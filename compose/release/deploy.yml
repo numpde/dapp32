@@ -131,6 +131,11 @@ services:
       context: ../../containers/foundry
       dockerfile: Dockerfile
     working_dir: /work/dapps
+    init: true
+    cpus: 1
+    memswap_limit: 1g
+    ulimits:
+      core: 0
     depends_on:
       release-plan:
         condition: service_completed_successfully
@@ -167,13 +172,14 @@ services:
       - "-lc"
       - |
         set -euo pipefail
+        set +x
         umask 077
         private_key="$$(< /run/secrets/deployer_private_key)"
         if [[ ! "$${private_key}" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then
           printf '%s\n' 'deployer private-key secret must contain exactly one 32-byte hex key' >&2
           exit 2
         fi
-        PRIVATE_KEY="$${private_key}" forge script --offline "$${RELEASE_SCRIPT}" --skip test \
+        PRIVATE_KEY="$${private_key}" exec forge script --offline "$${RELEASE_SCRIPT}" --skip test \
           --rpc-url http://release-rpc-proxy:8080 \
           --broadcast --slow \
           -vvv

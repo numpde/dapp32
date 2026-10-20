@@ -48,7 +48,7 @@ def assert_offline_read_only_release_check(
 
 def assert_deployment_authority_split(
     case: unittest.TestCase,
-    services: dict[str, Any],
+    config: dict[str, Any],
     *,
     planner_name: str,
     signer_name: str,
@@ -56,6 +56,7 @@ def assert_deployment_authority_split(
     signing_proxy_name: str,
     materializer_proxy_name: str,
 ) -> None:
+    services = compose_mapping(config, "services")
     planner = services[planner_name]
     signer = services[signer_name]
     materializer = services[materializer_name]
@@ -102,6 +103,10 @@ def assert_deployment_authority_split(
         signer_key_secrets,
     )
     case.assertNotIn("PRIVATE_KEY", _environment(signer))
+    case.assertTrue(signer["init"])
+    case.assertEqual(1, float(signer["cpus"]))
+    case.assertEqual(signer["mem_limit"], signer["memswap_limit"])
+    case.assertIn(signer["ulimits"]["core"], ({}, {"hard": 0, "soft": 0}))
 
     send_capable_services = [
         name
@@ -113,7 +118,14 @@ def assert_deployment_authority_split(
 
     signer_networks = set(compose_mapping(signer, "networks"))
     materializer_networks = set(compose_mapping(materializer, "networks"))
-    case.assertTrue(signer_networks)
+    case.assertEqual(1, len(signer_networks))
+    for network in signer_networks:
+        case.assertTrue(config["networks"][network]["internal"])
+        members = {
+            name for name, service in services.items()
+            if "networks" in service and network in compose_mapping(service, "networks")
+        }
+        case.assertEqual({signer_name, signing_proxy_name}, members)
     case.assertTrue(materializer_networks)
     case.assertTrue(signer_networks.isdisjoint(materializer_networks))
     case.assertTrue(signer_networks.issubset(compose_mapping(signing_proxy, "networks")))
