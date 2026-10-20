@@ -34,6 +34,27 @@ is trusted and does not expire an authorization. D cannot fabricate K's
 signature or choose C's full-refund recipient. Invoice references do not constrain
 D to the merchant named in an invoice; payee policy is unchanged by this revision.
 
+Channels, positions and NFTs
+----------------------------
+
+Both channels and NFTs can be onchain objects with IDs, state, authorized actions
+and events. That common structure alone says little about their behavior.
+ERC-721 standardizes one owner per token, approvals and transfers; an NFT
+application can add its own accounting and other rules.
+
+Here, a channel is shared payment configuration created by D. Each customer's
+position is keyed by (C, channelId), with its own balance, permanent voucher key,
+collected total and withdrawal/recovery state. The contract's owner() identifies
+D; there is no ownerOf(channelId) or transferable customer-position token.
+Deposits, voucher collection and recovery require rules beyond ERC-721's token
+ownership interface.
+
+A position could be represented by an NFT, but transfer would need an explicit
+meaning: which balance, withdrawal and refund rights pass to the new holder,
+and what happens to the permanent voucher key and outstanding authorizations
+bound to the original customer address? ERC-721 does not answer those questions.
+No tokenization or transfer proposal is adopted here.
+
 Stored facts
 ------------
 
