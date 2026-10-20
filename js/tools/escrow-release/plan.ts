@@ -1,8 +1,5 @@
 import {
-  assertPublishedCamRootURI,
-} from "../../packages/cam-protocol/dist/index.js"
-
-import {
+  assertReleaseCamURI,
   inspectReleaseCamBundle,
 } from "../release-cam-bundle.ts"
 import {
@@ -30,7 +27,7 @@ type Options = {
 
 function optionsFromEnv(env: NodeJS.ProcessEnv): Options {
   const camURI = requiredEnv(env, "ESCROW_RELEASE_CAM_URI")
-  assertPublishedCamRootURI(camURI, "ESCROW_RELEASE_CAM_URI")
+  assertReleaseCamURI(camURI, "ESCROW_RELEASE_CAM_URI", env)
 
   return {
     dappsRootPath: requiredEnv(env, "ESCROW_RELEASE_DAPPS_ROOT"),

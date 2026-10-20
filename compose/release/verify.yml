@@ -33,6 +33,8 @@ x-node-modules: &node_modules
 
 services:
   verify-input:
+    environment:
+      RELEASE_REHEARSAL: "0"
     extends:
       file: ../fragments/node-workspace.yml
       service: hardened-node-workspace

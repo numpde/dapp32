@@ -16,11 +16,22 @@ import { fileURLToPath } from "node:url"
 
 import { sha256 } from "viem"
 
-import { inspectReleaseCamBundle } from "./release-cam-bundle.ts"
+import { assertReleaseCamURI, inspectReleaseCamBundle } from "./release-cam-bundle.ts"
 
 const REPOSITORY_DAPPS = join(dirname(fileURLToPath(import.meta.url)), "../../dapps")
 const ESCROW_CAM = join(REPOSITORY_DAPPS, "escrow/cam")
 const CAM_URI = "https://example.test/escrow/cam/main.json"
+
+test("private release CAM transport requires the explicit fixture environment and exact origin", () => {
+  const local = "http://release-cam:8080/pay-to-play/main.json"
+  assert.throws(() => assertReleaseCamURI(local, "CAM", {}), /publication URI/)
+  assertReleaseCamURI(CAM_URI, "CAM", {})
+  assertReleaseCamURI(local, "CAM", { RELEASE_REHEARSAL: "1" })
+  for (const uri of ["http://localhost/main.json", "http://other:8080/main.json", "https://example.test/main.json"]) {
+    assert.throws(() => assertReleaseCamURI(uri, "CAM", { RELEASE_REHEARSAL: "1" }), /rehearsal CAM/)
+  }
+  assert.throws(() => assertReleaseCamURI(local, "CAM", { RELEASE_REHEARSAL: "yes" }), /RELEASE_REHEARSAL/)
+})
 
 test("release CAM roots must stay inside the declared dapps root", async () => {
   const directory = await mkdtemp(join(tmpdir(), "release-cam-boundary-"))

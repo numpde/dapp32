@@ -274,9 +274,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         try:
             validate_rpc_request(request_body, ALLOWED_METHODS)
-            host, port, path = read_upstream()
-            target_ip = resolve_global_ip(host, port)
-            conn = FixedIpHttpsConnection(host, port, target_ip, CONNECT_TIMEOUT_SECONDS)
+            conn, path, host = self.open_upstream()
             # This proxy is a JSON-RPC method gate, not a generic HTTP relay.
             # Do not let untrusted viewer clients shape upstream request headers.
             headers = {"accept": "application/json", "content-type": "application/json", "host": host}
@@ -332,6 +330,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_PUT(self):
         self.reject_method()
+
+    def open_upstream(self):
+        host, port, path = read_upstream()
+        target_ip = resolve_global_ip(host, port)
+        return FixedIpHttpsConnection(host, port, target_ip, CONNECT_TIMEOUT_SECONDS), path, host
 
     def reject_method(self):
         self.send_error(405, "method not allowed")

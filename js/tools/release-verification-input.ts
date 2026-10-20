@@ -1,6 +1,5 @@
-import { assertPublishedCamRootURI } from "../packages/cam-protocol/dist/index.js"
 
-import { inspectReleaseCamBundle } from "./release-cam-bundle.ts"
+import { assertReleaseCamURI, inspectReleaseCamBundle } from "./release-cam-bundle.ts"
 import { readBoundedRegularFile, writeNewJson } from "./release-files.ts"
 
 const MAX_ARTIFACT_BYTES = 1024 * 1024
@@ -37,7 +36,7 @@ export async function stageVerifiedReleaseArtifact<T extends ReleaseArtifactIden
     )
   }
 
-  assertPublishedCamRootURI(artifact.camURI, "deployment camURI")
+  assertReleaseCamURI(artifact.camURI, "deployment camURI", process.env)
   const bundle = await inspectReleaseCamBundle({
     dappsRootPath,
     rootPath,

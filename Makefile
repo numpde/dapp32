@@ -144,6 +144,18 @@ if [[ ! "$$source_commit" =~ ^[0-9a-f]{40}$$ ]]; then \
 fi
 endef
 
+define release_validate_cam_uri
+cam_uri="$${$(1)_RELEASE_CAM_URI}"; \
+if [[ -v RELEASE_REHEARSAL && "$$RELEASE_REHEARSAL" == "1" ]]; then \
+  if [[ "$$cam_uri" != "http://release-cam:8080/$(2)/main.json" ]]; then printf '%s\n' 'Local rehearsal requires its exact private CAM URI.' >&2; exit 2; fi; \
+elif [[ ! "$$cam_uri" =~ ^(https|ipfs):// ]]; then \
+  printf '%s\n' '$(1)_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI.' >&2; exit 2; \
+fi; \
+if [[ "$$cam_uri" == *'$$'* || "$$cam_uri" == *'`'* || "$$cam_uri" == *\\* || "$$cam_uri" == *\"* || "$$cam_uri" == *\'* || "$$cam_uri" == *\;* ]]; then \
+  printf '%s\n' '$(1)_RELEASE_CAM_URI must not contain shell syntax.' >&2; exit 2; \
+fi
+endef
+
 define release_host_guard_functions
 reject_release_path_symlinks() { \
   local path="$$1" label="$$2" current="/" part; \
@@ -1238,11 +1250,7 @@ escrow/release/deploy:
 	  printf '%s\n' 'ESCROW_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; \
 	  exit 2; \
 	fi; \
-	cam_uri="$$ESCROW_RELEASE_CAM_URI"; \
-	if [[ ! "$$cam_uri" =~ ^(https|ipfs):// || "$$cam_uri" == *'$$'* || "$$cam_uri" == *'`'* || "$$cam_uri" == *\\* || "$$cam_uri" == *\"* || "$$cam_uri" == *\'* || "$$cam_uri" == *\;* ]]; then \
-	  printf '%s\n' 'ESCROW_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI without shell syntax.' >&2; \
-	  exit 2; \
-	fi; \
+	$(call release_validate_cam_uri,ESCROW,escrow); \
 	owner="$$ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER"; \
 	if [[ ! "$$owner" =~ ^0x[0-9a-fA-F]{40}$$ || "$$owner" == "0x0000000000000000000000000000000000000000" ]]; then \
 	  printf '%s\n' 'ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \
@@ -1305,8 +1313,7 @@ bike-nft/release/deploy:
 	for name in "$${required[@]}"; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required Bike NFT release input: %s\n' "$$name" >&2; exit 2; fi; done; \
 	chain_id="$$BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID"; \
 	if [[ ! "$$chain_id" =~ ^[1-9][0-9]*$$ || "$$chain_id" == 1337 || "$$chain_id" == 31337 ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; exit 2; fi; \
-	cam_uri="$$BIKE_NFT_RELEASE_CAM_URI"; \
-	if [[ ! "$$cam_uri" =~ ^(https|ipfs):// || "$$cam_uri" == *'$$'* || "$$cam_uri" == *'`'* || "$$cam_uri" == *\\* || "$$cam_uri" == *\"* || "$$cam_uri" == *\'* || "$$cam_uri" == *\;* ]]; then printf '%s\n' 'BIKE_NFT_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI without shell syntax.' >&2; exit 2; fi; \
+	$(call release_validate_cam_uri,BIKE_NFT,bike-nft); \
 	$(release_host_guard_functions); \
 	require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "$$RPC_URL_FILE"; \
 	require_protected_release_file "$$DEPLOYER_PRIVATE_KEY_FILE" "DEPLOYER_PRIVATE_KEY_FILE" "$$DEPLOYER_PRIVATE_KEY_FILE"; \
@@ -1357,11 +1364,7 @@ pay-to-play/release/deploy:
 	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID must be a positive non-fixture chain ID.' >&2; \
 	  exit 2; \
 	fi; \
-	cam_uri="$$PAY_TO_PLAY_RELEASE_CAM_URI"; \
-	if [[ ! "$$cam_uri" =~ ^(https|ipfs):// || "$$cam_uri" == *'$$'* || "$$cam_uri" == *'`'* || "$$cam_uri" == *\\* || "$$cam_uri" == *\"* || "$$cam_uri" == *\'* || "$$cam_uri" == *\;* ]]; then \
-	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_CAM_URI must be an absolute HTTPS or IPFS URI without shell syntax.' >&2; \
-	  exit 2; \
-	fi; \
+	$(call release_validate_cam_uri,PAY_TO_PLAY,pay-to-play); \
 	owner="$$PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER"; \
 	if [[ ! "$$owner" =~ ^0x[0-9a-fA-F]{40}$$ || "$$owner" == "0x0000000000000000000000000000000000000000" ]]; then \
 	  printf '%s\n' 'PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER must be a nonzero EVM address.' >&2; \

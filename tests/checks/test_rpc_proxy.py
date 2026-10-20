@@ -190,6 +190,34 @@ class RpcProxyTest(unittest.TestCase):
             with mock.patch.object(self.proxy, "UPSTREAM_FILE", handle.name):
                 yield
 
+    def test_alternate_upstream_preserves_shared_request_gates(self) -> None:
+        transport = mock.Mock()
+        transport.getresponse.return_value.status = 200
+        transport.getresponse.return_value.reason = "OK"
+        transport.getresponse.return_value.read.return_value = b'{"jsonrpc":"2.0","id":1,"result":"0x2"}'
+        transport.getresponse.return_value.getheaders.return_value = [("content-type", "application/json")]
+        upstream = mock.Mock(return_value=(transport, "/", "release-anvil"))
+
+        class FixtureHandler(self.proxy.Handler):
+            def open_upstream(self):
+                return upstream()
+
+        for method, status in (("eth_blockNumber", "200"), ("eth_sendRawTransaction", "403")):
+            upstream.reset_mock()
+            transport.reset_mock()
+            body = ('{"jsonrpc":"2.0","id":1,"method":"' + method + '"}').encode()
+            request = b"POST / HTTP/1.0\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
+            connection = mock.Mock()
+            connection.makefile.return_value = io.BytesIO(request)
+            FixtureHandler(connection, ("127.0.0.1", 1234), mock.Mock())
+            response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
+            self.assertIn(status, response)
+            if status == "200":
+                upstream.assert_called_once_with()
+                transport.close.assert_called_once_with()
+            else:
+                upstream.assert_not_called()
+
 
 def load_rpc_proxy_module():
     return import_python_module_with_env(

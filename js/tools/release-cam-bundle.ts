@@ -8,6 +8,8 @@ import {
   isCamResourceNamespaceType,
   isRecordObject,
   parseJsonBytes,
+  assertPublishedCamRootURI,
+  assertLoadableCamRootURI,
 } from "../packages/cam-protocol/dist/index.js"
 
 import {
@@ -21,6 +23,18 @@ export type InspectReleaseCamBundleOptions = {
   readonly rootPath: string
   readonly camURI: string
   readonly label: string
+}
+
+export function assertReleaseCamURI(uri: string, label: string, env: NodeJS.ProcessEnv): void {
+  if (env.RELEASE_REHEARSAL === undefined || env.RELEASE_REHEARSAL === "0") {
+    assertPublishedCamRootURI(uri, label)
+    return
+  }
+  if (env.RELEASE_REHEARSAL !== "1") throw new Error("RELEASE_REHEARSAL must be 0 or 1")
+  assertLoadableCamRootURI(uri, label)
+  if (new URL(uri).origin !== "http://release-cam:8080") {
+    throw new Error(`${label}: rehearsal CAM must use http://release-cam:8080`)
+  }
 }
 
 export async function inspectReleaseCamBundle(

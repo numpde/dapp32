@@ -68,6 +68,8 @@ x-rpc-proxy-base: &rpc_proxy_base
 
 services:
   release-plan:
+    environment:
+      RELEASE_REHEARSAL: "0"
     extends:
       file: ../fragments/node-workspace.yml
       service: hardened-node-workspace
