@@ -413,7 +413,7 @@ The CAM conformance suite loads the checked-in escrow bundle from repository byt
 Run the ordinary repository gates before either a local scenario or release ceremony:
 
 ```bash
-make dapps/format DAPP=escrow
+make escrow/format
 make dapps/format/check
 make cam/abi/export
 make cam/integrity/refresh

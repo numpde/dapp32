@@ -9,11 +9,12 @@ The Escrow, Bike NFT and Pay-to-Play release lanes share one host ceremony. Appl
 Run the full release workflow without real funds or operator credentials:
 
 ```sh
-make release/local/rehearsal/run DAPP=pay-to-play
+make pay-to-play/release/rehearsal/run
 ```
 
-`DAPP` can be `bike-nft`, `escrow` or `pay-to-play`. To rehearse all three,
-run `make release/local/rehearsal/check`. This check is also part of `make tests`;
+Use `bike-nft/release/rehearsal/run` or `escrow/release/rehearsal/run` for those
+apps. To rehearse all three, run `make dapps/release/rehearsal/check`.
+This check is also part of `make tests`;
 `make ci` keeps its offline scope. Install the locked Solidity and JS dependencies
 before running either command.
 

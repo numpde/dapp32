@@ -97,10 +97,10 @@ cam/
 Use an immutable or versioned HTTPS origin with JSON content types and browser-readable CORS. Before any release ceremony, run:
 
 ```bash
-make dapps/format DAPP=bike-nft
+make bike-nft/format
 git diff --check
 git diff --exit-code
-make cam/publication/preflight DAPP=bike-nft CAM_URI=https://published.example/bike-nft/v1/main.json
+make bike-nft/cam/publication/preflight CAM_URI=https://published.example/bike-nft/v1/main.json
 make bike-nft/release/check
 make tests/checks
 make dapps/format/check

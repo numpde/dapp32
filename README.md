@@ -40,6 +40,18 @@ make dapps/deps/install
 make js/deps/install
 ```
 
+Make targets name their owner first. App operations start with `bike-nft/`,
+`escrow/`, `pay-to-play/` or `deposit/`; they select the app through the target
+name. Operations across Solidity apps use `dapps/`. Shared tools and packages
+use their own namespaces, such as `cam/`, `viewer/`, `wallet/` and `js/`.
+Only `help`, `tests` and `ci` apply to the whole repository.
+
+For example, `pay-to-play/release/setup`, `pay-to-play/release/deploy`,
+`pay-to-play/release/verify` and `pay-to-play/release/rehearsal/run` belong to
+the same app and release workflow. `dapps/release/rehearsal/check` runs the
+rehearsals for all release-capable apps. Target names provide the operator
+interface; app targets share recipes and tooling internally.
+
 These are the explicit networked dependency steps. To check the installed
 workspace and checked-in CAM bundles offline, run:
 
@@ -72,7 +84,7 @@ prove live contract state, wallet authority, or that a transaction will succeed.
 Normalize one first-level dapp with the repository-pinned Foundry image:
 
 ```bash
-make dapps/format DAPP=escrow
+make escrow/format
 ```
 
 Check formatting across every dapp without modifying files:

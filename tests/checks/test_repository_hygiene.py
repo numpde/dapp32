@@ -313,6 +313,10 @@ class RepositoryHygieneTest(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertRegex(target, r"^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)+$")
 
+    def test_operator_help_selects_apps_through_target_names(self) -> None:
+        help_recipe = self.make_help_recipe(read_text(repo_path("Makefile")))
+        self.assertNotRegex(help_recipe, r"\bDAPP=")
+
     def test_make_test_scopes_run_their_supported_campaigns(self) -> None:
         makefile = read_text(repo_path("Makefile"))
         self.assertEqual(
@@ -322,7 +326,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertEqual(
             ("tests/checks", "dapps/tests", "js/ci", "tests/live", "cast/offline/check", "wallet/addresses/check",
              "pay-to-play/local/recovery/run", "escrow/local/scenario/run", "bike-nft/local/integration/fuzz/run",
-             "bike-nft/local/integration/fuzz/fixture-writes/run", "release/local/rehearsal/check"),
+             "bike-nft/local/integration/fuzz/fixture-writes/run", "dapps/release/rehearsal/check"),
             self.make_target_prereqs(makefile, "tests"),
         )
         for target in ("dapps/tests", "tests"):
@@ -342,7 +346,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         self.assertEqual(["Makefile"], make_entrypoints)
 
     def test_format_target_only_mounts_staging_output_writable(self) -> None:
-        recipe = self.make_target_recipe(read_text(repo_path("Makefile")), "dapps/format")
+        recipe = read_text(repo_path("Makefile")).split("define dapp_format\n", 1)[1].split("endef", 1)[0]
 
         # Forge must finish formatting a temporary copy before Make applies
         # results. The formatter container must never receive repository write

@@ -477,7 +477,7 @@ in content-addressed storage. Keep its relative ABI, UI and protocol paths
 available. Validate the local files against the intended publication URI first:
 
 ```sh
-make cam/publication/preflight DAPP=pay-to-play CAM_URI=https://example.org/releases/COMMIT/pay-to-play/main.json
+make pay-to-play/cam/publication/preflight CAM_URI=https://example.org/releases/COMMIT/pay-to-play/main.json
 ```
 
 This validates local bytes; it does not upload files or test the public server.

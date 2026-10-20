@@ -383,7 +383,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: wallet/addresses/with-keys wallet/addresses wallet/addresses/check release/rpc/list release/local/rehearsal/run release/local/rehearsal/check help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight cam/publication/preflight/json cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
+.PHONY: wallet/addresses/with-keys wallet/addresses wallet/addresses/check release/rpc/list help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
 
 help:
 	@printf '%s\n' \
@@ -439,8 +439,10 @@ help:
 	  '  make dapps/build                Compile Solidity contracts; keep outputs inside the container.' \
 	  '  make dapps/scripts/build        Compile deployment scripts without deploying contracts.' \
 	  '  make dapps/format/check          Check Solidity formatting without changing files.' \
-	  '  make dapps/format DAPP=escrow     Rewrite Solidity formatting in one app directory.' \
-	  '    DAPP is a directory name under dapps/, such as bike-nft, escrow or pay-to-play.' \
+	  '  make bike-nft/format              Rewrite Solidity formatting in Bike NFT.' \
+	  '  make escrow/format                Rewrite Solidity formatting in Escrow.' \
+	  '  make pay-to-play/format           Rewrite Solidity formatting in Pay-to-Play.' \
+	  '  make deposit/format               Rewrite Solidity formatting in the deposit prototype.' \
 	  '  make cam/abi/export             Rewrite declared ABI JSON from compiled contracts, copy protocol pages,' \
 	  '                                  and refresh manifest hashes for the resulting resource bytes.' \
 	  '  make cam/integrity/refresh       Copy the versioned protocol page and rewrite ABI/UI/protocol hashes.' \
@@ -551,16 +553,22 @@ help:
 	  '    Keep that directory for safe retries. Configuration examples: js/tools/pay-to-play-refunds/README.md.' \
 	  '' \
 	  'Prepare CAM publication (validate local files; no upload or contract deployment):' \
-	  '  make cam/publication/preflight DAPP=escrow CAM_URI=URI       Print CAM_HASH for the local bundle.' \
-	  '  make cam/publication/preflight/json DAPP=escrow CAM_URI=URI  Print the validation result as JSON.' \
-	  '    DAPP names the folder under dapps/. URI is the intended absolute HTTPS/IPFS manifest address.' \
+	  '  make bike-nft/cam/publication/preflight CAM_URI=URI      Print CAM_HASH for the local Bike NFT bundle.' \
+	  '  make escrow/cam/publication/preflight CAM_URI=URI        Print CAM_HASH for the local Escrow bundle.' \
+	  '  make pay-to-play/cam/publication/preflight CAM_URI=URI   Print CAM_HASH for the local Pay-to-Play bundle.' \
+	  '  make bike-nft/cam/publication/preflight/json CAM_URI=URI      Print Bike NFT validation as JSON.' \
+	  '  make escrow/cam/publication/preflight/json CAM_URI=URI        Print Escrow validation as JSON.' \
+	  '  make pay-to-play/cam/publication/preflight/json CAM_URI=URI   Print Pay-to-Play validation as JSON.' \
+	  '    URI is the intended absolute HTTPS/IPFS manifest address.' \
 	  '    Validation reads the local bundle, not a downloaded copy. Publish those exact bytes separately.' \
 	  '' \
 	  'Deploy or verify a release on an operator-selected blockchain:' \
 	  '  make release/rpc/list             List selectable network names, chain IDs and RPC URL templates.' \
-	  '  make release/local/rehearsal/check  Rehearse releases for all three supported apps.' \
-	  '  make release/local/rehearsal/run DAPP=pay-to-play  Test that same release workflow on an isolated local chain.' \
-	  '    DAPP must be bike-nft, escrow or pay-to-play. Requires installed locked dependencies.' \
+	  '  make dapps/release/rehearsal/check      Rehearse releases for all three supported apps.' \
+	  '  make bike-nft/release/rehearsal/run     Rehearse the Bike NFT release on an isolated local chain.' \
+	  '  make escrow/release/rehearsal/run       Rehearse the Escrow release on an isolated local chain.' \
+	  '  make pay-to-play/release/rehearsal/run  Rehearse the Pay-to-Play release on an isolated local chain.' \
+	  '    Requires installed locked dependencies.' \
 	  '    It tests current source, including uncommitted changes, through a private committed snapshot.' \
 	  '    It deploys through the normal commands, checks pending handoffs fail verification, accepts them,' \
 	  '    loads CAM from its recorded URI, and verifies again. Bike admin waits use the local chain clock.' \
@@ -812,14 +820,7 @@ cam/conformance/check:
 
 define cam_publication_preflight
 	@$(LANE_GUARD); \
-	if [[ -z "$$DAPP" ]]; then \
-	  printf '%s\n' 'Set DAPP to the first-level dapp name, for example DAPP=bike-nft.' >&2; \
-	  exit 2; \
-	fi; \
-	if [[ ! "$$DAPP" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then \
-	  printf '%s\n' 'DAPP must be a first-level dapp directory name, not a path or shell expression.' >&2; \
-	  exit 2; \
-	fi; \
+	DAPP="$(firstword $(subst /, ,$@))"; \
 	if [[ ! -f "$(DAPPS_DIR)/$$DAPP/cam/main.json" ]]; then \
 	  printf '%s\n' 'DAPP must name a first-level dapp with cam/main.json.' >&2; \
 	  exit 2; \
@@ -839,14 +840,27 @@ define cam_publication_preflight
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) $(CAM_PUBLICATION_PREFLIGHT_COMPOSE_FILES) run --build --quiet-build --rm cam-publication-preflight
 endef
 
-cam/publication/preflight:
+.PHONY: bike-nft/cam/publication/preflight escrow/cam/publication/preflight pay-to-play/cam/publication/preflight bike-nft/cam/publication/preflight/json escrow/cam/publication/preflight/json pay-to-play/cam/publication/preflight/json
+bike-nft/cam/publication/preflight:
 	$(call cam_publication_preflight,)
 
-cam/publication/preflight/json:
+escrow/cam/publication/preflight:
+	$(call cam_publication_preflight,)
+
+pay-to-play/cam/publication/preflight:
+	$(call cam_publication_preflight,)
+
+bike-nft/cam/publication/preflight/json:
+	$(call cam_publication_preflight,--json)
+
+escrow/cam/publication/preflight/json:
+	$(call cam_publication_preflight,--json)
+
+pay-to-play/cam/publication/preflight/json:
 	$(call cam_publication_preflight,--json)
 
 cam/publication/preflight/check:
-	@$(MAKE) --no-print-directory cam/publication/preflight/json DAPP=bike-nft CAM_URI=https://example.test/bike-nft/cam/main.json >/dev/null
+	@$(MAKE) --no-print-directory bike-nft/cam/publication/preflight/json CAM_URI=https://example.test/bike-nft/cam/main.json >/dev/null
 
 viewer/terminal/check:
 	@$(LANE_GUARD); \
@@ -920,20 +934,9 @@ tests/checks/anvil-compose:
 	@$(LANE_GUARD); \
 	$(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/checks.yml run --build --rm checks -I -B -m unittest discover -s tests/checks -t . -p test_anvil_compose.py
 
-dapps/format:
+define dapp_format
 	@$(LANE_GUARD); \
-	if [[ ! -v DAPP ]]; then \
-	  printf '%s\n' 'Set DAPP to a first-level dapp directory, for example: make dapps/format DAPP=escrow' >&2; \
-	  exit 2; \
-	fi; \
-	if [[ -z "$$DAPP" ]]; then \
-	  printf '%s\n' 'Set DAPP to a first-level dapp directory, for example: make dapps/format DAPP=escrow' >&2; \
-	  exit 2; \
-	fi; \
-	if [[ ! "$$DAPP" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$$ ]]; then \
-	  printf '%s\n' 'DAPP must be a first-level dapp directory name, not a path or shell expression.' >&2; \
-	  exit 2; \
-	fi; \
+	DAPP="$(firstword $(subst /, ,$@))"; \
 	dapp_dir="$(DAPPS_DIR)/$$DAPP"; \
 	if [[ ! -d "$$dapp_dir" ]]; then \
 	  printf 'DAPP does not name an existing first-level dapp directory: %s\n' "$$DAPP" >&2; \
@@ -968,6 +971,20 @@ dapps/format:
 	    cp -R "$$staged_dir/." "$$dapp_dir/$$source_kind/"; \
 	  fi; \
 	done
+endef
+
+.PHONY: bike-nft/format escrow/format pay-to-play/format deposit/format
+bike-nft/format:
+	$(dapp_format)
+
+escrow/format:
+	$(dapp_format)
+
+pay-to-play/format:
+	$(dapp_format)
+
+deposit/format:
+	$(dapp_format)
 
 dapps/format/check:
 	$(call compose_run,forge.yml,forge-fmt)
@@ -1095,17 +1112,28 @@ dapps/tests/coverage: dapps/deps/verify
 
 dapps/tests: dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant
 
-tests: tests/checks dapps/tests js/ci tests/live cast/offline/check wallet/addresses/check pay-to-play/local/recovery/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run release/local/rehearsal/check
+tests: tests/checks dapps/tests js/ci tests/live cast/offline/check wallet/addresses/check pay-to-play/local/recovery/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run dapps/release/rehearsal/check
 
 release/rpc/list:
 	@cat tools/rpc-catalog.json
 
-release/local/rehearsal/check:
-	@for app in bike-nft escrow pay-to-play; do $(MAKE) release/local/rehearsal/run DAPP="$$app" RPC_URL_FILE=/must-not-use-parent-rpc DEPLOYER_PRIVATE_KEY_FILE=/must-not-use-parent-key || exit "$$?"; done
+dapps/release/rehearsal/check:
+	@for app in bike-nft escrow pay-to-play; do $(MAKE) "$$app/release/rehearsal/run" RPC_URL_FILE=/must-not-use-parent-rpc DEPLOYER_PRIVATE_KEY_FILE=/must-not-use-parent-key || exit "$$?"; done
 
-release/local/rehearsal/run:
+define release_rehearsal
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	bash tools/release_rehearsal.sh "$${DAPP:?Set DAPP to bike-nft, escrow or pay-to-play}" "$(DOCKER_COMPOSE)"
+	bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)"
+endef
+
+.PHONY: dapps/release/rehearsal/check bike-nft/release/rehearsal/run escrow/release/rehearsal/run pay-to-play/release/rehearsal/run
+bike-nft/release/rehearsal/run:
+	$(release_rehearsal)
+
+escrow/release/rehearsal/run:
+	$(release_rehearsal)
+
+pay-to-play/release/rehearsal/run:
+	$(release_rehearsal)
 
 ci: wallet/addresses/check dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
 
