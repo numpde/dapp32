@@ -370,7 +370,7 @@ $(PACKAGE_DEPS_GUARD); \
 $(COMPOSE_ENV) $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/$(1) run --build --rm $(2)
 endef
 
-.PHONY: release/rpc/list release/local/rehearsal/run release/local/rehearsal/check help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight cam/publication/preflight/json cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
+.PHONY: wallet/addresses wallet/addresses/check release/rpc/list release/local/rehearsal/run release/local/rehearsal/check help dapps/deps/install dapps/deps/verify js/deps/install js/deps/graph/check js/build/check js/tests js/ci cam/conformance/check cam/publication/preflight cam/publication/preflight/json cam/publication/preflight/check viewer/terminal/check cam/integration/fuzz/check bike-nft/release/check bike-nft/release/deploy bike-nft/release/verify escrow/release/check escrow/release/deploy escrow/release/verify tests/checks tests/live tests/live/dependency-egress viewer/terminal/mock/up viewer/terminal/mock/status viewer/terminal/mock/attach viewer/terminal/mock/down tests/checks/anvil-compose dapps/format dapps/format/check dapps/build dapps/scripts/build cam/abi/export cam/integrity/refresh dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant cam/live/integration/fuzz/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run bike-nft/local/integration/fuzz/down dapps/tests/coverage ci cast/offline/check cast/live/block-number/read anvil/internal/up anvil/host/up anvil/down bike-nft/local/deploy bike-nft/local/demo/terminal/up bike-nft/local/demo/terminal/down bike-nft/local/demo/gui/up bike-nft/local/demo/gui/down escrow/local/scenario/run escrow/local/demo/terminal/up escrow/local/demo/terminal/down escrow/local/demo/gui/up escrow/local/demo/gui/down escrow/live/browser/check dapps/tests tests
 
 help:
 	@printf '%s\n' \
@@ -411,6 +411,11 @@ help:
 	  '  make pay-to-play/release/check   Typecheck and test Pay-to-Play deployment/verification tools offline.' \
 	  '  make escrow/release/check        Typecheck and test Escrow deployment/verification tools offline.' \
 	  '  make pay-to-play/refunds/check   Typecheck and test the refund worker offline.' \
+	  '  make wallet/addresses           Prompt privately for a MetaMask phrase; print accounts 1-10 and paths.' \
+	  '    Input and derivation run offline in a local Foundry container; remote Docker endpoints are rejected.' \
+	  '    Only public addresses are printed, never private keys.' \
+	  '    The hidden 12-word phrase uses a temporary RAM-backed file, removed on exit; no host files are written.' \
+	  '  make wallet/addresses/check     Test derivation and terminal handling with a public fixture phrase.' \
 	  '  make cast/offline/check         Check Foundry cast commands without contacting a blockchain.' \
 	  '' \
 	  'Compile or update repository files:' \
@@ -1066,7 +1071,7 @@ dapps/tests/coverage: dapps/deps/verify
 
 dapps/tests: dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant
 
-tests: tests/checks dapps/tests js/ci tests/live cast/offline/check pay-to-play/local/recovery/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run release/local/rehearsal/check
+tests: tests/checks dapps/tests js/ci tests/live cast/offline/check wallet/addresses/check pay-to-play/local/recovery/run escrow/local/scenario/run bike-nft/local/integration/fuzz/run bike-nft/local/integration/fuzz/fixture-writes/run release/local/rehearsal/check
 
 release/rpc/list:
 	@cat tools/rpc-catalog.json
@@ -1078,7 +1083,31 @@ release/local/rehearsal/run:
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
 	bash tools/release_rehearsal.sh "$${DAPP:?Set DAPP to bike-nft, escrow or pay-to-play}" "$(DOCKER_COMPOSE)"
 
-ci: dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
+ci: wallet/addresses/check dapps/format/check dapps/build dapps/scripts/build dapps/tests/unit-scenario dapps/tests/fuzz dapps/tests/invariant js/ci
+
+# Pin the checked local daemon so ambient contexts cannot receive mnemonic input.
+define wallet_compose
+if [[ -v DOCKER_CONTEXT && -n "$$DOCKER_CONTEXT" ]]; then \
+  wallet_endpoint="$$(env -u DOCKER_HOST docker context inspect --format '{{ .Endpoints.docker.Host }}' "$$DOCKER_CONTEXT")"; \
+elif [[ -v DOCKER_HOST && -n "$$DOCKER_HOST" ]]; then \
+  wallet_endpoint="$$DOCKER_HOST"; \
+else \
+  wallet_endpoint="$$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"; \
+fi; \
+if [[ "$$wallet_endpoint" != unix:///* || ! -S "$${wallet_endpoint#unix://}" ]]; then \
+  printf '%s\n' 'Wallet derivation requires a local Docker Unix socket; remote Docker endpoints are not allowed.' >&2; exit 2; \
+fi; \
+$(COMPOSE_ENV) env -u DOCKER_CONTEXT -u DOCKER_HOST docker --host "$$wallet_endpoint" compose --env-file /dev/null -f $(COMPOSE_DIR)/cast.yml $(1)
+endef
+
+wallet/addresses:
+	@$(LANE_GUARD); \
+	if [[ ! -t 0 || ! -t 1 ]]; then printf '%s\n' 'Run make wallet/addresses in an interactive terminal.' >&2; exit 2; fi; \
+	$(call wallet_compose,run --build --rm --no-deps wallet-addresses)
+
+wallet/addresses/check:
+	@$(LANE_GUARD); \
+	$(call wallet_compose,run --build --rm --no-deps -T wallet-addresses-check)
 
 cast/offline/check:
 	$(call compose_run,cast.yml,cast-offline)

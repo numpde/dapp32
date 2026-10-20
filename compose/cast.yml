@@ -28,7 +28,54 @@ x-cast-base: &cast_base
   volumes:
     - ../dapps:/work/dapps:ro
 
+# Secret input stays in an offline container with no host-writable mounts.
+x-wallet-script: &wallet_script
+  type: bind
+  source: ../tools/wallet_addresses.sh
+  target: /tool/wallet_addresses.sh
+  read_only: true
+  bind:
+    create_host_path: false
+
+x-wallet-base: &wallet_base
+  <<: *cast_base
+  working_dir: /work
+  network_mode: "none"
+  init: true
+  cpus: 1
+  memswap_limit: 512m
+  ulimits:
+    core: 0
+  logging:
+    driver: none
+  environment:
+    HOME: /tmp/home
+    XDG_DATA_HOME: /usr/local/share
+    FOUNDRY_CONFIG: /dev/null
+  tmpfs:
+    - /tmp:rw,nosuid,nodev,noexec,size=16m
+  volumes:
+    - *wallet_script
+  command: ["bash", "--noprofile", "--norc", "/tool/wallet_addresses.sh"]
+
 services:
+  wallet-addresses:
+    <<: *wallet_base
+    stdin_open: true
+    tty: true
+
+  wallet-addresses-check:
+    <<: *wallet_base
+    volumes:
+      - *wallet_script
+      - type: bind
+        source: ../tests/fixtures/wallet-addresses/check.sh
+        target: /tests/check.sh
+        read_only: true
+        bind:
+          create_host_path: false
+    command: ["bash", "--noprofile", "--norc", "/tests/check.sh"]
+
   # Offline ABI/calldata/help operations. No RPC, no network.
   cast-offline:
     <<: *cast_base
