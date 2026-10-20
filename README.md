@@ -26,6 +26,8 @@ Current software supports CAM 1.2.0 with UI 1.0.0: [protocol reference](docs/ref
   authority handoffs.
 - [Release ceremony](docs/release-ceremony.md): shared deployment mechanics,
   credential files, evidence, and read-only verification.
+- [RPC services by chain](docs/rpc-services.md): mainnet/testnet IDs, shared
+  endpoints, account-based providers and release compatibility requirements.
 
 Docker with Compose and Make are the supported development entrypoints. Run
 `make help` for available lanes. Before building, testing, or running a local

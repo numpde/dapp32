@@ -57,6 +57,10 @@ the live service that uses the contracts.
 
 ## Deploy to the selected chain
 
+Choose an RPC endpoint from the [RPC services by chain](rpc-services.md) catalog.
+It lists network IDs, shared endpoints, account-based services and the RPC
+capabilities this workflow requires.
+
 Run a release only from the exact clean commit selected for publication. The targets reject visible tracked or untracked changes, resolve one commit, and export that commit with `git archive` into a private temporary directory. Dependency verification, release checks, compilation, planning, signing, and artifact materialization all use that snapshot rather than the working tree.
 
 The snapshot includes copies of the installed Solidity and npm dependency trees. The lanes verify those trees against the archived repository metadata before use. The npm check proves the lockfile and package graph, not an independent checksum for every installed file byte; the ceremony therefore does not claim reproducible dependency-byte provenance.
