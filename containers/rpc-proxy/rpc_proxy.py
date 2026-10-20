@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
+from contextlib import contextmanager
 import http.client
 import http.server
 import ipaddress
 import json
 import math
+import multiprocessing
 import os
 import re
+import signal
 import socket
 import ssl
 import sys
+import time
 from urllib.parse import urlsplit
 
 
@@ -25,6 +29,7 @@ CONTENT_LENGTH_RE = re.compile(r"^[0-9]+$")
 MAX_REQUEST_LIMIT_BYTES = 16 * 1024 * 1024
 MAX_RESPONSE_LIMIT_BYTES = 16 * 1024 * 1024
 MAX_UPSTREAM_URL_LIMIT_BYTES = 16 * 1024
+UPSTREAM_DEADLINE_SECONDS = 25
 
 
 def required_positive_int_env(name):
@@ -92,6 +97,10 @@ class RpcRequestMalformed(Exception):
 
 
 class RpcMethodRejected(Exception):
+    pass
+
+
+class UpstreamDeadlineExceeded(Exception):
     pass
 
 
@@ -168,18 +177,57 @@ def read_upstream():
     return parsed.hostname, port, path
 
 
-def resolve_global_ip(host, port):
+def resolve_addresses(host, port, sender):
     try:
         addresses = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise UpstreamRejected(f"RPC upstream DNS lookup failed: {exc}") from exc
+        sender.send((True, [(family, sockaddr[0]) for family, _, _, _, sockaddr in addresses]))
+    except socket.gaierror:
+        sender.send((False, "RPC upstream DNS lookup failed"))
+    finally:
+        sender.close()
+
+
+def resolve_global_ip(host, port, deadline):
+    process_context = multiprocessing.get_context("fork")
+    receiver, sender = process_context.Pipe(duplex=False)
+    resolver = process_context.Process(target=resolve_addresses, args=(host, port, sender))
+    started = False
+    try:
+        resolver.start()
+        started = True
+        sender.close()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not receiver.poll(remaining):
+            raise UpstreamDeadlineExceeded()
+        try:
+            succeeded, addresses = receiver.recv()
+        except EOFError as exc:
+            raise UpstreamRejected("RPC upstream DNS resolver exited without a result") from exc
+        if not succeeded:
+            raise UpstreamRejected(addresses)
+    finally:
+        receiver.close()
+        sender.close()
+        if started:
+            # A deadline signal must not interrupt termination of a stalled
+            # resolver and leave it running after the request has failed.
+            old_mask = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGALRM})
+            try:
+                if resolver.is_alive():
+                    resolver.terminate()
+                resolver.join(timeout=0.1)
+                if resolver.is_alive():
+                    resolver.kill()
+                    resolver.join(timeout=0.1)
+            finally:
+                signal.pthread_sigmask(signal.SIG_SETMASK, old_mask)
 
     candidates = []
-    for family, _socktype, _proto, _canonname, sockaddr in addresses:
+    for family, address in addresses:
         if family not in (socket.AF_INET, socket.AF_INET6):
             continue
 
-        ip = ipaddress.ip_address(sockaddr[0])
+        ip = ipaddress.ip_address(address)
         if not ip.is_global:
             raise UpstreamRejected(f"RPC upstream resolved to non-global address {ip}")
         candidates.append(str(ip))
@@ -215,6 +263,7 @@ def validate_rpc_request(raw_body, allowed_methods):
     except UnicodeDecodeError as exc:
         raise RpcRequestMalformed("JSON-RPC request body must be UTF-8") from exc
 
+    methods = set()
     for item in request_items(payload):
         if not isinstance(item, dict):
             raise RpcRequestMalformed("JSON-RPC batch entries must be objects")
@@ -225,6 +274,23 @@ def validate_rpc_request(raw_body, allowed_methods):
 
         if method not in allowed_methods:
             raise RpcMethodRejected(f"JSON-RPC method is not allowed: {method}")
+        methods.add(method)
+
+    return frozenset(methods)
+
+
+@contextmanager
+def upstream_deadline():
+    def expired(_signal_number, _frame):
+        raise UpstreamDeadlineExceeded()
+
+    old_handler = signal.signal(signal.SIGALRM, expired)
+    signal.setitimer(signal.ITIMER_REAL, UPSTREAM_DEADLINE_SECONDS)
+    try:
+        yield time.monotonic() + UPSTREAM_DEADLINE_SECONDS
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, old_handler)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -257,6 +323,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):
         conn = None
+        submission_started = False
+        is_submission = False
         content_length = self.headers.get("content-length")
         if content_length is None:
             self.send_error(411, "content-length required")
@@ -277,14 +345,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         try:
-            validate_rpc_request(request_body, ALLOWED_METHODS)
-            conn, path, host = self.open_upstream()
-            # This proxy is a JSON-RPC method gate, not a generic HTTP relay.
-            # Do not let untrusted viewer clients shape upstream request headers.
-            headers = {"accept": "application/json", "content-type": "application/json", "host": host}
-            conn.request("POST", path, body=request_body, headers=headers)
-            response = conn.getresponse()
-            response_body = response.read(MAX_RESPONSE_BYTES + 1)
+            methods = validate_rpc_request(request_body, ALLOWED_METHODS)
+            is_submission = "eth_sendRawTransaction" in methods
+            with upstream_deadline() as deadline:
+                conn, path, host = self.open_upstream(deadline)
+                # This proxy is a JSON-RPC method gate, not a generic HTTP relay.
+                # Do not let untrusted viewer clients shape upstream request headers.
+                headers = {"accept": "application/json", "content-type": "application/json", "host": host}
+                submission_started = True
+                conn.request("POST", path, body=request_body, headers=headers)
+                response = conn.getresponse()
+                response_body = response.read(MAX_RESPONSE_BYTES + 1)
         except RpcRequestMalformed as exc:
             self.send_error(400, str(exc))
             return
@@ -293,6 +364,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         except UpstreamRejected as exc:
             self.send_error(502, str(exc))
+            return
+        except UpstreamDeadlineExceeded:
+            if is_submission:
+                if submission_started:
+                    reason = "RPC upstream deadline exceeded; transaction submission outcome unknown"
+                else:
+                    reason = "RPC upstream deadline exceeded before transaction submission"
+            else:
+                reason = "RPC upstream deadline exceeded"
+            print(f"rpc-proxy: {reason}", file=sys.stderr)
+            self.send_error(504, reason)
             return
         except Exception as exc:
             diagnostic = type(exc).__name__
@@ -310,15 +392,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 diagnostic += f" errno={exc.errno}: {os.strerror(exc.errno)}"
             # Transport messages can contain the credential-bearing upstream
             # path or request contents; report only standard failure fields.
-            print(f"rpc-proxy: RPC upstream request failed: {diagnostic[:500]}", file=sys.stderr)
-            self.send_error(502, "RPC upstream request failed")
+            if is_submission and submission_started:
+                reason = "RPC upstream request failed; transaction submission outcome unknown"
+            else:
+                reason = "RPC upstream request failed"
+            print(f"rpc-proxy: {reason}: {diagnostic[:500]}", file=sys.stderr)
+            self.send_error(502, reason)
             return
         finally:
             if conn is not None:
                 conn.close()
 
         if len(response_body) > MAX_RESPONSE_BYTES:
-            self.send_error(502, "RPC upstream response too large")
+            if is_submission:
+                self.send_error(502, "RPC upstream response too large; transaction submission outcome unknown")
+            else:
+                self.send_error(502, "RPC upstream response too large")
             return
 
         self.send_response(response.status, response.reason)
@@ -335,9 +424,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_PUT(self):
         self.reject_method()
 
-    def open_upstream(self):
+    def open_upstream(self, deadline):
         host, port, path = read_upstream()
-        target_ip = resolve_global_ip(host, port)
+        target_ip = resolve_global_ip(host, port, deadline)
         return FixedIpHttpsConnection(host, port, target_ip, CONNECT_TIMEOUT_SECONDS), path, host
 
     def reject_method(self):

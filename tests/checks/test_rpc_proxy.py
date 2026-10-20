@@ -3,12 +3,15 @@ from __future__ import annotations
 from contextlib import contextmanager
 import errno
 import io
+import multiprocessing
 import os
 import runpy
+import signal
 import socket
 import ssl
 import tempfile
 import threading
+import time
 import unittest
 from unittest import mock
 
@@ -162,7 +165,115 @@ class RpcProxyTest(unittest.TestCase):
             return_value=[(self.proxy.socket.AF_INET, None, None, "", ("10.0.0.2", 443))],
         ):
             with self.assertRaisesRegex(self.proxy.UpstreamRejected, "non-global address"):
-                self.proxy.resolve_global_ip("example.com", 443)
+                self.proxy.resolve_global_ip("example.com", 443, time.monotonic() + 1)
+
+    def test_upstream_deadline_covers_dns_send_and_response_without_hiding_effect_uncertainty(self) -> None:
+        body = b'{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0x1234"],"id":1}'
+        request = b"POST / HTTP/1.0\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
+
+        def block(*_args, **_kwargs):
+            time.sleep(2)
+
+        prior_handler = signal.getsignal(signal.SIGALRM)
+        prior_children = {process.pid for process in multiprocessing.active_children()}
+        for phase in ("dns", "send", "response"):
+            with self.subTest(phase=phase):
+                connection = mock.Mock()
+                connection.makefile.return_value = io.BytesIO(request)
+                transport = mock.Mock()
+                if phase == "send":
+                    transport.request.side_effect = block
+                if phase == "response":
+                    transport.getresponse.return_value.read.side_effect = block
+                stderr = io.StringIO()
+                dns = block if phase == "dns" else lambda *_args, **_kwargs: [
+                    (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+                ]
+                started = time.monotonic()
+                with self.upstream_url("https://example.com/private?token=fixture-secret"), \
+                        mock.patch.object(self.proxy, "UPSTREAM_DEADLINE_SECONDS", 0.1), \
+                        mock.patch.object(self.proxy, "ALLOWED_METHODS", frozenset({"eth_sendRawTransaction"})), \
+                        mock.patch.object(self.proxy.socket, "getaddrinfo", side_effect=dns), \
+                        mock.patch.object(self.proxy, "FixedIpHttpsConnection", return_value=transport), \
+                        mock.patch("sys.stderr", stderr):
+                    self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock())
+                elapsed = time.monotonic() - started
+                response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
+                self.assertLess(elapsed, 1.0, f"{phase} exceeded the total upstream deadline")
+                self.assertIn("504", response)
+                self.assertIn("RPC upstream deadline exceeded", response)
+                if phase == "dns":
+                    self.assertIn("before transaction submission", response)
+                    transport.request.assert_not_called()
+                else:
+                    self.assertIn("transaction submission outcome unknown", response)
+                for secret in ("fixture-secret", "/private", "token=", "0x1234"):
+                    self.assertNotIn(secret, response + stderr.getvalue())
+                self.assertEqual(prior_handler, signal.getsignal(signal.SIGALRM))
+                self.assertEqual((0.0, 0.0), signal.getitimer(signal.ITIMER_REAL))
+                self.assertEqual(prior_children, {process.pid for process in multiprocessing.active_children()})
+
+        successful = mock.Mock()
+        successful.getresponse.return_value.status = 200
+        successful.getresponse.return_value.reason = "OK"
+        successful.getresponse.return_value.read.return_value = b'{"jsonrpc":"2.0","id":1,"result":"0xabc"}'
+        successful.getresponse.return_value.getheaders.return_value = [("content-type", "application/json")]
+        connection = mock.Mock()
+        connection.makefile.return_value = io.BytesIO(request)
+        with self.upstream_url("https://example.com/rpc"), \
+                mock.patch.object(self.proxy, "ALLOWED_METHODS", frozenset({"eth_sendRawTransaction"})), \
+                mock.patch.object(self.proxy.socket, "getaddrinfo", return_value=[
+                    (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+                ]), \
+                mock.patch.object(self.proxy, "FixedIpHttpsConnection", return_value=successful):
+            self.proxy.Handler(connection, ("127.0.0.1", 1234), mock.Mock())
+        response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
+        self.assertIn("200", response)
+        self.assertIn("0xabc", response)
+        self.assertEqual(prior_handler, signal.getsignal(signal.SIGALRM))
+        self.assertEqual((0.0, 0.0), signal.getitimer(signal.ITIMER_REAL))
+
+    def test_transport_failure_after_submission_begins_reports_uncertain_effect_without_secrets(self) -> None:
+        body = b'{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0x1234"],"id":1}'
+        request = b"POST / HTTP/1.0\r\nContent-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
+        for failure in (
+            TimeoutError("https://example.com/private?token=fixture-secret"),
+            ConnectionResetError(errno.ECONNRESET, "fixture-secret"),
+        ):
+            with self.subTest(failure=type(failure).__name__):
+                connection = mock.Mock()
+                connection.makefile.return_value = io.BytesIO(request)
+                transport = mock.Mock()
+                transport.request.side_effect = failure
+                stderr = io.StringIO()
+
+                class FixtureHandler(self.proxy.Handler):
+                    def open_upstream(self, _deadline):
+                        return transport, "/private?token=fixture-secret", "example.com"
+
+                with mock.patch.object(self.proxy, "ALLOWED_METHODS", frozenset({"eth_sendRawTransaction"})), \
+                        mock.patch("sys.stderr", stderr):
+                    FixtureHandler(connection, ("127.0.0.1", 1234), mock.Mock())
+                response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
+                self.assertIn("502", response)
+                self.assertIn("transaction submission outcome unknown", response)
+                for secret in ("fixture-secret", "/private", "token=", "0x1234"):
+                    self.assertNotIn(secret, response + stderr.getvalue())
+
+        oversized = mock.Mock()
+        oversized.getresponse.return_value.read.return_value = b"x" * (self.proxy.MAX_RESPONSE_BYTES + 1)
+        connection = mock.Mock()
+        connection.makefile.return_value = io.BytesIO(request)
+
+        class OversizedHandler(self.proxy.Handler):
+            def open_upstream(self, _deadline):
+                return oversized, "/", "example.com"
+
+        with mock.patch.object(self.proxy, "ALLOWED_METHODS", frozenset({"eth_sendRawTransaction"})):
+            OversizedHandler(connection, ("127.0.0.1", 1234), mock.Mock())
+        response = b"".join(call.args[0] for call in connection.sendall.call_args_list).decode()
+        self.assertIn("502", response)
+        self.assertIn("transaction submission outcome unknown", response)
 
     def test_proxy_failures_preserve_operation_and_reason_without_blaming_upstream(self) -> None:
         with tempfile.NamedTemporaryFile("w", encoding="utf-8") as upstream:
@@ -241,7 +352,7 @@ class RpcProxyTest(unittest.TestCase):
         upstream = mock.Mock(return_value=(transport, "/", "release-anvil"))
 
         class FixtureHandler(self.proxy.Handler):
-            def open_upstream(self):
+            def open_upstream(self, _deadline):
                 return upstream()
 
         for method, status in (("eth_blockNumber", "200"), ("eth_sendRawTransaction", "403")):
