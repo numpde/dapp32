@@ -582,6 +582,8 @@ help:
 	  '  make escrow/release/approval-wait/check Measure pinned Forge approval/receipt waits on a disposable chain.' \
 	  '    Runs 10/50/120-second pre-send delays, receipt delay, rejection and lost-response controls.' \
 	  '    Reports compatibility failures separately from fixture failures; does not deploy an approval proxy.' \
+	  '  make escrow/release/ipc-approval-wait/check Qualify stock Forge over a private Unix socket.' \
+	  '    Runs an ordinary release first, then a 120-second hold and failure/receipt controls.' \
 	  '  make pay-to-play/release/rehearsal/run  Rehearse the Pay-to-Play release on an isolated local chain.' \
 	  '    Requires installed locked dependencies.' \
 	  '    It tests current source, including uncommitted changes, through a private committed snapshot.' \
@@ -1155,6 +1157,11 @@ escrow/release/rehearsal/run:
 escrow/release/approval-wait/check:
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
 	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" waits
+
+.PHONY: escrow/release/ipc-approval-wait/check
+escrow/release/ipc-approval-wait/check:
+	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
+	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" ipc-waits
 
 pay-to-play/release/rehearsal/run:
 	$(release_rehearsal)

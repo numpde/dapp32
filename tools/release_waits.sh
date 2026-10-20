@@ -5,11 +5,19 @@ if [[ "${RELEASE_REHEARSAL:?missing fixture mode}" != 1 || "${DAPP:?missing fixt
   printf '%s\n' 'Release wait tests require the isolated Escrow rehearsal.' >&2; exit 2
 fi
 project="${1:?missing fixture project}-waits"
+mode="${2:?Pass waits or ipc-waits}"
+if [[ "$mode" != waits && "$mode" != ipc-waits ]]; then
+  printf '%s\n' 'Unsupported release wait mode.' >&2; exit 2
+fi
 export RELEASE_WAIT_CASE=delay-10
 export RELEASE_OUTPUT_DIR="$RELEASE_REHEARSAL_DIR/waits-plan"
 export RELEASE_WAIT_EVIDENCE_DIR="$RELEASE_REHEARSAL_DIR/waits-plan/evidence"
-mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact" "$RELEASE_WAIT_EVIDENCE_DIR"
-compose=(docker compose --project-name "$project" -f compose/release/deploy.yml -f compose/escrow/release/deploy.yml -f compose/release/rehearsal-deploy.yml -f compose/release/rehearsal-waits.yml)
+export RELEASE_WAIT_SOCKET_DIR="$RELEASE_OUTPUT_DIR/socket"
+mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact" "$RELEASE_WAIT_EVIDENCE_DIR" "$RELEASE_WAIT_SOCKET_DIR"
+overlay=compose/release/rehearsal-waits.yml
+if [[ "$mode" == ipc-waits ]]; then overlay=compose/release/rehearsal-ipc.yml; fi
+if [[ "$mode" == ipc-waits ]]; then export RELEASE_WAIT_CASE=smoke; fi
+compose=(docker compose --project-name "$project" -f compose/release/deploy.yml -f compose/escrow/release/deploy.yml -f compose/release/rehearsal-deploy.yml -f "$overlay")
 infrastructure=(docker compose --project-name "${1}" -f compose/release/rehearsal.yml)
 cleanup() {
   status="$?"
@@ -30,20 +38,32 @@ setup_case() {
   timeout --foreground 120 "${compose[@]}" up --build --no-deps --detach --wait --wait-timeout 30 release-rpc-proxy >"$RELEASE_OUTPUT_DIR/proxy.log" 2>&1 || return 2
 }
 result=0
-for case_name in delay-10 delay-50 delay-120 receipt reject drop; do
+cases=(delay-10 delay-50 delay-120 receipt reject drop)
+if [[ "$mode" == ipc-waits ]]; then cases=(smoke delay-120 same-socket receipt reject loss-hold drop); fi
+for case_name in "${cases[@]}"; do
   printf 'Release wait qualification: %s\n' "$case_name"
   export RELEASE_WAIT_CASE="$case_name"
   export RELEASE_OUTPUT_DIR="$RELEASE_REHEARSAL_DIR/waits-$case_name"
   export RELEASE_WAIT_EVIDENCE_DIR="$RELEASE_OUTPUT_DIR/evidence"
-  mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact" "$RELEASE_WAIT_EVIDENCE_DIR"
+  export RELEASE_WAIT_SOCKET_DIR="$RELEASE_OUTPUT_DIR/socket"
+  mkdir --mode=0700 "$RELEASE_OUTPUT_DIR" "$RELEASE_OUTPUT_DIR/plan" "$RELEASE_OUTPUT_DIR/broadcast" "$RELEASE_OUTPUT_DIR/artifact" "$RELEASE_WAIT_EVIDENCE_DIR" "$RELEASE_WAIT_SOCKET_DIR"
   cp -- "$plan" "$RELEASE_OUTPUT_DIR/plan/release-plan.json"
   case_status=2
   if setup_case; then
     forge_status=0
-    timeout --foreground 360 "${compose[@]}" run --build --no-deps -T --name "$project-$case_name-signer" deploy-release >"$RELEASE_OUTPUT_DIR/forge.log" 2>&1 || forge_status="$?"
-    if docker inspect --format '{{.Id}} {{.Image}} {{json .Config.Cmd}}' "$project-$case_name-signer" >"$RELEASE_OUTPUT_DIR/signer-identity.txt"; then
+    if [[ "$case_name" == same-socket ]]; then
+      timeout --foreground 15 "${compose[@]}" exec -T release-rpc-proxy python3 /rehearsal/ipc_probe.py same-socket >"$RELEASE_OUTPUT_DIR/client.log" 2>&1 || forge_status="$?"
+      signer_inspected=1
+    else
+      timeout --foreground 360 "${compose[@]}" run --build --no-deps -T --name "$project-$case_name-signer" deploy-release >"$RELEASE_OUTPUT_DIR/forge.log" 2>&1 || forge_status="$?"
+      signer_inspected=0
+      if docker inspect --format '{{.Id}} {{.Image}} {{json .Config.Cmd}}' "$project-$case_name-signer" >"$RELEASE_OUTPUT_DIR/signer-identity.txt"; then signer_inspected=1; fi
+    fi
+    if [[ "$signer_inspected" == 1 ]]; then
       case_status=0
-      timeout --foreground 180 "${compose[@]}" exec -T release-rpc-proxy python3 /rehearsal/wait_probe.py check "$forge_status" >"$RELEASE_OUTPUT_DIR/result.log" 2>&1 || case_status="$?"
+      checker=/rehearsal/wait_probe.py
+      if [[ "$mode" == ipc-waits ]]; then checker=/rehearsal/ipc_probe.py; fi
+      timeout --foreground 180 "${compose[@]}" exec -T release-rpc-proxy python3 "$checker" check "$forge_status" >"$RELEASE_OUTPUT_DIR/result.log" 2>&1 || case_status="$?"
       cat "$RELEASE_OUTPUT_DIR/result.log"
     fi
   fi
@@ -56,6 +76,10 @@ for case_name in delay-10 delay-50 delay-120 receipt reject drop; do
     result=1
   fi
   "${compose[@]}" down --rmi local --volumes --remove-orphans >>"$RELEASE_REHEARSAL_DIR/waits-cleanup.log" 2>&1
+  if [[ "$mode" == ipc-waits && "$case_name" == smoke && "$case_status" != 0 ]]; then
+    printf '%s\n' 'Ordinary IPC release failed; later wait cases cannot qualify this transport.' >&2
+    break
+  fi
 done
 printf 'Release wait observations: %s/waits-*/evidence/result.json\n' "$RELEASE_REHEARSAL_DIR"
 exit "$result"

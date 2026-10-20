@@ -99,6 +99,26 @@ class ReleaseWaitOracleTest(unittest.TestCase):
 
 
 class ReleaseWaitPostureTest(unittest.TestCase):
+    def test_ipc_release_uses_stock_broadcast_with_only_the_proxy_networked(self):
+        files = ("compose/release/deploy.yml", "compose/escrow/release/deploy.yml", "compose/release/rehearsal-deploy.yml", "compose/release/rehearsal-ipc.yml")
+        services = rendered_compose_config(files)["services"]
+        signer = services["deploy-release"]
+        proxy = services["release-rpc-proxy"]
+        self.assertEqual("none", signer["network_mode"])
+        self.assertEqual([], compose_sequence_or_empty(signer, "networks"))
+        self.assertIn("--broadcast --slow", signer["command"][-1])
+        self.assertIn("--rpc-url file:///run/approval/rpc.sock", signer["command"][-1])
+        self.assertIn("release_deploy_egress", proxy["networks"])
+        for name, service in services.items():
+            socket_mounts = [v for v in compose_sequence_or_empty(service, "volumes") if v["target"] == "/run/approval"]
+            self.assertEqual(name in ("deploy-release", "release-rpc-proxy"), bool(socket_mounts))
+            if socket_mounts:
+                if name == "deploy-release":
+                    self.assertIs(socket_mounts[0].get("read_only"), True)
+                else:
+                    self.assertIsNot(socket_mounts[0].get("read_only"), True)
+                self.assertIsNot(socket_mounts[0]["bind"].get("create_host_path"), True)
+
     def test_probe_keeps_real_signer_command_and_scopes_its_evidence(self):
         files = ("compose/release/deploy.yml", "compose/escrow/release/deploy.yml", "compose/release/rehearsal-deploy.yml")
         baseline = rendered_compose_config(files)["services"]
@@ -113,3 +133,46 @@ class ReleaseWaitPostureTest(unittest.TestCase):
             if evidence:
                 self.assertIsNot(evidence[0].get("read_only"), True)
                 self.assertIsNot(evidence[0]["bind"].get("create_host_path"), True)
+
+
+class IpcWaitOracleTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.probe = import_python_module_with_env("release_ipc_probe", repo_path("tests/fixtures/release-rehearsal/ipc_probe.py"), {})
+
+    def test_same_socket_result_follows_evaluated_events(self):
+        evidence = {"passed": True, "read_elapsed": 0.01, "send_elapsed": 3.01}
+        complete = [
+            {"event": "synthetic_send_started", "at": 0, "connection": 1},
+            {"event": "synthetic_send_finished", "at": 3, "connection": 1},
+        ]
+        self.assertEqual("pass", self.probe.evaluate("same-socket", complete, 0, None, evidence))
+        self.assertEqual("compatibility_failure", self.probe.evaluate("same-socket", complete[:1], 0, None, evidence))
+        self.assertEqual("compatibility_failure", self.probe.evaluate("same-socket", [*complete, {"event": "forward", "at": 2}], 0, None, evidence))
+
+    def test_delayed_receipt_requires_later_distinct_send(self):
+        events = [
+            {"event": "send", "at": 0, "fingerprint": "first"},
+            {"event": "expected_hash", "at": 0, "hash": "0x123"},
+            {"event": "forward", "at": 0.1, "fingerprint": "first"},
+            {"event": "accepted", "at": 0.2, "hash": "0x123"},
+            {"event": "receipt_null", "at": 1},
+            {"event": "mine", "at": 11},
+            {"event": "receipt_success", "at": 12},
+        ]
+        receipt = {"status": "0x1", "transactionHash": "0x123"}
+        self.assertEqual("compatibility_failure", self.probe.evaluate("receipt", events, 0, receipt, None))
+        events.append({"event": "send", "at": 13, "fingerprint": "next"})
+        self.assertEqual("pass", self.probe.evaluate("receipt", events, 0, receipt, None))
+        events[-1]["at"] = 10
+        self.assertEqual("compatibility_failure", self.probe.evaluate("receipt", events, 0, receipt, None))
+
+    def test_loss_during_hold_requires_no_chain_receipt(self):
+        events = [
+            {"event": "send", "at": 0, "fingerprint": "first"},
+            {"event": "expected_hash", "at": 0, "hash": "0x123"},
+            {"event": "dropped_during_hold", "at": 1},
+        ]
+        self.assertEqual("pass", self.probe.evaluate("loss-hold", events, 1, None, None))
+        receipt = {"status": "0x1", "transactionHash": "0x123"}
+        self.assertEqual("compatibility_failure", self.probe.evaluate("loss-hold", events, 1, receipt, None))

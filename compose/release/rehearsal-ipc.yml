@@ -1,0 +1,52 @@
+# Fixture-only Unix socket qualification of the pinned Forge release client.
+services:
+  release-rpc-proxy:
+    entrypoint: [python3, /rehearsal/ipc_probe.py]
+    environment:
+      RELEASE_WAIT_CASE: "${RELEASE_WAIT_CASE:?missing_RELEASE_WAIT_CASE}"
+      RPC_PROXY_MAX_REQUEST_BYTES: "1048576"
+      RPC_PROXY_MAX_RESPONSE_BYTES: "1048576"
+    healthcheck:
+      test: [CMD, python3, -c, "import socket; s=socket.socket(socket.AF_UNIX); s.connect('/run/approval/rpc.sock'); s.close()"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+    volumes:
+      - ../../tests/fixtures/release-rehearsal/rpc_proxy.py:/rehearsal/rpc_proxy.py:ro
+      - ../../tests/fixtures/release-rehearsal/ipc_probe.py:/rehearsal/ipc_probe.py:ro
+      - type: bind
+        source: "${RELEASE_WAIT_SOCKET_DIR:?missing_RELEASE_WAIT_SOCKET_DIR}"
+        target: /run/approval
+        bind:
+          create_host_path: false
+      - type: bind
+        source: "${RELEASE_WAIT_EVIDENCE_DIR:?missing_RELEASE_WAIT_EVIDENCE_DIR}"
+        target: /wait-evidence
+        bind:
+          create_host_path: false
+  deploy-release:
+    network_mode: none
+    networks: !reset []
+    volumes:
+      - type: bind
+        source: "${RELEASE_WAIT_SOCKET_DIR:?missing_RELEASE_WAIT_SOCKET_DIR}"
+        target: /run/approval
+        read_only: true
+        bind:
+          create_host_path: false
+    command:
+      - bash
+      - -lc
+      - |
+        set -euo pipefail
+        set +x
+        umask 077
+        private_key="$$(< /run/secrets/deployer_private_key)"
+        if [[ ! "$${private_key}" =~ ^0x[0-9a-fA-F]{64}$$ ]]; then
+          printf '%s\n' 'deployer private-key secret must contain exactly one 32-byte hex key' >&2
+          exit 2
+        fi
+        PRIVATE_KEY="$${private_key}" exec forge script --offline "$${RELEASE_SCRIPT}" --skip test \
+          --rpc-url file:///run/approval/rpc.sock \
+          --broadcast --slow \
+          -vvv

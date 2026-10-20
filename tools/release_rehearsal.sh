@@ -3,11 +3,11 @@
 set -euo pipefail
 unset MAKEFLAGS MAKEOVERRIDES MFLAGS GNUMAKEFLAGS MAKEFILES
 app="${1:?Pass a supported app}"
-action="${3:?Pass release or waits}"
-if [[ "$action" != release && "$action" != waits ]]; then
-  printf '%s\n' 'Release rehearsal action must be release or waits.' >&2; exit 2
+action="${3:?Pass release, waits, or ipc-waits}"
+if [[ "$action" != release && "$action" != waits && "$action" != ipc-waits ]]; then
+  printf '%s\n' 'Release rehearsal action must be release, waits, or ipc-waits.' >&2; exit 2
 fi
-if [[ "$action" == waits && "$app" != escrow ]]; then
+if [[ "$action" != release && "$app" != escrow ]]; then
   printf '%s\n' 'The shared release-client wait qualification uses Escrow.' >&2; exit 2
 fi
 if [[ "${2:?Pass the Compose command}" != "docker compose" ]]; then
@@ -43,7 +43,7 @@ cleanup() {
   status="$?"
   cleanup_failed=0
   # A child exit 2 can mean its signer teardown failed; retain mounted inputs.
-  if [[ "$action" == waits && "$status" == 2 ]]; then
+  if [[ "$action" != release && "$status" == 2 ]]; then
     cleanup_failed=1
   fi
   trap - EXIT
@@ -107,8 +107,8 @@ set +a
 prefix="${app^^}"
 prefix="${prefix//-/_}"
 export "${prefix}_RELEASE_SOURCE_COMMIT=$(git rev-parse HEAD)"
-if [[ "$action" == waits ]]; then
-  bash tools/release_waits.sh "$project"
+if [[ "$action" != release ]]; then
+  bash tools/release_waits.sh "$project" "$action"
   exit "$?"
 fi
 

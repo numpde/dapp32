@@ -160,9 +160,10 @@ def release_rehearsal_units() -> tuple[tuple[str, ...], ...]:
 
 def release_wait_units() -> tuple[tuple[str, ...], ...]:
     return tuple(
-        (*files, "compose/release/rehearsal-waits.yml")
+        (*files, overlay)
         for files in release_rehearsal_units()
         if "compose/escrow/release/deploy.yml" in files
+        for overlay in ("compose/release/rehearsal-waits.yml", "compose/release/rehearsal-ipc.yml")
     )
 
 
@@ -331,6 +332,7 @@ class RenderedComposePostureTest(unittest.TestCase):
                 "RELEASE_REHEARSAL_NETWORK": "cam-release-rehearsal-fixture",
                 "RELEASE_WAIT_CASE": "delay-10",
                 "RELEASE_WAIT_EVIDENCE_DIR": "/tmp/release-wait-evidence",
+                "RELEASE_WAIT_SOCKET_DIR": "/tmp/release-wait-socket",
                 "RELEASE_DEPLOYMENT_ARTIFACT_FILE": "/tmp/release-output/artifact/deployment.json",
                 "VIEWER_URL": "http://127.0.0.1:5174/?chainId=eip155%3A31337&host=0x0000000000000000000000000000000000000001&account=0x0000000000000000000000000000000000000002&rpcUrl=http%3A%2F%2F127.0.0.1%3A5174%2Frpc",
             },
@@ -874,6 +876,8 @@ class RenderedComposePostureTest(unittest.TestCase):
                 (files, "release-artifact", "/tmp/release-output/artifact", "/release-artifact"),
                 (files, "release-rpc-proxy", "/tmp/release-wait-evidence", "/wait-evidence"),
             })
+            if files[-1].endswith("rehearsal-ipc.yml"):
+                expected.add((files, "release-rpc-proxy", "/tmp/release-wait-socket", "/run/approval"))
         actual = set()
         for compose_file in compose_render_units():
             config = rendered_compose_config(
