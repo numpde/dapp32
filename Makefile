@@ -272,91 +272,223 @@ endef
 
 help:
 	@printf '%s\n' \
-	  'Supported lanes:' \
-	  '  make help         Show every supported entrypoint' \
-	  '  make tests        Run all self-contained campaigns; uses external network and disposable fixture deployments' \
-	  '  make dapps/tests  Run Solidity unit/scenario, fuzz, and invariant campaigns' \
-	  '  make dapps/deps/install         Install only the currently locked Soldeer dependencies' \
-	  '  make dapps/deps/install ALLOW_UPDATE=1  Allow dependency lock/remapping/checksum updates' \
-	  '  make dapps/deps/verify  Verify installed dependencies against committed checksums' \
-	  '  make js/deps/install Install only the currently locked npm workspace dependencies' \
-	  '  make js/deps/install ALLOW_UPDATE=1  Allow package-lock.json updates' \
-	  '  make js/deps/graph/check  Check installed npm dependency graph offline' \
-	  '  make js/build/check  Validate npm workspace builds offline' \
-	  '  make js/tests   Build and test npm workspace packages/apps offline' \
-	  '  make js/ci     Run JS workspace tests and package-backed tool checks offline' \
-	  '  make cam/conformance/check  Validate checked-in CAM bundles offline' \
-	  '  make cam/publication/preflight DAPP=... CAM_URI=...  Validate a CAM bundle and print CAM_HASH' \
-	  '  make cam/publication/preflight/json DAPP=... CAM_URI=...  Same preflight with structured JSON output' \
-	  '  make cam/publication/preflight/check  Smoke-check publication preflight offline' \
-	  '  make viewer/terminal/check  Smoke-check the CAM viewer terminal offline' \
-	  '  make cam/integration/fuzz/check  Typecheck the CAM integration fuzz runner offline' \
-	  '  make bike-nft/release/check  Typecheck and test Bike NFT release tooling offline' \
-	  '  make bike-nft/release/deploy ...  Deploy one explicitly confirmed pinned Bike NFT release' \
-	  '  make bike-nft/release/verify RPC_URL_FILE=... BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE=...  Verify one Bike NFT release read-only' \
-	  '  make escrow/release/check  Typecheck and test escrow release tooling offline' \
-	  '  make escrow/release/deploy ...  Deploy one explicitly confirmed pinned escrow release' \
-	  '  make escrow/release/verify RPC_URL_FILE=... ESCROW_DEPLOYMENT_ARTIFACT_FILE=...  Verify one deployed release read-only' \
-	  '  make viewer/terminal/mock/up  Run the CAM viewer terminal offline; defaults to VIEWER_TERMINAL_MOCK=bike-nft' \
-	  '  make viewer/terminal/mock/status  Show viewer terminal Compose status' \
-	  '  make viewer/terminal/mock/attach  Attach if the mock viewer terminal is still running' \
-	  '  make viewer/terminal/mock/down    Stop and clean up the viewer terminal Compose project' \
-	  '  make tests/checks       Run offline repository/source checks' \
-	  '  make tests/live    Run live checks that intentionally use external network' \
-	  '  make tests/live/dependency-egress  Prove dependency egress allow/deny behavior' \
-	  '  make tests/checks/anvil-compose  Run only the rendered Anvil Compose posture checks' \
-	  '  make dapps/format DAPP=...  Format one dapp source tree' \
-	  '  make dapps/format/check          Check Solidity formatting for all dapps' \
-	  '  make dapps/build        Compile all dapp source trees' \
-	  '  make dapps/scripts/build Compile all dapp deployment scripts without executing them' \
-	  '  make cam/abi/export          Export declared ABIs, sync protocol copies, and refresh CAM integrity pins' \
-	  '  make cam/integrity/refresh  Sync protocol copies from docs/reference and refresh local CAM resource pins' \
-	  '  make dapps/tests/unit-scenario         Run unit and scenario tests for all dapps' \
-	  '  make dapps/tests/fuzz         Run fuzz tests for all dapps' \
-	  '  make dapps/tests/invariant    Run invariant tests for all dapps' \
-	  '  make cam/live/integration/fuzz/run CAM_INTEGRATION_DESCRIPTOR_HOST_PATH=/path CAM_INTEGRATION_NETWORK=name  Run generic CAM integration fuzzing against an existing deployment' \
-	  '  make bike-nft/local/integration/fuzz/run  Deploy bike NFT locally and run generic CAM integration fuzzing' \
-	  '  make bike-nft/local/integration/fuzz/down  Stop both local bike NFT fuzz fixture projects' \
-	  '  make bike-nft/local/integration/fuzz/fixture-writes/run  Deploy bike NFT locally and run integration fuzzing with local fixture writes' \
-	  '  make dapps/tests/coverage     Print coverage summary from all dapp unit tests' \
-	  '  make ci           Run offline Solidity format/build/script/unit-scenario/fuzz/invariant and JS CI lanes' \
-	  '  make cast/offline/check Run offline cast smoke lane' \
-	  '  make cast/live/block-number/read RPC_URL_FILE=/path  Read a block number through the RPC egress proxy' \
-	  '  RPC_URL=https://... make cast/live/block-number/read  Same, using a temporary secret file' \
-	  '  make anvil/internal/up  Start Docker-only Anvil with no host port' \
-	  '  make anvil/host/up      Start Anvil on 127.0.0.1:$${ANVIL_HOST_PORT}' \
-	  '  make anvil/down      Stop Anvil services and remove their network' \
-	  '  make bike-nft/local/deploy CAM_URI=...  Deploy the bike NFT fixture to an internal Anvil' \
-	  '  make bike-nft/local/demo/terminal/down  Stop the bike NFT terminal demo' \
-	  '  make bike-nft/local/demo/gui/down  Stop the bike NFT browser demo' \
-	  '  make escrow/local/demo/terminal/down  Stop the escrow terminal demo' \
-	  '  make escrow/local/demo/gui/down  Stop the escrow browser demo' \
-	  '  make bike-nft/local/demo/terminal/up  Deploy bike NFT locally and open the real-RPC viewer terminal' \
-	  '  make bike-nft/local/demo/gui/up       Deploy bike NFT locally and run the browser GUI on $${BIKE_NFT_GUI_ORIGIN}' \
-	  '  BIKE_NFT_GUI_BIND_HOST=0.0.0.0 BIKE_NFT_GUI_ORIGIN=http://host:5173 make bike-nft/local/demo/gui/up  Expose the local GUI to another browser host' \
-	  '  make escrow/local/scenario/run      Run all nine escrow terminal paths through the real-RPC CAM viewer' \
-	  '  make pay-to-play/local/scenario/run  Run payment-channel workflows through real-RPC CAM actions' \
-	  '  make pay-to-play/local/recovery/run  Run payment workflows, recovery and refund-batch scenarios once' \
-	  '  make pay-to-play/local/fixture/up FIXTURE_ID=...    Start a fresh disposable deployment for external container tests' \
-	  '  make pay-to-play/local/fixture/info FIXTURE_ID=...  Print verified connection details and public fixture accounts as JSON' \
-	  '  make pay-to-play/local/fixture/down FIXTURE_ID=...  Remove only this disposable fixture and its volumes' \
-	  '  make pay-to-play/refunds/check       Offline refund-worker typecheck and tests' \
-	  '  make pay-to-play/refunds/plan REFUND_CONFIG_FILE=... RPC_URL_FILE=...  Preview bounded refunds' \
-	  '  make pay-to-play/refunds/run REFUND_CONFIG_FILE=... RPC_URL_FILE=... REFUND_PRIVATE_KEY_FILE=... REFUND_STATE_DIR=... CONFIRM_PAY_TO_PLAY_REFUNDS=YES  Execute bounded refunds' \
-	  '  make pay-to-play/local/demo/gui/up   Run the generic payment-channel browser viewer on loopback port 5175' \
-	  '  make pay-to-play/local/demo/gui/down Stop the disposable payment-channel browser fixture' \
-	  '  make viewer/local/fixture-wallet/attach FIXTURE_WALLET_APP=... CDP_TARGET_ID=... CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=... EXPECTED_CONTRACT_ADDRESS=...  Attach a local fixture signer to an existing tab' \
-	  '  make pay-to-play/live/browser/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check local fixture writes in an existing browser' \
-	  '  make pay-to-play/local/voucher/sign PAY_TO_PLAY_ADDRESS=... PAY_TO_PLAY_TOTAL=... PAY_TO_PLAY_INVOICE_HASH=...  Sign a v2 local fixture voucher offline' \
-	  '  make escrow/local/demo/terminal/up     Deploy escrow locally and open the real-RPC viewer terminal' \
-	  '  make escrow/local/demo/gui/up          Deploy escrow locally and run the browser GUI on $${ESCROW_GUI_ORIGIN}' \
-	  '  make escrow/live/browser/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Check the running GUI in a fresh CDP tab' \
-	  '  make escrow/live/browser/fixture-writes/check CDP_ORIGIN=... VIEWER_URL=... EXPECTED_CAM_URI=... EXPECTED_CAM_HASH=...  Sign local fixture transactions and check wallet fault recovery' \
-	  '  ESCROW_GUI_BIND_HOST=0.0.0.0 ESCROW_GUI_ORIGIN=http://host:5174 make escrow/local/demo/gui/up  Expose the local GUI to another browser host' \
+	  'Usage: make <target> [NAME=value ...]' \
+	  '  make help   Show all supported commands, inputs and effects below.' \
+	  '  Run from this checkout as a non-root user with Docker and Docker Compose.' \
+	  '  Build/test commands run in containers. Install their locked dependencies first.' \
+	  '  Offline means the check itself has no external network access; image builds may need it.' \
 	  '' \
-	  'Supported lanes are Docker/Compose-backed. Default check lanes are offline, read-only,' \
-	  'non-root, capability-free, and avoid writing build artifacts into the repo.' \
-	  'Dependency install lanes are the only guarded host bind-target setup exception.'
+	  'Install dependencies (downloads packages and writes the installed dependency tree):' \
+	  '  make dapps/deps/install          Install locked Solidity dependencies into dapps/dependencies/.' \
+	  '  make js/deps/install             Install locked JS dependencies into js/node_modules/.' \
+	  '    Add ALLOW_UPDATE=1 to either install only when updating its lock metadata is intended.' \
+	  '    Solidity updates also rewrite remappings/checksums; JS updates rewrite js/package-lock.json.' \
+	  '  make dapps/deps/verify           Check installed Solidity files against committed checksums.' \
+	  '  make js/deps/graph/check         Check installed JS packages against the lockfile offline.' \
+	  '' \
+	  'Choose checks and tests:' \
+	  '  make tests                      Run all self-contained tests, including external network checks' \
+	  '                                  and disposable fixture deployments; cleanup runs on exit.' \
+	  '  make ci                         Run offline Solidity formatting/build/tests and JS CI checks.' \
+	  '  make tests/checks               Check repository rules, source files and rendered Compose settings.' \
+	  '  make tests/checks/anvil-compose  Check only the Anvil container configuration.' \
+	  '  make tests/live                 Run checks that contact external services; no operator deployment needed.' \
+	  '  make tests/live/dependency-egress  Test which download destinations dependency containers can reach.' \
+	  '  make dapps/tests                Run Solidity unit/scenario tests, random-input tests and state invariants.' \
+	  '  make dapps/tests/unit-scenario   Run Solidity unit/scenario tests plus repository checks.' \
+	  '  make dapps/tests/fuzz            Exercise Solidity functions with generated inputs.' \
+	  '  make dapps/tests/invariant       Check Solidity invariants across generated transaction sequences.' \
+	  '  make dapps/tests/coverage        Run Solidity unit/scenario tests and print source coverage.' \
+	  '  make js/tests                   Build, typecheck and test JS workspace packages and apps offline.' \
+	  '  make js/ci                      Run js/tests plus the terminal, publication, fuzz and release/refund tool checks.' \
+	  '  make cam/conformance/check      Check local CAM manifests and their ABI/UI resources against protocol rules.' \
+	  '  make viewer/terminal/check      Test the terminal viewer with simulated contract responses offline.' \
+	  '  make cam/publication/preflight/check  Test publication validation using the local Bike NFT bundle.' \
+	  '  make cam/integration/fuzz/check  Build, typecheck and test the generated-workflow test runner offline.' \
+	  '  make bike-nft/release/check      Typecheck and test Bike NFT deployment/verification tools offline.' \
+	  '  make escrow/release/check        Typecheck and test Escrow deployment/verification tools offline.' \
+	  '  make pay-to-play/refunds/check   Typecheck and test the refund worker offline.' \
+	  '  make cast/offline/check         Check Foundry cast commands without contacting a blockchain.' \
+	  '' \
+	  'Compile or update repository files:' \
+	  '  make js/build/check             Compile JS workspace packages/apps; keep outputs inside the container.' \
+	  '  make dapps/build                Compile Solidity contracts; keep outputs inside the container.' \
+	  '  make dapps/scripts/build        Compile deployment scripts without deploying contracts.' \
+	  '  make dapps/format/check          Check Solidity formatting without changing files.' \
+	  '  make dapps/format DAPP=escrow     Rewrite Solidity formatting in one app directory.' \
+	  '    DAPP is a directory name under dapps/, such as bike-nft, escrow or pay-to-play.' \
+	  '  make cam/abi/export             Rewrite declared ABI JSON from compiled contracts, copy protocol pages,' \
+	  '                                  and refresh manifest hashes for the resulting resource bytes.' \
+	  '  make cam/integrity/refresh       Copy the versioned protocol page and rewrite ABI/UI/protocol hashes.' \
+	  '' \
+	  'Try an app on a temporary blockchain:' \
+	  '  Install both Solidity and JS dependencies for these demos.' \
+	  '  They use local chain 31337 and public test accounts.' \
+	  '  Each up command stays in the terminal; exiting attempts to remove its chain and all demo state.' \
+	  '  Browser demos print a URL: open it yourself and keep the command running.' \
+	  '  make bike-nft/local/demo/gui/up       Start the Bike NFT browser demo at http://127.0.0.1:5173.' \
+	  '  make bike-nft/local/demo/gui/down     Stop that demo and remove its temporary state.' \
+	  '  make escrow/local/demo/gui/up         Start the Escrow browser demo at http://127.0.0.1:5174.' \
+	  '  make escrow/local/demo/gui/down       Stop that demo and remove its temporary state.' \
+	  '  make pay-to-play/local/demo/gui/up    Start the Pay-to-Play browser demo at http://127.0.0.1:5175.' \
+	  '  make pay-to-play/local/demo/gui/down  Stop that demo and remove its temporary state.' \
+	  '    Change a port with BIKE_NFT_GUI_PORT, ESCROW_GUI_PORT or PAY_TO_PLAY_GUI_PORT.' \
+	  '    For access from another machine, set BIKE_NFT_GUI_BIND_HOST=0.0.0.0 and BIKE_NFT_GUI_ORIGIN' \
+	  '    to its browser-visible http://hostname:port; Escrow uses ESCROW_GUI_BIND_HOST/ESCROW_GUI_ORIGIN.' \
+	  '    Pay-to-Play remains loopback-only.' \
+	  '  make bike-nft/local/demo/terminal/up    Deploy Bike NFT and use its interactive terminal viewer.' \
+	  '  make bike-nft/local/demo/terminal/down  Stop that terminal demo and remove its temporary state.' \
+	  '  make escrow/local/demo/terminal/up     Deploy Escrow and use its interactive terminal viewer.' \
+	  '  make escrow/local/demo/terminal/down   Stop that terminal demo and remove its temporary state.' \
+	  '    Demo/scenario containers use COMPOSE_PROJECT_NAME=dapps by default.' \
+	  '    Choose another COMPOSE_PROJECT_NAME for parallel runs; reuse it for the matching down command.' \
+	  '    Parallel browser demos also need different host ports.' \
+	  '' \
+	  'Run the terminal viewer with no blockchain:' \
+	  '  make viewer/terminal/mock/up      Start an interactive viewer with simulated responses.' \
+	  '    VIEWER_TERMINAL_MOCK=bike-nft is the only supported simulated backend.' \
+	  '    up occupies the terminal; quitting the viewer removes its container.' \
+	  '  make viewer/terminal/mock/status  Show whether that viewer container still exists.' \
+	  '  make viewer/terminal/mock/attach  Reattach to that existing viewer.' \
+	  '  make viewer/terminal/mock/down    Stop and remove that viewer container.' \
+	  '' \
+	  'Give another test runner a temporary Pay-to-Play deployment:' \
+	  '  make pay-to-play/local/fixture/up FIXTURE_ID=my-test    Deploy and leave the chain running in the background.' \
+	  '  make pay-to-play/local/fixture/info FIXTURE_ID=my-test  Print verified connection details as JSON.' \
+	  '  make pay-to-play/local/fixture/down FIXTURE_ID=my-test  Stop only that deployment and delete its state.' \
+	  '    FIXTURE_ID is your name for one test deployment, not an on-chain channel ID.' \
+	  '    Reuse the same ID for up/info/down; choose a fresh ID for each parallel test.' \
+	  '    FIXTURE_ID alone selects these deployments; COMPOSE_PROJECT_NAME does not change that selection.' \
+	  '    IDs allow 1-48 lowercase letters, digits, underscores or hyphens; start with a letter or digit.' \
+	  '    up rejects existing IDs. info includes an internal Docker network, RPC URL, deployed addresses' \
+	  '    and public test keys. Attach test containers to that network; no RPC port is exposed on the host.' \
+	  '    Stop attached test containers before down. Only Solidity dependencies are needed here.' \
+	  '    Setup and JSON fields: dapps/pay-to-play/README.md, local deployment section.' \
+	  '' \
+	  'Exercise app workflows on disposable local deployments (removed when each command exits):' \
+	  '  make escrow/local/scenario/run       Run the Escrow workflows through the contract-driven viewer.' \
+	  '  make pay-to-play/local/scenario/run  Test deposits, vouchers, collection and withdrawals through the viewer.' \
+	  '  make pay-to-play/local/recovery/run  Also test recovery deadlines, retirement and the refund CLI.' \
+	  '  make bike-nft/local/deploy CAM_URI=URI  Test a Bike NFT deployment, then remove it.' \
+	  '    URI must be the absolute HTTP(S) or IPFS address to record for the CAM manifest.' \
+	  '  make bike-nft/local/integration/fuzz/run  Walk generated CAM workflows and simulate transactions.' \
+	  '  make bike-nft/local/integration/fuzz/fixture-writes/run  Also submit transactions on its disposable chain.' \
+	  '  make bike-nft/local/integration/fuzz/down  Remove leftovers from either local workflow test.' \
+	  '' \
+	  'Exercise an existing CAM deployment without submitting transactions:' \
+	  '  make cam/live/integration/fuzz/run' \
+	  '    Set CAM_INTEGRATION_DESCRIPTOR_HOST_PATH to the connection JSON file and CAM_INTEGRATION_NETWORK' \
+	  '    to an existing Docker network that reaches its RPC and resource server.' \
+	  '    JSON fields: camIntegration="1.0.0", chainId, rpcUrl, camHost, resourceOrigin and accounts.' \
+	  '    accounts is an array containing exactly one address.' \
+	  '    chainId is an eip155:* string; camHost is the CAM host address; accounts selects one viewing address.' \
+	  '    rpcUrl is its HTTP(S) RPC URL; resourceOrigin is the allowed HTTP(S) origin for CAM resources.' \
+	  '    Prepare that JSON yourself; it differs from the connection JSON emitted by fixture/info.' \
+	  '    Workflow-test defaults: CAM_INTEGRATION_SEED=cam-integration-fuzz, CAM_INTEGRATION_RUNS=1,' \
+	  '    CAM_INTEGRATION_STEPS=16. These control reproducibility, run count and steps per run.' \
+	  '    Run counts must be 1-100; steps per run must be 1-1000.' \
+	  '' \
+	  'Check an already-running local browser demo:' \
+	  '  Start the demo and a browser with remote debugging enabled; these commands start neither.' \
+	  '  For Chromium, enable --remote-debugging-port=9222 with a separate --user-data-dir.' \
+	  '  Set CDP_ORIGIN to its debugging HTTP origin, for example http://127.0.0.1:9222.' \
+	  '  Set VIEWER_URL to the full URL printed by the demo; EXPECTED_CAM_URI is its manifest URL.' \
+	  '  EXPECTED_CAM_HASH is the manifest SHA-256 digest from the contract, as 0x plus 64 hex digits.' \
+	  '  Read the URI/hash from camManifest() on the CAM host address in VIEWER_URL.' \
+	  '  Each check opens and closes its own test tab; it leaves the browser and demo running.' \
+	  '  make escrow/live/browser/check                 Check read/navigation/error states without signed transactions.' \
+	  '  make escrow/live/browser/fixture-writes/check  Send signed local transactions and test wallet failures.' \
+	  '  make pay-to-play/live/browser/check            Send signed local transactions and test payment/recovery workflows.' \
+	  '    These two checks change demo state and spend local test coins on gas.' \
+	  '  make viewer/local/fixture-wallet/attach        Sign and send transactions requested by an existing demo tab.' \
+	  '    For attach, also set FIXTURE_WALLET_APP=escrow or pay-to-play, CDP_TARGET_ID to that existing tab ID,' \
+	  '    and EXPECTED_CONTRACT_ADDRESS to the payment/escrow contract address. Keep attach running.' \
+	  '    The app README gives the contract binding and full browser setup commands.' \
+	  '    Confirming a Send prompt in the browser immediately signs and submits that local transaction.' \
+	  '    Find tab IDs at the debugging origin /json/list. The signer is for local chain 31337 only.' \
+	  '' \
+	  'Sign a local Pay-to-Play voucher without sending it:' \
+	  '  make pay-to-play/local/voucher/sign' \
+	  '    Set PAY_TO_PLAY_ADDRESS to the deployed payment contract and PAY_TO_PLAY_TOTAL to the cumulative' \
+	  '    authorized amount in wei. PAY_TO_PLAY_INVOICE_HASH is 0x plus 64 hex digits.' \
+	  '    PAY_TO_PLAY_CHANNEL_ID defaults to 1. Prints a signature using the public fixture customer key' \
+	  '    and chain 31337; it neither registers a voucher key nor submits payment.' \
+	  '    Use the channel ID returned by channel creation. Collection requires that position to have' \
+	  '    registered the fixture customer address as its voucher key.' \
+	  '    Invoice hash construction and signing steps: js/tools/pay-to-play-vouchers/README.md.' \
+	  '' \
+	  'Plan or execute Pay-to-Play refunds on an existing deployment:' \
+	  '  make pay-to-play/refunds/plan     Read due refunds and print the bounded plan; send no transactions.' \
+	  '  make pay-to-play/refunds/run      Submit refund transactions, pay gas and write the transaction journal.' \
+	  '    Both require REFUND_CONFIG_FILE (deployment/channel, scan limits and fee/transaction budgets)' \
+	  '    and RPC_URL_FILE (a file containing the RPC URL). Use absolute files with owner-only permissions.' \
+	  '    run also requires REFUND_PRIVATE_KEY_FILE (relayer key), CONFIRM_PAY_TO_PLAY_REFUNDS=YES,' \
+	  '    and REFUND_STATE_DIR: an existing directory outside the repo, owned by you, with mode 0700.' \
+	  '    Keep that directory for safe retries. Configuration examples: js/tools/pay-to-play-refunds/README.md.' \
+	  '' \
+	  'Prepare CAM publication (validate local files; no upload or contract deployment):' \
+	  '  make cam/publication/preflight DAPP=escrow CAM_URI=URI       Print CAM_HASH for the local bundle.' \
+	  '  make cam/publication/preflight/json DAPP=escrow CAM_URI=URI  Print the validation result as JSON.' \
+	  '    DAPP names the folder under dapps/. URI is the intended absolute HTTPS/IPFS manifest address.' \
+	  '    Validation reads the local bundle, not a downloaded copy. Publish those exact bytes separately.' \
+	  '' \
+	  'Deploy or verify a release on an operator-selected blockchain:' \
+	  '  make bike-nft/release/deploy      Send Bike NFT deployment transactions and save deployment records.' \
+	  '  make escrow/release/deploy        Send Escrow deployment transactions and save deployment records.' \
+	  '    These require a clean checkout, installed Solidity/JS dependencies, a funded deployer, an expected chain ID,' \
+	  '    published CAM URI, intended owners, and a new absolute output directory outside the repository.' \
+	  '    RPC_URL_FILE contains the HTTPS RPC URL; DEPLOYER_PRIVATE_KEY_FILE contains the deployer key.' \
+	  '    Both must be absolute owner-only files. Confirm with CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES' \
+	  '    or CONFIRM_ESCROW_RELEASE_DEPLOY=YES only after reviewing the complete release configuration.' \
+	  '    Required Escrow settings:' \
+	  '      ESCROW_RELEASE_EXPECTED_CHAIN_ID       Target chain number; 1337 and 31337 are excluded.' \
+	  '      ESCROW_RELEASE_CAM_URI                 Published HTTPS/IPFS manifest URI.' \
+	  '      ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER  Intended owner address for the CAM host contract.' \
+	  '      ESCROW_RELEASE_OUTPUT_DIR              New absolute directory outside this repository.' \
+	  '    Required Bike NFT settings:' \
+	  '      BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID       Target chain number; 1337 and 31337 are excluded.' \
+	  '      BIKE_NFT_RELEASE_CAM_URI                 Published HTTPS/IPFS manifest URI.' \
+	  '      BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER  Intended owner address for the CAM host contract.' \
+	  '      BIKE_NFT_RELEASE_TOKEN_NAME              Collection name displayed to users.' \
+	  '      BIKE_NFT_RELEASE_TOKEN_SYMBOL            Short collection symbol.' \
+	  '      BIKE_NFT_RELEASE_BASE_TOKEN_URI          URI prefix for individual token metadata.' \
+	  '      BIKE_NFT_RELEASE_COLLECTION_URI          URI for collection metadata.' \
+	  '      BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN  Intended admin address for the component NFTs.' \
+	  '      BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY     Positive admin-transfer waiting period in seconds.' \
+	  '      BIKE_NFT_RELEASE_COMPONENTS_PAUSER          Address allowed to pause/resume component NFTs.' \
+	  '      BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER      Address allowed to change metadata URI settings.' \
+	  '      BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN     Intended admin address for the component manager.' \
+	  '      BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY        Positive admin-transfer waiting period in seconds.' \
+	  '      BIKE_NFT_RELEASE_MANAGER_PAUSER             Address allowed to pause/resume the manager.' \
+	  '      BIKE_NFT_RELEASE_MANAGER_CONFIGURER         Address allowed to set token contract/delegation limit.' \
+	  '      BIKE_NFT_RELEASE_REGISTRARS              Comma-separated unique nonzero registrar addresses.' \
+	  '      BIKE_NFT_RELEASE_OUTPUT_DIR              New absolute directory outside this repository.' \
+	  '    Copyable complete commands: dapps/bike-nft/README.md or dapps/escrow/README.md, release sections.' \
+	  '    Every lasting Bike NFT authority must differ from the funded deployer.' \
+	  '    The output directory retains plans, broadcasts and deployment records, including partial failures.' \
+	  '    Requested new owners/admins must accept their transfers separately; Bike admin transfers have a wait.' \
+	  '    The new CAM host owner calls acceptOwnership(); each new Bike admin calls acceptDefaultAdminTransfer().' \
+	  '    Use the saved deployment addresses and acceptance instructions in the app release README.' \
+	  '    Deployment runs verification too: pending transfers cause failure even after contracts were deployed.' \
+	  '  make bike-nft/release/verify      Read the chain and compare it with the saved Bike NFT deployment.' \
+	  '    Set RPC_URL_FILE and BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE to absolute RPC/deployment JSON file paths.' \
+	  '  make escrow/release/verify        Read the chain and compare it with the saved Escrow deployment.' \
+	  '    Set RPC_URL_FILE and ESCROW_DEPLOYMENT_ARTIFACT_FILE to absolute RPC/deployment JSON file paths.' \
+	  '    Verification needs a clean checkout and installed Solidity/JS dependencies; it sends no transactions.' \
+	  '    Its RPC_URL_FILE must also have owner-only permissions.' \
+	  '    Deployment record layout and file rules: docs/release-ceremony.md.' \
+	  '' \
+	  'Run a bare local blockchain or query a block number:' \
+	  '  make anvil/internal/up           Run Anvil for Docker peers only; publish no host port.' \
+	  '  make anvil/host/up               Run Anvil at 127.0.0.1:8545; override with ANVIL_HOST_PORT.' \
+	  '    Both stay in the foreground and deploy no app. Use another terminal for down.' \
+	  '    COMPOSE_PROJECT_NAME also selects these chains; reuse it for down, which removes both variants.' \
+	  '  make anvil/down                 Remove these Anvil containers, their network and any volumes.' \
+	  '  make cast/live/block-number/read RPC_URL_FILE=/absolute/path/to/rpc-url' \
+	  '    Read the current block number through a public HTTPS RPC endpoint on port 443.' \
+	  '    RPC_URL_FILE is a file containing that URL.' \
+	  '    Alternatively set RPC_URL in the environment; the command copies it to a temporary file.' \
+	  '    Supply only one URL source. This query sends no transaction.'
 
 dapps/deps/install:
 	@$(LANE_GUARD); \
