@@ -22,7 +22,7 @@ digest="$(printf '%s' "$RELEASE_REHEARSAL_DIR" | sha256sum)"
 project="cam-rehearsal-${digest:0:24}"
 export RELEASE_REHEARSAL_NETWORK="$project-rehearsal"
 compose=(docker compose --project-name "$project" -f compose/release/rehearsal.yml)
-unset PRIVATE_KEY RPC_URL
+unset PRIVATE_KEY RPC_URL RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
 repository="$(pwd -P)"
 git_environment="$(git rev-parse --local-env-vars)"
 while IFS= read -r name; do unset "$name"; done <<<"$git_environment"

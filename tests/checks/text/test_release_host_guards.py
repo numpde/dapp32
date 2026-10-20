@@ -31,6 +31,7 @@ class ReleaseHostGuardTest(unittest.TestCase):
             "reject_release_path_symlinks()",
             "require_release_file()",
             "require_protected_release_file()",
+            "require_release_rpc_input()",
             "validate_new_release_output()",
             "recheck_new_release_output()",
         ):
@@ -56,7 +57,7 @@ class ReleaseHostGuardTest(unittest.TestCase):
             self.assertIn("$(release_host_guard_functions)", target)
             self.assertLess(target.index(source_guard), target.index(execution))
             self.assertLess(target.index("$(release_host_guard_functions)"), target.index(execution))
-            self.assertLess(target.index("require_protected_release_file"), target.index(execution))
+            self.assertLess(target.index("require_release_rpc_input"), target.index(execution))
         prepare = self.source.split("define release_prepare_snapshot\n", 1)[1].split("endef", 1)[0]
         self.assertIn("$(release_snapshot_populate)", prepare)
         for definition in ("release_deploy_execution", "release_verify_execution"):

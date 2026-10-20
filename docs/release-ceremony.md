@@ -57,15 +57,15 @@ the live service that uses the contracts.
 
 ## Deploy to the selected chain
 
-Choose an RPC endpoint from the [RPC services by chain](rpc-services.md) catalog.
-It lists network IDs, shared endpoints, account-based services and the RPC
-capabilities this workflow requires.
+Select `RPC_CHAIN` and `RPC_SERVICE` from `make release/rpc/list`, or supply a
+protected `RPC_URL_FILE` for a custom endpoint. The [RPC selection guide](rpc-services.md)
+explains both modes and API-key files.
 
 Run a release only from the exact clean commit selected for publication. The targets reject visible tracked or untracked changes, resolve one commit, and export that commit with `git archive` into a private temporary directory. Dependency verification, release checks, compilation, planning, signing, and artifact materialization all use that snapshot rather than the working tree.
 
 The snapshot includes copies of the installed Solidity and npm dependency trees. The lanes verify those trees against the archived repository metadata before use. The npm check proves the lockfile and package graph, not an independent checksum for every installed file byte; the ceremony therefore does not claim reproducible dependency-byte provenance.
 
-RPC URLs and deployment keys are absolute, readable regular files whose path components must not be symlinks. Credential files must not be group- or world-accessible. Verification uses an RPC file but receives no deployment key.
+Operator-supplied RPC URL, RPC API-key and deployment-key files must be absolute, readable regular files whose path components are not symlinks. These files must not be group- or world-accessible. Verification uses the selected RPC but receives no deployment key.
 
 Deployment requires a normalized new output directory outside the repository. The target rechecks its parent before creating the directory with mode `0700`, then creates three phase-specific subdirectories:
 

@@ -106,7 +106,7 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         verify = source[source.index("bike-nft/release/verify:"):]
         self.assertIn("CONFIRM_BIKE_NFT_RELEASE_DEPLOY", deploy)
         self.assertIn(
-            'require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "$$RPC_URL_FILE"',
+            'require_release_rpc_input',
             deploy,
         )
         self.assertIn(
@@ -115,7 +115,7 @@ class BikeNftReleasePostureTest(unittest.TestCase):
         )
         self.assertIn('validate_new_release_output "$$output_dir" "BIKE_NFT_RELEASE_OUTPUT_DIR"', deploy)
         self.assertIn(
-            'require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"',
+            'require_release_rpc_input',
             verify,
         )
         self.assertIn(

@@ -66,7 +66,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertIn("DEPLOYER_PRIVATE_KEY_FILE", deploy)
         self.assertIn("RPC_URL_FILE", deploy)
         self.assertIn(
-            'require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "$$RPC_URL_FILE"',
+            'require_release_rpc_input',
             deploy,
         )
         self.assertIn(
@@ -79,7 +79,7 @@ class EscrowReleasePostureTest(unittest.TestCase):
 
         self.assertIn("ESCROW_DEPLOYMENT_ARTIFACT_FILE", verify)
         self.assertIn(
-            'require_protected_release_file "$$RPC_URL_FILE" "RPC_URL_FILE" "RPC_URL_FILE"',
+            'require_release_rpc_input',
             verify,
         )
         self.assertIn(
