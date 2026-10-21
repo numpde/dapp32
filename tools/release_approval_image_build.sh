@@ -52,7 +52,8 @@ fi
 
 source "$repo_root/tools/release_process.sh"
 release_process_init
-work_dir=
+# Internal allocation state; not an optional operator input.
+declare work_dir=""
 stage_started=0
 cleanup() {
   local status=$? cleanup_failed=0

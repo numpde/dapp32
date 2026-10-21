@@ -40,10 +40,13 @@ def enable_skip(rehearsal_dir: Path, source: Path) -> None:
 
 
 def main() -> None:
-    if (os.environ.get("RELEASE_REHEARSAL") != "1" or
-            os.environ.get("DAPP") != "escrow" or
-            os.environ.get("RELEASE_APPROVAL_SIMULATION") != "skip"):
-        raise SystemExit("Simulation skipping is restricted to the explicit Escrow PTY fixture experiment")
+    for name, expected in (
+        ("RELEASE_REHEARSAL", "1"),
+        ("DAPP", "escrow"),
+        ("RELEASE_APPROVAL_SIMULATION", "skip"),
+    ):
+        if os.environ.get(name) != expected:
+            raise SystemExit("Simulation skipping is restricted to the explicit Escrow PTY fixture experiment")
     directory = Path(os.environ["RELEASE_REHEARSAL_DIR"])
     source = Path.cwd()
     enable_skip(directory, source)

@@ -65,8 +65,8 @@ class _ReleaseCommandHarness:
     """
 
     def __init__(
-        self, kind: str, *, block: str = "stage", hold_down: bool = True,
-        down_status: int = 0, child_status: int = 0,
+        self, kind: str, *, block: str, hold_down: bool,
+        down_status: int, child_status: int,
     ) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="release-cancel-test-")
         self.root = Path(self.temp.name)
@@ -241,6 +241,7 @@ python3() {
             "TEST_CHILD_STATUS": str(child_status),
             "LOCAL_UID": "1000",
             "LOCAL_GID": "1000",
+            "RELEASE_APPROVAL_SIMULATION": "normal",
         })
         if kind == "image":
             argv = [bash, str(self.repo / "tools/release_approval_image_build.sh"), "a" * 40, str(self.output)]
@@ -308,10 +309,12 @@ python3() {
                 if line.startswith("owned "):
                     try:
                         os.killpg(int(line.split()[1]), signal.SIGKILL)
+                    # silent-defaults: allow-exception-fallback -- Only fixture-owned groups are signalled; a group already gone needs no further cleanup.
                     except ProcessLookupError:
                         pass
             try:
                 os.killpg(self.process.pid, signal.SIGKILL)
+            # silent-defaults: allow-exception-fallback -- The fixture leader may exit during escalation; wait below still reaps it.
             except ProcessLookupError:
                 pass
             self.process.wait(timeout=3)
@@ -324,7 +327,9 @@ class ReleaseApprovalImageCancellationTest(unittest.TestCase):
         for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             for phase in ("stage", "image"):
                 with self.subTest(signal=signum, phase=phase):
-                    with _ReleaseCommandHarness("image", block=phase) as run:
+                    with _ReleaseCommandHarness(
+                        "image", block=phase, hold_down=True, down_status=0, child_status=0,
+                    ) as run:
                         run.wait_for("child-ready ")
                         os.kill(run.process.pid, signum)
                         lines = run.wait_for("down-start ")
@@ -342,7 +347,9 @@ class ReleaseApprovalImageCancellationTest(unittest.TestCase):
                         self.assertFalse(run.output.exists())
 
     def test_failed_teardown_retains_mounted_image_inputs(self) -> None:
-        with _ReleaseCommandHarness("image", hold_down=False, down_status=1) as run:
+        with _ReleaseCommandHarness(
+            "image", block="stage", hold_down=False, down_status=1, child_status=0,
+        ) as run:
             run.wait_for("child-ready ")
             os.kill(run.process.pid, signal.SIGTERM)
             self.assertEqual(1, run.finish())
@@ -352,7 +359,9 @@ class ReleaseApprovalImageCancellationTest(unittest.TestCase):
             self.assertIn(str(run.work), run.log.read_text(encoding="utf-8"))
 
     def test_success_keeps_published_image_provenance(self) -> None:
-        with _ReleaseCommandHarness("image", block="none", hold_down=False) as run:
+        with _ReleaseCommandHarness(
+            "image", block="none", hold_down=False, down_status=0, child_status=0,
+        ) as run:
             self.assertEqual(0, run.finish())
             run.assert_owned_cleanup(self)
             self.assertFalse(run.work.exists())

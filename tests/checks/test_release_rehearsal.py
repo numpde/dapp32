@@ -70,7 +70,9 @@ class ReleaseRehearsalCancellationTest(unittest.TestCase):
     def test_parent_signals_wait_for_pty_cleanup_before_fixture_teardown(self) -> None:
         for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             with self.subTest(signal=signum):
-                with _ReleaseCommandHarness("rehearsal", block="pty") as run:
+                with _ReleaseCommandHarness(
+                    "rehearsal", block="pty", hold_down=True, down_status=0, child_status=0,
+                ) as run:
                     run.wait_for("child-ready ")
                     os.kill(run.process.pid, signum)
                     lines = run.wait_for("child-term")
