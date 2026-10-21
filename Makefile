@@ -244,6 +244,9 @@ recheck_new_release_output() { \
     exit 2; \
   fi; \
 }; \
+source tools/release_process.sh; \
+release_process_init; \
+release_command_grace=15; \
 source tools/release-config.sh
 endef
 
@@ -251,9 +254,10 @@ define release_config_compose
 compose_release_config() { \
 	local config_input="$$CONFIG"; \
 	if [[ -v release_config_input ]]; then config_input="$$release_config_input"; fi; \
-  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)-release-config" \
+  if [[ "$$1" == run ]]; then release_config_started=1; fi; \
+  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$release_config_project" \
     RELEASE_CONFIG_STAGE_DIR="$$release_config_dir" RELEASE_CONFIG_FILE="$$config_input" RELEASE_LOCAL_NETWORK="$(LOCAL_RELEASE_NETWORK)" \
-    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/config.yml "$$@"; \
+    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f $(COMPOSE_DIR)/release/config.yml "$$@"; \
 }
 endef
 
@@ -276,43 +280,47 @@ endef
 
 define release_snapshot_cleanup
 status="$$?"; \
-set +e; \
 cleanup_failed=0; \
-if [[ "$$release_run_started" == "1" ]] && ! compose_release down --volumes --remove-orphans >/dev/null; then \
+if ! release_process_cleanup_begin; then cleanup_failed=1; fi; \
+set +e; \
+if declare -F release_approval_cleanup >/dev/null && ! release_approval_cleanup; then cleanup_failed=1; fi; \
+release_command_grace=60; \
+if [[ "$$release_run_started" == "1" ]] && ! compose_release down --timeout 10 --volumes --remove-orphans >/dev/null; then \
   printf '%s\n' 'Release run teardown failed.' >&2; \
   cleanup_failed=1; \
 fi; \
-if [[ "$$release_check_started" == "1" ]] && ! compose_release_check down --rmi local --volumes --remove-orphans >/dev/null; then \
+if [[ "$$release_check_started" == "1" ]] && ! compose_release_check down --timeout 10 --rmi local --volumes --remove-orphans >/dev/null; then \
   printf '%s\n' 'Release check teardown failed.' >&2; \
   cleanup_failed=1; \
 fi; \
-if [[ "$$release_dependencies_started" == "1" ]] && ! compose_release_dependencies down --rmi local --volumes --remove-orphans >/dev/null; then \
+if [[ "$$release_dependencies_started" == "1" ]] && ! compose_release_dependencies down --timeout 10 --rmi local --volumes --remove-orphans >/dev/null; then \
   printf '%s\n' 'Release dependency-check teardown failed.' >&2; \
   cleanup_failed=1; \
 fi; \
-if [[ "$$release_rpc_started" == "1" ]] && ! compose_release_rpc down --volumes --remove-orphans >/dev/null; then \
+if [[ "$$release_rpc_started" == "1" ]] && ! compose_release_rpc down --timeout 10 --volumes --remove-orphans >/dev/null; then \
   printf '%s\n' 'RPC resolver teardown failed.' >&2; \
   cleanup_failed=1; \
 fi; \
-if ! release_config_cleanup; then cleanup_failed=1; fi; \
+if ! release_config_teardown; then cleanup_failed=1; fi; \
+if [[ "$$cleanup_failed" == "0" ]] && ! release_config_cleanup; then cleanup_failed=1; fi; \
 if [[ -n "$$ceremony_root" ]]; then \
-  case "$$ceremony_root" in "/tmp/cam-release-$${LOCAL_UID:?missing_LOCAL_UID}-"*) \
+  case "$$ceremony_root" in "/tmp/cam-release-$$LOCAL_UID-"*) \
       if [[ "$$cleanup_failed" == "0" ]] && ! rm -rf -- "$$ceremony_root"; then cleanup_failed=1; fi ;; \
     *) printf 'Refusing to remove unexpected release ceremony path: %s\n' "$$ceremony_root" >&2; cleanup_failed=1 ;; \
   esac; \
 fi; \
 if [[ "$$cleanup_failed" != "0" ]]; then \
   if [[ -n "$$ceremony_root" ]]; then printf 'Release cleanup is incomplete; retained path for inspection: %s\n' "$$ceremony_root" >&2; fi; \
-  if [[ "$$status" == "0" ]]; then status=1; fi; \
+  if [[ -v release_config_dir && -n "$$release_config_dir" ]]; then printf 'Release cleanup retained mounted inputs: %s\n' "$$release_config_dir" >&2; fi; \
+  status=2; \
 fi; \
-trap - EXIT; \
 exit "$$status"
 endef
 
 define release_snapshot_dependency_compose
 compose_release_dependencies() { \
   LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-deps" ALLOW_UPDATE=0 \
-    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/compose/deps.yml" "$$@"; \
+    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) -f "$$ceremony_source/compose/deps.yml" "$$@"; \
 }
 endef
 
@@ -326,7 +334,7 @@ if [[ ! -v RPC_URL_FILE || -z "$$RPC_URL_FILE" ]]; then \
   rpc_key_input() { if [[ -n "$$rpc_api_key_file" ]]; then head -c 258 -- "$$rpc_api_key_file"; fi; }; \
   if [[ -n "$$rpc_api_key_file" ]]; then rpc_key_args=(--api-key-stdin); fi; \
   release_rpc_started=1; \
-  rpc_key_input | compose_release_rpc run --rm --no-deps -T rpc-resolve "$$RPC_CHAIN" "$$RPC_SERVICE" /out/rpc-url "$$release_rpc_expected_chain" "$${rpc_key_args[@]}"; \
+  compose_release_rpc run --rm --no-deps -T rpc-resolve "$$RPC_CHAIN" "$$RPC_SERVICE" /out/rpc-url "$$release_rpc_expected_chain" "$${rpc_key_args[@]}" < <(rpc_key_input); \
   RPC_URL_FILE="$$ceremony_root/rpc/rpc-url"; \
 fi
 endef
@@ -334,7 +342,7 @@ endef
 define release_rpc_compose
 compose_release_rpc() { \
   LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-rpc" \
-    RELEASE_RPC_OUTPUT_DIR="$$ceremony_root/rpc" env -u PRIVATE_KEY -u RPC_URL \
+    RELEASE_RPC_OUTPUT_DIR="$$ceremony_root/rpc" release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL \
     $(DOCKER_COMPOSE) -f "$$ceremony_source/compose/release/rpc.yml" "$$@"; \
 }
 endef
@@ -1565,11 +1573,11 @@ escrow/release/deploy:
 	    ESCROW_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$$@"; \
+	    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$$@"; \
 	}; \
 	compose_release_check() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; \
+	    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; \
 	}; \
 	$(call release_deploy_execution,ESCROW_RELEASE_OUTPUT_DIR)
 
@@ -1594,7 +1602,7 @@ escrow/release/verify:
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$ESCROW_DEPLOYMENT_ARTIFACT_FILE" \
 	    ESCROW_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$$@"; \
+	    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(ESCROW_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$$@"; \
 	}; \
 	$(release_verify_execution)
 
@@ -1625,9 +1633,9 @@ bike-nft/release/deploy:
 	  BIKE_NFT_RELEASE_BASE_TOKEN_URI="$$BIKE_NFT_RELEASE_BASE_TOKEN_URI" BIKE_NFT_RELEASE_COLLECTION_URI="$$BIKE_NFT_RELEASE_COLLECTION_URI" \
 	  BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN" BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY="$$BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY" BIKE_NFT_RELEASE_COMPONENTS_PAUSER="$$BIKE_NFT_RELEASE_COMPONENTS_PAUSER" BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER="$$BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER" \
 	  BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_MANAGER_ADMIN" BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY="$$BIKE_NFT_RELEASE_MANAGER_ADMIN_DELAY" BIKE_NFT_RELEASE_MANAGER_PAUSER="$$BIKE_NFT_RELEASE_MANAGER_PAUSER" BIKE_NFT_RELEASE_MANAGER_CONFIGURER="$$BIKE_NFT_RELEASE_MANAGER_CONFIGURER" BIKE_NFT_RELEASE_REGISTRARS="$$BIKE_NFT_RELEASE_REGISTRARS" \
-	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$$@"; \
+	  RPC_URL_FILE="$$RPC_URL_FILE" DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$$@"; \
 	}; \
-	compose_release_check() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; }; \
+	compose_release_check() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; }; \
 	$(call release_deploy_execution,BIKE_NFT_RELEASE_OUTPUT_DIR)
 
 bike-nft/release/verify:
@@ -1641,7 +1649,7 @@ bike-nft/release/verify:
 	for name in BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE; do if [[ ! -v $$name || -z "$${!name}" ]]; then printf 'Missing required verification input: %s\n' "$$name" >&2; exit 2; fi; done; \
 	require_release_rpc_input; \
 	require_release_file "$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" "BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE"; \
-	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$$@"; }; \
+	compose_release() { LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RPC_URL_FILE="$$RPC_URL_FILE" RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$BIKE_NFT_DEPLOYMENT_ARTIFACT_FILE" BIKE_NFT_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(BIKE_NFT_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$$@"; }; \
 	$(release_verify_execution)
 
 .PHONY: pay-to-play/release/check pay-to-play/release/deploy pay-to-play/release/verify
@@ -1689,11 +1697,11 @@ pay-to-play/release/deploy:
 	    PAY_TO_PLAY_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    DEPLOYER_PRIVATE_KEY_FILE="$$DEPLOYER_PRIVATE_KEY_FILE" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$$@"; \
+	    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_DEPLOY_COMPOSE_FILES)) "$${release_phase_overlays[@]}" "$${release_transport_args[@]}" "$$@"; \
 	}; \
 	compose_release_check() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-check" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; \
+	    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_CHECK_COMPOSE_FILES)) "$$@"; \
 	}; \
 	$(call release_deploy_execution,PAY_TO_PLAY_RELEASE_OUTPUT_DIR)
 
@@ -1718,7 +1726,7 @@ pay-to-play/release/verify:
 	    RPC_URL_FILE="$$RPC_URL_FILE" \
 	    RELEASE_DEPLOYMENT_ARTIFACT_FILE="$$PAY_TO_PLAY_DEPLOYMENT_ARTIFACT_FILE" \
 	    PAY_TO_PLAY_RELEASE_EXPECTED_SOURCE_COMMIT="$$source_commit" \
-	    env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$$@"; \
+	    release_run_owned "$$release_command_grace" env -u PRIVATE_KEY -u RPC_URL $(DOCKER_COMPOSE) $(call release_snapshot_compose_args,$(PAY_TO_PLAY_RELEASE_VERIFY_COMPOSE_FILES)) "$${release_transport_args[@]}" "$$@"; \
 	}; \
 	$(release_verify_execution)
 

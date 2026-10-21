@@ -16,10 +16,12 @@ release_approval_service_id() {
 release_approval_wait_service() {
   local service="$1" seconds="$2" identity result
   identity="$(release_approval_service_id "$service")" || return
-  if ! result="$(timeout --foreground "$seconds" docker wait "$identity")"; then
+  if ! release_run_owned "$release_command_grace" timeout --foreground "$seconds" docker wait "$identity" \
+      > "$ceremony_root/service-exit-code"; then
     printf 'Timed out or failed waiting for %s; its effect state may be uncertain.\n' "$service" >&2
     return 1
   fi
+  result="$(<"$ceremony_root/service-exit-code")"
   if [[ ! "$result" =~ ^[0-9]+$ || "$result" != 0 ]]; then
     printf '%s exited unsuccessfully (%s).\n' "$service" "$result" >&2
     return 1
@@ -114,69 +116,136 @@ release_approval_prepare() {
   compose_release build release-rpc-proxy deploy-release release-artifact-rpc-proxy release-artifact
 }
 
+# Only the owning launcher may start services. The attachment remains visible
+# to its EXIT cleanup even if release_approval_run returns early.
+release_approval_attach_pid=""
+release_approval_terminal_state=""
+release_approval_output=""
+
+release_approval_restore_terminal() {
+  if [[ -n "$release_approval_terminal_state" ]]; then
+    if [[ -t 0 ]] && ! stty "$release_approval_terminal_state"; then
+      printf '%s\n' 'Could not restore the approval terminal settings.' >&2
+      return 1
+    fi
+    release_approval_terminal_state=""
+  fi
+}
+
+release_approval_cleanup() {
+  local failed=0 started
+  if [[ -z "$release_approval_attach_pid" ]]; then
+    release_approval_restore_terminal
+    return
+  fi
+  # Stop containers before joining their attachment. Nothing in the background
+  # has authority to start a replacement signer after this point.
+  if ! compose_release stop --timeout 10 deploy-release release-approval >/dev/null; then
+    printf '%s\n' 'Could not stop every release process; cleanup is incomplete.' >&2
+    failed=1
+  fi
+  if kill -0 "$release_approval_attach_pid" 2>/dev/null; then
+    kill -TERM "$release_approval_attach_pid" 2>/dev/null || true
+    started="$SECONDS"
+    while kill -0 "$release_approval_attach_pid" 2>/dev/null; do
+      if (( SECONDS - started >= 5 )); then
+        kill -KILL "$release_approval_attach_pid" 2>/dev/null || true
+        break
+      fi
+      sleep 0.1
+    done
+  fi
+  wait "$release_approval_attach_pid" 2>/dev/null || true
+  release_approval_attach_pid=""
+  if ! release_approval_restore_terminal; then failed=1; fi
+  if [[ -n "$release_approval_output" ]]; then
+    if [[ ! -f "$release_approval_output/forge-exit-code" ]]; then
+      printf '%s\n' unknown > "$release_approval_output/forge-exit-code" || failed=1
+    fi
+    compose_release logs --no-color --no-log-prefix deploy-release \
+      > "$release_approval_output/deploy.log" 2>&1 || failed=1
+  fi
+  return "$failed"
+}
+
+release_approval_attachment_running() {
+  if ! kill -0 "$release_approval_attach_pid" 2>/dev/null; then
+    printf '%s\n' 'Approval terminal ended; cancelling this release. Review broadcast and approval audit for possible earlier effects.' >&2
+    return 1
+  fi
+}
+
 release_approval_run() {
-  local output="$1" gate_id attach_status=0 forge_status="" gate_status=""
-  local supervisor_pid
-  # Each `up` normally restarts exited one-shot dependencies. The release plan
-  # already ran to produce the approval reference, so start live services only
-  # after explicitly checking their predecessor instead of replaying the plan.
+  local output="$1" gate_id forge_id started state attach_status=0 forge_status="" gate_status=""
+  release_approval_output="$output"
+  # The plan already ran to produce the reference. Never restart a completed
+  # predecessor or an approval service that the operator has cancelled.
   compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-rpc-proxy
   compose_release up -d --no-build --no-deps release-approval
   gate_id="$(release_approval_service_id release-approval)" || return
   release_approval_show_startup "$gate_id"
 
-  (
-    local code forge_id started="$SECONDS"
-    release_approval_controller_cleanup() {
-      local status="$?" cleanup_failed=0
-      trap - EXIT
-      if [[ ! -f "$output/forge-exit-code" ]]; then
-        if ! printf '%s\n' unknown > "$output/forge-exit-code"; then cleanup_failed=1; fi
-        if ! compose_release stop --timeout 10 deploy-release >/dev/null; then
-          printf '%s\n' 'Could not stop the release signer after approval startup failed.' >&2
-          cleanup_failed=1
-        fi
-      fi
-      if ! compose_release stop --timeout 10 release-approval >/dev/null; then
-        printf '%s\n' 'Could not stop release approval after the signer ended.' >&2
-        cleanup_failed=1
-      fi
-      if [[ "$cleanup_failed" != 0 && "$status" == 0 ]]; then status=1; fi
-      exit "$status"
-    }
-    trap release_approval_controller_cleanup EXIT
-    until [[ -S "$RELEASE_APPROVAL_SOCKET_DIR/rpc.sock" ]]; do
-      if (( SECONDS - started >= 300 )) || [[ "$(docker inspect --format '{{.State.Running}}' "$gate_id")" != true ]]; then
-        printf '%s\n' 'Approval did not receive an operator start on the attached terminal.' >&2
-        exit 1
-      fi
-      sleep 0.2
-    done
-    if ! compose_release up -d --no-build --no-deps --wait --wait-timeout 30 release-approval; then exit 1; fi
-    if ! compose_release up -d --no-build --no-deps deploy-release; then exit 1; fi
-    forge_id="$(release_approval_service_id deploy-release)" || exit
-    if code="$(timeout --foreground 900 docker wait "$forge_id")" && [[ "$code" =~ ^[0-9]+$ ]]; then
-      printf '%s\n' "$code" > "$output/forge-exit-code"
-    else
+  release_approval_terminal_state="$(stty -g)"
+  # Explicit stdin avoids Bash's asynchronous /dev/null default. A PTY caller
+  # need not have a /dev/tty controlling terminal.
+  release_process_spawning=1
+  docker attach "$gate_id" <&0 &
+  release_approval_attach_pid=$!
+  release_process_spawning=0
+  if [[ "$release_process_signal" != 0 ]]; then exit "$release_process_signal"; fi
+
+  started="$SECONDS"
+  until [[ -S "$RELEASE_APPROVAL_SOCKET_DIR/rpc.sock" ]]; do
+    release_approval_attachment_running || return
+    if (( SECONDS - started >= 300 )) || [[ "$(docker inspect --format '{{.State.Running}}' "$gate_id")" != true ]]; then
+      printf '%s\n' 'Approval did not receive an operator start on the attached terminal.' >&2
+      return 1
+    fi
+    sleep 0.2
+  done
+
+  started="$SECONDS"
+  until [[ "$(docker inspect --format '{{.State.Health.Status}}' "$gate_id")" == healthy ]]; do
+    release_approval_attachment_running || return
+    if (( SECONDS - started >= 30 )) || [[ "$(docker inspect --format '{{.State.Running}}' "$gate_id")" != true ]]; then
+      printf '%s\n' 'Approval ended or failed to become ready after operator start.' >&2
+      return 1
+    fi
+    sleep 0.2
+  done
+  release_approval_attachment_running || return
+  compose_release up -d --no-build --no-deps deploy-release
+  forge_id="$(release_approval_service_id deploy-release)" || return
+
+  started="$SECONDS"
+  while true; do
+    state="$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$forge_id")" || return
+    if [[ "$state" =~ ^exited\ ([0-9]+)$ ]]; then
+      read -r state forge_status <<< "$state"
+      printf '%s\n' "$forge_status" > "$output/forge-exit-code"
+      break
+    fi
+    release_approval_attachment_running || return
+    if (( SECONDS - started >= 900 )) || [[ "$state" != running\ * ]]; then
       printf '%s\n' unknown > "$output/forge-exit-code"
-      if ! compose_release stop --timeout 10 deploy-release >/dev/null; then
-        printf '%s\n' 'Could not stop the signer after its wait failed; deployment effect state is uncertain.' >&2
-        exit 1
-      fi
+      printf '%s\n' 'Signer did not finish; deployment effect state may be uncertain.' >&2
+      return 1
     fi
-  ) &
-  supervisor_pid=$!
-  if ! compose_release attach release-approval; then attach_status=1; fi
-  if [[ ! -f "$output/forge-exit-code" ]]; then
-    printf '%s\n' 'Approval terminal ended while Forge was still running; closing the signer.' >&2
-    if ! compose_release stop --timeout 10 deploy-release release-approval >/dev/null; then
-      printf '%s\n' 'Could not stop every release process; cleanup is incomplete.' >&2
+    sleep 0.5
+  done
+  compose_release stop --timeout 10 release-approval >/dev/null
+  started="$SECONDS"
+  while kill -0 "$release_approval_attach_pid" 2>/dev/null; do
+    if (( SECONDS - started >= 10 )); then
+      printf '%s\n' 'Approval attachment did not finish after the signer ended.' >&2
+      return 1
     fi
-    attach_status=1
-  fi
-  wait "$supervisor_pid" || attach_status=1
+    sleep 0.1
+  done
+  wait "$release_approval_attach_pid" || attach_status=$?
+  release_approval_attach_pid=""
+  release_approval_restore_terminal
   compose_release logs --no-color --no-log-prefix deploy-release > "$output/deploy.log" 2>&1 || attach_status=1
-  forge_status="$(cat "$output/forge-exit-code")"
   gate_status="$(docker inspect --format '{{.State.ExitCode}}' "$gate_id")"
   if [[ "$attach_status" != 0 || "$forge_status" != 0 || "$gate_status" != 0 ]]; then
     printf 'Release stopped before artifact creation. Forge: %s; approval: %s. Review broadcast and approval audit for possible earlier effects.\n' "$forge_status" "$gate_status" >&2

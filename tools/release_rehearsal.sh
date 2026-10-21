@@ -23,73 +23,98 @@ esac
 umask 077
 export DAPP="$app"
 export RELEASE_REHEARSAL=1
-export RELEASE_REHEARSAL_DIR
+source "$(dirname "${BASH_SOURCE[0]}")/release_process.sh"
+release_process_init
+export RELEASE_REHEARSAL_DIR=
+infrastructure_started=0
+planner_started=0
+
+cleanup() {
+  local status=$? cleanup_failed=0
+  set +e
+  # The PTY driver owns its signer and must finish before fixture teardown.
+  if ! release_process_cleanup_begin; then
+    printf '%s\n' 'Rehearsal launch command did not shut down cleanly; retaining its mounted inputs.' >&2
+    status=1
+    cleanup_failed=1
+  fi
+  # A child exit 2 can mean its signer teardown failed; retain mounted inputs
+  # even when this shell is exiting because of a signal instead.
+  if [[ "${release_process_child_status:-}" == 2 || ( "$action" != release && "$status" == 2 ) ]]; then
+    cleanup_failed=1
+  fi
+  if [[ "$planner_started" == 1 ]] && ! release_run_owned 60 "${planner_compose[@]}" down --timeout 10 --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1; then
+    printf 'Planner test teardown failed; inspect %s/planner-cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
+    status=1
+    cleanup_failed=1
+  fi
+  if [[ "$infrastructure_started" == 1 ]] && ! release_run_owned 60 "${compose[@]}" down --timeout 10 --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/cleanup.log" 2>&1; then
+    printf 'Rehearsal teardown failed; inspect %s/cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
+    status=1
+    cleanup_failed=1
+  fi
+  if [[ -n "$RELEASE_REHEARSAL_DIR" ]]; then
+    # Snapshot scratch files are never mounted. Keep source and logs as evidence.
+    if ! rm -f -- "$RELEASE_REHEARSAL_DIR/source.tar" "$RELEASE_REHEARSAL_DIR/candidate.tar" "$RELEASE_REHEARSAL_DIR/source-files" "$RELEASE_REHEARSAL_DIR/existing-files"; then
+      printf '%s\n' 'Could not remove rehearsal snapshot scratch files.' >&2
+      status=1
+      cleanup_failed=1
+    fi
+    if [[ "$cleanup_failed" == 0 && -d "$RELEASE_REHEARSAL_DIR/source" ]]; then
+      if ! rm -rf -- "$RELEASE_REHEARSAL_DIR/source/dapps/dependencies" "$RELEASE_REHEARSAL_DIR/source/js/node_modules"; then
+        printf '%s\n' 'Could not remove rehearsal dependency copies.' >&2
+        status=1
+        cleanup_failed=1
+      fi
+    fi
+    if [[ "$cleanup_failed" != 0 ]]; then
+      printf 'Mounted rehearsal inputs retained at %s/source.\n' "$RELEASE_REHEARSAL_DIR" >&2
+    fi
+    printf 'Release rehearsal records: %s\n' "$RELEASE_REHEARSAL_DIR"
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+
 RELEASE_REHEARSAL_DIR="$(mktemp -d "/tmp/cam-release-rehearsal-${LOCAL_UID:?missing_LOCAL_UID}-XXXXXXXX")"
 digest="$(printf '%s' "$RELEASE_REHEARSAL_DIR" | sha256sum)"
 project="cam-rehearsal-${digest:0:24}"
 export RELEASE_REHEARSAL_NETWORK="$project-rehearsal"
 compose=(docker compose --project-name "$project" -f compose/release/rehearsal.yml)
+planner_compose=(docker compose --project-name "$project-planner" -f compose/release/deploy.yml -f "compose/$app/release/deploy.yml" -f compose/release/rehearsal-deploy.yml)
 unset PRIVATE_KEY RPC_URL RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
 repository="$(pwd -P)"
 git_environment="$(git rev-parse --local-env-vars)"
 while IFS= read -r name; do unset "$name"; done <<<"$git_environment"
 unset GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
-infrastructure_started=0
-planner_started=0
-planner_compose=(docker compose --project-name "$project-planner" -f compose/release/deploy.yml -f "compose/$app/release/deploy.yml" -f compose/release/rehearsal-deploy.yml)
-
-cleanup() {
-  status="$?"
-  cleanup_failed=0
-  # A child exit 2 can mean its signer teardown failed; retain mounted inputs.
-  if [[ "$action" != release && "$status" == 2 ]]; then
-    cleanup_failed=1
-  fi
-  trap - EXIT
-  if [[ "$planner_started" == 1 ]] && ! "${planner_compose[@]}" down --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1; then
-    printf 'Planner test teardown failed; inspect %s/planner-cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
-    status=1
-    cleanup_failed=1
-  fi
-  if [[ "$infrastructure_started" == 1 ]] && ! "${compose[@]}" down --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/cleanup.log" 2>&1; then
-    printf 'Rehearsal teardown failed; inspect %s/cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
-    status=1
-    cleanup_failed=1
-  fi
-  if [[ "$cleanup_failed" == 0 && -d "$RELEASE_REHEARSAL_DIR/source" ]]; then
-    rm -rf -- "$RELEASE_REHEARSAL_DIR/source/dapps/dependencies" "$RELEASE_REHEARSAL_DIR/source/js/node_modules"
-  fi
-  printf 'Release rehearsal records: %s\n' "$RELEASE_REHEARSAL_DIR"
-  exit "$status"
-}
-trap cleanup EXIT
-
 mkdir --mode=0700 "$RELEASE_REHEARSAL_DIR/source" "$RELEASE_REHEARSAL_DIR/control"
 # Copy candidate source without touching the caller's index, hooks, or history.
-git ls-files --cached --others --exclude-standard -z >"$RELEASE_REHEARSAL_DIR/source-files"
+release_run_owned 15 git ls-files --cached --others --exclude-standard -z >"$RELEASE_REHEARSAL_DIR/source-files"
 while IFS= read -r -d '' path; do
   if [[ -e "$path" || -L "$path" ]]; then printf '%s\0' "$path"; fi
 done <"$RELEASE_REHEARSAL_DIR/source-files" >"$RELEASE_REHEARSAL_DIR/existing-files"
-tar --create --null --verbatim-files-from --no-recursion --files-from "$RELEASE_REHEARSAL_DIR/existing-files" --file "$RELEASE_REHEARSAL_DIR/source.tar"
-tar --extract --file "$RELEASE_REHEARSAL_DIR/source.tar" --directory "$RELEASE_REHEARSAL_DIR/source"
+release_run_owned 15 tar --create --null --verbatim-files-from --no-recursion --files-from "$RELEASE_REHEARSAL_DIR/existing-files" --file "$RELEASE_REHEARSAL_DIR/source.tar"
+release_run_owned 15 tar --extract --file "$RELEASE_REHEARSAL_DIR/source.tar" --directory "$RELEASE_REHEARSAL_DIR/source"
 rm "$RELEASE_REHEARSAL_DIR/source.tar" "$RELEASE_REHEARSAL_DIR/source-files" "$RELEASE_REHEARSAL_DIR/existing-files"
 cd "$RELEASE_REHEARSAL_DIR/source"
 git init --quiet --template=
 git add --all
 git -c user.name='Release rehearsal' -c user.email='release-rehearsal@example.invalid' -c core.hooksPath=/dev/null -c commit.gpgsign=false commit --quiet -m 'Snapshot release rehearsal candidate'
 # Serve the same Git-exported bytes and modes that the release commands consume.
-git archive --format=tar --output="$RELEASE_REHEARSAL_DIR/candidate.tar" HEAD
-tar --extract --same-permissions --file "$RELEASE_REHEARSAL_DIR/candidate.tar" --directory "$RELEASE_REHEARSAL_DIR/source"
+release_run_owned 15 git archive --format=tar --output="$RELEASE_REHEARSAL_DIR/candidate.tar" HEAD
+release_run_owned 15 tar --extract --same-permissions --file "$RELEASE_REHEARSAL_DIR/candidate.tar" --directory "$RELEASE_REHEARSAL_DIR/source"
 rm "$RELEASE_REHEARSAL_DIR/candidate.tar"
-cp -a -- "$repository/dapps/dependencies" dapps/dependencies
-cp -a -- "$repository/js/node_modules" js/node_modules
+release_run_owned 15 cp -a -- "$repository/dapps/dependencies" dapps/dependencies
+release_run_owned 15 cp -a -- "$repository/js/node_modules" js/node_modules
 git rev-parse HEAD >"$RELEASE_REHEARSAL_DIR/source-commit"
 
 run_logged() {
   local log="$1"
   shift
-  if ! timeout --foreground 900 "$@" >"$RELEASE_REHEARSAL_DIR/$log" 2>&1; then
+  local grace=15
+  if [[ "$1" == make ]]; then grace=330; fi
+  if ! release_run_owned "$grace" timeout --foreground --kill-after="${grace}s" 900 "$@" >"$RELEASE_REHEARSAL_DIR/$log" 2>&1; then
     tail -n 60 "$RELEASE_REHEARSAL_DIR/$log" >&2
     printf 'Rehearsal step failed; full log: %s/%s\n' "$RELEASE_REHEARSAL_DIR" "$log" >&2
     return 1
@@ -112,7 +137,7 @@ if [[ "$action" == waits || "$action" == ipc-waits ]]; then
   exit "$?"
 fi
 if [[ "$action" == approval-pty ]]; then
-  python3 tools/release_approval_pty_check.py
+  release_run_owned 330 python3 tools/release_approval_pty_check.py
   exit "$?"
 fi
 
@@ -141,7 +166,7 @@ services:
           create_host_path: false
 EOF
 bad_compose=("${planner_compose[@]}" -f "$RELEASE_REHEARSAL_DIR/bad-cam.yml")
-if timeout --foreground 360 "${bad_compose[@]}" up --build --abort-on-container-exit --exit-code-from release-artifact release-artifact >"$RELEASE_REHEARSAL_DIR/planner-rejection.log" 2>&1; then
+if release_run_owned 15 timeout --foreground --kill-after=10s 360 "${bad_compose[@]}" up --build --abort-on-container-exit --exit-code-from release-artifact release-artifact >"$RELEASE_REHEARSAL_DIR/planner-rejection.log" 2>&1; then
   printf '%s\n' 'Malformed CAM incorrectly passed the planner.' >&2; exit 1
 fi
 planner_id="$("${bad_compose[@]}" ps --all --quiet release-plan)"
@@ -166,14 +191,14 @@ for service in release-rpc-proxy release-artifact-rpc-proxy deploy-release relea
     fi
   fi
 done
-"${planner_compose[@]}" down --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1
+release_run_owned 15 "${planner_compose[@]}" down --timeout 10 --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1
 planner_started=0
 unset RELEASE_OUTPUT_DIR
 
 printf 'Deploying %s through its normal release command...\n' "$app"
 run_logged deploy.log make "$app/release/deploy"
 printf 'Checking that pending ownership prevents release verification...\n'
-if timeout --foreground 900 make "$app/release/verify" >"$RELEASE_REHEARSAL_DIR/pending-verification.log" 2>&1; then
+if release_run_owned 330 timeout --foreground --kill-after=330s 900 make "$app/release/verify" >"$RELEASE_REHEARSAL_DIR/pending-verification.log" 2>&1; then
   printf '%s\n' 'Verification incorrectly accepted pending ownership.' >&2
   exit 1
 fi

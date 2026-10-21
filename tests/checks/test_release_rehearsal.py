@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import os
+import signal
 import unittest
 
 from .common import compose_mapping, compose_sequence_or_empty, compose_service, rendered_compose_config
+from .test_release_approval_image import _ReleaseCommandHarness
 from .text.test_rendered_compose_posture import makefile_compose_units, release_rehearsal_units
 
 
@@ -61,3 +64,51 @@ class ReleaseRehearsalTest(unittest.TestCase):
                     self.assertEqual("cam-release-rehearsal-fixture", network["name"])
                 else:
                     self.assertIs(network["internal"], True)
+
+
+class ReleaseRehearsalCancellationTest(unittest.TestCase):
+    def test_parent_signals_wait_for_pty_cleanup_before_fixture_teardown(self) -> None:
+        for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+            with self.subTest(signal=signum):
+                with _ReleaseCommandHarness("rehearsal", block="pty") as run:
+                    run.wait_for("child-ready ")
+                    os.kill(run.process.pid, signum)
+                    lines = run.wait_for("child-term")
+                    self.assertFalse(any(line.startswith("down-start ") for line in lines))
+                    self.assertTrue((run.work / "source/js/node_modules/owned").is_file())
+                    self.assertTrue((run.work / "source/dapps/dependencies/owned").is_file())
+                    # The nested PTY driver, not the outer shell, decides when its
+                    # signer cleanup has finished.
+                    run.release()
+                    lines = run.wait_for("down-start ")
+                    self.assertLess(lines.index("child-stopped"), next(
+                        index for index, line in enumerate(lines) if line.startswith("down-start ")
+                    ))
+                    os.killpg(run.process.pid, signal.SIGINT)
+                    os.killpg(run.process.pid, signal.SIGTERM)
+                    self.assertIsNone(run.process.poll())
+                    run.release()
+                    self.assertEqual(128 + signum, run.finish())
+                    run.assert_owned_cleanup(self)
+                    self.assertFalse((run.work / "source/js/node_modules").exists())
+                    self.assertFalse((run.work / "source/dapps/dependencies").exists())
+                    self.assertTrue((run.work / "cleanup.log").is_file())
+                    self.assertTrue((run.work / "source-commit").is_file())
+                    self.assertIn("Release rehearsal records:", run.log.read_text(encoding="utf-8"))
+
+    def test_failed_child_or_fixture_teardown_retains_mounted_dependencies(self) -> None:
+        for child_status, down_status in ((2, 0), (0, 1)):
+            with self.subTest(child_status=child_status, down_status=down_status):
+                with _ReleaseCommandHarness(
+                    "rehearsal", block="pty", hold_down=False,
+                    child_status=child_status, down_status=down_status,
+                ) as run:
+                    run.wait_for("child-ready ")
+                    os.kill(run.process.pid, signal.SIGTERM)
+                    run.wait_for("child-term")
+                    run.release()
+                    self.assertNotEqual(0, run.finish())
+                    run.assert_owned_cleanup(self)
+                    self.assertTrue((run.work / "source/js/node_modules/owned").is_file())
+                    self.assertTrue((run.work / "source/dapps/dependencies/owned").is_file())
+                    self.assertIn("Mounted rehearsal inputs retained", run.log.read_text(encoding="utf-8"))

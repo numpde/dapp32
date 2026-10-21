@@ -2,6 +2,21 @@
 # Sourced by Make after its existing release path guards have been defined.
 
 unset release_config_dir release_config_input
+release_config_started=0
+
+release_config_teardown() {
+  local previous_grace="$release_command_grace" failed=0
+  if [[ "$release_config_started" != 1 ]]; then return 0; fi
+  release_command_grace=60
+  if ! compose_release_config down --timeout 10 --volumes --remove-orphans >/dev/null; then
+    printf '%s\n' 'Release configuration teardown failed; retaining mounted inputs.' >&2
+    failed=1
+  else
+    release_config_started=0
+  fi
+  release_command_grace="$previous_grace"
+  return "$failed"
+}
 
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
@@ -30,9 +45,23 @@ require_release_config() {
 }
 
 release_config_stage() {
+  local digest
   release_config_dir="$(mktemp -d -- "$1/.cam-release-config-XXXXXXXX")"
   chmod 0700 -- "$release_config_dir"
-  trap 'release_config_status=$?; release_config_cleanup || release_config_status=1; exit "$release_config_status"' EXIT
+  digest="$(printf '%s' "$release_config_dir" | sha256sum)"
+  release_config_project="cam-release-config-${digest:0:24}"
+  release_config_started=0
+  trap 'release_config_status=$?; release_config_failed=0;
+    if ! release_process_cleanup_begin; then release_config_failed=1; fi
+    if ! release_config_teardown; then release_config_failed=1; fi
+    if [[ "$release_config_failed" == 0 ]]; then
+      release_config_cleanup || release_config_failed=1
+    fi
+    if [[ "$release_config_failed" != 0 ]]; then
+      printf "Release cleanup retained mounted inputs: %s\n" "$release_config_dir" >&2
+      release_config_status=2
+    fi
+    exit "$release_config_status"' EXIT
 }
 
 require_release_local_network() {

@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+import errno
 import json
 import os
 from pathlib import Path
@@ -10,8 +12,10 @@ import fcntl
 import pty
 import re
 import select
+import signal
 import struct
 import subprocess
+import sys
 import termios
 import time
 import tty
@@ -21,6 +25,143 @@ PROMPT = "Type start and press Enter to open the approval socket."
 SERVICE_LABEL = "com.docker.compose.service"
 PROJECT_LABEL = "com.docker.compose.project"
 IDENTITY = re.compile(r"^sha256:[0-9a-f]{64}$")
+CLEANUP_TIMEOUT = 300
+CANCEL_SIGNALS = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+
+
+class ReleaseCleanupError(RuntimeError):
+    """The outer rehearsal must retain inputs when child cleanup is incomplete."""
+
+
+def process_status(process: subprocess.Popen[bytes]) -> int | None:
+    # WNOWAIT keeps our child PID reserved, even after its leader exits. No
+    # poll()/wait() may reap it before the last signal to its process group.
+    if process.returncode is not None:
+        raise ReleaseCleanupError("Release child was reaped early; refusing to signal a reused process group")
+    result = os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    if result is None:
+        return None
+    return result.si_status if result.si_code == os.CLD_EXITED else -result.si_status
+
+
+def drain_terminal(master: int, transcript: bytearray, timeout: float) -> bool:
+    """Read available output; return true only when the slave terminal closes."""
+    ready, _, _ = select.select([master], [], [], timeout)
+    if not ready:
+        return False
+    try:
+        chunk = os.read(master, 65536)
+    except OSError as error:
+        if error.errno == errno.EIO:
+            return True
+        raise
+    transcript.extend(chunk)
+    return not chunk
+
+
+def stop_release(process: subprocess.Popen[bytes], master: int, transcript: bytearray) -> None:
+    process_status(process)  # Verify that the child is still ours before signalling.
+    try:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            wait_for_exit(process, master, transcript, time.monotonic() + CLEANUP_TIMEOUT)
+        except TimeoutError as cause:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            try:
+                wait_for_exit(process, master, transcript, time.monotonic() + 10)
+            except TimeoutError:
+                pass
+            raise ReleaseCleanupError(
+                f"Release cleanup exceeded {CLEANUP_TIMEOUT}s; its child group was forcibly stopped. "
+                "Container cleanup is unconfirmed; retain rehearsal inputs and inspect the PTY log."
+            ) from cause
+    finally:
+        # Only reap after every possible group signal, and never block on a
+        # process which did not exit even after escalation.
+        if process_status(process) is not None:
+            process.wait()
+
+
+@contextmanager
+def release_terminal(log_path: Path):
+    """Own the child session, cancellation, terminal descriptors and transcript."""
+    master = slave = None
+    process = None
+    transcript = bytearray()
+    previous_handlers = {}
+    cancelled = None
+    launching = True
+    cleaning = False
+
+    def cancel(signum, _frame):
+        nonlocal cancelled
+        if cancelled is not None:
+            return
+        cancelled = signum
+        # A signal may arrive after Popen creates the child but before it
+        # returns the handle. Finish acquiring ownership before unwinding.
+        if not launching and not cleaning:
+            raise SystemExit(128 + signum)
+
+    try:
+        for signum in CANCEL_SIGNALS:
+            previous_handlers[signum] = signal.signal(signum, cancel)
+        master, slave = pty.openpty()
+        tty.setraw(slave)
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
+        env = os.environ.copy()
+        env["RELEASE_APPROVAL_TRACE_RPC"] = "1"
+        if cancelled is not None:
+            raise SystemExit(128 + cancelled)
+        process = subprocess.Popen(
+            ["make", "escrow/release/deploy"],
+            cwd=Path(__file__).resolve().parents[1], env=env,
+            stdin=slave, stdout=slave, stderr=slave, close_fds=True, start_new_session=True,
+        )
+        os.close(slave)
+        slave = None
+        launching = False
+        if cancelled is not None:
+            raise SystemExit(128 + cancelled)
+        yield master, process, transcript
+    finally:
+        cleaning = True
+        failures = []
+        if slave is not None:
+            try:
+                os.close(slave)
+            except OSError as error:
+                failures.append(f"closing the PTY slave failed: {error}")
+        try:
+            if process is not None and master is not None:
+                stop_release(process, master, transcript)
+        except Exception as error:
+            failures.append(str(error))
+        finally:
+            if master is not None:
+                try:
+                    os.close(master)
+                except OSError as error:
+                    failures.append(f"closing the PTY failed: {error}")
+            try:
+                with log_path.open("wb") as output:
+                    os.fchmod(output.fileno(), 0o600)
+                    output.write(transcript)
+            except OSError as error:
+                failures.append(f"saving the PTY log failed: {error}")
+            finally:
+                for signum, handler in previous_handlers.items():
+                    signal.signal(signum, handler)
+        if failures:
+            raise ReleaseCleanupError("; ".join(failures))
+        if cancelled is not None:
+            raise SystemExit(128 + cancelled)
 
 
 def required(name: str) -> str:
@@ -108,22 +249,12 @@ def read_until(master: int, process: subprocess.Popen[bytes], transcript: bytear
     while time.monotonic() < deadline:
         if predicate():
             return
-        if process.poll() is not None:
-            raise RuntimeError(f"Release command exited before {explanation} (status {process.returncode})")
-        ready, _, _ = select.select([master], [], [], min(0.2, max(0.0, deadline - time.monotonic())))
-        if not ready:
-            continue
-        try:
-            chunk = os.read(master, 65536)
-        except OSError:
-            if process.poll() is not None:
-                break
-            raise
-        if not chunk:
+        status = process_status(process)
+        if status is not None:
+            raise RuntimeError(f"Release command exited before {explanation} (status {status})")
+        if drain_terminal(master, transcript, min(0.2, max(0.0, deadline - time.monotonic()))):
             break
-        transcript.extend(chunk)
     raise RuntimeError(f"Timed out waiting for {explanation}")
-
 
 def fixture_nonce(project: str, address: str) -> int:
     matches = containers("release-anvil", project)
@@ -227,19 +358,17 @@ def listener_chain_id(gate: str) -> str:
 
 def wait_for_exit(process: subprocess.Popen[bytes], master: int, transcript: bytearray,
                   deadline: float) -> int:
+    terminal_closed = False
     while time.monotonic() < deadline:
-        if process.poll() is not None:
-            return process.returncode if process.returncode is not None else process.wait()
-        ready, _, _ = select.select([master], [], [], 0.2)
-        if ready:
-            try:
-                transcript.extend(os.read(master, 65536))
-            except OSError:
-                if process.poll() is not None:
-                    break
-                raise
-    raise RuntimeError("Release command did not finish after the operator rejected the first transaction")
-
+        status = process_status(process)
+        if terminal_closed and status is not None:
+            return status
+        pause = min(0.2, max(0.0, deadline - time.monotonic()))
+        if terminal_closed:
+            time.sleep(pause)
+        else:
+            terminal_closed = drain_terminal(master, transcript, pause)
+    raise TimeoutError("Release command did not finish after the operator rejected the first transaction")
 
 def main() -> None:
     image = required("RELEASE_APPROVAL_IMAGE")
@@ -263,23 +392,11 @@ def main() -> None:
     nonce_before = fixture_nonce(rehearsal_project, deployer)
     old_gates = containers("release-approval")
     old_signers = containers("deploy-release")
-    master, slave = pty.openpty()
-    tty.setraw(slave)
-    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
-    env = os.environ.copy()
-    env["RELEASE_APPROVAL_TRACE_RPC"] = "1"
-    process = subprocess.Popen(
-        ["make", "escrow/release/deploy"],
-        cwd=Path(__file__).resolve().parents[1], env=env,
-        stdin=slave, stdout=slave, stderr=slave, close_fds=True, start_new_session=True,
-    )
-    os.close(slave)
-    transcript = bytearray()
     approval_id = ""
     project = ""
     socket_path: Path | None = None
     log_path = rehearsal_dir / "approval-pty.log"
-    try:
+    with release_terminal(log_path) as (master, process, transcript):
         read_until(
             master, process, transcript,
             lambda: PROMPT in transcript.decode("utf-8", errors="replace"),
@@ -385,23 +502,14 @@ def main() -> None:
         if "Review broadcast and approval audit for possible earlier effects." not in transcript.decode("utf-8", errors="replace"):
             raise RuntimeError("Launcher failure did not explain that earlier release effects may exist")
         print("PTY approval launch check passed: identity shown before start, Forge waited, rejection sent nothing, audit retained, services cleaned.")
-    finally:
-        if process.poll() is None:
-            import signal
-            os.killpg(process.pid, signal.SIGTERM)
-            try:
-                process.wait(timeout=15)
-            except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
-                process.wait()
-        os.close(master)
-        log_path.write_bytes(transcript)
-        log_path.chmod(0o600)
 
 
 if __name__ == "__main__":
     try:
         main()
+    except ReleaseCleanupError as error:
+        print(f"Release approval PTY cleanup incomplete: {error}", file=sys.stderr)
+        raise SystemExit(2)
     except Exception as error:
-        print(f"Release approval PTY check failed: {error}", file=__import__("sys").stderr)
+        print(f"Release approval PTY check failed: {error}", file=sys.stderr)
         raise SystemExit(1)

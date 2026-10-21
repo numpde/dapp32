@@ -50,6 +50,37 @@ if [[ $(git -C "$repo_root" cat-file -t "$source_commit" 2>/dev/null) != commit 
   exit 2
 fi
 
+source "$repo_root/tools/release_process.sh"
+release_process_init
+work_dir=
+stage_started=0
+cleanup() {
+  local status=$? cleanup_failed=0
+  set +e
+  if ! release_process_cleanup_begin; then
+    printf '%s\n' 'Approval image launch command did not shut down cleanly; retaining its mounted inputs.' >&2
+    status=1
+    cleanup_failed=1
+  fi
+  if [[ $stage_started == 1 ]]; then
+    if ! release_run_owned 60 docker compose -p "$project_name" "${compose_files[@]}" down --timeout 10 --volumes --remove-orphans >&2; then
+      printf 'Approval image teardown failed; inspect project %s. Mounted inputs retained at %s.\n' "$project_name" "$work_dir" >&2
+      status=1
+      cleanup_failed=1
+    fi
+  fi
+  if [[ ${artifact_dir+x} == x ]] && ! rm -rf -- "$artifact_dir"; then
+    printf 'Could not remove temporary image provenance: %s\n' "$artifact_dir" >&2
+    status=1
+  fi
+  if [[ -n $work_dir && $cleanup_failed == 0 ]] && ! rm -rf -- "$work_dir"; then
+    printf 'Could not remove approval image build inputs: %s\n' "$work_dir" >&2
+    status=1
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+
 # All image inputs come from this archive, not from the checkout being deployed.
 work_dir=$(mktemp -d)
 source_dir=$work_dir/source
@@ -58,22 +89,10 @@ context_dir=$work_dir/context
 mkdir -m 0700 "$source_dir" "$manifest_dir" "$context_dir"
 project_name=cam-approval-image-$(basename "$work_dir" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9')
 compose_files=(-f "$source_dir/compose/package-deps.yml" -f "$source_dir/compose/release/approval-image.yml")
-stage_started=0
-cleanup() {
-  status=$?
-  if [[ $stage_started == 1 ]]; then
-    if ! docker compose -p "$project_name" "${compose_files[@]}" down --volumes --remove-orphans >&2; then
-      printf '%s\n' 'Approval image dependency volume cleanup failed; inspect the Docker project before retrying.' >&2
-      status=1
-    fi
-  fi
-  if [[ ${artifact_dir+x} == x ]]; then rm -rf -- "$artifact_dir"; fi
-  rm -rf -- "$work_dir"
-  exit "$status"
-}
-trap cleanup EXIT
 
-git -C "$repo_root" archive --format=tar "$source_commit" | tar -xf - -C "$source_dir"
+release_run_owned 15 git -C "$repo_root" archive --format=tar --output="$work_dir/source.tar" "$source_commit"
+release_run_owned 15 tar -xf "$work_dir/source.tar" -C "$source_dir"
+rm -- "$work_dir/source.tar"
 for input in \
   "$source_dir/js/package.json" \
   "$source_dir/js/package-lock.json" \
@@ -112,13 +131,14 @@ done
 
 # The npm stage sees manifests through the registry-only proxy, not repository source.
 stage_started=1
-docker compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
-docker compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
-docker compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
+release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" build --pull=false package-stage package-egress-proxy
+release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --rm package-stage
+release_run_owned 15 docker compose -p "$project_name" "${compose_files[@]}" run --pull never --no-deps --rm -T release-approval-context
 
 lock_sha256=$(sha256sum "$source_dir/js/package-lock.json" | cut -d ' ' -f1)
 dockerfile_sha256=$(sha256sum "$source_dir/containers/release-approval/Dockerfile" | cut -d ' ' -f1)
-image_id=$(docker build --network=none --pull=false --label "org.opencontainers.image.revision=$source_commit" --quiet "$context_dir")
+release_run_owned 15 docker build --network=none --pull=false --label "org.opencontainers.image.revision=$source_commit" --quiet "$context_dir" >"$work_dir/image-id"
+image_id=$(<"$work_dir/image-id")
 if [[ ! $image_id =~ ^sha256:[0-9a-f]{64}$ ]]; then
   printf 'Docker build returned an invalid image ID: %s\n' "$image_id" >&2
   exit 1

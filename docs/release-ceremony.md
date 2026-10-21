@@ -124,9 +124,9 @@ make escrow/release/approval/start/check RELEASE_APPROVAL_IMAGE=sha256:<image-id
 ```
 
 This command creates its own isolated chain and public fixture inputs. It
-requires installed locked Solidity and JS dependencies, Docker Compose and
-host Python 3. It displays the release identity, enters `start`, waits for the
-first transaction review and rejects that transaction. The check requires an
+requires installed locked Solidity and JS dependencies, Docker Compose, host
+Python 3 and `setsid` (normally provided by util-linux on Linux). It displays the
+release identity, enters `start`, waits for the first transaction review and rejects that transaction. The check requires an
 unchanged deployer nonce and an audit with no approval or transmission.
 Successful approval and receipt verification remain a separate rehearsal.
 
@@ -154,6 +154,36 @@ standard reads and subsequent requests before changing RPC permissions.
 The listener regression covers the unsupported probe, standard reads on the
 same connection and a submission held by approval. The PTY run checks the real
 pinned client against the approval image.
+
+## Cancel a release or rehearsal
+
+Pressing Ctrl-C, closing the terminal (SIGHUP), or sending SIGTERM follows the
+same cleanup path as ordinary completion. The approval image builder and the
+release rehearsal stop and wait for their active child processes before
+removing their own Compose projects. Deployment and verification do the same
+for their private ceremony projects. The launcher waits for cleanup to finish;
+a second interruption does not interrupt teardown.
+
+Approval startup belongs to the release launcher. Ending the attached approval
+session cancels the release, including before `start` has opened the socket.
+Cleanup stops the signer and approval service and reaps the terminal client
+before removing the remaining services. A background helper cannot start a new
+signer during teardown.
+
+Cleanup removes containers (including temporary `compose run` containers),
+project networks and volumes, and temporary inputs after successful teardown.
+The rehearsal retains its records directory and deployment audit; a completed
+approval-image build retains its image and provenance file. An existing shared
+network created with `network/local/up` has its separate lifecycle described
+above; a release attached to it owns only its private ceremony projects.
+
+The offline `make tests/checks` suite includes signal and shutdown regressions
+using substitute child processes and Docker command boundaries. These checks
+require no Docker daemon inside the checks container.
+
+SIGKILL and a stopped or unreachable Docker daemon cannot be handled by shell
+cleanup. If teardown cannot complete, the command reports failure and retains
+mounted inputs and diagnostics rather than claiming the run was removed.
 
 ## Deploy to the selected chain
 
