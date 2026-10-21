@@ -90,7 +90,7 @@ if args[0] == "attach":
         if sock is not None:
             sock.close()
         (root / "attachment-ended").touch()
-    raise SystemExit(0)
+    raise SystemExit(int(os.environ["ATTACH_EXIT"]))
 if args[0] == "inspect":
     value = args[2]
     if value == "{{.State.Running}}":
@@ -173,6 +173,7 @@ class ReleaseLifecycleTest(unittest.TestCase):
             "REPEAT_SIGNALS": "0",
             "FORGE_STATE": "running 0",
             "GATE_EXIT": "0",
+            "ATTACH_EXIT": "0",
         }
 
     def wait_path(self, path: Path, process: subprocess.Popen[str]) -> None:
@@ -300,10 +301,12 @@ release_run_owned 1 "$PYTHON" -c 'import os, time; from pathlib import Path; Pat
                 (root / "output").mkdir()
                 (root / "fake_docker.py").write_text(FAKE_DOCKER, encoding="utf-8")
                 env = self.environment(root, ceremony)
-                env["ATTACH_PHASE"] = "review" if phase == "completed-rejection" else phase
+                env["ATTACH_PHASE"] = phase
                 if phase == "completed-rejection":
+                    env["ATTACH_PHASE"] = "review"
                     env["FORGE_STATE"] = "exited 1"
                     env["GATE_EXIT"] = "143"
+                    env["ATTACH_EXIT"] = "143"
                 script = SHELL_SETUP + "\n" + r"""
 source "$LAUNCHER"
 RELEASE_APPROVAL_SOCKET_DIR="$CASE_ROOT/socket"
@@ -365,7 +368,9 @@ compose_release() {
                 )
                 self.assertFalse(ceremony.exists())
                 self.assertTrue((root / "attachment-ended").exists())
-                expected_exit = "1\n" if phase == "completed-rejection" else "unknown\n"
+                expected_exit = "unknown\n"
+                if phase == "completed-rejection":
+                    expected_exit = "1\n"
                 self.assertEqual(expected_exit, (root / "output/forge-exit-code").read_text())
                 self.assertIn("fixture Forge output", (root / "output/deploy.log").read_text())
                 self.assertIn("Review broadcast and approval audit for possible earlier effects.", stderr)
@@ -516,6 +521,37 @@ compose_release() {
                 self.assertTrue((root / "config/rpc-url").is_file())
                 events = (root / "events").read_text().splitlines()
                 self.assertEqual(5, sum(event.startswith("down:") for event in events))
+
+    def test_cleanup_callbacks_report_their_own_results_inside_an_exit_trap(self) -> None:
+        for callback in ("approval", "config-unlink", "config-rmdir"):
+            for primary, result in ((0, 0), (0, 1), (7, 0), (7, 1)):
+                with self.subTest(callback=callback, primary=primary, result=result), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    env = self.environment(root, root)
+                    env.update(PRIMARY_STATUS=str(primary), CLEANUP_STATUS=str(result), CALLBACK=callback)
+                    script = r'''
+source "$LAUNCHER"
+source "$CONFIG_SOURCE"
+release_approval_restore_terminal() { return "$CLEANUP_STATUS"; }
+if [[ "$CALLBACK" != approval ]]; then
+  release_config_dir="$CASE_ROOT/config"
+  if [[ "$CALLBACK" == config-unlink ]]; then
+    rm() { return "$CLEANUP_STATUS"; }
+    rmdir() { return 0; }
+  else
+    rm() { return 0; }
+    rmdir() { return "$CLEANUP_STATUS"; }
+  fi
+fi
+trap 'set +e
+  if [[ "$CALLBACK" == approval ]]; then release_approval_cleanup; else release_config_cleanup; fi
+  printf "cleanup=%s\n" "$?"' EXIT
+exit "$PRIMARY_STATUS"
+'''
+                    process = self.launch(script, env)
+                    stdout, stderr = process.communicate(timeout=10)
+                    self.assertEqual(primary, process.returncode, stdout + stderr)
+                    self.assertIn(f"cleanup={result}\n", stdout)
 
 
 if __name__ == "__main__":

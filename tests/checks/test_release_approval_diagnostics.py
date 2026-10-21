@@ -121,7 +121,9 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                     self.assertIn(f"label=com.docker.compose.project={owner}", args)
                     if finished:
                         return ""
-                    signers = {signer, foreign_signer} if started else {foreign_signer}
+                    signers = {foreign_signer}
+                    if started:
+                        signers.add(signer)
                     all_projects = {"release-approval": {gate, foreign_gate}, "deploy-release": signers}
                     for service, inventory in all_projects.items():
                         if f"label=com.docker.compose.service={service}" in args:

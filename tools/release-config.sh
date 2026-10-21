@@ -20,8 +20,8 @@ release_config_teardown() {
 
 release_config_cleanup() {
   if [[ -v release_config_dir && -n "$release_config_dir" ]]; then
-    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" || return
-    rmdir -- "$release_config_dir" || return
+    rm -f -- "$release_config_dir/inputs" "$release_config_dir/rpc-url" "$release_config_dir/deployer-key" "$release_config_dir/release.json" || return "$?"
+    rmdir -- "$release_config_dir" || return "$?"
     unset release_config_dir
   fi
 }

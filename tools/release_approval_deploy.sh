@@ -160,7 +160,8 @@ release_approval_cleanup() {
   fi
   if [[ -z "$release_approval_attach_pid" ]]; then
     release_approval_restore_terminal
-    return
+    # Bash 5.2 can make a bare return reuse the failing command's EXIT-trap status.
+    return "$?"
   fi
   # Stop containers before joining their attachment. Nothing in the background
   # has authority to start a replacement signer after this point.
