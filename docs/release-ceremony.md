@@ -181,6 +181,14 @@ if the launcher has already removed the relevant container; the live logs remain
 `deployment/deploy.log` is available when the launcher collects its ordinary
 post-run logs.
 
+The production launcher also retains `approval-diagnostics.log` in the release
+output directory (`deployment/` inside a rehearsal). It captures container
+state and both log streams before teardown, including failures before the start
+prompt or terminal attachment. The file is created privately without replacing
+an existing file and contains at most 64 KiB; its header marks it as an excerpt.
+Collection is time-limited. If it fails, cleanup continues and reports the
+diagnostic failure separately from the original release error.
+
 The listener assigns its own connection and request numbers. These correlate
 requests and responses, elapsed time and socket write status across Forge and
 independent probes. Caller-supplied IDs, parameter values and response bodies

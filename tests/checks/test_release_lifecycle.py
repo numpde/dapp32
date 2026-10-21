@@ -408,6 +408,85 @@ release_run_owned 2 "$PYTHON" "$CASE_ROOT/worker.py"
                 projects.append(project)
         self.assertNotEqual(*projects)
 
+    def test_startup_failure_retains_private_bounded_diagnostics_before_teardown(self) -> None:
+        for case in ("exited", "incomplete", "large", "log-failure", "existing-file", "head-failure"):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory(
+                prefix=f"cam-release-{os.getuid()}-", dir="/tmp",
+            ) as ceremony_directory:
+                root, ceremony = Path(directory), Path(ceremony_directory)
+                output = root / "output"
+                output.mkdir()
+                diagnostic = output / "approval-diagnostics.log"
+                if case == "existing-file":
+                    diagnostic.write_text("existing operator file\n")
+                env = self.environment(root, ceremony)
+                env["STARTUP_CASE"] = case
+                script = SHELL_SETUP + "\n" + r'''
+source "$LAUNCHER"
+docker() {
+  if [[ "$1" == logs ]]; then
+    if [[ "$3" == 16 ]]; then
+      case "$STARTUP_CASE" in
+        incomplete) printf '%s\n' 'Type start and press Enter to open the approval socket.' ;;
+        *) printf '%s\n' 'private startup failure' >&2 ;;
+      esac
+    else
+      printf '%s\n' 'private startup failure' >&2
+      if [[ "$STARTUP_CASE" == large ]]; then "$PYTHON" -c 'print("x" * 262144)'; fi
+      if [[ "$STARTUP_CASE" == log-failure ]]; then return 9; fi
+    fi
+  elif [[ "$1" == inspect ]]; then
+    if [[ "$3" == '{{.State.Running}}' ]]; then printf '%s\n' false
+    else printf '%s\n' 'status=exited exit=1 oom=false'; fi
+  else return 91
+  fi
+}
+# Only the external Docker boundary is faked; no Docker daemon is available in checks.
+timeout() { shift 2; "$@"; }
+if [[ "$STARTUP_CASE" == head-failure ]]; then head() { command head "$@"; return 9; }; fi
+compose_release() {
+  case "$1" in
+    up) printf 'up:%s\n' "${@: -1}" >> "$CASE_ROOT/events" ;;
+    ps) printf '%064d\n' 1 ;;
+    down)
+      if [[ -f "$CASE_ROOT/output/approval-diagnostics.log" ]]; then
+        printf '%s\n' retained-before-down >> "$CASE_ROOT/events"
+      fi
+      fake_down run ;;
+    *) return 92 ;;
+  esac
+}
+'''
+                script += "\ncleanup() {\n" + make_cleanup() + "\n}\ntrap cleanup EXIT\n"
+                script += 'release_approval_run "$CASE_ROOT/output"\n'
+                process = self.launch(script, env)
+                try:
+                    stdout, stderr = process.communicate(timeout=10)
+                finally:
+                    self.emergency_cleanup(process, root)
+                self.assertEqual(1, process.returncode, stdout + stderr)
+                self.assertNotIn("private startup failure", stdout + stderr)
+                self.assertTrue(diagnostic.is_file(), stdout + stderr)
+                contents = diagnostic.read_text()
+                if case == "existing-file":
+                    self.assertEqual("existing operator file\n", contents)
+                else:
+                    self.assertIn("status=exited exit=1 oom=false", contents)
+                    self.assertIn("private startup failure", contents)
+                    self.assertLessEqual(diagnostic.stat().st_size, 65536)
+                    self.assertEqual(0o600, diagnostic.stat().st_mode & 0o777)
+                if case in ("log-failure", "existing-file", "head-failure"):
+                    self.assertIn("diagnostics", stderr.lower())
+                    self.assertIn("could not", stderr.lower())
+                else:
+                    self.assertIn(str(diagnostic), stdout + stderr)
+                events = (root / "events").read_text().splitlines()
+                self.assertLess(events.index("retained-before-down"), events.index("down:run"))
+                self.assertNotIn("up:deploy-release", events)
+                self.assertEqual(5, sum(event.startswith("down:") for event in events))
+                self.assertFalse(ceremony.exists())
+                self.assertFalse((output / "forge-exit-code").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

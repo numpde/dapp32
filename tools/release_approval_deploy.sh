@@ -132,8 +132,32 @@ release_approval_restore_terminal() {
   fi
 }
 
+release_approval_retain_diagnostics() {
+  local identity path="$release_approval_output/approval-diagnostics.log"
+  identity="$(compose_release ps -a -q release-approval)" || return 1
+  if [[ -z "$identity" ]]; then return 0; fi
+  if [[ ! "$identity" =~ ^[0-9a-f]{64}$ ]]; then return 1; fi
+  if ! (
+    umask 077
+    set -o noclobber
+    (
+      failed=0
+      printf '%s\n' 'Approval diagnostics: first 65536 bytes; excerpt may be truncated.'
+      timeout --kill-after=1s 5s docker inspect --format 'status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}' "$identity" || failed=1
+      timeout --kill-after=1s 5s docker logs --tail 80 "$identity" || failed=1
+      exit "$failed"
+    ) 2>&1 | { head -c 65536 && cat >/dev/null; } > "$path"
+  ); then
+    return 1
+  fi
+  printf 'Approval diagnostics retained at %s\n' "$path" >&2
+}
+
 release_approval_cleanup() {
   local failed=0 started attach_status=0
+  if [[ -n "$release_approval_output" ]] && ! release_approval_retain_diagnostics; then
+    printf 'Could not fully retain approval diagnostics at %s/approval-diagnostics.log; continuing resource cleanup.\n' "$release_approval_output" >&2
+  fi
   if [[ -z "$release_approval_attach_pid" ]]; then
     release_approval_restore_terminal
     return
