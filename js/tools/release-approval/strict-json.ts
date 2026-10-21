@@ -1,7 +1,7 @@
 type JsonLocation = "id" | "params" | "other"
 
 export class RpcJsonError extends Error {
-  readonly reason: "syntax" | "duplicate-key" | "depth" | "number-form" | "unsafe-integer"
+  readonly reason: "syntax" | "duplicate-key" | "depth" | "number-form" | "unsafe-integer" | "nonfinite-number"
   readonly offset: number
   readonly location: JsonLocation
   constructor(reason: RpcJsonError["reason"], offset: number, location: JsonLocation) {
@@ -12,7 +12,7 @@ export class RpcJsonError extends Error {
   }
 }
 
-export function parseStrictJson(source: string): unknown {
+export function parseStrictJson(source: string, numbers: "safe-integers" | "rpc"): unknown {
   let cursor = 0
   function fail(reason: RpcJsonError["reason"], location: JsonLocation): never {
     throw new RpcJsonError(reason, cursor, location)
@@ -76,8 +76,10 @@ export function parseStrictJson(source: string): unknown {
     if (!primitive) fail("syntax", location)
     const token = primitive[0]
     if (/^-?[0-9]/.test(token)) {
-      if (!/^-?(?:0|[1-9][0-9]*)$/.test(token) || token === "-0") fail("number-form", location)
-      if (token.length > 17 || !Number.isSafeInteger(Number(token))) fail("unsafe-integer", location)
+      if (numbers === "safe-integers" && (!/^-?(?:0|[1-9][0-9]*)$/.test(token) || token === "-0")) fail("number-form", location)
+      const number = Number(token)
+      if (!Number.isFinite(number)) fail("nonfinite-number", location)
+      if (Number.isInteger(number) && !Number.isSafeInteger(number)) fail("unsafe-integer", location)
     }
     cursor += primitive[0].length
   }

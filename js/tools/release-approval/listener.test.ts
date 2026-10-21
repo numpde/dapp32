@@ -381,17 +381,17 @@ test("fixed backend strips undeclared response fields but preserves standard err
   }
 })
 
-test("RPC JSON rejects numeric tokens that cannot round-trip exactly", () => {
+test("reference JSON retains its exact safe-integer policy", () => {
   for (const token of ["1e999", "1e0", "1.0000000000000001", "-0", "9007199254740992", "-9007199254740992"]) {
-    assert.throws(() => parseStrictJson(`{"value":${token}}`), /number|integer|numeric/i, token)
+    assert.throws(() => parseStrictJson(`{"value":${token}}`, "safe-integers"), /number|integer|numeric/i, token)
   }
-  assert.deepEqual(parseStrictJson('{"value":9007199254740991}'), { value: 9007199254740991 })
+  assert.deepEqual(parseStrictJson('{"value":9007199254740991}', "safe-integers"), { value: 9007199254740991 })
 })
 
 test("unsafe numeric tokens in backend results and error data are rejected", async () => {
   for (const body of [
     '{"jsonrpc":"2.0","id":"check","result":1e999}',
-    '{"jsonrpc":"2.0","id":"check","result":1.0000000000000001}',
+    '{"jsonrpc":"2.0","id":"check","result":9007199254740993}',
     '{"jsonrpc":"2.0","id":"check","error":{"code":-1,"message":"failed","data":{"value":9007199254740992}}}',
   ]) {
     const backend = createHttpServer((_request, response) => response.end(body))
@@ -405,15 +405,46 @@ test("unsafe numeric tokens in backend results and error data are rejected", asy
   }
 })
 
-test("an inexact numeric request is rejected before any backend call", async () => {
+test("a nonfinite numeric request is rejected before any backend call", async () => {
   const f = await fixture()
   try {
     const c = await client(f.socketPath)
-    c.write('{"jsonrpc":"2.0","id":"bad","method":"eth_call","params":[1.0000000000000001]}')
+    c.write('{"jsonrpc":"2.0","id":"bad","method":"eth_call","params":[1e999]}')
     assert.equal((await c.next()).error?.code, -32700)
     assert.equal(f.forwarded.length, 0)
     c.close()
   } finally { await f.close() }
+})
+
+test("RPC fee percentiles accept finite decimal and exponent forms without permitting fractional IDs", async () => {
+  const f = await fixture()
+  try {
+    const c = await client(f.socketPath)
+    c.write('{"jsonrpc":"2.0","id":1e0,"method":"eth_feeHistory","params":["0x5","latest",[20.0,25.5,5e1]]}')
+    assert.deepEqual(await c.next(), { jsonrpc: "2.0", id: 1, result: "0x2a" })
+    assert.deepEqual(f.forwarded, [{ jsonrpc: "2.0", id: 1, method: "eth_feeHistory", params: ["0x5", "latest", [20, 25.5, 50]] }])
+    c.write('{"jsonrpc":"2.0","id":1.5,"method":"eth_chainId"}')
+    assert.equal((await c.next()).error?.code, -32600)
+    assert.equal(f.forwarded.length, 1)
+    assert.deepEqual(f.submissions, [])
+    c.close()
+  } finally { await f.close() }
+})
+
+test("RPC backend ratios and error data use finite JSON number semantics", async () => {
+  for (const body of [
+    '{"jsonrpc":"2.0","id":"check","result":{"gasUsedRatio":[0.1,1e-1,1.0000000000000001]}}',
+    '{"jsonrpc":"2.0","id":"check","error":{"code":-1,"message":"failed","data":{"ratio":0.25}}}',
+  ]) {
+    const backend = createHttpServer((_request, response) => response.end(body))
+    await new Promise<void>(resolve => backend.listen(0, "127.0.0.1", resolve))
+    const address = backend.address()
+    if (!address || typeof address === "string") throw new Error("Missing test backend address")
+    try {
+      const fixed = createFixedBackend({ url: `http://127.0.0.1:${address.port}/`, timeoutMs: 2_000, maxResponseBytes: 4_096 })
+      assert.deepEqual(await fixed.read({ jsonrpc: "2.0", id: "check", method: "eth_feeHistory", params: [] }, new AbortController().signal), JSON.parse(body))
+    } finally { backend.closeAllConnections(); await new Promise<void>(resolve => backend.close(() => resolve())) }
+  }
 })
 
 async function fixedReadWrongId(_socketPath: string) {

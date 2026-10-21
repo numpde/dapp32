@@ -93,7 +93,7 @@ export function assertAbiMatchesSteps(role: string, abi: Abi, steps: readonly Ex
 }
 
 function parseJsonRecord(bytes: Uint8Array, label: string): Record<string, unknown> {
-  return record(parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes)), label)
+  return record(parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(bytes), "safe-integers"), label)
 }
 
 function requireExactKeys(value: Record<string, unknown>, expected: readonly string[], label: string): void {

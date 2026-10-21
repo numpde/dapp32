@@ -93,7 +93,7 @@ export function createFixedBackend(options: FixedBackendOptions): FixedBackend {
       }
     } finally { await reader.cancel() }
     const body = Buffer.concat(chunks, size)
-    const parsed = parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(body))
+    const parsed = parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(body), "rpc")
     if (!object(parsed) || parsed.jsonrpc !== "2.0" || parsed.id !== rpc.id ||
         ("result" in parsed) === ("error" in parsed)) throw new Error("Approval backend returned an invalid or mismatched JSON-RPC response")
     if ("result" in parsed) return { jsonrpc: "2.0", id: rpc.id, result: parsed.result }
@@ -138,14 +138,6 @@ export interface ListenerOptions {
   traceOutput: RpcTraceOutput
   /** Called once after admission stops; the runtime must close the approval owner. */
   onFatal?: (reason: string) => void
-}
-
-function safeJsonNumbers(value: unknown, depth: number): boolean {
-  if (depth > 64) return false
-  if (typeof value === "number") return Number.isSafeInteger(value)
-  if (Array.isArray(value)) return value.every(item => safeJsonNumbers(item, depth + 1))
-  if (object(value)) return Object.values(value).every(item => safeJsonNumbers(item, depth + 1))
-  return true
 }
 
 function frameLength(bytes: Buffer): number | null {
@@ -378,8 +370,9 @@ export async function startRpcListener(options: ListenerOptions) {
       let rpc: RpcRequest
       try {
         rpc = request(value)
-        if (Object.keys(value as Record<string, unknown>).some(key => !["jsonrpc", "id", "method", "params"].includes(key)) ||
-            !safeJsonNumbers(rpc.params, 0)) throw new Error("Unexpected or imprecise JSON-RPC field")
+        if (Object.keys(value as Record<string, unknown>).some(key => !["jsonrpc", "id", "method", "params"].includes(key))) {
+          throw new Error("Unexpected JSON-RPC field")
+        }
       }
       catch { reject(null, "invalid", -32600, "Invalid JSON-RPC request"); return }
       const key = idKey(rpc.id)
@@ -410,7 +403,7 @@ export async function startRpcListener(options: ListenerOptions) {
           stage = "utf8"
           const source = new TextDecoder("utf-8", { fatal: true }).decode(frame)
           stage = "json"
-          const parsed = parseStrictJson(source)
+          const parsed = parseStrictJson(source, "rpc")
           stage = "admission"
           accept(parsed)
         }

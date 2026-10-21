@@ -252,7 +252,7 @@ test("frame rejection diagnostics distinguish causes without exposing request co
     { wire: '{"jsonrpc":"2.0","id":9007199254740993,"method":"eth_chainId"}', detail: /stage=json reason=unsafe-integer location=id offset=\d+/ },
     { wire: `{"${secret}":{"id":9007199254740993}}`, detail: /stage=json reason=unsafe-integer location=other offset=\d+/ },
     { wire: prefix + '[9007199254740993]}', detail: /stage=json reason=unsafe-integer location=params offset=\d+/ },
-    { wire: prefix + '[1.5]}', detail: /stage=json reason=number-form location=params offset=\d+/ },
+    { wire: prefix + '[1e999]}', detail: /stage=json reason=nonfinite-number location=params offset=\d+/ },
     { wire: prefix + `[{"${secret}":1,"${secret}":2}]}`, detail: /stage=json reason=duplicate-key location=params offset=\d+/ },
     { wire: prefix + `[{"${secret}":,}]}`, detail: /stage=json reason=syntax location=params offset=\d+/ },
     { wire: prefix + '["\\uZZZZ"]}', detail: /stage=json reason=syntax location=params offset=\d+/ },

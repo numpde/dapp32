@@ -196,6 +196,14 @@ the request ID as exceeding the parser's exact-integer range without recording
 its value. Rejected frames retain the same RPC error and close the connection;
 these diagnostics do not relax validation.
 
+RPC parameters, results and error details accept finite JSON numbers, including
+fractional and exponent forms used for fee percentiles and gas-use ratios. They
+use ordinary IEEE-754 number semantics; integer values outside the exact safe
+range and nonfinite results are rejected. Request IDs must remain strings, null
+or safe integers. Transaction quantities remain hexadecimal strings and signed
+transaction bytes are unchanged. Reference artifacts retain their stricter
+integer-only JSON policy.
+
 Empty opens/closes are counted, not logged individually. Five-second summaries
 include connection attempts, accepted/rejected counts, active/peak occupancy,
 closed/empty peers, received bytes, requests/responses, parse/socket/write
