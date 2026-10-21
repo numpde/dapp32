@@ -148,6 +148,12 @@ test('image builder gives Compose a valid project name for mixed-case temporary 
   const script = resolve(fileURLToPath(new URL('.', import.meta.url)), '../../tools/release_approval_image_build.sh')
   const outputPath = join(output, 'new-image')
   const runner = `
+APPROVAL_TEST_SETSID=$(type -P setsid) || exit
+export APPROVAL_TEST_SETSID
+# The doubles are Bash functions; keep real session ownership through a shell.
+setsid() {
+  exec "$APPROVAL_TEST_SETSID" "$BASH" -c '"$@"' approval-test-owned "$@"
+}
 docker() {
   printf '%s\\n' "$*" >> "$APPROVAL_TEST_DOCKER_LOG"
   if [[ "$1" == compose ]]; then
@@ -167,7 +173,15 @@ docker() {
 }
 git() {
   if [[ "$1 $3" == '-C cat-file' ]]; then printf 'commit\\n'; return 0; fi
-  if [[ "$1 $3" == '-C archive' ]]; then tar -cf - -C "$APPROVAL_TEST_SOURCE" .; return; fi
+  if [[ "$1 $3" == '-C archive' ]]; then
+    local argument output=
+    for argument in "$@"; do
+      case "$argument" in --output=*) output="\${argument#--output=}" ;; esac
+    done
+    [[ -n "$output" ]] || return 95
+    tar -cf "$output" -C "$APPROVAL_TEST_SOURCE" .
+    return
+  fi
   return 94
 }
 mktemp() {
@@ -179,7 +193,7 @@ mktemp() {
     /usr/bin/mktemp "$@"
   fi
 }
-export -f docker git mktemp
+export -f setsid docker git mktemp
 exec bash "$@"
 `
   const testEnv = {
@@ -204,6 +218,8 @@ exec bash "$@"
   const artifact = JSON.parse(await readFile(join(output, 'new-image', 'approval-image.json'), 'utf8'))
   assert.equal(artifact.imageId, imageId)
   assert.equal(artifact.approvalToolSourceCommit, sourceCommit)
+  assert.match(composeCalls.at(-1), /\sdown(?:\s|$)/)
+  assert.deepEqual(await readdir(workRoot), [])
 })
 
 test('real staged runtime loads without release preparers or workspace packages', async t => {
