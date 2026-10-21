@@ -32,7 +32,7 @@ type RuntimeIO = { input: OperatorInput; output: OperatorOutput; signal?: AbortS
 function waitForOperatorStart(reference: ReferenceSnapshot, io: RuntimeIO): Promise<void> {
   if (io.signal?.aborted) return Promise.reject(new Error("Operator start was interrupted"))
   if (io.input.destroyed || io.input.readableEnded || io.output.destroyed) {
-    throw new Error("Operator terminal detached before start")
+    return Promise.reject(new Error("Operator terminal detached before start"))
   }
   return new Promise<void>((resolve, reject) => {
     let command = ""
@@ -294,6 +294,7 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
     listener = await startRpcListener({
       socketPath: settings.socketPath, backend, owner,
       maxMessageBytes: 262_144, maxConnections: 8, maxInFlight: 32,
+      maxConnectionAttempts: 256, connectionWindowMs: 1_000,
       onFatal: reason => {
         fatalReason = reason
         // The listener has already stopped admission. Close the decision owner
@@ -317,7 +318,7 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
     io.output.write(`Approval ready for ${reference.app}; chain ${reference.expectedChainId}; reference ${reference.snapshotSha256}\n`)
     startupComplete = true
   } catch (error) {
-    try { await close(fatalReason ?? "approval startup failed") } catch { /* startup error remains primary */ }
+    try { await close(fatalReason === null ? "approval startup failed" : fatalReason) } catch { /* startup error remains primary */ }
     throw error
   }
   return { close, finished }
@@ -354,3 +355,4 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
     process.stderr.write(`Approval startup failed (${error instanceof Error ? error.name : "UnknownError"})\n`)
     process.exitCode = 1
   })
+}

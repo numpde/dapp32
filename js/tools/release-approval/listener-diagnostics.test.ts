@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { once } from "node:events"
-import { mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, rmSync } from "node:fs"
 import { connect, type Socket } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -10,6 +10,7 @@ import { startRpcListener, type FixedBackend, type ListenerOptions, type RpcResp
 import type { SubmissionResult } from "./owner.ts"
 
 const nextTurn = () => new Promise<void>(resolve => setImmediate(resolve))
+const LIMITS = { maxConnections: 4, maxConnectionAttempts: 256, connectionWindowMs: 1000 }
 
 async function until(predicate: () => boolean) {
   for (let attempt = 0; attempt < 200; attempt++) {
@@ -34,8 +35,8 @@ function traceCapture(t: TestContext) {
   return lines
 }
 
-async function fixture(limits: Partial<Pick<ListenerOptions,
-  "maxConnections" | "maxConnectionAttempts" | "connectionWindowMs">> = {}) {
+async function fixture(limits: Pick<ListenerOptions,
+  "maxConnections" | "maxConnectionAttempts" | "connectionWindowMs">) {
   const directory = mkdtempSync(join(tmpdir(), "approval-diagnostics-"))
   const socketPath = join(directory, "rpc.sock")
   const fatal: string[] = []
@@ -57,7 +58,7 @@ async function fixture(limits: Partial<Pick<ListenerOptions,
     },
   }
   const listener = await startRpcListener({
-    socketPath, owner, backend, maxConnections: 4, maxInFlight: 4,
+    socketPath, owner, backend, maxInFlight: 4,
     maxMessageBytes: 4096, ...limits, onFatal: reason => { fatal.push(reason) },
   })
   return {
@@ -84,7 +85,7 @@ async function emptyPeer(path: string) {
   await closed
 }
 
-function exchange(socket: Socket, wire: string, expected = 1): Promise<RpcResponse[]> {
+function exchange(socket: Socket, wire: string, expected: number): Promise<RpcResponse[]> {
   return new Promise((resolve, reject) => {
     let bytes = ""
     const answers: RpcResponse[] = []
@@ -108,13 +109,13 @@ function exchange(socket: Socket, wire: string, expected = 1): Promise<RpcRespon
   })
 }
 
-function rpc(id: number | string, method = "eth_chainId", params: unknown[] = []) {
+function rpc(id: number | string, method: string, params: unknown[]) {
   return JSON.stringify({ jsonrpc: "2.0", id, method, params })
 }
 
 test("empty connections are counted without generating one log per open and close", { timeout: 5000 }, async t => {
   const lines = traceCapture(t)
-  const f = await fixture()
+  const f = await fixture(LIMITS)
   try {
     for (let i = 0; i < 30; i++) await emptyPeer(f.socketPath)
     await until(() => f.listener.diagnostics().closed === 30)
@@ -135,13 +136,13 @@ test("empty connections are counted without generating one log per open and clos
 
 test("connection capacity refusals are visible and do not evict a working peer", { timeout: 5000 }, async t => {
   const lines = traceCapture(t)
-  const f = await fixture({ maxConnections: 1 })
+  const f = await fixture({ ...LIMITS, maxConnections: 1 })
   let active: Socket | undefined
   try {
     active = await client(f.socketPath)
     await until(() => f.listener.diagnostics().active === 1)
     await emptyPeer(f.socketPath)
-    const [reply] = await exchange(active, rpc(1))
+    const [reply] = await exchange(active, rpc(1, "eth_chainId", []), 1)
     assert.equal(reply?.result, "0x2a")
     assert.equal(f.listener.diagnostics().rejected, 1)
     assert.equal(f.listener.diagnostics().peak, 1)
@@ -152,7 +153,7 @@ test("connection capacity refusals are visible and do not evict a working peer",
 
 test("connection storm stops admission once and cancels a held transaction without forwarding it", { timeout: 5000 }, async t => {
   traceCapture(t)
-  const f = await fixture({ maxConnectionAttempts: 3, connectionWindowMs: 60000 })
+  const f = await fixture({ ...LIMITS, maxConnectionAttempts: 3, connectionWindowMs: 60000 })
   let held: Socket | undefined
   try {
     held = await client(f.socketPath)
@@ -163,7 +164,9 @@ test("connection storm stops admission once and cancels a held transaction witho
     await f.listener.close()
     await f.listener.close()
     assert.equal(f.fatal.length, 1)
-    assert.match(f.fatal[0] ?? "", /IPC connection storm/)
+    const reason = f.fatal[0]
+    assert.ok(reason !== undefined)
+    assert.match(reason, /IPC connection storm/)
     assert.equal(f.listener.diagnostics().attempts, 4)
     assert.equal(f.listener.diagnostics().active, 0)
     assert.equal(f.counts.sent, 0)
@@ -172,13 +175,13 @@ test("connection storm stops admission once and cancels a held transaction witho
 
 test("unknown methods and malformed frames are diagnosed without caller text", { timeout: 5000 }, async t => {
   const lines = traceCapture(t)
-  const f = await fixture()
+  const f = await fixture(LIMITS)
   let socket: Socket | undefined
   try {
     socket = await client(f.socketPath)
-    const [reply] = await exchange(socket, rpc("secret-id", "secretCredentialMethod", ["secret-parameter"]))
+    const [reply] = await exchange(socket, rpc("secret-id", "secretCredentialMethod", ["secret-parameter"]), 1)
     assert.equal(reply?.error?.code, -32601)
-    const [invalid] = await exchange(socket, '{"secret-frame":,}')
+    const [invalid] = await exchange(socket, '{"secret-frame":,}', 1)
     assert.equal(invalid?.error?.code, -32700)
     await until(() => f.listener.diagnostics().closed === 1)
     assert.equal(f.listener.diagnostics().parse_errors, 1)
@@ -198,11 +201,11 @@ test("trace rate limiting does not change RPC responses", { timeout: 5000 }, asy
   const lines = traceCapture(t)
   // A fixed diagnostic clock makes the per-window budget deterministic.
   t.mock.method(performance, "now", () => 1000)
-  const f = await fixture()
+  const f = await fixture(LIMITS)
   let socket: Socket | undefined
   try {
     socket = await client(f.socketPath)
-    const wire = Array.from({ length: 100 }, (_, i) => rpc(i, "unsupported")).join("")
+    const wire = Array.from({ length: 100 }, (_, i) => rpc(i, "unsupported", [])).join("")
     const answers = await exchange(socket, wire, 100)
     await nextTurn()
     assert.ok(answers.every(answer => answer.error?.code === -32601))
@@ -217,14 +220,38 @@ test("trace rate limiting does not change RPC responses", { timeout: 5000 }, asy
 test("diagnostic backpressure drops traces rather than queuing them or blocking reads", { timeout: 5000 }, async t => {
   const lines = traceCapture(t)
   t.mock.getter(process.stderr, "writableNeedDrain", () => true)
-  const f = await fixture()
+  const f = await fixture(LIMITS)
   let socket: Socket | undefined
   try {
     socket = await client(f.socketPath)
-    const [reply] = await exchange(socket, rpc(1))
+    const [reply] = await exchange(socket, rpc(1, "eth_chainId", []), 1)
     assert.equal(reply?.result, "0x2a")
     assert.equal(lines.length, 0)
     assert.ok(f.listener.diagnostics().suppressed > 0)
     assert.equal(f.listener.diagnostics().failure, null)
   } finally { socket?.destroy(); await f.close() }
+})
+
+test("missing or invalid connection budgets fail before opening the approval socket", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "approval-required-limits-"))
+  const socketPath = join(directory, "rpc.sock")
+  const backend: FixedBackend = {
+    maxResponseBytes: 4096,
+    async read() { throw new Error("must not read") },
+    async send() { throw new Error("must not send") },
+  }
+  const options: ListenerOptions = {
+    socketPath, backend, owner: { async submit() { throw new Error("must not submit") } },
+    maxMessageBytes: 4096, maxInFlight: 4, ...LIMITS,
+  }
+  try {
+    for (const field of ["maxConnectionAttempts", "connectionWindowMs"] as const) {
+      for (const value of [undefined, null, 0, -1, NaN, Infinity]) {
+        // Exercise the runtime boundary, including untyped/malformed callers.
+        const invalid = { ...options, [field]: value } as unknown as ListenerOptions
+        await assert.rejects(startRpcListener(invalid), /bounded capacities/)
+        assert.equal(existsSync(socketPath), false)
+      }
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }) }
 })
