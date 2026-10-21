@@ -80,9 +80,11 @@ public fixture values and chooses distinct intended owners. It then:
    screen through the normal viewer's discovery and resource checks.
 5. Calls the same `release/verify` target again and requires success.
 
-The rehearsal overlays change only CAM publication policy and RPC upstream
-transport. Deployment scripts, plans, artifacts, signing, method restrictions,
-receipt provenance and contract verification are shared with normal releases.
+The ordinary rehearsal overlays change only CAM publication policy and RPC
+upstream transport. Deployment scripts, plans, artifacts, signing, method
+restrictions, receipt provenance and contract verification are shared with
+normal releases. The explicit PTY simulation diagnostic described below is a
+separate experiment, not a normal-release fallback.
 Release broadcasts are sequential so each recorded transaction hash stays paired
 with its submitted transaction.
 Normal releases still require HTTPS/IPFS CAM references and public HTTPS RPCs.
@@ -125,25 +127,68 @@ make escrow/release/approval/start/check RELEASE_APPROVAL_IMAGE=sha256:<image-id
 
 This command creates its own isolated chain and public fixture inputs. It
 requires installed locked Solidity and JS dependencies, Docker Compose, host
-Python 3 and `setsid` (normally provided by util-linux on Linux). It displays the
-release identity, enters `start`, waits for the first transaction review and rejects that transaction. The check requires an
-unchanged deployer nonce and an audit with no approval or transmission.
-Successful approval and receipt verification remain a separate rehearsal.
+Python 3 and `setsid` (normally provided by util-linux on Linux). The driver
+verifies the displayed release identity, enters `start`, waits for the first
+transaction review and rejects that transaction automatically. The check
+requires an unchanged deployer nonce and an audit with no approval or
+transmission. Successful approval and receipt verification remain a separate
+rehearsal. Do not enter an approval command during this automated check.
 
-The command enables RPC tracing and prints its retained records directory.
-On a first-review timeout, `signer-tail.log` and `approval-tail.log` contain
-the selected container's state, exit code and OOM flag, followed by its last
-80 log lines with stdout and stderr combined. These files are owner-only.
-`approval-pty.log` retains the terminal transcript; `deployment/deploy.log`
-is available when the launcher reaches its ordinary post-run log collection.
+### Progress and bounded diagnostics
 
-The listener assigns its own connection and request numbers for tracing. These
-numbers correlate each request with its response, elapsed time and socket write
-status across the Forge process and independent probe clients. The trace omits
-caller-supplied request IDs, parameter values and response bodies.
+Progress is enabled by default. The shell prints the records directory before
+copying source, identifies each preparation phase and emits five-second
+heartbeats while a logged command is running. The PTY driver reports startup,
+read-only probes, the first-review wait, automatic rejection and cleanup. While
+waiting it reports the last observed RPC method and request/response counts,
+plus the most recent listener connection summary. Raw terminal contents,
+transaction bodies and approval challenges are not echoed as progress.
+
+Private files in the printed records directory are available during the run:
+
+| File | Contents and bound |
+| --- | --- |
+| `approval-pty.log` | Live terminal transcript, at most 8 MiB; a limit breach fails the rehearsal. |
+| `approval-rpc.log` | Live RPC-only extract, at most 1 MiB; independent of terminal/compiler output. |
+| `approval-pty-tail.log` | Final 512 KiB of terminal output, including shutdown after a log limit. |
+| `approval-diagnostics.json` | Result, simulation mode, prompt milestones, last RPC, counters and diagnostic failure. |
+| `signer-tail.log`, `approval-tail.log` | Best-effort capture on failure before teardown: container state, exit/OOM status and the last 80 combined stdout/stderr lines. |
+| `simulation-mode`, `source-commit` | Which diagnostic variant ran and the private candidate commit. |
+
+The PTY and RPC logs are created exclusively with mode `0600`, not opened only
+at shutdown. Prompt recognition processes new output incrementally. A bounded
+memory tail replaces the unbounded transcript buffer; log exhaustion never
+stops the cleanup reader from draining the PTY. Full terminal logs are private
+and can contain the displayed challenge and transaction details; the progress
+messages and JSON summary do not contain them. Container tails may be unavailable
+if the launcher has already removed the relevant container; the live logs remain.
+`deployment/deploy.log` is available when the launcher collects its ordinary
+post-run logs.
+
+The listener assigns its own connection and request numbers. These correlate
+requests and responses, elapsed time and socket write status across Forge and
+independent probes. Caller-supplied IDs, parameter values and response bodies
+are omitted. Unknown method names and socket error messages are not echoed.
 `write=flushed` means the socket write callback completed; it does not establish
-that Forge consumed the response. Closed connections, canceled requests and
-failed or skipped writes remain distinguishable.
+that Forge consumed the response.
+
+Empty opens/closes are counted, not logged individually. Five-second summaries
+include connection attempts, accepted/rejected counts, active/peak occupancy,
+closed/empty peers, received bytes, requests/responses, parse/socket/write
+failures and suppressed trace lines. A connection with no bytes differs from
+one that sent bytes but no valid request. Capacity refusals and malformed frames
+have explicit reasons. Detail traces are limited to 128 lines per second and
+448 KiB per listener, with another 64 KiB reserved for summaries. Trace
+backpressure drops diagnostic lines rather than accumulating writes; counters
+continue to advance. These trace limits do not alter RPC results.
+
+More than 256 connection attempts in a one-second window, including refused
+attempts, closes listener admission and the approval owner. The ceremony fails
+with an IPC connection-storm reason in its trace/audit rather than creating
+hundreds of thousands of sockets until a generic timeout. This is a fail-closed
+resource guard, not proof that the underlying client's reconnect defect is fixed.
+The existing simultaneous-connection limit, method gates and explicit approval
+requirement remain unchanged. No transaction is automatically approved or retried.
 
 The pinned Foundry v1.7.1 uses foundry-fork-db 0.26.0. Its
 [account loader](https://github.com/foundry-rs/foundry-core/blob/fork-db-v0.26.0/crates/fork-db/src/backend.rs#L311-L398)
@@ -154,6 +199,35 @@ standard reads and subsequent requests before changing RPC permissions.
 The listener regression covers the unsupported probe, standard reads on the
 same connection and a submission held by approval. The PTY run checks the real
 pinned client against the approval image.
+
+### Explicit simulation comparison
+
+Normal simulation remains the default. After examining a failed normal run,
+compare it with a separate disposable fixture run:
+
+```sh
+make escrow/release/approval/start/check \
+  RELEASE_APPROVAL_IMAGE=sha256:<same-image-id> \
+  RELEASE_APPROVAL_SIMULATION=skip
+```
+
+Only `normal` and `skip` are accepted. `skip` is rejected for the other rehearsal
+actions. The fixture changes exactly one signer command in its new private
+source snapshot before committing that snapshot; it refuses symlinks, an
+existing Git checkout, a non-private directory, or a changed/ambiguous command.
+The operator checkout and checked-in production Compose command are unchanged.
+The candidate source commit and `simulation-mode` record this experimental
+change honestly. The approval socket, signer isolation, automatic rejection,
+unchanged-nonce assertion and cleanup path are retained.
+
+`--skip-simulation` changes Forge's preparation path and can also cause it to
+estimate gas through RPC. A passing skip run isolates a dependency on the normal
+simulation/preparation path; it does not prove a particular socket bug or
+qualify production releases without simulation. A connection-storm failure is
+not counted as a successful rejection check. Do not introduce automatic fallback
+to `skip`, broaden RPC permissions or bypass the approval listener to obtain a
+passing result. Compare `approval-diagnostics.json` and `approval-rpc.log` from
+the two separately printed run directories.
 
 ## Cancel a release or rehearsal
 

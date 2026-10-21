@@ -88,11 +88,13 @@ class Transcript(bytearray):
         self.review_seen = False
         self.challenge: str | None = None
         self.explanation_seen = False
+        self.cleanup_incomplete = False
         self.identity_lines: list[str] = []
         self.requests = self.responses = 0
         self.last_rpc = "none"
         self.stats: dict[str, int] = {}
         self.diagnostics: dict[str, str] = {}
+        self.phase = "starting launcher"
         self.result = "incomplete"
         self.finished = False
 
@@ -147,6 +149,13 @@ class Transcript(bytearray):
             self.challenge = match.group(1)
         if self.EXPLANATION in line:
             self.explanation_seen = True
+        if line.startswith((
+            "Release cleanup is incomplete; retained path for inspection:",
+            "Release cleanup retained mounted inputs:",
+        )):
+            # Make returns 2 for both a rejected transaction and a failed
+            # recipe. Preserve the inner owner's explicit teardown failure.
+            self.cleanup_incomplete = True
         if not line.startswith("approval RPC "):
             return
         encoded = (line + "\n").encode("utf-8")
@@ -215,17 +224,19 @@ class Transcript(bytearray):
                 output.close()
             except OSError:
                 failures.append("closing a diagnostic log failed")
+        if self.log_failed or self.rpc_failed or failures:
+            self.result = "diagnostic-write-failed"
         try:
             with private_output(self.path.with_name("approval-pty-tail.log")) as output:
                 output.write(self)
             facts = {
-                "schemaVersion": 1, "result": self.result,
+                "schemaVersion": 1, "result": self.result, "phase": self.phase,
                 "simulation": os.environ.get("RELEASE_APPROVAL_SIMULATION", "normal"),
                 "transcriptBytesSeen": self.total, "transcriptTruncated": self.truncated,
                 "rpcRequestsObserved": self.requests, "rpcResponsesObserved": self.responses,
                 "lastRpc": self.last_rpc, "connectionStats": self.stats,
                 "startPromptSeen": self.start_seen, "firstReviewSeen": self.review_seen,
-                "failure": self.failure,
+                "cleanupIncomplete": self.cleanup_incomplete, "failure": self.failure,
             }
             with private_output(self.path.with_name("approval-diagnostics.json")) as output:
                 output.write((json.dumps(facts, indent=2) + "\n").encode("utf-8"))
@@ -359,6 +370,10 @@ def release_terminal(log_path: Path):
                     os.close(master)
                 except OSError:
                     failures.append("closing the PTY failed")
+            if transcript.cleanup_incomplete:
+                failures.append("Inner release cleanup is incomplete; retain mounted rehearsal inputs")
+            if failures:
+                transcript.result = "cleanup-incomplete"
             try:
                 transcript.finish()
             except OSError:
@@ -455,6 +470,8 @@ def save_signer_tail(project: str, rehearsal_dir: Path) -> Path | None:
 
 def read_until(master: int, process: subprocess.Popen[bytes], transcript: bytearray,
                predicate, deadline: float, explanation: str) -> None:
+    if isinstance(transcript, Transcript):
+        transcript.phase = explanation
     progress(f"Waiting for {explanation}")
     next_report = time.monotonic() + 5
     while time.monotonic() < deadline:
@@ -465,6 +482,13 @@ def read_until(master: int, process: subprocess.Popen[bytes], transcript: bytear
             return
         status = process_status(process)
         if status is not None:
+            # A fast failing launcher can exit with its final diagnosis still
+            # buffered in the PTY. Read a bounded amount before reporting exit.
+            for _ in range(8):
+                if drain_terminal(master, transcript, 0):
+                    break
+            if isinstance(transcript, Transcript):
+                transcript.check()
             raise RuntimeError(f"Release command exited before {explanation} (status {status})")
         if drain_terminal(master, transcript, min(0.2, max(0.0, deadline - time.monotonic()))):
             break
@@ -674,6 +698,7 @@ def main() -> None:
         progress("First transaction review reached; rejecting it automatically")
         os.write(master, f"reject {transcript.challenge}\n".encode("ascii"))
         status = wait_for_exit(process, master, transcript, time.monotonic() + 180)
+        transcript.check()
         if status == 0:
             raise RuntimeError("Rejecting the first transaction must fail the release command")
         progress("Checking rejection audit, unchanged nonce, absent broadcast, and container cleanup")

@@ -14,6 +14,14 @@ if [[ "${2:?Pass the Compose command}" != "docker compose" ]]; then
   printf '%s\n' 'Release rehearsals require Docker Compose.' >&2
   exit 2
 fi
+simulation="${RELEASE_APPROVAL_SIMULATION:-normal}"
+if [[ "$simulation" != normal && "$simulation" != skip ]]; then
+  printf '%s\n' 'RELEASE_APPROVAL_SIMULATION must be normal or skip.' >&2; exit 2
+fi
+if [[ "$simulation" == skip && "$action" != approval-pty ]]; then
+  printf '%s\n' 'Simulation skipping is an explicit approval-pty diagnostic only.' >&2; exit 2
+fi
+export RELEASE_APPROVAL_SIMULATION="$simulation"
 case "$app" in
   bike-nft) pending='AddressMismatch("intendedCamRootOwner"' ;;
   escrow) pending='CamRootOwnerMismatch' ;;
@@ -25,6 +33,7 @@ export DAPP="$app"
 export RELEASE_REHEARSAL=1
 source "$(dirname "${BASH_SOURCE[0]}")/release_process.sh"
 release_process_init
+release_process_report "Starting $app rehearsal ($action); simulation=$simulation"
 export RELEASE_REHEARSAL_DIR=
 infrastructure_started=0
 planner_started=0
@@ -33,16 +42,19 @@ cleanup() {
   local status=$? cleanup_failed=0
   set +e
   # The PTY driver owns its signer and must finish before fixture teardown.
+  # Ignore repeated signals before emitting any potentially blocking progress.
   if ! release_process_cleanup_begin; then
     printf '%s\n' 'Rehearsal launch command did not shut down cleanly; retaining its mounted inputs.' >&2
     status=1
     cleanup_failed=1
   fi
+  release_process_report 'Cleaning up this rehearsal; repeated cancellation will not interrupt teardown'
   # A child exit 2 can mean its signer teardown failed; retain mounted inputs
   # even when this shell is exiting because of a signal instead.
   if [[ "${release_process_child_status:-}" == 2 || ( "$action" != release && "$status" == 2 ) ]]; then
     cleanup_failed=1
   fi
+  release_progress_phase='removing rehearsal containers and networks'
   if [[ "$planner_started" == 1 ]] && ! release_run_owned 60 "${planner_compose[@]}" down --timeout 10 --rmi local --volumes --remove-orphans >"$RELEASE_REHEARSAL_DIR/planner-cleanup.log" 2>&1; then
     printf 'Planner test teardown failed; inspect %s/planner-cleanup.log\n' "$RELEASE_REHEARSAL_DIR" >&2
     status=1
@@ -69,6 +81,8 @@ cleanup() {
     fi
     if [[ "$cleanup_failed" != 0 ]]; then
       printf 'Mounted rehearsal inputs retained at %s/source.\n' "$RELEASE_REHEARSAL_DIR" >&2
+    else
+      release_process_report 'Rehearsal resources removed; audit records and logs retained'
     fi
     printf 'Release rehearsal records: %s\n' "$RELEASE_REHEARSAL_DIR"
   fi
@@ -77,6 +91,8 @@ cleanup() {
 trap cleanup EXIT
 
 RELEASE_REHEARSAL_DIR="$(mktemp -d "/tmp/cam-release-rehearsal-${LOCAL_UID:?missing_LOCAL_UID}-XXXXXXXX")"
+release_process_report "Private records: $RELEASE_REHEARSAL_DIR"
+printf '%s\n' "$simulation" >"$RELEASE_REHEARSAL_DIR/simulation-mode"
 digest="$(printf '%s' "$RELEASE_REHEARSAL_DIR" | sha256sum)"
 project="cam-rehearsal-${digest:0:24}"
 export RELEASE_REHEARSAL_NETWORK="$project-rehearsal"
@@ -89,6 +105,8 @@ while IFS= read -r name; do unset "$name"; done <<<"$git_environment"
 unset GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 mkdir --mode=0700 "$RELEASE_REHEARSAL_DIR/source" "$RELEASE_REHEARSAL_DIR/control"
+release_process_report 'Snapshotting candidate source without modifying the checkout'
+release_progress_phase='snapshotting candidate source'
 # Copy candidate source without touching the caller's index, hooks, or history.
 release_run_owned 15 git ls-files --cached --others --exclude-standard -z >"$RELEASE_REHEARSAL_DIR/source-files"
 while IFS= read -r -d '' path; do
@@ -98,6 +116,10 @@ release_run_owned 15 tar --create --null --verbatim-files-from --no-recursion --
 release_run_owned 15 tar --extract --file "$RELEASE_REHEARSAL_DIR/source.tar" --directory "$RELEASE_REHEARSAL_DIR/source"
 rm "$RELEASE_REHEARSAL_DIR/source.tar" "$RELEASE_REHEARSAL_DIR/source-files" "$RELEASE_REHEARSAL_DIR/existing-files"
 cd "$RELEASE_REHEARSAL_DIR/source"
+if [[ "$simulation" == skip ]]; then
+  release_process_report 'DIAGNOSTIC ONLY: modifying the private snapshot to skip transaction replay'
+  release_run_owned 15 python3 tests/fixtures/release-rehearsal/prepare_simulation.py
+fi
 git init --quiet --template=
 git add --all
 git -c user.name='Release rehearsal' -c user.email='release-rehearsal@example.invalid' -c core.hooksPath=/dev/null -c commit.gpgsign=false commit --quiet -m 'Snapshot release rehearsal candidate'
@@ -105,20 +127,26 @@ git -c user.name='Release rehearsal' -c user.email='release-rehearsal@example.in
 release_run_owned 15 git archive --format=tar --output="$RELEASE_REHEARSAL_DIR/candidate.tar" HEAD
 release_run_owned 15 tar --extract --same-permissions --file "$RELEASE_REHEARSAL_DIR/candidate.tar" --directory "$RELEASE_REHEARSAL_DIR/source"
 rm "$RELEASE_REHEARSAL_DIR/candidate.tar"
+release_process_report 'Copying installed locked Solidity and JavaScript dependencies'
+release_progress_phase='copying installed locked dependencies'
 release_run_owned 15 cp -a -- "$repository/dapps/dependencies" dapps/dependencies
 release_run_owned 15 cp -a -- "$repository/js/node_modules" js/node_modules
 git rev-parse HEAD >"$RELEASE_REHEARSAL_DIR/source-commit"
+release_progress_phase=""
 
 run_logged() {
   local log="$1"
   shift
   local grace=15
+  local release_progress_phase="$log"
   if [[ "$1" == make ]]; then grace=330; fi
+  release_process_report "Starting $log; private output: $RELEASE_REHEARSAL_DIR/$log"
   if ! release_run_owned "$grace" timeout --foreground --kill-after="${grace}s" 900 "$@" >"$RELEASE_REHEARSAL_DIR/$log" 2>&1; then
     tail -n 60 "$RELEASE_REHEARSAL_DIR/$log" >&2
     printf 'Rehearsal step failed; full log: %s/%s\n' "$RELEASE_REHEARSAL_DIR" "$log" >&2
     return 1
   fi
+  release_process_report "Completed $log"
 }
 
 infrastructure_started=1
@@ -137,6 +165,7 @@ if [[ "$action" == waits || "$action" == ipc-waits ]]; then
   exit "$?"
 fi
 if [[ "$action" == approval-pty ]]; then
+  release_process_report 'Infrastructure and inputs ready; starting the automatic rejection check'
   release_run_owned 330 python3 tools/release_approval_pty_check.py
   exit "$?"
 fi
