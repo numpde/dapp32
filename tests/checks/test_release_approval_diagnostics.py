@@ -74,9 +74,11 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 finally:
                     transcript.finish()
 
-    def test_main_observes_only_the_announced_project_despite_unrelated_releases(self) -> None:
+    def test_main_rejects_without_transmission_amid_foreign_releases_and_retains_forge_journals(self) -> None:
         owner = "cam-release-" + "a" * 24 + "-run"
         gate, foreign_gate, foreign_signer = "b" * 64, "c" * 64, "d" * 64
+        signer = "9" * 64
+        started = finished = False
         deployer, source = "0x" + "1" * 40, "2" * 40
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -92,12 +94,22 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
 
             @contextmanager
             def terminal(path):
+                output = root / "deployment"
+                (output / "broadcast").mkdir(parents=True)
+                (output / "broadcast/run-latest.json").write_text('{"receipts":[],"transactions":[]}')
+                (output / "artifact").mkdir()
+                (output / "approval-audit").mkdir()
+                (output / "approval-audit/approval.jsonl").write_text(
+                    '{"kind":"pending"}\n{"kind":"closed","reason":"operator rejected"}\n'
+                )
                 transcript = self.rehearsal.Transcript(path)
                 transcript.extend((
                     f"Release container project: {owner}\nRelease approval\n"
                     f"  App: escrow\n  Chain ID: 31338\n  Deployer: {deployer}\n"
                     f"  Source commit: {source}\n  Reference SHA-256: 0x{'f' * 64}\n"
-                    + self.rehearsal.PROMPT + "\n"
+                    + self.rehearsal.PROMPT + "\nReview transaction 1\n"
+                    "  Reject with: reject fixture-challenge\n"
+                    + transcript.EXPLANATION + "\n"
                 ).encode())
                 try:
                     yield 0, None, transcript
@@ -107,13 +119,30 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
             def docker(*args):
                 if args[0] == "ps":
                     self.assertIn(f"label=com.docker.compose.project={owner}", args)
-                    all_projects = {"release-approval": {gate, foreign_gate}, "deploy-release": {foreign_signer}}
+                    if finished:
+                        return ""
+                    signers = {signer, foreign_signer} if started else {foreign_signer}
+                    all_projects = {"release-approval": {gate, foreign_gate}, "deploy-release": signers}
                     for service, inventory in all_projects.items():
                         if f"label=com.docker.compose.service={service}" in args:
-                            return "\n".join(inventory & {gate})
+                            return "\n".join(inventory & {gate, signer})
                     self.fail("Unexpected release service query")
-                self.assertEqual(("inspect", "--format", "{{.State.Status}}", gate), args)
+                self.assertEqual(("inspect", "--format", "{{.State.Status}}"), args[:3])
+                self.assertIn(args[3], (gate, signer))
                 return "running"
+
+            def write(_descriptor, wire):
+                nonlocal started
+                if wire == b"start\n":
+                    started = True
+                else:
+                    self.assertEqual(b"reject fixture-challenge\n", wire)
+                return len(wire)
+
+            def exited(*_args):
+                nonlocal finished
+                finished = True
+                return 1
 
             with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
                 self.rehearsal, "release_terminal", side_effect=terminal,
@@ -122,11 +151,17 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
             ), mock.patch.object(self.rehearsal, "docker", side_effect=docker), mock.patch.object(
                 self.rehearsal, "approval_socket_source", return_value=root / "absent.sock",
             ), mock.patch.object(
-                self.rehearsal, "backend_chain_id", side_effect=RuntimeError("reached owned backend"),
-            ) as backend:
-                with self.assertRaisesRegex(RuntimeError, "reached owned backend"):
-                    self.rehearsal.main()
+                self.rehearsal, "backend_chain_id",
+            ) as backend, mock.patch.object(self.rehearsal, "listener_chain_id"), mock.patch.object(
+                self.rehearsal, "approval_chain_id",
+            ), mock.patch.object(self.rehearsal, "signer_rpc_read"), mock.patch.object(
+                self.rehearsal, "wait_for_exit", side_effect=exited,
+            ), mock.patch.object(self.rehearsal.os, "write", side_effect=write):
+                self.rehearsal.main()
                 backend.assert_called_once_with(gate)
+            facts = json.loads((root / "approval-diagnostics.json").read_text())
+            self.assertEqual("passed", facts["result"])
+            self.assertTrue((root / "deployment/broadcast/run-latest.json").is_file())
 
     def test_transcript_limit_fails_the_check_but_retains_cleanup_tail(self) -> None:
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(

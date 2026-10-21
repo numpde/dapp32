@@ -150,6 +150,11 @@ requires an unchanged deployer nonce and an audit with no approval or
 transmission. Successful approval and receipt verification remain a separate
 rehearsal. Do not enter an approval command during this automated check.
 
+Forge may retain transaction journals under `deployment/broadcast/` after a
+rejection. Keep those records: their existence does not establish transmission.
+The check uses the approval audit, unchanged deployer nonce and absence of a
+deployment artifact to verify the rejection's effects.
+
 ### Progress and bounded diagnostics
 
 Progress is enabled by default. The shell prints the records directory before

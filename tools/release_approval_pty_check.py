@@ -733,8 +733,8 @@ def main() -> None:
         if not any("reject" in reason.lower() for reason in closed_reasons):
             raise RuntimeError("Audit did not preserve the operator rejection reason")
         broadcast = output / "broadcast"
-        if broadcast.is_symlink() or not broadcast.is_dir() or any(broadcast.iterdir()):
-            raise RuntimeError("Rejected transaction left broadcast files")
+        if broadcast.is_symlink() or not broadcast.is_dir():
+            raise RuntimeError("Rejected release did not retain its regular Forge journal directory")
         if (output / "artifact" / "deployment.json").exists():
             raise RuntimeError("Rejected release must not publish a deployment artifact")
         if fixture_nonce(rehearsal_project, deployer) != nonce_before:
