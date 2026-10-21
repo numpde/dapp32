@@ -5,5 +5,8 @@ COPY package.json /app/package.json
 COPY tools/ /app/tools/
 COPY node_modules/ /app/node_modules/
 
+RUN chmod -R a=rX /app
+
 USER 65532:65532
+RUN node --experimental-strip-types --input-type=module -e "await import('/app/tools/release-approval/run.ts')"
 ENTRYPOINT ["node", "--experimental-strip-types", "/app/tools/release-approval/run.ts"]
