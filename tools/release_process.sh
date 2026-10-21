@@ -8,14 +8,15 @@ release_process_init() {
   }
   # Keep PID == PGID when a background child execs setsid without a wrapper.
   set +m
-  release_owned_pid=""
+  # These are internal lifecycle slots, not optional operator environment inputs.
+  declare -g release_owned_pid=""
   release_owned_grace=15
   release_owned_reaped=0
-  release_process_child_status=""
+  declare -g release_process_child_status=""
   release_process_spawning=0
   release_process_signal=0
   release_process_cleaning=0
-  release_progress_phase=""
+  declare -g release_progress_phase=""
   exec {release_process_stdout}>&1 {release_process_stderr}>&2
   trap 'release_process_cancel 130' INT
   trap 'release_process_cancel 143' TERM
@@ -24,8 +25,10 @@ release_process_init() {
 
 release_process_report() {
   # The caller supplies a fixed phase label, not command arguments or secrets.
-  # Keep progress visible even when the command's output goes to a private log.
-  printf '[release +%ss] %s\n' "$SECONDS" "$1" >&"$release_process_stderr" || true
+  # A detached terminal must not interrupt the independent cleanup operation.
+  if ! printf '[release +%ss] %s\n' "$SECONDS" "$1" >&"$release_process_stderr"; then
+    return 0
+  fi
 }
 
 release_process_cancel() {
@@ -43,8 +46,14 @@ release_process_alive() {
 
 release_process_kill() {
   # The PID fallback covers cancellation before the child has entered setsid.
-  kill "-$1" -- "-$release_owned_pid" 2>/dev/null ||
-    kill "-$1" "$release_owned_pid" 2>/dev/null || true
+  if ! kill "-$1" -- "-$release_owned_pid" 2>/dev/null &&
+      ! kill "-$1" "$release_owned_pid" 2>/dev/null; then
+    # An exit racing the signal already satisfies shutdown. A still-live child
+    # is reported and remains owned until release_stop_owned checks/reaps it.
+    if release_process_alive; then
+      release_process_report 'Could not signal an owned command; shutdown remains unconfirmed'
+    fi
+  fi
 }
 
 release_stop_owned() {
@@ -75,7 +84,7 @@ release_stop_owned() {
   fi
   release_process_child_status="$status"
   if kill -0 -- "-$release_owned_pid" 2>/dev/null; then failed=1; fi
-  release_owned_pid=""
+  declare -g release_owned_pid=""
   release_owned_reaped=0
   # Child status 2 means an inner release owner retained mounted inputs.
   case "$status" in 0|129|130|143) ;; *) failed=1 ;; esac
@@ -87,6 +96,7 @@ release_stop_owned() {
 
 release_process_cleanup_begin() {
   release_process_cleaning=1
+  release_progress_phase='resource cleanup'
   trap - EXIT
   trap '' INT TERM HUP
   # An EXIT trap can run inside a caller's command-specific log redirection.
@@ -103,7 +113,7 @@ release_run_owned() {
   fi
   release_owned_grace="$grace"
   release_owned_reaped=0
-  release_process_child_status=""
+  declare -g release_process_child_status=""
   release_process_spawning=1
   # Noninteractive Bash has job control off: setsid execs with PID == PGID.
   # Explicit stdin preserves piped credentials and caller-owned terminal input.
@@ -125,7 +135,7 @@ release_run_owned() {
         break
       fi
       if (( SECONDS >= next_report )); then
-        release_process_report "Still working: ${release_progress_phase:-resource cleanup}"
+        release_process_report "Still working: $release_progress_phase"
         next_report=$((SECONDS + 5))
       fi
       sleep 0.1
@@ -144,7 +154,7 @@ release_run_owned() {
     fi
     if ! release_stop_owned; then status=1; fi
   else
-    release_owned_pid=""
+    declare -g release_owned_pid=""
     release_owned_reaped=0
   fi
   return "$status"

@@ -34,8 +34,8 @@ def progress(message: str) -> None:
     """Only caller-authored status messages, never raw terminal output or secrets."""
     try:
         print(f"[approval +{time.monotonic() - STARTED:.0f}s] {message}", flush=True)
+    # silent-defaults: allow-exception-fallback -- A detached output must not prevent owned-resource cleanup; cancellation tests exercise that independent cleanup path.
     except (OSError, ValueError):
-        # Closing the terminal must not prevent owned-resource cleanup.
         pass
 
 
@@ -112,11 +112,13 @@ class Transcript(bytearray):
                 if len(chunk) > remaining:
                     self.truncated = True
                     self.output.write(b"\n[transcript byte limit reached; final output is in approval-pty-tail.log]\n")
-                    self.failure = self.failure or "PTY transcript exceeded its byte limit"
+                    if self.failure is None:
+                        self.failure = "PTY transcript exceeded its byte limit"
                 self.output.flush()
             except OSError:
                 self.log_failed = True
-                self.failure = self.failure or "Writing the private PTY transcript failed"
+                if self.failure is None:
+                    self.failure = "Writing the private PTY transcript failed"
         # Parse each byte once. Discard oversized lines instead of accumulating
         # them or letting one compiler/log line evict a previously seen prompt.
         pieces = chunk.split(b"\n")
@@ -166,21 +168,28 @@ class Transcript(bytearray):
                 self.rpc_written += len(encoded)
             except OSError:
                 self.rpc_failed = True
-                self.failure = self.failure or "Writing the private RPC log failed"
+                if self.failure is None:
+                    self.failure = "Writing the private RPC log failed"
         elif self.rpc_written + len(encoded) > self.RPC_LIMIT:
-            self.failure = self.failure or "RPC diagnostic output exceeded its byte limit"
+            if self.failure is None:
+                self.failure = "RPC diagnostic output exceeded its byte limit"
         match = re.fullmatch(
             r"approval RPC connection=\d+ request=\d+ method=([A-Za-z0-9_.]+) (.*)", line,
         )
         if match:
-            method = match.group(1) if match.group(1) in self.METHODS else "unlisted"
+            method = match.group(1)
+            if method not in self.METHODS:
+                method = "unlisted"
             operation = match.group(2)
             if re.fullmatch(r"request params=\d+", operation):
                 self.requests += 1
                 self.last_rpc = method + " requested"
             elif operation.startswith("response "):
                 self.responses += 1
-                self.last_rpc = method + (" response flushed" if "write=flushed" in operation else " response not flushed")
+                if "write=flushed" in operation:
+                    self.last_rpc = method + " response flushed"
+                else:
+                    self.last_rpc = method + " response not flushed"
         elif line.startswith("approval RPC stats "):
             self.stats = {
                 key: int(value) for key, value in re.findall(r"\b([a-z_]{1,32})=([0-9]{1,16})\b", line)
@@ -231,7 +240,8 @@ class Transcript(bytearray):
                 output.write(self)
             facts = {
                 "schemaVersion": 1, "result": self.result, "phase": self.phase,
-                "simulation": os.environ.get("RELEASE_APPROVAL_SIMULATION", "normal"),
+                # Missing fixture identity stays absent; never invent a normal run.
+                "simulation": os.environ.get("RELEASE_APPROVAL_SIMULATION"),
                 "transcriptBytesSeen": self.total, "transcriptTruncated": self.truncated,
                 "rpcRequestsObserved": self.requests, "rpcResponsesObserved": self.responses,
                 "lastRpc": self.last_rpc, "connectionStats": self.stats,
@@ -281,6 +291,7 @@ def stop_release(process: subprocess.Popen[bytes], master: int, transcript: byte
     try:
         try:
             os.killpg(process.pid, signal.SIGTERM)
+        # silent-defaults: allow-exception-fallback -- The owned group may exit before the signal; wait_for_exit still verifies termination before reaping.
         except ProcessLookupError:
             pass
         try:
@@ -288,10 +299,12 @@ def stop_release(process: subprocess.Popen[bytes], master: int, transcript: byte
         except TimeoutError as cause:
             try:
                 os.killpg(process.pid, signal.SIGKILL)
+            # silent-defaults: allow-exception-fallback -- The reserved group may disappear during escalation; the following wait still checks shutdown.
             except ProcessLookupError:
                 pass
             try:
                 wait_for_exit(process, master, transcript, time.monotonic() + 10)
+            # silent-defaults: allow-exception-fallback -- Preserve the original cleanup timeout below; never report success after forced stop.
             except TimeoutError:
                 pass
             raise ReleaseCleanupError(
@@ -493,7 +506,10 @@ def read_until(master: int, process: subprocess.Popen[bytes], transcript: bytear
         if drain_terminal(master, transcript, min(0.2, max(0.0, deadline - time.monotonic()))):
             break
         if time.monotonic() >= next_report:
-            detail = transcript.status() if isinstance(transcript, Transcript) else "waiting"
+            if isinstance(transcript, Transcript):
+                detail = transcript.status()
+            else:
+                detail = "waiting"
             progress(f"Still waiting for {explanation}; {detail}")
             next_report = time.monotonic() + 5
     if isinstance(transcript, Transcript):
@@ -627,7 +643,7 @@ def main() -> None:
     source_commit = required("ESCROW_RELEASE_SOURCE_COMMIT")
     rehearsal_dir = Path(required("RELEASE_REHEARSAL_DIR"))
     rehearsal_network = required("RELEASE_REHEARSAL_NETWORK")
-    simulation = os.environ.get("RELEASE_APPROVAL_SIMULATION", "normal")
+    simulation = required("RELEASE_APPROVAL_SIMULATION")
     if simulation not in ("normal", "skip"):
         raise RuntimeError("RELEASE_APPROVAL_SIMULATION must be normal or skip")
     if IDENTITY.fullmatch(image) is None:

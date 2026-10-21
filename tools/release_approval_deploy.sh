@@ -116,11 +116,11 @@ release_approval_prepare() {
   compose_release build release-rpc-proxy deploy-release release-artifact-rpc-proxy release-artifact
 }
 
-# Only the owning launcher may start services. The attachment remains visible
-# to its EXIT cleanup even if release_approval_run returns early.
-release_approval_attach_pid=""
-release_approval_terminal_state=""
-release_approval_output=""
+# Only the owning launcher may start services. These internal lifecycle slots
+# remain visible to EXIT cleanup even if release_approval_run returns early.
+declare -g release_approval_attach_pid=""
+declare -g release_approval_terminal_state=""
+declare -g release_approval_output=""
 
 release_approval_restore_terminal() {
   if [[ -n "$release_approval_terminal_state" ]]; then
@@ -128,12 +128,12 @@ release_approval_restore_terminal() {
       printf '%s\n' 'Could not restore the approval terminal settings.' >&2
       return 1
     fi
-    release_approval_terminal_state=""
+    declare -g release_approval_terminal_state=""
   fi
 }
 
 release_approval_cleanup() {
-  local failed=0 started
+  local failed=0 started attach_status=0
   if [[ -z "$release_approval_attach_pid" ]]; then
     release_approval_restore_terminal
     return
@@ -145,18 +145,33 @@ release_approval_cleanup() {
     failed=1
   fi
   if kill -0 "$release_approval_attach_pid" 2>/dev/null; then
-    kill -TERM "$release_approval_attach_pid" 2>/dev/null || true
+    # A process exiting between the liveness check and signal needs no signal.
+    if ! kill -TERM "$release_approval_attach_pid" 2>/dev/null &&
+        kill -0 "$release_approval_attach_pid" 2>/dev/null; then
+      printf '%s\n' 'Could not terminate the owned approval attachment.' >&2
+      failed=1
+    fi
     started="$SECONDS"
     while kill -0 "$release_approval_attach_pid" 2>/dev/null; do
       if (( SECONDS - started >= 5 )); then
-        kill -KILL "$release_approval_attach_pid" 2>/dev/null || true
+        if ! kill -KILL "$release_approval_attach_pid" 2>/dev/null &&
+            kill -0 "$release_approval_attach_pid" 2>/dev/null; then
+          printf '%s\n' 'Could not forcibly stop the owned approval attachment.' >&2
+          failed=1
+        fi
         break
       fi
       sleep 0.1
     done
   fi
-  wait "$release_approval_attach_pid" 2>/dev/null || true
-  release_approval_attach_pid=""
+  wait "$release_approval_attach_pid" 2>/dev/null || attach_status=$?
+  # Rejection or cancellation can legitimately give docker attach a nonzero
+  # status. Reaping it is cleanup, not evidence that deployment succeeded.
+  if [[ "$attach_status" != 0 ]]; then
+    printf 'Approval attachment ended with status %s during cleanup.\n' "$attach_status" >&2
+    if [[ "$attach_status" == 127 ]]; then failed=1; fi
+  fi
+  declare -g release_approval_attach_pid=""
   if ! release_approval_restore_terminal; then failed=1; fi
   if [[ -n "$release_approval_output" ]]; then
     if [[ ! -f "$release_approval_output/forge-exit-code" ]]; then
@@ -243,7 +258,7 @@ release_approval_run() {
     sleep 0.1
   done
   wait "$release_approval_attach_pid" || attach_status=$?
-  release_approval_attach_pid=""
+  declare -g release_approval_attach_pid=""
   release_approval_restore_terminal
   compose_release logs --no-color --no-log-prefix deploy-release > "$output/deploy.log" 2>&1 || attach_status=1
   gate_status="$(docker inspect --format '{{.State.ExitCode}}' "$gate_id")"

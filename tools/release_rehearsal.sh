@@ -14,7 +14,14 @@ if [[ "${2:?Pass the Compose command}" != "docker compose" ]]; then
   printf '%s\n' 'Release rehearsals require Docker Compose.' >&2
   exit 2
 fi
-simulation="${RELEASE_APPROVAL_SIMULATION:-normal}"
+# This entrypoint owns the documented normal-mode choice. Downstream tools
+# require its explicit selection; an explicitly empty input is invalid.
+if [[ -v RELEASE_APPROVAL_SIMULATION ]]; then
+  simulation="$RELEASE_APPROVAL_SIMULATION"
+else
+  simulation=normal
+  printf '%s\n' 'No simulation mode selected; using normal simulation.' >&2
+fi
 if [[ "$simulation" != normal && "$simulation" != skip ]]; then
   printf '%s\n' 'RELEASE_APPROVAL_SIMULATION must be normal or skip.' >&2; exit 2
 fi
@@ -34,7 +41,8 @@ export RELEASE_REHEARSAL=1
 source "$(dirname "${BASH_SOURCE[0]}")/release_process.sh"
 release_process_init
 release_process_report "Starting $app rehearsal ($action); simulation=$simulation"
-export RELEASE_REHEARSAL_DIR=
+# Internal absence until allocation; export only the allocated fixture path.
+declare RELEASE_REHEARSAL_DIR=""
 infrastructure_started=0
 planner_started=0
 
@@ -51,7 +59,7 @@ cleanup() {
   release_process_report 'Cleaning up this rehearsal; repeated cancellation will not interrupt teardown'
   # A child exit 2 can mean its signer teardown failed; retain mounted inputs
   # even when this shell is exiting because of a signal instead.
-  if [[ "${release_process_child_status:-}" == 2 || ( "$action" != release && "$status" == 2 ) ]]; then
+  if [[ "$release_process_child_status" == 2 || ( "$action" != release && "$status" == 2 ) ]]; then
     cleanup_failed=1
   fi
   release_progress_phase='removing rehearsal containers and networks'
@@ -91,6 +99,7 @@ cleanup() {
 trap cleanup EXIT
 
 RELEASE_REHEARSAL_DIR="$(mktemp -d "/tmp/cam-release-rehearsal-${LOCAL_UID:?missing_LOCAL_UID}-XXXXXXXX")"
+export RELEASE_REHEARSAL_DIR
 release_process_report "Private records: $RELEASE_REHEARSAL_DIR"
 printf '%s\n' "$simulation" >"$RELEASE_REHEARSAL_DIR/simulation-mode"
 digest="$(printf '%s' "$RELEASE_REHEARSAL_DIR" | sha256sum)"
@@ -132,7 +141,7 @@ release_progress_phase='copying installed locked dependencies'
 release_run_owned 15 cp -a -- "$repository/dapps/dependencies" dapps/dependencies
 release_run_owned 15 cp -a -- "$repository/js/node_modules" js/node_modules
 git rev-parse HEAD >"$RELEASE_REHEARSAL_DIR/source-commit"
-release_progress_phase=""
+declare -g release_progress_phase=""
 
 run_logged() {
   local log="$1"

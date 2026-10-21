@@ -196,7 +196,7 @@ class ApprovalRehearsalCancellationTest(unittest.TestCase):
             time.sleep(0.01)
         self.fail(f"PTY harness did not create {path.name}")
 
-    def run_cancellation(self, signum: int, *, leader_exits: bool = False) -> None:
+    def run_cancellation(self, signum: int, *, leader_exits: bool) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fake_make = root / "fake_make.py"
@@ -277,10 +277,13 @@ class ApprovalRehearsalCancellationTest(unittest.TestCase):
                     while True:
                         signal.pause()
                 """), encoding="utf-8")
+            if leader_exits:
+                mode = "orphan"
+            else:
+                mode = "leader"
             process = subprocess.Popen(
                 [sys.executable, "-u", str(harness),
-                 str(ROOT / "tools/release_approval_pty_check.py"), str(root),
-                 "orphan" if leader_exits else "leader"],
+                 str(ROOT / "tools/release_approval_pty_check.py"), str(root), mode],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                 start_new_session=True,
             )
@@ -312,7 +315,7 @@ class ApprovalRehearsalCancellationTest(unittest.TestCase):
     def test_cancel_before_container_discovery_drains_teardown_and_ignores_repeated_signals(self) -> None:
         for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             with self.subTest(signum=signum):
-                self.run_cancellation(signum)
+                self.run_cancellation(signum, leader_exits=False)
 
     def test_cancel_stops_descendant_after_group_leader_exits(self) -> None:
         self.run_cancellation(signal.SIGTERM, leader_exits=True)

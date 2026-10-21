@@ -192,6 +192,7 @@ class ReleaseLifecycleTest(unittest.TestCase):
                 pid = int(path.read_text())
                 try:
                     os.kill(pid, signal.SIGTERM)
+                # silent-defaults: allow-exception-fallback -- Test-owned children may already be reaped; an absent recorded PID needs no termination.
                 except ProcessLookupError:
                     pass
         if process.poll() is None:
@@ -212,8 +213,8 @@ class ReleaseLifecycleTest(unittest.TestCase):
         )
 
     def cancellation_case(
-        self, signum: int, *, fail_down: str = "", child_status: str = "143",
-        before_setsid: bool = False,
+        self, signum: int, *, fail_down: str, child_status: str,
+        before_setsid: bool,
     ) -> None:
         with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory(
             prefix=f"cam-release-{os.getuid()}-", dir="/tmp",
@@ -238,7 +239,10 @@ class ReleaseLifecycleTest(unittest.TestCase):
             finally:
                 self.emergency_cleanup(process, root)
             failed = bool(fail_down) or child_status == "2"
-            self.assertEqual(2 if failed else 128 + signum, process.returncode, stdout + stderr)
+            expected_status = 128 + signum
+            if failed:
+                expected_status = 2
+            self.assertEqual(expected_status, process.returncode, stdout + stderr)
             events = (root / "events").read_text().splitlines()
             self.assertEqual(
                 ["worker-stopped", "down:run", "down:check", "down:dependencies", "down:rpc", "down:config"],
@@ -254,16 +258,16 @@ class ReleaseLifecycleTest(unittest.TestCase):
     def test_parent_signals_stop_plugin_before_all_owned_projects(self) -> None:
         for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             with self.subTest(signal=signum):
-                self.cancellation_case(signum)
+                self.cancellation_case(signum, fail_down="", child_status="143", before_setsid=False)
 
     def test_parent_signal_before_setsid_still_reaps_owned_pid(self) -> None:
-        self.cancellation_case(signal.SIGTERM, before_setsid=True)
+        self.cancellation_case(signal.SIGTERM, fail_down="", child_status="143", before_setsid=True)
 
     def test_failed_down_retains_source_and_inputs_after_other_teardowns(self) -> None:
-        self.cancellation_case(signal.SIGTERM, fail_down="run")
+        self.cancellation_case(signal.SIGTERM, fail_down="run", child_status="143", before_setsid=False)
 
     def test_inner_cleanup_failure_retains_outer_inputs(self) -> None:
-        self.cancellation_case(signal.SIGINT, child_status="2")
+        self.cancellation_case(signal.SIGINT, fail_down="", child_status="2", before_setsid=False)
 
     def test_cleanup_command_has_a_wall_clock_limit(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -345,7 +349,10 @@ compose_release() {
                 self.assertEqual(1, process.returncode, stdout + stderr)
                 events = (root / "events").read_text().splitlines()
                 self.assertEqual(1, events.count("up:release-approval"))
-                self.assertEqual(1 if phase == "review" else 0, events.count("up:deploy-release"))
+                expected_signers = 0
+                if phase == "review":
+                    expected_signers = 1
+                self.assertEqual(expected_signers, events.count("up:deploy-release"))
                 self.assertEqual(
                     ["down:run", "down:check", "down:dependencies", "down:rpc", "down:config"],
                     [event for event in events if event.startswith("down:")],
@@ -390,7 +397,10 @@ release_run_owned 2 "$PYTHON" "$CASE_ROOT/worker.py"
                     stdout, stderr = process.communicate(timeout=10)
                 finally:
                     self.emergency_cleanup(process, root)
-                self.assertEqual(2 if fail_down else 143, process.returncode, stdout + stderr)
+                expected_status = 143
+                if fail_down:
+                    expected_status = 2
+                self.assertEqual(expected_status, process.returncode, stdout + stderr)
                 stage = Path((root / "stage").read_text().strip())
                 self.assertEqual(bool(fail_down), stage.exists())
                 project = (root / "project").read_text().strip()

@@ -112,7 +112,14 @@ class EscrowReleasePostureTest(unittest.TestCase):
         self.assertIn('"$$release_check_started" == "1" ]] && ! compose_release_check down', cleanup)
         self.assertIn('"$$release_dependencies_started" == "1" ]] && ! compose_release_dependencies down', cleanup)
         self.assertIn('"$$cleanup_failed" == "0" ]] && ! rm -rf', cleanup)
-        self.assertIn('if [[ "$$status" == "0" ]]; then status=1; fi', cleanup)
+        # Incomplete cleanup overrides even an existing failure/signal with 2,
+        # so the enclosing owner retains mounted inputs. Lifecycle tests cover
+        # the actual exit status and retained files for each failure path.
+        self.assertIn('if [[ "$$cleanup_failed" != "0" ]]; then', cleanup)
+        failed_cleanup = cleanup.split('if [[ "$$cleanup_failed" != "0" ]]; then', 1)[1]
+        self.assertIn('status=2;', failed_cleanup)
+        self.assertIn('Release cleanup is incomplete; retained path for inspection:', failed_cleanup)
+        self.assertIn('exit "$$status"', failed_cleanup)
         for phase in ("run", "check", "deps"):
             self.assertIn(f'COMPOSE_PROJECT_NAME="$$ceremony_project-{phase}"', source)
 

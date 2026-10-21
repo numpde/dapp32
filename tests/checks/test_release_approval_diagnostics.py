@@ -125,11 +125,62 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
             transcript.extend(b"first\n")
             transcript.extend(b"cleanup-output\n")
             self.assertIn(b"cleanup-output", transcript)
-            self.assertNotIn("sensitive-path-error", transcript.failure or "")
+            self.assertIsInstance(transcript.failure, str)
+            self.assertNotIn("sensitive-path-error", transcript.failure)
             with self.assertRaisesRegex(OSError, "could not be saved"):
                 transcript.finish()
             self.assertTrue(original.closed)
             self.assertIn(b"cleanup-output", path.with_name("approval-pty-tail.log").read_bytes())
+
+    def test_log_limits_preserve_the_first_recorded_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(
+            self.rehearsal.Transcript, "FILE_LIMIT", 256,
+        ), mock.patch.object(self.rehearsal.Transcript, "RPC_LIMIT", 16):
+            transcript = self.rehearsal.Transcript(Path(directory) / "approval-pty.log")
+            try:
+                transcript.failure = "first failure"
+                transcript.extend(b"x" * 1024 + b"\n")
+                transcript.extend(b"approval RPC connection=1 request=1 method=eth_chainId request params=0\n")
+                self.assertEqual("first failure", transcript.failure)
+                with self.assertRaisesRegex(RuntimeError, "first failure"):
+                    transcript.check()
+            finally:
+                transcript.finish()
+
+    def test_summary_does_not_invent_a_simulation_mode(self) -> None:
+        for mode in (None, "normal", "skip"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                env = {}
+                if mode is not None:
+                    env["RELEASE_APPROVAL_SIMULATION"] = mode
+                path = Path(directory) / "approval-pty.log"
+                with mock.patch.dict(os.environ, env, clear=True):
+                    transcript = self.rehearsal.Transcript(path)
+                    transcript.finish()
+                facts = json.loads(path.with_name("approval-diagnostics.json").read_text())
+                self.assertEqual(mode, facts["simulation"])
+
+    def test_pty_rejects_missing_empty_or_unknown_mode_before_docker(self) -> None:
+        for mode in (None, "", "auto"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as directory:
+                env = {
+                    "RELEASE_APPROVAL_IMAGE": "sha256:" + "a" * 64,
+                    "ESCROW_RELEASE_OUTPUT_DIR": str(Path(directory) / "deployment"),
+                    "ESCROW_RELEASE_EXPECTED_DEPLOYER_ADDRESS": "0x" + "1" * 40,
+                    "ESCROW_RELEASE_SOURCE_COMMIT": "b" * 40,
+                    "RELEASE_REHEARSAL_DIR": directory,
+                    "RELEASE_REHEARSAL_NETWORK": "fixture-rehearsal",
+                }
+                if mode is not None:
+                    env["RELEASE_APPROVAL_SIMULATION"] = mode
+                with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+                    self.rehearsal, "docker",
+                ) as docker, mock.patch.object(self.rehearsal, "fixture_nonce") as nonce:
+                    with self.assertRaisesRegex(RuntimeError, "RELEASE_APPROVAL_SIMULATION"):
+                        self.rehearsal.main()
+                docker.assert_not_called()
+                nonce.assert_not_called()
+                self.assertEqual([], list(Path(directory).iterdir()))
 
     def test_refuses_existing_or_symlinked_output_without_clobbering(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

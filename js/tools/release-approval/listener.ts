@@ -126,8 +126,8 @@ export interface ListenerOptions {
   maxConnections: number
   maxInFlight: number
   /** A ceremony-wide connection-attempt budget, including rejected attempts. */
-  maxConnectionAttempts?: number
-  connectionWindowMs?: number
+  maxConnectionAttempts: number
+  connectionWindowMs: number
   /** Called once after admission stops; the runtime must close the approval owner. */
   onFatal?: (reason: string) => void
 }
@@ -172,8 +172,8 @@ export async function startRpcListener(options: ListenerOptions) {
   let socketExists = false
   try { lstatSync(options.socketPath); socketExists = true }
   catch (cause) { if (!object(cause) || cause.code !== "ENOENT") throw cause }
-  const maxAttempts = options.maxConnectionAttempts ?? 256
-  const windowMs = options.connectionWindowMs ?? 1_000
+  const maxAttempts = options.maxConnectionAttempts
+  const windowMs = options.connectionWindowMs
   if (!Number.isSafeInteger(options.maxMessageBytes) || options.maxMessageBytes < 128 ||
       !Number.isSafeInteger(options.maxConnections) || options.maxConnections < 1 ||
       !Number.isSafeInteger(options.maxInFlight) || options.maxInFlight < 1 ||
@@ -204,7 +204,7 @@ export async function startRpcListener(options: ListenerOptions) {
 
   // No per-empty-connection logging. Trace output has both a rate and lifetime
   // bound, and never queues more writes while the pipe reports backpressure.
-  function traceRpc(message: string, summary = false) {
+  function traceRpc(message: string, summary: boolean) {
     if (!tracing) return
     const now = performance.now()
     if (now - detailStarted >= 1_000) { detailStarted = now; detailLines = 0 }
@@ -244,7 +244,7 @@ export async function startRpcListener(options: ListenerOptions) {
   const server = createServer(socket => {
     socket.on("error", cause => {
       stats.socket_errors++
-      traceRpc(`socket-error code=${socketErrorCode(cause)}`)
+      traceRpc(`socket-error code=${socketErrorCode(cause)}`, false)
       socket.destroy()
     })
     if (stopped) { socket.destroy(); return }
@@ -259,7 +259,7 @@ export async function startRpcListener(options: ListenerOptions) {
     }
     if (clients.size >= options.maxConnections) {
       stats.rejected++
-      traceRpc(`connection=${connection} rejected=connection-limit active=${clients.size} limit=${options.maxConnections}`)
+      traceRpc(`connection=${connection} rejected=connection-limit active=${clients.size} limit=${options.maxConnections}`, false)
       socket.destroy()
       return
     }
@@ -283,7 +283,7 @@ export async function startRpcListener(options: ListenerOptions) {
       if (received === 0) stats.empty++
       if (nextRequest === 0) stats.no_requests++
       if (received > 0 || closeReason.startsWith("socket-error")) {
-        traceRpc(`connection=${connection} closed reason=${stopped ? "listener-stop" : closeReason} received_bytes=${received} requests=${nextRequest} active=${active.size}`)
+        traceRpc(`connection=${connection} closed reason=${stopped ? "listener-stop" : closeReason} received_bytes=${received} requests=${nextRequest} active=${active.size}`, false)
       }
       for (const control of active.values()) control.abort()
     })
@@ -308,7 +308,7 @@ export async function startRpcListener(options: ListenerOptions) {
       stats.requests++
       const started = performance.now()
       const method = traceMethod(rpc.method)
-      const trace = (message: string) => traceRpc(`connection=${connection} request=${sequence} method=${method} ${message}`)
+      const trace = (message: string) => traceRpc(`connection=${connection} request=${sequence} method=${method} ${message}`, false)
       function respond(response: RpcResponse, outcome = response.error ? "error" : "result") {
         stats.responses++
         if (response.error) stats.rpc_errors++
@@ -344,7 +344,7 @@ export async function startRpcListener(options: ListenerOptions) {
     }
     function reject(rpcId: RpcId, reason: string, code: number, message: string) {
       stats.invalid_requests++
-      traceRpc(`connection=${connection} request rejected=${reason}`)
+      traceRpc(`connection=${connection} request rejected=${reason}`, false)
       reply(error(rpcId, code, message))
     }
     function accept(value: unknown) {
@@ -386,7 +386,7 @@ export async function startRpcListener(options: ListenerOptions) {
       } catch {
         stats.parse_errors++
         closeReason = "invalid-or-oversized-frame"
-        traceRpc(`connection=${connection} request rejected=${closeReason} received_bytes=${received}`)
+        traceRpc(`connection=${connection} request rejected=${closeReason} received_bytes=${received}`, false)
         admitting = false
         bytes = Buffer.alloc(0)
         for (const control of active.values()) control.abort()
