@@ -3,7 +3,7 @@ import { createServer, type Socket } from "node:net"
 import { dirname, resolve } from "node:path"
 import type { Hex } from "viem"
 import type { ApprovalOwner, SubmissionResult } from "./owner.ts"
-import { parseStrictJson } from "./strict-json.ts"
+import { parseStrictJson, RpcJsonError } from "./strict-json.ts"
 
 type RpcId = string | number | null
 export type RpcRequest = { jsonrpc: "2.0"; id: RpcId; method: string; params: unknown[] }
@@ -394,9 +394,12 @@ export async function startRpcListener(options: ListenerOptions) {
       received += block.length
       stats.received_bytes += block.length
       bytes = Buffer.concat([bytes, block])
+      let stage = "framing"
       try {
         for (;;) {
+          stage = "framing"
           const length = frameLength(bytes)
+          stage = "size"
           if (length === null) {
             if (bytes.length > options.maxMessageBytes) throw new Error("IPC request exceeds byte limit")
             break
@@ -404,12 +407,19 @@ export async function startRpcListener(options: ListenerOptions) {
           if (length > options.maxMessageBytes) throw new Error("IPC request exceeds byte limit")
           const frame = bytes.subarray(0, length)
           bytes = bytes.subarray(length)
-          accept(parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(frame)))
+          stage = "utf8"
+          const source = new TextDecoder("utf-8", { fatal: true }).decode(frame)
+          stage = "json"
+          const parsed = parseStrictJson(source)
+          stage = "admission"
+          accept(parsed)
         }
-      } catch {
+      } catch (cause) {
         stats.parse_errors++
         closeReason = "invalid-or-oversized-frame"
-        traceRpc(`connection=${connection} request rejected=${closeReason} received_bytes=${received}`, false)
+        const detail = cause instanceof RpcJsonError
+          ? ` reason=${cause.reason} location=${cause.location} offset=${cause.offset}` : ""
+        traceRpc(`connection=${connection} request rejected=${closeReason} received_bytes=${received} stage=${stage}${detail}`, false)
         admitting = false
         bytes = Buffer.alloc(0)
         for (const control of active.values()) control.abort()

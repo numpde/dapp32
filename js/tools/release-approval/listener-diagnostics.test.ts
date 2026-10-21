@@ -120,7 +120,7 @@ async function emptyPeer(path: string) {
   }
 }
 
-function exchange(socket: Socket, wire: string, expected: number): Promise<RpcResponse[]> {
+function exchange(socket: Socket, wire: string | Buffer, expected: number): Promise<RpcResponse[]> {
   return new Promise((resolve, reject) => {
     let bytes = ""
     const answers: RpcResponse[] = []
@@ -239,6 +239,43 @@ test("unknown methods and malformed frames are diagnosed without caller text", {
       assert.equal(output.includes(secret), false)
     }
   } finally { socket?.destroy(); await f.close() }
+})
+
+test("frame rejection diagnostics distinguish causes without exposing request contents", { timeout: 10000 }, async t => {
+  const { lines, output } = traceCapture(t)
+  const f = await fixture(LIMITS, output)
+  const secret = "private-request-value"
+  const prefix = `{"jsonrpc":"2.0","method":"eth_call","id":"${secret}","params":`
+  const unicode = '{"method":"☃😀","id":9007199254740993}'
+  const cases = [
+    { wire: unicode, detail: new RegExp(`stage=json reason=unsafe-integer location=id offset=${unicode.indexOf("9007199254740993")}\\b`) },
+    { wire: '{"jsonrpc":"2.0","id":9007199254740993,"method":"eth_chainId"}', detail: /stage=json reason=unsafe-integer location=id offset=\d+/ },
+    { wire: `{"${secret}":{"id":9007199254740993}}`, detail: /stage=json reason=unsafe-integer location=other offset=\d+/ },
+    { wire: prefix + '[9007199254740993]}', detail: /stage=json reason=unsafe-integer location=params offset=\d+/ },
+    { wire: prefix + '[1.5]}', detail: /stage=json reason=number-form location=params offset=\d+/ },
+    { wire: prefix + `[{"${secret}":1,"${secret}":2}]}`, detail: /stage=json reason=duplicate-key location=params offset=\d+/ },
+    { wire: prefix + `[{"${secret}":,}]}`, detail: /stage=json reason=syntax location=params offset=\d+/ },
+    { wire: prefix + '["\\uZZZZ"]}', detail: /stage=json reason=syntax location=params offset=\d+/ },
+    { wire: prefix + '['.repeat(70) + '0' + ']'.repeat(70) + '}', detail: /stage=json reason=depth location=params offset=\d+/ },
+    { wire: '{' + ' '.repeat(4096), detail: /stage=size/ },
+    { wire: Buffer.from([123, 34, 255, 34, 58, 48, 125]), detail: /stage=utf8/ },
+    { wire: secret, detail: /stage=framing/ },
+  ]
+  try {
+    for (const { wire, detail } of cases) {
+      const socket = await client(f.socketPath)
+      try {
+        const before = lines.length
+        const [reply] = await exchange(socket, wire, 1)
+        assert.equal(reply?.error?.code, -32700)
+        await until(() => f.listener.diagnostics().active === 0)
+        assert.match(lines.slice(before).join(""), detail)
+      } finally { socket.destroy() }
+    }
+    assert.equal(f.listener.diagnostics().parse_errors, cases.length)
+    assert.deepEqual(f.counts, { reads: 0, submissions: 0, aborted: 0, sent: 0 })
+    for (const sensitive of [secret, '9007199254740993', '\\uZZZZ']) assert.equal(lines.join("").includes(sensitive), false)
+  } finally { await f.close() }
 })
 
 test("trace rate limiting does not change RPC responses", { timeout: 5000 }, async t => {

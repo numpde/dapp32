@@ -188,6 +188,14 @@ are omitted. Unknown method names and socket error messages are not echoed.
 `write=flushed` means the socket write callback completed; it does not establish
 that Forge consumed the response.
 
+Frame rejections report the failing stage: framing, size, UTF-8 decoding, JSON
+parsing or request admission. JSON failures add a fixed reason, a location
+(`id`, `params` or `other`) and a zero-based UTF-16 character offset within the
+frame. For example, `stage=json reason=unsafe-integer location=id` identifies
+the request ID as exceeding the parser's exact-integer range without recording
+its value. Rejected frames retain the same RPC error and close the connection;
+these diagnostics do not relax validation.
+
 Empty opens/closes are counted, not logged individually. Five-second summaries
 include connection attempts, accepted/rejected counts, active/peak occupancy,
 closed/empty peers, received bytes, requests/responses, parse/socket/write
