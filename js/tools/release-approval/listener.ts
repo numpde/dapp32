@@ -10,10 +10,6 @@ export type RpcRequest = { jsonrpc: "2.0"; id: RpcId; method: string; params: un
 export type RpcResponse = { jsonrpc: "2.0"; id: RpcId; result?: unknown; error?: { code: number; message: string; data?: unknown } }
 type Owner = Pick<ApprovalOwner, "submit">
 
-function traceRpc(message: string): void {
-  if (process.env.RELEASE_APPROVAL_TRACE_RPC === "1") process.stderr.write(`approval RPC ${message}\n`)
-}
-
 // Forge's optional eth_getAccountInfo probe receives -32601 and falls back to
 // balance, nonce and code reads. Its rejection alone does not identify a stall.
 const readMethods = new Set([
@@ -25,8 +21,15 @@ const readMethods = new Set([
 ])
 
 function traceMethod(method: string): string {
-  if (readMethods.has(method) || method === "eth_sendRawTransaction") return method
-  return /^[A-Za-z][A-Za-z0-9_.]{0,63}$/.test(method) ? method : "unlisted"
+  // An unknown method can itself contain credentials, even if it looks like an identifier.
+  return readMethods.has(method) || method === "eth_sendRawTransaction" || method === "eth_getAccountInfo"
+    ? method : "unlisted"
+}
+
+function socketErrorCode(cause: unknown): string {
+  const code = object(cause) ? cause.code : undefined
+  return typeof code === "string" && ["ECONNRESET", "EPIPE", "ECONNABORTED", "ETIMEDOUT"].includes(code)
+    ? code : "other"
 }
 
 function error(id: RpcId, code: number, message: string): RpcResponse {
@@ -122,6 +125,11 @@ export interface ListenerOptions {
   maxMessageBytes: number
   maxConnections: number
   maxInFlight: number
+  /** A ceremony-wide connection-attempt budget, including rejected attempts. */
+  maxConnectionAttempts?: number
+  connectionWindowMs?: number
+  /** Called once after admission stops; the runtime must close the approval owner. */
+  onFatal?: (reason: string) => void
 }
 
 function safeJsonNumbers(value: unknown, depth: number): boolean {
@@ -158,35 +166,125 @@ function frameLength(bytes: Buffer): number | null {
   return null
 }
 
-export async function startRpcListener(options: ListenerOptions): Promise<{ close(): Promise<void> }> {
+export async function startRpcListener(options: ListenerOptions) {
   const parent = dirname(options.socketPath)
   const parentStat = lstatSync(parent)
   let socketExists = false
   try { lstatSync(options.socketPath); socketExists = true }
   catch (cause) { if (!object(cause) || cause.code !== "ENOENT") throw cause }
+  const maxAttempts = options.maxConnectionAttempts ?? 256
+  const windowMs = options.connectionWindowMs ?? 1_000
   if (!Number.isSafeInteger(options.maxMessageBytes) || options.maxMessageBytes < 128 ||
       !Number.isSafeInteger(options.maxConnections) || options.maxConnections < 1 ||
-      !Number.isSafeInteger(options.maxInFlight) || options.maxInFlight < 1 || socketExists ||
+      !Number.isSafeInteger(options.maxInFlight) || options.maxInFlight < 1 ||
+      !Number.isSafeInteger(maxAttempts) || maxAttempts < 1 ||
+      !Number.isSafeInteger(windowMs) || windowMs < 1 || socketExists ||
       !parentStat.isDirectory() || parentStat.uid !== process.getuid?.() ||
       (parentStat.mode & 0o077) !== 0 || realpathSync(parent) !== resolve(parent)) {
     throw new Error("Approval socket requires fresh path and bounded capacities")
   }
   const clients = new Set<Socket>()
-  let nextConnection = 0
+  const stats = {
+    attempts: 0, accepted: 0, rejected: 0, active: 0, peak: 0,
+    closed: 0, empty: 0, no_requests: 0, received_bytes: 0,
+    requests: 0, responses: 0, rpc_errors: 0, parse_errors: 0,
+    invalid_requests: 0, socket_errors: 0, write_failures: 0,
+    canceled: 0, suppressed: 0,
+  }
+  let failure: string | null = null
+  let stopped = false
+  let closing: Promise<void> | null = null
+  let summaryTimer: NodeJS.Timeout | null = null
+  let windowStarted = performance.now()
+  let windowAttempts = 0
+  const tracing = process.env.RELEASE_APPROVAL_TRACE_RPC === "1"
+  let traceBytes = 0
+  let detailStarted = performance.now()
+  let detailLines = 0
+
+  // No per-empty-connection logging. Trace output has both a rate and lifetime
+  // bound, and never queues more writes while the pipe reports backpressure.
+  function traceRpc(message: string, summary = false) {
+    if (!tracing) return
+    const now = performance.now()
+    if (now - detailStarted >= 1_000) { detailStarted = now; detailLines = 0 }
+    const line = `approval RPC ${message}\n`
+    const limit = summary ? 524_288 : 458_752 // reserve 64 KiB for summaries
+    if ((!summary && detailLines >= 128) || traceBytes + Buffer.byteLength(line) > limit ||
+        process.stderr.destroyed || process.stderr.writableNeedDrain) {
+      stats.suppressed++
+      return
+    }
+    if (!summary) detailLines++
+    traceBytes += Buffer.byteLength(line)
+    try { process.stderr.write(line) } catch { stats.suppressed++ }
+  }
+  function summary() {
+    traceRpc(`stats ${Object.entries(stats).map(([key, value]) => `${key}=${value}`).join(" ")} stopped=${stopped ? 1 : 0}`, true)
+  }
+  function close(): Promise<void> {
+    if (closing !== null) return closing
+    stopped = true
+    if (summaryTimer !== null) clearInterval(summaryTimer)
+    closing = new Promise<void>(resolve => {
+      for (const socket of clients) socket.destroy()
+      server.close(() => { summary(); resolve() })
+    })
+    return closing
+  }
+  function fail(reason: string) {
+    if (stopped) return
+    failure = reason
+    // Stop accepting and disconnect before notifying the owner. Never let
+    // reconnection churn turn into an implicit retry of a signed transaction.
+    void close()
+    traceRpc(`fatal reason=${reason}`, true)
+    options.onFatal?.(reason)
+  }
   const server = createServer(socket => {
-    if (clients.size >= options.maxConnections) { socket.destroy(); return }
+    socket.on("error", cause => {
+      stats.socket_errors++
+      traceRpc(`socket-error code=${socketErrorCode(cause)}`)
+      socket.destroy()
+    })
+    if (stopped) { socket.destroy(); return }
+    const connection = ++stats.attempts
+    const now = performance.now()
+    if (now - windowStarted >= windowMs) { windowStarted = now; windowAttempts = 0 }
+    if (++windowAttempts > maxAttempts) {
+      stats.rejected++
+      socket.destroy()
+      fail(`IPC connection storm: more than ${maxAttempts} attempts in ${windowMs}ms`)
+      return
+    }
+    if (clients.size >= options.maxConnections) {
+      stats.rejected++
+      traceRpc(`connection=${connection} rejected=connection-limit active=${clients.size} limit=${options.maxConnections}`)
+      socket.destroy()
+      return
+    }
     clients.add(socket)
-    const connection = ++nextConnection
+    stats.accepted++
+    stats.active = clients.size
+    stats.peak = Math.max(stats.peak, stats.active)
     let nextRequest = 0
-    traceRpc(`connection=${connection} opened`)
+    let received = 0
+    let closeReason = "peer-close"
     let bytes = Buffer.alloc(0)
     let admitting = true
     const active = new Map<string, AbortController>()
-    socket.on("error", () => socket.destroy())
+    socket.on("error", cause => { closeReason = `socket-error-${socketErrorCode(cause)}` })
+    socket.on("end", () => { if (closeReason === "peer-close") closeReason = "peer-eof" })
     socket.on("close", () => {
       admitting = false
       clients.delete(socket)
-      traceRpc(`connection=${connection} closed active=${active.size}`)
+      stats.active = clients.size
+      stats.closed++
+      if (received === 0) stats.empty++
+      if (nextRequest === 0) stats.no_requests++
+      if (received > 0 || closeReason.startsWith("socket-error")) {
+        traceRpc(`connection=${connection} closed reason=${stopped ? "listener-stop" : closeReason} received_bytes=${received} requests=${nextRequest} active=${active.size}`)
+      }
       for (const control of active.values()) control.abort()
     })
     function reply(response: RpcResponse, written?: (status: "flushed" | "failed" | "socket-closed" | "capacity-exceeded") => void) {
@@ -194,18 +292,26 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
       const encoded = JSON.stringify(response) + "\n"
       const ceiling = (options.backend.maxResponseBytes + 1024) * options.maxInFlight
       if (socket.writableLength + Buffer.byteLength(encoded) > ceiling) {
+        stats.write_failures++
+        closeReason = "outbound-capacity"
         written?.("capacity-exceeded")
         socket.destroy()
         return
       }
-      socket.write(encoded, cause => written?.(cause ? "failed" : "flushed"))
+      socket.write(encoded, cause => {
+        if (cause) stats.write_failures++
+        written?.(cause ? "failed" : "flushed")
+      })
     }
     async function dispatch(rpc: RpcRequest, control: AbortController) {
       const sequence = ++nextRequest
+      stats.requests++
       const started = performance.now()
       const method = traceMethod(rpc.method)
       const trace = (message: string) => traceRpc(`connection=${connection} request=${sequence} method=${method} ${message}`)
       function respond(response: RpcResponse, outcome = response.error ? "error" : "result") {
+        stats.responses++
+        if (response.error) stats.rpc_errors++
         const code = response.error ? ` code=${response.error.code}` : ""
         reply(response, written => {
           trace(`response outcome=${outcome}${code} write=${written} elapsed_ms=${Math.round(performance.now() - started)}`)
@@ -226,20 +332,24 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
         } else {
           respond(error(rpc.id, -32601, "Method not found"), "method-not-found")
         }
-      } catch (cause) {
+      } catch {
         if (!control.signal.aborted) {
-          trace(`failure type=${cause instanceof Error ? cause.name : "unknown"}`)
-          const message = cause instanceof Error ? cause.message : "Unknown request failure"
-          respond(error(rpc.id, -32000, message))
+          trace("failure type=request-failed")
+          respond(error(rpc.id, -32000, "Approval request failed"))
         } else {
+          stats.canceled++
           trace(`canceled elapsed_ms=${Math.round(performance.now() - started)}`)
         }
       } finally { active.delete(idKey(rpc.id)) }
     }
+    function reject(rpcId: RpcId, reason: string, code: number, message: string) {
+      stats.invalid_requests++
+      traceRpc(`connection=${connection} request rejected=${reason}`)
+      reply(error(rpcId, code, message))
+    }
     function accept(value: unknown) {
       if (Array.isArray(value)) {
-        traceRpc(`connection=${connection} request rejected=batch`)
-        reply(error(null, -32600, "JSON-RPC batches are not supported by the approval socket"))
+        reject(null, "batch", -32600, "JSON-RPC batches are not supported by the approval socket")
         return
       }
       let rpc: RpcRequest
@@ -248,24 +358,18 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
         if (Object.keys(value as Record<string, unknown>).some(key => !["jsonrpc", "id", "method", "params"].includes(key)) ||
             !safeJsonNumbers(rpc.params, 0)) throw new Error("Unexpected or imprecise JSON-RPC field")
       }
-      catch { traceRpc(`connection=${connection} request rejected=invalid`); reply(error(null, -32600, "Invalid JSON-RPC request")); return }
+      catch { reject(null, "invalid", -32600, "Invalid JSON-RPC request"); return }
       const key = idKey(rpc.id)
-      if (active.has(key)) {
-        traceRpc(`connection=${connection} request rejected=duplicate-id`)
-        reply(error(rpc.id, -32600, "Request ID is already active on this connection"))
-        return
-      }
-      if (active.size >= options.maxInFlight) {
-        traceRpc(`connection=${connection} request rejected=capacity`)
-        reply(error(rpc.id, -32000, "Too many requests on this connection"))
-        return
-      }
+      if (active.has(key)) { reject(rpc.id, "duplicate-id", -32600, "Request ID is already active on this connection"); return }
+      if (active.size >= options.maxInFlight) { reject(rpc.id, "capacity", -32000, "Too many requests on this connection"); return }
       const control = new AbortController()
       active.set(key, control)
       void dispatch(rpc, control)
     }
     socket.on("data", block => {
-      if (!admitting) return
+      if (!admitting || stopped) return
+      received += block.length
+      stats.received_bytes += block.length
       bytes = Buffer.concat([bytes, block])
       try {
         for (;;) {
@@ -280,6 +384,9 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
           accept(parseStrictJson(new TextDecoder("utf-8", { fatal: true }).decode(frame)))
         }
       } catch {
+        stats.parse_errors++
+        closeReason = "invalid-or-oversized-frame"
+        traceRpc(`connection=${connection} request rejected=${closeReason} received_bytes=${received}`)
         admitting = false
         bytes = Buffer.alloc(0)
         for (const control of active.values()) control.abort()
@@ -295,8 +402,8 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
     })
     chmodSync(options.socketPath, 0o600)
   } catch (cause) { server.close(); throw cause }
-  return { close: async () => {
-    for (const socket of clients) socket.destroy()
-    await new Promise<void>(resolve => server.close(() => resolve()))
-  } }
+  server.on("error", () => fail("IPC listener failed"))
+  traceRpc(`limits connections=${options.maxConnections} in_flight=${options.maxInFlight} attempts=${maxAttempts} window_ms=${windowMs}`, true)
+  if (tracing) { summaryTimer = setInterval(summary, 5_000); summaryTimer.unref() }
+  return { close, diagnostics: () => ({ ...stats, failure }) }
 }
