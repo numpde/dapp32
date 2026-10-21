@@ -99,6 +99,62 @@ This proves local release composition, handoffs and CAM loading. It does not
 test a public RPC provider, public hosting/CORS, explorer source publication or
 the live service that uses the contracts.
 
+## Rehearse approval startup and rejection
+
+Run the approval and host checks before rebuilding the tool image:
+
+```sh
+make js/tests
+make tests/checks
+```
+
+Build the approval image from the reviewed committed tool source:
+
+```sh
+make release/approval/image/build \
+  SOURCE_COMMIT=<full-40-character-commit> \
+  RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=<new-absolute-directory-outside-the-repository>
+```
+
+The output directory's parent must exist. Review the resulting
+`approval-image.json` and use its exact `imageId` for the PTY rehearsal:
+
+```sh
+make escrow/release/approval/start/check RELEASE_APPROVAL_IMAGE=sha256:<image-id>
+```
+
+This command creates its own isolated chain and public fixture inputs. It
+requires installed locked Solidity and JS dependencies, Docker Compose and
+host Python 3. It displays the release identity, enters `start`, waits for the
+first transaction review and rejects that transaction. The check requires an
+unchanged deployer nonce and an audit with no approval or transmission.
+Successful approval and receipt verification remain a separate rehearsal.
+
+The command enables RPC tracing and prints its retained records directory.
+On a first-review timeout, `signer-tail.log` and `approval-tail.log` contain
+the selected container's state, exit code and OOM flag, followed by its last
+80 log lines with stdout and stderr combined. These files are owner-only.
+`approval-pty.log` retains the terminal transcript; `deployment/deploy.log`
+is available when the launcher reaches its ordinary post-run log collection.
+
+The listener assigns its own connection and request numbers for tracing. These
+numbers correlate each request with its response, elapsed time and socket write
+status across the Forge process and independent probe clients. The trace omits
+caller-supplied request IDs, parameter values and response bodies.
+`write=flushed` means the socket write callback completed; it does not establish
+that Forge consumed the response. Closed connections, canceled requests and
+failed or skipped writes remain distinguishable.
+
+The pinned Foundry v1.7.1 uses foundry-fork-db 0.26.0. Its
+[account loader](https://github.com/foundry-rs/foundry-core/blob/fork-db-v0.26.0/crates/fork-db/src/backend.rs#L311-L398)
+races `eth_getAccountInfo` against balance, nonce and code reads, and falls back
+on any error from the combined method. A `-32601` response to that optional
+probe alone does not establish the cause of a stall. Follow the correlated
+standard reads and subsequent requests before changing RPC permissions.
+The listener regression covers the unsupported probe, standard reads on the
+same connection and a submission held by approval. The PTY run checks the real
+pinned client against the approval image.
+
 ## Deploy to the selected chain
 
 Run the shared walkthrough once for any supported app:
@@ -117,8 +173,10 @@ HTTPS RPC URL, funded deployer's private key, target chain ID, published CAM URI
 app's authority and contract settings, and a new deployment output directory.
 Secret prompts hide the URL and signing key. The final review lets you change
 the inputs, cancel, or save with deployment confirmation already recorded.
-Setup sends no transactions. Deploying with `CONFIG` requires no further inputs
-and does not read the RPC catalog or any other credential file.
+Setup sends no transactions. `CONFIG` supplies the deployment inputs; deployment
+also requires a separately reviewed `RELEASE_APPROVAL_IMAGE` and operator
+approval in the terminal. It does not read the RPC catalog or any other
+credential file.
 
 Setup uses two separate paths: `CONFIG` stores the inputs for a future
 deployment, while the output directory stores that deployment's plans,

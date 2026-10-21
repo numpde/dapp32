@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import stat
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 
-from .common import ROOT
+from .common import ROOT, import_python_module_with_env
 
 
 PREFLIGHT = ROOT / "tools/release_approval_preflight.sh"
@@ -72,6 +74,102 @@ class ApprovalLauncherTest(unittest.TestCase):
             )
             self.assertEqual(0, valid.returncode, valid.stderr)
             self.assertTrue(output.is_dir())
+
+
+class ApprovalRehearsalDiagnosticsTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.rehearsal = import_python_module_with_env(
+            "release_approval_pty_check",
+            ROOT / "tools/release_approval_pty_check.py",
+            {},
+        )
+
+    def test_container_tail_preserves_both_streams_and_selected_state(self) -> None:
+        identity = "a" * 64
+
+        def logs(arguments, **options):
+            self.assertEqual(
+                ["docker", "logs", "--tail", "80", identity],
+                arguments,
+            )
+            self.assertEqual(subprocess.PIPE, options.get("stdout"))
+            self.assertEqual(20, options.get("timeout"))
+            stdout = "Forge normal output\n"
+            stderr = "Forge error on stderr\n"
+            if options.get("stderr") == subprocess.STDOUT:
+                return subprocess.CompletedProcess(
+                    arguments, 0, stdout=stdout + stderr, stderr=None,
+                )
+            return subprocess.CompletedProcess(
+                arguments, 0, stdout=stdout, stderr=stderr,
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "signer-tail.log"
+            with mock.patch.object(
+                self.rehearsal, "docker",
+                return_value="status=running exit=0 oom=false",
+            ) as inspect, mock.patch.object(
+                self.rehearsal.subprocess, "run", side_effect=logs,
+            ):
+                self.assertEqual(path, self.rehearsal.save_container_tail(identity, path))
+
+            inspect.assert_called_once_with(
+                "inspect", "--format",
+                "status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}",
+                identity,
+            )
+            self.assertEqual(
+                f"container={identity} status=running exit=0 oom=false\n"
+                "Forge normal output\n"
+                "Forge error on stderr\n",
+                path.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
+
+    def test_log_failure_keeps_partial_diagnostics(self) -> None:
+        identity = "b" * 64
+        result = subprocess.CompletedProcess(
+            ["docker", "logs", "--tail", "80", identity],
+            1,
+            stdout="partial container output\nlog retrieval failed\n",
+            stderr=None,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "signer-tail.log"
+            with mock.patch.object(
+                self.rehearsal, "docker",
+                return_value="status=exited exit=137 oom=true",
+            ), mock.patch.object(
+                self.rehearsal.subprocess, "run", return_value=result,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "diagnostic output saved"):
+                    self.rehearsal.save_container_tail(identity, path)
+
+            self.assertEqual(
+                f"container={identity} status=exited exit=137 oom=true\n"
+                "partial container output\nlog retrieval failed\n",
+                path.read_text(encoding="utf-8"),
+            )
+            self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
+
+    def test_structured_docker_reads_do_not_merge_stderr(self) -> None:
+        result = subprocess.CompletedProcess(
+            ["docker", "inspect"],
+            0,
+            stdout="running\n",
+            stderr="Docker diagnostic on stderr\n",
+        )
+        with mock.patch.object(
+            self.rehearsal.subprocess, "run", return_value=result,
+        ):
+            self.assertEqual(
+                "running",
+                self.rehearsal.docker(
+                    "inspect", "--format", "{{.State.Status}}", "c" * 64,
+                ),
+            )
 
 
 if __name__ == "__main__":

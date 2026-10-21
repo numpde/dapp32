@@ -72,7 +72,7 @@ async function client(socketPath: string) {
   }
 }
 
-function rpc(id: string, method: string, params: unknown[]): string {
+function rpc(id: Rpc["id"], method: string, params: unknown[]): string {
   return JSON.stringify({ jsonrpc: "2.0", id, method, params })
 }
 
@@ -101,6 +101,87 @@ test("JSON-RPC reads may omit params and are forwarded with an empty positional 
     assert.deepEqual(f.forwarded, [{ jsonrpc: "2.0", id: "chain", method: "eth_chainId", params: [] }])
     c.close()
   } finally { await f.close() }
+})
+
+test("unsupported account-info probe permits fallback reads and keeps submission gated", { timeout: 5_000 }, async () => {
+  const f = await fixture()
+  try {
+    const c = await client(f.socketPath)
+    const address = "0x" + "1".repeat(40)
+    c.write(rpc(1, "eth_getAccountInfo", [address, "latest"]))
+    assert.deepEqual(await c.next(), {
+      jsonrpc: "2.0", id: 1, error: { code: -32601, message: "Method not found" },
+    })
+    assert.deepEqual(f.forwarded, [])
+    assert.deepEqual(f.submissions, [])
+
+    const fallback = ["eth_getBalance", "eth_getTransactionCount", "eth_getCode"].map((method, i) => ({
+      jsonrpc: "2.0", id: i + 2, method, params: [address, "latest"],
+    }))
+    c.write(fallback.map(request => JSON.stringify(request)).join(""))
+    const answers = await Promise.all([c.next(), c.next(), c.next()])
+    assert.deepEqual(answers.map(answer => answer.id).sort(), [2, 3, 4])
+    assert.ok(answers.every(answer => answer.result === "0x2a" && answer.error === undefined))
+    assert.equal(f.forwarded.length, 3)
+    for (const request of fallback) {
+      assert.ok(f.forwarded.some(value => JSON.stringify(value) === JSON.stringify(request)))
+    }
+
+    c.write(rpc(5, "eth_sendRawTransaction", ["0x02aa"]) + rpc(6, "eth_chainId", []))
+    assert.deepEqual(await c.next(), { jsonrpc: "2.0", id: 6, result: "0x2a" })
+    assert.deepEqual(f.submissions, ["0x02aa"])
+    assert.equal(f.forwarded.length, 4)
+    f.release()
+    assert.deepEqual(await c.next(), { jsonrpc: "2.0", id: 5, result: "0x" + "a".repeat(64) })
+    assert.equal(f.forwarded.length, 4)
+    c.close()
+  } finally { await f.close() }
+})
+
+test("RPC trace correlates flushed replies without request IDs or payloads", { timeout: 5_000 }, async t => {
+  const previous = process.env.RELEASE_APPROVAL_TRACE_RPC
+  process.env.RELEASE_APPROVAL_TRACE_RPC = "1"
+  const trace: string[] = []
+  t.mock.method(process.stderr, "write", (chunk: string | Uint8Array) => {
+    trace.push(chunk.toString())
+    return true
+  })
+  let f: Awaited<ReturnType<typeof fixture>> | undefined
+  try {
+    f = await fixture()
+    const first = await client(f.socketPath)
+    const second = await client(f.socketPath)
+    const sensitiveId = "credential-bearing-request-id"
+    const address = "0x" + "c".repeat(40)
+    const callData = "0xdeadbeef" + "ab".repeat(32)
+    first.write(rpc(sensitiveId, "eth_getAccountInfo", [address, "latest"]))
+    second.write(rpc(sensitiveId, "eth_call", [{ to: address, data: callData }, "latest"]))
+    const [unsupported, read] = await Promise.all([first.next(), second.next()])
+    assert.equal(unsupported.id, sensitiveId)
+    assert.equal(unsupported.error?.code, -32601)
+    assert.equal(read.id, sensitiveId)
+    assert.equal(read.result, "0x2a")
+    await new Promise<void>(resolve => setImmediate(resolve))
+
+    const output = trace.join("")
+    const requests = [...output.matchAll(/connection=(\d+) request=(\d+) method=([A-Za-z0-9_.]+) request params=2/g)]
+    const responses = [...output.matchAll(/connection=(\d+) request=(\d+) method=([A-Za-z0-9_.]+) response outcome=(?:method-not-found code=-32601|result) write=flushed elapsed_ms=\d+/g)]
+    assert.equal(requests.length, 2)
+    assert.equal(responses.length, 2)
+    assert.equal(new Set(requests.map(entry => entry[1])).size, 2)
+    const identity = (entry: RegExpMatchArray) => entry[1] + ":" + entry[2] + ":" + entry[3]
+    assert.deepEqual(responses.map(identity).sort(), requests.map(identity).sort())
+    for (const sensitive of [sensitiveId, address, callData]) assert.equal(output.includes(sensitive), false)
+    first.close()
+    second.close()
+  } finally {
+    try { await f?.close() }
+    finally {
+      if (previous === undefined) delete process.env.RELEASE_APPROVAL_TRACE_RPC
+      else process.env.RELEASE_APPROVAL_TRACE_RPC = previous
+      t.mock.restoreAll()
+    }
+  }
 })
 
 test("a held send leaves reads responsive on the same socket", async () => {

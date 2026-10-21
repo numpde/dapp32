@@ -75,7 +75,24 @@ def approval_socket_source(identity: str) -> Path:
 
 
 def save_container_tail(identity: str, path: Path) -> Path:
-    path.write_text(docker("logs", "--tail", "80", identity), encoding="utf-8")
+    container_state = docker(
+        "inspect", "--format",
+        "status={{.State.Status}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}}",
+        identity,
+    )
+    result = subprocess.run(
+        ["docker", "logs", "--tail", "80", identity],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, errors="replace", check=False, timeout=20,
+    )
+    with path.open("w", encoding="utf-8") as output:
+        os.fchmod(output.fileno(), 0o600)
+        output.write(f"container={identity} {container_state}\n")
+        output.write(result.stdout)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"docker logs failed (status {result.returncode}); diagnostic output saved to {path}"
+        )
     return path
 
 
@@ -324,8 +341,8 @@ def main() -> None:
                 raise
             gate_tail = save_container_tail(approval_id, rehearsal_dir / "approval-tail.log")
             raise RuntimeError(
-                f"{cause}; bounded signer output saved to {signer_tail}; "
-                f"secret-free RPC trace saved to {gate_tail}"
+                f"{cause}; signer state and stdout/stderr tail saved to {signer_tail}; "
+                f"approval state and RPC trace saved to {gate_tail}"
             ) from cause
         display = transcript.decode("utf-8", errors="replace")
         challenge_match = re.search(r"Reject with: reject ([A-Za-z0-9-]+)", display)

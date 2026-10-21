@@ -14,6 +14,8 @@ function traceRpc(message: string): void {
   if (process.env.RELEASE_APPROVAL_TRACE_RPC === "1") process.stderr.write(`approval RPC ${message}\n`)
 }
 
+// Forge's optional eth_getAccountInfo probe receives -32601 and falls back to
+// balance, nonce and code reads. Its rejection alone does not identify a stall.
 const readMethods = new Set([
   "eth_chainId", "eth_blockNumber", "eth_getBlockByNumber", "eth_getBlockByHash",
   "eth_getBalance", "eth_getTransactionCount", "eth_getStorageAt", "eth_getProof",
@@ -170,9 +172,13 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
     throw new Error("Approval socket requires fresh path and bounded capacities")
   }
   const clients = new Set<Socket>()
+  let nextConnection = 0
   const server = createServer(socket => {
     if (clients.size >= options.maxConnections) { socket.destroy(); return }
     clients.add(socket)
+    const connection = ++nextConnection
+    let nextRequest = 0
+    traceRpc(`connection=${connection} opened`)
     let bytes = Buffer.alloc(0)
     let admitting = true
     const active = new Map<string, AbortController>()
@@ -180,46 +186,59 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
     socket.on("close", () => {
       admitting = false
       clients.delete(socket)
+      traceRpc(`connection=${connection} closed active=${active.size}`)
       for (const control of active.values()) control.abort()
     })
-    function reply(response: RpcResponse) {
-      if (socket.destroyed || socket.writableEnded) return
+    function reply(response: RpcResponse, written?: (status: "flushed" | "failed" | "socket-closed" | "capacity-exceeded") => void) {
+      if (socket.destroyed || socket.writableEnded) { written?.("socket-closed"); return }
       const encoded = JSON.stringify(response) + "\n"
       const ceiling = (options.backend.maxResponseBytes + 1024) * options.maxInFlight
-      if (socket.writableLength + Buffer.byteLength(encoded) > ceiling) { socket.destroy(); return }
-      socket.write(encoded)
+      if (socket.writableLength + Buffer.byteLength(encoded) > ceiling) {
+        written?.("capacity-exceeded")
+        socket.destroy()
+        return
+      }
+      socket.write(encoded, cause => written?.(cause ? "failed" : "flushed"))
     }
     async function dispatch(rpc: RpcRequest, control: AbortController) {
+      const sequence = ++nextRequest
+      const started = performance.now()
       const method = traceMethod(rpc.method)
+      const trace = (message: string) => traceRpc(`connection=${connection} request=${sequence} method=${method} ${message}`)
+      function respond(response: RpcResponse, outcome = response.error ? "error" : "result") {
+        const code = response.error ? ` code=${response.error.code}` : ""
+        reply(response, written => {
+          trace(`response outcome=${outcome}${code} write=${written} elapsed_ms=${Math.round(performance.now() - started)}`)
+        })
+      }
+      trace(`request params=${rpc.params.length}`)
       try {
         if (rpc.method === "eth_sendRawTransaction") {
           if (rpc.params.length !== 1 || typeof rpc.params[0] !== "string" || rpc.id === null) {
-            reply(error(rpc.id, -32602, "Send requires one signed transaction and a non-null request ID"))
+            respond(error(rpc.id, -32602, "Send requires one signed transaction and a non-null request ID"))
             return
           }
           const outcome: SubmissionResult = await options.owner.submit(rpc.params[0], control.signal)
-          traceRpc(`response method=${method} outcome=${outcome.status}`)
-          if (outcome.status === "accepted") reply({ jsonrpc: "2.0", id: rpc.id, result: outcome.hash })
-          else reply(error(rpc.id, -32000, `Transaction ${outcome.status}: ${outcome.reason}`))
+          if (outcome.status === "accepted") respond({ jsonrpc: "2.0", id: rpc.id, result: outcome.hash }, outcome.status)
+          else respond(error(rpc.id, -32000, `Transaction ${outcome.status}: ${outcome.reason}`), outcome.status)
         } else if (readMethods.has(rpc.method)) {
-          const response = await options.backend.read(rpc, control.signal)
-          traceRpc(`response method=${method} outcome=${"error" in response ? "error" : "result"}`)
-          reply(response)
+          respond(await options.backend.read(rpc, control.signal))
         } else {
-          traceRpc(`response method=${method} outcome=method-not-found`)
-          reply(error(rpc.id, -32601, "Method not found"))
+          respond(error(rpc.id, -32601, "Method not found"), "method-not-found")
         }
       } catch (cause) {
         if (!control.signal.aborted) {
-          traceRpc(`failure method=${method} type=${cause instanceof Error ? cause.name : "unknown"}`)
+          trace(`failure type=${cause instanceof Error ? cause.name : "unknown"}`)
           const message = cause instanceof Error ? cause.message : "Unknown request failure"
-          reply(error(rpc.id, -32000, message))
+          respond(error(rpc.id, -32000, message))
+        } else {
+          trace(`canceled elapsed_ms=${Math.round(performance.now() - started)}`)
         }
       } finally { active.delete(idKey(rpc.id)) }
     }
     function accept(value: unknown) {
       if (Array.isArray(value)) {
-        traceRpc("request rejected=batch")
+        traceRpc(`connection=${connection} request rejected=batch`)
         reply(error(null, -32600, "JSON-RPC batches are not supported by the approval socket"))
         return
       }
@@ -229,12 +248,18 @@ export async function startRpcListener(options: ListenerOptions): Promise<{ clos
         if (Object.keys(value as Record<string, unknown>).some(key => !["jsonrpc", "id", "method", "params"].includes(key)) ||
             !safeJsonNumbers(rpc.params, 0)) throw new Error("Unexpected or imprecise JSON-RPC field")
       }
-      catch { traceRpc("request rejected=invalid"); reply(error(null, -32600, "Invalid JSON-RPC request")); return }
-      const method = traceMethod(rpc.method)
-      traceRpc(`request method=${method} params=${rpc.params.length}`)
+      catch { traceRpc(`connection=${connection} request rejected=invalid`); reply(error(null, -32600, "Invalid JSON-RPC request")); return }
       const key = idKey(rpc.id)
-      if (active.has(key)) { reply(error(rpc.id, -32600, "Request ID is already active on this connection")); return }
-      if (active.size >= options.maxInFlight) { reply(error(rpc.id, -32000, "Too many requests on this connection")); return }
+      if (active.has(key)) {
+        traceRpc(`connection=${connection} request rejected=duplicate-id`)
+        reply(error(rpc.id, -32600, "Request ID is already active on this connection"))
+        return
+      }
+      if (active.size >= options.maxInFlight) {
+        traceRpc(`connection=${connection} request rejected=capacity`)
+        reply(error(rpc.id, -32000, "Too many requests on this connection"))
+        return
+      }
       const control = new AbortController()
       active.set(key, control)
       void dispatch(rpc, control)
