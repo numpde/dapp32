@@ -282,9 +282,15 @@ endef
 define release_snapshot_cleanup
 status="$$?"; \
 cleanup_failed=0; \
-if ! release_process_cleanup_begin; then cleanup_failed=1; fi; \
+if ! release_process_cleanup_begin; then \
+  printf '%s\n' 'Owned release process cleanup failed; retaining mounted inputs.' >&2; \
+  cleanup_failed=1; \
+fi; \
 set +e; \
-if declare -F release_approval_cleanup >/dev/null && ! release_approval_cleanup; then cleanup_failed=1; fi; \
+if declare -F release_approval_cleanup >/dev/null && ! release_approval_cleanup; then \
+  printf '%s\n' 'Approval process or terminal cleanup failed; retaining mounted inputs.' >&2; \
+  cleanup_failed=1; \
+fi; \
 release_command_grace=60; \
 if [[ "$$release_run_started" == "1" ]] && ! compose_release down --timeout 10 --volumes --remove-orphans >/dev/null; then \
   printf '%s\n' 'Release run teardown failed.' >&2; \
@@ -302,8 +308,14 @@ if [[ "$$release_rpc_started" == "1" ]] && ! compose_release_rpc down --timeout 
   printf '%s\n' 'RPC resolver teardown failed.' >&2; \
   cleanup_failed=1; \
 fi; \
-if ! release_config_teardown; then cleanup_failed=1; fi; \
-if [[ "$$cleanup_failed" == "0" ]] && ! release_config_cleanup; then cleanup_failed=1; fi; \
+if ! release_config_teardown; then \
+  printf '%s\n' 'Release configuration teardown failed; retaining mounted inputs.' >&2; \
+  cleanup_failed=1; \
+fi; \
+if [[ "$$cleanup_failed" == "0" ]] && ! release_config_cleanup; then \
+  printf '%s\n' 'Release configuration file cleanup failed; retaining mounted inputs.' >&2; \
+  cleanup_failed=1; \
+fi; \
 if [[ -n "$$ceremony_root" ]]; then \
   case "$$ceremony_root" in "/tmp/cam-release-$$LOCAL_UID-"*) \
       if [[ "$$cleanup_failed" == "0" ]] && ! rm -rf -- "$$ceremony_root"; then cleanup_failed=1; fi ;; \

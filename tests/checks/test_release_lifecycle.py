@@ -98,9 +98,9 @@ if args[0] == "inspect":
     elif value == "{{.State.Health.Status}}":
         print("healthy")
     elif value == "{{.State.Status}} {{.State.ExitCode}}":
-        print("running 0")
+        print(os.environ["FORGE_STATE"])
     elif value == "{{.State.ExitCode}}":
-        print("0")
+        print(os.environ["GATE_EXIT"])
     else:
         raise SystemExit(91)
     raise SystemExit(0)
@@ -171,6 +171,8 @@ class ReleaseLifecycleTest(unittest.TestCase):
             "WORKER_STATUS": "143",
             "FAIL_DOWN": "",
             "REPEAT_SIGNALS": "0",
+            "FORGE_STATE": "running 0",
+            "GATE_EXIT": "0",
         }
 
     def wait_path(self, path: Path, process: subprocess.Popen[str]) -> None:
@@ -288,8 +290,8 @@ release_run_owned 1 "$PYTHON" -c 'import os, time; from pathlib import Path; Pat
             self.assertNotEqual(0, process.returncode, stdout + stderr)
             self.assertLess(time.monotonic() - started, 5)
 
-    def test_ctrl_c_forwarded_to_attachment_cancels_before_or_during_review(self) -> None:
-        for phase in ("start", "review"):
+    def test_attachment_cancellation_and_completed_rejection_restore_terminal_and_remove_resources(self) -> None:
+        for phase in ("start", "review", "completed-rejection"):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory(
                 prefix=f"cam-release-{os.getuid()}-", dir="/tmp",
             ) as ceremony_directory:
@@ -298,7 +300,10 @@ release_run_owned 1 "$PYTHON" -c 'import os, time; from pathlib import Path; Pat
                 (root / "output").mkdir()
                 (root / "fake_docker.py").write_text(FAKE_DOCKER, encoding="utf-8")
                 env = self.environment(root, ceremony)
-                env["ATTACH_PHASE"] = phase
+                env["ATTACH_PHASE"] = "review" if phase == "completed-rejection" else phase
+                if phase == "completed-rejection":
+                    env["FORGE_STATE"] = "exited 1"
+                    env["GATE_EXIT"] = "143"
                 script = SHELL_SETUP + "\n" + r"""
 source "$LAUNCHER"
 RELEASE_APPROVAL_SOCKET_DIR="$CASE_ROOT/socket"
@@ -335,11 +340,12 @@ compose_release() {
                 process = self.launch(script, env, stdin=slave)
                 try:
                     self.wait_path(root / "attached", process)
-                    if phase == "review":
+                    if phase in ("review", "completed-rejection"):
                         self.wait_path(root / "signer", process)
                     # Docker's raw attachment receives byte 0x03; this does not
                     # send SIGINT to the host launcher.
-                    os.write(master, b"\x03")
+                    if phase != "completed-rejection":
+                        os.write(master, b"\x03")
                     stdout, stderr = process.communicate(timeout=10)
                     self.assertEqual(original_terminal, termios.tcgetattr(slave))
                 finally:
@@ -350,7 +356,7 @@ compose_release() {
                 events = (root / "events").read_text().splitlines()
                 self.assertEqual(1, events.count("up:release-approval"))
                 expected_signers = 0
-                if phase == "review":
+                if phase in ("review", "completed-rejection"):
                     expected_signers = 1
                 self.assertEqual(expected_signers, events.count("up:deploy-release"))
                 self.assertEqual(
@@ -359,7 +365,8 @@ compose_release() {
                 )
                 self.assertFalse(ceremony.exists())
                 self.assertTrue((root / "attachment-ended").exists())
-                self.assertEqual("unknown\n", (root / "output/forge-exit-code").read_text())
+                expected_exit = "1\n" if phase == "completed-rejection" else "unknown\n"
+                self.assertEqual(expected_exit, (root / "output/forge-exit-code").read_text())
                 self.assertIn("fixture Forge output", (root / "output/deploy.log").read_text())
                 self.assertIn("Review broadcast and approval audit for possible earlier effects.", stderr)
 
@@ -486,6 +493,29 @@ compose_release() {
                 self.assertEqual(5, sum(event.startswith("down:") for event in events))
                 self.assertFalse(ceremony.exists())
                 self.assertFalse((output / "forge-exit-code").exists())
+
+    def test_cleanup_failures_name_the_owner_and_preserve_inputs_after_remaining_teardown(self) -> None:
+        failures = {
+            "process": ('release_process_cleanup_begin() { trap - EXIT; trap "" INT TERM HUP; return 1; }', "Owned release process"),
+            "approval": ('release_approval_cleanup() { return 1; }', "Approval process or terminal"),
+            "config-teardown": ('release_config_teardown() { fake_down config; return 1; }', "Release configuration teardown"),
+            "config-files": ('release_config_cleanup() { return 1; }', "Release configuration file cleanup"),
+        }
+        for phase, (failure, message) in failures.items():
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory(
+                prefix=f"cam-release-{os.getuid()}-", dir="/tmp",
+            ) as ceremony_directory:
+                root, ceremony = Path(directory), Path(ceremony_directory)
+                script = SHELL_SETUP + "\n" + failure
+                script += "\ncleanup() {\n" + make_cleanup() + "\n}\ntrap cleanup EXIT\nexit 7\n"
+                process = self.launch(script, self.environment(root, ceremony))
+                stdout, stderr = process.communicate(timeout=10)
+                self.assertEqual(2, process.returncode, stdout + stderr)
+                self.assertIn(message, stderr)
+                self.assertTrue(ceremony.is_dir())
+                self.assertTrue((root / "config/rpc-url").is_file())
+                events = (root / "events").read_text().splitlines()
+                self.assertEqual(5, sum(event.startswith("down:") for event in events))
 
 
 if __name__ == "__main__":
