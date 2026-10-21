@@ -632,6 +632,7 @@ help:
 	  '    Review the approval image provenance separately. Deploy from a terminal with CONFIG and RELEASE_APPROVAL_IMAGE=sha256:<local image ID>.' \
 	  '  make release/approval/image/build SOURCE_COMMIT=<reviewed tool commit> RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=<new directory>' \
 	  '    Build the approval tool image from that committed source and fresh locked dependencies.' \
+	  '    Two-minute deadline; allows up to 90 additional seconds for cleanup before forced termination.' \
 	  '    Saves its immutable image ID and source/lock digests for separate operator review; never admits it automatically.' \
 	  '    Deployment checks that exact image ID is present locally; it does not establish image provenance.' \
 	  '    Each signed transaction is shown for approval; output retains the private audit and transaction records.' \
@@ -943,7 +944,7 @@ release/approval/image/build:
 	@$(LANE_GUARD); \
 	: "$${SOURCE_COMMIT:?Set SOURCE_COMMIT to the reviewed approval-tool Git commit.}"; \
 	: "$${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR:?Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR to a new output directory.}"; \
-	bash tools/release_approval_image_build.sh "$$SOURCE_COMMIT" "$$RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"
+	timeout -s TERM -k 90s 120s bash tools/release_approval_image_build.sh "$$SOURCE_COMMIT" "$$RELEASE_APPROVAL_IMAGE_OUTPUT_DIR"
 
 bike-nft/release/check:
 	@$(LANE_GUARD); \

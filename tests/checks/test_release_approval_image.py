@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -243,7 +244,22 @@ python3() {
             "LOCAL_GID": "1000",
             "RELEASE_APPROVAL_SIMULATION": "normal",
         })
-        if kind == "image":
+        if kind == "image-target":
+            # Exercise the target's command with a shorter deadline; its lane
+            # guards are covered separately. Keep the real timeout executable.
+            source = (ROOT / "Makefile").read_text(encoding="utf-8")
+            match = re.search(r"(?m)^release/approval/image/build:\n((?:\t.*\n)+)", source)
+            if match is None:
+                raise AssertionError("approval image Make target is missing")
+            recipe = match.group(1).replace("\t", "").removeprefix("@")
+            recipe = recipe.replace("$(LANE_GUARD)", ":").replace("$$", "$")
+            recipe = recipe.replace("120s", "1s")
+            with bash_env.open("a", encoding="utf-8") as stream:
+                stream.write("\nunset -f timeout\n")
+            env.update({"SOURCE_COMMIT": "a" * 40, "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.output)})
+            argv = [bash, "-ec", recipe]
+            self.project = "cam-approval-image-work"
+        elif kind == "image":
             argv = [bash, str(self.repo / "tools/release_approval_image_build.sh"), "a" * 40, str(self.output)]
             self.project = "cam-approval-image-work"
         else:
@@ -323,6 +339,26 @@ python3() {
 
 
 class ReleaseApprovalImageCancellationTest(unittest.TestCase):
+    def test_target_deadline_stops_work_before_teardown(self) -> None:
+        for phase in ("stage", "image"):
+            for down_status in (0, 1):
+                with self.subTest(phase=phase, down_status=down_status):
+                    with _ReleaseCommandHarness(
+                        "image-target", block=phase, hold_down=False,
+                        down_status=down_status, child_status=0,
+                    ) as run:
+                        run.wait_for("child-ready ")
+                        self.assertNotEqual(0, run.finish())
+                        lines = run.lines()
+                        self.assertLess(lines.index("child-stopped"), next(
+                            index for index, line in enumerate(lines) if line.startswith("down-start ")
+                        ))
+                        run.assert_owned_cleanup(self)
+                        self.assertEqual(bool(down_status), run.work.exists())
+                        self.assertFalse(run.output.exists())
+                        if down_status:
+                            self.assertIn(str(run.work), run.log.read_text(encoding="utf-8"))
+
     def test_parent_signals_stop_launch_before_owned_cleanup(self) -> None:
         for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             for phase in ("stage", "image"):
