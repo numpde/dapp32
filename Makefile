@@ -266,6 +266,7 @@ ceremony_root="$$(mktemp -d "/tmp/cam-release-$${LOCAL_UID:?missing_LOCAL_UID}-X
 chmod 0700 "$$ceremony_root"; \
 ceremony_digest="$$(printf '%s' "$$ceremony_root" | sha256sum)"; \
 ceremony_project="cam-release-$${ceremony_digest:0:24}"; \
+printf 'Release container project: %s-run\n' "$$ceremony_project"; \
 ceremony_source="$$ceremony_root/source"
 endef
 

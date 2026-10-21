@@ -84,6 +84,7 @@ class Transcript(bytearray):
         self.log_failed = False
         self.rpc_failed = False
         self.failure: str | None = None
+        self.project: str | None = None
         self.start_seen = False
         self.review_seen = False
         self.challenge: str | None = None
@@ -137,6 +138,13 @@ class Transcript(bytearray):
                 self.discard_line = False
 
     def observe(self, line: str) -> None:
+        if line.startswith("Release container project:"):
+            match = re.fullmatch(r"Release container project: (cam-release-[0-9a-f]{24}-run)", line)
+            if match is None or (self.project is not None and self.project != match.group(1)):
+                if self.failure is None:
+                    self.failure = "Release container project announcement is malformed or conflicting"
+            else:
+                self.project = match.group(1)
         if line == PROMPT:
             self.start_seen = True
         if line == "Release approval" or line.startswith((
@@ -247,6 +255,7 @@ class Transcript(bytearray):
                 "lastRpc": self.last_rpc, "connectionStats": self.stats,
                 "startPromptSeen": self.start_seen, "firstReviewSeen": self.review_seen,
                 "cleanupIncomplete": self.cleanup_incomplete, "failure": self.failure,
+                "releaseProject": self.project,
             }
             with private_output(self.path.with_name("approval-diagnostics.json")) as output:
                 output.write((json.dumps(facts, indent=2) + "\n").encode("utf-8"))
@@ -417,31 +426,15 @@ def docker(*arguments: str) -> str:
     return result.stdout.strip()
 
 
-def containers(service: str, project: str | None = None) -> set[str]:
-    arguments = ["ps", "--all", "--quiet", "--filter", f"label={SERVICE_LABEL}={service}"]
-    if project is not None:
-        arguments.extend(["--filter", f"label={PROJECT_LABEL}={project}"])
+def containers(service: str, project: str) -> set[str]:
+    arguments = ["ps", "--all", "--quiet", "--filter", f"label={SERVICE_LABEL}={service}",
+                 "--filter", f"label={PROJECT_LABEL}={project}"]
     output = docker(*arguments)
     return set(output.splitlines()) if output else set()
 
 
 def state(identity: str) -> str:
     return docker("inspect", "--format", "{{.State.Status}}", identity)
-
-
-def compose_project(identity: str) -> str:
-    return docker("inspect", "--format", f"{{{{index .Config.Labels \"{PROJECT_LABEL}\"}}}}", identity)
-
-
-def wait_for_new_container(service: str, before: set[str], deadline: float) -> str:
-    while time.monotonic() < deadline:
-        new = containers(service) - before
-        if len(new) == 1:
-            return new.pop()
-        if len(new) > 1:
-            raise RuntimeError(f"Expected one new {service} container; found {len(new)}")
-        time.sleep(0.1)
-    raise RuntimeError(f"Timed out waiting for the {service} container")
 
 
 def approval_socket_source(identity: str) -> Path:
@@ -659,8 +652,6 @@ def main() -> None:
     progress(f"Fixture-only rejection check; simulation={simulation}; no approval will be sent")
     rehearsal_project = rehearsal_network.removesuffix("-rehearsal")
     nonce_before = fixture_nonce(rehearsal_project, deployer)
-    old_gates = containers("release-approval")
-    old_signers = containers("deploy-release")
     log_path = rehearsal_dir / "approval-pty.log"
     with release_terminal(log_path) as (master, process, transcript):
         read_until(master, process, transcript, lambda: transcript.start_seen,
@@ -674,18 +665,21 @@ def main() -> None:
             raise RuntimeError("Approval terminal did not display the selected Escrow release identity")
         if re.search(r"  Reference SHA-256: 0x[0-9a-f]{64}\r?\n", display) is None:
             raise RuntimeError("Approval terminal did not display a full reference SHA-256")
-        approval_id = wait_for_new_container("release-approval", old_gates, time.monotonic() + 30)
+        project = transcript.project
+        if project is None:
+            raise RuntimeError("Release launcher did not announce its container project")
+        approval_ids = containers("release-approval", project)
+        if len(approval_ids) != 1:
+            raise RuntimeError("The announced release project must contain exactly one approval service")
+        approval_id = next(iter(approval_ids))
         transcript.diagnostics["approval"] = approval_id
         if state(approval_id) != "running":
             raise RuntimeError("Approval service must be running at the start prompt")
-        project = compose_project(approval_id)
         socket_path = approval_socket_source(approval_id)
         if socket_path.exists() or socket_path.is_symlink():
             raise RuntimeError("Approval socket existed before the operator entered start")
         if containers("deploy-release", project):
             raise RuntimeError("Forge container existed before the operator entered start")
-        if containers("deploy-release") - old_signers:
-            raise RuntimeError("A new Forge container started before the operator entered start")
         progress("Identity verified; checking the backend, then entering start automatically")
         backend_chain_id(approval_id)
         os.write(master, b"start\n")

@@ -160,6 +160,12 @@ waiting it reports the last observed RPC method and request/response counts,
 plus the most recent listener connection summary. Raw terminal contents,
 transaction bodies and approval challenges are not echoed as progress.
 
+The launcher announces its unique release-container project before running
+candidate code. The rehearsal retains that identity and limits every release
+container query to that project, so concurrent releases do not affect discovery.
+Conflicting or malformed project announcements fail the check. The project is
+also retained as `releaseProject` in the diagnostic summary.
+
 Private files in the printed records directory are available during the run:
 
 | File | Contents and bound |

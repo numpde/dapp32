@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import stat
 import tempfile
@@ -24,6 +25,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
             transcript = self.rehearsal.Transcript(path)
             try:
                 wire = (
+                    "Release container project: cam-release-" + "a" * 24 + "-run\r\n"
                     "Release approval\r\n  App: escrow\r\n" + self.rehearsal.PROMPT + "\r\n"
                     "Review transaction 1\r\n  Reject with: reject fixture-challenge\r\n"
                 ).encode()
@@ -32,6 +34,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 self.assertEqual(wire, path.read_bytes())  # readable before shutdown
                 self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
                 self.assertTrue(transcript.start_seen)
+                self.assertEqual("cam-release-" + "a" * 24 + "-run", transcript.project)
                 self.assertTrue(transcript.review_seen)
                 self.assertEqual("fixture-challenge", transcript.challenge)
                 # A large line must not require an unbounded parser buffer or
@@ -44,16 +47,86 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 self.assertTrue(transcript.review_seen)
                 self.assertEqual("fixture-challenge", transcript.challenge)
                 self.assertNotIn("fixture-challenge", transcript.status())
+                self.assertEqual("cam-release-" + "a" * 24 + "-run", transcript.project)
                 transcript.result = "passed"
             finally:
                 transcript.finish()
             self.assertIn(b"cleanup-complete", path.with_name("approval-pty-tail.log").read_bytes())
             facts = json.loads(path.with_name("approval-diagnostics.json").read_text())
             self.assertTrue(facts["firstReviewSeen"])
+            self.assertEqual("cam-release-" + "a" * 24 + "-run", facts["releaseProject"])
             self.assertEqual("passed", facts["result"])
             self.assertNotIn("fixture-challenge", json.dumps(facts))
             for file in Path(directory).iterdir():
                 self.assertEqual(0o600, stat.S_IMODE(file.stat().st_mode))
+
+    def test_invalid_or_conflicting_release_projects_fail_without_replacing_identity(self) -> None:
+        owner = "cam-release-" + "a" * 24 + "-run"
+        for announcement in ("foreign-project", "cam-release-" + "b" * 24 + "-run"):
+            with self.subTest(announcement=announcement), tempfile.TemporaryDirectory() as directory:
+                transcript = self.rehearsal.Transcript(Path(directory) / "approval-pty.log")
+                try:
+                    transcript.extend(f"Release container project: {owner}\n".encode())
+                    transcript.extend(f"Release container project: {announcement}\n".encode())
+                    with self.assertRaisesRegex(RuntimeError, "project"):
+                        transcript.check()
+                    self.assertEqual(owner, transcript.project)
+                finally:
+                    transcript.finish()
+
+    def test_main_observes_only_the_announced_project_despite_unrelated_releases(self) -> None:
+        owner = "cam-release-" + "a" * 24 + "-run"
+        gate, foreign_gate, foreign_signer = "b" * 64, "c" * 64, "d" * 64
+        deployer, source = "0x" + "1" * 40, "2" * 40
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            env = {
+                "RELEASE_APPROVAL_IMAGE": "sha256:" + "e" * 64,
+                "ESCROW_RELEASE_OUTPUT_DIR": str(root / "deployment"),
+                "ESCROW_RELEASE_EXPECTED_DEPLOYER_ADDRESS": deployer,
+                "ESCROW_RELEASE_SOURCE_COMMIT": source,
+                "RELEASE_REHEARSAL_DIR": directory,
+                "RELEASE_REHEARSAL_NETWORK": "fixture-rehearsal",
+                "RELEASE_APPROVAL_SIMULATION": "normal",
+            }
+
+            @contextmanager
+            def terminal(path):
+                transcript = self.rehearsal.Transcript(path)
+                transcript.extend((
+                    f"Release container project: {owner}\nRelease approval\n"
+                    f"  App: escrow\n  Chain ID: 31338\n  Deployer: {deployer}\n"
+                    f"  Source commit: {source}\n  Reference SHA-256: 0x{'f' * 64}\n"
+                    + self.rehearsal.PROMPT + "\n"
+                ).encode())
+                try:
+                    yield 0, None, transcript
+                finally:
+                    transcript.finish()
+
+            def docker(*args):
+                if args[0] == "ps":
+                    self.assertIn(f"label=com.docker.compose.project={owner}", args)
+                    all_projects = {"release-approval": {gate, foreign_gate}, "deploy-release": {foreign_signer}}
+                    for service, inventory in all_projects.items():
+                        if f"label=com.docker.compose.service={service}" in args:
+                            return "\n".join(inventory & {gate})
+                    self.fail("Unexpected release service query")
+                self.assertEqual(("inspect", "--format", "{{.State.Status}}", gate), args)
+                return "running"
+
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+                self.rehearsal, "release_terminal", side_effect=terminal,
+            ), mock.patch.object(self.rehearsal, "fixture_nonce", return_value=0), mock.patch.object(
+                self.rehearsal, "read_until",
+            ), mock.patch.object(self.rehearsal, "docker", side_effect=docker), mock.patch.object(
+                self.rehearsal, "approval_socket_source", return_value=root / "absent.sock",
+            ), mock.patch.object(
+                self.rehearsal, "backend_chain_id", side_effect=RuntimeError("reached owned backend"),
+            ) as backend:
+                with self.assertRaisesRegex(RuntimeError, "reached owned backend"):
+                    self.rehearsal.main()
+                backend.assert_called_once_with(gate)
 
     def test_transcript_limit_fails_the_check_but_retains_cleanup_tail(self) -> None:
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(

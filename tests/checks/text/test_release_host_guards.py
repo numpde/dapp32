@@ -86,6 +86,14 @@ class ReleaseHostGuardTest(unittest.TestCase):
         self.assertLess(execution.index(mkdir), execution.index("release_approval_prepare"))
         self.assertLess(execution.index("release_approval_prepare"), execution.index("release_approval_run"))
 
+    def test_project_identity_is_announced_before_candidate_code_can_write_output(self) -> None:
+        allocate = self.source.split("define release_snapshot_allocate\n", 1)[1].split("endef", 1)[0]
+        self.assertIn("Release container project:", allocate)
+        self.assertLess(allocate.index('ceremony_project='), allocate.index("Release container project:"))
+        prepare = self.source.split("define release_prepare_snapshot\n", 1)[1].split("endef", 1)[0]
+        self.assertLess(prepare.index("$(release_snapshot_allocate)"), prepare.index("$(release_snapshot_populate)"))
+        self.assertLess(prepare.index("$(release_snapshot_allocate)"), prepare.index("compose_release_dependencies run"))
+
 
 if __name__ == "__main__":
     unittest.main()
