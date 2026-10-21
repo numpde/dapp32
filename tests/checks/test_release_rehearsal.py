@@ -67,6 +67,28 @@ class ReleaseRehearsalTest(unittest.TestCase):
 
 
 class ReleaseRehearsalCancellationTest(unittest.TestCase):
+    def test_target_deadline_waits_for_child_cleanup_before_fixture_teardown(self) -> None:
+        for phase, down_status in (("infrastructure", 0), ("pty", 0), ("pty", 1)):
+            with self.subTest(phase=phase, down_status=down_status):
+                with _ReleaseCommandHarness(
+                    "rehearsal-target", block=phase, hold_down=False,
+                    down_status=down_status, child_status=0,
+                ) as run:
+                    run.wait_for("child-ready ")
+                    lines = run.wait_for("child-term")
+                    if phase == "pty":
+                        self.assertFalse(any(line.startswith("down-start ") for line in lines))
+                        run.release()
+                    self.assertNotEqual(0, run.finish())
+                    lines = run.lines()
+                    self.assertLess(lines.index("child-stopped"), next(
+                        index for index, line in enumerate(lines) if line.startswith("down-start ")
+                    ))
+                    run.assert_owned_cleanup(self)
+                    if phase == "pty":
+                        self.assertEqual(bool(down_status), (run.work / "source/js/node_modules").exists())
+                        self.assertEqual(bool(down_status), (run.work / "source/dapps/dependencies").exists())
+
     def test_parent_signals_wait_for_pty_cleanup_before_fixture_teardown(self) -> None:
         for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             with self.subTest(signal=signum):

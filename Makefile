@@ -609,6 +609,7 @@ help:
 	  '    Reports compatibility failures separately from fixture failures; does not deploy an approval proxy.' \
 	  '  make escrow/release/approval/start/check Exercise the live Escrow approval launcher in a PTY.' \
 	  '    Uses the private disposable chain, opens the socket only after start, then rejects the first transaction.' \
+	  '    Ten-minute overall deadline; allows up to seven additional minutes for nested cleanup.' \
 	  '    Requires host Python 3 and RELEASE_APPROVAL_IMAGE set to the operator-reviewed local sha256 image ID.' \
 	  '  make escrow/release/ipc-approval-wait/check Qualify stock Forge over a private Unix socket.' \
 	  '    Runs an ordinary release first, then a 120-second hold and failure/receipt controls.' \
@@ -1207,7 +1208,7 @@ escrow/release/ipc-approval-wait/check:
 .PHONY: escrow/release/approval/start/check
 escrow/release/approval/start/check:
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" approval-pty
+	timeout -s TERM -k 420s 600s env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" approval-pty
 
 pay-to-play/release/rehearsal/run:
 	$(release_rehearsal)

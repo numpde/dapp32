@@ -206,7 +206,9 @@ docker() {
       if [[ "$TEST_BLOCK" == stage ]]; then block_child; fi ;;
     *" rehearsal-prepare "*)
       printf '# fixture inputs\n' >"$RELEASE_REHEARSAL_DIR/control/inputs.env" ;;
-    *" up "*|*" run "*) : ;;
+    *" up "*)
+      if [[ "$TEST_BLOCK" == infrastructure ]]; then block_child; fi ;;
+    *" run "*) : ;;
     *) event "unexpected compose $*"; return 90 ;;
   esac
 }
@@ -244,28 +246,33 @@ python3() {
             "LOCAL_GID": "1000",
             "RELEASE_APPROVAL_SIMULATION": "normal",
         })
-        if kind == "image-target":
-            # Exercise the target's command with a shorter deadline; its lane
-            # guards are covered separately. Keep the real timeout executable.
-            source = (ROOT / "Makefile").read_text(encoding="utf-8")
-            match = re.search(r"(?m)^release/approval/image/build:\n((?:\t.*\n)+)", source)
-            if match is None:
-                raise AssertionError("approval image Make target is missing")
-            recipe = match.group(1).replace("\t", "").removeprefix("@")
-            recipe = recipe.replace("$(LANE_GUARD)", ":").replace("$$", "$")
-            recipe = recipe.replace("120s", "1s")
-            with bash_env.open("a", encoding="utf-8") as stream:
-                stream.write("\nunset -f timeout\n")
-            env.update({"SOURCE_COMMIT": "a" * 40, "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.output)})
-            argv = [bash, "-ec", recipe]
-            self.project = "cam-approval-image-work"
-        elif kind == "image":
+        if kind in ("image", "image-target"):
             argv = [bash, str(self.repo / "tools/release_approval_image_build.sh"), "a" * 40, str(self.output)]
             self.project = "cam-approval-image-work"
         else:
             argv = [bash, str(self.repo / "tools/release_rehearsal.sh"), "escrow", "docker compose", "approval-pty"]
             digest = hashlib.sha256(str(self.work).encode()).hexdigest()[:24]
             self.project = "cam-rehearsal-" + digest
+        if kind in ("image-target", "rehearsal-target"):
+            # Exercise the target's command with a shorter deadline; its lane
+            # guards are covered separately. Keep the real timeout executable.
+            target, deadline, test_deadline = {
+                "image-target": ("release/approval/image/build", "120s", "1s"),
+                "rehearsal-target": ("escrow/release/approval/start/check", "600s", "5s"),
+            }[kind]
+            source = (ROOT / "Makefile").read_text(encoding="utf-8")
+            match = re.search(r"(?m)^" + re.escape(target) + r":\n((?:\t.*\n)+)", source)
+            if match is None:
+                raise AssertionError(f"Make target is missing: {target}")
+            recipe = match.group(1).replace("\t", "").removeprefix("@")
+            for guard in ("LANE_GUARD", "SOLDEER_DEPS_GUARD", "PACKAGE_DEPS_GUARD"):
+                recipe = recipe.replace("$(" + guard + ")", ":")
+            recipe = recipe.replace("$(DOCKER_COMPOSE)", "docker compose").replace("$$", "$")
+            recipe = recipe.replace(deadline, test_deadline)
+            env.update({"SOURCE_COMMIT": "a" * 40, "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.output)})
+            # Inner rehearsal timers remain mocked; only the target's outer
+            # deadline uses the real executable in this fixture.
+            argv = [bash, "-ec", "unset -f timeout\n" + recipe]
         self.log_stream = self.log.open("w", encoding="utf-8")
         self.process = subprocess.Popen(
             argv, cwd=self.repo, env=env, stdin=subprocess.PIPE,
