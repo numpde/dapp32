@@ -15,10 +15,17 @@ release_process_init() {
   release_process_spawning=0
   release_process_signal=0
   release_process_cleaning=0
+  release_progress_phase=""
   exec {release_process_stdout}>&1 {release_process_stderr}>&2
   trap 'release_process_cancel 130' INT
   trap 'release_process_cancel 143' TERM
   trap 'release_process_cancel 129' HUP
+}
+
+release_process_report() {
+  # The caller supplies a fixed phase label, not command arguments or secrets.
+  # Keep progress visible even when the command's output goes to a private log.
+  printf '[release +%ss] %s\n' "$SECONDS" "$1" >&"$release_process_stderr" || true
 }
 
 release_process_cancel() {
@@ -41,16 +48,22 @@ release_process_kill() {
 }
 
 release_stop_owned() {
-  local started failed=0 status=0
+  local started failed=0 status=0 next_report
   if [[ -z "$release_owned_pid" ]]; then return 0; fi
   if release_process_alive; then
+    release_process_report 'Stopping an owned command before resource teardown'
     release_process_kill TERM
     started="$SECONDS"
+    next_report=$((SECONDS + 5))
     while release_process_alive; do
       if (( SECONDS - started >= release_owned_grace )); then
         release_process_kill KILL
         failed=1
         break
+      fi
+      if (( SECONDS >= next_report )); then
+        release_process_report 'Waiting for owned-command cleanup'
+        next_report=$((SECONDS + 5))
       fi
       sleep 0.1
     done
@@ -82,7 +95,7 @@ release_process_cleanup_begin() {
 }
 
 release_run_owned() {
-  local grace="$1" status=0 started remaining timed_out=0
+  local grace="$1" status=0 started remaining timed_out=0 next_report
   shift
   if [[ ! "$grace" =~ ^[1-9][0-9]*$ || $# == 0 || -n "$release_owned_pid" ]]; then
     printf '%s\n' 'Invalid or nested owned release command.' >&2
@@ -101,13 +114,19 @@ release_run_owned() {
     exit "$release_process_signal"
   fi
   started="$SECONDS"
-  if [[ "$release_process_cleaning" == 1 ]]; then
-    # Teardown must be bounded even when a Docker daemon stops responding.
+  next_report=$((SECONDS + 5))
+  if [[ "$release_process_cleaning" == 1 || -n "$release_progress_phase" ]]; then
+    # Teardown is bounded. Ordinary work retains its caller's existing timeout;
+    # this loop only supplies progress and does not change signal ownership.
     while kill -0 "$release_owned_pid" 2>/dev/null; do
-      if (( SECONDS - started >= grace )); then
+      if [[ "$release_process_cleaning" == 1 ]] && (( SECONDS - started >= grace )); then
         release_process_kill KILL
         timed_out=1
         break
+      fi
+      if (( SECONDS >= next_report )); then
+        release_process_report "Still working: ${release_progress_phase:-resource cleanup}"
+        next_report=$((SECONDS + 5))
       fi
       sleep 0.1
     done
