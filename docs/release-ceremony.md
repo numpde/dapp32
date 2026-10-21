@@ -122,8 +122,24 @@ The output directory's parent must exist. Review the resulting
 `approval-image.json` and use its exact `imageId` for the PTY rehearsal:
 
 ```sh
-make escrow/release/approval/start/check RELEASE_APPROVAL_IMAGE=sha256:<image-id>
+make escrow/release/approval/start/check \
+  RELEASE_APPROVAL_IMAGE=sha256:<image-id> \
+  RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=<existing-image-build-directory>
 ```
+
+The rehearsal creates a private `rehearsals/<UTC-datetime>-<checkout-hash>/`
+subdirectory in that build folder and prints its exact path before copying
+source or starting containers. Logs, diagnostics, fixture files and deployment
+records are written there directly and retained after cleanup. Each run needs
+a fresh subdirectory; an existing run is never overwritten. The timestamp
+includes microseconds, and the hash suffix identifies the checkout's `HEAD`;
+`source-commit` records the actual private candidate commit, including any
+uncommitted changes. The folder selects where records go; the explicit
+`RELEASE_APPROVAL_IMAGE` still selects the reviewed image.
+
+This target has a ten-minute overall deadline and allows up to seven additional
+minutes for nested cleanup before forced termination. The image-build target
+has a two-minute deadline and allows up to ninety additional seconds for cleanup.
 
 This command creates its own isolated chain and public fixture inputs. It
 requires installed locked Solidity and JS dependencies, Docker Compose, host

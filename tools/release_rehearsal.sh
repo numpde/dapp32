@@ -98,9 +98,37 @@ cleanup() {
 }
 trap cleanup EXIT
 
-RELEASE_REHEARSAL_DIR="$(mktemp -d "/tmp/cam-release-rehearsal-${LOCAL_UID:?missing_LOCAL_UID}-XXXXXXXX")"
+repository="$(pwd -P)"
+if [[ "$action" == approval-pty ]]; then
+  build_dir="${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR:?Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR to the existing approval-image build directory.}"
+  if [[ "$build_dir" != /* || ! -d "$build_dir" || "$(cd -- "$build_dir" && pwd -P)" != "$build_dir" ]]; then
+    printf '%s\n' 'Approval rehearsal needs an existing normalized absolute directory without symlink components.' >&2
+    exit 2
+  fi
+  case "$build_dir" in
+    "$repository"|"$repository"/*)
+      printf '%s\n' 'The approval-image build directory must be outside the repository.' >&2; exit 2 ;;
+  esac
+  rehearsal_parent="$build_dir/rehearsals"
+  if [[ -L "$rehearsal_parent" || ( -e "$rehearsal_parent" && ! -d "$rehearsal_parent" ) ]]; then
+    printf '%s\n' 'Approval rehearsal output: rehearsals must be a directory without a symlink.' >&2
+    exit 2
+  fi
+  mkdir -p --mode=0700 -- "$rehearsal_parent"
+  checkout_commit="$(git rev-parse HEAD)"
+  if [[ ! "$checkout_commit" =~ ^[0-9a-f]{40}$ ]]; then
+    printf '%s\n' 'Cannot name the approval rehearsal: Git did not return a full checkout commit hash.' >&2
+    exit 2
+  fi
+  stamp="$(python3 -c 'from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ"))')"
+  records_dir="$rehearsal_parent/$stamp-${checkout_commit:0:8}"
+  mkdir --mode=0700 -- "$records_dir"
+  RELEASE_REHEARSAL_DIR="$records_dir"
+else
+  RELEASE_REHEARSAL_DIR="$(mktemp -d "/tmp/cam-release-rehearsal-${LOCAL_UID:?missing_LOCAL_UID}-XXXXXXXX")"
+fi
 export RELEASE_REHEARSAL_DIR
-release_process_report "Private records: $RELEASE_REHEARSAL_DIR"
+release_process_report "Logs and diagnostics: $RELEASE_REHEARSAL_DIR (retained after cleanup)"
 printf '%s\n' "$simulation" >"$RELEASE_REHEARSAL_DIR/simulation-mode"
 digest="$(printf '%s' "$RELEASE_REHEARSAL_DIR" | sha256sum)"
 project="cam-rehearsal-${digest:0:24}"
@@ -108,7 +136,6 @@ export RELEASE_REHEARSAL_NETWORK="$project-rehearsal"
 compose=(docker compose --project-name "$project" -f compose/release/rehearsal.yml)
 planner_compose=(docker compose --project-name "$project-planner" -f compose/release/deploy.yml -f "compose/$app/release/deploy.yml" -f compose/release/rehearsal-deploy.yml)
 unset PRIVATE_KEY RPC_URL RPC_CHAIN RPC_SERVICE RPC_API_KEY_FILE
-repository="$(pwd -P)"
 git_environment="$(git rev-parse --local-env-vars)"
 while IFS= read -r name; do unset "$name"; done <<<"$git_environment"
 unset GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS

@@ -609,6 +609,8 @@ help:
 	  '    Reports compatibility failures separately from fixture failures; does not deploy an approval proxy.' \
 	  '  make escrow/release/approval/start/check Exercise the live Escrow approval launcher in a PTY.' \
 	  '    Uses the private disposable chain, opens the socket only after start, then rejects the first transaction.' \
+	  '    Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR to the existing image-build folder.' \
+	  '    Logs and diagnostics stay in its rehearsals/<UTC-datetime>-<checkout-hash>/ subfolder; the command prints the exact path.' \
 	  '    Ten-minute overall deadline; allows up to seven additional minutes for nested cleanup.' \
 	  '    Requires host Python 3 and RELEASE_APPROVAL_IMAGE set to the operator-reviewed local sha256 image ID.' \
 	  '  make escrow/release/ipc-approval-wait/check Qualify stock Forge over a private Unix socket.' \

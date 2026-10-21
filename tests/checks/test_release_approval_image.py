@@ -67,19 +67,29 @@ class _ReleaseCommandHarness:
 
     def __init__(
         self, kind: str, *, block: str, hold_down: bool,
-        down_status: int, child_status: int,
+        down_status: int, child_status: int, build_directory: Path | None = None,
     ) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="release-cancel-test-")
         self.root = Path(self.temp.name)
         self.repo = self.root / "repo"
         self.work = self.root / "work"
+        self.build = self.root / "image build"
+        self.build.mkdir()
+        self.provenance = self.build / "approval-image.json"
+        self.provenance.write_text('{"fixture":"leave unchanged"}\n', encoding="utf-8")
+        if build_directory is not None:
+            self.build = build_directory
+        self.stamp = "20261021T000000000000Z"
+        if kind in ("rehearsal", "rehearsal-target"):
+            self.work = self.build / "rehearsals" / (self.stamp + "-aaaaaaaa")
         self.output = self.root / "published"
         self.events = self.root / "events"
         self.log = self.root / "console.log"
         self.unrelated = self.root / "unrelated"
         self.unrelated.write_text("leave this alone\n", encoding="utf-8")
         self.repo.mkdir()
-        self.work.mkdir()
+        if kind in ("image", "image-target"):
+            self.work.mkdir()
         self.events.touch()
         for name in ("release_approval_image_build.sh", "release_rehearsal.sh", "release_process.sh"):
             destination = self.repo / "tools" / name
@@ -213,9 +223,11 @@ docker() {
   esac
 }
 python3() {
+  if [[ "$1" == -c ]]; then printf '%s\n' "$TEST_STAMP"; return; fi
   if [[ "$1" != tools/release_approval_pty_check.py ]]; then
     event "unexpected python3 $*"; return 90
   fi
+  printf '{"result":"fixture"}\n' >"$RELEASE_REHEARSAL_DIR/approval-diagnostics.json"
   block_child
 }
 """, encoding="utf-8")
@@ -237,6 +249,7 @@ python3() {
             "TEST_PARTIAL": str(self.root / "published.tmp.fixture"),
             "TEST_EVENTS": str(self.events),
             "TEST_COMMIT": "a" * 40,
+            "TEST_STAMP": self.stamp,
             "TEST_IMAGE": "sha256:" + "b" * 64,
             "TEST_BLOCK": block,
             "TEST_HOLD_DOWN": str(int(hold_down)),
@@ -245,6 +258,7 @@ python3() {
             "LOCAL_UID": "1000",
             "LOCAL_GID": "1000",
             "RELEASE_APPROVAL_SIMULATION": "normal",
+            "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.build),
         })
         if kind in ("image", "image-target"):
             argv = [bash, str(self.repo / "tools/release_approval_image_build.sh"), "a" * 40, str(self.output)]
@@ -269,7 +283,8 @@ python3() {
                 recipe = recipe.replace("$(" + guard + ")", ":")
             recipe = recipe.replace("$(DOCKER_COMPOSE)", "docker compose").replace("$$", "$")
             recipe = recipe.replace(deadline, test_deadline)
-            env.update({"SOURCE_COMMIT": "a" * 40, "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.output)})
+            if kind == "image-target":
+                env.update({"SOURCE_COMMIT": "a" * 40, "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.output)})
             # Inner rehearsal timers remain mocked; only the target's outer
             # deadline uses the real executable in this fixture.
             argv = [bash, "-ec", "unset -f timeout\n" + recipe]

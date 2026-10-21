@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 import signal
+import stat
+import tempfile
 import unittest
 
 from .common import compose_mapping, compose_sequence_or_empty, compose_service, rendered_compose_config
@@ -67,6 +70,78 @@ class ReleaseRehearsalTest(unittest.TestCase):
 
 
 class ReleaseRehearsalCancellationTest(unittest.TestCase):
+    def test_approval_records_stay_under_the_build_folder_after_cancellation(self) -> None:
+        with _ReleaseCommandHarness(
+            "rehearsal", block="pty", hold_down=False, down_status=0, child_status=0,
+        ) as run:
+            original_provenance = run.provenance.read_bytes()
+            run.wait_for("child-ready ")
+            self.assertEqual(run.build / "rehearsals", run.work.parent)
+            self.assertEqual(0o700, stat.S_IMODE(run.work.stat().st_mode))
+            console = run.log.read_text(encoding="utf-8")
+            self.assertIn(f"Logs and diagnostics: {run.work} (retained after cleanup)", console)
+            self.assertLess(console.index("Logs and diagnostics:"), console.index("Snapshotting candidate source"))
+            os.kill(run.process.pid, signal.SIGTERM)
+            run.wait_for("child-term")
+            run.release()
+            self.assertNotEqual(0, run.finish())
+            self.assertTrue((run.work / "approval-diagnostics.json").is_file())
+            self.assertIn(f"Release rehearsal records: {run.work}", run.log.read_text(encoding="utf-8"))
+            self.assertEqual(original_provenance, run.provenance.read_bytes())
+            run.assert_owned_cleanup(self)
+
+    def test_approval_never_reuses_an_existing_run_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            build = Path(temporary) / "build"
+            existing = build / "rehearsals" / "20261021T000000000000Z-aaaaaaaa"
+            existing.mkdir(parents=True)
+            diagnostic = existing / "approval-diagnostics.json"
+            diagnostic.write_text("previous run\n", encoding="utf-8")
+            with _ReleaseCommandHarness(
+                "rehearsal", block="pty", hold_down=False,
+                down_status=0, child_status=0, build_directory=build,
+            ) as run:
+                self.assertNotEqual(0, run.finish())
+                self.assertFalse(any(line.startswith("compose ") for line in run.lines()))
+                self.assertEqual("previous run\n", diagnostic.read_text(encoding="utf-8"))
+
+    def test_approval_rejects_unsafe_build_folders_before_starting_docker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            valid = root / "valid"
+            valid.mkdir()
+            ancestor = root / "linked"
+            ancestor.symlink_to(valid, target_is_directory=True)
+            (valid / "child").mkdir()
+            regular = root / "file"
+            regular.write_text("not a directory\n", encoding="utf-8")
+            for path in (Path("relative"), root / "missing", regular, ancestor, ancestor / "child", valid / ".." / "valid"):
+                with self.subTest(path=path):
+                    with _ReleaseCommandHarness(
+                        "rehearsal", block="pty", hold_down=False,
+                        down_status=0, child_status=0, build_directory=path,
+                    ) as run:
+                        self.assertNotEqual(0, run.finish())
+                        self.assertFalse(any(line.startswith("compose ") for line in run.lines()))
+                        self.assertIn("existing normalized absolute directory", run.log.read_text(encoding="utf-8"))
+
+    def test_approval_refuses_a_redirected_rehearsal_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            build = root / "build"
+            build.mkdir()
+            unrelated = root / "unrelated"
+            unrelated.mkdir()
+            (build / "rehearsals").symlink_to(unrelated, target_is_directory=True)
+            with _ReleaseCommandHarness(
+                "rehearsal", block="pty", hold_down=False,
+                down_status=0, child_status=0, build_directory=build,
+            ) as run:
+                self.assertNotEqual(0, run.finish())
+                self.assertFalse(any(line.startswith("compose ") for line in run.lines()))
+                self.assertIn("rehearsals must be a directory without a symlink", run.log.read_text(encoding="utf-8"))
+                self.assertEqual([], list(unrelated.iterdir()))
+
     def test_target_deadline_waits_for_child_cleanup_before_fixture_teardown(self) -> None:
         for phase, down_status in (("infrastructure", 0), ("pty", 0), ("pty", 1)):
             with self.subTest(phase=phase, down_status=down_status):
