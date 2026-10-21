@@ -213,6 +213,7 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
   let resolveFinished: (reason: string) => void = () => {}
   const finished = new Promise<string>(resolve => { resolveFinished = resolve })
   let fatalReason: string | null = null
+  let listenerFailure: string | null = null
   let review: TransactionReview | null = null
   let recordedClosure = false
   const audit = {
@@ -295,7 +296,9 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
       socketPath: settings.socketPath, backend, owner,
       maxMessageBytes: 262_144, maxConnections: 8, maxInFlight: 32,
       maxConnectionAttempts: 256, connectionWindowMs: 1_000,
+      traceOutput: process.stderr,
       onFatal: reason => {
+        listenerFailure = reason
         fatalReason = reason
         // The listener has already stopped admission. Close the decision owner
         // synchronously; no still-visible prompt may authorize a later send.
@@ -303,11 +306,14 @@ export async function startApprovalRuntime(settings: RuntimeSettings, io: Runtim
         if (startupComplete) void close(reason).catch(() => { process.exitCode = 1 })
       },
     })
-    if (fatalReason !== null) throw new Error("Approval listener failed during startup")
     if (io.signal?.aborted) throw new Error("Approval startup was interrupted")
     if (detached || io.input.destroyed || io.input.readableEnded || io.output.destroyed) {
       throw new Error("Operator terminal detached during approval startup")
     }
+    // The owner also closes on terminal loss or inspection failure. Only the
+    // listener callback may classify a startup failure as an IPC failure.
+    if (listenerFailure !== null) throw new Error("Approval IPC listener failed during startup")
+    if (fatalReason !== null) throw new Error("Approval ceremony closed during startup")
     timer = setInterval(() => {
       try {
         terminal.poll()
