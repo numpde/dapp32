@@ -306,7 +306,7 @@ test("inspection errors disclose only a fixed safe category, not caught error te
   }
 })
 
-test("missing or invalid connection budgets fail before opening the approval socket", async () => {
+test("missing budgets or trace output fail before opening the approval socket", async () => {
   const directory = mkdtempSync(join(tmpdir(), "approval-required-limits-"))
   const socketPath = join(directory, "rpc.sock")
   const backend: FixedBackend = {
@@ -327,5 +327,8 @@ test("missing or invalid connection budgets fail before opening the approval soc
         assert.equal(existsSync(socketPath), false)
       }
     }
+    const missingTrace = { ...options, traceOutput: undefined } as unknown as ListenerOptions
+    await assert.rejects(startRpcListener(missingTrace), /bounded capacities/)
+    assert.equal(existsSync(socketPath), false)
   } finally { rmSync(directory, { recursive: true, force: true }) }
 })
