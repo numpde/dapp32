@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
+import { spawn } from "node:child_process"
 import { once } from "node:events"
 import { createServer as createHttpServer } from "node:http"
 import { connect } from "node:net"
@@ -123,6 +124,53 @@ test("runtime requires an attached operator terminal before accepting connection
     await assert.rejects(stat(selected.socketPath), { code: "ENOENT" })
   } finally { await rm(root, { recursive: true, force: true }) }
 })
+
+for (const phase of ["before start", "after start"] as const) {
+  test(`executable releases its open operator input on cancellation ${phase}`, async t => {
+    const root = await mkdtemp(join(tmpdir(), "approval-process-"))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const reference = snapshot()
+    const selected = settings(root, reference)
+    await mkdir(join(root, "socket"), { mode: 0o700 })
+    await mkdir(selected.auditDir, { mode: 0o700 })
+    await writeFile(selected.referencePath, JSON.stringify(reference))
+    const entrypoint = new URL("./run.ts", import.meta.url)
+    const child = spawn(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", `
+      import { fileURLToPath } from 'node:url';
+      process.stdin.isTTY = process.stdout.isTTY = true;
+      process.argv[1] = fileURLToPath(${JSON.stringify(entrypoint.href)});
+      await import(${JSON.stringify(entrypoint.href)});
+    `], { stdio: ["pipe", "pipe", "pipe"], env: {
+      ...process.env,
+      RELEASE_APPROVAL_APP: selected.app, RELEASE_APPROVAL_CHAIN_ID: String(selected.chainId),
+      RELEASE_APPROVAL_DEPLOYER: selected.deployer, RELEASE_APPROVAL_SOURCE_COMMIT: selected.sourceCommit,
+      RELEASE_APPROVAL_REFERENCE_PATH: selected.referencePath,
+      RELEASE_APPROVAL_REFERENCE_SHA256: selected.referenceSha256,
+      RELEASE_APPROVAL_PLAN_SHA256: selected.planSha256,
+      RELEASE_APPROVAL_SOCKET_PATH: selected.socketPath, RELEASE_APPROVAL_AUDIT_DIR: selected.auditDir,
+      RELEASE_APPROVAL_BACKEND_URL: selected.backendUrl,
+    } })
+    t.after(() => { child.kill("SIGKILL"); child.stdin.destroy() })
+    let printed = ""
+    child.stdout.on("data", chunk => { printed += chunk.toString() })
+    let errors = ""
+    child.stderr.on("data", chunk => { errors += chunk.toString() })
+    async function waitFor(text: string): Promise<void> {
+      while (!printed.includes(text)) await once(child.stdout, "data", { signal: AbortSignal.timeout(3000) })
+    }
+    await waitFor("Type start and press Enter")
+    if (phase === "after start") {
+      child.stdin.write("start\n")
+      await waitFor("Approval ready")
+    }
+    // Leave the operator pipe open: shutdown must release its own read handle.
+    const ended = once(child, "exit", { signal: AbortSignal.timeout(1500) })
+    child.kill("SIGTERM")
+    const [status, signal] = await ended
+    assert.equal(signal, null, errors)
+    assert.equal(status, 1, errors)
+  })
+}
 
 test("operator must see selected release facts and enter exact start before audit or socket exists", async () => {
   const root = await mkdtemp(join(tmpdir(), "approval-runtime-"))

@@ -351,6 +351,8 @@ async function main(): Promise<void> {
     if (reason !== "approval complete") process.exitCode = 1
     if (process.exitCode) process.stderr.write(`Approval stopped: ${reason}\n`)
   } finally {
+    // Removing data listeners leaves stdin flowing and can keep the CLI alive.
+    process.stdin.pause()
     process.off("SIGINT", onInterrupt)
     process.off("SIGTERM", onTerminate)
   }
