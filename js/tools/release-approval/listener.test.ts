@@ -42,6 +42,7 @@ async function fixture() {
   const listener = await startRpcListener({
     socketPath, backend: fixed, owner, maxMessageBytes: 4_096, maxConnections: 4, maxInFlight: 4,
     maxConnectionAttempts: 256, connectionWindowMs: 1_000,
+    traceOutput: process.stderr,
   })
   return {
     socketPath, forwarded, submissions, aborted: () => aborted,

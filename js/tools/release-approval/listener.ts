@@ -10,6 +10,12 @@ export type RpcRequest = { jsonrpc: "2.0"; id: RpcId; method: string; params: un
 export type RpcResponse = { jsonrpc: "2.0"; id: RpcId; result?: unknown; error?: { code: number; message: string; data?: unknown } }
 type Owner = Pick<ApprovalOwner, "submit">
 
+export interface RpcTraceOutput {
+  readonly destroyed: boolean
+  readonly writableNeedDrain: boolean
+  write(line: string): boolean
+}
+
 // Forge's optional eth_getAccountInfo probe receives -32601 and falls back to
 // balance, nonce and code reads. Its rejection alone does not identify a stall.
 const readMethods = new Set([
@@ -128,6 +134,8 @@ export interface ListenerOptions {
   /** A ceremony-wide connection-attempt budget, including rejected attempts. */
   maxConnectionAttempts: number
   connectionWindowMs: number
+  /** Explicit trace sink keeps test backpressure independent of Node's own stderr. */
+  traceOutput: RpcTraceOutput
   /** Called once after admission stops; the runtime must close the approval owner. */
   onFatal?: (reason: string) => void
 }
@@ -178,7 +186,10 @@ export async function startRpcListener(options: ListenerOptions) {
       !Number.isSafeInteger(options.maxConnections) || options.maxConnections < 1 ||
       !Number.isSafeInteger(options.maxInFlight) || options.maxInFlight < 1 ||
       !Number.isSafeInteger(maxAttempts) || maxAttempts < 1 ||
-      !Number.isSafeInteger(windowMs) || windowMs < 1 || socketExists ||
+      !Number.isSafeInteger(windowMs) || windowMs < 1 ||
+      !options.traceOutput || typeof options.traceOutput.write !== "function" ||
+      typeof options.traceOutput.destroyed !== "boolean" ||
+      typeof options.traceOutput.writableNeedDrain !== "boolean" || socketExists ||
       !parentStat.isDirectory() || parentStat.uid !== process.getuid?.() ||
       (parentStat.mode & 0o077) !== 0 || realpathSync(parent) !== resolve(parent)) {
     throw new Error("Approval socket requires fresh path and bounded capacities")
@@ -198,6 +209,7 @@ export async function startRpcListener(options: ListenerOptions) {
   let windowStarted = performance.now()
   let windowAttempts = 0
   const tracing = process.env.RELEASE_APPROVAL_TRACE_RPC === "1"
+  const traceOutput = options.traceOutput
   let traceBytes = 0
   let detailStarted = performance.now()
   let detailLines = 0
@@ -211,13 +223,13 @@ export async function startRpcListener(options: ListenerOptions) {
     const line = `approval RPC ${message}\n`
     const limit = summary ? 524_288 : 458_752 // reserve 64 KiB for summaries
     if ((!summary && detailLines >= 128) || traceBytes + Buffer.byteLength(line) > limit ||
-        process.stderr.destroyed || process.stderr.writableNeedDrain) {
+        traceOutput.destroyed || traceOutput.writableNeedDrain) {
       stats.suppressed++
       return
     }
     if (!summary) detailLines++
     traceBytes += Buffer.byteLength(line)
-    try { process.stderr.write(line) } catch { stats.suppressed++ }
+    try { traceOutput.write(line) } catch { stats.suppressed++ }
   }
   function summary() {
     traceRpc(`stats ${Object.entries(stats).map(([key, value]) => `${key}=${value}`).join(" ")} stopped=${stopped ? 1 : 0}`, true)
@@ -332,10 +344,21 @@ export async function startRpcListener(options: ListenerOptions) {
         } else {
           respond(error(rpc.id, -32601, "Method not found"), "method-not-found")
         }
-      } catch {
+      } catch (cause) {
         if (!control.signal.aborted) {
-          trace("failure type=request-failed")
-          respond(error(rpc.id, -32000, "Approval request failed"))
+          // Inspection errors are already reduced by ApprovalOwner to a fixed
+          // error-class token. Expose only this known category, never a caught
+          // error message (which might contain untrusted RPC or secret text).
+          const inspectionFailure = rpc.method === "eth_sendRawTransaction" &&
+            cause instanceof Error &&
+            /^Transaction inspection failed \([A-Za-z][A-Za-z0-9]{0,47}\)/.test(cause.message)
+          if (inspectionFailure) {
+            trace("failure type=transaction-inspection")
+            respond(error(rpc.id, -32000, "Transaction inspection failed"))
+          } else {
+            trace("failure type=request-failed")
+            respond(error(rpc.id, -32000, "Approval request failed"))
+          }
         } else {
           stats.canceled++
           trace(`canceled elapsed_ms=${Math.round(performance.now() - started)}`)
