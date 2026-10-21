@@ -26,7 +26,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
             try:
                 wire = (
                     "Release container project: cam-release-" + "a" * 24 + "-run\r\n"
-                    "Release approval\r\n  App: escrow\r\n" + self.rehearsal.PROMPT + "\r\n"
+                    "\x1b[?25hRelease approval\r\n  App: escrow\r\n" + self.rehearsal.PROMPT + "\r\n"
                     "Review transaction 1\r\n  Reject with: reject fixture-challenge\r\n"
                 ).encode()
                 for offset in range(0, len(wire), 3):
@@ -34,6 +34,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 self.assertEqual(wire, path.read_bytes())  # readable before shutdown
                 self.assertEqual(0o600, stat.S_IMODE(path.stat().st_mode))
                 self.assertTrue(transcript.start_seen)
+                self.assertIn("Release approval", transcript.identity_lines)
                 self.assertEqual("cam-release-" + "a" * 24 + "-run", transcript.project)
                 self.assertTrue(transcript.review_seen)
                 self.assertEqual("fixture-challenge", transcript.challenge)
@@ -159,7 +160,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
             ), mock.patch.object(self.rehearsal, "signer_rpc_read"), mock.patch.object(
                 self.rehearsal, "wait_for_exit", side_effect=exited,
             ), mock.patch.object(self.rehearsal.os, "write", side_effect=write):
-                self.rehearsal.main()
+                self.rehearsal.main("reject")
                 backend.assert_called_once_with(gate)
             facts = json.loads((root / "approval-diagnostics.json").read_text())
             self.assertEqual("passed", facts["result"])
@@ -287,7 +288,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                     self.rehearsal, "docker",
                 ) as docker, mock.patch.object(self.rehearsal, "fixture_nonce") as nonce:
                     with self.assertRaisesRegex(RuntimeError, "RELEASE_APPROVAL_SIMULATION"):
-                        self.rehearsal.main()
+                        self.rehearsal.main("reject")
                 docker.assert_not_called()
                 nonce.assert_not_called()
                 self.assertEqual([], list(Path(directory).iterdir()))

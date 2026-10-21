@@ -622,6 +622,8 @@ help:
 	  '    Reports compatibility failures separately from fixture failures; does not deploy an approval proxy.' \
 	  '  make escrow/release/approval/start/check Exercise the live Escrow approval launcher in a PTY.' \
 	  '    Uses the private disposable chain, opens the socket only after start, then rejects the first transaction.' \
+	  '  make escrow/release/approval/success/check Approve the disposable Escrow deployment; check receipts, handoffs and CAM.' \
+	  '    Both approval checks use the following inputs and retain their diagnostics after cleanup:' \
 	  '    Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR to the existing image-build folder.' \
 	  '    Logs and diagnostics stay in its rehearsals/<UTC-datetime>-<checkout-hash>/ subfolder; the command prints the exact path.' \
 	  '    Ten-minute overall deadline; allows up to seven additional minutes for nested cleanup.' \
@@ -1220,10 +1222,17 @@ escrow/release/ipc-approval-wait/check:
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
 	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" ipc-waits
 
-.PHONY: escrow/release/approval/start/check
-escrow/release/approval/start/check:
+.PHONY: escrow/release/approval/start/check escrow/release/approval/success/check
+define release_approval_rehearsal
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	timeout -s TERM -k 420s 600s env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" approval-pty
+	timeout -s TERM -k 420s 600s env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" $(1)
+endef
+
+escrow/release/approval/start/check:
+	$(call release_approval_rehearsal,approval-pty)
+
+escrow/release/approval/success/check:
+	$(call release_approval_rehearsal,approval-success)
 
 pay-to-play/release/rehearsal/run:
 	$(release_rehearsal)

@@ -87,6 +87,9 @@ class Transcript(bytearray):
         self.project: str | None = None
         self.start_seen = False
         self.review_seen = False
+        self.review_number = 0
+        self.review: dict[str, str] = {}
+        self.inspection_seen = False
         self.challenge: str | None = None
         self.explanation_seen = False
         self.cleanup_incomplete = False
@@ -97,6 +100,7 @@ class Transcript(bytearray):
         self.diagnostics: dict[str, str] = {}
         self.phase = "starting launcher"
         self.result = "incomplete"
+        self.scenario: str | None = None
         self.finished = False
 
     def extend(self, chunk) -> None:
@@ -138,6 +142,9 @@ class Transcript(bytearray):
                 self.discard_line = False
 
     def observe(self, line: str) -> None:
+        # Compose can finish a progress display immediately before a prompt.
+        # Keep the raw transcript; recognize visible lines without CSI controls.
+        line = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", line)
         if line.startswith("Release container project:"):
             match = re.fullmatch(r"Release container project: (cam-release-[0-9a-f]{24}-run)", line)
             if match is None or (self.project is not None and self.project != match.group(1)):
@@ -152,8 +159,18 @@ class Transcript(bytearray):
         )) or line == PROMPT:
             if sum(map(len, self.identity_lines)) + len(line) <= 8192:
                 self.identity_lines.append(line)
-        if line == "Review transaction 1":
+        match = re.fullmatch(r"Review transaction ([1-9][0-9]{0,3})", line)
+        if match:
+            self.review_number = int(match.group(1))
             self.review_seen = True
+            self.review = {}
+            self.challenge = None
+            self.inspection_seen = False
+        match = re.fullmatch(r"  (Chain ID|Sender|Nonce|Transaction hash|Step): (.+)", line)
+        if self.review_number and match:
+            self.review[match.group(1)] = match.group(2)
+        if re.fullmatch(r"Full data page 1 of [1-9][0-9]*", line):
+            self.inspection_seen = True
         match = re.fullmatch(r"\s*Reject with: reject ([A-Za-z0-9-]{1,128})", line)
         if self.review_seen and match:
             self.challenge = match.group(1)
@@ -247,7 +264,7 @@ class Transcript(bytearray):
             with private_output(self.path.with_name("approval-pty-tail.log")) as output:
                 output.write(self)
             facts = {
-                "schemaVersion": 1, "result": self.result, "phase": self.phase,
+                "schemaVersion": 1, "result": self.result, "phase": self.phase, "scenario": self.scenario,
                 # Missing fixture identity stays absent; never invent a normal run.
                 "simulation": os.environ.get("RELEASE_APPROVAL_SIMULATION"),
                 "transcriptBytesSeen": self.total, "transcriptTruncated": self.truncated,
@@ -629,7 +646,98 @@ def wait_for_exit(process: subprocess.Popen[bytes], master: int, transcript: byt
     raise TimeoutError("Release command did not finish while waiting for shutdown")
 
 
-def main() -> None:
+def read_audit(output: Path) -> list[dict]:
+    path = output / "approval-audit" / "approval.jsonl"
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 1024 * 1024:
+        raise RuntimeError("Release must retain a regular approval audit no larger than 1 MiB")
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def approve_transactions(master, process, transcript: Transcript, output: Path,
+                         deployer: str, source_commit: str, nonce: int) -> list[tuple[str, str]]:
+    path = output / "approval-reference" / "reference.json"
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 8 * 1024 * 1024:
+        raise RuntimeError("Successful rehearsal requires a bounded regular approval reference")
+    reference = json.loads(path.read_text(encoding="utf-8"))
+    if (reference["app"] != "escrow" or reference["expectedChainId"] != 31338
+            or reference["expectedDeployer"].lower() != deployer.lower()
+            or reference["sourceCommit"] != source_commit
+            or f"  Reference SHA-256: {reference['snapshotSha256']}" not in transcript.identity_lines):
+        raise RuntimeError("Approval reference differs from the displayed fixture identity")
+    steps = reference["steps"]
+    if not isinstance(steps, list) or not 1 <= len(steps) <= 128:
+        raise RuntimeError("Approval reference must have 1 to 128 steps")
+    approvals = []
+    for index, step in enumerate(steps):
+        read_until(master, process, transcript,
+                   lambda: transcript.review_number >= index + 1 and transcript.challenge is not None,
+                   time.monotonic() + 180, f"signed transaction review {index + 1}")
+        review, challenge = transcript.review, transcript.challenge
+        transaction_hash = review.get("Transaction hash")
+        sender = review.get("Sender")
+        if (transcript.review_number != index + 1 or challenge is None
+                or not isinstance(transaction_hash, str) or re.fullmatch(r"0x[0-9a-f]{64}", transaction_hash) is None
+                or review.get("Chain ID") != "31338"
+                or not isinstance(sender, str) or sender.lower() != deployer.lower()
+                or review.get("Nonce") != str(nonce + index)
+                or review.get("Step") != f"{step['name']}; role {step['role']}"
+                or any(transaction_hash == item[0] or challenge == item[1] for item in approvals)):
+            raise RuntimeError(f"Transaction review {index + 1} differs from the expected fixture step")
+        pending = read_audit(output)[-1]
+        sender = pending.get("sender")
+        if (pending.get("kind") != "pending" or pending.get("hash") != transaction_hash
+                or pending.get("challenge") != challenge or pending.get("nonce") != nonce + index
+                or pending.get("chainId") != 31338
+                or not isinstance(sender, str) or sender.lower() != deployer.lower()
+                or pending.get("referenceDigest") != reference["snapshotSha256"]):
+            raise RuntimeError(f"Transaction review {index + 1} differs from its pending approval audit")
+        # ReleaseVerifier owns calldata/bytecode comparison; exercise the operator
+        # inspection command without implementing a second transaction decoder.
+        transcript.inspection_seen = False
+        os.write(master, f"inspect {challenge} 1\n".encode("ascii"))
+        read_until(master, process, transcript, lambda: transcript.inspection_seen,
+                   time.monotonic() + 10, f"transaction {index + 1} inspection page")
+        os.write(master, f"approve {challenge}\n".encode("ascii"))
+        approvals.append((transaction_hash, challenge))
+        progress(f"Approved fixture transaction {index + 1}/{len(steps)}")
+    return approvals
+
+
+def check_success_audit(events: list[dict], approvals: list[tuple[str, str]]) -> None:
+    expected = []
+    for transaction_hash, challenge in approvals:
+        expected.extend([
+            {"kind": "pending", "hash": transaction_hash, "challenge": challenge},
+            {"kind": "approved", "hash": transaction_hash, "challenge": challenge},
+            {"kind": "transmitting", "hash": transaction_hash},
+            {"kind": "accepted", "hash": transaction_hash},
+        ])
+    expected.append({"kind": "closed", "reason": "approval complete"})
+    if len(events) != len(expected) or any(
+        any(event.get(key) != value for key, value in required.items())
+        for event, required in zip(events, expected)
+    ):
+        raise RuntimeError("Approval audit does not show each reviewed transaction approved and accepted in order")
+
+
+def check_fixture_receipts(project: str, hashes: list[str]) -> None:
+    matches = containers("release-anvil", project)
+    if len(matches) != 1:
+        raise RuntimeError("Expected one disposable release-anvil container for receipt checks")
+    for transaction_hash in hashes:
+        receipt = json.loads(docker(
+            "exec", next(iter(matches)), "cast", "rpc", "eth_getTransactionReceipt", transaction_hash,
+            "--rpc-url", "http://127.0.0.1:8545",
+        ))
+        if (not isinstance(receipt, dict) or receipt.get("transactionHash") != transaction_hash
+                or receipt.get("status") != "0x1" or not isinstance(receipt.get("blockNumber"), str)
+                or re.fullmatch(r"0x[0-9a-f]+", receipt["blockNumber"]) is None):
+            raise RuntimeError(f"Approved transaction {transaction_hash} has no matching successful mined receipt")
+
+
+def main(scenario: str) -> None:
+    if scenario not in ("reject", "success"):
+        raise RuntimeError("PTY rehearsal scenario must be reject or success")
     image = required("RELEASE_APPROVAL_IMAGE")
     output = Path(required("ESCROW_RELEASE_OUTPUT_DIR"))
     deployer = required("ESCROW_RELEASE_EXPECTED_DEPLOYER_ADDRESS")
@@ -639,21 +747,28 @@ def main() -> None:
     simulation = required("RELEASE_APPROVAL_SIMULATION")
     if simulation not in ("normal", "skip"):
         raise RuntimeError("RELEASE_APPROVAL_SIMULATION must be normal or skip")
+    if scenario == "success" and simulation != "normal":
+        raise RuntimeError("Successful approval rehearsal requires normal simulation")
     if IDENTITY.fullmatch(image) is None:
         raise RuntimeError("RELEASE_APPROVAL_IMAGE must be a local sha256 image ID")
     if not re.fullmatch(r"0x[0-9a-fA-F]{40}", deployer):
         raise RuntimeError("Fixture deployer address is malformed")
+    # The automatic success scenario must never authorize an operator wallet.
+    # This is the account derived from the rehearsal's public ba-pattern key.
+    if scenario == "success" and deployer.lower() != "0xfe7854bc8ca79fbe9dc94dfdaf8c10e5c6decab7":
+        raise RuntimeError("Automatic approval requires the public rehearsal deployer")
     if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
         raise RuntimeError("Rehearsal source commit is malformed")
     if not rehearsal_dir.is_dir() or output.exists():
         raise RuntimeError("Rehearsal or new release output directory is missing/used")
     if "CONFIG" in os.environ:
         raise RuntimeError("PTY rehearsal must not inherit an operator release CONFIG")
-    progress(f"Fixture-only rejection check; simulation={simulation}; no approval will be sent")
+    progress(f"Fixture-only {scenario} check; simulation={simulation}")
     rehearsal_project = rehearsal_network.removesuffix("-rehearsal")
     nonce_before = fixture_nonce(rehearsal_project, deployer)
     log_path = rehearsal_dir / "approval-pty.log"
     with release_terminal(log_path) as (master, process, transcript):
+        transcript.scenario = scenario
         read_until(master, process, transcript, lambda: transcript.start_seen,
                    time.monotonic() + 900, "the displayed release identity and start prompt")
         display = "\n".join(transcript.identity_lines) + "\n"
@@ -700,6 +815,24 @@ def main() -> None:
         for operation, arguments in (("block-number", ()), ("nonce", (deployer,)), ("gas-price", ())):
             progress(f"Checking read-only RPC operation: {operation}")
             signer_rpc_read(signer, operation, *arguments)
+        if scenario == "success":
+            approvals = approve_transactions(master, process, transcript, output, deployer, source_commit, nonce_before)
+            status = wait_for_exit(process, master, transcript, time.monotonic() + 180)
+            transcript.check()
+            if status != 0:
+                raise RuntimeError(f"Approved release command failed (status {status}); inspect approval-pty.log")
+            check_success_audit(read_audit(output), approvals)
+            check_fixture_receipts(rehearsal_project, [item[0] for item in approvals])
+            if fixture_nonce(rehearsal_project, deployer) != nonce_before + len(approvals):
+                raise RuntimeError("Fixture nonce does not match the number of approved release transactions")
+            artifact = output / "artifact" / "deployment.json"
+            if artifact.is_symlink() or not artifact.is_file():
+                raise RuntimeError("Approved release did not publish a regular deployment artifact")
+            if containers("release-approval", project) or containers("deploy-release", project):
+                raise RuntimeError("Release containers remained after the approved launcher finished")
+            transcript.result = "passed"
+            progress("PASS: every planned transaction approved and mined; deployment artifact retained; release containers removed")
+            return
         read_until(master, process, transcript,
                    lambda: transcript.review_seen and transcript.challenge is not None,
                    time.monotonic() + 180, "the first signed transaction review")
@@ -712,10 +845,7 @@ def main() -> None:
         if status == 0:
             raise RuntimeError("Rejecting the first transaction must fail the release command")
         progress("Checking rejection audit, unchanged nonce, absent broadcast, and container cleanup")
-        audit_path = output / "approval-audit" / "approval.jsonl"
-        if audit_path.is_symlink() or not audit_path.is_file():
-            raise RuntimeError("Rejected release did not retain its approval audit")
-        events = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines()]
+        events = read_audit(output)
         kinds = []
         closed_reasons = []
         for event in events:
@@ -749,7 +879,9 @@ def main() -> None:
 
 if __name__ == "__main__":
     try:
-        main()
+        if len(sys.argv) != 2:
+            raise RuntimeError("Usage: release_approval_pty_check.py reject|success")
+        main(sys.argv[1])
     except ReleaseCleanupError as error:
         print(f"Release approval PTY cleanup incomplete: {error}", file=sys.stderr)
         raise SystemExit(2)

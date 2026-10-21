@@ -3,9 +3,9 @@
 set -euo pipefail
 unset MAKEFLAGS MAKEOVERRIDES MFLAGS GNUMAKEFLAGS MAKEFILES
 app="${1:?Pass a supported app}"
-action="${3:?Pass release, waits, ipc-waits, or approval-pty}"
-if [[ "$action" != release && "$action" != waits && "$action" != ipc-waits && "$action" != approval-pty ]]; then
-  printf '%s\n' 'Release rehearsal action must be release, waits, ipc-waits, or approval-pty.' >&2; exit 2
+action="${3:?Pass release, waits, ipc-waits, approval-pty, or approval-success}"
+if [[ "$action" != release && "$action" != waits && "$action" != ipc-waits && "$action" != approval-pty && "$action" != approval-success ]]; then
+  printf '%s\n' 'Release rehearsal action must be release, waits, ipc-waits, approval-pty, or approval-success.' >&2; exit 2
 fi
 if [[ "$action" != release && "$app" != escrow ]]; then
   printf '%s\n' 'The shared release-client wait qualification uses Escrow.' >&2; exit 2
@@ -99,7 +99,7 @@ cleanup() {
 trap cleanup EXIT
 
 repository="$(pwd -P)"
-if [[ "$action" == approval-pty ]]; then
+if [[ "$action" == approval-pty || "$action" == approval-success ]]; then
   build_dir="${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR:?Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR to the existing approval-image build directory.}"
   if [[ "$build_dir" != /* || ! -d "$build_dir" || "$(cd -- "$build_dir" && pwd -P)" != "$build_dir" ]]; then
     printf '%s\n' 'Approval rehearsal needs an existing normalized absolute directory without symlink components.' >&2
@@ -185,6 +185,23 @@ run_logged() {
   release_process_report "Completed $log"
 }
 
+verify_handoffs() {
+  printf 'Checking that pending ownership prevents release verification...\n'
+  if release_run_owned 330 timeout --foreground --kill-after=330s 900 make "$app/release/verify" >"$RELEASE_REHEARSAL_DIR/pending-verification.log" 2>&1; then
+    printf '%s\n' 'Verification incorrectly accepted pending ownership.' >&2
+    return 1
+  fi
+  if ! grep -F -- "$pending" "$RELEASE_REHEARSAL_DIR/pending-verification.log" >/dev/null; then
+    tail -n 60 "$RELEASE_REHEARSAL_DIR/pending-verification.log" >&2
+    printf '%s\n' 'Verification failed for a reason other than the pending CAM owner.' >&2
+    return 1
+  fi
+  run_logged handoffs.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-accept
+  printf 'Verifying %s after handoffs and CAM discovery...\n' "$app"
+  run_logged verification.log make "$app/release/verify"
+  printf 'Release rehearsal passed: %s\n' "$app"
+}
+
 infrastructure_started=1
 run_logged infrastructure.log "${compose[@]}" up --build --wait --wait-timeout 90 release-anvil release-cam
 run_logged prepare.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-prepare
@@ -202,8 +219,14 @@ if [[ "$action" == waits || "$action" == ipc-waits ]]; then
 fi
 if [[ "$action" == approval-pty ]]; then
   release_process_report 'Infrastructure and inputs ready; starting the automatic rejection check'
-  release_run_owned 330 python3 tools/release_approval_pty_check.py
+  release_run_owned 330 python3 tools/release_approval_pty_check.py reject
   exit "$?"
+fi
+if [[ "$action" == approval-success ]]; then
+  release_process_report 'Infrastructure and inputs ready; starting the automatic fixture approval check'
+  release_run_owned 330 python3 tools/release_approval_pty_check.py success
+  verify_handoffs
+  exit 0
 fi
 
 # Exercise the maintained planner service without starting its networked dependants.
@@ -262,17 +285,4 @@ unset RELEASE_OUTPUT_DIR
 
 printf 'Deploying %s through its normal release command...\n' "$app"
 run_logged deploy.log make "$app/release/deploy"
-printf 'Checking that pending ownership prevents release verification...\n'
-if release_run_owned 330 timeout --foreground --kill-after=330s 900 make "$app/release/verify" >"$RELEASE_REHEARSAL_DIR/pending-verification.log" 2>&1; then
-  printf '%s\n' 'Verification incorrectly accepted pending ownership.' >&2
-  exit 1
-fi
-if ! grep -F -- "$pending" "$RELEASE_REHEARSAL_DIR/pending-verification.log" >/dev/null; then
-  tail -n 60 "$RELEASE_REHEARSAL_DIR/pending-verification.log" >&2
-  printf '%s\n' 'Verification failed for a reason other than the pending CAM owner.' >&2
-  exit 1
-fi
-run_logged handoffs.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-accept
-printf 'Verifying %s after handoffs and CAM discovery...\n' "$app"
-run_logged verification.log make "$app/release/verify"
-printf 'Release rehearsal passed: %s\n' "$app"
+verify_handoffs

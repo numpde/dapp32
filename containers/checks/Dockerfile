@@ -13,9 +13,10 @@
 # the Docker socket into this container.
 FROM docker.io/library/python:3.13-alpine@sha256:420cd0bf0f3998275875e02ecd5808168cf0843cbb4d3c536432f729247b2acc
 
-# Lifecycle regression tests exercise the real Bash launchers against fake commands.
+# Lifecycle tests use Make's generated commands and real Bash launchers with fake peers.
 RUN apk add --no-cache \
     bash=5.3.3-r1 \
+    make=4.4.1-r3 \
     docker-cli=29.5.2-r0 \
     docker-cli-compose=2.40.3-r6 \
   && addgroup -S repochecks \

@@ -147,8 +147,35 @@ Python 3 and `setsid` (normally provided by util-linux on Linux). The driver
 verifies the displayed release identity, enters `start`, waits for the first
 transaction review and rejects that transaction automatically. The check
 requires an unchanged deployer nonce and an audit with no approval or
-transmission. Successful approval and receipt verification remain a separate
-rehearsal. Do not enter an approval command during this automated check.
+transmission. Do not enter an approval command during this automated check.
+
+### Rehearse a successful approval
+
+Use the same reviewed image and existing image-build folder:
+
+```sh
+make escrow/release/approval/success/check \
+  RELEASE_APPROVAL_IMAGE=sha256:<reviewed-local-image-id> \
+  RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=/absolute/path/to/existing-image-build
+```
+
+This command automatically approves transactions **only on its disposable local
+chain**. It uses the normal release launcher and normal simulation. Each review
+must match the fixture identity, reference step and pending audit event before
+the driver inspects its first details page and approves its challenge. The
+production approval verifier remains responsible for checking signed calldata
+and bytecode against the compiled reference.
+
+The check requires an ordered approval audit, successful mined receipts for
+every approved hash, the expected deployer nonce increase and a deployment
+artifact. It then runs normal release verification: pending ownership must fail;
+the fixture accepts ownership and loads the published CAM entry screen; final
+verification must pass. RPC acceptance alone does not count as a mined deployment.
+
+Records use the same `rehearsals/<UTC-datetime>-<checkout-hash>/` folder,
+ten-minute deadline and bounded cleanup as the rejection check. In addition to
+PTY/RPC diagnostics, retain `pending-verification.log`, `handoffs.log` and
+`verification.log`. Both checks remove their owned containers and networks.
 
 Forge may retain transaction journals under `deployment/broadcast/` after a
 rejection. Keep those records: their existence does not establish transmission.

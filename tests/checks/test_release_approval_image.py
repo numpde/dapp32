@@ -274,17 +274,16 @@ python3() {
                 "image-target": ("release/approval/image/build", "120s", "1s"),
                 "rehearsal-target": ("escrow/release/approval/start/check", "600s", "5s"),
             }[kind]
-            source = (ROOT / "Makefile").read_text(encoding="utf-8")
-            match = re.search(r"(?m)^" + re.escape(target) + r":\n((?:\t.*\n)+)", source)
-            if match is None:
-                raise AssertionError(f"Make target is missing: {target}")
-            recipe = match.group(1).replace("\t", "").removeprefix("@")
-            for guard in ("LANE_GUARD", "SOLDEER_DEPS_GUARD", "PACKAGE_DEPS_GUARD"):
-                recipe = recipe.replace("$(" + guard + ")", ":")
-            recipe = recipe.replace("$(DOCKER_COMPOSE)", "docker compose").replace("$$", "$")
-            recipe = recipe.replace(deadline, test_deadline)
             if kind == "image-target":
                 env.update({"SOURCE_COMMIT": "a" * 40, "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR": str(self.output)})
+            generated = subprocess.run(
+                ["make", "--no-print-directory", "--dry-run", "-f", str(ROOT / "Makefile"), target,
+                 "LANE_GUARD=:", "SOLDEER_DEPS_GUARD=:", "PACKAGE_DEPS_GUARD=:",
+                 "DOCKER_COMPOSE=docker compose"],
+                cwd=ROOT, env=env, capture_output=True, text=True, check=True,
+            )
+            recipe = generated.stdout
+            recipe = recipe.replace(deadline, test_deadline)
             # Inner rehearsal timers remain mocked; only the target's outer
             # deadline uses the real executable in this fixture.
             argv = [bash, "-ec", "unset -f timeout\n" + recipe]
