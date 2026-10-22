@@ -76,25 +76,38 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                     transcript.finish()
 
     def test_main_rejects_without_transmission_amid_foreign_releases_and_retains_forge_journals(self) -> None:
+        for app in ("escrow", "bike-nft", "pay-to-play"):
+            with self.subTest(app=app):
+                self.assert_main_rejection(app, app)
+
+    def test_wrong_app_or_suffix_in_display_stops_before_start(self) -> None:
+        for app in ("escrow", "bike-nft", "pay-to-play"):
+            for shown in ("another-app", app + "-other"):
+                with self.subTest(app=app, shown=shown):
+                    self.assert_main_rejection(app, shown)
+
+    def assert_main_rejection(self, app: str, shown: str) -> None:
         owner = "cam-release-" + "a" * 24 + "-run"
         gate, foreign_gate, foreign_signer = "b" * 64, "c" * 64, "d" * 64
         signer = "9" * 64
         started = finished = False
         deployer, source = "0x" + "1" * 40, "2" * 40
+        prefix = app.upper().replace("-", "_")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             env = {
                 "RELEASE_APPROVAL_IMAGE": "sha256:" + "e" * 64,
-                "ESCROW_RELEASE_OUTPUT_DIR": str(root / "deployment"),
-                "ESCROW_RELEASE_EXPECTED_DEPLOYER_ADDRESS": deployer,
-                "ESCROW_RELEASE_SOURCE_COMMIT": source,
+                f"{prefix}_RELEASE_OUTPUT_DIR": str(root / "deployment"),
+                f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS": deployer,
+                f"{prefix}_RELEASE_SOURCE_COMMIT": source,
                 "RELEASE_REHEARSAL_DIR": directory,
                 "RELEASE_REHEARSAL_NETWORK": "fixture-rehearsal",
                 "RELEASE_APPROVAL_SIMULATION": "normal",
             }
 
             @contextmanager
-            def terminal(path):
+            def terminal(path, selected_app):
+                self.assertEqual(app, selected_app)
                 output = root / "deployment"
                 (output / "broadcast").mkdir(parents=True)
                 (output / "broadcast/run-latest.json").write_text('{"receipts":[],"transactions":[]}')
@@ -106,7 +119,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 transcript = self.rehearsal.Transcript(path)
                 transcript.extend((
                     f"Release container project: {owner}\nRelease approval\n"
-                    f"  App: escrow\n  Chain ID: 31338\n  Deployer: {deployer}\n"
+                    f"  App: {shown}\n  Chain ID: 31338\n  Deployer: {deployer}\n"
                     f"  Source commit: {source}\n  Reference SHA-256: 0x{'f' * 64}\n"
                     + self.rehearsal.PROMPT + "\nReview transaction 1\n"
                     "  Reject with: reject fixture-challenge\n"
@@ -159,8 +172,14 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 self.rehearsal, "approval_chain_id",
             ), mock.patch.object(self.rehearsal, "signer_rpc_read"), mock.patch.object(
                 self.rehearsal, "wait_for_exit", side_effect=exited,
-            ), mock.patch.object(self.rehearsal.os, "write", side_effect=write):
-                self.rehearsal.main("reject")
+            ), mock.patch.object(self.rehearsal.os, "write", side_effect=write) as commands:
+                if app != shown:
+                    with self.assertRaisesRegex(RuntimeError, "release identity"):
+                        self.rehearsal.main(app, "reject")
+                    commands.assert_not_called()
+                    backend.assert_not_called()
+                    return
+                self.rehearsal.main(app, "reject")
                 backend.assert_called_once_with(gate)
             facts = json.loads((root / "approval-diagnostics.json").read_text())
             self.assertEqual("passed", facts["result"])
@@ -288,7 +307,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                     self.rehearsal, "docker",
                 ) as docker, mock.patch.object(self.rehearsal, "fixture_nonce") as nonce:
                     with self.assertRaisesRegex(RuntimeError, "RELEASE_APPROVAL_SIMULATION"):
-                        self.rehearsal.main("reject")
+                        self.rehearsal.main("escrow", "reject")
                 docker.assert_not_called()
                 nonce.assert_not_called()
                 self.assertEqual([], list(Path(directory).iterdir()))
@@ -353,7 +372,7 @@ class ApprovalBoundedDiagnosticsTest(unittest.TestCase):
                 self.rehearsal, "stop_release", side_effect=stop,
             ), mock.patch.object(self.rehearsal, "progress"):
                 with self.assertRaisesRegex(self.rehearsal.ReleaseCleanupError, "Inner release cleanup"):
-                    with self.rehearsal.release_terminal(path) as (_master, _process, transcript):
+                    with self.rehearsal.release_terminal(path, "escrow") as (_master, _process, transcript):
                         transcript.result = "passed"
             facts = json.loads(path.with_name("approval-diagnostics.json").read_text())
             self.assertEqual("cleanup-incomplete", facts["result"])

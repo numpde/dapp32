@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the real Escrow release launcher through its operator terminal."""
+"""Exercise the selected app's release launcher through its operator terminal."""
 
 from __future__ import annotations
 
@@ -101,6 +101,7 @@ class Transcript(bytearray):
         self.phase = "starting launcher"
         self.result = "incomplete"
         self.scenario: str | None = None
+        self.app: str | None = None
         self.finished = False
 
     def extend(self, chunk) -> None:
@@ -264,7 +265,8 @@ class Transcript(bytearray):
             with private_output(self.path.with_name("approval-pty-tail.log")) as output:
                 output.write(self)
             facts = {
-                "schemaVersion": 1, "result": self.result, "phase": self.phase, "scenario": self.scenario,
+                "schemaVersion": 1, "result": self.result, "phase": self.phase,
+                "app": self.app, "scenario": self.scenario,
                 # Missing fixture identity stays absent; never invent a normal run.
                 "simulation": os.environ.get("RELEASE_APPROVAL_SIMULATION"),
                 "transcriptBytesSeen": self.total, "transcriptTruncated": self.truncated,
@@ -343,11 +345,12 @@ def stop_release(process: subprocess.Popen[bytes], master: int, transcript: byte
 
 
 @contextmanager
-def release_terminal(log_path: Path):
+def release_terminal(log_path: Path, app: str):
     """Own the child session, cancellation, terminal descriptors and live logs."""
     master = slave = None
     process = None
     transcript = Transcript(log_path)
+    transcript.app = app
     previous_handlers = {}
     cancelled = None
     launching = True
@@ -373,7 +376,7 @@ def release_terminal(log_path: Path):
             raise SystemExit(128 + cancelled)
         progress(f"Starting the release launcher; live log: {log_path}")
         process = subprocess.Popen(
-            ["make", "escrow/release/deploy"],
+            ["make", f"{app}/release/deploy"],
             cwd=Path(__file__).resolve().parents[1], env=env,
             stdin=slave, stdout=slave, stderr=slave, close_fds=True, start_new_session=True,
         )
@@ -654,12 +657,12 @@ def read_audit(output: Path) -> list[dict]:
 
 
 def approve_transactions(master, process, transcript: Transcript, output: Path,
-                         deployer: str, source_commit: str, nonce: int) -> list[tuple[str, str]]:
+                         app: str, deployer: str, source_commit: str, nonce: int) -> list[tuple[str, str]]:
     path = output / "approval-reference" / "reference.json"
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 8 * 1024 * 1024:
         raise RuntimeError("Successful rehearsal requires a bounded regular approval reference")
     reference = json.loads(path.read_text(encoding="utf-8"))
-    if (reference["app"] != "escrow" or reference["expectedChainId"] != 31338
+    if (reference["app"] != app or reference["expectedChainId"] != 31338
             or reference["expectedDeployer"].lower() != deployer.lower()
             or reference["sourceCommit"] != source_commit
             or f"  Reference SHA-256: {reference['snapshotSha256']}" not in transcript.identity_lines):
@@ -735,13 +738,16 @@ def check_fixture_receipts(project: str, hashes: list[str]) -> None:
             raise RuntimeError(f"Approved transaction {transaction_hash} has no matching successful mined receipt")
 
 
-def main(scenario: str) -> None:
+def main(app: str, scenario: str) -> None:
+    if app not in ("escrow", "bike-nft", "pay-to-play"):
+        raise RuntimeError("PTY rehearsal app must be escrow, bike-nft or pay-to-play")
     if scenario not in ("reject", "success"):
         raise RuntimeError("PTY rehearsal scenario must be reject or success")
     image = required("RELEASE_APPROVAL_IMAGE")
-    output = Path(required("ESCROW_RELEASE_OUTPUT_DIR"))
-    deployer = required("ESCROW_RELEASE_EXPECTED_DEPLOYER_ADDRESS")
-    source_commit = required("ESCROW_RELEASE_SOURCE_COMMIT")
+    prefix = app.upper().replace("-", "_")
+    output = Path(required(f"{prefix}_RELEASE_OUTPUT_DIR"))
+    deployer = required(f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS")
+    source_commit = required(f"{prefix}_RELEASE_SOURCE_COMMIT")
     rehearsal_dir = Path(required("RELEASE_REHEARSAL_DIR"))
     rehearsal_network = required("RELEASE_REHEARSAL_NETWORK")
     simulation = required("RELEASE_APPROVAL_SIMULATION")
@@ -763,21 +769,21 @@ def main(scenario: str) -> None:
         raise RuntimeError("Rehearsal or new release output directory is missing/used")
     if "CONFIG" in os.environ:
         raise RuntimeError("PTY rehearsal must not inherit an operator release CONFIG")
-    progress(f"Fixture-only {scenario} check; simulation={simulation}")
+    progress(f"Fixture-only {app} {scenario} check; simulation={simulation}")
     rehearsal_project = rehearsal_network.removesuffix("-rehearsal")
     nonce_before = fixture_nonce(rehearsal_project, deployer)
     log_path = rehearsal_dir / "approval-pty.log"
-    with release_terminal(log_path) as (master, process, transcript):
+    with release_terminal(log_path, app) as (master, process, transcript):
         transcript.scenario = scenario
         read_until(master, process, transcript, lambda: transcript.start_seen,
                    time.monotonic() + 900, "the displayed release identity and start prompt")
         display = "\n".join(transcript.identity_lines) + "\n"
         required_display = (
-            "Release approval", "  App: escrow", "  Chain ID: 31338",
+            "Release approval", f"  App: {app}", "  Chain ID: 31338",
             f"  Deployer: {deployer}", f"  Source commit: {source_commit}", PROMPT,
         )
-        if any(value not in display for value in required_display):
-            raise RuntimeError("Approval terminal did not display the selected Escrow release identity")
+        if any(value not in transcript.identity_lines for value in required_display):
+            raise RuntimeError(f"Approval terminal did not display the selected {app} release identity")
         if re.search(r"  Reference SHA-256: 0x[0-9a-f]{64}\r?\n", display) is None:
             raise RuntimeError("Approval terminal did not display a full reference SHA-256")
         project = transcript.project
@@ -816,7 +822,7 @@ def main(scenario: str) -> None:
             progress(f"Checking read-only RPC operation: {operation}")
             signer_rpc_read(signer, operation, *arguments)
         if scenario == "success":
-            approvals = approve_transactions(master, process, transcript, output, deployer, source_commit, nonce_before)
+            approvals = approve_transactions(master, process, transcript, output, app, deployer, source_commit, nonce_before)
             status = wait_for_exit(process, master, transcript, time.monotonic() + 180)
             transcript.check()
             if status != 0:
@@ -879,9 +885,9 @@ def main(scenario: str) -> None:
 
 if __name__ == "__main__":
     try:
-        if len(sys.argv) != 2:
-            raise RuntimeError("Usage: release_approval_pty_check.py reject|success")
-        main(sys.argv[1])
+        if len(sys.argv) != 3:
+            raise RuntimeError("Usage: release_approval_pty_check.py APP reject|success")
+        main(sys.argv[1], sys.argv[2])
     except ReleaseCleanupError as error:
         print(f"Release approval PTY cleanup incomplete: {error}", file=sys.stderr)
         raise SystemExit(2)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from itertools import product
 import json
 import os
 from pathlib import Path
@@ -19,24 +20,37 @@ class ApprovalSuccessTest(unittest.TestCase):
         )
 
     def test_automatic_approval_refuses_operator_accounts_and_skipped_simulation(self) -> None:
-        for simulation, deployer, message in (
+        cases = (
             ("skip", "0xfe7854bc8ca79fbe9dc94dfdaf8c10e5c6decab7", "normal simulation"),
             ("normal", "0x" + "1" * 40, "public rehearsal deployer"),
-        ):
+        )
+        for app, (simulation, deployer, message) in product(("escrow", "bike-nft", "pay-to-play"), cases):
+            prefix = app.upper().replace("-", "_")
             env = {
                 "RELEASE_APPROVAL_IMAGE": "sha256:" + "a" * 64,
-                "ESCROW_RELEASE_OUTPUT_DIR": "/tmp/new-release",
-                "ESCROW_RELEASE_EXPECTED_DEPLOYER_ADDRESS": deployer,
-                "ESCROW_RELEASE_SOURCE_COMMIT": "b" * 40,
+                f"{prefix}_RELEASE_OUTPUT_DIR": "/tmp/new-release",
+                f"{prefix}_RELEASE_EXPECTED_DEPLOYER_ADDRESS": deployer,
+                f"{prefix}_RELEASE_SOURCE_COMMIT": "b" * 40,
                 "RELEASE_REHEARSAL_DIR": "/tmp",
                 "RELEASE_REHEARSAL_NETWORK": "fixture-rehearsal",
                 "RELEASE_APPROVAL_SIMULATION": simulation,
             }
-            with self.subTest(simulation=simulation), mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
+            with self.subTest(app=app, simulation=simulation), mock.patch.dict(os.environ, env, clear=True), mock.patch.object(
                 self.rehearsal, "fixture_nonce",
             ) as nonce, mock.patch.object(self.rehearsal, "release_terminal") as terminal:
                 with self.assertRaisesRegex(RuntimeError, message):
-                    self.rehearsal.main("success")
+                    self.rehearsal.main(app, "success")
+                nonce.assert_not_called()
+                terminal.assert_not_called()
+
+    def test_unknown_or_path_like_app_fails_before_inputs_or_docker_are_used(self) -> None:
+        for app in ("", "deposit-gateway", "../escrow", "escrow/release/deploy"):
+            with self.subTest(app=app), mock.patch.object(self.rehearsal, "required") as required, mock.patch.object(
+                self.rehearsal, "fixture_nonce",
+            ) as nonce, mock.patch.object(self.rehearsal, "release_terminal") as terminal:
+                with self.assertRaisesRegex(RuntimeError, "app"):
+                    self.rehearsal.main(app, "reject")
+                required.assert_not_called()
                 nonce.assert_not_called()
                 terminal.assert_not_called()
 
@@ -92,17 +106,20 @@ class ApprovalSuccessTest(unittest.TestCase):
                     self.rehearsal.check_success_audit(corrupted, approvals)
 
     def test_only_matching_current_reviews_are_approved_once(self) -> None:
-        for fault in (None, "step", "nonce", "hash", "sender", "audit", "challenge"):
-            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+        faults = (None, "step", "nonce", "hash", "sender", "audit", "challenge", "reference-app")
+        for app, fault in product(("escrow", "bike-nft", "pay-to-play"), faults):
+            with self.subTest(app=app, fault=fault), tempfile.TemporaryDirectory() as directory:
                 output = Path(directory)
                 (output / "approval-reference").mkdir()
                 (output / "approval-audit").mkdir()
                 deployer, source, digest = "0x" + "a" * 40, "b" * 40, "0x" + "c" * 64
                 reference = {
-                    "app": "escrow", "expectedChainId": 31338, "expectedDeployer": deployer,
+                    "app": app, "expectedChainId": 31338, "expectedDeployer": deployer,
                     "sourceCommit": source, "snapshotSha256": digest,
                     "steps": [{"name": "Create", "role": "root"}, {"name": "Configure", "role": "root"}],
                 }
+                if fault == "reference-app":
+                    reference["app"] = "another-app"
                 (output / "approval-reference/reference.json").write_text(json.dumps(reference))
                 transcript = self.rehearsal.Transcript(output / "approval-pty.log")
                 transcript.identity_lines.append(f"  Reference SHA-256: {digest}")
@@ -151,13 +168,15 @@ class ApprovalSuccessTest(unittest.TestCase):
                         self.rehearsal.os, "write", side_effect=write,
                     ):
                         if fault is None:
-                            result = self.rehearsal.approve_transactions(0, None, transcript, output, deployer, source, 0)
+                            result = self.rehearsal.approve_transactions(0, None, transcript, output, app, deployer, source, 0)
                             self.assertEqual([("0x" + str(i) * 64, f"challenge-{i}") for i in (1, 2)], result)
                         else:
-                            with self.assertRaisesRegex(RuntimeError, "review"):
-                                self.rehearsal.approve_transactions(0, None, transcript, output, deployer, source, 0)
+                            with self.assertRaisesRegex(RuntimeError, "review|identity"):
+                                self.rehearsal.approve_transactions(0, None, transcript, output, app, deployer, source, 0)
                     expected = [b"approve challenge-1\n"]
-                    if fault is None:
+                    if fault == "reference-app":
+                        expected = []
+                    elif fault is None:
                         expected.append(b"approve challenge-2\n")
                     self.assertEqual(expected, [command for command in commands if command.startswith(b"approve ")])
                 finally:

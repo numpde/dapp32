@@ -70,6 +70,46 @@ class ReleaseRehearsalTest(unittest.TestCase):
 
 
 class ReleaseRehearsalCancellationTest(unittest.TestCase):
+    def test_ordinary_rehearsal_builds_candidate_image_and_uses_shared_pty_success(self) -> None:
+        with _ReleaseCommandHarness(
+            "rehearsal-full", block="pty", hold_down=False, down_status=0, child_status=0,
+        ) as run:
+            lines = run.wait_for("child-ready ")
+            build = next(line for line in lines if line.startswith("fixture-image-build "))
+            self.assertIn("SOURCE_COMMIT=" + "a" * 40, build)
+            self.assertIn(str(run.work / "approval-image"), build)
+            command = next(line for line in lines if line.startswith("pty "))
+            self.assertIn("escrow success", command)
+            self.assertIn("image=sha256:" + "b" * 64, command)
+            self.assertLess(lines.index(build), lines.index(command))
+            os.kill(run.process.pid, signal.SIGTERM)
+            run.wait_for("child-term")
+            run.release()
+            self.assertEqual(143, run.finish())
+            run.assert_owned_cleanup(self)
+
+    def test_failed_fixture_build_or_provenance_stops_before_approval(self) -> None:
+        for fault in ("builder-fail", "builder-json"):
+            with self.subTest(fault=fault), _ReleaseCommandHarness(
+                "rehearsal-full", block=fault, hold_down=False, down_status=0, child_status=0,
+            ) as run:
+                self.assertNotEqual(0, run.finish())
+                self.assertFalse(any(line.startswith("pty ") for line in run.lines()))
+                run.assert_owned_cleanup(self)
+
+    def test_fixture_builder_stops_before_outer_infrastructure_teardown(self) -> None:
+        with _ReleaseCommandHarness(
+            "rehearsal-full", block="builder", hold_down=False, down_status=0, child_status=0,
+        ) as run:
+            run.wait_for("child-ready ")
+            os.kill(run.process.pid, signal.SIGTERM)
+            run.wait_for("child-term")
+            self.assertEqual(143, run.finish())
+            run.assert_owned_cleanup(self)
+            lines = run.lines()
+            self.assertLess(lines.index("child-stopped"), lines.index("down-start " + run.project))
+            self.assertFalse(any(line.startswith("pty ") for line in lines))
+
     def test_approval_records_stay_under_the_build_folder_after_cancellation(self) -> None:
         with _ReleaseCommandHarness(
             "rehearsal", block="pty", hold_down=False, down_status=0, child_status=0,

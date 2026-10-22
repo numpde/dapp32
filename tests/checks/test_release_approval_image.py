@@ -80,7 +80,7 @@ class _ReleaseCommandHarness:
         if build_directory is not None:
             self.build = build_directory
         self.stamp = "20261021T000000000000Z"
-        if kind in ("rehearsal", "rehearsal-target"):
+        if kind in ("rehearsal", "rehearsal-target", "rehearsal-full"):
             self.work = self.build / "rehearsals" / (self.stamp + "-aaaaaaaa")
         self.output = self.root / "published"
         self.events = self.root / "events"
@@ -101,6 +101,7 @@ class _ReleaseCommandHarness:
             "js/packages/example/package.json": "{}\n",
             "js/apps/example/package.json": "{}\n",
             "dapps/placeholder": "fixture\n",
+            "dapps/escrow/cam/main.json": "{}\n",
             "containers/release-approval/Dockerfile": "FROM fixture-base\n",
             "containers/release-approval/prepare-context.mjs": "// fixture\n",
             "containers/node-deps/Dockerfile": "FROM fixture-base\n",
@@ -188,6 +189,15 @@ block_child() {
 }
 docker() {
   local project= argument previous=
+  if [[ "$1" == inspect ]]; then
+    case "$*" in
+      *NetworkSettings*) printf '172.20.0.2\n' ;;
+      *State.ExitCode*) printf 'exited 1\n' ;;
+      *) return 90 ;;
+    esac
+    return
+  fi
+  if [[ "$1" == logs ]]; then printf 'inspectReleaseCamBundle\n'; return; fi
   if [[ "$1" == image && "$2" == inspect ]]; then
     case "$*" in
       *"{{.Id}}"*) printf '%s\n' "$TEST_IMAGE" ;;
@@ -217,17 +227,36 @@ docker() {
     *" rehearsal-prepare "*)
       printf '# fixture inputs\n' >"$RELEASE_REHEARSAL_DIR/control/inputs.env" ;;
     *" up "*)
+      if [[ "$*" == *bad-cam.yml* ]]; then return 1; fi
       if [[ "$TEST_BLOCK" == infrastructure ]]; then block_child; fi ;;
+    *" ps "*)
+      case "$*" in
+        *release-anvil|*release-plan) printf '%064d\n' 1 ;;
+      esac ;;
     *" run "*) : ;;
     *) event "unexpected compose $*"; return 90 ;;
   esac
 }
+make() {
+  if [[ "$1" != release/approval/image/build ]]; then event "unexpected make $*"; return 90; fi
+  event "fixture-image-build $*"
+  if [[ "$TEST_BLOCK" == builder-fail ]]; then return 1; fi
+  if [[ "$TEST_BLOCK" == builder ]]; then block_child; fi
+  mkdir "$RELEASE_REHEARSAL_DIR/approval-image"
+  if [[ "$TEST_BLOCK" == builder-json ]]; then
+    printf '{}\n' >"$RELEASE_REHEARSAL_DIR/approval-image/approval-image.json"
+  else
+    printf '{"imageId":"%s"}\n' "$TEST_IMAGE" >"$RELEASE_REHEARSAL_DIR/approval-image/approval-image.json"
+  fi
+}
 python3() {
+  if [[ "$1" == -I ]]; then command "$TEST_PYTHON" "$@"; return; fi
   if [[ "$1" == -c ]]; then printf '%s\n' "$TEST_STAMP"; return; fi
   if [[ "$1" != tools/release_approval_pty_check.py ]]; then
     event "unexpected python3 $*"; return 90
   fi
   printf '{"result":"fixture"}\n' >"$RELEASE_REHEARSAL_DIR/approval-diagnostics.json"
+  event "pty $* image=${RELEASE_APPROVAL_IMAGE-unset}"
   block_child
 }
 """, encoding="utf-8")
@@ -265,8 +294,14 @@ python3() {
             self.project = "cam-approval-image-work"
         else:
             argv = [bash, str(self.repo / "tools/release_rehearsal.sh"), "escrow", "docker compose", "approval-pty"]
+            if kind == "rehearsal-full":
+                argv[-1] = "release"
+                env["RELEASE_APPROVAL_IMAGE"] = "sha256:" + "f" * 64
             digest = hashlib.sha256(str(self.work).encode()).hexdigest()[:24]
             self.project = "cam-rehearsal-" + digest
+        self.projects = [self.project]
+        if kind == "rehearsal-full":
+            self.projects.insert(0, self.project + "-planner")
         if kind in ("image-target", "rehearsal-target"):
             # Exercise the target's command with a shorter deadline; its lane
             # guards are covered separately. Keep the real timeout executable.
@@ -327,10 +362,11 @@ python3() {
 
     def assert_owned_cleanup(self, case: unittest.TestCase) -> None:
         down = [line for line in self.lines() if line.startswith("compose ") and " down " in line]
-        case.assertEqual(1, len(down), self.lines())
-        case.assertTrue(down[0].startswith("compose " + self.project + " "), down)
-        case.assertIn("--volumes", down[0])
-        case.assertIn("--remove-orphans", down[0])
+        case.assertEqual(len(self.projects), len(down), self.lines())
+        for project, command in zip(self.projects, down):
+            case.assertTrue(command.startswith("compose " + project + " "), down)
+            case.assertIn("--volumes", command)
+            case.assertIn("--remove-orphans", command)
         case.assertEqual("leave this alone\n", self.unrelated.read_text(encoding="utf-8"))
 
     def __exit__(self, *_: object) -> None:

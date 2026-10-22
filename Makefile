@@ -621,9 +621,13 @@ help:
 	  '    Runs 10/50/120-second pre-send delays, receipt delay, rejection and lost-response controls.' \
 	  '    Reports compatibility failures separately from fixture failures; does not deploy an approval proxy.' \
 	  '  make escrow/release/approval/start/check Exercise the live Escrow approval launcher in a PTY.' \
+	  '  make bike-nft/release/approval/start/check Exercise Bike NFT approval startup and rejection.' \
+	  '  make pay-to-play/release/approval/start/check Exercise Pay-to-Play approval startup and rejection.' \
 	  '    Uses the private disposable chain, opens the socket only after start, then rejects the first transaction.' \
 	  '  make escrow/release/approval/success/check Approve the disposable Escrow deployment; check receipts, handoffs and CAM.' \
-	  '    Both approval checks use the following inputs and retain their diagnostics after cleanup:' \
+	  '  make bike-nft/release/approval/success/check Approve Bike NFT deployment; check receipts, delayed handoffs and CAM.' \
+	  '  make pay-to-play/release/approval/success/check Approve Pay-to-Play deployment; check receipts, handoffs and CAM.' \
+	  '    All approval checks use the following inputs and retain their diagnostics after cleanup:' \
 	  '    Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR to the existing image-build folder.' \
 	  '    Logs and diagnostics stay in its rehearsals/<UTC-datetime>-<checkout-hash>/ subfolder; the command prints the exact path.' \
 	  '    Ten-minute overall deadline; allows up to seven additional minutes for nested cleanup.' \
@@ -632,11 +636,13 @@ help:
 	  '    Runs an ordinary release first, then a 120-second hold and failure/receipt controls.' \
 	  '  make pay-to-play/release/rehearsal/run  Rehearse the Pay-to-Play release on an isolated local chain.' \
 	  '    Requires installed locked dependencies.' \
+	  '    Builds its own approval image from the private candidate commit using the locked network dependency stage.' \
 	  '    It tests current source, including uncommitted changes, through a private committed snapshot.' \
 	  '    It deploys through the normal commands, checks pending handoffs fail verification, accepts them,' \
 	  '    loads CAM from its recorded URI, and verifies again. Bike admin waits use the local chain clock.' \
-	  '    It uses public test keys, private HTTP transport and no host ports or external network.' \
-	  '    Temporary services are removed; records remain at the printed /tmp/cam-release-rehearsal-* path.' \
+	  '    Deployment uses public test keys, private HTTP transport, no host ports and no public network.' \
+	  '    Temporary services are removed; records remain at the printed path. Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR' \
+	  '    to keep them under an existing folder; otherwise ordinary rehearsals use /tmp/cam-release-rehearsal-*.' \
 	  '  make bike-nft/release/setup CONFIG=/absolute/private/release.json' \
 	  '  make escrow/release/setup CONFIG=/absolute/private/release.json' \
 	  '  make pay-to-play/release/setup CONFIG=/absolute/private/release.json' \
@@ -1223,15 +1229,28 @@ escrow/release/ipc-approval-wait/check:
 	env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" ipc-waits
 
 .PHONY: escrow/release/approval/start/check escrow/release/approval/success/check
+.PHONY: bike-nft/release/approval/start/check bike-nft/release/approval/success/check pay-to-play/release/approval/start/check pay-to-play/release/approval/success/check
 define release_approval_rehearsal
 	@$(LANE_GUARD); $(SOLDEER_DEPS_GUARD); $(PACKAGE_DEPS_GUARD); \
-	timeout -s TERM -k 420s 600s env -u CONFIG bash tools/release_rehearsal.sh escrow "$(DOCKER_COMPOSE)" $(1)
+	timeout -s TERM -k 420s 600s env -u CONFIG bash tools/release_rehearsal.sh "$(firstword $(subst /, ,$@))" "$(DOCKER_COMPOSE)" $(1)
 endef
 
 escrow/release/approval/start/check:
 	$(call release_approval_rehearsal,approval-pty)
 
 escrow/release/approval/success/check:
+	$(call release_approval_rehearsal,approval-success)
+
+bike-nft/release/approval/start/check:
+	$(call release_approval_rehearsal,approval-pty)
+
+bike-nft/release/approval/success/check:
+	$(call release_approval_rehearsal,approval-success)
+
+pay-to-play/release/approval/start/check:
+	$(call release_approval_rehearsal,approval-pty)
+
+pay-to-play/release/approval/success/check:
 	$(call release_approval_rehearsal,approval-success)
 
 pay-to-play/release/rehearsal/run:

@@ -7,7 +7,7 @@ action="${3:?Pass release, waits, ipc-waits, approval-pty, or approval-success}"
 if [[ "$action" != release && "$action" != waits && "$action" != ipc-waits && "$action" != approval-pty && "$action" != approval-success ]]; then
   printf '%s\n' 'Release rehearsal action must be release, waits, ipc-waits, approval-pty, or approval-success.' >&2; exit 2
 fi
-if [[ "$action" != release && "$app" != escrow ]]; then
+if [[ ( "$action" == waits || "$action" == ipc-waits ) && "$app" != escrow ]]; then
   printf '%s\n' 'The shared release-client wait qualification uses Escrow.' >&2; exit 2
 fi
 if [[ "${2:?Pass the Compose command}" != "docker compose" ]]; then
@@ -25,8 +25,8 @@ fi
 if [[ "$simulation" != normal && "$simulation" != skip ]]; then
   printf '%s\n' 'RELEASE_APPROVAL_SIMULATION must be normal or skip.' >&2; exit 2
 fi
-if [[ "$simulation" == skip && "$action" != approval-pty ]]; then
-  printf '%s\n' 'Simulation skipping is an explicit approval-pty diagnostic only.' >&2; exit 2
+if [[ "$simulation" == skip && ( "$action" != approval-pty || "$app" != escrow ) ]]; then
+  printf '%s\n' 'Simulation skipping is an explicit Escrow approval-pty diagnostic only.' >&2; exit 2
 fi
 export RELEASE_APPROVAL_SIMULATION="$simulation"
 case "$app" in
@@ -99,7 +99,7 @@ cleanup() {
 trap cleanup EXIT
 
 repository="$(pwd -P)"
-if [[ "$action" == approval-pty || "$action" == approval-success ]]; then
+if [[ "$action" == approval-pty || "$action" == approval-success || ( "$action" == release && -v RELEASE_APPROVAL_IMAGE_OUTPUT_DIR ) ]]; then
   build_dir="${RELEASE_APPROVAL_IMAGE_OUTPUT_DIR:?Set RELEASE_APPROVAL_IMAGE_OUTPUT_DIR to the existing approval-image build directory.}"
   if [[ "$build_dir" != /* || ! -d "$build_dir" || "$(cd -- "$build_dir" && pwd -P)" != "$build_dir" ]]; then
     printf '%s\n' 'Approval rehearsal needs an existing normalized absolute directory without symlink components.' >&2
@@ -202,6 +202,12 @@ verify_handoffs() {
   printf 'Release rehearsal passed: %s\n' "$app"
 }
 
+rehearse_success() {
+  release_run_owned 330 timeout --foreground --kill-after=330s 900 \
+    python3 tools/release_approval_pty_check.py "$app" success
+  verify_handoffs
+}
+
 infrastructure_started=1
 run_logged infrastructure.log "${compose[@]}" up --build --wait --wait-timeout 90 release-anvil release-cam
 run_logged prepare.log "${compose[@]}" run --build --rm --no-deps -T rehearsal-prepare
@@ -219,13 +225,12 @@ if [[ "$action" == waits || "$action" == ipc-waits ]]; then
 fi
 if [[ "$action" == approval-pty ]]; then
   release_process_report 'Infrastructure and inputs ready; starting the automatic rejection check'
-  release_run_owned 330 python3 tools/release_approval_pty_check.py reject
+  release_run_owned 330 python3 tools/release_approval_pty_check.py "$app" reject
   exit "$?"
 fi
 if [[ "$action" == approval-success ]]; then
   release_process_report 'Infrastructure and inputs ready; starting the automatic fixture approval check'
-  release_run_owned 330 python3 tools/release_approval_pty_check.py success
-  verify_handoffs
+  rehearse_success
   exit 0
 fi
 
@@ -283,6 +288,12 @@ release_run_owned 15 "${planner_compose[@]}" down --timeout 10 --rmi local --vol
 planner_started=0
 unset RELEASE_OUTPUT_DIR
 
-printf 'Deploying %s through its normal release command...\n' "$app"
-run_logged deploy.log make "$app/release/deploy"
-verify_handoffs
+release_process_report 'Building the fixture approval image from the private candidate commit'
+run_logged approval-image-build.log make release/approval/image/build \
+  "SOURCE_COMMIT=$(git rev-parse HEAD)" \
+  "RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=$RELEASE_REHEARSAL_DIR/approval-image"
+RELEASE_APPROVAL_IMAGE="$(python3 -I -B -c \
+  'import json, sys; print(json.load(open(sys.argv[1]))["imageId"])' \
+  "$RELEASE_REHEARSAL_DIR/approval-image/approval-image.json")"
+export RELEASE_APPROVAL_IMAGE
+rehearse_success

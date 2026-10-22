@@ -67,11 +67,25 @@ the tested files; it is not the original checkout's `HEAD`. Your files, index,
 and history remain unchanged. The normal release commands run from this clean
 candidate and take their usual source snapshots.
 
+The ordinary rehearsal builds a fixture-owned approval image from that candidate
+commit through `release/approval/image/build`, including its locked network
+dependency stage. It replaces any inherited approval-image selection inside the
+fixture; no operator-reviewed image or real credentials are needed. The explicit
+`approval/start/check` and `approval/success/check` targets below instead require
+the caller's reviewed image. Real release commands retain that requirement.
+
+Set `RELEASE_APPROVAL_IMAGE_OUTPUT_DIR` to an existing external folder to retain
+ordinary rehearsal records under its dated `rehearsals/` subfolders. Without it,
+ordinary rehearsals retain records at the printed `/tmp/cam-release-rehearsal-*`
+path. Image provenance is retained with those records; the image stays in
+Docker's local image store.
+
 The fixture starts Anvil on chain ID 31338 and serves the candidate's CAM files
 at `http://release-cam:8080`. It creates protected credential files containing
 public fixture values and chooses distinct intended owners. It then:
 
-1. Calls the app's normal `release/deploy` target.
+1. Drives the app's normal `release/deploy` target through the shared approval
+   terminal, checking each reference step, approval audit and mined receipt.
 2. Calls its normal `release/verify` target and requires the pending-owner error.
 3. Accepts the ownership transfers using the intended fixture accounts. For Bike
    NFT, it first checks that early admin acceptance fails, then advances Anvil's
@@ -93,8 +107,8 @@ The fixture permits only its exact private CAM origin and Anvil upstream.
 All running fixture services use an internal Docker network with no host ports.
 Image builds may still fetch their pinned inputs. The command removes its
 services and copied dependency trees when finished, retaining the candidate
-source, ordinary deployment records and per-step logs under the printed
-`/tmp/cam-release-rehearsal-*` directory. Failed teardown retains the dependencies
+source, ordinary deployment records and per-step logs in the printed records
+directory. Failed teardown retains the dependencies
 as well so mounted state remains available for inspection.
 
 This proves local release composition, handoffs and CAM loading. It does not
@@ -127,6 +141,10 @@ make escrow/release/approval/start/check \
   RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=<existing-image-build-directory>
 ```
 
+Both `approval/start/check` and `approval/success/check` are available for
+`escrow`, `bike-nft` and `pay-to-play`. Replace the app prefix to select one;
+the driver uses that app's release reference, input settings and handoff fixture.
+
 The rehearsal creates a private `rehearsals/<UTC-datetime>-<checkout-hash>/`
 subdirectory in that build folder and prints its exact path before copying
 source or starting containers. Logs, diagnostics, fixture files and deployment
@@ -158,6 +176,12 @@ make escrow/release/approval/success/check \
   RELEASE_APPROVAL_IMAGE=sha256:<reviewed-local-image-id> \
   RELEASE_APPROVAL_IMAGE_OUTPUT_DIR=/absolute/path/to/existing-image-build
 ```
+
+Run each app separately. Each invocation deploys on its own disposable chain;
+Bike NFT advances that chain's clock to test its admin-transfer waiting periods.
+The same approval image serves all three apps. Their transaction sequences come
+from their existing release references, rather than from a second list in the
+test driver.
 
 This command automatically approves transactions **only on its disposable local
 chain**. It uses the normal release launcher and normal simulation. Each review
