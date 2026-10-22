@@ -10,6 +10,7 @@ const owner = "0x0000000000000000000000000000000000000022" as const
 const other = "0x0000000000000000000000000000000000000033" as const
 const sourceCommit = "0123456789abcdef0123456789abcdef01234567"
 const camHash = `0x${"ab".repeat(32)}`
+const zeroCamHash = `0x${"00".repeat(32)}`
 const common = {
   sourceCommit, expectedChainId: 8453,
   camURI: "https://example.test/cam/main.json", camHash,
@@ -27,6 +28,8 @@ test("Escrow reference follows creation, binding and conditional ownership order
   assert.deepEqual(normal.steps[3]?.args, ["CamEscrowUI", { createdContract: "ui" }])
   assert.deepEqual(normal.steps[4]?.args, ["CamEscrow", { createdContract: "escrow" }])
   assert.equal(escrowReference(parse({ schema: "escrow.release-plan.v2", ...common, intendedCamRootOwner: deployer }), deployer).steps.length, 5)
+  const zero = escrowReference(parse({ schema: "escrow.release-plan.v2", ...common, camHash: zeroCamHash }), deployer)
+  assert.deepEqual(zero.steps[0]?.args, [deployer, common.camURI, zeroCamHash])
 })
 
 test("Pay-to-Play reference covers independent conditional handoffs", () => {
@@ -43,6 +46,8 @@ test("Pay-to-Play reference covers independent conditional handoffs", () => {
   assert.deepEqual(noRootHandoff.steps.filter((step) => step.name === "transferOwnership").map((step) => step.role), ["payments"])
   const noPaymentHandoff = payToPlayReference(parse({ ...plan, intendedPaymentAdmin: deployer }), deployer)
   assert.deepEqual(noPaymentHandoff.steps.filter((step) => step.name === "transferOwnership").map((step) => step.role), ["camRoot"])
+  const zero = payToPlayReference(parse({ ...plan, camHash: zeroCamHash }), deployer)
+  assert.deepEqual(zero.steps[0]?.args, [deployer, common.camURI, zeroCamHash])
 })
 
 test("Bike reference includes every registrar and ordered authority handoff", () => {
@@ -69,6 +74,8 @@ test("Bike reference includes every registrar and ordered authority handoff", ()
   assert.equal(reference.steps.filter((step) => step.name === "revokeRole").length, 4)
   const registrarGrants = reference.steps.filter((step) => step.name === "grantRole" && step.args[1] === other)
   assert.ok(registrarGrants.length >= 1)
+  const zero = bikeReference(parse({ ...plan, camHash: zeroCamHash }), deployer)
+  assert.deepEqual(zero.steps[0]?.args, [deployer, common.camURI, zeroCamHash])
 })
 
 test("references reject invalid plans and invalid independent sender", () => {

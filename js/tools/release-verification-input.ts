@@ -37,17 +37,13 @@ export async function stageVerifiedReleaseArtifact<T extends ReleaseArtifactIden
   }
 
   assertReleaseCamURI(artifact.camURI, "deployment camURI", process.env)
-  const bundle = await inspectReleaseCamBundle({
+  await inspectReleaseCamBundle({
     dappsRootPath,
     rootPath,
     camURI: artifact.camURI,
     label,
+    camHash: artifact.camHash,
   })
-  if (bundle.camHash.toLowerCase() !== artifact.camHash.toLowerCase()) {
-    throw new Error(
-      `deployment CAM hash does not match checked-in root bytes: expected ${bundle.camHash}, got ${artifact.camHash}`,
-    )
-  }
 
   await writeNewJson(snapshotPath, artifact, "verified deployment artifact")
   return artifact

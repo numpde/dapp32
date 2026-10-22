@@ -267,7 +267,9 @@ contract DeployBikeNftRelease is Script {
         }
 
         bytes32 sourceCamHash = sha256(vm.readFileBinary(CAM_ROOT_PATH));
-        if (plan.camHash != sourceCamHash) revert CamHashSourceMismatch(plan.camHash, sourceCamHash);
+        if (plan.camHash != bytes32(0) && plan.camHash != sourceCamHash) {
+            revert CamHashSourceMismatch(plan.camHash, sourceCamHash);
+        }
     }
 
     function _requireText(string memory value, string memory field) private pure {

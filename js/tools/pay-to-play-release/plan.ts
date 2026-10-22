@@ -63,6 +63,7 @@ async function main(): Promise<void> {
     rootPath: options.rootPath,
     camURI: options.camURI,
     label: "pay-to-play",
+    camHash: process.env.PAY_TO_PLAY_RELEASE_CAM_HASH,
   })
   const plan: ReleasePlan = {
     intendedPaymentAdmin: options.intendedPaymentAdmin,

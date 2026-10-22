@@ -50,6 +50,7 @@ async function main(): Promise<void> {
     rootPath: options.rootPath,
     camURI: options.camURI,
     label: "escrow",
+    camHash: process.env.ESCROW_RELEASE_CAM_HASH,
   })
   const plan: ReleasePlan = {
     schema: RELEASE_PLAN_SCHEMA,

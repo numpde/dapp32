@@ -111,6 +111,10 @@ contract DeployEscrowReleaseTest is Test {
         harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID, CAM_URI, sourceHash, FINAL_OWNER);
     }
 
+    function testAcceptsExplicitlyUnpinnedCam() external view {
+        harness.validate(SOURCE_COMMIT, RELEASE_CHAIN_ID, CAM_URI, bytes32(0), FINAL_OWNER);
+    }
+
     function testRejectsCamHashNotBoundToExactCamRootBytes() external {
         bytes32 sourceHash = sha256(vm.readFileBinary("escrow/cam/main.json"));
         bytes32 plannedHash = sourceHash ^ bytes32(uint256(1));

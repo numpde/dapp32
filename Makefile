@@ -672,6 +672,8 @@ help:
 	  '    DEPLOYER_PRIVATE_KEY_FILE contains the deployer key; RPC catalog use does not supply funds or keys.' \
 	  '    All credential files must be absolute and owner-only. Confirm with CONFIRM_BIKE_NFT_RELEASE_DEPLOY=YES' \
 	  '    or CONFIRM_ESCROW_RELEASE_DEPLOY=YES or CONFIRM_PAY_TO_PLAY_RELEASE_DEPLOY=YES after reviewing all settings.' \
+	  '    Optional <APP>_RELEASE_CAM_HASH: omit or auto pins the local manifest SHA-256; otherwise supply 0x plus 64 hex digits.' \
+	  '    All-zero CAM_HASH stores zero; the viewer displays the UI as unverified. Any nonzero hash must match the local manifest.' \
 	  '    Required Pay-to-Play settings:' \
 	  '      PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID        Target chain number; 1337 and 31337 are excluded.' \
 	  '      PAY_TO_PLAY_RELEASE_CAM_URI                  Published HTTPS/IPFS manifest URI.' \
@@ -1613,6 +1615,7 @@ escrow/release/deploy:
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
 	    RELEASE_OUTPUT_DIR="$$output_dir" \
 	    ESCROW_RELEASE_CAM_URI="$$cam_uri" \
+	    ESCROW_RELEASE_CAM_HASH="$${ESCROW_RELEASE_CAM_HASH-auto}" \
 	    ESCROW_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
 	    ESCROW_RELEASE_INTENDED_CAM_ROOT_OWNER="$$owner" \
 	    ESCROW_RELEASE_SOURCE_COMMIT="$$source_commit" \
@@ -1674,6 +1677,7 @@ bike-nft/release/deploy:
 	compose_release() { \
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" RELEASE_OUTPUT_DIR="$$output_dir" BIKE_NFT_RELEASE_SOURCE_COMMIT="$$source_commit" \
 	  BIKE_NFT_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" BIKE_NFT_RELEASE_CAM_URI="$$cam_uri" \
+	  BIKE_NFT_RELEASE_CAM_HASH="$${BIKE_NFT_RELEASE_CAM_HASH-auto}" \
 	  BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER="$$BIKE_NFT_RELEASE_INTENDED_CAM_ROOT_OWNER" BIKE_NFT_RELEASE_TOKEN_NAME="$$BIKE_NFT_RELEASE_TOKEN_NAME" BIKE_NFT_RELEASE_TOKEN_SYMBOL="$$BIKE_NFT_RELEASE_TOKEN_SYMBOL" \
 	  BIKE_NFT_RELEASE_BASE_TOKEN_URI="$$BIKE_NFT_RELEASE_BASE_TOKEN_URI" BIKE_NFT_RELEASE_COLLECTION_URI="$$BIKE_NFT_RELEASE_COLLECTION_URI" \
 	  BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN="$$BIKE_NFT_RELEASE_INTENDED_COMPONENTS_ADMIN" BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY="$$BIKE_NFT_RELEASE_COMPONENTS_ADMIN_DELAY" BIKE_NFT_RELEASE_COMPONENTS_PAUSER="$$BIKE_NFT_RELEASE_COMPONENTS_PAUSER" BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER="$$BIKE_NFT_RELEASE_COMPONENTS_CONFIGURER" \
@@ -1735,6 +1739,7 @@ pay-to-play/release/deploy:
 	  LOCAL_UID="$(LOCAL_UID)" LOCAL_GID="$(LOCAL_GID)" COMPOSE_PROJECT_NAME="$$ceremony_project-run" \
 	    RELEASE_OUTPUT_DIR="$$output_dir" \
 	    PAY_TO_PLAY_RELEASE_CAM_URI="$$cam_uri" \
+	    PAY_TO_PLAY_RELEASE_CAM_HASH="$${PAY_TO_PLAY_RELEASE_CAM_HASH-auto}" \
 	    PAY_TO_PLAY_RELEASE_EXPECTED_CHAIN_ID="$$chain_id" \
 	    PAY_TO_PLAY_RELEASE_INTENDED_CAM_ROOT_OWNER="$$owner" \
 	    PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN="$$PAY_TO_PLAY_RELEASE_INTENDED_PAYMENT_ADMIN" \

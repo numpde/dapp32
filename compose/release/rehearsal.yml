@@ -90,6 +90,12 @@ services:
       - ../../js:/input/js:ro
       - ../../js/node_modules:/work/js/node_modules:ro
       - type: bind
+        source: "../../dapps/${DAPP:?missing_DAPP}/cam/main.json"
+        target: /deployment/source-main.json
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
         source: "${RELEASE_REHEARSAL_DIR:?missing_RELEASE_REHEARSAL_DIR}/deployment/artifact/deployment.json"
         target: /deployment/deployment.json
         read_only: true

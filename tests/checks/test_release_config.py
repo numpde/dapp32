@@ -25,6 +25,7 @@ def configuration(app):
         "address": FIXTURE_ADDRESS, "addresses": FIXTURE_ADDRESS,
         "claim-period": "86400", "delay": "86400", "text": "Fixture collection",
         "path": "/tmp/new-release-output",
+        "cam-hash": "auto",
     }
     return {
         "schemaVersion": 2, "app": app, "sourceCommit": COMMIT, "rpcUrl": FIXTURE_RPC,
@@ -34,12 +35,47 @@ def configuration(app):
 
 
 class ReleaseConfigTest(unittest.TestCase):
+    def test_omitted_cam_hash_keeps_automatic_selection(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                config = configuration(app)
+                del config["settings"]["CAM_HASH"]
+                self.assertEqual(config, release_config.validate(config, app, COMMIT))
+                root = Path(temporary)
+                saved = root / "release.json"
+                saved.write_text(json.dumps(config))
+                output = root / "out"
+                output.mkdir()
+                name = f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH"
+                with patch.dict(release_config.os.environ, {name: "0x" + "00" * 32}):
+                    release_config.unpack(app, COMMIT, "deploy", saved, output)
+                inputs = dict(item.split("=", 1) for item in (output / "inputs").read_text().split("\0") if item)
+                self.assertEqual("auto", inputs[name])
+                self.assertNotIn("CAM_HASH", json.loads(saved.read_text())["settings"])
+
+    def test_zero_cam_hash_survives_setup_and_deployment_unpack_for_every_app(self):
+        for app in release_config.APP_FIELDS:
+            with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                expected = configuration(app)
+                expected["settings"]["CAM_HASH"] = "0x" + "00" * 32
+                answers = ["public", *[expected["settings"][name] for name, _, _ in release_config.fields(app)], "save"]
+                with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(io.StringIO()):
+                    release_config.setup(app, COMMIT, root)
+                saved = root / "release.json"
+                self.assertEqual(expected, json.loads(saved.read_text()))
+                output = root / "out"
+                output.mkdir()
+                release_config.unpack(app, COMMIT, "deploy", saved, output)
+                self.assertIn(f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH={expected['settings']['CAM_HASH']}\0", (output / "inputs").read_text())
+
     def test_walkthrough_produces_complete_ready_to_deploy_file_for_every_app(self):
         for app in release_config.APP_FIELDS:
             with self.subTest(app=app), tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
                 expected = configuration(app)
                 answers = ["public", *expected["settings"].values(), "save"]
+                answers[1 + list(expected["settings"]).index("CAM_HASH")] = ""
                 transcript = io.StringIO()
                 with patch.object(release_config, "input", side_effect=answers, create=True), patch.object(release_config.getpass, "getpass", side_effect=[FIXTURE_RPC, FIXTURE_KEY]), contextlib.redirect_stdout(transcript):
                     release_config.setup(app, COMMIT, directory)
@@ -74,6 +110,17 @@ class ReleaseConfigTest(unittest.TestCase):
                 release_config.unpack(app, COMMIT, "verify", source, output)
                 self.assertEqual({"inputs", "rpc-url"}, {path.name for path in output.iterdir()})
                 self.assertEqual(f"{app.upper().replace('-', '_')}_DEPLOYMENT_ARTIFACT_FILE=/tmp/new-release-output/artifact/deployment.json\0RELEASE_REHEARSAL=0\0", (output / "inputs").read_text())
+
+    def test_planner_receives_explicit_zero_and_defaults_to_automatic_hash(self):
+        for app in release_config.APP_FIELDS:
+            name = f"{app.upper().replace('-', '_')}_RELEASE_CAM_HASH"
+            zero = "0x" + "00" * 32
+            for environment, expected in (({}, "auto"), ({name: zero}, zero)):
+                with self.subTest(app=app, expected=expected):
+                    services = rendered_compose_config(
+                        ("compose/release/deploy.yml", f"compose/{app}/release/deploy.yml"), env=environment
+                    )["services"]
+                    self.assertEqual(expected, services["release-plan"]["environment"][name])
 
     def test_cancel_saves_nothing_and_change_replaces_the_reviewed_settings(self):
         app = "pay-to-play"
@@ -142,6 +189,7 @@ class ReleaseConfigTest(unittest.TestCase):
             "rpc": ["http://rpc.example.test", "https://user:secret@rpc.example.test", "https://rpc.example.test:8545", "https://rpc.example.test/#secret"],
             "key": ["0x" + "00" * 32, "0x" + "ff" * 32, "private-fixture-credential"],
             "text": ["two\nlines", "embedded\0separator"],
+            "cam-hash": ["0", "0x0", "0x" + "00" * 31, "0x" + "gg" * 32],
         }
         for kind, values in cases.items():
             for value in values:

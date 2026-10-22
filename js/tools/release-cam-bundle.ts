@@ -1,6 +1,6 @@
 import { resolve } from "node:path"
 
-import { sha256 } from "viem"
+import { sha256, zeroHash } from "viem"
 
 import { validateCamBundle } from "../packages/cam-conformance/dist/index.js"
 import {
@@ -17,12 +17,14 @@ import {
   localCamResourcePath,
   readBoundedFile,
 } from "./local-cam-files.ts"
+import { requiredBytes32 } from "./release-values.ts"
 
 export type InspectReleaseCamBundleOptions = {
   readonly dappsRootPath: string
   readonly rootPath: string
   readonly camURI: string
   readonly label: string
+  readonly camHash?: string | undefined
 }
 
 export function assertReleaseCamURI(uri: string, label: string, env: NodeJS.ProcessEnv): void {
@@ -62,7 +64,13 @@ export async function inspectReleaseCamBundle(
     )
   }
 
-  return { camHash: sha256(rootBytes) }
+  const sourceHash = sha256(rootBytes)
+  if (options.camHash === undefined || options.camHash === "auto") return { camHash: sourceHash }
+  const camHash = requiredBytes32(options.camHash, `${options.label} CAM hash`)
+  if (camHash !== zeroHash && camHash.toLowerCase() !== sourceHash) {
+    throw new Error(`${options.label} CAM hash does not match checked-in root bytes: expected ${sourceHash}, got ${camHash}`)
+  }
+  return { camHash }
 }
 
 async function declaredLocalResources(

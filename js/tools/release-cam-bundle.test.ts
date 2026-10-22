@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { createHash } from "node:crypto"
+import { spawnSync } from "node:child_process"
 import {
   cp,
   mkdir,
@@ -17,10 +18,72 @@ import { fileURLToPath } from "node:url"
 import { sha256 } from "viem"
 
 import { assertReleaseCamURI, inspectReleaseCamBundle } from "./release-cam-bundle.ts"
+import { stageVerifiedReleaseArtifact } from "./release-verification-input.ts"
 
 const REPOSITORY_DAPPS = join(dirname(fileURLToPath(import.meta.url)), "../../dapps")
 const ESCROW_CAM = join(REPOSITORY_DAPPS, "escrow/cam")
 const CAM_URI = "https://example.test/escrow/cam/main.json"
+const ZERO_HASH = `0x${"00".repeat(32)}` as const
+const SOURCE_COMMIT = "0123456789abcdef0123456789abcdef01234567"
+
+for (const app of ["bike-nft", "escrow", "pay-to-play"]) {
+  test(`${app} release planner preserves an explicit zero hash and validates other selections`, async () => {
+    const directory = await mkdtemp(join(tmpdir(), "release-hash-plan-"))
+    const prefix = app.replaceAll("-", "_").toUpperCase() + "_RELEASE_"
+    const rootPath = join(REPOSITORY_DAPPS, app, "cam/main.json")
+    const digest = sha256(await readFile(rootPath))
+    try {
+      for (const [index, selection] of [undefined, "auto", ZERO_HASH, digest, "0x01", `0x${"ab".repeat(32)}`, ""].entries()) {
+        const planPath = join(directory, `${index}.json`)
+        const settings = {
+          DAPPS_ROOT: REPOSITORY_DAPPS, CAM_ROOT_PATH: rootPath, PLAN_PATH: planPath,
+          CAM_URI, SOURCE_COMMIT, EXPECTED_CHAIN_ID: "43113",
+          INTENDED_CAM_ROOT_OWNER: `0x${"11".repeat(20)}`, INTENDED_PAYMENT_ADMIN: `0x${"22".repeat(20)}`,
+          NULL_CLAIM_PERIOD: "0", TOKEN_NAME: "Bike", TOKEN_SYMBOL: "BIKE",
+          BASE_TOKEN_URI: "https://example.test/tokens/", COLLECTION_URI: "https://example.test/collection.json",
+          INTENDED_COMPONENTS_ADMIN: `0x${"22".repeat(20)}`, COMPONENTS_ADMIN_DELAY: "60",
+          COMPONENTS_PAUSER: `0x${"33".repeat(20)}`, COMPONENTS_CONFIGURER: `0x${"33".repeat(20)}`,
+          INTENDED_MANAGER_ADMIN: `0x${"44".repeat(20)}`, MANAGER_ADMIN_DELAY: "60",
+          MANAGER_PAUSER: `0x${"33".repeat(20)}`, MANAGER_CONFIGURER: `0x${"33".repeat(20)}`,
+          REGISTRARS: `0x${"55".repeat(20)}`,
+        }
+        const env: NodeJS.ProcessEnv = { ...process.env, ...Object.fromEntries(Object.entries(settings).map(([key, value]) => [prefix + key, value])) }
+        delete env[prefix + "CAM_HASH"]
+        if (selection !== undefined) env[prefix + "CAM_HASH"] = selection
+        const result = spawnSync(process.execPath, ["--experimental-strip-types", join(dirname(fileURLToPath(import.meta.url)), `${app}-release/plan.ts`)], { encoding: "utf8", env })
+        if (selection === "0x01" || selection === "" || selection === `0x${"ab".repeat(32)}`) {
+          assert.notEqual(result.status, 0, `planner accepted ${selection}`)
+          await assert.rejects(readFile(planPath), /ENOENT/)
+        } else {
+          assert.equal(result.status, 0, result.stderr)
+          assert.equal(JSON.parse(await readFile(planPath, "utf8")).camHash, selection === ZERO_HASH ? ZERO_HASH : digest)
+        }
+      }
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+}
+
+test("verification preserves zero commitment while still checking the source bundle", async () => {
+  const fixture = await copiedEscrowCamFixture()
+  const artifact = { sourceCommit: SOURCE_COMMIT, camURI: CAM_URI, camHash: ZERO_HASH }
+  const artifactPath = join(fixture.directory, "artifact.json")
+  try {
+    await writeFile(artifactPath, JSON.stringify(artifact))
+    const verify = (snapshotPath: string) => stageVerifiedReleaseArtifact({
+      artifactPath, parseArtifact: bytes => JSON.parse(new TextDecoder().decode(bytes)) as typeof artifact,
+      expectedSourceCommit: SOURCE_COMMIT, dappsRootPath: fixture.dappsRootPath,
+      rootPath: fixture.rootPath, snapshotPath, label: "fixture",
+    })
+    assert.deepEqual(await verify(join(fixture.directory, "verified.json")), artifact)
+    const root = await readRootRecord(fixture.rootPath)
+    await unlink(resolve(dirname(fixture.rootPath), escrowNamespace(root).abiURI))
+    await assert.rejects(verify(join(fixture.directory, "invalid.json")), /does not exist/)
+  } finally {
+    await rm(fixture.directory, { recursive: true, force: true })
+  }
+})
 
 test("private release CAM transport requires the explicit fixture environment and exact origin", () => {
   const local = "http://release-cam:8080/pay-to-play/main.json"

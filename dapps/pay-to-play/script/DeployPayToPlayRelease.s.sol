@@ -71,7 +71,7 @@ contract DeployPayToPlayRelease is Script {
             revert InvalidReleasePlan("expectedChainId");
         }
         if (bytes(plan.camURI).length == 0) revert InvalidReleasePlan("camURI");
-        if (plan.camHash != sha256(vm.readFileBinary("pay-to-play/cam/main.json"))) {
+        if (plan.camHash != bytes32(0) && plan.camHash != sha256(vm.readFileBinary("pay-to-play/cam/main.json"))) {
             revert InvalidReleasePlan("camHash");
         }
         if (plan.intendedCamRootOwner == address(0)) revert InvalidReleasePlan("intendedCamRootOwner");

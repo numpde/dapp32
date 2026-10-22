@@ -77,6 +77,14 @@ ALLOWED_DOCKER_DEFAULTS = {
     ("ENV", "containers/foundry/Dockerfile", "XDG_DATA_HOME", "/usr/local/share"),
 }
 ALLOWED_SHELL_DEFAULTS = {
+    # CAM_HASH is an optional release input: omission deliberately selects
+    # automatic source hashing, as documented in make help and guided setup.
+    ("Makefile", "BIKE_NFT_RELEASE_CAM_HASH", "-", "auto"),
+    ("Makefile", "ESCROW_RELEASE_CAM_HASH", "-", "auto"),
+    ("Makefile", "PAY_TO_PLAY_RELEASE_CAM_HASH", "-", "auto"),
+    ("compose/bike-nft/release/deploy.yml", "BIKE_NFT_RELEASE_CAM_HASH", "-", "auto"),
+    ("compose/escrow/release/deploy.yml", "ESCROW_RELEASE_CAM_HASH", "-", "auto"),
+    ("compose/pay-to-play/release/deploy.yml", "PAY_TO_PLAY_RELEASE_CAM_HASH", "-", "auto"),
     # Compose must render cast-offline without an RPC secret. The Make
     # cast-rpc entrypoint still requires RPC_URL/RPC_URL_FILE before runtime.
     ("compose/cast.yml", "RPC_URL_FILE", ":-", "/dev/null"),

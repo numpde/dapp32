@@ -12,7 +12,7 @@ async function main(): Promise<void> {
   const planPath = requiredEnv(env, "BIKE_NFT_RELEASE_PLAN_PATH")
   const bundle = await inspectReleaseCamBundle({
     dappsRootPath: requiredEnv(env, "BIKE_NFT_RELEASE_DAPPS_ROOT"), rootPath: requiredEnv(env, "BIKE_NFT_RELEASE_CAM_ROOT_PATH"),
-    camURI, label: "Bike NFT",
+    camURI, label: "Bike NFT", camHash: env.BIKE_NFT_RELEASE_CAM_HASH,
   })
   const plan: ReleasePlan = {
     schema: RELEASE_PLAN_SCHEMA,

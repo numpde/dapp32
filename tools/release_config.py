@@ -15,6 +15,7 @@ COMMON_FIELDS = (
     ("EXPECTED_CHAIN_ID", "Target chain ID", "chain"),
     ("EXPECTED_DEPLOYER_ADDRESS", "Expected funded deployer address (enter independently of the signing key)", "address"),
     ("CAM_URI", "Published CAM manifest URI (HTTPS or IPFS)", "uri"),
+    ("CAM_HASH", "CAM hash (auto uses manifest SHA-256; 0x followed by 64 zeros leaves it unverified in the viewer)", "cam-hash"),
     ("INTENDED_CAM_ROOT_OWNER", "CAM owner address (can change the manifest and bindings)", "address"),
 )
 APP_FIELDS = {
@@ -93,6 +94,9 @@ def check_value(value, kind):
     elif kind == "key":
         if not re.fullmatch(r"0x[0-9a-fA-F]{64}", value) or not 0 < int(value[2:], 16) < KEY_ORDER:
             raise ValueError("Enter a valid 32-byte EVM private key with a 0x prefix.")
+    elif kind == "cam-hash":
+        if value != "auto" and not re.fullmatch(r"0x[0-9a-fA-F]{64}", value):
+            raise ValueError("Enter auto or 0x followed by 64 hexadecimal digits.")
     elif kind == "network":
         if value not in ("public", "local"):
             raise ValueError("Choose public or local.")
@@ -127,7 +131,8 @@ def validate(config, app, source_commit):
         raise ValueError("The configuration has no saved deployment confirmation; finish the walkthrough.")
     check_value(config["deployerPrivateKey"], "key")
     settings = config["settings"]
-    if not isinstance(settings, dict) or settings.keys() != {name for name, _, _ in fields(app)}:
+    names = {name for name, _, _ in fields(app)}
+    if not isinstance(settings, dict) or not names - {"CAM_HASH"} <= settings.keys() <= names:
         raise ValueError("The release configuration settings are incomplete or unknown; run the release setup again.")
     local = "localNetwork" in config
     if local:
@@ -139,6 +144,8 @@ def validate(config, app, source_commit):
     else:
         check_value(config["rpcUrl"], "rpc")
     for name, _, kind in fields(app):
+        if name == "CAM_HASH" and name not in settings:
+            continue
         if local and name == "CAM_URI":
             continue
         try:
@@ -174,6 +181,7 @@ def setup(app, source_commit, output):
     print("Enter the actual deployment values. RPC URL and signing key are stored in the protected configuration.")
     print("Saving records approval to deploy these settings later. Setup itself sends no transactions.")
     config = {"schemaVersion": CONFIG_VERSION, "app": app, "sourceCommit": source_commit, "rpcUrl": "", "deployerPrivateKey": "", "settings": {name: "" for name, _, _ in fields(app)}, "confirmDeploy": True}
+    config["settings"]["CAM_HASH"] = "auto"
     if network == "local":
         if "RELEASE_LOCAL_NETWORK" not in os.environ:
             raise ValueError("Run local setup through make <app>/release/setup so its Docker network is selected.")
@@ -231,7 +239,8 @@ def unpack(app, source_commit, mode, source, output):
     if mode == "verify":
         settings = {f"{prefix}_DEPLOYMENT_ARTIFACT_FILE": config["settings"]["OUTPUT_DIR"] + "/artifact/deployment.json"}
     else:
-        settings = {f"{prefix}_RELEASE_{name}": value for name, value in config["settings"].items()}
+        settings = {f"{prefix}_RELEASE_CAM_HASH": "auto"}
+        settings.update({f"{prefix}_RELEASE_{name}": value for name, value in config["settings"].items()})
         settings[f"CONFIRM_{prefix}_RELEASE_DEPLOY"] = "YES"
     if "localNetwork" in config:
         settings["RELEASE_REHEARSAL"] = "1"

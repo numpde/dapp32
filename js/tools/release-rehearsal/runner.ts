@@ -82,9 +82,10 @@ async function main(): Promise<void> {
   }
   const manifest = await client.readContract({ address: root, abi: ABI, functionName: "camManifest" })
   assert.equal(manifest.uri, `${camOrigin}/${app}/main.json`)
+  assert.equal(manifest.sha256Digest, camHash)
   const fetched = await fetch(manifest.uri, { signal: AbortSignal.timeout(10000) })
   assert.equal(fetched.status, 200)
-  assert.equal(sha256(new Uint8Array(await fetched.arrayBuffer())), camHash)
+  assert.equal(sha256(new Uint8Array(await fetched.arrayBuffer())), sha256(await readFile("/deployment/source-main.json")))
   const session = createCamViewerSession({
     publicClient: createHttpCamPublicClient({ rpcURL }),
     host: { chainId: `eip155:${chainId}`, address: root },

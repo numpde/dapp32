@@ -59,6 +59,23 @@ contract PayToPlayReleaseTest is Test {
         harness.validate(_plan(30 days));
     }
 
+    function testZeroCamHashDeploysAndVerifiesWithoutMaskingDigestDrift() external {
+        DeployPayToPlayRelease.ReleasePlan memory plan = _plan(60);
+        plan.camHash = bytes32(0);
+        (CamRoot root, PayToPlay payments) = harness.deploy(plan);
+        vm.prank(ROOT_OWNER);
+        root.acceptOwnership();
+        vm.prank(ADMIN);
+        payments.acceptOwnership();
+        PayToPlayReleaseVerifier.Artifact memory artifact = _artifact(root, payments, 60);
+        artifact.camHash = bytes32(0);
+        harness.verify(artifact, SOURCE);
+        vm.prank(ROOT_OWNER);
+        root.setCam(URI, bytes32(uint256(1)));
+        _expectVerification("CAM digest");
+        harness.verify(artifact, SOURCE);
+    }
+
     function testRejectsTooLongWaitBeforeDeployment() external {
         DeployPayToPlayRelease.ReleasePlan memory plan = _plan(30 days + 1);
         vm.expectRevert(abi.encodeWithSelector(DeployPayToPlayRelease.InvalidReleasePlan.selector, "nullClaimPeriod"));
@@ -71,7 +88,7 @@ contract PayToPlayReleaseTest is Test {
         vm.expectRevert(abi.encodeWithSelector(DeployPayToPlayRelease.InvalidReleasePlan.selector, "expectedChainId"));
         harness.validate(plan);
         plan = _plan(60);
-        plan.camHash = bytes32(0);
+        plan.camHash ^= bytes32(uint256(1));
         vm.expectRevert(abi.encodeWithSelector(DeployPayToPlayRelease.InvalidReleasePlan.selector, "camHash"));
         harness.validate(plan);
         plan = _plan(60);

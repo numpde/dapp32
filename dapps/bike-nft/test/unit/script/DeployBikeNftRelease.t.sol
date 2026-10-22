@@ -91,6 +91,22 @@ contract DeployBikeNftReleaseTest is Test {
         }
     }
 
+    function testAcceptsExplicitlyUnpinnedCam() external view {
+        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
+        plan.camHash = bytes32(0);
+        harness.validatePlan(plan, address(0x99));
+    }
+
+    function testRejectsNonzeroHashThatDoesNotMatchSource() external {
+        DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
+        bytes32 sourceHash = plan.camHash;
+        plan.camHash ^= bytes32(uint256(1));
+        vm.expectRevert(
+            abi.encodeWithSelector(DeployBikeNftRelease.CamHashSourceMismatch.selector, plan.camHash, sourceHash)
+        );
+        harness.validatePlan(plan, address(0x99));
+    }
+
     function testRejectsEveryOperatorFieldMismatch() external {
         DeployBikeNftRelease.ReleasePlan memory plan = harness.parsePlan(planJson);
         DeployBikeNftRelease.OperatorInputs memory inputs = _operatorInputs(plan);
