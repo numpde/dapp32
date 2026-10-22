@@ -458,9 +458,6 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.canClearMissing(owner, "");
 
-        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
-        manager.canRetire(owner, "");
-
         vm.prank(registrar);
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.registerComponent(owner, "", TOKEN_URI);
@@ -473,9 +470,6 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.clearComponentMissing("", RESOLUTION_URI);
-
-        vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
-        manager.retireComponent("");
 
         vm.expectRevert(BicycleComponentManager.EmptySerialNumber.selector);
         manager.setComponentDelegate("", delegate, updateMetadataCapability, uint48(block.timestamp + 1 days));
@@ -557,7 +551,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
 
         bytes32 serialHash = manager.serialHashOf(SERIAL);
         uint64 updateMetadataCapability = manager.CAP_UPDATE_METADATA();
-        uint64 unknownCapability = manager.VALID_CAPABILITY_MASK() | (1 << 8);
+        uint64 unknownCapability = 7 | (1 << 8);
         uint48 validUntil = uint48(block.timestamp + 1 days);
         uint48 expiresNow = uint48(block.timestamp);
         uint48 expiresTooLate = uint48(block.timestamp + manager.maxDelegationDuration() + 1);
@@ -579,6 +573,10 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
             abi.encodeWithSelector(BicycleComponentManager.InvalidCapabilityMask.selector, unknownCapability)
         );
         manager.setComponentDelegate(SERIAL, delegate, unknownCapability, validUntil);
+
+        vm.prank(owner);
+        vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.InvalidCapabilityMask.selector, uint64(8)));
+        manager.setComponentDelegate(SERIAL, delegate, 8, validUntil);
 
         vm.prank(owner);
         vm.expectRevert(abi.encodeWithSelector(BicycleComponentManager.InvalidDelegationExpiry.selector, expiresNow));
@@ -678,16 +676,14 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
     }
 
-    /// @dev Missing/retired status updates are separate capabilities. The test
-    /// exercises owner writes first, then delegate writes with the exact
-    /// capability mask needed for the status transitions.
-    function test_ownerAndDelegatesCanMoveThroughMissingAndRetiredStatuses() external {
+    /// @dev Missing reports remain independently delegable registry operations;
+    /// owner-only lifecycle transitions are covered by LifecycleRoadmap.t.sol.
+    function test_ownerAndDelegatesCanReportAndResolveMissingComponents() external {
         registerDefaultComponent();
         bytes32 serialHash = manager.serialHashOf(SERIAL);
         uint256 tokenId = manager.tokenIdOf(SERIAL);
         uint64 markMissingCapability = manager.CAP_MARK_MISSING();
         uint64 clearMissingCapability = manager.CAP_CLEAR_MISSING();
-        uint64 retireCapability = manager.CAP_RETIRE();
 
         vm.prank(owner);
         vm.expectEmit(true, true, true, true, address(manager));
@@ -698,15 +694,6 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
             "component should be missing"
         );
-        assertFalse(manager.canRetire(owner, SERIAL), "missing report must be resolved before retirement");
-
-        vm.prank(owner);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Missing
-            )
-        );
-        manager.retireComponent(SERIAL);
 
         vm.prank(owner);
         vm.expectEmit(true, true, true, true, address(manager));
@@ -718,7 +705,7 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
             "component should be active again"
         );
 
-        uint64 capabilities = markMissingCapability | clearMissingCapability | retireCapability;
+        uint64 capabilities = markMissingCapability | clearMissingCapability;
         vm.prank(owner);
         manager.setComponentDelegate(SERIAL, delegate, capabilities, uint48(block.timestamp + 1 days));
 
@@ -732,12 +719,10 @@ contract BicycleComponentManagerTest is BicycleComponentManagerTestSupport {
         assertFalse(manager.missingStatus(SERIAL), "delegate should resolve missing report");
         assertEq(manager.componentBySerial(SERIAL).missingReportURI, "", "missing report should clear on resolution");
 
-        vm.prank(delegate);
-        manager.retireComponent(SERIAL);
         assertEq(
             uint8(manager.componentStatus(SERIAL)),
-            uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
-            "component should be retired"
+            uint8(IBicycleComponentManagerView.ComponentStatus.Active),
+            "resolved component should remain active"
         );
     }
 

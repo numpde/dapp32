@@ -8,6 +8,7 @@ import "../../../src/BicycleComponentManagerUI.sol";
 import "../../../src/BicycleComponents.sol";
 import "../../../src/IBicycleComponentManagerView.sol";
 import "../../support/BicycleComponentManagerTestSupport.sol";
+import {IBicycleLifecycleRoadmap} from "../../unit/BicycleComponentManager/LifecycleRoadmap.t.sol";
 
 /// @dev Scenario coverage for user-facing lifecycle stories that cross manager,
 /// component NFT, roles, delegations, and the read-only UI projection. These
@@ -90,7 +91,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
     // machine. It starts from empty/not-found route states, performs the real
     // manager writes, and checks that each state transition changes the UI
     // projection an agent would consume.
-    function test_lookupRegisterMissingClearAndRetireLifecycleProjection() external {
+    function test_lookupRegisterMissingClearAndReversibleLifecycleProjection() external {
         BicycleComponentManagerUI.AppView memory view_ = ui.viewComponent("", owner);
         assertEq(view_.viewId, VIEW_COMPONENT_EMPTY, "empty lookup should have its own view");
         assertEq(view_.serialNumber, "", "empty lookup should preserve the submitted serial");
@@ -156,18 +157,15 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertEq(view_.missingReportURI, "", "resolved report should remove active report URI");
         assertActiveOwnerActions(view_.actions);
 
-        vm.prank(owner);
-        manager.retireComponent(SERIAL);
+        transition(owner, true);
 
         view_ = ui.viewComponent(SERIAL, owner);
-        assertEq(view_.viewId, VIEW_COMPONENT_RETIRED, "retired semantic view should project");
-        assertEq(
-            uint8(manager.componentStatus(SERIAL)),
-            uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
-            "retired status should persist"
-        );
-        assertEq(view_.statusId, "retired", "retired semantic status should project");
-        assertLookupOnly(view_.actions);
+        assertTrue(inactive(), "decommission should persist inactive lifecycle");
+        assertInactiveOwnerActions(view_.actions);
+
+        transition(owner, false);
+        assertFalse(inactive(), "reactivation should restore active lifecycle");
+        assertActiveOwnerActions(ui.viewComponent(SERIAL, owner).actions);
     }
 
     // A used-bike sale is where ownership, delegation, status, account metadata,
@@ -176,7 +174,8 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
     function test_usedBikeSaleInvalidatesOldDelegationAndMovesUiControlToBuyer() external {
         registerDefaultComponent();
         uint256 tokenId = manager.tokenIdOf(SERIAL);
-        uint64 allCapabilities = manager.VALID_CAPABILITY_MASK();
+        uint64 allCapabilities = 7;
+        assertEq(manager.permissionsOf(owner, SERIAL), allCapabilities, "owner registry mask excludes retirement");
 
         vm.prank(buyer);
         manager.setAccountInfo(BUYER_INFO_URI);
@@ -192,7 +191,10 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
             uint8(IBicycleComponentManagerView.ComponentStatus.Missing),
             "delegate should mark component missing before sale"
         );
-        assertMissingOwnerActions(ui.viewComponent(SERIAL, delegate).actions);
+        assertActions(
+            ui.viewComponent(SERIAL, delegate).actions,
+            expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA, ACTION_CLEAR_COMPONENT_MISSING)
+        );
 
         vm.prank(owner);
         components.transferFrom(owner, buyer, tokenId);
@@ -210,9 +212,10 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
         assertActiveOwnerActions(ui.viewComponent(SERIAL, buyer).actions);
 
-        vm.prank(buyer);
-        manager.retireComponent(SERIAL);
-        assertLookupOnly(ui.viewComponent(SERIAL, buyer).actions);
+        transition(buyer, true);
+        assertInactiveOwnerActions(ui.viewComponent(SERIAL, buyer).actions);
+        transition(buyer, false);
+        assertActiveOwnerActions(ui.viewComponent(SERIAL, buyer).actions);
     }
 
     // Component collection rotation is a configuration lifecycle scenario:
@@ -301,17 +304,17 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertTrue(shopView.delegationActive, "delegate authority should project as active");
         assertActions(shopView.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA));
 
-        uint64 resolveAndCloseCapabilities = manager.CAP_CLEAR_MISSING() | manager.CAP_RETIRE();
-        uint48 resolveAndCloseValidUntil = uint48(block.timestamp + 3 days);
+        uint64 resolveCapability = manager.CAP_CLEAR_MISSING();
+        uint48 resolveValidUntil = uint48(block.timestamp + 3 days);
         vm.prank(owner);
-        manager.setComponentDelegate(SERIAL, delegate, resolveAndCloseCapabilities, resolveAndCloseValidUntil);
+        manager.setComponentDelegate(SERIAL, delegate, resolveCapability, resolveValidUntil);
 
         assertActions(
             ui.viewComponent(SERIAL, delegate).actions,
             expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_CLEAR_COMPONENT_MISSING)
         );
 
-        vm.warp(resolveAndCloseValidUntil);
+        vm.warp(resolveValidUntil);
 
         assertEq(manager.permissionsOf(delegate, SERIAL), 0, "delegate permissions should expire");
         shopView = ui.viewComponent(SERIAL, delegate);
@@ -357,7 +360,9 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertEq(view_.viewId, VIEW_COMPONENT_ACTIVE, "pause should not hide active registered components");
         assertTrue(view_.paused, "pause should project to CAM views");
         assertEq(view_.ownerInfo, OWNER_INFO_URI, "pause should not hide owner profile data");
-        assertLookupOnly(view_.actions);
+        assertActions(
+            view_.actions, expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_DELEGATION, ACTION_TRANSFER_COMPONENT)
+        );
 
         vm.prank(owner);
         vm.expectRevert(Pausable.EnforcedPause.selector);
@@ -427,7 +432,7 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
     function test_ownerRevocationCutsOffDelegateImmediatelyWithoutChangingComponentState() external {
         registerDefaultComponent();
 
-        uint64 allCapabilities = manager.VALID_CAPABILITY_MASK();
+        uint64 allCapabilities = 7;
         vm.prank(owner);
         manager.setComponentDelegate(SERIAL, delegate, allCapabilities, uint48(block.timestamp + 30 days));
 
@@ -460,25 +465,18 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertActiveOwnerActions(ownerView.actions);
     }
 
-    // Retirement is final registry state even though the ERC721 remains
-    // transferable. Later ownership/profile changes must not revive write
-    // actions or mutable metadata paths.
-    function test_retiredComponentStaysFinalAcrossLaterTransferAndProfileChanges() external {
+    // Inactive lifecycle survives a sale, but the current owner can reactivate;
+    // neither ownership changes nor lifecycle writes resolve missing reports.
+    function test_inactiveComponentTransfersWithReportAndBuyerCanReactivate() external {
         registerDefaultComponent();
         uint256 tokenId = manager.tokenIdOf(SERIAL);
 
         vm.prank(owner);
-        manager.retireComponent(SERIAL);
+        manager.markComponentMissing(SERIAL, REPORT_URI);
+        transition(owner, true);
 
-        BicycleComponentManagerUI.AppView memory retiredOwnerView = ui.viewComponent(SERIAL, owner);
-        assertEq(retiredOwnerView.viewId, VIEW_COMPONENT_RETIRED, "owner retired view mismatch");
-        assertEq(
-            uint8(manager.componentStatus(SERIAL)),
-            uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
-            "component should be retired"
-        );
-        assertEq(retiredOwnerView.statusId, "retired", "owner retired semantic status");
-        assertLookupOnly(retiredOwnerView.actions);
+        assertTrue(inactive(), "owner decommission should persist");
+        assertTrue(manager.missingStatus(SERIAL), "decommission must preserve missing report");
 
         vm.prank(owner);
         components.transferFrom(owner, buyer, tokenId);
@@ -486,41 +484,26 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         vm.prank(buyer);
         manager.setAccountInfo(BUYER_INFO_URI);
 
-        BicycleComponentManagerUI.AppView memory retiredBuyerView = ui.viewComponent(SERIAL, buyer);
-        assertEq(retiredBuyerView.viewId, VIEW_COMPONENT_RETIRED, "buyer retired view mismatch");
-        assertEq(retiredBuyerView.owner, buyer, "retired token should still transfer");
-        assertEq(retiredBuyerView.ownerInfo, BUYER_INFO_URI, "retired view should follow current owner profile");
-        assertEq(
-            uint8(manager.componentStatus(SERIAL)),
-            uint8(IBicycleComponentManagerView.ComponentStatus.Retired),
-            "transfer must not revive retired status"
-        );
-        assertEq(retiredBuyerView.statusId, "retired", "transfer must not revive semantic status");
-        assertLookupOnly(retiredBuyerView.actions);
+        BicycleComponentManagerUI.AppView memory buyerView = ui.viewComponent(SERIAL, buyer);
+        assertEq(buyerView.owner, buyer, "inactive token should still transfer");
+        assertEq(buyerView.ownerInfo, BUYER_INFO_URI, "view should follow current owner profile");
+        assertTrue(inactive(), "transfer must not reactivate component");
+        assertEq(buyerView.missingReportURI, REPORT_URI, "transfer preserves report URI");
+        assertLookupOnly(ui.viewComponent(SERIAL, owner).actions);
+
+        transition(buyer, false);
+        assertFalse(inactive(), "buyer can reactivate component");
+        assertTrue(manager.missingStatus(SERIAL), "reactivation must preserve report");
+        assertMissingOwnerActions(ui.viewComponent(SERIAL, buyer).actions);
 
         vm.prank(buyer);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
-            )
-        );
         manager.setComponentMetadata(SERIAL, UPDATED_TOKEN_URI);
+        assertEq(components.tokenURI(tokenId), UPDATED_TOKEN_URI, "buyer metadata update should persist");
 
         vm.prank(buyer);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
-            )
-        );
-        manager.markComponentMissing(SERIAL, REPORT_URI);
-
-        vm.prank(buyer);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                BicycleComponentManager.InvalidStatus.selector, IBicycleComponentManagerView.ComponentStatus.Retired
-            )
-        );
         manager.clearComponentMissing(SERIAL, RESOLUTION_URI);
+        assertFalse(manager.missingStatus(SERIAL), "explicit resolution closes report");
+        assertActiveOwnerActions(ui.viewComponent(SERIAL, buyer).actions);
     }
 
     // The component-token contract is a real dependency, not a passive data
@@ -538,7 +521,12 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
         assertTrue(view_.componentTokenPaused, "token pause should project to CAM views");
         assertActions(
             view_.actions,
-            expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_MARK_COMPONENT_MISSING, ACTION_RETIRE_COMPONENT)
+            expectedActions(
+                ACTION_LOOKUP_COMPONENT,
+                ACTION_MARK_COMPONENT_MISSING,
+                ACTION_DECOMMISSION_COMPONENT,
+                ACTION_DELEGATION
+            )
         );
 
         view_ = ui.viewEntry(registrar);
@@ -583,6 +571,23 @@ contract BicycleComponentManagerScenarioTest is BicycleComponentManagerTestSuppo
 
         assertEq(ui.viewComponent(SERIAL, owner).tokenURI, UPDATED_TOKEN_URI, "metadata write should resume");
         assertEq(ui.viewComponent(SECOND_SERIAL, buyer).viewId, VIEW_COMPONENT_ACTIVE, "minting should resume");
+    }
+
+    function transition(address actor, bool decommission) private {
+        bytes memory callData = decommission
+            ? abi.encodeCall(IBicycleLifecycleRoadmap.decommissionComponent, (SERIAL))
+            : abi.encodeCall(IBicycleLifecycleRoadmap.reactivateComponent, (SERIAL));
+        vm.prank(actor);
+        (bool ok,) = address(manager).call(callData);
+        assertTrue(ok, "owner lifecycle transition must succeed");
+    }
+
+    function inactive() private view returns (bool) {
+        (bool ok, bytes memory result) =
+            address(manager).staticcall(abi.encodeCall(IBicycleLifecycleRoadmap.inactiveStatus, (SERIAL)));
+        assertTrue(ok, "inactiveStatus must be available");
+        assertEq(result.length, 32, "inactiveStatus must return one ABI bool");
+        return abi.decode(result, (bool));
     }
 
     /// @dev Register the canonical scenario component through the registrar so

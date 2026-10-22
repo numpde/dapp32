@@ -12,7 +12,6 @@ abstract contract BicycleComponentManagerTestSupport is Test {
     string internal constant VIEW_COMPONENT_EMPTY = "component.empty";
     string internal constant VIEW_COMPONENT_ACTIVE = "component.active";
     string internal constant VIEW_COMPONENT_MISSING = "component.missing";
-    string internal constant VIEW_COMPONENT_RETIRED = "component.retired";
     string internal constant VIEW_COMPONENT_NOT_FOUND = "component.notFound";
     string internal constant VIEW_REGISTER_EMPTY = "register.empty";
     string internal constant VIEW_REGISTER_READY = "register.ready";
@@ -25,7 +24,10 @@ abstract contract BicycleComponentManagerTestSupport is Test {
     string internal constant ACTION_UPDATE_COMPONENT_METADATA = "updateComponentMetadata";
     string internal constant ACTION_MARK_COMPONENT_MISSING = "markComponentMissing";
     string internal constant ACTION_CLEAR_COMPONENT_MISSING = "clearComponentMissing";
-    string internal constant ACTION_RETIRE_COMPONENT = "retireComponent";
+    string internal constant ACTION_DECOMMISSION_COMPONENT = "decommissionComponent";
+    string internal constant ACTION_REACTIVATE_COMPONENT = "reactivateComponent";
+    string internal constant ACTION_DELEGATION = "delegation";
+    string internal constant ACTION_TRANSFER_COMPONENT = "transferComponent";
 
     /// @dev Action arrays are ordered protocol data: the UI manifest renders
     /// buttons in this order, so these assertions intentionally check both set
@@ -68,7 +70,9 @@ abstract contract BicycleComponentManagerTestSupport is Test {
                 ACTION_LOOKUP_COMPONENT,
                 ACTION_UPDATE_COMPONENT_METADATA,
                 ACTION_MARK_COMPONENT_MISSING,
-                ACTION_RETIRE_COMPONENT
+                ACTION_DECOMMISSION_COMPONENT,
+                ACTION_DELEGATION,
+                ACTION_TRANSFER_COMPONENT
             )
         );
     }
@@ -76,7 +80,28 @@ abstract contract BicycleComponentManagerTestSupport is Test {
     function assertMissingOwnerActions(string[] memory actual) internal pure {
         assertActions(
             actual,
-            expectedActions(ACTION_LOOKUP_COMPONENT, ACTION_UPDATE_COMPONENT_METADATA, ACTION_CLEAR_COMPONENT_MISSING)
+            expectedActions(
+                ACTION_LOOKUP_COMPONENT,
+                ACTION_UPDATE_COMPONENT_METADATA,
+                ACTION_CLEAR_COMPONENT_MISSING,
+                ACTION_DECOMMISSION_COMPONENT,
+                ACTION_DELEGATION,
+                ACTION_TRANSFER_COMPONENT
+            )
+        );
+    }
+
+    function assertInactiveOwnerActions(string[] memory actual) internal pure {
+        assertActions(
+            actual,
+            expectedActions(
+                ACTION_LOOKUP_COMPONENT,
+                ACTION_UPDATE_COMPONENT_METADATA,
+                ACTION_MARK_COMPONENT_MISSING,
+                ACTION_REACTIVATE_COMPONENT,
+                ACTION_DELEGATION,
+                ACTION_TRANSFER_COMPONENT
+            )
         );
     }
 
@@ -119,5 +144,22 @@ abstract contract BicycleComponentManagerTestSupport is Test {
         actions[1] = second;
         actions[2] = third;
         actions[3] = fourth;
+    }
+
+    function expectedActions(
+        string memory first,
+        string memory second,
+        string memory third,
+        string memory fourth,
+        string memory fifth,
+        string memory sixth
+    ) internal pure returns (string[] memory actions) {
+        actions = new string[](6);
+        actions[0] = first;
+        actions[1] = second;
+        actions[2] = third;
+        actions[3] = fourth;
+        actions[4] = fifth;
+        actions[5] = sixth;
     }
 }
