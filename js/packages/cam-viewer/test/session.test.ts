@@ -161,7 +161,7 @@ test("bike availability keeps entry account editing visible and matches the proj
     const snapshot = await session.setAccount({ address: scenario.account })
     const actions = projection.actions as string[]
     const buttons = resolvedUiButtons(snapshot.resolvedUi)
-    for (const [action, label] of [["lookupComponent", "Look up component"], ["openRegister", "Check registration"], ["setAccountInfo", "Review account info update"]]) {
+    for (const [action, label] of [["lookupComponent", "Look up component"], ["openRegister", "Check registration"], ["setAccountInfo", "Update account info"]]) {
       const button = buttons.find(node => node.props.label === label)
       assert.ok(button, `${scenario.name}: ${action} must remain visible`)
       assert.equal(button.disabled === true, !actions.includes(action), `${scenario.name}: ${action} availability`)

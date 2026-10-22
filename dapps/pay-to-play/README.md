@@ -78,8 +78,10 @@ example, opening Alice's position and connecting Bob's wallet does not turn it
 into Bob's balance. Owner-only controls become unavailable, while permitted
 relayer or channel-operator controls remain available.
 
-Enter inputs, choose **Review**, inspect the contract/function/arguments/native
-value, then **Send with wallet**. Review prepares and simulates; sending submits.
+Enter the inputs and choose the action. Its **Review transaction** subtext means
+it prepares and simulates a transaction. Inspect the contract, function,
+arguments and native value, then choose **Send with wallet** to request signing
+and submission.
 Rely on a successful receipt, not a simulation or transaction hash. A state can
 change between review and execution. Amount inputs link whole wei and decimal
 native coins; one native coin is 10^18 wei. Fees are separate.
@@ -105,7 +107,7 @@ relative display uses the device clock for presentation only.
 ## Register a permanent voucher key
 
 Connect the balance-owner wallet, enter the **address** of an ECDSA key you
-control, and choose **Review permanent voucher key**. Never enter a private
+control, and choose **Register permanent voucher key**. Never enter a private
 key. Registration is once per nonzero-channel position; zero and subsequent
 registrations are rejected, even when proposing the same key. No funding is
 required. Verify signing access before choosing: the contract does not prove

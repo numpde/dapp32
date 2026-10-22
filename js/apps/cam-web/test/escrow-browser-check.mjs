@@ -202,7 +202,7 @@ async function enter(name, value) {
   await waitFor(async state => (await field(name)) === value, `${name} edit`)
 }
 async function clickButton(label) {
-  if (label !== 'Review agreement creation') {
+  if (label !== 'Create agreement') {
     const clicked = await evaluate(`(() => { const button = [...document.querySelectorAll('button')].find(button => (button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim() === ${JSON.stringify(label)}); if (!button || button.matches(':disabled')) return false; button.click(); return true })()`)
     assert(clicked, `${label} button is absent or disabled`)
     return
@@ -383,7 +383,7 @@ try {
       await assertWorkingSurface(`account credit at ${width}px`)
     }
     assert.equal(await evaluate("document.querySelector('input[name=recipient]')?.matches(':disabled')"), true, 'empty credit recipient must remain visible and disabled')
-    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button=>(button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim()==='Review withdrawal')?.disabled"), true, 'empty credit withdrawal must remain visible and disabled')
+    assert.equal(await evaluate("[...document.querySelectorAll('button')].find(button=>(button.hasAttribute('aria-label') ? button.getAttribute('aria-label') : button.textContent).trim()==='Withdraw credit')?.disabled"), true, 'empty credit withdrawal must remain visible and disabled')
   })
 
   await browserCase('known agreement ID without create inputs', async () => {
@@ -718,14 +718,14 @@ try {
   await browserCase('duration preparation uses canonical values while preserving active lexical spelling', async () => {
     await fillDraft()
     await enter('acceptanceDuration.seconds','0003600')
-    await clickButton('Review agreement creation')
+    await clickButton('Create agreement')
     await waitFor(async ()=>Boolean((await feedback('prepared'))?.text?.includes('Review transaction')),'integer prepared review')
     const review=await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
     assert.equal(JSON.parse(review['Function inputs']).params.acceptanceDuration,'3600')
     assert.equal(await field('acceptanceDuration.seconds'),'0003600')
     await enter('acceptanceDuration.seconds','1.5')
     assert(await evaluate(`document.querySelector('.prepared-call')===null`),'invalid integer retained an already prepared call')
-    await clickButton('Review agreement creation')
+    await clickButton('Create agreement')
     await waitFor(async ()=>Boolean((await feedback('notice'))?.text),'invalid integer preparation rejection')
     assert(await evaluate(`document.querySelector('.prepared-call')===null`),'invalid integer produced a new prepared call')
     assert.equal(transactionRequests.length,0,'integer preparation sent a transaction')
@@ -747,7 +747,7 @@ try {
   await browserCase('prepare rejection feedback', async () => {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')
-    await clickButton('Review agreement creation')
+    await clickButton('Create agreement')
     await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.diagnostic || ''), 'decoded prepare rejection')
     const rejected = await feedback('notice')
     assert(!rejected.text.includes('InvalidPartyConfiguration'), 'primary explanation exposes the contract diagnostic')
@@ -782,18 +782,18 @@ try {
   await browserCase('repeated rejection and ordinary editing focus', async () => {
     await fillDraft()
     await enter('contractor', '0x0000000000000000000000000000000000000000')
-    await clickButton('Review agreement creation')
+    await clickButton('Create agreement')
     await waitFor(async () => /InvalidPartyConfiguration/.test((await feedback('notice'))?.diagnostic || ''), 'first rejection')
     await enter('amount', '43')
     assert.equal(await evaluate("document.activeElement?.getAttribute('name')"), 'amount', 'editing stole focus from amount')
-    await clickButton('Review agreement creation')
+    await clickButton('Create agreement')
     await waitFor(async () => (await feedback('notice'))?.focus === true, 'repeat rejection focus')
     assert.equal(await field('amount'), '43', 'repeat rejection discarded edit')
   })
 
   await browserCase('prepared review feedback', async () => {
     await fillDraft()
-    await clickButton('Review agreement creation')
+    await clickButton('Create agreement')
     await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'prepared review')
     const prepared = await feedback('prepared')
     assert(prepared.top >= 0 && prepared.top < prepared.height && prepared.bottom > 0, 'prepared review is outside the viewport')
@@ -806,7 +806,7 @@ try {
       await fillDraft()
       await amountInput('display',display)
       await waitFor(async () => (await field('amount')) === base, 'canonical amount before preparation')
-      await clickButton('Review agreement creation')
+      await clickButton('Create agreement')
       await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'exact amount prepared review')
       const review = await evaluate(`Object.fromEntries([...document.querySelectorAll('.prepared-call .key-value')].map(row=>[row.firstElementChild.textContent,row.lastElementChild.textContent]))`)
       assert.equal(JSON.parse(review['Function inputs']).params.amount, base, 'prepared tuple amount changed precision')
@@ -821,7 +821,7 @@ try {
     intercept = 'hold'
     await call('Fetch.enable', {patterns:[{urlPattern:rpc.href,requestStage:'Request'}]}, sessionId)
     try {
-      await clickButton('Review agreement creation')
+      await clickButton('Create agreement')
       await waitFor(() => heldRequests.length > 0, 'paused preparation simulation')
       const simulationRequests = heldRequests.map(requestId => {
         const networkId = heldNetworkRequests.get(requestId)
@@ -847,7 +847,7 @@ try {
 
   await browserCase('discard prepared review preserves draft', async () => {
     await fillDraft()
-    await clickButton('Review agreement creation')
+    await clickButton('Create agreement')
     await waitFor(async () => Boolean((await feedback('prepared'))?.text?.includes('Review transaction')), 'review before discard')
     await clickButton('Discard transaction')
     await waitFor(async () => await evaluate("document.querySelector('.prepared-call') === null && document.activeElement === document.querySelector('.ui')"), 'discarded review and current-view focus')

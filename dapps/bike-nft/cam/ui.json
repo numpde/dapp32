@@ -793,7 +793,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Review registration"
+        "label": "Register component"
       },
       "call": {
         "namespace": "routes",
@@ -815,7 +815,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Review account info update"
+        "label": "Update account info"
       },
       "call": {
         "namespace": "routes",
@@ -835,7 +835,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Review metadata update"
+        "label": "Update NFT details"
       },
       "call": {
         "namespace": "routes",
@@ -856,7 +856,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Review missing report"
+        "label": "Report component missing"
       },
       "call": {
         "namespace": "routes",
@@ -877,7 +877,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Review missing-report resolution"
+        "label": "Resolve missing report"
       },
       "call": {
         "namespace": "routes",
@@ -1032,7 +1032,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Review taking out of service"
+        "label": "Take out of service"
       },
       "call": {
         "namespace": "routes",
@@ -1052,7 +1052,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Review reactivation"
+        "label": "Reactivate"
       },
       "call": {
         "namespace": "routes",
@@ -1090,7 +1090,7 @@
       ],
       "element": "Button",
       "props": {
-        "label": "Review NFT handover"
+        "label": "Transfer NFT"
       },
       "call": {
         "namespace": "routes",

@@ -141,7 +141,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review deposit"
+            "label": "Deposit"
           },
           "call": {
             "namespace": "routes",
@@ -191,7 +191,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review withdrawal request"
+            "label": "Request withdrawal"
           },
           "call": {
             "namespace": "routes",
@@ -209,7 +209,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review replacement request"
+            "label": "Replace withdrawal request"
           },
           "call": {
             "namespace": "routes",
@@ -233,7 +233,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review withdrawal to balance owner"
+            "label": "Withdraw to balance owner"
           },
           "call": {
             "namespace": "routes",
@@ -265,7 +265,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review move to another channel"
+            "label": "Move funds to another channel"
           },
           "call": {
             "namespace": "routes",
@@ -315,7 +315,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review permanent voucher key"
+            "label": "Register permanent voucher key"
           },
           "call": {
             "namespace": "routes",
@@ -407,7 +407,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review voucher payment"
+            "label": "Collect voucher payment"
           },
           "call": {
             "namespace": "routes",
@@ -470,7 +470,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review recipient change"
+            "label": "Change channel payee"
           },
           "call": {
             "namespace": "routes",
@@ -716,7 +716,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review new channel"
+            "label": "Create channel"
           },
           "call": {
             "namespace": "routes",
@@ -947,7 +947,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review annual renewal"
+            "label": "Renew position"
           },
           "call": {
             "namespace": "routes",
@@ -984,7 +984,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review refund recipient"
+            "label": "Set refund recipient"
           },
           "call": {
             "namespace": "routes",
@@ -1008,7 +1008,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review position wind-down"
+            "label": "Start position wind-down"
           },
           "call": {
             "namespace": "routes",
@@ -1032,7 +1032,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review full refund"
+            "label": "Refund full balance"
           },
           "call": {
             "namespace": "routes",
@@ -1056,7 +1056,7 @@
         {
           "element": "Button",
           "props": {
-            "label": "Review permanent channel retirement"
+            "label": "Retire channel permanently"
           },
           "call": {
             "namespace": "routes",
