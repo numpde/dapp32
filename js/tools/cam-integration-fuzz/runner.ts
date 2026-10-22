@@ -9,6 +9,7 @@ import {
   createHttpCamPublicClient,
   loadCamFromHost,
   resolveCamContracts,
+  verifyCamResourceIntegrity,
 } from "../../packages/cam-evm-viem/dist/index.js"
 import type {
   CamHost,
@@ -29,9 +30,13 @@ import type {
 } from "../../packages/cam-viewer/dist/index.js"
 import {
   resolvedUiButtons,
+  parseUi,
 } from "../../packages/cam-screen/dist/index.js"
+import type { UiDocument } from "../../packages/cam-screen/dist/index.js"
 import {
   createSameOriginHttpResourceLoader,
+  resolveCamResourceURI,
+  parseJsonBytes,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
   InertRecord,
@@ -136,6 +141,12 @@ async function main(): Promise<void> {
     loadResource,
   })
   await assertResolvedContractsHaveCode(fullPublicClient, contracts)
+  const uiNamespace = loadedCam.cam.namespaces.ui
+  if (uiNamespace?.type !== "ui") throw new Error("Cannot generate UI values: the CAM ui namespace is missing")
+  const uiURI = resolveCamResourceURI(loadedCam.camURI, uiNamespace.uri)
+  const uiBytes = await loadResource(uiURI)
+  verifyCamResourceIntegrity({ bytes: uiBytes, integrity: uiNamespace.integrity, uri: uiURI })
+  const ui = parseUi(parseJsonBytes(uiBytes))
   emit({
     event: "contracts_resolved",
     contracts: Object.fromEntries(
@@ -154,6 +165,7 @@ async function main(): Promise<void> {
     account,
     initialInputs: generatedRouteInputs({
       route: loadedCam.cam.routes[loadedCam.cam.entry],
+      contracts,
       account,
       prng,
       mode: valueMode,
@@ -186,6 +198,9 @@ async function main(): Promise<void> {
       run,
       steps: options.steps,
       session,
+      routes: loadedCam.cam.routes,
+      contracts,
+      ui,
       account,
       simulationClient: fullPublicClient,
       receiptClient: fullPublicClient,
@@ -250,6 +265,7 @@ async function callEveryReadRoute({
     if (route.kind !== "read") continue
     const inputs = generatedRouteInputs({
       route,
+      contracts,
       account,
       prng,
       mode: valueMode,
@@ -279,6 +295,9 @@ async function walkSession({
   run,
   steps,
   session,
+  routes,
+  contracts,
+  ui,
   account,
   simulationClient,
   receiptClient,
@@ -289,6 +308,9 @@ async function walkSession({
   readonly run: number
   readonly steps: number
   readonly session: CamViewerSession
+  readonly routes: CamDocument["routes"]
+  readonly contracts: Parameters<typeof callCamRoute>[0]["contracts"]
+  readonly ui: UiDocument
   readonly account: Address
   readonly simulationClient: CamSimulationClient
   readonly receiptClient: ReceiptClient
@@ -302,6 +324,9 @@ async function walkSession({
     const before = requireLoadedSnapshot(session.snapshot())
     const statePatch = generatedStatePatch({
       snapshot: before,
+      routes,
+      contracts,
+      ui,
       account,
       prng,
       mode: valueMode,

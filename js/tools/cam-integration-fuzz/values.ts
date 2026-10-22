@@ -1,16 +1,26 @@
-import type { Address } from "viem"
+import type { AbiFunction, Address } from "viem"
 
 import type {
   CamRoute,
 } from "../../packages/cam-core/dist/index.js"
 import {
   forEachResolvedUiNode,
+  resolvedUiButtons,
 } from "../../packages/cam-screen/dist/index.js"
+import type { UiDocument, UiNode } from "../../packages/cam-screen/dist/index.js"
+import type { ResolvedCamContract } from "../../packages/cam-evm-viem/dist/index.js"
 import type {
   CamViewerSnapshot,
 } from "../../packages/cam-viewer/dist/index.js"
 import {
   toInertValue,
+  abiFunctionSignature,
+  abiScalarKind,
+  isAbiFunctionSignatureReference,
+  parseExpressionReference,
+  parseStaticExpressionString,
+  parseAbiFixedBytesLength,
+  parseAbiIntegerType,
 } from "../../packages/cam-protocol/dist/index.js"
 import type {
   InertRecord,
@@ -24,11 +34,13 @@ export type ValueGenerationMode = "broad" | "write-positive"
 
 export function generatedRouteInputs({
   route,
+  contracts,
   account,
   prng,
   mode,
 }: {
   readonly route: CamRoute | undefined
+  readonly contracts: Record<string, ResolvedCamContract>
   readonly account: Address
   readonly prng: Prng
   readonly mode: ValueGenerationMode
@@ -38,8 +50,9 @@ export function generatedRouteInputs({
   }
 
   const inputs: Record<string, InertValue> = {}
+  const types = directRouteInputTypes(route, contracts)
   for (const name of route.inputs) {
-    inputs[name] = generatedNamedValue(name, account, prng, mode)
+    inputs[name] = generatedAbiValue(types.get(name), name, account, prng, mode)
   }
 
   return toInertValue(inputs) as InertRecord
@@ -47,11 +60,17 @@ export function generatedRouteInputs({
 
 export function generatedStatePatch({
   snapshot,
+  routes,
+  contracts,
+  ui,
   account,
   prng,
   mode,
 }: {
   readonly snapshot: CamViewerSnapshot
+  readonly routes: Record<string, CamRoute>
+  readonly contracts: Record<string, ResolvedCamContract>
+  readonly ui: UiDocument
   readonly account: Address
   readonly prng: Prng
   readonly mode: ValueGenerationMode
@@ -62,15 +81,125 @@ export function generatedStatePatch({
   }
 
   const patch: Record<string, InertValue> = {}
-  const names = new Set<string>()
-  forEachResolvedUiNode(resolved, (node) => {
-    if ((node.element === "TextField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") && node.disabled !== true) names.add(node.state.key)
+  const renderedKeys = new Set<string>()
+  forEachResolvedUiNode(resolved, node => {
+    if ((node.element === "TextField" || node.element === "AmountField" || node.element === "NonNegativeIntegerField" || node.element === "DurationField") && node.disabled !== true) renderedKeys.add(node.state.key)
   })
-  for (const name of [...names].sort()) {
-    patch[name] = generatedNamedValue(name, account, prng, mode)
-  }
+  const types = directStateTypes(ui, resolvedUiButtons(resolved).map(button => button.call.function), renderedKeys, routes, contracts)
+  forEachResolvedUiNode(resolved, (node) => {
+    if ("disabled" in node && node.disabled === true) return
+    if (node.element === "NonNegativeIntegerField" || node.element === "DurationField") {
+      let minimum = 0n
+      let maximum: bigint | undefined
+      const type = types.get(node.state.key)
+      if (type !== undefined) {
+        const integer = parseAbiIntegerType(type)
+        if (integer === undefined) throw new Error(`Cannot generate numeric control ${node.state.key}: the generator requires an integer ABI binding, not ${type}`)
+        maximum = (1n << BigInt(integer.bits - (integer.signed ? 1 : 0))) - 1n
+      }
+      if (node.props.min !== undefined) minimum = BigInt(node.props.min)
+      if (node.props.max !== undefined) {
+        const fieldMaximum = BigInt(node.props.max)
+        if (maximum === undefined || fieldMaximum < maximum) maximum = fieldMaximum
+      }
+      if (maximum !== undefined && minimum > maximum) throw new Error(`Cannot generate numeric control ${node.state.key}: UI and ABI bounds have no shared nonnegative range`)
+      let candidate = node.element === "DurationField" ? 3600n : 1n
+      if (candidate < minimum) candidate = minimum
+      if (maximum !== undefined && candidate > maximum) candidate = maximum
+      patch[node.state.key] = mode === "broad" ? prng.pick(["", candidate.toString()]) : candidate.toString()
+    } else if (node.element === "TextField" || node.element === "AmountField") {
+      patch[node.state.key] = generatedAbiValue(types.get(node.state.key), node.state.key, account, prng, mode)
+    }
+  })
 
   return toInertValue(patch) as InertRecord
+}
+
+function directRouteInputTypes(route: CamRoute, contracts: Record<string, ResolvedCamContract>): Map<string, string> {
+  const types = new Map<string, string>()
+  const invocations = [route.call]
+  if (route.kind === "write" && route.resolve !== undefined) invocations.push(route.resolve)
+  for (const invocation of invocations) {
+    const bindings = Object.entries(invocation.args).flatMap(([name, value]) => {
+      const input = directReference(value, "inputs")
+      return input === undefined ? [] : [{ name, input }]
+    })
+    if (bindings.length === 0) continue
+    const contract = contracts[invocation.namespace]
+    if (contract === undefined) throw new Error(`Cannot generate route inputs: namespace is unresolved: ${invocation.namespace}`)
+    const matches = contract.abi.filter((item): item is AbiFunction => item.type === "function" && (
+      isAbiFunctionSignatureReference(invocation.function)
+        ? abiFunctionSignature(item) === invocation.function
+        : item.name === invocation.function
+    ))
+    if (matches.length !== 1) throw new Error(`Cannot generate route inputs without one unambiguous ABI function: ${invocation.namespace}.${invocation.function}`)
+    const fn = matches[0]!
+    for (const binding of bindings) {
+      const input = fn.inputs.find(input => input.name === binding.name)
+      if (input === undefined) throw new Error(`Cannot generate route input ${binding.input}: ABI argument is missing: ${invocation.function}.${binding.name}`)
+      bindType(types, binding.input, input.type)
+    }
+  }
+  return types
+}
+
+function directStateTypes(
+  ui: UiDocument,
+  renderedRoutes: readonly string[],
+  renderedKeys: ReadonlySet<string>,
+  routes: Record<string, CamRoute>,
+  contracts: Record<string, ResolvedCamContract>,
+): Map<string, string> {
+  const types = new Map<string, string>()
+  // Use only explicit state-to-input edges for rendered controls and routes;
+  // Include parameter flow and nested expressions remain outside this generator.
+  function visit(node: UiNode): void {
+    if (node.element === "Button") {
+      const name = typeof node.call.function === "string" ? parseStaticExpressionString(node.call.function) : undefined
+      if (name === undefined || !renderedRoutes.includes(name)) return
+      const route = routes[name]
+      if (route === undefined) return
+      const inputTypes = directRouteInputTypes(route, contracts)
+      for (const [input, value] of Object.entries(node.call.args)) {
+        const key = directReference(value, "state")
+        const type = inputTypes.get(input)
+        if (key !== undefined && renderedKeys.has(key) && type !== undefined) bindType(types, key, type)
+      }
+    } else if (node.element === "Screen" || node.element === "Fragment") {
+      node.children.forEach(visit)
+    }
+  }
+  Object.values(ui.nodes).forEach(visit)
+  return types
+}
+
+function directReference(value: InertValue, root: string): string | undefined {
+  if (typeof value !== "string") return undefined
+  const reference = parseExpressionReference(value, { numericSegments: true })
+  return reference?.root === root && reference.segments.length === 1 ? reference.segments[0] : undefined
+}
+
+function bindType(types: Map<string, string>, name: string, type: string): void {
+  const previous = types.get(name)
+  if (previous !== undefined && previous !== type) throw new Error(`Cannot generate conflicting types for ${name}: ${previous} and ${type}`)
+  types.set(name, type)
+}
+
+function generatedAbiValue(
+  type: string | undefined,
+  name: string,
+  account: Address,
+  prng: Prng,
+  mode: ValueGenerationMode,
+): InertValue {
+  if (type === undefined || type === "string") return generatedNamedValue(name, account, prng, mode)
+  if (type === "address") return account
+  if (type === "bool") return prng.pick([false, true])
+  if (abiScalarKind(type) === "integer") return "1"
+  if (type === "bytes") return "0x"
+  const bytes = parseAbiFixedBytesLength(type)
+  if (bytes !== undefined) return `0x${"11".repeat(bytes)}`
+  throw new Error(`Cannot generate input ${name}: the workflow generator supports direct scalar ABI bindings, not ${type}`)
 }
 
 function generatedNamedValue(name: string, account: Address, prng: Prng, mode: ValueGenerationMode): InertValue {

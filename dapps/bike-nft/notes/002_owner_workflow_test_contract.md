@@ -7,10 +7,9 @@ by the contract, protocol, adapter, viewer, and publication tests.
 
 The full Docker-backed Solidity lane passed all 82 Bike tests; the JS suite
 passed 832 tests and repository checks passed 316 tests. Publication and tool
-checks listed below also passed. A browser journey and full public-release
-qualification remain outstanding. The live fresh-chain campaign is currently
-blocked by a generator issue under repair; the passing contract scenarios do
-not establish that campaign's result.
+checks listed below also passed. The live fresh-chain Bike campaign passed 16
+steps, including transfers, workshop grants, and missing reports. A browser
+journey and full public-release qualification remain outstanding.
 
 ## Product laws
 
@@ -82,10 +81,14 @@ Passed qualification:
 - `make dapps/format/check`, `make cam/conformance/check`,
   `make bike-nft/release/check`, `make viewer/terminal/check`, and
   `make cam/integration/fuzz/check`.
+- The repaired integration generator passed 27 focused tests and six hygiene
+  checks; its scope changes received independent review.
+- The live fresh-chain Bike integration campaign passed 16 steps, including
+  transfers, workshop grants, and missing reports.
 
 The Foundry scenarios deploy real contracts inside the test VM. Adapter and
-viewer tests use controlled RPC fixtures. Neither establishes a completed
-browser wallet journey, live fresh-chain campaign, or public deployment.
-Complete the live campaign after the generator repair, then run the remaining
-full repository and documented browser/release journeys before claiming those
-qualifications.
+viewer tests use controlled RPC fixtures. The live campaign adds bounded
+evidence from 16 steps against a fresh local chain. These checks do not
+establish a completed browser wallet journey or full public release ceremony.
+Run the remaining full repository and documented browser/release journeys
+before claiming those qualifications.
