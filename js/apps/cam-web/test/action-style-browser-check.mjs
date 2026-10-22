@@ -16,6 +16,16 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
   try {
     await call('Page.navigate', { url: fixture.href })
     await wait(`!!window.actionFixture&&document.querySelectorAll('.elements .action-button').length===6`)
+    assert(await evaluate(`(() => {
+      const connection=document.querySelector('section[aria-label="Account and wallet"]')
+      const labels=[...connection.querySelectorAll('dt')]
+      return labels.find(label=>label.textContent==='Viewing as')?.nextElementSibling.textContent==='0x1111...1111'
+        && labels.find(label=>label.textContent==='Signing wallet')?.nextElementSibling.textContent==='0x2222222222222222222222222222222222222222'
+        && !connection.querySelector('details').open && connection.querySelector('summary').innerText.includes('eip155:31337')
+        && !connection.querySelector('.wallet-button').disabled
+    })()`), 'viewing and signing identities and chain remain visible before expanding details')
+    await evaluate(`document.querySelector('.wallet-button').click()`)
+    assert(await evaluate(`window.actionFixture.events.wallet===1&&window.actionFixture.events.send===0`), 'wallet connection remains usable without sending a transaction')
     assert(await evaluate(`(() => { const group=document.querySelector('section[aria-label="Fixture actions"]');return group?.querySelector('h2')?.textContent==='Fixture actions'&&!!group.querySelector('input[name="draft"]')&&group.querySelectorAll('.action-button').length===6 })()`), 'a declared group keeps its heading, inputs and commands together')
     assert(await evaluate(`
       [...document.querySelectorAll('button')].every(button =>
@@ -44,15 +54,14 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       return {
         commandsOutlined: command.backgroundColor !== command.borderColor && command.borderStyle === 'solid',
         readDistinct: signature(read) !== signature(write) && getComputedStyle(read).backgroundColor === 'rgba(0, 0, 0, 0)',
-        kindsVisible: read.textContent.includes('Read only') && write.textContent.includes('Review transaction') && read.getAttribute('aria-description')==='Read only' && write.getAttribute('aria-description')==='Review transaction',
-        quietConsistent: quiet.every(button => signature(button) === signature(quiet[0])),
+        kindsVisible: read.textContent.includes('→') && !read.querySelector('.action-effect') && write.textContent.includes('Review transaction') && read.getAttribute('aria-description')==='Read only' && write.getAttribute('aria-description')==='Review transaction',
         quietDistinct: signature(quiet[0]) !== reference,
         quietUnfilled: quiet.every(button => getComputedStyle(button).backgroundColor === 'rgba(0, 0, 0, 0)' && getComputedStyle(button).borderColor === 'rgba(0, 0, 0, 0)'),
         sendFilled: send.backgroundColor === send.borderColor && send.backgroundColor !== command.backgroundColor,
       }
     })()`)
     assert(styles.readDistinct && styles.commandsOutlined && styles.kindsVisible, 'read-only actions and transaction reviews have distinct visible and accessible treatments even when labels suggest the opposite')
-    assert(styles.quietConsistent && styles.quietDistinct && styles.quietUnfilled, 'Back, Refresh, Discard and Cancel share a quiet supporting treatment')
+    assert(styles.quietDistinct && styles.quietUnfilled, 'Back, Refresh, Discard and Cancel have a quiet supporting treatment')
     assert(styles.sendFilled, 'only Send is filled')
 
     assert(await evaluate(`(() => {
@@ -98,6 +107,14 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
     }
     for (const width of [1280, 320]) {
       await call('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width === 320 })
+      await evaluate(`document.querySelector('.connection-details>summary').click()`)
+      assert(await evaluate(`(() => {
+        const details=document.querySelector('.connection-details')
+        return details.open && details.innerText.includes('eip155:31337')
+          && details.innerText.includes('0x1111111111111111111111111111111111111111')
+          && details.innerText.includes('0x3333333333333333333333333333333333333333')
+          && details.innerText.includes('Switching wallet accounts')
+      })()`), 'native connection disclosure reveals full addresses, chain and account behavior')
       const layout = await evaluate(`(() => {
         const rows = [...document.querySelectorAll('.elements>.key-value')]
         const values = rows.map(row => row.lastElementChild.getBoundingClientRect())
@@ -112,6 +129,7 @@ export async function checkActionStyles({ call, evaluate, viewerURL }) {
       assert(!layout.overflow && layout.aligned && layout.fit, 'long command labels wrap without overflow or shifting Status values')
       assert.equal(layout.draft, 'unchanged')
       assert.equal(layout.sends, 0)
+      await evaluate(`document.querySelector('.connection-details>summary').click()`)
     }
     return { widths: [1280, 320], actionKindsDistinct: true, supportingQuiet: true, sendFilled: true, disabledAndBusyPreserved: true, nativeKeyboardUnverified: true }
   } catch (error) {

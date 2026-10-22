@@ -19,6 +19,7 @@ body {
   color: var(--ink);
   background: var(--bg);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.45;
 }
 
 button,
@@ -67,20 +68,18 @@ dd {
 }
 
 h1 {
-  font-size: 2.4rem;
-  line-height: 1.02;
-  letter-spacing: 0;
+  font-size: 2.1rem;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
 }
 
 .connection {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-  gap: 16px 24px;
-  margin-bottom: 20px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
+  gap: 12px 24px;
+  margin-bottom: 16px;
+  padding-block: 4px 16px;
+  border-bottom: 1px solid var(--line);
 }
 
 .key-value {
@@ -91,11 +90,14 @@ h1 {
 
 .connection-account, .connection-wallet { min-width: 0; }
 .connection-account dd, .connection-wallet dd { margin-top: 4px; }
-.connection-account code { font-size: 1.1rem; }
+.connection-account code { font-size: 1rem; }
 .connection .wallet-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
-.connection-facts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 24px; padding-top: 12px; border-top: 1px solid var(--line); }
-.connection-facts > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
-.connection-facts dd { font-size: 0.82rem; color: var(--muted); }
+.connection-details { grid-column: 1 / -1; min-width: 0; font-size: 0.82rem; }
+.connection-details > summary { width: fit-content; color: var(--muted); cursor: pointer; }
+.connection-details .field-hint { font-size: inherit; }
+.connection-facts { display: grid; gap: 8px; padding-top: 12px; }
+.connection-facts > div { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 6px; }
+.connection-facts dd { color: var(--muted); }
 
 dt {
   color: var(--muted);
@@ -166,12 +168,18 @@ dd,
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 4px 12px;
+  padding: 6px 16px;
   color: var(--muted);
   border-bottom: 1px solid var(--line);
   font-size: 0.82rem;
 }
+
+.ui-meta > button { padding-inline: 0; }
+.ui-meta > details { min-width: 0; }
+.ui-meta summary { cursor: pointer; }
+.ui-meta > details[open] { flex-basis: 100%; }
+.ui-meta > details[open] > summary { margin-block-end: 8px; }
 
 .ui-meta span {
   min-width: 0;
@@ -184,7 +192,7 @@ dd,
   min-width: 0;
   margin: 0;
   border: 0;
-  padding: 16px;
+  padding: 20px;
 }
 
 .ui-section { min-width: 0; display: flow-root; padding-block: 20px; border-top: 1px solid var(--line); }
@@ -194,6 +202,7 @@ dd,
 .ui-section > .key-value + .key-value { margin-block-start: 0; }
 .ui-section > .text-row { color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
 .ui-section > .action-button { margin-inline-end: 8px; vertical-align: top; }
+.ui-section > .action-button.button-quiet { padding-inline: 0; margin-inline-end: 20px; }
 .ui-section .ui-section { margin-block-start: 16px; padding: 0 0 0 16px; border-top: 0; border-inline-start: 2px solid var(--line); }
 .ui-section .ui-section > :is(h3, h4, h5, h6) { font-size: 0.95rem; }
 .ui-section > :is(.field, fieldset) { margin-block-start: 16px; }
@@ -277,8 +286,7 @@ input {
 input:focus-visible,
 textarea:focus-visible,
 button:focus-visible,
-.ui summary:focus-visible,
-.panel summary:focus-visible {
+summary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -325,6 +333,7 @@ button:focus-visible,
 
 .action-button { text-align: start; }
 .action-effect { display: block; font-size: 0.75em; font-weight: 400; margin-block-start: 2px; }
+.action-arrow { white-space: nowrap; }
 
 .button-quiet:not(:disabled):hover {
   text-decoration: underline;
@@ -350,6 +359,12 @@ button:focus-visible,
   }
 
   h1 {
-    font-size: 1.9rem;
+    font-size: 1.75rem;
   }
+}
+
+@media (max-width: 480px) {
+  .app-shell { width: calc(100% - 24px); padding-block: 24px; }
+  .elements { padding: 16px; }
+  .connection-facts > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }

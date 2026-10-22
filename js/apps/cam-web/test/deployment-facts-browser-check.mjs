@@ -26,7 +26,7 @@ export async function checkDeploymentFacts({ call, evaluate }) {
     await evaluate(`document.querySelector('#local-fixture-facts button').click()`)
     await wait(`document.querySelector('#local-fixture-facts [role="status"]')?.textContent.startsWith('Checked at block')`)
     if (records.rows.length > 0) {
-      const connection = await evaluate(`(() => { const selector=document.getElementById('local-fixture-wallet-role');const role=[...selector.options].find(option=>option.value!==selector.value).value;window.__fixtureWallet.setRole(role);return {role,address:document.querySelector('#local-fixture-wallet .wallet-controls > code').textContent} })()`)
+      const connection = await evaluate(`(() => { const selector=document.getElementById('local-fixture-wallet-role');const role=[...selector.options].find(option=>option.value!==selector.value).value;window.__fixtureWallet.setRole(role);return {role,address:document.querySelector('#local-fixture-wallet input[readonly][aria-label="Selected account address"]').value} })()`)
       await wait(`document.querySelector('#local-fixture-facts [role="status"]')?.textContent.startsWith('Checked at block')`)
       await evaluate(`document.querySelector('.wallet-button').click()`)
       await wait(`new URL(location.href).searchParams.get('account')?.toLowerCase()===${JSON.stringify(connection.address.toLowerCase())}&&!document.querySelector('.wallet-button').disabled&&!document.querySelector('.elements').disabled`)

@@ -2,7 +2,7 @@ import { createElement } from "react"
 import { createRoot } from "react-dom/client"
 import type { ResolvedButtonNode } from "@cam/screen"
 import type { CamViewerLoadedSnapshot, CamViewerPreparedContractCall } from "@cam/viewer"
-import { PreparedCallView, UiView } from "../src/components.tsx"
+import { ConnectionSummary, PreparedCallView, UiView } from "../src/components.tsx"
 import "../src/styles.css"
 
 const element = document.getElementById("root")
@@ -43,8 +43,14 @@ function render(): void {
     onAction: async (action: ResolvedButtonNode) => { const kind = fixtureActionKind(action); events[kind]++; if (kind === "contractCall") prepared = true; render() },
     onInput: (_name: string, value: string) => { draft = value; render() }, onAmount: () => {}, onInteger: () => {}, onDuration: () => {}, onDocumentHash: async () => { events.calculate++ }, onCancelDocumentHash: () => { events.cancel++ },
   }
-  root.render(createElement("div", null,
-    createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
+  root.render(createElement("main", { className: "app-shell" },
+    createElement(ConnectionSummary, {
+      chainId: "eip155:31337", host: "0x3333333333333333333333333333333333333333",
+      account: "0x1111111111111111111111111111111111111111",
+      wallet: "0x2222222222222222222222222222222222222222",
+      walletHint: "Switching wallet accounts updates Viewing as and clears the transaction review.",
+      walletAction: createElement("button", { className: "wallet-button", type: "button", disabled: busy || sending, onClick: () => { events.wallet++ } }, "Reconnect wallet"),
+    }),
     createElement(UiView, props),
     prepared ? createElement(PreparedCallView, { call, reviewRef: null, canSend: !busy, canDiscard: !busy && !sending, sending, onSend: async () => { events.send++ }, onDiscard: () => { prepared = false; render() } }) : null,
   ))

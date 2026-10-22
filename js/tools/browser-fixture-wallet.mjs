@@ -133,7 +133,7 @@ function installFixtureWallet(options) {
     role = name
     connected = true
     if (select !== undefined) select.value = role
-    if (accountLabel !== undefined) accountLabel.textContent = addresses[role]
+    if (accountLabel !== undefined) { accountLabel.value = addresses[role]; accountLabel.title = addresses[role] }
     emit('accountsChanged', [addresses[role]])
     if (factsPanel?.open) void refreshFacts()
   }
@@ -235,14 +235,19 @@ function installFixtureWallet(options) {
     if (closed) return
     const bar = document.createElement('aside')
     bar.id = 'local-fixture-wallet'
-    bar.style.cssText = 'flex:0 1 auto;min-height:0;margin:0;box-sizing:border-box;background:#fff3c4;color:#242424;border:0;border-bottom:2px solid #826000;padding:10px 16px;font:14px/1.4 system-ui;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px'
+    bar.style.cssText = 'flex:0 1 auto;min-height:0;margin:0;box-sizing:border-box;background:#fff8df;color:#41391f;border:0;border-bottom:1px solid #d9c991;padding:6px 16px;font:13px/1.4 system-ui;display:flex;align-items:center;flex-wrap:wrap;gap:6px 16px'
     const layout = document.createElement('style')
     layout.textContent = `
       html { overflow: hidden; }
       body { margin: 0; height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
       body > #root { flex: 1 0 3rem; min-height: 0; min-width: 0; overflow: auto; overscroll-behavior: contain; }
-      #local-fixture-wallet .wallet-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; min-width: 0; }
+      #local-fixture-wallet .wallet-controls { display: contents; }
+      #local-fixture-wallet label { display: flex; align-items: center; gap: 6px; }
+      #local-fixture-wallet select { min-height: 30px; font: inherit; }
+      #local-fixture-wallet .wallet-address { width: 16ch; min-width: 0; padding: 4px 0; border: 0; background: transparent; color: inherit; font: 12px/1.4 monospace; text-overflow: ellipsis; }
+      #local-fixture-wallet .wallet-warning { flex: 1 1 auto; }
       #local-fixture-facts { min-width: 0; min-height: 0; max-height: 40dvh; overflow: auto; overscroll-behavior: contain; }
+      #local-fixture-facts[open] { flex-basis: 100%; }
       #local-fixture-facts summary { cursor: pointer; }
       #local-fixture-facts section { border-top: 1px solid #b9a777; padding-block: 8px; }
       #local-fixture-facts p { margin-block: 4px; }
@@ -253,21 +258,26 @@ function installFixtureWallet(options) {
       #local-fixture-facts .fixture-facts-error code { display: block; font-size: 0.875em; margin-block-start: 8px; }
     `
     const label = document.createElement('label')
-    label.textContent = 'Local test wallet · chain 31337 · account '
+    label.textContent = 'Account'
     select = document.createElement('select')
     select.id = 'local-fixture-wallet-role'
     for (const name of Object.keys(addresses)) { const option = document.createElement('option'); option.value = name; option.textContent = name; select.append(option) }
     select.value = role
     select.onchange = () => setRole(select.value)
     label.append(select)
-    accountLabel = document.createElement('code')
-    accountLabel.textContent = addresses[role]
-    accountLabel.style.cssText = 'overflow-wrap:anywhere;min-width:0;max-width:100%'
+    accountLabel = document.createElement('input')
+    accountLabel.type = 'text'
+    accountLabel.readOnly = true
+    accountLabel.value = addresses[role]
+    accountLabel.title = addresses[role]
+    accountLabel.className = 'wallet-address'
+    accountLabel.setAttribute('aria-label', 'Selected account address')
     const explanation = document.createElement('span')
-    explanation.textContent = options.confirmTransactions ? 'Public test accounts. Confirming a send submits immediately on this local chain.' : 'Local test accounts. The test process submits transactions.'
+    explanation.className = 'wallet-warning'
+    explanation.textContent = options.confirmTransactions ? 'Public accounts · confirming a send submits immediately.' : 'Public accounts · the test process submits transactions.'
     const controls = document.createElement('div')
     controls.className = 'wallet-controls'
-    controls.append(label, accountLabel, explanation)
+    controls.append(element('strong', 'Local test wallet · chain 31337'), label, accountLabel, explanation)
     bar.append(layout, controls)
     if (options.deploymentFacts) {
       factsPanel = document.createElement('details')

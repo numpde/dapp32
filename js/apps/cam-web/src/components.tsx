@@ -53,19 +53,22 @@ export function ConnectionSummary({
     <section className="connection" aria-label="Account and wallet">
       <div className="connection-account">
         <dl><dt>Viewing as</dt><dd><code title={account}>{shortenAddress(account)}</code></dd></dl>
-        <p className="field-hint">Shows the actions available to this address.</p>
       </div>
       <div className="connection-wallet">
         <div className="wallet-controls">
-          <dl><dt>Wallet</dt><dd role="status">{wallet}</dd></dl>
+          <dl><dt>Signing wallet</dt><dd role="status">{wallet}</dd></dl>
           {walletAction}
         </div>
-        <p className="field-hint">{walletHint}</p>
       </div>
-      <dl className="connection-facts">
-        <div><dt>Chain</dt><dd>{chainId}</dd></div>
-        <div><dt>CAM contract</dt><dd><code title={host}>{shortenAddress(host)}</code></dd></div>
-      </dl>
+      <details className="connection-details">
+        <summary>Connection details · {chainId}</summary>
+        <p className="field-hint">Viewing as shows the actions available to that address.</p>
+        <p className="field-hint">{walletHint}</p>
+        <dl className="connection-facts">
+          <div><dt>Viewing address</dt><dd><code>{account}</code></dd></div>
+          <div><dt>CAM contract</dt><dd><code>{host}</code></dd></div>
+        </dl>
+      </details>
     </section>
   )
 }
@@ -264,7 +267,9 @@ function UiNodeView({
           }}
         >
           {label}
-          <span className="action-effect" aria-hidden="true">{effect}{kind === "navigate" ? " →" : ""}</span>
+          {kind === "navigate"
+            ? <span className="action-arrow" aria-hidden="true"> →</span>
+            : <span className="action-effect" aria-hidden="true">{effect}</span>}
         </button>
       )
     }

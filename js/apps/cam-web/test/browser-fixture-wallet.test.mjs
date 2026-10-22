@@ -25,6 +25,26 @@ function descendants(node) { return [node, ...node.children.flatMap(descendants)
 const text = node => descendants(node).map(item => item.textContent).join(' ')
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
+test('fixture strip keeps account selection and the full copyable address available outside deployment details', () => {
+  const { owner, elements } = install(undefined, true)
+  const bar = elements.get('local-fixture-wallet')
+  const panel = descendants(bar).find(node => node.tagName === 'DETAILS')
+  const selector = descendants(bar).find(node => node.tagName === 'SELECT')
+  const addressField = descendants(bar).find(node => node.tagName === 'INPUT')
+  assert(!descendants(panel).includes(selector))
+  assert(!descendants(panel).includes(addressField))
+  assert.equal(addressField.getAttribute('aria-label'), 'Selected account address')
+  assert.equal(addressField.readOnly, true)
+  assert.equal(addressField.value, address)
+  selector.value = 'bob'
+  selector.onchange()
+  assert.equal(addressField.value, other)
+  assert.equal(addressField.title, other)
+  assert.match(text(bar), /Local test wallet · chain 31337/)
+  assert.match(text(bar), /Public accounts · the test process submits transactions/)
+  owner.shutdown()
+})
+
 test('fixture provider retains safe submission evidence across the browser bridge', async () => {
   const { owner, sent } = install(undefined, false)
   await owner.provider.request({ method: 'eth_requestAccounts' })
